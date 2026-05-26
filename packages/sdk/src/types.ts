@@ -57,7 +57,14 @@ export type SimulationResult = {
 export type PreviewResult = {
   approved: boolean;
   calls: Call[];
+  /** Short denial descriptor from the kernel's previewBatch (empty when approved). */
+  reason?: string;
   simulation?: SimulationResult;
+};
+
+/** Minimal result of a state-changing call: the submitted transaction hash. */
+export type TxResult = {
+  txHash: Hex;
 };
 
 /** Manager session state on a Safe. */
@@ -120,6 +127,10 @@ export type MandateDraftInput = {
 export type SailorClientConfig = {
   rpcUrl: string;
   chainId: number;
+  /** Deployed SailKernel address on this chain. Required for on-chain operations. */
+  kernel?: Address;
+  /** Deployed MandateFactory address on this chain. Required for bundled attach flows. */
+  mandateFactory?: Address;
 };
 
 export type CreateAccountParams = {
@@ -127,8 +138,16 @@ export type CreateAccountParams = {
   permissionSigner: Address;
   manager: Address;
   chainId: number;
-  /** Optional CREATE2 salt for deterministic Safe deployment. */
-  salt?: Hex;
+  /** Safe proxy factory (must be governance-trusted). Required to deploy the SMA. */
+  safeFactory?: Address;
+  /** Safe singleton/implementation (must be governance-trusted). Required to deploy. */
+  safeSingleton?: Address;
+  /** ABI-encoded Safe `setup` calldata used during proxy deployment. Required to deploy. */
+  safeInitializer?: Hex;
+  /** Caller-chosen nonce combined with msg.sender to form the CREATE2 salt. */
+  saltNonce?: bigint;
+  /** Fee policy contract; address(0)/undefined means no fee policy. */
+  feePolicy?: Address;
 };
 
 export type RegisterAccountParams = {
@@ -286,7 +305,7 @@ export interface IFeesNamespace {
     nav: bigint,
     token: Address,
     manager: ILocalKeyring,
-  ): Promise<void>;
+  ): Promise<TxResult>;
 }
 
 export interface IPrincipalNamespace {
@@ -294,12 +313,12 @@ export interface IPrincipalNamespace {
    * Records an LP deposit in the kernel's principal ledger.
    * Used to track cost basis for performance fee calculations.
    */
-  recordDeposit(safe: Address, amount: bigint, signer: ILocalKeyring): Promise<void>;
+  recordDeposit(safe: Address, amount: bigint, signer: ILocalKeyring): Promise<TxResult>;
 
   /**
    * Records an LP withdrawal in the kernel's principal ledger.
    */
-  recordWithdrawal(safe: Address, amount: bigint, signer: ILocalKeyring): Promise<void>;
+  recordWithdrawal(safe: Address, amount: bigint, signer: ILocalKeyring): Promise<TxResult>;
 }
 
 export interface ISailorClient {
