@@ -1,5 +1,6 @@
 import { checksum, readJsonFile, sailPath } from "../lib/io.js";
 import { keyExists } from "../lib/keys.js";
+import { isProcessAlive, readAgentPid } from "../lib/process.js";
 import type { StoredAccount, StoredMandate, StoredSession } from "../lib/state.js";
 
 /**
@@ -38,13 +39,17 @@ export async function status(): Promise<void> {
   }
 
   console.log("Agent:");
+  const pid = readAgentPid();
+  const running = pid !== null && isProcessAlive(pid);
   let agentState: string;
-  if (!mandate) {
+  if (running) {
+    agentState = `running (PID ${pid})`;
+  } else if (!mandate) {
     agentState = "not configured";
   } else if (session && session.active === false) {
     agentState = "stopped (session paused)";
   } else {
-    agentState = "running";
+    agentState = "stopped";
   }
   console.log(`  ${agentState}`);
 }
