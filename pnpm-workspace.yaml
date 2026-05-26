@@ -1,6 +1,9 @@
 packages:
   - "packages/*"
   - "templates/*"
+# Allow viem's `ox` transitive dependency, which wevm resolves via a URL.
+# pnpm 11 reads this setting from here, not from .npmrc.
+blockExoticSubdeps: false
 allowBuilds:
   '@biomejs/biome': true
   bufferutil: true
