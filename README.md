@@ -1,2 +1,2 @@
 # sail-operator
-toolkit for building and operating sail protocol onchain SMAs run by agents. 
+Toolkit for building and operating Sail Protocol onchain SMAs run by agents. 
