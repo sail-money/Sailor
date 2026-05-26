@@ -1,14 +1,31 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import { accountCreate } from "./commands/account.js";
 import { initCommand } from "./commands/init.js";
+import { keysGenerate, keysShow } from "./commands/keys.js";
+import { mandateSign } from "./commands/mandate.js";
+import { sessionPause, sessionResume } from "./commands/session.js";
+import { status } from "./commands/status.js";
 import { uiCommand } from "./commands/ui.js";
+import { closePrompts } from "./lib/io.js";
 
 const program = new Command();
 
-program
-  .name("sailor")
-  .description("Operator toolkit for Sail Protocol")
-  .version("0.1.0");
+program.name("sailor").description("Operator toolkit for Sail Protocol").version("0.1.0");
+
+/** Wraps a command action with consistent error handling and prompt cleanup. */
+function action(fn: () => Promise<void>): () => Promise<void> {
+  return async () => {
+    try {
+      await fn();
+    } catch (err) {
+      console.error(`Error: ${(err as Error).message}`);
+      closePrompts();
+      process.exit(1);
+    }
+    closePrompts();
+  };
+}
 
 // ── Implemented ───────────────────────────────────────────────────────────────
 
@@ -27,14 +44,44 @@ program
 program
   .command("ui")
   .description("Open the local dashboard at localhost:3333")
-  .action(async () => {
-    try {
-      await uiCommand();
-    } catch (err) {
-      console.error(`Error: ${(err as Error).message}`);
-      process.exit(1);
-    }
-  });
+  .action(action(uiCommand));
+
+const keys = program.command("keys").description("Manage local signing keys");
+keys
+  .command("generate")
+  .description("Generate and encrypt a manager or permissionSigner key")
+  .action(action(keysGenerate));
+keys
+  .command("show")
+  .description("Show the address of each stored key")
+  .action(action(keysShow));
+
+const account = program.command("account").description("Manage the Sail SMA");
+account
+  .command("create")
+  .description("Create a new Sail SMA on-chain")
+  .action(action(accountCreate));
+
+const mandate = program.command("mandate").description("Manage mandates");
+mandate
+  .command("sign")
+  .description("Review and sign the agent's mandate")
+  .action(action(mandateSign));
+
+program
+  .command("status")
+  .description("Show current account, mandate, and session status")
+  .action(action(status));
+
+const session = program.command("session").description("Control the manager session");
+session
+  .command("pause")
+  .description("Pause the manager session (revoke dispatch rights)")
+  .action(action(sessionPause));
+session
+  .command("resume")
+  .description("Resume a paused session")
+  .action(action(sessionResume));
 
 // ── Stubs ─────────────────────────────────────────────────────────────────────
 
@@ -49,12 +96,7 @@ function stub(name: string, description: string): void {
 }
 
 stub("wizard", "Walk through the interactive setup wizard");
-stub("account create", "Create a new Sail SMA on-chain");
-stub("mandate sign", "Sign and attach a mandate to a Safe");
 stub("dispatch preview", "Preview a dispatch without submitting");
 stub("run", "Start the agent runner (cron or one-shot)");
-stub("status", "Show current account and session status");
-stub("session pause", "Pause the manager session (revoke dispatch rights)");
-stub("session resume", "Resume a paused session");
 
 program.parse(process.argv);

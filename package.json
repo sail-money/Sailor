@@ -5,7 +5,7 @@
   "description": "Operator toolkit for Sail Protocol",
   "scripts": {
     "build": "pnpm --filter @sail/sdk build && pnpm --filter '!@sail/sdk' -r build",
-    "typecheck": "pnpm --filter @sail/sdk build && pnpm -r typecheck",
+    "typecheck": "pnpm --filter @sail/sdk build && pnpm --filter @sail/chains build && pnpm -r typecheck",
     "lint": "biome check ."
   },
   "devDependencies": {
