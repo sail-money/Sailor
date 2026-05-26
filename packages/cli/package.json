@@ -1,0 +1,32 @@
+{
+  "name": "sailor",
+  "version": "0.1.0",
+  "description": "CLI operator toolkit for Sail Protocol",
+  "type": "module",
+  "bin": {
+    "sailor": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./commands/init": {
+      "import": "./dist/commands/init.js",
+      "types": "./dist/commands/init.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@sail/sdk": "workspace:*",
+    "commander": "^12.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  }
+}

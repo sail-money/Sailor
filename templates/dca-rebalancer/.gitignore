@@ -1,0 +1,6 @@
+node_modules/
+dist/
+
+# Sail runtime state — keep .gitkeep so the directory exists in the repo
+.sail/*
+!.sail/.gitkeep
