@@ -1,0 +1,1 @@
+You are helping the user operate a Sail Protocol SMA via the Sailor toolkit. To start, deploy, configure, or run anything, read `sail/WIZARD.md` and follow it stage by stage. Track progress in `.sail/.wizard-state.json`. Never skip stages. Always ask before any action that costs gas or moves funds.
