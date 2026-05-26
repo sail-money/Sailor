@@ -1,0 +1,127 @@
+import '@rainbow-me/rainbowkit/styles.css'
+import React, { useEffect, useState } from 'react'
+import ReactDOM from 'react-dom/client'
+import { RainbowKitProvider } from '@rainbow-me/rainbowkit'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { WagmiProvider } from 'wagmi'
+import App from './App'
+import Signing from './pages/signing/Signing'
+import Dashboard from './pages/dashboard/Dashboard'
+import AgentPage from './pages/dashboard/AgentPage'
+import MandatePage from './pages/dashboard/MandatePage'
+import JournalPage from './pages/dashboard/JournalPage'
+import DemoConsole from './demo/DemoConsole'
+import { wagmiConfig } from './wagmi'
+import './styles/globals.css'
+
+const queryClient = new QueryClient()
+
+function readRoute() {
+  if (typeof window === 'undefined') return '/'
+  const raw = window.location.hash.replace(/^#/, '') || '/'
+  return raw.startsWith('/') ? raw : `/${raw}`
+}
+
+function Router() {
+  const [route, setRoute] = useState(readRoute)
+
+  // Default landing for the local UI is the dashboard. The marketing
+  // landing page remains accessible at #/landing.
+  useEffect(() => {
+    if (route === '/' || route === '') {
+      window.location.replace('#/dashboard')
+    }
+  }, [route])
+
+  useEffect(() => {
+    const onHash = () => setRoute(readRoute())
+    window.addEventListener('hashchange', onHash)
+
+    // Shift+D toggles the demo console
+    const onKey = (e) => {
+      if (e.shiftKey && (e.key === 'D' || e.key === 'd') && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const target = e.target
+        const tag = target?.tagName
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return
+        try {
+          const current = localStorage.getItem('sail.demoConsole')
+          localStorage.setItem('sail.demoConsole', current === 'hidden' ? 'visible' : 'hidden')
+          window.location.reload()
+        } catch {}
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('hashchange', onHash)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [])
+
+  let page
+  if (route.startsWith('/signing')) page = <Signing key={route} />
+  else if (route.startsWith('/mandate/')) {
+    // /mandate/:id — the canonical home for contract + permissions
+    // detail. Revoking from here triggers the contract animation, then
+    // routes back to the dashboard.
+    const id = route.slice('/mandate/'.length).split('?')[0]
+    page = (
+      <MandatePage
+        key={route}
+        mandateId={id}
+        onBack={() => { window.location.hash = '#/dashboard' }}
+        onRevoke={() => { window.location.hash = '#/dashboard' }}
+      />
+    )
+  }
+  else if (route.startsWith('/agent/')) {
+    // /agent/:id — agent-only detail (identity, gas, decision journal,
+    // runs, stop/resume). Mandate + permission detail lives under
+    // /mandate/:id now.
+    const id = route.slice('/agent/'.length).split('?')[0]
+    page = (
+      <AgentPage
+        key={route}
+        agentId={id}
+        onBack={() => { window.location.hash = '#/dashboard?demo=full' }}
+        onEdit={() => { window.location.hash = `#/dashboard?edit=${id}` }}
+        onRevoke={() => { window.location.hash = '#/dashboard?demo=full' }}
+      />
+    )
+  }
+  else if (route.startsWith('/journal/')) {
+    // /journal/:entryId — full-page detail of one Decision Journal
+    // entry. Replaces the older right-side drawer; users get the same
+    // visual chrome as MandatePage/AgentPage and can step through
+    // adjacent entries from inside the page.
+    const id = route.slice('/journal/'.length).split('?')[0]
+    page = (
+      <JournalPage
+        key={route}
+        entryId={id}
+        onBack={() => { window.location.hash = '#/dashboard' }}
+      />
+    )
+  }
+  else if (route.startsWith('/dashboard')) page = <Dashboard key={route} />
+  else if (route.startsWith('/landing')) page = <App />
+  else page = <Dashboard key={route} />
+
+  return (
+    <>
+      {page}
+      <DemoConsole />
+    </>
+  )
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <WagmiProvider config={wagmiConfig}>
+      <QueryClientProvider client={queryClient}>
+        <RainbowKitProvider>
+          <Router />
+        </RainbowKitProvider>
+      </QueryClientProvider>
+    </WagmiProvider>
+  </React.StrictMode>,
+)

@@ -1,0 +1,392 @@
+/* ═══════════════════════════════════════════════════════
+   SailEngineLayers — scroll-driven isometric engine section
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Scroll container ─────────────────────────────────── */
+.section {
+  position: relative;
+  height: 160vh;          /* scroll distance for three layers */
+  /* no background — sits on top of AmbientBackground */
+}
+
+/* ── Sticky frame ─────────────────────────────────────── */
+.sticky {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  padding: 48px 24px 32px;
+  overflow: hidden;
+}
+
+/* ── Ambient glow behind the whole section ────────────── */
+.sticky::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 70% 50%, rgba(43,128,255,0.06) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 30% at 30% 50%, rgba(50,220,120,0.04) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+/* ── Section header (pill + h2 + subtitle) ────────────── */
+.sectionHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  position: relative;
+  z-index: 1;
+}
+
+.sectionLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(0,55,200,0.18);
+  border: 1px solid rgba(0,55,200,0.28);
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ocean-cyan);
+}
+
+.labelDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ocean-cyan);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(0.7); }
+}
+
+.sectionTitle {
+  font-family: 'Instrument Sans', Georgia, serif;
+  font-size: clamp(32px, 5vw, 52px);
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: #fff;
+  margin: 0;
+}
+
+.sectionSub {
+  font-size: 17px;
+  color: rgba(255,255,255,0.55);
+  margin: 0;
+  max-width: 520px;
+  line-height: 1.65;
+}
+
+/* ── Inner two-column layout ──────────────────────────── */
+.inner {
+  display: flex;
+  align-items: center;
+  gap: 48px;
+  width: 100%;
+  max-width: 1100px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Left panel ───────────────────────────────────────── */
+.panel {
+  flex: 0 0 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Step nav */
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  opacity: 0.35;
+  transition: opacity 0.4s ease;
+}
+
+.stepActive {
+  opacity: 1;
+}
+
+.stepLine {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+.stepNum {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--c) 40%, transparent);
+  background: color-mix(in srgb, var(--c) 10%, transparent);
+  color: var(--c);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease, opacity 0.4s ease;
+}
+
+.stepActive .stepNum {
+  background: color-mix(in srgb, var(--c) 18%, transparent);
+  border-color: color-mix(in srgb, var(--c) 70%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--c) 30%, transparent);
+}
+
+.stepTrack {
+  width: 1px;
+  height: 18px;
+  background: rgba(255,255,255,0.08);
+  margin: 3px 0;
+}
+
+.stepLbl {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.7);
+  padding-top: 6px;
+  letter-spacing: 0.02em;
+}
+
+.stepActive .stepLbl {
+  color: #fff;
+}
+
+/* Content card */
+.card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 16px;
+  padding: 24px;
+  backdrop-filter: blur(12px);
+  animation: cardIn 0.4s ease both;
+}
+
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid;
+  margin-bottom: 12px;
+}
+
+.cardTitle {
+  font-family: 'Instrument Sans', Georgia, serif;
+  font-size: clamp(18px, 2vw, 24px);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  color: #fff;
+  margin: 0 0 10px;
+  line-height: 1.2;
+}
+
+.cardDesc {
+  font-size: 13.5px;
+  color: rgba(255,255,255,0.5);
+  line-height: 1.65;
+  margin: 0 0 16px;
+}
+
+/* Bullet list */
+.bullets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bullet {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.7);
+  animation: bulletIn 0.35s ease both;
+  animation-delay: calc(var(--i) * 80ms + 100ms);
+}
+
+@keyframes bulletIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.bulletIcon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* ── Powered by Octane badge ──────────────────────────── */
+.poweredBy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  background: rgba(50, 220, 120, 0.05);
+  border: 1px solid rgba(50, 220, 120, 0.18);
+  border-radius: 10px;
+}
+
+.poweredByLabel {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  letter-spacing: 0.04em;
+}
+
+.octaneLogo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.octaneWordmark {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #32DC78;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.octaneSub {
+  font-size: 11px;
+  font-weight: 400;
+  color: rgba(50, 220, 120, 0.65);
+  letter-spacing: 0.04em;
+}
+
+/* ── Right: SVG visual ────────────────────────────────── */
+.visual {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  position: relative;
+}
+
+.svg {
+  width: 100%;
+  max-width: 480px;
+  height: auto;
+  filter: drop-shadow(0 0 40px rgba(43,128,255,0.08));
+}
+
+/* ── Progress dots ────────────────────────────────────── */
+.dots {
+  display: flex;
+  gap: 8px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  transition: background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease, opacity 0.4s ease;
+}
+
+.dotActive {
+  background: var(--c);
+  box-shadow: 0 0 8px var(--c);
+  width: 18px;
+  border-radius: 3px;
+}
+
+/* ── Scroll hint at bottom of section ────────────────── */
+.scrollHint {
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: rgba(255,255,255,0.25);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.scrollHint::after {
+  content: '';
+  width: 1px;
+  height: 28px;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.2), transparent);
+  animation: scrollDrop 1.5s ease-in-out infinite;
+}
+
+@keyframes scrollDrop {
+  0%   { transform: scaleY(0); transform-origin: top; }
+  50%  { transform: scaleY(1); transform-origin: top; }
+  100% { transform: scaleY(0); transform-origin: bottom; }
+}
+
+/* ── Responsive ───────────────────────────────────────── */
+@media (max-width: 900px) {
+  .section {
+    height: auto;   /* disable scroll pinning on mobile */
+  }
+
+  .sticky {
+    position: relative;
+    height: auto;
+    padding: 64px 20px;
+    gap: 40px;
+  }
+
+  .inner {
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  .panel {
+    flex: none;
+    width: 100%;
+    max-width: 480px;
+  }
+
+  .svg {
+    max-width: 360px;
+  }
+}

@@ -1,0 +1,969 @@
+/* User Card — right-side slide-in panel.
+   Identity → Balance → Deposit/Withdraw. */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(2, 4, 10, 0.50);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  animation: overlayFade 320ms var(--ease-out-expo) both;
+}
+@keyframes overlayFade { from { opacity: 0; } to { opacity: 1; } }
+
+.panel {
+  position: fixed;
+  top: 78px;
+  right: 18px;
+  z-index: 310;
+  /* Widened from 380 → 420 so each SMA card can comfortably hold
+     the address, multichain stack, action buttons, and the new
+     "Open in Safe" quick-link with breathing room. */
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 96px);
+  padding: 24px 22px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  color: #fff;
+  border-radius: 28px;
+  background:
+    radial-gradient(ellipse 120% 80% at 50% -10%, rgba(79, 135, 255, 0.22) 0%, transparent 60%),
+    linear-gradient(180deg, rgba(20, 52, 140, 0.68) 0%, rgba(14, 38, 108, 0.72) 100%);
+  backdrop-filter: blur(48px) saturate(180%);
+  -webkit-backdrop-filter: blur(48px) saturate(180%);
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.20),
+    0 24px 60px rgba(0, 0, 0, 0.45),
+    0 4px 16px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  animation: slideIn 460ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 18%;
+  right: 18%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.30) 50%, transparent);
+  pointer-events: none;
+}
+@keyframes slideIn {
+  from { transform: translateX(20px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+.panelOut {
+  animation: slideOut 320ms cubic-bezier(0.5, 0, 0.75, 0) forwards;
+}
+@keyframes slideOut {
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(20px); opacity: 0; }
+}
+
+/* ── Identity hero ── */
+.hero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatarRing {
+  width: 50px;
+  height: 50px;
+  flex-shrink: 0;
+  padding: 1.5px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0.05) 60%);
+  box-shadow:
+    0 6px 20px rgba(25, 144, 255, 0.32),
+    0 0 0 0.5px rgba(255, 255, 255, 0.10);
+}
+.avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse 80% 60% at 30% 25%, rgba(255, 255, 255, 0.30) 0%, transparent 60%),
+    linear-gradient(145deg, #5B96FF 0%, #1990FF 60%, #0E72E0 100%);
+  color: #fff;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.40);
+}
+
+.identity {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+/* EOA identity hero — kicker + monospace address with inline copy. */
+.identityKicker {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.identityAddress {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 2px 4px;
+  margin: 0 -4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.002em;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 180ms var(--ease-apple), background 180ms var(--ease-apple);
+}
+.identityAddress:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.identityCopyIcon {
+  color: var(--text-tertiary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.identityAddress:hover .identityCopyIcon { color: var(--text-primary); }
+
+.disconnectPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 200ms, background 200ms, border-color 200ms, transform 200ms var(--ease-apple);
+}
+.disconnectPill:hover {
+  color: #ff8a8a;
+  border-color: rgba(255, 107, 107, 0.42);
+  background: rgba(255, 107, 107, 0.07);
+}
+.disconnectPill:active {
+  transform: translateY(1px);
+}
+/* ── Divider ── */
+.divider {
+  height: 0.5px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.10) 20%, rgba(255,255,255,0.10) 80%, transparent);
+}
+
+/* ── SMAs section ──
+   The EOA is shown in the hero above; the SMAs section lists every
+   Separately Managed Account this EOA owns. One EOA can hold many. */
+.smasSection {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.smasHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px;
+}
+.smasKicker {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.smasCount {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.005em;
+}
+.smaList {
+  list-style: none;
+  margin: 0;
+  padding: 0 6px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* Scrollable area is the list itself, not the whole panel — keeps
+     the EOA hero and Disconnect pill anchored at the top so the
+     identity context never scrolls away. Soft fade at the top and
+     bottom signals "more content here" without a chunky scrollbar. */
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  /* Fade content as it approaches the top/bottom edges of the
+     scrollable area — Apple-style soft horizon. */
+  mask-image: linear-gradient(180deg,
+    transparent 0px,
+    #000 14px,
+    #000 calc(100% - 14px),
+    transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg,
+    transparent 0px,
+    #000 14px,
+    #000 calc(100% - 14px),
+    transparent 100%);
+  /* Firefox scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+.smaList::-webkit-scrollbar { width: 6px; }
+.smaList::-webkit-scrollbar-track { background: transparent; }
+.smaList::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  transition: background 200ms var(--ease-apple);
+}
+.smaList::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.32); }
+/* All list items keep their natural height; the parent .smaList is
+   the only thing that scrolls. */
+.smaList > li { flex-shrink: 0; }
+
+/* SMA card — identity row + per-SMA action bar (Deposit / Withdraw). */
+.smaCard {
+  display: flex;
+  flex-direction: column;
+  /* Lock natural height inside the scrollable flex column — without
+     this, cards collapse to ~96px under flex-shrink: 1 instead of
+     letting the parent overflow scroll. */
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: background 220ms var(--ease-apple),
+              border-color 220ms var(--ease-apple);
+}
+.smaCard:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+.smaCardPrimary {
+  background: linear-gradient(180deg, rgba(25, 144, 255, 0.10) 0%, rgba(25, 144, 255, 0.03) 100%);
+  border-color: rgba(25, 144, 255, 0.30);
+}
+.smaCardPrimary:hover {
+  background: linear-gradient(180deg, rgba(25, 144, 255, 0.16) 0%, rgba(25, 144, 255, 0.04) 100%);
+  border-color: rgba(25, 144, 255, 0.45);
+}
+
+.smaRow {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  font-family: 'DM Sans', sans-serif;
+  text-align: left;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 220ms var(--ease-apple);
+}
+.smaRow:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+.smaIcon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  color: var(--ocean-light);
+  background: rgba(25, 144, 255, 0.16);
+  border: 1px solid rgba(25, 144, 255, 0.32);
+  border-radius: 10px;
+}
+.smaBody {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.smaTitleRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.smaName {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.005em;
+}
+/* Inline-editable name input — sized to match the static title. */
+.smaNameInput {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.005em;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(25, 144, 255, 0.55);
+  border-radius: 6px;
+  padding: 2px 8px;
+  margin: -3px -4px;
+  min-width: 0;
+  max-width: 220px;
+  outline: none;
+  caret-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px rgba(25, 144, 255, 0.12);
+  transition: border-color 160ms var(--ease-apple);
+}
+.smaPrimaryBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ocean-foam);
+  background: rgba(25, 144, 255, 0.22);
+  border: 1px solid rgba(25, 144, 255, 0.42);
+  border-radius: 999px;
+}
+/* Pencil hint — visible only on row hover or focus to keep the
+   default state visually quiet. */
+.smaRename {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: var(--text-tertiary);
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 200ms var(--ease-apple),
+              color 200ms var(--ease-apple),
+              background 200ms var(--ease-apple);
+}
+.smaCard:hover .smaRename,
+.smaRename:focus-visible {
+  opacity: 1;
+}
+.smaRename:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+}
+.smaRename:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
+}
+.smaAddress {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  letter-spacing: 0.005em;
+  font-variant-numeric: tabular-nums;
+}
+.smaMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  margin-top: 1px;
+}
+.smaNetDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-blue);
+}
+.smaNetDot_arbitrum { background: #28A0F0; box-shadow: 0 0 5px rgba(40, 160, 240, 0.5); }
+.smaNetDot_base     { background: #2151F5; box-shadow: 0 0 5px rgba(33, 81, 245, 0.5); }
+.smaNetDot_ethereum { background: #627EEA; box-shadow: 0 0 5px rgba(98, 126, 234, 0.5); }
+.smaNetDot_optimism { background: #FF0420; box-shadow: 0 0 5px rgba(255, 4, 32, 0.5); }
+.smaNetDot_polygon  { background: #8247E5; box-shadow: 0 0 5px rgba(130, 71, 229, 0.5); }
+/* Stacked dot avatar for multichain SMAs — same dots, overlapped
+   by 3px with a small ring matching the wallet pill so they read
+   as a single cluster. */
+.smaNetStack {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.smaNetStack .smaNetDot {
+  width: 8px;
+  height: 8px;
+  margin-left: -3px;
+  border: 1.5px solid rgba(10, 17, 32, 0.95);
+  box-shadow: none;
+}
+.smaNetStack .smaNetDot:first-child { margin-left: 0; }
+.smaNetName { color: var(--text-secondary); }
+.smaMetaSep { color: var(--text-tertiary); opacity: 0.6; }
+.smaAgentCount { color: var(--text-tertiary); }
+.smaCopy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  color: var(--text-tertiary);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  flex-shrink: 0;
+  transition: color 180ms var(--ease-apple), background 180ms var(--ease-apple);
+}
+.smaRow:hover .smaCopy {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.10);
+}
+.smaCopy:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
+}
+
+/* Per-SMA action bar — Deposit + Withdraw scoped to this exact SMA. */
+.smaActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 0 10px 8px;
+}
+
+/* "Open in Safe" quick-link — tertiary tappable text link sitting
+   below Deposit/Withdraw. Calmer than the action buttons so it
+   doesn't compete; brand-blue tone signals "external trusted
+   destination" and matches Sail's quick-link grammar elsewhere. */
+.smaSafeLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 10px 10px;
+  padding: 9px 14px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.002em;
+  color: var(--ocean-light);
+  background: rgba(25, 144, 255, 0.06);
+  border: 1px solid rgba(25, 144, 255, 0.20);
+  border-radius: 12px;
+  text-decoration: none;
+  transition:
+    color 200ms var(--ease-apple),
+    background 200ms var(--ease-apple),
+    border-color 200ms var(--ease-apple),
+    transform 200ms var(--ease-apple);
+}
+.smaSafeLink:hover {
+  color: #fff;
+  background: rgba(25, 144, 255, 0.16);
+  border-color: rgba(25, 144, 255, 0.48);
+  transform: translateY(-1px);
+}
+.smaSafeLinkLabel {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0;
+  letter-spacing: -0.003em;
+}
+.smaSafeLinkChain {
+  color: var(--text-tertiary);
+  font-weight: 400;
+  font-size: 11.5px;
+  letter-spacing: 0.005em;
+}
+.smaSafeLink:hover .smaSafeLinkChain { color: rgba(255, 255, 255, 0.72); }
+.smaSafeLink svg {
+  transition: transform 200ms var(--ease-apple);
+}
+.smaSafeLink:hover svg {
+  transform: translate(1px, -1px);
+}
+.smaCardPrimary .smaActions {
+  border-top: 1px solid rgba(25, 144, 255, 0.18);
+  padding-top: 10px;
+  margin-top: 0;
+}
+.smaCard:not(.smaCardPrimary) .smaActions {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 10px;
+}
+.smaAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.004em;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    color 200ms var(--ease-apple),
+    background 200ms var(--ease-apple),
+    border-color 200ms var(--ease-apple),
+    transform 200ms var(--ease-apple);
+}
+.smaAction:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+.smaActionPrimary {
+  color: #fff;
+  background: linear-gradient(180deg, rgba(25, 144, 255, 0.78) 0%, rgba(25, 144, 255, 0.55) 100%);
+  border-color: rgba(25, 144, 255, 0.55);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+.smaActionPrimary:hover:not(:disabled) {
+  color: #fff;
+  background: linear-gradient(180deg, rgba(42, 155, 255, 0.92) 0%, rgba(25, 144, 255, 0.7) 100%);
+  border-color: rgba(25, 144, 255, 0.75);
+}
+
+/* Quiet "create another" tile under the existing SMAs. */
+.smaNew {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  /* Same flex-shrink lock as .smaCard so the "Create another"
+     affordance keeps its natural height inside the scrolling list. */
+  flex-shrink: 0;
+  padding: 12px 14px;
+  font-family: 'DM Sans', sans-serif;
+  text-align: left;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 220ms var(--ease-apple), border-color 220ms var(--ease-apple), transform 220ms var(--ease-apple);
+}
+.smaNew:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(25, 144, 255, 0.45);
+  transform: translateY(-1px);
+}
+.smaNewIcon {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: var(--text-tertiary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 10px;
+}
+.smaNewBody { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.smaNewTitle {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  letter-spacing: -0.005em;
+}
+.smaNewSub {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+/* ── Accounts block (legacy AccountRow — kept dormant) ──
+   Old two-row layout. No longer rendered; styles preserved in case a
+   deep link still references them. */
+.accounts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.acctRow {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  font-family: 'DM Sans', sans-serif;
+  text-align: left;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  cursor: pointer;
+  transition:
+    background 220ms var(--ease-apple),
+    border-color 220ms var(--ease-apple),
+    transform 220ms var(--ease-apple);
+}
+.acctRow:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+}
+.acctRowAccent {
+  background: linear-gradient(180deg, rgba(25, 144, 255, 0.10) 0%, rgba(25, 144, 255, 0.03) 100%);
+  border-color: rgba(25, 144, 255, 0.30);
+}
+.acctRowAccent:hover {
+  background: linear-gradient(180deg, rgba(25, 144, 255, 0.16) 0%, rgba(25, 144, 255, 0.04) 100%);
+  border-color: rgba(25, 144, 255, 0.45);
+}
+.acctIcon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+}
+.acctIconAccent {
+  color: var(--ocean-light);
+  background: rgba(25, 144, 255, 0.16);
+  border-color: rgba(25, 144, 255, 0.36);
+}
+.acctBody {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.acctLabel {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.acctValue {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-primary);
+  letter-spacing: 0.005em;
+  font-variant-numeric: tabular-nums;
+}
+.acctKicker {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.005em;
+  margin-top: 1px;
+}
+.acctCopy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: var(--text-tertiary);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  transition: color 200ms, background 200ms;
+}
+.acctRow:hover .acctCopy {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ── No-SMA empty state inside the profile panel ── */
+.noSMA {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  column-gap: 12px;
+  row-gap: 12px;
+  padding: 14px 14px 14px 14px;
+  background:
+    linear-gradient(180deg, rgba(25, 144, 255, 0.08) 0%, rgba(25, 144, 255, 0.02) 100%),
+    rgba(10, 22, 44, 0.45);
+  border: 1px dashed rgba(25, 144, 255, 0.34);
+  border-radius: 14px;
+}
+.noSMAIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  color: var(--ocean-light);
+  background: rgba(25, 144, 255, 0.14);
+  border: 1px solid rgba(25, 144, 255, 0.32);
+  border-radius: 10px;
+}
+.noSMABody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.noSMAKicker {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.noSMATitle {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.005em;
+}
+.noSMASub {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-top: 1px;
+}
+.noSMACta {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.002em;
+  color: #fff;
+  background: var(--accent-blue);
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 8px 18px -8px rgba(25, 144, 255, 0.7);
+  transition: background 200ms var(--ease-apple), transform 200ms var(--ease-apple);
+}
+.noSMACta:hover {
+  background: #2A9BFF;
+  transform: translateY(-1px);
+}
+.noSMACta:active { transform: translateY(0); }
+
+/* ── Balance hero ── */
+.balance {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 2px;
+}
+.balLabel {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.38);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+.balValWrap {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  font-family: 'Instrument Sans', 'DM Sans', serif;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.balCurrency {
+  font-family: 'Instrument Sans', 'DM Sans', serif;
+  font-size: 24px;
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: 400;
+  margin-right: 2px;
+  transform: translateY(-3px);
+}
+.balVal {
+  font-family: 'Instrument Sans', 'DM Sans', serif;
+  font-size: 40px;
+  font-weight: 600;
+  color: #fff;
+}
+.balMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.balDelta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #6fdda1;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(95, 210, 138, 0.10);
+  box-shadow: inset 0 0 0 0.5px rgba(95, 210, 138, 0.22);
+}
+.balSep {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+}
+.balLifetime {
+  color: rgba(255, 255, 255, 0.45);
+  font-weight: 500;
+}
+
+/* ── Actions ── */
+.actions {
+  display: flex;
+  gap: 10px;
+  padding: 4px 0 6px;
+}
+.actionBtn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0 4px;
+  border-radius: 18px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 200ms;
+}
+.actionBtn:hover { color: #fff; }
+
+.actionIcon {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(ellipse 80% 70% at 50% 0%, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.04) 70%);
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.20),
+    0 2px 8px rgba(0, 0, 0, 0.20);
+  color: rgba(255, 255, 255, 0.92);
+  transition: transform 220ms var(--ease-apple), background 220ms var(--ease-apple), box-shadow 220ms var(--ease-apple);
+}
+.actionBtn:hover .actionIcon {
+  transform: translateY(-1px);
+}
+.actionBtn:active .actionIcon {
+  transform: translateY(0);
+}
+
+/* Primary deposit — Sail blue gradient */
+.actionBtnPrimary { color: #fff; }
+.actionBtnPrimary .actionIcon {
+  color: #fff;
+  background:
+    radial-gradient(ellipse 80% 70% at 50% 0%, #5BA8FF 0%, #1990FF 55%, #0E72E0 100%);
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42),
+    0 6px 18px rgba(25, 144, 255, 0.45);
+}
+.actionBtnPrimary:hover .actionIcon {
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.40),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 8px 24px rgba(25, 144, 255, 0.6);
+}
+
+.actionLabel {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+/* ── Disconnect ── */
+.disconnect {
+  margin-top: 4px;
+  height: 36px;
+  width: 100%;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: color 200ms, background 200ms, border-color 200ms;
+}
+.disconnect:hover {
+  color: #ff8a8a;
+  border-color: rgba(255, 107, 107, 0.4);
+  background: rgba(255, 107, 107, 0.06);
+}
+
+@media (max-width: 480px) {
+  .panel { right: 12px; left: 12px; width: auto; }
+}

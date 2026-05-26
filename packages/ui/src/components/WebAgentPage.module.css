@@ -1,0 +1,153 @@
+/* ── Page shell ──────────────────────────────────────────────── */
+.page {
+  min-height: 100vh;
+  background: #030507;
+  color: white;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* ── Content ─────────────────────────────────────────────────── */
+.content {
+  position: relative;
+  z-index: 2;
+}
+
+/* ── Hero ─────────────────────────────────────────────────────── */
+.heroSection {
+  position: relative;
+  overflow: hidden;
+  background: #1990FF;
+  padding: 80px 48px 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.heroInner {
+  position: relative;
+  z-index: 1;
+  max-width: 1200px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 20px;
+}
+
+/* ── Nav row (back btn + badge) ── */
+.heroNav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  align-self: flex-start;
+  margin-left: 0;
+}
+
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0,0,0,0.15);
+  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.75);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 7px 14px;
+  border-radius: 100px;
+  transition: background 0.2s ease, color 0.2s ease;
+  font-family: inherit;
+  backdrop-filter: blur(8px);
+}
+.backBtn:hover {
+  background: rgba(0,0,0,0.25);
+  color: #fff;
+}
+
+.heroBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.70);
+  background: rgba(0,0,0,0.15);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 100px;
+  padding: 5px 14px;
+  backdrop-filter: blur(8px);
+}
+
+.heroBadgeDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 8px #fff;
+}
+
+.heroTitle {
+  font-family: 'Instrument Sans', Georgia, serif;
+  font-size: clamp(42px, 7vw, 80px);
+  font-weight: 400;
+  letter-spacing: -0.04em;
+  line-height: 1.04;
+  color: #fff;
+  margin: 0;
+}
+
+.heroTyped {
+  color: #ffffff;
+}
+
+.heroCursor {
+  display: inline-block;
+  width: 3px;
+  height: 0.85em;
+  background: #ffffff;
+  border-radius: 2px;
+  margin-left: 3px;
+  vertical-align: middle;
+  animation: heroCursorBlink 1s step-end infinite;
+}
+
+@keyframes heroCursorBlink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+.heroSubtitle {
+  font-size: 18px;
+  line-height: 1.7;
+  color: rgba(255,255,255,0.65);
+  max-width: 500px;
+  margin: 0;
+}
+
+/* ── Stacked section cards ────────────────────────────────────── */
+.sections {
+  position: relative;
+}
+
+.sectionCard {
+  border-radius: 20px 20px 0 0;
+  margin-top: -24px;
+  box-shadow: 0 -1px 0 rgba(25,144,255,0.10), 0 -32px 64px rgba(0,0,0,0.65);
+}
+
+@media (max-width: 768px) {
+  .heroSection { padding: 60px 24px 80px; }
+  .heroInner { text-align: left; align-items: flex-start; }
+  .heroSubtitle { font-size: 16px; }
+}
+
+@media (max-width: 480px) {
+  .heroSection { padding: 40px 16px 64px; }
+  .heroTitle { font-size: clamp(36px, 9vw, 52px); }
+  .heroSubtitle { font-size: 15px; }
+  .heroNav { flex-wrap: wrap; gap: 8px; }
+}

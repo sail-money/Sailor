@@ -1,0 +1,277 @@
+/* ══ Section ══════════════════════════════════════════════════════════════ */
+.features {
+  position: relative;
+  padding: clamp(80px, 12vh, 160px) 24px;
+  overflow: hidden;
+}
+
+.container {
+  max-width: 1240px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+}
+
+/* ══ Header ══════════════════════════════════════════════════════════════ */
+.title {
+  font-family: 'Instrument Sans', 'DM Sans', sans-serif;
+  font-size: clamp(30px, 4.4vw, 56px);
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: #fff;
+  text-align: center;
+  margin: 0 0 clamp(40px, 6vw, 80px);
+}
+
+.titleAccent {
+  font-family: 'DM Sans', sans-serif;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #66c2ff 0%, #1990FF 50%, #0e72cc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ══ Cards grid ══════════════════════════════════════════════════════════ */
+.cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 900px) {
+  .cards { grid-template-columns: 1fr; gap: 18px; }
+}
+
+/* ══ Immersive shader card ═════════════════════════════════════════════ */
+.card {
+  position: relative;
+  min-height: 560px;
+  border-radius: 28px;
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid rgba(102, 194, 255, 0.22);
+  display: flex;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+  transition: transform 0.45s var(--ease-out-expo), border-color 0.3s ease, box-shadow 0.45s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(102, 194, 255, 0.40);
+  box-shadow: 0 32px 90px rgba(0, 0, 0, 0.55), 0 0 60px rgba(25, 144, 255, 0.18);
+}
+
+.cardBg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.cardBg canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.cardContent {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 28px 32px 32px;
+  width: 100%;
+}
+
+/* Hover-only readability scrim */
+.cardTextBg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(3, 8, 22, 0.40) 0%,
+    rgba(3, 8, 22, 0.55) 40%,
+    rgba(3, 8, 22, 0.80) 75%,
+    rgba(3, 8, 22, 0.92) 100%
+  );
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
+  opacity: 0;
+  transition: opacity 0.45s var(--ease-out-expo);
+}
+
+.card:hover .cardTextBg {
+  opacity: 1;
+}
+
+.cardBottom {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* ── Title (bottom-left, slides up as reveal opens) ───────────────────── */
+.cardTitle {
+  font-family: 'Instrument Sans', 'DM Sans', sans-serif;
+  font-size: clamp(36px, 4.6vw, 56px);
+  font-weight: 400;
+  color: #fff;
+  margin: 0;
+  letter-spacing: -0.025em;
+  line-height: 1.0;
+  text-align: left;
+  text-shadow: 0 2px 28px rgba(0, 0, 0, 0.55);
+}
+
+/* ── Reveal block — collapsed → expanded on hover ─────────────────────── */
+.cardReveal {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.55s var(--ease-out-expo);
+  overflow: hidden;
+}
+
+.card:hover .cardReveal {
+  grid-template-rows: 1fr;
+}
+
+.cardRevealInner {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 0.45s ease 0.12s,
+    transform 0.45s var(--ease-out-expo) 0.12s;
+}
+
+.card:hover .cardRevealInner {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.cardDesc {
+  font-size: clamp(15px, 1.4vw, 17px);
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.92);
+  margin: 0;
+  letter-spacing: -0.005em;
+  max-width: 46ch;
+  text-shadow: 0 1px 20px rgba(0, 0, 0, 0.55);
+}
+
+.cardSubLabel {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: rgba(255, 255, 255, 0.55);
+  margin-top: 4px;
+}
+
+.cardList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.cardItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: rgba(255, 255, 255, 0.92);
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+  transition: color 0.2s ease;
+}
+
+.cardItem:first-child { border-top: none; padding-top: 0; }
+
+/* ── Arrow badge (list bullets) ───────────────────────────────────────── */
+.arrowBadge {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1990FF 0%, #0e72cc 100%);
+  color: #fff;
+  box-shadow:
+    0 4px 12px rgba(25, 144, 255, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.30);
+}
+
+.arrowBadge svg { width: 12px; height: 12px; }
+
+/* ── CTA button ───────────────────────────────────────────────────────── */
+.cardCta {
+  margin-top: 8px;
+  align-self: flex-start;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #fff;
+  padding: 14px 26px;
+  min-height: 50px;
+  border-radius: 100px;
+  border: 1px solid rgba(102, 194, 255, 0.45);
+  background: linear-gradient(135deg, #1990FF 0%, #0e72cc 100%);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow:
+    0 8px 24px rgba(25, 144, 255, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  transition: transform 0.3s var(--ease-out-expo), box-shadow 0.3s ease;
+}
+
+.cardCta:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 12px 32px rgba(25, 144, 255, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.40);
+}
+
+.cardCtaArrow {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.2s ease;
+}
+
+.cardCta:hover .cardCtaArrow { transform: translateX(3px); }
+
+/* Touchscreens / narrow viewports — show description + CTA without hover */
+@media (hover: none), (max-width: 720px) {
+  .cardReveal { grid-template-rows: 1fr; }
+  .cardRevealInner { opacity: 1; transform: translateY(0); }
+  .cardTextBg { opacity: 1; }
+}
+
+/* ══ Responsive ══════════════════════════════════════════════════════════ */
+@media (max-width: 600px) {
+  .features { padding: 80px 18px; }
+  .card { min-height: 480px; border-radius: 22px; }
+  .cardContent { padding: 22px 22px 24px; }
+  .cardTitle { font-size: 36px; }
+  .cardDesc { font-size: 15px; }
+  .cardItem { font-size: 13.5px; gap: 10px; }
+  .arrowBadge { width: 22px; height: 22px; }
+}

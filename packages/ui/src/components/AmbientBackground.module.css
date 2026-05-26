@@ -1,0 +1,11 @@
+.canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  /* CSS fills the viewport while canvas pixels stay at 1/3 res for performance */
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  image-rendering: auto; /* smooth upscaling */
+}

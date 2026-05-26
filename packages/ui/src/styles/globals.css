@@ -1,0 +1,296 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
+
+/* Display font — Instrument Sans (modern fintech sans, variable axes). */
+@font-face {
+    font-family: 'Instrument Sans';
+    src: url('/fonts/Instrument_Sans/InstrumentSans-VariableFont_wdth,wght.ttf') format('truetype-variations');
+    font-weight: 400 700;
+    font-stretch: 75% 100%;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'Instrument Sans';
+    src: url('/fonts/Instrument_Sans/InstrumentSans-Italic-VariableFont_wdth,wght.ttf') format('truetype-variations');
+    font-weight: 400 700;
+    font-stretch: 75% 100%;
+    font-style: italic;
+    font-display: swap;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* Apple-style scrollbars — thin, transparent track, only visible on hover */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.10) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  transition: background 200ms;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+:root {
+    /* ── Text ── */
+    --text-primary:   #FFFFFF;
+    --text-secondary: rgba(255, 255, 255, 0.72);
+    --text-tertiary:  rgba(255, 255, 255, 0.48);
+    --text-quaternary: rgba(255, 255, 255, 0.30);
+
+    /* ── Brand ── single accent + supporting blues only */
+    --accent-blue:        #1990FF;
+    --accent-blue-strong: #0F7AE0;
+    --accent-blue-muted:  rgba(25, 144, 255, 0.92);
+    --ocean-deep:         #040608;
+    --ocean-dark:         #030507;
+    --ocean-midnight:     #080f28;
+    --ocean-light:        #6ba3ff;
+    --ocean-pale:         #bdd3fe;
+    --ocean-foam:         #eef4ff;
+
+    /* ── Semantic status palette (new) ──
+       Active uses the brand. Expired is neutral. Revoked is a calibrated
+       red — saturated enough to read as destructive, restrained enough
+       not to feel alarming on every glance. */
+    --status-active:        #1990FF;
+    --status-active-bg:     rgba(25, 144, 255, 0.12);
+    --status-active-border: rgba(25, 144, 255, 0.32);
+
+    --status-expired:        rgba(255, 255, 255, 0.45);
+    --status-expired-bg:     rgba(255, 255, 255, 0.04);
+    --status-expired-border: rgba(255, 255, 255, 0.10);
+
+    --status-revoked:        #E5484D;
+    --status-revoked-bg:     rgba(229, 72, 77, 0.10);
+    --status-revoked-border: rgba(229, 72, 77, 0.30);
+
+    --status-warn:        #F5A524;
+    --status-warn-bg:     rgba(245, 165, 36, 0.10);
+    --status-warn-border: rgba(245, 165, 36, 0.32);
+
+    --status-success:        #22C55E;
+    --status-success-bg:     rgba(34, 197, 94, 0.10);
+    --status-success-border: rgba(34, 197, 94, 0.32);
+
+    /* Spacing — Apple step scale */
+    --s1:  4px;
+    --s2:  8px;
+    --s3: 12px;
+    --s4: 16px;
+    --s5: 20px;
+    --s6: 24px;
+    --s7: 32px;
+    --s8: 40px;
+    --s9: 48px;
+    --s10: 64px;
+    --s11: 80px;
+    --space-section: 56px;
+
+    /* Legacy aliases (don't break older rules) */
+    --space-4: var(--s4);
+    --space-5: var(--s6);
+    --space-6: var(--s7);
+    --space-7: var(--s9);
+    --space-8: var(--s10);
+    --space-9: 96px;
+    --section-padding: clamp(80px, 12vh, 160px);
+
+    /* Radius scale */
+    --r-sm: 8px;
+    --r-md: 12px;
+    --r-lg: 16px;
+    --r-xl: 22px;
+    --r-2xl: 28px;
+    --r-pill: 999px;
+
+    /* Glass tokens — single source of truth (previously declared twice)
+       Surface-bg uses the LCH-perceptual midnight + a tiny white veil for
+       Apple-style "lifted glass". Strong variants are used for modals,
+       which must be opaque enough to fully mask the underlying surface. */
+    --glass-blur: blur(28px) saturate(160%);
+    --glass-blur-strong: blur(40px) saturate(200%);
+    --glass-bg: rgba(255, 255, 255, 0.045);
+    --glass-bg-strong: rgba(10, 16, 32, 0.94);
+    --glass-bg-modal: rgba(8, 14, 26, 0.94);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-border-strong: rgba(255, 255, 255, 0.12);
+    --glass-inset: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+    /* Scrim used behind modals — must defeat the dashboard's brightness. */
+    --scrim-modal: rgba(2, 4, 10, 0.84);
+    --scrim-modal-blur: blur(32px) saturate(135%);
+
+    /* Elevation ladder */
+    --elev-1: 0 1px 2px rgba(0, 0, 0, 0.18);
+    --elev-2: 0 4px 12px rgba(0, 0, 0, 0.22);
+    --elev-3: 0 18px 50px -22px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.2);
+    --elev-4: 0 28px 90px -28px rgba(0, 0, 0, 0.75), 0 2px 12px rgba(0, 0, 0, 0.25);
+
+    /* Easing curves */
+    --ease-spring: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-apple: cubic-bezier(0.32, 0.72, 0, 1);
+    --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+    --duration-fast: 200ms;
+    --duration-normal: 400ms;
+    --duration-slow: 500ms;
+    --duration-modal: 560ms;
+
+    /* Shadows */
+    --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.28);
+    --shadow-xl: 0 25px 80px rgba(0, 0, 0, 0.55);
+    --glow-primary: 0 0 60px rgba(25, 144, 255, 0.42);
+    --glow-primary-hover: 0 0 100px rgba(25, 144, 255, 0.65);
+
+    /* Electric gradients */
+    --gradient-ocean: linear-gradient(135deg, #07080c 0%, #0060b0 50%, #1990FF 100%);
+    --gradient-wave: linear-gradient(135deg, #0060b0 0%, #1990FF 50%, #66c2ff 100%);
+    --gradient-deep: linear-gradient(135deg, #07080c 0%, #082d60 50%, #0060b0 100%);
+}
+
+body {
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    background:
+        radial-gradient(ellipse 80% 50% at 50% 100%, rgba(25,100,220,0.07) 0%, transparent 70%),
+        #030507;
+    color: var(--text-primary);
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color var(--duration-normal) var(--ease-out-expo),
+                color var(--duration-normal) var(--ease-out-expo);
+    line-height: 1.47;
+    letter-spacing: 0.011em;
+    min-height: 100vh;
+}
+
+body.light-mode {
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(0, 0, 180, 0.15) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 80%, rgba(0, 0, 180, 0.1) 0%, transparent 40%),
+        linear-gradient(180deg, #E0F0FF 0%, #A8D8FF 50%, #0055FF 100%);
+    color: #00001a;
+}
+
+body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    pointer-events: none;
+    opacity: 0.038;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+    background-size: 300px 300px;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Focus states for accessibility */
+button:focus-visible,
+a:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
+}
+
+/* Sophisticated global animations */
+@keyframes breathe {
+    0%, 100% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.02); opacity: 1; }
+}
+
+@keyframes pulse-glow {
+    0%, 100% { opacity: 0.4; filter: blur(40px); }
+    50% { opacity: 0.7; filter: blur(60px); }
+}
+
+@keyframes gradient-shift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+@keyframes float-gentle {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    33% { transform: translateY(-8px) rotate(0.5deg); }
+    66% { transform: translateY(4px) rotate(-0.5deg); }
+}
+
+@keyframes ripple-out {
+    0% { transform: scale(0.8); opacity: 0.8; }
+    100% { transform: scale(2); opacity: 0; }
+}
+
+@keyframes orbit {
+    0% { transform: rotate(0deg) translateX(100px) rotate(0deg); }
+    100% { transform: rotate(360deg) translateX(100px) rotate(-360deg); }
+}
+
+@keyframes dash-flow {
+    0% { stroke-dashoffset: 1000; }
+    100% { stroke-dashoffset: 0; }
+}
+
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+@keyframes color-morph {
+    0%, 100% { filter: hue-rotate(0deg); }
+    50% { filter: hue-rotate(15deg); }
+}
+
+@keyframes border-rotate {
+    0% { --border-angle: 0deg; }
+    100% { --border-angle: 360deg; }
+}
+
+@keyframes subtle-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+}
+
+@keyframes glow-pulse {
+    0%, 100% { box-shadow: 0 0 20px rgba(24, 87, 236, 0.15); }
+    50% { box-shadow: 0 0 40px rgba(24, 87, 236, 0.30); }
+}
+
+@keyframes text-shimmer {
+    0% { background-position: -100% 0; }
+    100% { background-position: 200% 0; }
+}
+
+@keyframes fade-in-up {
+    0% { opacity: 0; transform: translateY(30px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-in {
+    0% { opacity: 0; transform: scale(0.95); }
+    100% { opacity: 1; transform: scale(1); }
+}

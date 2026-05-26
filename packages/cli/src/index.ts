@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import { initCommand } from "./commands/init.js";
+import { uiCommand } from "./commands/ui.js";
 
 const program = new Command();
 
@@ -17,6 +18,18 @@ program
   .action(async (name?: string) => {
     try {
       await initCommand(name);
+    } catch (err) {
+      console.error(`Error: ${(err as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command("ui")
+  .description("Open the local dashboard at localhost:3333")
+  .action(async () => {
+    try {
+      await uiCommand();
     } catch (err) {
       console.error(`Error: ${(err as Error).message}`);
       process.exit(1);
@@ -40,7 +53,6 @@ stub("account create", "Create a new Sail SMA on-chain");
 stub("mandate sign", "Sign and attach a mandate to a Safe");
 stub("dispatch preview", "Preview a dispatch without submitting");
 stub("run", "Start the agent runner (cron or one-shot)");
-stub("ui", "Open the local dashboard at localhost:3333");
 stub("status", "Show current account and session status");
 stub("session pause", "Pause the manager session (revoke dispatch rights)");
 stub("session resume", "Resume a paused session");
