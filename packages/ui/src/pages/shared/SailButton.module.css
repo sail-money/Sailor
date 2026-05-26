@@ -1,0 +1,106 @@
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 28px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 240ms var(--ease-apple),
+              color 240ms var(--ease-apple),
+              border-color 240ms var(--ease-apple),
+              box-shadow 280ms var(--ease-apple),
+              transform 240ms var(--ease-apple);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+.primary {
+  color: #fff;
+  background: var(--accent-blue);
+  border: 1px solid var(--accent-blue);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.18) inset,
+    0 0 32px rgba(25, 144, 255, 0.4),
+    0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+.primary:not(:disabled):hover {
+  background: #2a9bff;
+  border-color: #2a9bff;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.22) inset,
+    0 0 50px rgba(25, 144, 255, 0.55),
+    0 6px 18px rgba(0, 0, 0, 0.3);
+  transform: translateY(-1px);
+}
+
+.primary:not(:disabled):active {
+  transform: translateY(0);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.18) inset,
+    0 0 22px rgba(25, 144, 255, 0.35);
+}
+
+.secondary {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.secondary:hover {
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.055);
+  transform: translateY(-1px);
+}
+
+.secondary:active {
+  transform: translateY(0);
+}
+
+.ghost {
+  height: auto;
+  padding: 4px 0;
+  font-size: 13px;
+  color: var(--text-tertiary);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.ghost:hover {
+  color: var(--text-secondary);
+}
+
+.danger {
+  color: #ff6b6b;
+  background: transparent;
+  border: 1px solid rgba(255, 107, 107, 0.42);
+}
+
+.danger:hover {
+  color: #ff8a8a;
+  border-color: rgba(255, 107, 107, 0.7);
+  background: rgba(255, 107, 107, 0.06);
+  transform: translateY(-1px);
+}
+
+.danger:active {
+  transform: translateY(0);
+}

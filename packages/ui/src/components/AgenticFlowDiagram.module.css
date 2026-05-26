@@ -1,0 +1,386 @@
+/* ══════════════════════════════════════════════════════════════════
+   Agentic Flow Diagram — liquid glass · horizontal-first · refined motion
+   Wave cycle: 6s. Comet visible 0-22% of cycle (≈1.3s). Quiet 22-100%.
+   Easing: Apple-spring cubic-bezier(0.32, 0.72, 0, 1)
+   ══════════════════════════════════════════════════════════════════ */
+
+:root {
+  --apple-spring: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.frame {
+  position: relative;
+  width: 100%;
+  margin: 0 auto;
+  opacity: 0;
+  transform: translateY(20px) scale(0.985);
+  transition:
+    opacity 0.9s var(--ease-out-expo),
+    transform 0.9s var(--ease-out-expo);
+}
+.frame.visible { opacity: 1; transform: translateY(0) scale(1); }
+
+.frameH { max-width: 1180px; }
+.frameV { max-width: 600px; }
+
+/* ── Outer surface ───────────────────────────────────────────────── */
+.cardSurface {
+  position: relative;
+  border-radius: 28px;
+  padding: 18px;
+  background:
+    linear-gradient(180deg, rgba(13, 30, 64, 0.62) 0%, rgba(5, 12, 28, 0.88) 100%);
+  border: 1px solid rgba(160, 200, 255, 0.10);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 0 1px rgba(102, 194, 255, 0.05),
+    0 30px 80px rgba(0, 0, 0, 0.55),
+    0 0 100px rgba(25, 144, 255, 0.08);
+  overflow: hidden;
+  isolation: isolate;
+}
+.cardSurface::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(70% 50% at 50% 0%, rgba(50, 130, 255, 0.16) 0%, transparent 70%),
+    radial-gradient(50% 30% at 50% 100%, rgba(25, 144, 255, 0.08) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+.cardSurface::after {
+  /* Subtle dot grid backdrop */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(160, 200, 255, 0.045) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-position: 0 0;
+  pointer-events: none;
+  z-index: 0;
+  mix-blend-mode: overlay;
+}
+
+.svg {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 18px;
+}
+
+/* ── Boundary (transaction state) ────────────────────────────────── */
+.boundary { opacity: 0; animation: dg-fade 700ms var(--ease-out-expo) 200ms forwards; }
+
+.boundaryRect {
+  fill: none;
+  stroke: rgba(160, 200, 255, 0.16);
+  stroke-width: 1;
+  stroke-dasharray: 5 7;
+  animation: dg-march 40s linear infinite;
+}
+
+.boundaryLabelBg {
+  fill: rgba(8, 18, 38, 1);
+  stroke: rgba(160, 200, 255, 0.22);
+  stroke-width: 1;
+}
+.boundaryLabelDot {
+  fill: #9ed1ff;
+  filter: drop-shadow(0 0 4px rgba(158, 209, 255, 0.85));
+  animation: dg-blink 2.6s ease-in-out infinite;
+}
+.boundaryLabelText {
+  font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 10px;
+  letter-spacing: 0.20em;
+  fill: rgba(255, 255, 255, 0.78);
+  font-weight: 500;
+}
+
+/* ── Stage labels ────────────────────────────────────────────────── */
+.stageLabels { opacity: 0; animation: dg-fade 700ms var(--ease-out-expo) 350ms forwards; }
+.stageLabel {
+  font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  fill: rgba(255, 255, 255, 0.40);
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   GLASS CARD
+   ══════════════════════════════════════════════════════════════════ */
+.card {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: dg-card-in 720ms var(--apple-spring) calc(700ms + var(--idx, 0) * 70ms) forwards;
+  filter: drop-shadow(0 10px 24px rgba(0, 30, 80, 0.30));
+}
+
+/* Opaque base under glass — hides wires that pass behind */
+.cardBackplate {
+  fill: #08152e;
+}
+
+.cardBody {
+  stroke-width: 1;
+  transition: stroke 0.5s ease;
+}
+
+/* Lit accent rim — fires when wave passes the stage */
+.cardLitRim {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0);
+  stroke-width: 1;
+  pointer-events: none;
+  animation: dg-lit-rim 6s ease-in-out infinite;
+  animation-delay: var(--lit-delay, 0s);
+}
+
+/* Icon */
+.cardIconWrap { pointer-events: none; }
+.cardIconBg {
+  fill: rgba(102, 194, 255, 0.10);
+  stroke: rgba(102, 194, 255, 0.22);
+  stroke-width: 1;
+}
+.cardIcon {
+  color: #b8dcff;
+}
+
+.cardName {
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  fill: rgba(255, 255, 255, 0.96);
+  letter-spacing: -0.01em;
+}
+.cardSub {
+  font-family: 'SF Mono', 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  fill: rgba(160, 200, 240, 0.65);
+  letter-spacing: 0.04em;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   INTENT CHIP
+   ══════════════════════════════════════════════════════════════════ */
+.chip {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: dg-card-in 600ms var(--apple-spring) calc(500ms + var(--idx, 0) * 65ms) forwards;
+  filter: drop-shadow(0 6px 16px rgba(0, 30, 80, 0.22));
+}
+
+.chipBackplate {
+  fill: #08152e;
+}
+
+.chipBody {
+  stroke-width: 1;
+}
+
+.chipDot {
+  fill: #cfeaff;
+  filter: drop-shadow(0 0 3px rgba(158, 209, 255, 0.85));
+}
+.chipText {
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  fill: rgba(240, 248, 255, 0.96);
+  letter-spacing: -0.005em;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   SAIL · SDK NODE
+   ══════════════════════════════════════════════════════════════════ */
+.sdk {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: dg-card-in 700ms var(--apple-spring) 1000ms forwards;
+  filter: drop-shadow(0 12px 32px rgba(25, 100, 255, 0.40));
+}
+.sdkBackplate {
+  fill: #08152e;
+}
+
+.sdkBody {
+  stroke: rgba(180, 220, 255, 0.55);
+  stroke-width: 1;
+}
+.sdkLabel {
+  font-family: 'Instrument Sans', Georgia, serif;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  fill: #ffffff;
+  font-weight: 400;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   VERIFICATION GATE
+   ══════════════════════════════════════════════════════════════════ */
+.check {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: dg-card-in 800ms var(--apple-spring) 1900ms forwards;
+  filter: drop-shadow(0 14px 40px rgba(120, 220, 180, 0.32));
+}
+
+.checkBackplate {
+  fill: #08152e;
+}
+
+.checkBody {
+  stroke: rgba(225, 250, 235, 0.85);
+  stroke-width: 1.2;
+  animation: dg-check-pulse 6s ease-in-out infinite;
+  animation-delay: 3.0s;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.checkMark {
+  stroke: rgba(20, 50, 36, 0.95);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 60;
+  stroke-dashoffset: 60;
+  animation:
+    dg-check-draw 700ms var(--ease-out-expo) 2300ms forwards,
+    dg-check-flash 6s ease-in-out 3.0s infinite;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   WIRES — base track + animated comet trail
+   ══════════════════════════════════════════════════════════════════ */
+.wires { opacity: 0; animation: dg-fade 800ms var(--ease-out-expo) 1100ms forwards; }
+.wirePair { pointer-events: none; }
+
+.wireBase {
+  stroke-width: 1;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: dg-draw 1.0s var(--ease-out-expo) 1.2s forwards;
+}
+
+.wireFlow {
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  /* 6-unit visible dash, sweeping across pathLength=100 normalized */
+  stroke-dasharray: 6 100;
+  stroke-dashoffset: 6;
+  opacity: 0;
+  animation: dg-comet 6s linear infinite;
+  animation-delay: 0s;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   KEYFRAMES
+   ══════════════════════════════════════════════════════════════════ */
+@keyframes dg-fade { to { opacity: 1; } }
+
+@keyframes dg-card-in {
+  0%   { opacity: 0; transform: translateY(6px) scale(0.96); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes dg-draw   { to { stroke-dashoffset: 0; } }
+@keyframes dg-march  { to { stroke-dashoffset: -240; } }
+@keyframes dg-blink  {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+
+@keyframes dg-halo {
+  0%, 100% { opacity: 0.50; transform: scale(1); }
+  50%      { opacity: 1.00; transform: scale(1.04); }
+}
+
+/* Wave-coordinated comet:
+   Total cycle 6s. Comet visible window per wire is ~22% (1.32s).
+   Path length normalized to 100. Dash is 6 wide. */
+@keyframes dg-comet {
+  0%   { stroke-dashoffset:  6;   opacity: 0; }
+  2%   { opacity: 1; }
+  20%  { stroke-dashoffset: -100; opacity: 1; }
+  22%  { stroke-dashoffset: -100; opacity: 0; }
+  100% { stroke-dashoffset: -100; opacity: 0; }
+}
+
+/* Lit accent rim: fires near the moment the comet arrives at the stage */
+@keyframes dg-lit-rim {
+  0%, 86%, 100% {
+    stroke: rgba(255, 255, 255, 0);
+    filter: none;
+  }
+  92% {
+    stroke: rgba(180, 220, 255, 0.78);
+    filter: drop-shadow(0 0 6px rgba(120, 200, 255, 0.55));
+  }
+  96% {
+    stroke: rgba(180, 220, 255, 0.42);
+  }
+}
+
+@keyframes dg-check-pulse {
+  0%, 38%, 100% { transform: scale(1); }
+  46% { transform: scale(1.06); }
+  56% { transform: scale(1); }
+}
+
+@keyframes dg-check-flash {
+  0%, 38%, 60%, 100% { stroke: rgba(20, 50, 36, 0.92); }
+  46% { stroke: rgba(20, 50, 36, 1); }
+}
+
+@keyframes dg-check-draw { to { stroke-dashoffset: 0; } }
+
+/* ══════════════════════════════════════════════════════════════════
+   PRELOAD — apply lane-specific animation-delay via class selector.
+   Each lane fires staggered to create a single coherent wave.
+   ══════════════════════════════════════════════════════════════════ */
+/* The `WirePair` component sets animation-delay inline via
+   `style={{ animationDelay: \`${cometDelay}s\` }}`, where cometDelay
+   already incorporates the lane offset. */
+
+/* ══════════════════════════════════════════════════════════════════
+   REDUCED MOTION
+   ══════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  .frame { transform: none !important; opacity: 1 !important; }
+  .card, .chip, .sdk, .check, .wires, .stageLabels, .boundary {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .wireBase { stroke-dashoffset: 0 !important; }
+  .wireFlow { display: none !important; }
+  .checkMark { stroke-dashoffset: 0 !important; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ══════════════════════════════════════════════════════════════════ */
+@media (max-width: 760px) {
+  .frameV { max-width: none; }
+  .cardSurface { padding: 8px; border-radius: 22px; }
+
+  /* Vertical layout — shrink text and tighten spacing so labels fit
+     inside the narrower card boxes without truncation. */
+  .frameV .cardName { font-size: 11px; }
+  .frameV .cardSub { font-size: 8.5px; letter-spacing: 0.02em; }
+  .frameV .chipText { font-size: 11px; }
+  .frameV .sdkLabel { font-size: 13px; }
+  .frameV .boundaryLabelText { font-size: 9.5px; }
+}

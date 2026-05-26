@@ -1,0 +1,204 @@
+/* Hero is fixed behind everything — content scrolls over it */
+.heroCard {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100vh;
+  z-index: 1;
+}
+
+/* Main content starts after the viewport and slides over the fixed hero */
+.mainContent {
+  position: relative;
+  z-index: 2;
+  margin-top: 100vh;
+  background: #030507;
+  border-radius: 20px 20px 0 0;
+  overflow: hidden;
+  box-shadow: 0 -1px 0 rgba(25, 144, 255, 0.14), 0 -32px 64px rgba(0, 0, 0, 0.70);
+}
+
+/* ── Shared card base ─────────────────────────────────────────────────────── */
+.gettingStartedCard,
+.protocolCard,
+.engineCard,
+.usersCard,
+.securityCard,
+.faqCard {
+  border-radius: 20px 20px 0 0;
+  position: relative;
+  overflow: hidden;
+  margin-top: -24px;
+  box-shadow: 0 -1px 0 rgba(25, 144, 255, 0.10), 0 -32px 64px rgba(0, 0, 0, 0.65);
+}
+
+/* ── Per-card overrides ───────────────────────────────────────────────────── */
+.gettingStartedCard { background: #050a18; z-index: 2; }
+.securityCard        { background: #F7F2E8; z-index: 3; }
+.engineCard          { background: #041E49; z-index: 4; }
+.protocolCard       { background: #07112A; z-index: 5; }
+.usersCard           { background: #050D1F; z-index: 6; }
+.faqCard             { background: #040609; z-index: 7; }
+
+/* ── First card — blue with grain texture ─────────────────────────────────── */
+.secBase {
+  position: relative;
+  overflow: hidden;
+  background: #1990FF;
+}
+
+
+.secDark { background: #030507; }
+
+/* ── Engine section unified layout ───────────────────────────────────────── */
+.engineIntro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 60px 48px 0;
+  max-width: 1000px;
+  margin: 0 auto;
+  gap: 16px;
+}
+
+.engineEyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(90, 173, 255, 0.7);
+  margin: 0 0 20px;
+}
+
+.engineTitle {
+  font-family: 'Instrument Sans', Georgia, serif;
+  font-size: clamp(42px, 7vw, 80px);
+  font-weight: 400;
+  letter-spacing: -0.04em;
+  line-height: 1.04;
+  color: #fff;
+  margin: 0 0 24px;
+}
+
+@keyframes gradient-shift {
+  0%   { background-position: 0%   50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0%   50%; }
+}
+
+.engineSubtitleText {
+  font-size: 18px;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.45);
+  max-width: 1000px;
+  margin: 0 0 16px;
+}
+
+.engineDocsLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  text-decoration: none;
+  background: linear-gradient(135deg, #66c2ff 0%, #1990FF 50%, #66c2ff 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: engineLinkShimmer 2.4s linear infinite;
+  transition: opacity 0.2s ease;
+}
+
+.engineDocsLink svg {
+  -webkit-text-fill-color: initial;
+  stroke: #66c2ff;
+  flex-shrink: 0;
+  position: relative;
+  top: 1px;
+}
+
+.engineDocsLink:hover { opacity: 0.8; }
+
+@keyframes engineLinkShimmer {
+  0%   { background-position: 200% center; }
+  100% { background-position: 0% center; }
+}
+
+.engineIntroLine {
+  width: 1px;
+  height: 80px;
+  background: linear-gradient(to bottom, rgba(90,173,255,0.5), transparent);
+  margin: 0 auto;
+}
+
+/* Flow wrapper with vertical thread */
+.engineFlow {
+  position: relative;
+  padding: 0 0 160px;
+}
+
+
+/* ── Mobile ───────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .engineIntro { padding: 48px 24px 0; }
+  .engineSubtitleText { font-size: 16px; }
+  .engineFlow { padding-bottom: 80px; }
+  .gettingStartedInner { padding: 48px 24px 40px; gap: 24px; }
+  .gettingStartedSubtitle { font-size: 15px; }
+}
+
+@media (max-width: 480px) {
+  .engineIntro { padding: 36px 16px 0; }
+  .engineFlow { padding-bottom: 60px; }
+  .gettingStartedInner { padding: 36px 16px 32px; }
+}
+
+/* Chapter markers */
+.engineChapter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 56px 0 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.engineChapterLabel {
+  font-family: 'Instrument Sans', Georgia, serif;
+  font-size: clamp(24px, 3vw, 36px);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  color: rgba(255,255,255,0.55);
+}
+
+/* ── Getting started inner ───────────────────────────────────────────────── */
+.gettingStartedInner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  padding: 80px 40px 56px;
+}
+
+.gettingStartedSubtitle {
+  font-size: 17px;
+  color: rgba(255, 255, 255, 0.45);
+  line-height: 1.65;
+  max-width: 480px;
+  margin: -16px 0 0;
+  text-align: center;
+}
+
+.gettingStartedTitle {
+  font-family: 'Instrument Sans', Georgia, serif;
+  font-size: clamp(36px, 6vw, 72px);
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: #fff;
+  margin: 0;
+  text-align: center;
+}

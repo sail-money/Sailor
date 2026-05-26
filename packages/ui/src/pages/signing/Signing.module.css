@@ -1,0 +1,864 @@
+/* ──────────────────────────────────────────
+   Signing & onboarding — Apple-grade redesign
+   ────────────────────────────────────────── */
+
+.shell {
+  position: relative;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0;
+  background: transparent;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.stage {
+  flex: 1;
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 18px;
+  padding: 40px 24px;
+  position: relative;
+  z-index: 2;
+}
+
+.stageInner {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  animation: rise 480ms var(--ease-out-expo) both;
+}
+
+@keyframes rise {
+  0%   { opacity: 0; transform: translateY(14px) scale(0.985); filter: blur(6px); }
+  100% { opacity: 1; transform: translateY(0)    scale(1);     filter: blur(0); }
+}
+
+/* ── Header bar ── */
+.headerBar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 36px;
+  pointer-events: none;
+}
+
+.logoBtn {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: transform 220ms var(--ease-apple);
+}
+.logoBtn:hover {
+  transform: translateY(-1px);
+}
+.logoText { display: none; }
+
+.headerHint {
+  pointer-events: auto;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+/* ── Stepper — numbered circles connected by lines ── */
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  background: rgba(8, 14, 28, 0.60);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  flex-shrink: 0;
+}
+
+.stepGroup {
+  display: inline-flex;
+  align-items: center;
+}
+
+.step {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.stepCircle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  transition: background 240ms var(--ease-out-expo),
+              color 240ms var(--ease-out-expo),
+              border-color 240ms var(--ease-out-expo),
+              box-shadow 280ms var(--ease-out-expo);
+}
+
+.step_upcoming .stepCircle {
+  color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.step_current .stepCircle {
+  color: #fff;
+  background: var(--accent-blue);
+  border: 1px solid var(--accent-blue);
+  box-shadow:
+    0 0 0 3px rgba(25, 144, 255, 0.15),
+    0 0 14px rgba(25, 144, 255, 0.5);
+}
+
+.step_done .stepCircle {
+  color: #fff;
+  background: #22c55e;
+  border: 1px solid #22c55e;
+}
+
+.stepLabel {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: #fff;
+  white-space: nowrap;
+  padding-right: 4px;
+}
+
+.stepLine {
+  display: inline-block;
+  width: 28px;
+  height: 1.5px;
+  background: rgba(255, 255, 255, 0.10);
+  margin: 0 8px;
+  transition: background 240ms;
+}
+.stepLineDone {
+  background: rgba(34, 197, 94, 0.55);
+}
+
+/* ──────────────────────────────────────────
+   Shared card scaffolding
+   ────────────────────────────────────────── */
+.welcomeCard,
+.authCard,
+.deployCard,
+.confirmCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.018) 60%, rgba(255,255,255,0.01) 100%),
+    rgba(8, 14, 28, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 28px;
+  backdrop-filter: blur(40px) saturate(160%);
+  -webkit-backdrop-filter: blur(40px) saturate(160%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 28px 90px -28px rgba(0, 0, 0, 0.75),
+    0 2px 12px rgba(0, 0, 0, 0.25);
+}
+
+.welcomeCard { max-width: 560px; padding: 40px 44px 28px; }
+.authCard    { max-width: 420px; padding: 36px 36px 28px; }
+.deployCard  { max-width: 520px; padding: 36px 40px 30px; gap: 22px; align-items: stretch; }
+.confirmCard { max-width: 420px; padding: 56px 40px; align-items: center; text-align: center; gap: 18px; }
+
+/* ── Sai inside the welcome card ── */
+.cardSai {
+  position: relative;
+  align-self: center;
+  margin: -4px 0 18px;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Sai sits flat on the surface — no halo, no glow. The mascot reads
+   as a crisp pixel mark, not a luminous element. */
+.cardSaiHalo {
+  display: none;
+}
+@keyframes halo {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 0.95; transform: scale(1.08); }
+}
+
+/* ── Card headers ── */
+.cardHeader {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+  padding-bottom: 6px;
+}
+.welcomeCard .cardHeader { text-align: center; align-items: center; }
+
+.kicker {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(25, 144, 255, 0.78);
+}
+
+.cardHeadline {
+  font-size: 30px;
+  line-height: 1.1;
+  letter-spacing: -0.028em;
+  color: var(--text-primary);
+  margin: 0;
+}
+/* Welcome headline can wrap to two lines at narrow widths — it must
+   never overflow the card. The previous nowrap caused the headline to
+   clip off-screen on phones. */
+.welcomeCard .cardHeadline {
+  font-size: clamp(24px, 5.4vw, 30px);
+  line-height: 1.08;
+  text-wrap: balance;
+}
+.deployCard  .cardHeadline { font-size: 26px; }
+
+.cardSub {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin: 4px 0 0;
+  max-width: 36ch;
+}
+.welcomeCard .cardSub { text-align: center; }
+
+.cardTagline {
+  margin-top: 6px;
+  font-size: 15px;
+  color: var(--ocean-light);
+  text-align: center;
+  letter-spacing: -0.005em;
+}
+
+.backBtn {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: color 200ms, border-color 200ms, background 200ms;
+}
+.backBtn:hover {
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ──────────────────────────────────────────
+   Welcome — single Connect-wallet CTA
+   ────────────────────────────────────────── */
+.welcomeCta {
+  display: flex;
+  flex-direction: column;
+  margin: 26px 0 18px;
+  /* The primary button stretches to ~360px on wide cards so it reads
+     as the decisive action, not a hero banner. */
+}
+.welcomeCta > * { width: 100%; max-width: 360px; align-self: center; }
+
+/* Legacy (kept dormant so any in-flight previews don't break). */
+.welcomePaths {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 22px 0 22px;
+}
+
+.pathOption {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px 16px 16px 14px;
+  font-family: 'DM Sans', sans-serif;
+  text-align: left;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.022);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 16px;
+  cursor: pointer;
+  transition:
+    transform 260ms var(--ease-apple),
+    background 260ms var(--ease-apple),
+    border-color 260ms var(--ease-apple),
+    box-shadow 260ms var(--ease-apple);
+}
+.pathOption:hover {
+  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+}
+.pathOption:hover .pathArrow {
+  transform: translateX(4px);
+  color: var(--text-primary);
+}
+
+.pathOptionAccent {
+  border-color: rgba(25, 144, 255, 0.32);
+  background: linear-gradient(180deg, rgba(25, 144, 255, 0.10) 0%, rgba(25, 144, 255, 0.04) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 1px rgba(25, 144, 255, 0.0),
+    0 18px 50px -28px rgba(25, 144, 255, 0.65);
+}
+.pathOptionAccent:hover {
+  border-color: rgba(25, 144, 255, 0.55);
+  background: linear-gradient(180deg, rgba(25, 144, 255, 0.16) 0%, rgba(25, 144, 255, 0.07) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 24px 60px -28px rgba(25, 144, 255, 0.85);
+}
+
+.pathIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  color: var(--ocean-light);
+  background: rgba(25, 144, 255, 0.10);
+  border: 1px solid rgba(25, 144, 255, 0.22);
+  border-radius: 11px;
+  flex-shrink: 0;
+}
+.pathOptionAccent .pathIcon {
+  color: #fff;
+  background: rgba(25, 144, 255, 0.32);
+  border-color: rgba(25, 144, 255, 0.5);
+  box-shadow: 0 0 14px rgba(25, 144, 255, 0.45) inset;
+}
+
+.pathBody {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.pathTitle {
+  font-size: 15.5px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: var(--text-primary);
+}
+.pathSub {
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+
+.pathArrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: var(--text-tertiary);
+  transition: transform 260ms var(--ease-apple), color 260ms var(--ease-apple);
+}
+
+.fineprint {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--text-tertiary);
+  text-align: center;
+  letter-spacing: 0.01em;
+}
+
+/* ──────────────────────────────────────────
+   Auth forms (login / signup)
+   ────────────────────────────────────────── */
+.authStack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 22px 0 18px;
+}
+
+/* ── Wallet grid (EOA only) ── */
+.walletGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 22px 0 18px;
+}
+.walletTile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 200ms cubic-bezier(0.32, 0.72, 0, 1),
+              border-color 200ms cubic-bezier(0.32, 0.72, 0, 1),
+              transform 200ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.walletTile:hover {
+  background: rgba(255, 255, 255, 0.055);
+  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+}
+.walletTile:active {
+  transform: translateY(0);
+}
+.walletIcon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.045);
+}
+.walletIcon_orange  { color: #F6851B; background: rgba(246, 133, 27, 0.10); }
+.walletIcon_blue    { color: #6BA3FF; background: rgba(25, 144, 255, 0.10); }
+.walletIcon_purple  { color: #AB9FF2; background: rgba(171, 159, 242, 0.12); }
+.walletIcon_rainbow {
+  color: #fff;
+  background: linear-gradient(135deg, #FF4B6E 0%, #FFB347 35%, #4FC3F7 65%, #9C5BFF 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.walletIcon_mono    { color: rgba(255, 255, 255, 0.85); background: rgba(255, 255, 255, 0.06); }
+.walletLabel {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  letter-spacing: -0.01em;
+}
+
+@media (max-width: 420px) {
+  .walletGrid { grid-template-columns: 1fr; }
+}
+
+.authBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 50px;
+  padding: 0 18px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--text-primary);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.01) 100%),
+    rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 14px;
+  cursor: pointer;
+  transition:
+    background 220ms var(--ease-apple),
+    border-color 220ms var(--ease-apple),
+    transform 220ms var(--ease-apple);
+}
+.authBtn:hover {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.02) 100%),
+    rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+.authBtnIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: var(--text-secondary);
+}
+.authBtn_google .authBtnIcon { color: #fff; }
+.authBtn_wallet .authBtnIcon { color: var(--ocean-light); }
+
+/* Divider */
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0;
+}
+.dividerLine {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.10) 50%, transparent 100%);
+}
+.dividerLabel {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+/* Email form */
+.emailForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 50px;
+  padding: 0 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  color: var(--text-tertiary);
+  transition: border-color 200ms var(--ease-apple), background 200ms var(--ease-apple);
+}
+.field:focus-within {
+  border-color: rgba(25, 144, 255, 0.55);
+  background: rgba(25, 144, 255, 0.05);
+  color: var(--ocean-light);
+  box-shadow: 0 0 0 3px rgba(25, 144, 255, 0.12);
+}
+.fieldInput {
+  flex: 1;
+  height: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14.5px;
+  letter-spacing: 0.005em;
+}
+.fieldInput::placeholder {
+  color: rgba(255, 255, 255, 0.32);
+}
+
+/* Footer switch */
+.footerSwitch {
+  margin-top: 18px;
+  text-align: center;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+.footerQuestion { color: var(--text-tertiary); }
+.footerAction {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--ocean-light);
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 200ms;
+}
+.footerAction:hover {
+  color: #6ba3ff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ──────────────────────────────────────────
+   Deploy state — single-column stack
+   ────────────────────────────────────────── */
+.backBtnFloat {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 1;
+  transition: color 200ms, border-color 200ms, background 200ms, transform 200ms;
+}
+.backBtnFloat:hover {
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.07);
+  transform: translateX(-1px);
+}
+
+.deploySai {
+  position: relative;
+  align-self: center;
+  margin: 0 0 6px;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.deploySaiHalo {
+  display: none;
+}
+
+.deployHeader {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 4px;
+}
+.deployCard .cardSub {
+  max-width: 38ch;
+  text-align: center;
+}
+
+.softDivider {
+  display: block;
+  height: 1px;
+  width: 100%;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.08) 50%, transparent 100%);
+}
+
+.deployPoints {
+  list-style: none;
+  padding: 4px 8px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.deployPoints li {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  opacity: 0;
+  transform: translateY(6px);
+  animation: liRise 540ms var(--ease-out-expo) forwards;
+  animation-delay: calc(120ms + var(--i, 0) * 90ms);
+}
+@keyframes liRise {
+  0%   { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.checkBubble {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: var(--accent-blue);
+  background: rgba(25, 144, 255, 0.10);
+  border: 1px solid rgba(25, 144, 255, 0.32);
+  border-radius: 50%;
+  margin-top: 1px;
+  box-shadow: 0 0 12px rgba(25, 144, 255, 0.18);
+}
+.pointTitle {
+  display: block;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--text-primary);
+  letter-spacing: -0.005em;
+}
+.pointSub {
+  display: block;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+  line-height: 1.45;
+}
+
+.txPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 16px 20px 14px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.025) 0%, rgba(255,255,255,0.01) 100%),
+    rgba(0, 0, 0, 0.30);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.txPanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  margin-bottom: 10px;
+}
+.txPanelKicker {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.txPanelBadge {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--ocean-light);
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(25, 144, 255, 0.10);
+  border: 1px solid rgba(25, 144, 255, 0.28);
+}
+.txDetails {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+.txRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13.5px;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.txRow:last-child { border-bottom: none; }
+.txRow dt {
+  color: var(--text-tertiary);
+  letter-spacing: 0.01em;
+}
+.txRow dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.gas {
+  color: var(--ocean-light);
+  font-weight: 500;
+}
+
+.txPanelFooter {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+@media (max-width: 720px) {
+  .deployCard { padding: 28px 22px 22px; }
+  .headerBar { padding: 14px 16px; }
+  .stage { padding: 24px 16px 32px; gap: 12px; }
+  .headerHint { display: none; }
+  /* The stepper was visually colliding with the logo when both lived
+     at the top of the viewport. Push the stage below the header height
+     and shrink the stepper's footprint at narrow widths. */
+  .stepper {
+    margin-top: 56px;
+    padding: 6px 12px;
+  }
+  .stepCircle { width: 22px; height: 22px; font-size: 11px; }
+  .stepLine   { width: 18px; margin: 0 6px; }
+  .stepLabel  { font-size: 12px; }
+  .welcomeCard { padding: 32px 24px 22px; }
+  .authCard    { padding: 28px 22px 22px; }
+}
+
+/* ──────────────────────────────────────────
+   Confirming state
+   ────────────────────────────────────────── */
+.confirmIndicator {
+  width: 100px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(25, 144, 255, 0.22) 0%, rgba(25, 144, 255, 0) 70%);
+  transition: background 380ms var(--ease-apple);
+}
+.pulse {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: var(--accent-blue);
+  box-shadow: var(--glow-primary);
+  animation: confirm-pulse 1.6s ease-in-out infinite;
+}
+.confirmDone {
+  background:
+    radial-gradient(circle, rgba(25, 144, 255, 0.34) 0%, rgba(25, 144, 255, 0) 70%);
+}
+.confirmHeadline {
+  font-size: 26px;
+  letter-spacing: -0.02em;
+  margin: 4px 0 0;
+}
+.confirmSub {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+@keyframes confirm-pulse {
+  0%, 100% { transform: scale(1);    opacity: 0.85; }
+  50%      { transform: scale(1.18); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse, .cardSaiHalo, .stageInner { animation: none; }
+}

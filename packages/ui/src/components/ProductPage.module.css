@@ -1,0 +1,272 @@
+.page {
+  min-height: 100vh;
+  background: #030507;
+  color: #fff;
+  position: relative;
+  overflow-x: hidden;
+}
+
+.bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(60% 50% at 20% 0%, rgba(25,144,255,0.30) 0%, rgba(25,144,255,0) 70%),
+    radial-gradient(60% 50% at 80% 0%, rgba(120,90,255,0.20) 0%, rgba(120,90,255,0) 70%),
+    radial-gradient(80% 60% at 50% 100%, rgba(8,16,40,1) 0%, rgba(3,5,7,1) 80%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Top bar ─────────────────────────────────────────────────── */
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28px 48px 8px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.brand {
+  font-family: 'Instrument Sans', Georgia, serif;
+  font-size: 24px;
+  letter-spacing: -0.03em;
+  color: #fff;
+  text-decoration: none;
+}
+
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.78);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 9px 16px;
+  border-radius: 100px;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  backdrop-filter: blur(8px);
+}
+.backBtn:hover {
+  background: rgba(255,255,255,0.10);
+  color: #fff;
+}
+
+/* ── Hero ────────────────────────────────────────────────────── */
+.hero {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 96px 48px 80px;
+  text-align: center;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  background: rgba(25,144,255,0.12);
+  border: 1px solid rgba(25,144,255,0.30);
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #66c2ff;
+  margin-bottom: 28px;
+}
+
+.eyebrowDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #66c2ff;
+  box-shadow: 0 0 8px rgba(102,194,255,0.9);
+}
+
+.title {
+  font-family: 'Instrument Sans', Georgia, serif;
+  font-size: clamp(48px, 8vw, 92px);
+  font-weight: 400;
+  letter-spacing: -0.04em;
+  line-height: 1.04;
+  margin: 0 0 28px;
+  background: linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.85) 50%, #66c2ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.subtitle {
+  font-size: 18px;
+  line-height: 1.65;
+  color: rgba(255,255,255,0.7);
+  max-width: 680px;
+  margin: 0 auto 36px;
+  letter-spacing: -0.005em;
+}
+
+.ctaRow {
+  display: inline-flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.ctaPrimary,
+.ctaGhost {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 26px;
+  border-radius: 100px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.ctaPrimary {
+  background: linear-gradient(135deg, #1990FF 0%, #0E72CC 100%);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow: 0 8px 24px rgba(0,85,255,0.28), inset 0 1px 0 rgba(255,255,255,0.22);
+}
+.ctaPrimary:hover { transform: translateY(-1px); }
+
+.ctaGhost {
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.92);
+  border: 1px solid rgba(255,255,255,0.16);
+  backdrop-filter: blur(20px) saturate(140%);
+}
+.ctaGhost:hover {
+  background: rgba(255,255,255,0.10);
+  border-color: rgba(255,255,255,0.24);
+}
+
+/* ── Pillars / spec grid ─────────────────────────────────────── */
+.specSection {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 60px 48px 100px;
+}
+
+.specGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
+.specCard {
+  position: relative;
+  padding: 28px 26px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+.specIcon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(25,144,255,0.16);
+  border: 1px solid rgba(25,144,255,0.35);
+  color: #66c2ff;
+  margin-bottom: 6px;
+}
+
+.specTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.specDesc {
+  font-size: 14px;
+  line-height: 1.55;
+  color: rgba(255,255,255,0.62);
+  margin: 0;
+}
+
+@media (max-width: 800px) {
+  .topBar { padding: 22px 22px 4px; }
+  .hero    { padding: 64px 22px 60px; }
+  .specSection { padding: 40px 22px 80px; }
+  .specGrid    { grid-template-columns: 1fr; }
+  .title       { font-size: clamp(40px, 10vw, 64px); }
+}
+
+/* ── Section divider ─────────────────────────────────────────── */
+.sectionDivider {
+  max-width: 1100px;
+  margin: 24px auto 12px;
+  padding: 0 48px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.sectionDivider .line {
+  flex: 1;
+  height: 1px;
+  background: rgba(255,255,255,0.10);
+}
+
+.sectionDivider .text {
+  font-size: 11px;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.45);
+  font-weight: 600;
+}
+
+/* ── Footer CTA ──────────────────────────────────────────────── */
+.footerCta {
+  max-width: 900px;
+  margin: 40px auto 100px;
+  padding: 48px 36px;
+  border-radius: 26px;
+  text-align: center;
+  background:
+    linear-gradient(180deg, rgba(25,144,255,0.10) 0%, rgba(25,144,255,0) 100%),
+    rgba(255,255,255,0.03);
+  border: 1px solid rgba(25,144,255,0.18);
+}
+
+.footerTitle {
+  font-family: 'Instrument Sans', Georgia, serif;
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 400;
+  letter-spacing: -0.025em;
+  margin: 0 0 14px;
+  color: #fff;
+}
+
+.footerText {
+  font-size: 15px;
+  line-height: 1.6;
+  color: rgba(255,255,255,0.65);
+  max-width: 560px;
+  margin: 0 auto 26px;
+}

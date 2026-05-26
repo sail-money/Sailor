@@ -1,0 +1,543 @@
+/* ══════════════════════════════════════════════════════════════════
+   Agentic Security — three composed bands
+   1. Header (centered)
+   2. Stats grid (4-up)
+   3. Showcase (sonar visual + capabilities)
+   ══════════════════════════════════════════════════════════════════ */
+
+.section {
+  position: relative;
+  z-index: 10;
+  padding: 120px var(--space-7) 160px;
+  max-width: 1180px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 88px;
+}
+
+/* ── Band 1: Header ──────────────────────────────────────────────── */
+.headerBand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 18px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  background: rgba(25, 144, 255, 0.10);
+  border: 1px solid rgba(25, 144, 255, 0.22);
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #1990FF;
+  margin: 0;
+}
+
+.eyebrowDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #1990FF;
+  box-shadow: 0 0 8px rgba(25, 144, 255, 0.7);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.6; transform: scale(0.85); }
+}
+
+.title {
+  font-family: 'Instrument Sans', Georgia, serif;
+  font-size: clamp(40px, 6vw, 64px);
+  font-weight: 400;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+  color: #0B1628;
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 17px;
+  line-height: 1.6;
+  color: rgba(15, 23, 42, 0.62);
+  margin: 0;
+  max-width: 580px;
+  letter-spacing: -0.005em;
+}
+
+.sonarShimmer {
+  color: #1990FF;
+  font-weight: inherit;
+  font-size: inherit;
+  font-family: inherit;
+  letter-spacing: inherit;
+}
+
+/* ── Band 2: Stats grid ─────────────────────────────────────────── */
+.statsGrid {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  border-top: 1px solid rgba(15, 23, 42, 0.10);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.10);
+}
+
+.statCard {
+  position: relative;
+  padding: 36px 8px 36px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Inset vertical hairline between cells */
+.statCard + .statCard::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 32px;
+  bottom: 32px;
+  width: 1px;
+  background: rgba(15, 23, 42, 0.10);
+}
+
+.statValue {
+  font-family: 'Instrument Sans', Georgia, serif;
+  font-size: clamp(44px, 5.2vw, 68px);
+  font-weight: 400;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+  color: #0B1628;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.statLabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #1990FF;
+  line-height: 1;
+}
+
+.statCaption {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: rgba(15, 23, 42, 0.62);
+  max-width: 240px;
+}
+
+/* ── Band 3: Showcase ────────────────────────────────────────────── */
+.showcase {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 72px;
+  align-items: center;
+}
+
+.showcaseInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.showcaseVisual {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.capsHeading {
+  font-family: 'Instrument Sans', Georgia, serif;
+  font-size: clamp(22px, 2.4vw, 28px);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  color: #0B1628;
+  margin: 0;
+}
+
+.capsList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.capsItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.checkIcon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.checkIcon svg { width: 20px; height: 20px; }
+
+.capsName {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0 0 4px;
+  letter-spacing: -0.005em;
+}
+
+.capsDesc {
+  font-size: 14px;
+  color: rgba(26, 53, 96, 0.78);
+  line-height: 1.55;
+  margin: 0;
+}
+
+/* ── CTA button ──────────────────────────────────────────────────── */
+.ctaBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 9px 9px 20px;
+  background: linear-gradient(135deg, rgba(40,160,255,1) 0%, rgba(25,144,255,1) 100%);
+  border: 1px solid rgba(102,194,255,0.45);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: 100px;
+  width: fit-content;
+  cursor: pointer;
+  transform: translateY(-2px) scale(1.02);
+  box-shadow:
+    0 16px 52px rgba(25,144,255,0.58),
+    0 0 100px rgba(25, 144, 255, 0.65),
+    inset 0 1px 0 rgba(255,255,255,0.22);
+}
+.ctaArrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #fff;
+  transition: transform 0.25s var(--ease-out-expo);
+}
+.ctaArrow svg { width: 16px; height: 16px; }
+.ctaBtn:hover .ctaArrow { transform: translateX(3px); }
+
+/* ── Showcase CTA — inline button under capabilities list ────────── */
+.showcaseInfo .ctaBtn { align-self: flex-start; margin-top: 4px; }
+
+/* ── Visual CTA — pill under the Sonar card, slightly inset ──────── */
+.showcaseVisual .ctaBtn {
+  width: 90%;
+  max-width: 420px;
+  justify-content: center;
+  padding: 14px 18px 14px 28px;
+  font-size: 15px;
+}
+
+/* ── Sonar card ──────────────────────────────────────────────────── */
+.sonarWrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-width: 480px;
+  background: #030b18;
+  border-radius: 36px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(25,144,255,0.14),
+    0 40px 100px rgba(0,0,0,0.55),
+    0 0 100px rgba(25,144,255,0.10);
+}
+
+/* Ambient center glow */
+.bgGlow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 65% 65% at 50% 45%, rgba(25,144,255,0.10) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* SVG grid overlay */
+.sonarSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Sweep ───────────────────────────────────────────────────────── */
+.sweep {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 50%;
+  background: conic-gradient(
+    from 0deg at 50% 50%,
+    rgba(160, 230, 255, 0.70) 0deg,
+    rgba(60,  180, 255, 0.35) 14deg,
+    rgba(25,  144, 255, 0.12) 40deg,
+    transparent 80deg,
+    transparent 360deg
+  );
+  animation: radarSpin 3.2s linear infinite;
+  mask: radial-gradient(circle 42% at 50% 50%, black 100%, transparent 100%);
+  -webkit-mask: radial-gradient(circle 42% at 50% 50%, black 100%, transparent 100%);
+  filter: blur(10px);
+}
+
+/* Softer glow trail behind sweep */
+.sweepTrail {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 50%;
+  background: conic-gradient(
+    from -20deg at 50% 50%,
+    transparent 0deg,
+    rgba(25,144,255,0.03) 25deg,
+    rgba(25,144,255,0.08) 70deg,
+    rgba(25,144,255,0.14) 110deg,
+    transparent 130deg,
+    transparent 360deg
+  );
+  animation: radarSpin 3.2s linear infinite;
+  mask: radial-gradient(circle 42% at 50% 50%, black 100%, transparent 100%);
+  -webkit-mask: radial-gradient(circle 42% at 50% 50%, black 100%, transparent 100%);
+  filter: blur(18px);
+}
+
+@keyframes radarSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ── Blips ───────────────────────────────────────────────────────── */
+.blipWrap {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: blipCycle 3.2s ease-in-out infinite;
+}
+
+.blipDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #7ee8ff;
+  box-shadow: 0 0 8px #7ee8ff, 0 0 18px rgba(100,220,255,0.6);
+  position: relative;
+  z-index: 2;
+}
+
+.blipRing {
+  position: absolute;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(100,220,255,0.7);
+  filter: blur(1.5px);
+  animation: blipExpand 3.2s ease-out infinite;
+}
+
+.blipRing2 {
+  position: absolute;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  border: 1px solid rgba(100,220,255,0.35);
+  filter: blur(2.5px);
+  animation: blipExpand 3.2s ease-out infinite;
+  animation-delay: 0.4s;
+}
+
+.blipLabel {
+  position: absolute;
+  left: 12px;
+  top: -3px;
+  font-size: 8px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  letter-spacing: 0.12em;
+  color: rgba(100,220,255,0.70);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+@keyframes blipCycle {
+  0%       { opacity: 0; }
+  8%       { opacity: 1; }
+  60%      { opacity: 0.85; }
+  100%     { opacity: 0; }
+}
+
+@keyframes blipExpand {
+  0%   { transform: scale(1);   opacity: 0.8; }
+  100% { transform: scale(4.5); opacity: 0; }
+}
+
+/* ── Center ──────────────────────────────────────────────────────── */
+.centerWrap {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px; height: 60px;
+}
+
+/* Rotating dashed ring */
+.centerOrbit {
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  border: 1px dashed rgba(25,144,255,0.30);
+  animation: orbitSpin 12s linear infinite;
+}
+
+@keyframes orbitSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.centerGlow {
+  position: absolute;
+  inset: -20px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(25,144,255,0.18) 0%, transparent 70%);
+  animation: centerBreath 3s ease-in-out infinite;
+}
+
+@keyframes centerBreath {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50%       { opacity: 1;   transform: scale(1.3); }
+}
+
+.centerIcon {
+  position: relative;
+  z-index: 2;
+  width: 60px; height: 60px;
+  border-radius: 16px;
+  background: rgba(5, 18, 40, 0.90);
+  border: 1px solid rgba(25,144,255,0.40);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 0 0 4px rgba(25,144,255,0.08),
+    0 0 30px rgba(25,144,255,0.25);
+}
+
+.centerIcon svg { width: 28px; height: 28px; }
+
+/* ── Status chip ─────────────────────────────────────────────────── */
+.statusChip {
+  position: absolute;
+  top: 16px; right: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 8.5px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  letter-spacing: 0.14em;
+  color: rgba(100,220,255,0.70);
+  background: rgba(25,144,255,0.08);
+  border: 0.5px solid rgba(25,144,255,0.20);
+  border-radius: 100px;
+  padding: 5px 10px;
+}
+
+.statusDot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 6px #4ade80;
+  animation: dotPulse 2s ease-in-out infinite;
+}
+
+/* ── Bottom bar ──────────────────────────────────────────────────── */
+.sonarBar {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: rgba(3, 9, 20, 0.90);
+  backdrop-filter: blur(24px);
+  border-top: 1px solid rgba(25,144,255,0.12);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sonarBarLeft { display: flex; flex-direction: column; gap: 3px; }
+.sonarName    { font-size: 13px; font-weight: 600; color: #fff; letter-spacing: -0.01em; }
+.sonarSub     { font-size: 10px; color: rgba(255,255,255,0.30); letter-spacing: 0.04em; text-transform: uppercase; }
+
+.sonarStats {
+  display: flex;
+  gap: 0;
+  border: 1px solid rgba(25,144,255,0.14);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.sonarStat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 14px;
+  border-right: 1px solid rgba(25,144,255,0.14);
+}
+.sonarStat:last-child { border-right: none; }
+.sonarStat span:first-child { font-size: 13px; font-weight: 600; color: #fff; letter-spacing: -0.02em; }
+.sonarStat span:last-child  { font-size: 8px; color: rgba(255,255,255,0.30); text-transform: uppercase; letter-spacing: 0.08em; }
+
+@keyframes dotPulse {
+  0%, 100% { opacity: 1;   box-shadow: 0 0 8px #4ade80; }
+  50%       { opacity: 0.5; box-shadow: 0 0 3px #4ade80; }
+}
+
+/* ── Responsive ──────────────────────────────────────────────────── */
+@media (max-width: 1000px) {
+  .statsGrid { grid-template-columns: repeat(2, 1fr); }
+  .statCard:nth-child(2) { border-right: none; }
+  .statCard:nth-child(1),
+  .statCard:nth-child(2) { border-bottom: 1px solid rgba(15, 23, 42, 0.08); }
+  .statCard:nth-child(3) { border-right: 1px solid rgba(15, 23, 42, 0.08); }
+
+  .showcase { grid-template-columns: 1fr; gap: 48px; }
+  .showcaseVisual { order: -1; }
+  .sonarWrap { max-width: 440px; }
+}
+
+@media (max-width: 600px) {
+  .section  { padding: 80px var(--space-5) 100px; gap: 56px; }
+  .title    { font-size: clamp(34px, 8vw, 48px); }
+  .subtitle { font-size: 15px; }
+  .statsGrid { grid-template-columns: 1fr; }
+  .statCard { border-right: none !important; border-bottom: 1px solid rgba(15, 23, 42, 0.08); padding: 28px 24px; }
+  .statCard:last-child { border-bottom: none; }
+  .statValue { font-size: clamp(34px, 11vw, 44px); }
+  .sonarWrap { max-width: 100%; }
+}
+
+@media (max-width: 480px) {
+  .section { padding: 60px 16px 80px; }
+  .ctaBtn { width: 100%; justify-content: center; }
+}
