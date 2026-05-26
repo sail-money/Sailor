@@ -35,6 +35,18 @@ export function fileExists(filePath: string): boolean {
   return fs.existsSync(filePath);
 }
 
+/** ISO-8601 timestamp (seconds precision, UTC) for activity log entries. */
+export function nowIso(): string {
+  return `${new Date().toISOString().slice(0, 19)}Z`;
+}
+
+/** Appends one JSON line to .sail/activity.jsonl, creating .sail/ if needed. */
+export function appendActivity(event: Record<string, unknown>): void {
+  const filePath = sailPath("activity.jsonl");
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.appendFileSync(filePath, `${JSON.stringify(event)}\n`);
+}
+
 /** Parses a dotenv-style file into a flat record. Returns {} if absent. */
 export function parseEnvFile(filePath: string): Record<string, string> {
   const out: Record<string, string> = {};

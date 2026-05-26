@@ -4,6 +4,7 @@ import { accountCreate } from "./commands/account.js";
 import { initCommand } from "./commands/init.js";
 import { keysGenerate, keysShow } from "./commands/keys.js";
 import { mandateSign } from "./commands/mandate.js";
+import { runCommand } from "./commands/run.js";
 import { sessionPause, sessionResume } from "./commands/session.js";
 import { status } from "./commands/status.js";
 import { uiCommand } from "./commands/ui.js";
@@ -73,6 +74,21 @@ program
   .description("Show current account, mandate, and session status")
   .action(action(status));
 
+program
+  .command("run")
+  .description("Run the agent execution loop (use --once for a single tick)")
+  .option("--once", "Run a single tick then exit")
+  .action(async (opts: { once?: boolean }) => {
+    try {
+      await runCommand({ once: opts.once });
+    } catch (err) {
+      console.error(`Error: ${(err as Error).message}`);
+      closePrompts();
+      process.exit(1);
+    }
+    closePrompts();
+  });
+
 const session = program.command("session").description("Control the manager session");
 session
   .command("pause")
@@ -97,6 +113,5 @@ function stub(name: string, description: string): void {
 
 stub("wizard", "Walk through the interactive setup wizard");
 stub("dispatch preview", "Preview a dispatch without submitting");
-stub("run", "Start the agent runner (cron or one-shot)");
 
 program.parse(process.argv);
