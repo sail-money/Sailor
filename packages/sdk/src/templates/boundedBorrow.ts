@@ -1,3 +1,4 @@
+import { decodeAbiParameters, encodeAbiParameters } from "viem";
 import type { Address, Hex, MandateExplanation, PermissionTemplate } from "../types.js";
 
 /** Params for SharedBoundedBorrowPermission. */
@@ -14,22 +15,60 @@ export type BoundedBorrowParams = {
   allowedProtocols: string[];
 };
 
+const ABI = [
+  { name: "maxBorrowValueUsd", type: "uint256" },
+  { name: "maxLtvBps", type: "uint256" },
+  { name: "allowedCollateralTokens", type: "address[]" },
+  { name: "allowedDebtTokens", type: "address[]" },
+  { name: "allowedProtocols", type: "string[]" },
+] as const;
+
 export const boundedBorrowTemplate: PermissionTemplate<BoundedBorrowParams> = {
   name: "SharedBoundedBorrowPermission",
   address: "0x0000000000000000000000000000000000000000",
 
   encoder: {
-    encode(_params: BoundedBorrowParams): Hex {
-      throw new Error("not implemented");
+    encode(params: BoundedBorrowParams): Hex {
+      return encodeAbiParameters(ABI, [
+        BigInt(Math.round(params.maxBorrowValueUsd)),
+        BigInt(params.maxLtvBps),
+        params.allowedCollateralTokens,
+        params.allowedDebtTokens,
+        params.allowedProtocols,
+      ]);
     },
-    decode(_data: Hex): BoundedBorrowParams {
-      throw new Error("not implemented");
+    decode(data: Hex): BoundedBorrowParams {
+      const decoded = decodeAbiParameters(ABI, data);
+      return {
+        maxBorrowValueUsd: Number(decoded[0]),
+        maxLtvBps: Number(decoded[1]),
+        allowedCollateralTokens: [...decoded[2]],
+        allowedDebtTokens: [...decoded[3]],
+        allowedProtocols: [...decoded[4]],
+      };
     },
   },
 
   explainer: {
-    explain(_params: BoundedBorrowParams): MandateExplanation {
-      throw new Error("not implemented");
+    explain(params: BoundedBorrowParams): MandateExplanation {
+      const warnings: string[] = [];
+      if (params.maxLtvBps > 8000) {
+        warnings.push(`High LTV cap: ${params.maxLtvBps / 100}% — liquidation risk is elevated`);
+      }
+      if (params.maxBorrowValueUsd > 50_000) {
+        warnings.push(`High borrow limit: $${params.maxBorrowValueUsd.toLocaleString()}`);
+      }
+      return {
+        templateName: "SharedBoundedBorrowPermission",
+        humanReadable: [
+          `Maximum borrow size: $${params.maxBorrowValueUsd.toLocaleString()} USD`,
+          `Maximum LTV: ${params.maxLtvBps / 100}%`,
+          `Allowed collateral tokens: ${params.allowedCollateralTokens.join(", ")}`,
+          `Allowed debt tokens: ${params.allowedDebtTokens.join(", ")}`,
+          `Allowed protocols: ${params.allowedProtocols.join(", ")}`,
+        ],
+        warnings,
+      };
     },
   },
 };

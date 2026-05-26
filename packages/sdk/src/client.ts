@@ -1,3 +1,4 @@
+import { createPublicClient, defineChain, http, type PublicClient } from "viem";
 import type {
   Account,
   Address,
@@ -33,8 +34,21 @@ function notImplemented(): never {
   throw new Error("not implemented");
 }
 
+function buildPublicClient(config: SailorClientConfig): PublicClient {
+  const chain = defineChain({
+    id: config.chainId,
+    name: `Chain ${config.chainId}`,
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: { default: { http: [config.rpcUrl] } },
+  });
+  return createPublicClient({ chain, transport: http(config.rpcUrl) });
+}
+
 class AccountNamespace implements IAccountNamespace {
-  constructor(_config: SailorClientConfig) {}
+  constructor(
+    protected readonly publicClient: PublicClient,
+    protected readonly config: SailorClientConfig,
+  ) {}
 
   create(_params: CreateAccountParams): Promise<Account> {
     return notImplemented();
@@ -50,7 +64,10 @@ class AccountNamespace implements IAccountNamespace {
 }
 
 class MandateNamespace implements IMandateNamespace {
-  constructor(_config: SailorClientConfig) {}
+  constructor(
+    protected readonly publicClient: PublicClient,
+    protected readonly config: SailorClientConfig,
+  ) {}
 
   attach(
     _safe: Address,
@@ -106,13 +123,28 @@ class MandateNamespace implements IMandateNamespace {
     return notImplemented();
   }
 
-  draft(_input: MandateDraftInput): Promise<MandateExplanation> {
-    return notImplemented();
+  draft(input: MandateDraftInput): Promise<MandateExplanation> {
+    const matched = input.suggestedTemplates ?? [];
+    return Promise.resolve({
+      templateName: matched[0] ?? "unknown",
+      humanReadable: [
+        `Strategy: ${input.description}`,
+        matched.length > 0
+          ? `Suggested templates: ${matched.join(", ")}`
+          : "No template matched — specify a template name to generate mandate terms.",
+      ],
+      warnings: [
+        "This is a draft — review each permission term before signing.",
+      ],
+    });
   }
 }
 
 class DispatchNamespace implements IDispatchNamespace {
-  constructor(_config: SailorClientConfig) {}
+  constructor(
+    protected readonly publicClient: PublicClient,
+    protected readonly config: SailorClientConfig,
+  ) {}
 
   single(
     _safe: Address,
@@ -138,7 +170,10 @@ class DispatchNamespace implements IDispatchNamespace {
 }
 
 class SessionNamespace implements ISessionNamespace {
-  constructor(_config: SailorClientConfig) {}
+  constructor(
+    protected readonly publicClient: PublicClient,
+    protected readonly config: SailorClientConfig,
+  ) {}
 
   revoke(_safe: Address, _signer: ILocalKeyring): Promise<void> {
     return notImplemented();
@@ -154,7 +189,10 @@ class SessionNamespace implements ISessionNamespace {
 }
 
 class FeesNamespace implements IFeesNamespace {
-  constructor(_config: SailorClientConfig) {}
+  constructor(
+    protected readonly publicClient: PublicClient,
+    protected readonly config: SailorClientConfig,
+  ) {}
 
   setPolicy(_safe: Address, _policy: FeePolicy, _signer: ILocalKeyring): Promise<void> {
     return notImplemented();
@@ -172,7 +210,10 @@ class FeesNamespace implements IFeesNamespace {
 }
 
 class PrincipalNamespace implements IPrincipalNamespace {
-  constructor(_config: SailorClientConfig) {}
+  constructor(
+    protected readonly publicClient: PublicClient,
+    protected readonly config: SailorClientConfig,
+  ) {}
 
   recordDeposit(_safe: Address, _amount: bigint, _signer: ILocalKeyring): Promise<void> {
     return notImplemented();
@@ -193,11 +234,12 @@ export class SailorClient implements ISailorClient {
   readonly principal: IPrincipalNamespace;
 
   constructor(config: SailorClientConfig) {
-    this.account = new AccountNamespace(config);
-    this.mandate = new MandateNamespace(config);
-    this.dispatch = new DispatchNamespace(config);
-    this.session = new SessionNamespace(config);
-    this.fees = new FeesNamespace(config);
-    this.principal = new PrincipalNamespace(config);
+    const publicClient = buildPublicClient(config);
+    this.account = new AccountNamespace(publicClient, config);
+    this.mandate = new MandateNamespace(publicClient, config);
+    this.dispatch = new DispatchNamespace(publicClient, config);
+    this.session = new SessionNamespace(publicClient, config);
+    this.fees = new FeesNamespace(publicClient, config);
+    this.principal = new PrincipalNamespace(publicClient, config);
   }
 }

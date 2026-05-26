@@ -1,3 +1,4 @@
+import { decodeAbiParameters, encodeAbiParameters } from "viem";
 import type { Address, Hex, MandateExplanation, PermissionTemplate } from "../types.js";
 
 /** Params for SharedApproveAndCallBatchPermission. */
@@ -12,22 +13,59 @@ export type ApproveAndCallBatchParams = {
   allowInfiniteApprovals: boolean;
 };
 
+const ABI = [
+  { name: "allowedSpenders", type: "address[]" },
+  { name: "allowedTokens", type: "address[]" },
+  { name: "maxApprovalValueUsd", type: "uint256" },
+  { name: "allowInfiniteApprovals", type: "bool" },
+] as const;
+
 export const approveAndCallBatchTemplate: PermissionTemplate<ApproveAndCallBatchParams> = {
   name: "SharedApproveAndCallBatchPermission",
   address: "0x0000000000000000000000000000000000000000",
 
   encoder: {
-    encode(_params: ApproveAndCallBatchParams): Hex {
-      throw new Error("not implemented");
+    encode(params: ApproveAndCallBatchParams): Hex {
+      return encodeAbiParameters(ABI, [
+        params.allowedSpenders,
+        params.allowedTokens,
+        BigInt(Math.round(params.maxApprovalValueUsd)),
+        params.allowInfiniteApprovals,
+      ]);
     },
-    decode(_data: Hex): ApproveAndCallBatchParams {
-      throw new Error("not implemented");
+    decode(data: Hex): ApproveAndCallBatchParams {
+      const decoded = decodeAbiParameters(ABI, data);
+      return {
+        allowedSpenders: [...decoded[0]],
+        allowedTokens: [...decoded[1]],
+        maxApprovalValueUsd: Number(decoded[2]),
+        allowInfiniteApprovals: decoded[3],
+      };
     },
   },
 
   explainer: {
-    explain(_params: ApproveAndCallBatchParams): MandateExplanation {
-      throw new Error("not implemented");
+    explain(params: ApproveAndCallBatchParams): MandateExplanation {
+      const warnings: string[] = [];
+      if (params.allowInfiniteApprovals) {
+        warnings.push(
+          "Infinite approvals enabled — spenders may pull tokens beyond the per-batch cap",
+        );
+      }
+      if (params.allowedSpenders.length === 0) {
+        warnings.push("No spenders specified — all approvals will be blocked");
+      }
+      return {
+        templateName: "SharedApproveAndCallBatchPermission",
+        humanReadable: [
+          `ERC-20 approvals restricted to ${params.allowedSpenders.length} approved spender(s)`,
+          `Allowed tokens: ${params.allowedTokens.join(", ")}`,
+          `Maximum approval value per batch: $${params.maxApprovalValueUsd.toLocaleString()} USD`,
+          `Infinite approvals: ${params.allowInfiniteApprovals ? "allowed" : "not allowed"}`,
+          `Approved spenders: ${params.allowedSpenders.join(", ")}`,
+        ],
+        warnings,
+      };
     },
   },
 };

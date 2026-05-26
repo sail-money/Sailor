@@ -1,3 +1,4 @@
+import { decodeAbiParameters, encodeAbiParameters } from "viem";
 import type { Address, Hex, MandateExplanation, PermissionTemplate } from "../types.js";
 
 /** Params for SharedPendlePermission. */
@@ -12,22 +13,56 @@ export type PendleParams = {
   minImpliedApyBps: number;
 };
 
+const ABI = [
+  { name: "maxPositionValueUsd", type: "uint256" },
+  { name: "allowedMarkets", type: "address[]" },
+  { name: "allowedActions", type: "string[]" },
+  { name: "minImpliedApyBps", type: "uint256" },
+] as const;
+
 export const pendleTemplate: PermissionTemplate<PendleParams> = {
   name: "SharedPendlePermission",
   address: "0x0000000000000000000000000000000000000000",
 
   encoder: {
-    encode(_params: PendleParams): Hex {
-      throw new Error("not implemented");
+    encode(params: PendleParams): Hex {
+      return encodeAbiParameters(ABI, [
+        BigInt(Math.round(params.maxPositionValueUsd)),
+        params.allowedMarkets,
+        params.allowedActions,
+        BigInt(params.minImpliedApyBps),
+      ]);
     },
-    decode(_data: Hex): PendleParams {
-      throw new Error("not implemented");
+    decode(data: Hex): PendleParams {
+      const decoded = decodeAbiParameters(ABI, data);
+      return {
+        maxPositionValueUsd: Number(decoded[0]),
+        allowedMarkets: [...decoded[1]],
+        allowedActions: [...decoded[2]],
+        minImpliedApyBps: Number(decoded[3]),
+      };
     },
   },
 
   explainer: {
-    explain(_params: PendleParams): MandateExplanation {
-      throw new Error("not implemented");
+    explain(params: PendleParams): MandateExplanation {
+      const warnings: string[] = [];
+      if (params.minImpliedApyBps === 0) {
+        warnings.push("No minimum APY gate — agent may enter low-yield positions");
+      }
+      if (params.allowedMarkets.length === 0) {
+        warnings.push("No markets specified — all Pendle market interactions will be blocked");
+      }
+      return {
+        templateName: "SharedPendlePermission",
+        humanReadable: [
+          `Maximum position size: $${params.maxPositionValueUsd.toLocaleString()} USD`,
+          `Minimum implied APY: ${params.minImpliedApyBps / 100}%`,
+          `Allowed actions: ${params.allowedActions.join(", ")}`,
+          `Allowed markets (${params.allowedMarkets.length}): ${params.allowedMarkets.join(", ")}`,
+        ],
+        warnings,
+      };
     },
   },
 };
