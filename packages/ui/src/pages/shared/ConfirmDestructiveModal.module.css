@@ -1,0 +1,124 @@
+/* ──────────────────────────────────────────
+   ConfirmDestructiveModal — shared confirmation
+   surface for irreversible / impactful actions.
+   Lives above every other modal (z-index 500).
+   ────────────────────────────────────────── */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(2, 4, 10, 0.66);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  animation: cdFade 220ms var(--ease-out-expo) both;
+}
+@keyframes cdFade { from { opacity: 0; } to { opacity: 1; } }
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  padding: 26px 26px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.045) 0%, rgba(255,255,255,0.012) 100%),
+    var(--glass-bg-modal);
+  border: 1px solid var(--glass-border-strong);
+  border-radius: 22px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 32px 80px -24px rgba(0, 0, 0, 0.85),
+    0 4px 16px rgba(0, 0, 0, 0.3);
+  animation: cdRise 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes cdRise {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+.iconWrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  color: var(--status-warn);
+  background: var(--status-warn-bg);
+  border: 1px solid var(--status-warn-border);
+  border-radius: 50%;
+  box-shadow: 0 0 24px -8px rgba(245, 165, 36, 0.5);
+}
+
+.title {
+  font-family: 'Instrument Sans', 'DM Sans', serif;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  color: var(--text-primary);
+  margin: 4px 0 0;
+  max-width: 26ch;
+  text-wrap: balance;
+}
+.body {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin: 0;
+  max-width: 40ch;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 22px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.002em;
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    color 200ms var(--ease-apple),
+    background 200ms var(--ease-apple),
+    border-color 200ms var(--ease-apple),
+    transform 200ms var(--ease-apple),
+    filter 200ms var(--ease-apple);
+}
+.btnDanger {
+  color: #fff;
+  background: linear-gradient(180deg, rgba(229, 72, 77, 1) 0%, rgba(195, 56, 60, 1) 100%);
+  border: 1px solid rgba(229, 72, 77, 0.65);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.20),
+    0 14px 30px -14px rgba(229, 72, 77, 0.55);
+}
+.btnDanger:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.btnDanger:focus-visible { outline: 2px solid #ff8a8a; outline-offset: 3px; }
+.btnGhost {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+}
+.btnGhost:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.22);
+}

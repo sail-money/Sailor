@@ -1,0 +1,119 @@
+/* Fluid Mesh Background — organic gradient blobs + frosted glass.
+   Ported from the Sail full-LOD dashboard. */
+
+.fluidBg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: #010408;
+}
+
+.fluidBg > div {
+  position: absolute;
+  will-change: transform;
+  filter: blur(100px);
+}
+
+/* Blob 1 — deep blue, bottom sweep */
+.blob1 {
+  width: 90vw; height: 40vh;
+  bottom: -10%; left: -15%;
+  border-radius: 30% 70% 60% 40% / 60% 30% 70% 40%;
+  background: radial-gradient(ellipse 100% 80% at 40% 50%, #04204c 0%, transparent 70%);
+  animation: drift1 12s ease-in-out infinite alternate;
+}
+@keyframes drift1 {
+  0%   { transform: translate(0, 0) scaleX(1) scaleY(1) rotate(0deg); }
+  20%  { transform: translate(12vw, -6vh) scaleX(1.10) scaleY(0.90) rotate(5deg); }
+  40%  { transform: translate(20vw, -2vh) scaleX(0.92) scaleY(1.10) rotate(-4deg); }
+  60%  { transform: translate(14vw, -8vh) scaleX(1.12) scaleY(0.88) rotate(6deg); }
+  80%  { transform: translate(5vw, -4vh) scaleX(0.94) scaleY(1.08) rotate(-3deg); }
+  100% { transform: translate(16vw, -10vh) scaleX(1.08) scaleY(0.92) rotate(5deg); }
+}
+
+/* Blob 2 — bright blue, right flowing */
+.blob2 {
+  width: 70vw; height: 50vh;
+  top: 5%; right: -12%;
+  border-radius: 60% 40% 45% 55% / 40% 65% 35% 60%;
+  background: radial-gradient(ellipse 90% 100% at 60% 40%, #08355f 0%, transparent 70%);
+  animation: drift2 10s ease-in-out infinite alternate;
+}
+@keyframes drift2 {
+  0%   { transform: translate(0, 0) scaleX(1) scaleY(1) rotate(0deg); }
+  25%  { transform: translate(-14vw, 8vh) scaleX(0.90) scaleY(1.12) rotate(-6deg); }
+  50%  { transform: translate(-20vw, 12vh) scaleX(1.12) scaleY(0.88) rotate(5deg); }
+  75%  { transform: translate(-8vw, 5vh) scaleX(0.94) scaleY(1.08) rotate(-4deg); }
+  100% { transform: translate(-16vw, 10vh) scaleX(1.08) scaleY(0.92) rotate(6deg); }
+}
+
+/* Blob 3 — teal, top wide band */
+.blob3 {
+  width: 110vw; height: 35vh;
+  top: -8%; left: -10%;
+  border-radius: 45% 55% 50% 50% / 70% 30% 70% 30%;
+  background: radial-gradient(ellipse 100% 70% at 50% 60%, #062f36 0%, transparent 65%);
+  animation: drift3 14s ease-in-out infinite alternate;
+}
+@keyframes drift3 {
+  0%   { transform: translate(0, 0) scaleX(1) scaleY(1) rotate(0deg); }
+  16%  { transform: translate(8vw, 6vh) scaleX(1.08) scaleY(0.88) rotate(4deg); }
+  33%  { transform: translate(16vw, 10vh) scaleX(0.92) scaleY(1.12) rotate(-5deg); }
+  50%  { transform: translate(10vw, 14vh) scaleX(1.10) scaleY(0.90) rotate(4deg); }
+  66%  { transform: translate(3vw, 10vh) scaleX(0.94) scaleY(1.08) rotate(-3deg); }
+  83%  { transform: translate(12vw, 6vh) scaleX(1.06) scaleY(0.94) rotate(5deg); }
+  100% { transform: translate(6vw, 12vh) scaleX(0.93) scaleY(1.10) rotate(-4deg); }
+}
+
+/* Blob 4 — mid blue, center current */
+.blob4 {
+  width: 65vw; height: 45vh;
+  top: 30%; left: 15%;
+  border-radius: 55% 45% 50% 50% / 35% 65% 35% 65%;
+  background: radial-gradient(ellipse 80% 90% at 50% 50%, #062952 0%, transparent 70%);
+  animation: drift4 11s ease-in-out infinite alternate;
+}
+@keyframes drift4 {
+  0%   { transform: translate(0, 0) scaleX(1) scaleY(1) rotate(0deg); }
+  20%  { transform: translate(-10vw, -7vh) scaleX(1.10) scaleY(0.90) rotate(-5deg); }
+  40%  { transform: translate(-18vw, 4vh) scaleX(0.90) scaleY(1.12) rotate(4deg); }
+  60%  { transform: translate(-8vw, -3vh) scaleX(1.08) scaleY(0.92) rotate(-4deg); }
+  80%  { transform: translate(-14vw, 6vh) scaleX(0.94) scaleY(1.08) rotate(5deg); }
+  100% { transform: translate(-5vw, 2vh) scaleX(1.06) scaleY(0.94) rotate(-3deg); }
+}
+
+/* Blob 5 — Sail blue accent, lower right drift */
+.blob5 {
+  width: 55vw; height: 35vh;
+  bottom: 0%; right: -5%;
+  border-radius: 50% 50% 40% 60% / 55% 45% 55% 45%;
+  background: radial-gradient(ellipse 90% 80% at 50% 50%, #0c4880 0%, transparent 70%);
+  opacity: 0.35;
+  animation: drift5 13s ease-in-out infinite alternate;
+}
+@keyframes drift5 {
+  0%   { transform: translate(0, 0) scaleX(1) scaleY(1) rotate(0deg); }
+  25%  { transform: translate(-12vw, -10vh) scaleX(0.92) scaleY(1.10) rotate(5deg); }
+  50%  { transform: translate(-20vw, -5vh) scaleX(1.10) scaleY(0.90) rotate(-5deg); }
+  75%  { transform: translate(-8vw, -12vh) scaleX(0.94) scaleY(1.08) rotate(4deg); }
+  100% { transform: translate(-16vw, -8vh) scaleX(1.08) scaleY(0.92) rotate(-4deg); }
+}
+
+/* Frosted glass overlay — blurs the blobs into a smooth liquid surface */
+.fluidFrost {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: rgba(3,5,10,0.32);
+  backdrop-filter: blur(50px) saturate(160%);
+  -webkit-backdrop-filter: blur(70px) saturate(160%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blob1, .blob2, .blob3, .blob4, .blob5 {
+    animation: none;
+  }
+}

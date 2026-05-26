@@ -1,0 +1,40 @@
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+
+  /*
+   * Dark sphere body: very deep midnight-blue, lightening toward the near-rim
+   * to simulate a planet-like surface + atmosphere edge.
+   */
+  background: radial-gradient(
+    circle at 36% 32%,
+    rgba(16, 36, 110, 0.82)  0%,
+    rgba(7,  16, 60,  0.97) 28%,
+    rgba(3,   7, 28,  1.00) 56%,
+    rgba(10, 28, 88,  0.68) 76%,
+    rgba(24, 70, 200, 0.22) 88%,
+    transparent             96%
+  );
+
+  /*
+   * Rim lighting: upper-left shadow + electric-blue light from bottom-right.
+   * This is the signature Gemini "planet rim" effect.
+   */
+  box-shadow:
+    inset  88px  76px 120px rgba(0,   0,   0,   0.75),  /* shadow, top-left  */
+    inset -70px -58px 100px rgba(35, 115, 255, 0.52),    /* blue rim          */
+    inset -38px -30px  58px rgba(90, 195, 255, 0.24),    /* teal highlight    */
+    0 0  160px         rgba(22,  80, 240, 0.22),          /* outer blue halo   */
+    0 0  320px         rgba(12,  50, 170, 0.10);          /* wide soft glow    */
+
+  animation: orbFloat 20s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes orbFloat {
+  0%,  100% { transform: translate(  0px,   0px) scale(1.000); }
+  30%        { transform: translate( 10px, -18px) scale(1.014); }
+  65%        { transform: translate( -8px,  12px) scale(0.988); }
+}

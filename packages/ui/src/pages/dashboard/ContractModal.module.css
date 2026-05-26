@@ -1,0 +1,1211 @@
+/* ──────────────────────────────────────────
+   Mandate Agreement — legal-document modal.
+   Generous whitespace, precise typography, calm motion.
+   ────────────────────────────────────────── */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 460;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  background: var(--scrim-modal);
+  backdrop-filter: var(--scrim-modal-blur);
+  -webkit-backdrop-filter: var(--scrim-modal-blur);
+  animation: contractFade 320ms var(--ease-out-expo) both;
+}
+@keyframes contractFade { from { opacity: 0; } to { opacity: 1; } }
+
+.card {
+  position: relative;
+  width: 100%;
+  max-width: 780px;
+  max-height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.012) 60%, rgba(255,255,255,0.005) 100%),
+    var(--glass-bg-modal);
+  border: 1px solid var(--glass-border-strong);
+  border-radius: 24px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 40px 120px -24px rgba(0, 0, 0, 0.9),
+    0 6px 20px rgba(0, 0, 0, 0.35);
+  animation: contractRise 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes contractRise {
+  from { opacity: 0; transform: translateY(20px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+.close {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 18px;
+  color: var(--text-tertiary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 2;
+  transition: color 200ms, background 200ms, border-color 200ms;
+}
+.close:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+.close:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* The contract document itself — scrollable, paginated whitespace.
+   Extra bottom padding so content never sits behind the sticky
+   footer's action buttons. */
+.doc {
+  overflow-y: auto;
+  padding: 56px 64px 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  color: var(--text-primary);
+}
+@media (max-width: 720px) {
+  .doc { padding: 40px 24px 0; gap: 22px; }
+}
+
+/* ── Document header ── */
+.docHead {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: center;
+  align-items: center;
+}
+.docKicker {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.docTitle {
+  font-family: 'Instrument Sans', 'DM Sans', serif;
+  font-size: clamp(28px, 4vw, 36px);
+  font-weight: 600;
+  letter-spacing: -0.024em;
+  line-height: 1.08;
+  margin: 0;
+  text-wrap: balance;
+  max-width: 28ch;
+}
+.docLede {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  margin: 0;
+  max-width: 56ch;
+  font-style: italic;
+  text-wrap: balance;
+}
+.docLede strong {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-primary);
+  font-style: normal;
+}
+
+/* Header meta grid (Drafted by · Requested · Effective · Date) */
+.docMeta {
+  margin: 12px 0 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  max-width: 560px;
+  padding: 14px 18px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 14px;
+}
+.docMetaCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  min-width: 0;
+}
+.docMetaCell dt {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.docMetaCell dd {
+  margin: 0;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12.5px;
+  color: var(--text-primary);
+  letter-spacing: 0.005em;
+  font-variant-numeric: tabular-nums;
+}
+.docMetaWithMark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+@media (max-width: 600px) {
+  .docMeta { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ── Horizontal rule ── */
+.divider {
+  display: block;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.10) 20%, rgba(255, 255, 255, 0.10) 80%, transparent);
+  margin: 4px 0;
+}
+
+/* ── Section ── */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.sectionRoman {
+  font-family: 'Instrument Sans', 'DM Sans', serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+.sectionTitle {
+  flex: 1;
+  font-family: 'Instrument Sans', 'DM Sans', serif;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.014em;
+  color: var(--text-primary);
+  margin: 0;
+}
+.sectionKicker {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.01em;
+  font-style: italic;
+}
+.sectionBody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Body text ── */
+.docBody {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  line-height: 1.72;
+  color: var(--text-secondary);
+  margin: 0;
+  letter-spacing: 0.002em;
+  max-width: 60ch;
+}
+.docBody em {
+  color: var(--text-primary);
+  font-style: italic;
+}
+.docBody strong {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-style: normal;
+}
+
+/* Recital blockquote — italic AI quote sitting inside the summary. */
+.recital {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 6px 0 0;
+  padding: 18px 22px 16px 26px;
+  background:
+    linear-gradient(180deg, rgba(25, 144, 255, 0.08) 0%, rgba(25, 144, 255, 0.02) 100%),
+    rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(25, 144, 255, 0.20);
+  border-left: 3px solid var(--accent-blue);
+  border-radius: 12px;
+}
+.recitalMark {
+  position: absolute;
+  top: 4px;
+  left: 12px;
+  font-family: 'Instrument Sans', serif;
+  font-size: 42px;
+  line-height: 1;
+  color: var(--ocean-light);
+  opacity: 0.45;
+}
+.recital p {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14.5px;
+  line-height: 1.62;
+  font-style: italic;
+  color: var(--text-primary);
+  margin: 0;
+  max-width: 56ch;
+}
+.recital footer {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.005em;
+}
+
+/* ── Parties ── */
+.parties {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+@media (min-width: 720px) {
+  .parties { grid-template-columns: 1fr 1fr 1fr; }
+}
+.party {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+}
+.partyActive {
+  background: linear-gradient(180deg, rgba(25, 144, 255, 0.10) 0%, rgba(25, 144, 255, 0.03) 100%);
+  border-color: rgba(25, 144, 255, 0.32);
+}
+.partyRole {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.partyActive .partyRole { color: var(--ocean-light); }
+.partyName {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--text-primary);
+}
+.partyDesc {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.partyAddr {
+  margin-top: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.005em;
+  word-break: break-all;
+}
+
+/* ── Scope ── */
+.scopeGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+@media (min-width: 600px) {
+  .scopeGrid { grid-template-columns: 1fr 1fr; }
+}
+.scopeBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  background: rgba(0, 0, 0, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+}
+.scopeHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.scopeCount {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+.scopeChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.scopePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+}
+.scopePillDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.scopeEmpty {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+/* ── Limits ── */
+.limitsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+@media (max-width: 600px) {
+  .limitsGrid { grid-template-columns: 1fr; }
+}
+.limitCell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 18px;
+  background: rgba(0, 0, 0, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+}
+.limitCellEmphasis {
+  background:
+    linear-gradient(180deg, rgba(25, 144, 255, 0.08) 0%, rgba(25, 144, 255, 0.02) 100%),
+    rgba(0, 0, 0, 0.16);
+  border-color: rgba(25, 144, 255, 0.20);
+}
+.limitLabel {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.limitValueWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.limitVal {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: 'Instrument Sans', 'DM Sans', serif;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  color: var(--text-primary);
+}
+.limitSub {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--text-tertiary);
+  letter-spacing: 0.01em;
+}
+
+/* ── Permitted actions ── */
+.actionList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  counter-reset: action;
+}
+.actionItem {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 14px;
+  align-items: baseline;
+  padding: 12px 4px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.actionItem:last-child { border-bottom: none; }
+.actionIndex {
+  font-family: 'Instrument Sans', 'DM Sans', serif;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--text-tertiary);
+  letter-spacing: 0.06em;
+  text-align: center;
+  padding-top: 4px;
+}
+.actionBody {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.actionLabel {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--text-primary);
+  letter-spacing: -0.002em;
+}
+.actionMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.actionChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+}
+.actionChipDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── Reservation of rights ── */
+.rights {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rights li {
+  position: relative;
+  padding: 10px 14px 10px 32px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13.5px;
+  line-height: 1.62;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  letter-spacing: 0.002em;
+}
+.rights li strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.rights li::before {
+  content: '§';
+  position: absolute;
+  left: 12px;
+  top: 11px;
+  font-family: 'Instrument Sans', serif;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--ocean-light);
+  opacity: 0.85;
+}
+
+/* ── Signature block ── */
+.sigBlock {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px 22px 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.005) 100%),
+    rgba(0, 0, 0, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+}
+.sigHead {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  text-align: center;
+}
+.sigTitle {
+  font-family: 'Instrument Sans', 'DM Sans', serif;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  margin: 0;
+}
+.sigSub {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.005em;
+  font-style: italic;
+}
+.sigGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+@media (min-width: 680px) {
+  .sigGrid { grid-template-columns: 1fr 1fr; }
+}
+
+.sigCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 18px 14px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  transition: background 280ms var(--ease-apple), border-color 280ms var(--ease-apple);
+}
+.sigCard_signed {
+  background: linear-gradient(180deg, rgba(25, 144, 255, 0.10) 0%, rgba(25, 144, 255, 0.02) 100%);
+  border-color: rgba(25, 144, 255, 0.30);
+}
+
+/* Provider-tinted signature card — applies only when this card carries
+   a brand (i.e. the "Drafted by" AI counter-signer). The owner card
+   has no brand prop, so it keeps the default brand-blue. */
+.sigCardProvider_claude.sigCard_signed {
+  background: linear-gradient(180deg, rgba(204, 120, 92, 0.14) 0%, rgba(204, 120, 92, 0.03) 100%);
+  border-color: rgba(204, 120, 92, 0.42);
+}
+.sigCardProvider_claude.sigCard_signed .sigCardRole { color: #F2C5B0; }
+.sigCardProvider_claude.sigCard_signed .sigLine     { border-bottom-color: rgba(204, 120, 92, 0.55); }
+.sigCardProvider_claude.sigCard_signed .sigX        { color: #F2C5B0; }
+
+.sigCardProvider_cursor.sigCard_signed {
+  background: linear-gradient(180deg, rgba(200, 210, 225, 0.10) 0%, rgba(200, 210, 225, 0.02) 100%);
+  border-color: rgba(220, 225, 240, 0.42);
+}
+.sigCardProvider_cursor.sigCard_signed .sigCardRole { color: #DCE2EE; }
+.sigCardProvider_cursor.sigCard_signed .sigLine     { border-bottom-color: rgba(220, 225, 240, 0.5); }
+.sigCardProvider_cursor.sigCard_signed .sigX        { color: #DCE2EE; }
+
+.sigCardProvider_codex.sigCard_signed {
+  background: linear-gradient(180deg, rgba(16, 163, 127, 0.14) 0%, rgba(16, 163, 127, 0.03) 100%);
+  border-color: rgba(16, 163, 127, 0.46);
+}
+.sigCardProvider_codex.sigCard_signed .sigCardRole { color: #5FD6B4; }
+.sigCardProvider_codex.sigCard_signed .sigLine     { border-bottom-color: rgba(16, 163, 127, 0.55); }
+.sigCardProvider_codex.sigCard_signed .sigX        { color: #5FD6B4; }
+.sigCard_signing {
+  border-color: rgba(245, 165, 36, 0.32);
+}
+.sigCardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sigCardRole {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.sigCardName {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.005em;
+}
+.sigCardAddr {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.sigCardAddrLabel {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.sigCardAddrValue {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  letter-spacing: 0.005em;
+  word-break: break-all;
+}
+
+/* The actual signature line — long thin underline with an "X" sigil. */
+.sigLineWrap {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: end;
+  gap: 10px;
+  margin-top: 14px;
+}
+.sigX {
+  font-family: 'Instrument Sans', 'DM Sans', serif;
+  font-size: 14px;
+  font-style: italic;
+  color: var(--text-tertiary);
+  padding-bottom: 6px;
+}
+.sigLine {
+  position: relative;
+  min-height: 30px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 4px;
+  overflow: hidden;
+}
+.sigValue {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+  font-weight: 500;
+  font-style: italic;
+  color: var(--text-primary);
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* The signature "writes itself" onto the line. */
+  animation: sigWrite 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes sigWrite {
+  from { clip-path: inset(0 100% 0 0); opacity: 0.6; }
+  to   { clip-path: inset(0 0 0 0);    opacity: 1; }
+}
+.sigCard_signed .sigLine { border-bottom-color: rgba(25, 144, 255, 0.5); }
+.sigPenLine {
+  position: absolute;
+  bottom: 4px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-blue), transparent);
+  animation: penDraw 1500ms linear forwards;
+}
+@keyframes penDraw {
+  from { width: 0; }
+  to   { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sigValue { animation: none; clip-path: none; }
+  .sigPenLine { animation: none; width: 100%; }
+}
+
+/* ── Footer actions ──
+   Pulled out of the .doc scroll so it floats fixed at the bottom of
+   the modal card. Backdrop-blur keeps content readable as it scrolls
+   underneath. */
+.docFooter {
+  position: sticky;
+  bottom: 0;
+  margin: 28px -64px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 18px 64px 22px;
+  background:
+    linear-gradient(180deg, rgba(8, 14, 26, 0.92) 0%, rgba(8, 14, 26, 0.98) 100%);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+@media (max-width: 720px) {
+  .docFooter { margin: 22px -24px 0; padding: 16px 24px 18px; }
+}
+.authorizeBtn {
+  height: 48px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.002em;
+  color: #fff;
+  background: linear-gradient(180deg, rgba(25, 144, 255, 1) 0%, rgba(14, 122, 224, 1) 100%);
+  border: 1px solid rgba(25, 144, 255, 0.6);
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 14px 32px -14px rgba(25, 144, 255, 0.7);
+  transition: filter 220ms var(--ease-apple), transform 220ms var(--ease-apple);
+}
+.authorizeBtn:hover:not(:disabled) {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+.authorizeBtn:disabled { opacity: 0.7; cursor: progress; }
+.rejectBtn {
+  height: 44px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: 0.004em;
+  color: var(--status-revoked);
+  background: transparent;
+  border: 1px solid var(--status-revoked-border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 200ms var(--ease-apple), color 200ms var(--ease-apple);
+}
+.rejectBtn:hover:not(:disabled) {
+  background: var(--status-revoked-bg);
+  color: var(--status-revoked);
+}
+.rejectBtn:disabled { opacity: 0.35; cursor: not-allowed; }
+.docFooterNote {
+  margin: 4px 0 0;
+  text-align: center;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--text-tertiary);
+  letter-spacing: 0.005em;
+  font-style: italic;
+}
+
+/* Read-only footer — shown when the contract is opened from the
+   Agent page (the mandate is already signed). Just a Close button +
+   a quiet onchain note. */
+.readOnlyFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 2px 4px;
+}
+.readOnlyNote {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+  font-style: italic;
+  letter-spacing: 0.005em;
+}
+.readOnlyClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 26px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: 0.004em;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 200ms var(--ease-apple), border-color 200ms var(--ease-apple), transform 200ms var(--ease-apple);
+}
+.readOnlyClose:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.26);
+  transform: translateY(-1px);
+}
+@media (max-width: 560px) {
+  .readOnlyFoot { flex-direction: column; align-items: stretch; }
+  .readOnlyClose { width: 100%; }
+}
+
+/* ── Success state ── */
+.docFooterSuccess {
+  background:
+    linear-gradient(180deg, rgba(34, 197, 94, 0.10) 0%, rgba(8, 14, 26, 0.96) 60%);
+  border-top-color: rgba(34, 197, 94, 0.32);
+}
+.successBlock {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 4px;
+  animation: successRise 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes successRise {
+  from { opacity: 0; transform: translateY(8px) scale(0.99); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+.successMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  color: var(--status-success);
+  background: rgba(34, 197, 94, 0.14);
+  border: 1px solid rgba(34, 197, 94, 0.42);
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 24px -8px rgba(34, 197, 94, 0.55);
+  animation: successPop 460ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.successMark svg path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: successCheck 540ms cubic-bezier(0.22, 1, 0.36, 1) 120ms forwards;
+}
+@keyframes successCheck {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes successPop {
+  0%   { opacity: 0; transform: scale(0.6); }
+  60%  { opacity: 1; transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.successBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.successTitle {
+  font-family: 'Instrument Sans', 'DM Sans', serif;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.014em;
+  color: var(--text-primary);
+}
+.successSub {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  letter-spacing: 0.002em;
+}
+.successDone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 22px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: 0.002em;
+  color: #fff;
+  background: var(--accent-blue);
+  border: 1px solid rgba(25, 144, 255, 0.6);
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 12px 24px -12px rgba(25, 144, 255, 0.65);
+  transition: filter 200ms var(--ease-apple), transform 200ms var(--ease-apple);
+  flex-shrink: 0;
+}
+.successDone:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.successDone:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 3px; }
+
+@media (max-width: 560px) {
+  .successBlock {
+    grid-template-columns: auto 1fr;
+    gap: 12px;
+  }
+  .successDone {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+    margin-top: 4px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .successBlock, .successMark, .successMark svg path { animation: none; stroke-dashoffset: 0; }
+}
+
+/* ─────────────────────────────────────────────
+   Revocation animation
+   When the user confirms revoke, the contract body fades and lifts
+   away (withdrawn), and a bold REVOKED stamp descends onto the
+   signature pair with a back-out spring + impact ring + inner ink
+   shadow. Reduced-motion users get the final state without motion.
+   ───────────────────────────────────────────── */
+
+/* The article body — everything except the signature block — dims
+   and lifts away on revoke. The sig block stays put because that's
+   where the stamp lands. */
+.docRevoking > header,
+.docRevoking > section:not(:nth-last-child(2)) {
+  opacity: 0.30;
+  transform: translateY(-6px);
+  transition:
+    opacity 540ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 540ms cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+.docRevoking > hr,
+.docRevoking > div[role="separator"] {
+  opacity: 0.30;
+  transition: opacity 540ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── REVOKED stamp — premium rubber-stamp impression ──
+   Container: absolutely positioned and tilted; the inner box holds
+   the border + text; an impact ring pulses outward on landing. */
+.revokeStamp {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-7deg) scale(1.55);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
+  /* The transition that runs WHEN we add the "Landed" class. */
+  transition:
+    transform 460ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 280ms cubic-bezier(0.4, 0, 0.2, 1);
+  /* Subtle blur on descent so the stamp feels like it's still
+     coming into focus before it hits the paper. */
+  filter: blur(2px);
+}
+.revokeStampLanded {
+  transform: translate(-50%, -50%) rotate(-7deg) scale(1);
+  opacity: 1;
+  filter: blur(0);
+}
+
+/* The visible stamp itself — bordered, bold, with a faint inner
+   "ink soaked into paper" gradient. */
+.revokeStampInner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 36px 18px;
+  background:
+    radial-gradient(60% 50% at 50% 50%, rgba(229, 72, 77, 0.06) 0%, rgba(229, 72, 77, 0) 75%);
+  border: 4px solid var(--status-revoked);
+  border-radius: 14px;
+  box-shadow:
+    /* Outer drop — the stamp casts a faint shadow on the paper. */
+    0 14px 40px -16px rgba(229, 72, 77, 0.55),
+    /* Inner ink-press shadow — paints into existence on .Landed via the
+       transition. The "ink" sinks slightly more on the bottom edge,
+       mimicking real rubber-stamp pressure. */
+    inset 0 0 0 1px rgba(229, 72, 77, 0.0),
+    inset 0 -3px 14px rgba(229, 72, 77, 0.0);
+  transition: box-shadow 480ms cubic-bezier(0.22, 1, 0.36, 1) 80ms;
+}
+.revokeStampLanded .revokeStampInner {
+  box-shadow:
+    0 14px 40px -16px rgba(229, 72, 77, 0.55),
+    inset 0 0 0 1px rgba(229, 72, 77, 0.42),
+    inset 0 -3px 14px rgba(229, 72, 77, 0.20);
+}
+
+.revokeStampText {
+  font-family: 'MD Nichrome', 'Instrument Sans', 'DM Sans', serif;
+  font-weight: 400;
+  font-size: 64px;
+  line-height: 0.95;
+  letter-spacing: 0.20em;
+  color: var(--status-revoked);
+  text-transform: uppercase;
+  /* Subtle dual-tone "ink wear" so the type doesn't look like solid
+     digital fill — mimics ink that hasn't pressed perfectly evenly. */
+  text-shadow:
+    0 0 1px rgba(229, 72, 77, 0.45),
+    0 1px 0 rgba(229, 72, 77, 0.15);
+  padding-right: 0.20em; /* compensate letter-spacing visual centering */
+}
+.revokeStampDate {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: var(--status-revoked);
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 320ms ease-out 160ms, transform 320ms ease-out 160ms;
+}
+.revokeStampLanded .revokeStampDate {
+  opacity: 0.72;
+  transform: translateY(0);
+}
+
+/* Impact ring — expands outward from the stamp center the moment
+   the stamp lands. Mimics the "thump" of pressure. */
+.revokeStampImpact {
+  position: absolute;
+  inset: -6px;
+  border: 2px solid rgba(229, 72, 77, 0.55);
+  border-radius: 18px;
+  opacity: 0;
+  pointer-events: none;
+}
+.revokeStampLanded .revokeStampImpact {
+  animation: stampImpact 620ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes stampImpact {
+  0%   { opacity: 0.9; transform: scale(0.94); }
+  100% { opacity: 0;   transform: scale(1.32); }
+}
+
+/* ── Footer states for revoke ── */
+.docFooterRevoked {
+  background:
+    linear-gradient(180deg, rgba(229, 72, 77, 0.08) 0%, rgba(8, 14, 26, 0.96) 60%);
+  border-top-color: rgba(229, 72, 77, 0.30);
+}
+
+/* While revoking — quiet pulsing line, "Revoking onchain…" */
+.revokingBlock {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: 0.002em;
+  color: var(--status-revoked);
+}
+.revokingPulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--status-revoked);
+  box-shadow: 0 0 12px rgba(229, 72, 77, 0.7);
+  animation: revokePulse 900ms ease-in-out infinite;
+}
+@keyframes revokePulse {
+  0%, 100% { transform: scale(0.85); opacity: 0.6; }
+  50%      { transform: scale(1.15); opacity: 1; }
+}
+.revokingTitle { color: var(--text-primary); }
+
+/* Revoked — final, calm closure. Mirrors .successBlock styling but
+   in the revoked red palette, with a minus glyph instead of a check. */
+.revokedBlock {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 4px;
+  animation: successRise 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.revokedMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  color: var(--status-revoked);
+  background: rgba(229, 72, 77, 0.14);
+  border: 1px solid rgba(229, 72, 77, 0.42);
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 24px -8px rgba(229, 72, 77, 0.55);
+  animation: successPop 460ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.revokedMark svg path {
+  stroke-dasharray: 16;
+  stroke-dashoffset: 16;
+  animation: successCheck 540ms cubic-bezier(0.22, 1, 0.36, 1) 120ms forwards;
+}
+.revokedBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.revokedTitle {
+  font-family: 'Instrument Sans', 'DM Sans', serif;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.014em;
+  color: var(--text-primary);
+}
+.revokedSub {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  letter-spacing: 0.002em;
+}
+
+@media (max-width: 560px) {
+  .revokeStampText { font-size: 44px; }
+  .revokeStampInner { padding: 10px 24px 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .revokeStamp { filter: none; transition: opacity 200ms ease-out; }
+  .revokeStampLanded { transform: translate(-50%, -50%) rotate(-7deg) scale(1); }
+  .revokeStampImpact { display: none; }
+  .docRevoking > header,
+  .docRevoking > section:not(:nth-last-child(2)) { transition: opacity 200ms ease-out; }
+  .revokingPulse, .revokedBlock, .revokedMark, .revokedMark svg path { animation: none; }
+}

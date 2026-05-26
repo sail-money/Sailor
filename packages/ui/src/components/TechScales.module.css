@@ -1,0 +1,370 @@
+/* ══ Section ══════════════════════════════════════════════════════════════ */
+.section {
+  position: relative;
+  z-index: 10;
+  padding: var(--section-padding) var(--space-7);
+}
+
+.container {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+/* ══ Row ══════════════════════════════════════════════════════════════════ */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 72px;
+  padding: 80px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity 0.8s var(--ease-out-expo) var(--delay, 0s),
+              transform 0.8s var(--ease-out-expo) var(--delay, 0s);
+}
+
+.row:last-child {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.row.rowVisible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.rowReverse {
+  flex-direction: row-reverse;
+}
+
+/* ══ Text column ══════════════════════════════════════════════════════════ */
+.textCol {
+  flex: 0 0 42%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.rowLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  width: fit-content;
+}
+
+.rowTitle {
+  font-family: 'Instrument Sans', Georgia, serif;
+  font-size: clamp(30px, 3.2vw, 46px);
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: #fff;
+  margin: 0;
+}
+
+.rowDesc {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.52);
+  line-height: 1.7;
+  margin: 0;
+}
+
+/* ══ Bullet list ══════════════════════════════════════════════════════════ */
+.bullets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.bullet {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 15px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+  transition: color 0.2s ease;
+}
+
+.bullet:last-child {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.bulletMuted {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.checkSvg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+/* ══ Visual column ════════════════════════════════════════════════════════ */
+.visualCol {
+  flex: 1;
+  height: 400px;
+  border-radius: 22px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* ══ CODE VISUAL ══════════════════════════════════════════════════════════ */
+.codeWrap {
+  height: 100%;
+  background: #080810;
+  display: flex;
+  flex-direction: column;
+  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', monospace;
+  position: relative;
+}
+
+.codeBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: rgba(255,255,255,0.04);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  flex-shrink: 0;
+}
+
+.codeDots {
+  display: flex;
+  gap: 6px;
+}
+
+.codeDots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.codeFile {
+  font-size: 11px;
+  color: rgba(255,255,255,0.35);
+  letter-spacing: 0.02em;
+}
+
+.codeBody {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  padding: 16px 0;
+}
+
+.lineNum {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5px;
+  padding: 0 12px 0 16px;
+  min-width: 36px;
+  text-align: right;
+  font-size: 11.5px;
+  line-height: 1.75;
+  color: rgba(255,255,255,0.18);
+  user-select: none;
+  border-right: 1px solid rgba(255,255,255,0.07);
+}
+
+.codeText {
+  padding: 0 20px;
+  font-size: 11.5px;
+  line-height: 1.75;
+  white-space: pre;
+  color: rgba(255,255,255,0.75);
+  overflow: hidden;
+  margin: 0;
+}
+
+.ckw  { color: #66c2ff; }
+.cstr { color: #88D9A8; }
+.ccl  { color: #FFD57A; }
+.cfn  { color: #B4A8FF; }
+.cnum { color: #FFB870; }
+.ccm  { color: rgba(255,255,255,0.32); }
+
+.codeGlow {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background: linear-gradient(to top, #080810 0%, transparent 100%);
+  pointer-events: none;
+}
+
+/* ══ WEB VISUAL ═══════════════════════════════════════════════════════════ */
+.webWrap {
+  height: 100%;
+  background: linear-gradient(160deg, #060e1a 0%, #0a1428 60%, #0a1e3a 100%);
+  display: flex;
+  flex-direction: column;
+}
+
+.browserBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: rgba(255,255,255,0.04);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  flex-shrink: 0;
+}
+
+.browserDots { display: flex; gap: 5px; }
+.browserDots span {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: rgba(255,255,255,0.18);
+}
+
+.browserUrl {
+  flex: 1;
+  font-family: monospace;
+  font-size: 11px;
+  color: rgba(255,255,255,0.35);
+  background: rgba(255,255,255,0.06);
+  border-radius: 6px;
+  padding: 4px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.urlLock { font-size: 10px; }
+
+.dashInner {
+  flex: 1;
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dashHeader { display: flex; justify-content: space-between; align-items: center; }
+.dashTitle { font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.85); }
+
+.liveBadge {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 600;
+  color: rgba(50,220,100,0.9);
+  background: rgba(50,220,100,0.10);
+  border: 1px solid rgba(50,220,100,0.25);
+  border-radius: 20px; padding: 3px 9px;
+}
+
+.liveDot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: rgba(50,220,100,0.9);
+  animation: glow-pulse 1.8s ease-in-out infinite;
+}
+
+.dashBalance {
+  font-size: 34px; font-weight: 700; color: #fff;
+  letter-spacing: -0.04em; font-variant-numeric: tabular-nums;
+}
+
+.dashApy { display: flex; align-items: center; gap: 10px; }
+.apyNum { font-size: 13px; font-weight: 600; color: rgba(90,173,255,0.9); }
+.dashGain {
+  font-size: 12px; font-weight: 600; color: rgba(50,220,100,0.85);
+  animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.dashBarWrap {
+  height: 4px; background: rgba(255,255,255,0.08);
+  border-radius: 4px; overflow: hidden;
+}
+.dashBarFill {
+  height: 100%;
+  background: linear-gradient(90deg, #1990FF, #66c2ff);
+  border-radius: 4px;
+}
+
+.dashButtons { display: flex; gap: 10px; margin-top: auto; }
+.dashBtn {
+  flex: 1; padding: 10px; border-radius: 10px;
+  font-size: 12px; font-weight: 600; font-family: inherit;
+  cursor: pointer; background: #1990FF; border: none; color: #fff;
+  transition: background 0.2s ease;
+}
+.dashBtnSecondary {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.7);
+}
+
+/* ══ ENGINE VISUAL ════════════════════════════════════════════════════════ */
+.engWrap {
+  height: 100%;
+  background: linear-gradient(160deg, #040a18 0%, #040d1e 100%);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 24px 16px;
+  gap: 10px;
+}
+
+.engHeader { display: flex; justify-content: space-between; align-items: center; }
+.engLabel {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.08em; color: rgba(255,255,255,0.30);
+}
+.engApyBadge {
+  font-size: 12px; font-weight: 700; color: rgba(90,173,255,0.9);
+  background: rgba(0,85,255,0.12); border: 1px solid rgba(0,85,255,0.25);
+  border-radius: 20px; padding: 4px 10px;
+}
+.engChart { flex: 1; display: block; overflow: visible; }
+.engLegend { display: flex; gap: 16px; }
+.engLegItem {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.40);
+}
+.engDot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* ══ Responsive ═══════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .row, .rowReverse {
+    flex-direction: column;
+    gap: 40px;
+    padding: 60px 0;
+  }
+
+  .textCol {
+    flex: none;
+    width: 100%;
+  }
+
+  .visualCol {
+    width: 100%;
+    height: 320px;
+  }
+}
+
+@media (max-width: 600px) {
+  .section { padding: var(--section-padding) var(--space-5); }
+  .visualCol { height: 260px; }
+  .rowTitle { font-size: 28px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row { transition: none; }
+  .liveDot { animation: none; }
+}
