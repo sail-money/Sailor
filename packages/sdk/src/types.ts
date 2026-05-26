@@ -333,13 +333,19 @@ export interface ISailorClient {
 /** Context passed to Agent.tick on every scheduled execution. */
 export type AgentContext = {
   safe: Address;
+  /** Alias of `safe` — the SMA address the agent operates on. */
+  account: Address;
   chainId: number;
   blockNumber: bigint;
   /** Unix timestamp in seconds. */
   timestamp: number;
+  /** Wall-clock time of this tick. */
+  now: Date;
   client: ISailorClient;
   /** The manager keyring used for signing dispatches. */
   manager: ILocalKeyring;
+  /** Logs to the console and appends a line to .sail/activity.jsonl. */
+  log: (msg: string) => void;
 };
 
 /** A Sailor agent: define tick() and wire it up to a runner. */

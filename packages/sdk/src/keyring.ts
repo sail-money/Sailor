@@ -6,7 +6,14 @@ import {
   scryptSync,
 } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { type Address, type Hex, hashTypedData, keccak256, type TypedDataDomain } from "viem";
+import {
+  type Address,
+  type Hex,
+  hashTypedData,
+  keccak256,
+  type LocalAccount,
+  type TypedDataDomain,
+} from "viem";
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
 import type { ILocalKeyring } from "./types.js";
 
@@ -30,19 +37,13 @@ export type LocalKeyringOptions =
   | { type: "keystore"; keystore: EncryptedKeystore; password: string }
   | { type: "mnemonic"; mnemonic: string; derivationPath?: string };
 
-type SigningAccount = {
-  address: Address;
-  sign(args: { hash: Hex }): Promise<Hex>;
-  signTypedData(args: unknown): Promise<Hex>;
-};
-
 /**
  * A locally-held signing key used by agents to authorize dispatches.
  * The owner key never belongs here — it stays in the user's wallet (MetaMask / WalletConnect).
  */
 export class LocalKeyring implements ILocalKeyring {
   readonly address: Address;
-  private readonly account: SigningAccount;
+  private readonly account: LocalAccount;
   /** Present only when the keyring was constructed from a raw private key. */
   private readonly privateKey?: Hex;
 
@@ -81,6 +82,14 @@ export class LocalKeyring implements ILocalKeyring {
   /** Constructs a keyring from an existing raw private key. */
   static fromPrivateKey(privateKey: Hex): LocalKeyring {
     return new LocalKeyring({ type: "privateKey", privateKey });
+  }
+
+  /**
+   * The underlying viem account, for building a WalletClient
+   * (e.g. `createWalletClient({ account: keyring.viemAccount, ... })`).
+   */
+  get viemAccount(): LocalAccount {
+    return this.account;
   }
 
   /** Decrypts an in-memory keystore object with the given password. */
@@ -125,6 +134,15 @@ export class LocalKeyring implements ILocalKeyring {
 
   /** Signs a raw 32-byte hash. Returns a 65-byte ECDSA signature. */
   async sign(hash: Hex): Promise<Hex> {
+    return this.signHash(hash);
+  }
+
+  /** Internal raw-hash signer. `sign` is optional on viem's LocalAccount but is
+   *  always present for privateKey/mnemonic accounts. */
+  private signHash(hash: Hex): Promise<Hex> {
+    if (!this.account.sign) {
+      throw new Error("This keyring cannot sign raw hashes.");
+    }
     return this.account.sign({ hash });
   }
 
@@ -143,7 +161,7 @@ export class LocalKeyring implements ILocalKeyring {
       primaryType,
       message: value as Record<string, unknown>,
     });
-    return this.account.sign({ hash });
+    return this.signHash(hash);
   }
 
   /** Exports the private key as an encrypted keystore JSON (scrypt + aes-128-ctr, geth v3). */
