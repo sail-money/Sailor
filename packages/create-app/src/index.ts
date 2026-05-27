@@ -11,8 +11,13 @@
 
 import { spawnSync } from "node:child_process";
 
-const name = process.argv[2] ?? "my-sailor-agent";
+const args = process.argv.slice(2);
+const initArgs = args.length > 0 ? args : ["my-sailor-agent"];
+const bin = process.platform === "win32" ? "sailor.cmd" : "sailor";
 
-const result = spawnSync("sailor", ["init", name], { stdio: "inherit", shell: true });
+const result = spawnSync(bin, ["init", ...initArgs], {
+  stdio: "inherit",
+  shell: false,
+});
 
 process.exit(result.status ?? 0);
