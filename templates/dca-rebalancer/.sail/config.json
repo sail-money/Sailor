@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "name": "dca-rebalancer",
+  "chainId": 84532,
+  "stateDir": ".sail/state",
+  "contracts": {
+    "kernel": "",
+    "mandateFactory": ""
+  }
+}

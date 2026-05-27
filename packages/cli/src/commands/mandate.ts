@@ -4,19 +4,12 @@ import { fileURLToPath } from "node:url";
 import type { Address, MandateItem } from "@sail/sdk";
 import {
   type BoundedSwapParams,
-  boundedSwapTemplate,
   type TransferTargetParams,
+  boundedSwapTemplate,
   transferTargetTemplate,
 } from "@sail/sdk/templates";
-import { concatHex, getAddress, type Hex, keccak256 } from "viem";
-import {
-  checksum,
-  confirm,
-  makeClient,
-  readJsonFile,
-  sailPath,
-  writeJsonFile,
-} from "../lib/io.js";
+import { type Hex, concatHex, getAddress, keccak256 } from "viem";
+import { checksum, confirm, makeClient, readJsonFile, sailPath, writeJsonFile } from "../lib/io.js";
 import { loadKeyring } from "../lib/keys.js";
 import type { StoredAccount, StoredMandate } from "../lib/state.js";
 
@@ -30,7 +23,7 @@ function locateMandateSource(): { path: string; label: string } | null {
   }
   // Fall back to the monorepo template (walk up to the workspace root).
   let dir = path.dirname(fileURLToPath(import.meta.url));
-  for (;;) {
+  for (let depth = 0; depth < 20; depth++) {
     if (fs.existsSync(path.join(dir, "pnpm-workspace.yaml"))) {
       const templateMandate = path.join(dir, "templates", "dca-rebalancer", "src", "mandate.ts");
       if (fs.existsSync(templateMandate)) {
@@ -42,6 +35,7 @@ function locateMandateSource(): { path: string; label: string } | null {
     if (parent === dir) return null;
     dir = parent;
   }
+  return null;
 }
 
 function extractAddresses(src: string): Address[] {
@@ -146,9 +140,7 @@ type MandateDraft = {
 export async function mandatePrepare(): Promise<void> {
   const account = readJsonFile<StoredAccount>(sailPath("account.json"));
   if (!account) {
-    throw new Error(
-      'No account found at .sail/account.json.\nRun "sailor account create" first.',
-    );
+    throw new Error('No account found at .sail/account.json.\nRun "sailor account create" first.');
   }
 
   const source = locateMandateSource();
@@ -180,9 +172,7 @@ export async function mandatePrepare(): Promise<void> {
   for (const it of draftItems) {
     console.log(`• ${it.explanation}`);
   }
-  console.log(
-    "\nMandate draft saved. Open the UI to review and sign at http://localhost:5173",
-  );
+  console.log("\nMandate draft saved. Open the UI to review and sign at http://localhost:5173");
 }
 
 /**
@@ -193,9 +183,7 @@ export async function mandatePrepare(): Promise<void> {
 export async function mandateSign(): Promise<void> {
   const account = readJsonFile<StoredAccount>(sailPath("account.json"));
   if (!account) {
-    throw new Error(
-      'No account found at .sail/account.json.\nRun "sailor account create" first.',
-    );
+    throw new Error('No account found at .sail/account.json.\nRun "sailor account create" first.');
   }
 
   const source = locateMandateSource();
