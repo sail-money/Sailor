@@ -14,4 +14,3 @@ on-chain tick. No manual config needed; just follow the prompts.
 - `.sail/config.json` is the local project manifest.
 - `.sail/keys/` stores encrypted manager and permission-signer keys when local signing is used.
 - `.sail/state/` is for persistent agent state, audit logs, and tx history.
-- `mandates/` is a Foundry workspace for custom Solidity permission contracts.

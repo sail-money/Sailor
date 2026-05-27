@@ -1,8 +1,5 @@
 node_modules/
 dist/
-out/
-cache/
-broadcast/
 *.tsbuildinfo
 
 # Environment — never commit real secrets
@@ -22,4 +19,3 @@ broadcast/
 .sail/activity.jsonl
 !.sail/.gitkeep
 !.sail/config.json
-!.sail/contracts/

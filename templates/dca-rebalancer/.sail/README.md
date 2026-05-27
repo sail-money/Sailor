@@ -8,7 +8,6 @@ This folder is the local workspace for one Sailor agent deployment.
 - `keys/` stores encrypted local signing keys. Never commit these files.
 - `runtime/` is for local UI and signing handoff state.
 - `state/` is for persistent agent state, audit logs, and tx history.
-- `../mandates/` contains custom Solidity permission contracts.
 
 AI coding agents should read this file, `config.json`, and `../sail/WIZARD.md`
 before changing strategy code or running commands that touch funds.

@@ -41,85 +41,7 @@ type InitOptions = {
   rpcUrl?: string;
 };
 
-const DEFAULT_CHAIN_ID = 84532;
-
-const FOUNDRY_TOML = `[profile.default]
-src = "mandates"
-out = "out"
-libs = ["lib"]
-remappings = ["@sail/=.sail/contracts/"]
-solc = "0.8.26"
-optimizer = true
-optimizer_runs = 200
-`;
-
-const IPERMISSION_SOL = `// SPDX-License-Identifier: MIT
-pragma solidity 0.8.26;
-
-struct Context {
-    address account;
-    address manager;
-    address submitter;
-    address target;
-    bytes4 selector;
-    uint256 value;
-    uint256 blockTimestamp;
-    uint256 blockNumber;
-}
-
-interface IPermission {
-    function evaluate(bytes calldata txData, Context calldata ctx) external view returns (bool);
-    function discriminator() external view returns (bytes32);
-}
-`;
-
-const ALLOWLIST_MANDATE_SOL = `// SPDX-License-Identifier: MIT
-pragma solidity 0.8.26;
-
-import {IPermission, Context} from "@sail/interfaces/IPermission.sol";
-
-contract AllowlistTargetMandate is IPermission {
-    bytes32 private constant DISCRIMINATOR = keccak256("AllowlistTargetMandate");
-
-    address public immutable PERMISSION_SIGNER;
-    mapping(address => bool) public isAllowedTarget;
-
-    constructor(address _permissionSigner, address[] memory allowedTargets) {
-        PERMISSION_SIGNER = _permissionSigner;
-        for (uint256 i = 0; i < allowedTargets.length; i++) {
-            isAllowedTarget[allowedTargets[i]] = true;
-        }
-    }
-
-    function evaluate(bytes calldata, Context calldata ctx) external view returns (bool) {
-        return isAllowedTarget[ctx.target];
-    }
-
-    function discriminator() external pure returns (bytes32) {
-        return DISCRIMINATOR;
-    }
-}
-`;
-
-const MANDATES_README = `# Mandates
-
-Solidity permission contracts for this Sailor agent live here.
-
-A mandate implements \`@sail/interfaces/IPermission.sol\`. The kernel calls
-\`evaluate(txData, ctx)\` before the manager's dispatch executes. Return
-\`true\` to permit the call and \`false\` to block it.
-
-## Workflow
-
-\`\`\`bash
-forge build
-sailor mandate prepare
-sailor ui
-\`\`\`
-
-Configure mandates through constructors so each deployment has a complete,
-reviewable policy before it is attached to the SMA.
-`;
+const DEFAULT_CHAIN_ID = 8453;
 
 const SAIL_WORKSPACE_README = `# Sailor Project Workspace
 
@@ -131,8 +53,6 @@ This folder is the local workspace for one Sailor agent deployment.
 - \`keys/\` stores encrypted local signing keys. Never commit these files.
 - \`runtime/\` is for local UI and signing handoff state.
 - \`state/\` is for persistent agent state, audit logs, and tx history.
-- \`../mandates/\` contains custom Solidity permission contracts.
-
 AI coding agents should read this file, \`config.json\`, and \`../sail/WIZARD.md\`
 before changing strategy code or running commands that touch funds.
 `;
@@ -151,8 +71,6 @@ function scaffoldProjectWorkspace(dest: string, name: string, options: InitOptio
   fs.mkdirSync(path.join(sailDir, "keys"), { recursive: true });
   fs.mkdirSync(path.join(sailDir, "runtime"), { recursive: true });
   fs.mkdirSync(path.join(sailDir, "state"), { recursive: true });
-  fs.mkdirSync(path.join(sailDir, "contracts", "interfaces"), { recursive: true });
-  fs.mkdirSync(path.join(dest, "mandates"), { recursive: true });
 
   fs.writeFileSync(
     path.join(sailDir, "config.json"),
@@ -174,11 +92,7 @@ function scaffoldProjectWorkspace(dest: string, name: string, options: InitOptio
     "utf-8",
   );
 
-  writeIfMissing(path.join(dest, "foundry.toml"), FOUNDRY_TOML);
   writeIfMissing(path.join(sailDir, "README.md"), SAIL_WORKSPACE_README);
-  writeIfMissing(path.join(sailDir, "contracts", "interfaces", "IPermission.sol"), IPERMISSION_SOL);
-  writeIfMissing(path.join(dest, "mandates", "AllowlistTargetMandate.sol"), ALLOWLIST_MANDATE_SOL);
-  writeIfMissing(path.join(dest, "mandates", "README.md"), MANDATES_README);
 
   fs.writeFileSync(
     path.join(dest, ".env.example"),
@@ -241,5 +155,4 @@ export async function initCommand(
   console.log("  Open this folder in Claude Code, Cursor, or Codex");
   console.log('  Say: "start"\n');
   console.log("The setup guide in sail/WIZARD.md will walk you through everything.");
-  console.log("Custom mandates can be authored in mandates/ and compiled with forge build.");
 }
