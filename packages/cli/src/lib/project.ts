@@ -1,0 +1,129 @@
+import {
+  type EncryptedKeystore,
+  LocalKeyring,
+  type SailDeployment,
+  getSailDeployment,
+} from "@sail/sdk";
+import { type Address, getAddress } from "viem";
+import { fileExists, readJsonFile, sailPath, writeJsonFile } from "./io.js";
+import { keyPath, loadKeyring } from "./keys.js";
+
+type ProjectConfigFile = {
+  version?: number;
+  name?: string;
+  chainId?: number;
+  stateDir?: string;
+  contracts?: {
+    kernel?: string;
+    governance?: string;
+    standardFeePolicy?: string;
+    safeModuleEnabler?: string;
+    permissionFactory?: string;
+    mandateFactory?: string;
+  };
+};
+
+/** The contract addresses the onboarding / mandate flows operate against. */
+export type ProjectContracts = {
+  chainId: number;
+  kernel: Address;
+  governance: Address;
+  standardFeePolicy: Address;
+  safeModuleEnabler: Address;
+  permissionFactory: Address;
+};
+
+type OwnerState = { owner: Address; chainId: number; connectedAt: string };
+
+function nonEmpty(value: string | undefined): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+/**
+ * Project context for the onboarding / mandate-deploy flows. Bridges the
+ * `.sail/config.json` manifest to the verified on-chain deployment registry in
+ * `@sail/sdk`: contract addresses come from the bundled deployment for the
+ * project's chain, with any explicit `config.json` overrides taking precedence.
+ */
+export class ProjectContext {
+  readonly config: ProjectConfigFile;
+  readonly chainId: number;
+  readonly deployment: SailDeployment;
+  readonly contracts: ProjectContracts;
+
+  constructor() {
+    const cfg = readJsonFile<ProjectConfigFile>(sailPath("config.json"));
+    if (!cfg) {
+      throw new Error('No Sailor project found here. Run "sailor init" first.');
+    }
+    this.config = cfg;
+    this.chainId = cfg.chainId ?? 8453;
+    this.deployment = getSailDeployment(this.chainId);
+
+    const overrides = cfg.contracts ?? {};
+    this.contracts = {
+      chainId: this.chainId,
+      kernel: getAddress(nonEmpty(overrides.kernel) ? overrides.kernel : this.deployment.kernel),
+      governance: getAddress(
+        nonEmpty(overrides.governance) ? overrides.governance : this.deployment.governance,
+      ),
+      standardFeePolicy: getAddress(
+        nonEmpty(overrides.standardFeePolicy)
+          ? overrides.standardFeePolicy
+          : this.deployment.standardFeePolicy,
+      ),
+      safeModuleEnabler: getAddress(
+        nonEmpty(overrides.safeModuleEnabler)
+          ? overrides.safeModuleEnabler
+          : this.deployment.safeModuleEnabler,
+      ),
+      permissionFactory: getAddress(
+        nonEmpty(overrides.permissionFactory)
+          ? overrides.permissionFactory
+          : this.deployment.permissionFactory,
+      ),
+    };
+  }
+
+  static exists(): boolean {
+    return fileExists(sailPath("config.json"));
+  }
+
+  get name(): string {
+    return this.config.name ?? "sailor-agent";
+  }
+
+  // ── Owner persistence (.sail/state/owner.json) ──────────────────────────────
+
+  getOwner(): Address | null {
+    const state = readJsonFile<OwnerState>(sailPath("state", "owner.json"));
+    return state?.owner ? getAddress(state.owner) : null;
+  }
+
+  setOwner(owner: Address): void {
+    writeJsonFile(sailPath("state", "owner.json"), {
+      owner: getAddress(owner),
+      chainId: this.chainId,
+      connectedAt: new Date().toISOString(),
+    } satisfies OwnerState);
+  }
+}
+
+/**
+ * Load the agent's manager signer (the EOA that submits dispatches and the
+ * permission-registration transaction, paying gas + the registration fee).
+ *
+ * Uses `SAIL_PASSPHRASE` when set so agents can run headless; otherwise prompts
+ * for the keystore password interactively.
+ */
+export async function loadManagerSigner(): Promise<LocalKeyring> {
+  const passphrase = process.env.SAIL_PASSPHRASE;
+  if (passphrase) {
+    const keystore = readJsonFile<EncryptedKeystore>(keyPath("manager"));
+    if (!keystore) {
+      throw new Error('No manager key found.\nRun "sailor keys generate" and choose "manager".');
+    }
+    return LocalKeyring.fromKeystore(keystore, passphrase);
+  }
+  return loadKeyring("manager");
+}
