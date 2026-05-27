@@ -9,4 +9,4 @@ cd my-fund
 ```
 
 Thin wrapper around `sailor init`. The template includes a full DCA-rebalancer strategy,
-the Sailor wizard (`sail/WIZARD.md`), and a GitHub Actions cron job.
+the Sailor setup guide (`sail/WIZARD.md`), and a GitHub Actions cron job.

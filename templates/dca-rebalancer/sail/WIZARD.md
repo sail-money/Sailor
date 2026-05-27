@@ -1,4 +1,4 @@
-# Sailor Wizard
+# Sailor Setup Guide
 
 This document is the source of truth for setting up and operating a Sailor agent. You (the LLM tool) walk the user through each stage. Track progress in `.sail/.wizard-state.json`. Never skip stages. Always ask before any action that costs gas or moves funds.
 

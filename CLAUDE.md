@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Purpose
 
-`sail-operator` is a toolkit for building and operating Sail Protocol onchain SMAs run by agents. It sits alongside two sibling repos:
+`Sailor` is a toolkit for building and operating Sail Protocol onchain SMAs run by agents. It sits alongside two sibling repos:
 
 - **SailProtocol** — the Solidity kernel (~590 lines). Handles Safe-based SMA instantiation, permission registry, manager dispatch, fee accounting, and principal tracking. Not upgraded; all policy logic lives in user-deployed `IPermission` contracts.
 - **SailFramework** — TypeScript monorepo (`@sail/sdk`, `@sail/framework`, `@sail/studio`). Owns project authoring, policy DSL, permission template generation, fork rehearsal, the `sail` CLI, and Studio UI.

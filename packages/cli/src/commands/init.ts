@@ -59,5 +59,5 @@ export async function initCommand(name = "my-sailor-agent"): Promise<void> {
   console.log(`  cd ${name}`);
   console.log("  Open this folder in Claude Code, Cursor, or Codex");
   console.log('  Say: "start"\n');
-  console.log("The wizard in sail/WIZARD.md will walk you through everything.");
+  console.log("The setup guide in sail/WIZARD.md will walk you through everything.");
 }
