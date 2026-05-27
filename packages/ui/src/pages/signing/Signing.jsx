@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
-import { useAccount } from 'wagmi'
+import { getChain } from '@sail/chains'
+import { zeroAddress } from 'viem'
+import { useAccount, usePublicClient, useSignTypedData } from 'wagmi'
 import {
   FluidBackground,
   GlassCard,
@@ -12,6 +14,7 @@ import shared from '../shared/shared.module.css'
 import styles from './Signing.module.css'
 import { mockDeploy } from './mockData'
 import { useDemoState } from '../../demo/useDemoState'
+import { useSailorMandateDraft } from '../../hooks/useSailorData'
 
 // Legacy login/signup URLs route to the unified 'connect' state so old
 // demo-console links keep working.
@@ -33,7 +36,18 @@ const VALID_DEMO_STATES = new Set(['welcome', 'connect', 'deploy', 'confirming']
  * console preset URLs keep working, but they are no longer reached
  * by the normal sign-in flow.
  */
+/**
+ * Top-level router for the signing page. When a mandate draft is present
+ * (written by `sailor mandate prepare`), the page becomes the mandate review +
+ * MetaMask signing flow. Otherwise it shows the wallet-connect onboarding.
+ * Each branch is its own component so hook order stays stable.
+ */
 export default function Signing() {
+  const { draft } = useSailorMandateDraft()
+  return draft ? <MandateSigningFlow draft={draft} /> : <OnboardingFlow />
+}
+
+function OnboardingFlow() {
   const demo = useDemoState()
   const aliased = STATE_ALIASES[demo.demo] ?? demo.demo
   const initialState = VALID_DEMO_STATES.has(aliased) ? aliased : 'welcome'
@@ -98,6 +112,180 @@ export default function Signing() {
             <DeployState onBack={() => go('connect')} onSign={() => go('confirming')} />
           )}
           {state === 'confirming' && <ConfirmState progress={progress} />}
+        </div>
+      </main>
+    </div>
+  )
+}
+
+/* ─────────── Mandate signing (MetaMask) ───────────
+   Driven by a .sail/mandate-draft.json written by `sailor mandate prepare`.
+   Flow: connect wallet → review permissions → sign the EIP-712
+   RegisterPermissions message with the connected wallet → POST the signature
+   to /api/mandate-submit → confirmation. No local key is ever created. */
+const SIGNER_NONCES_ABI = [
+  {
+    type: 'function',
+    name: 'signerNonces',
+    stateMutability: 'view',
+    inputs: [{ name: 'account', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+]
+
+function MandateSigningFlow({ draft }) {
+  const { isConnected } = useAccount()
+  const { signTypedDataAsync } = useSignTypedData()
+  const publicClient = usePublicClient()
+  const [phase, setPhase] = useState('review') // review | signing | done
+  const [errorMsg, setErrorMsg] = useState('')
+
+  // The kernel address (EIP-712 verifyingContract) comes from the draft's
+  // chainId via @sail/chains. Falls back to the zero address when the chain
+  // is not yet configured, so the flow stays demoable.
+  const kernel = (() => {
+    try {
+      return getChain(draft.chainId).kernel
+    } catch {
+      return zeroAddress
+    }
+  })()
+
+  async function onSign() {
+    if (phase === 'signing') return
+    setErrorMsg('')
+    setPhase('signing')
+    try {
+      const permissions = (draft.items ?? []).map((it) => it.template)
+
+      // Read the current signer nonce from the kernel; default to 0 if the
+      // kernel is unreachable or not yet deployed.
+      let nonce = 0n
+      try {
+        if (publicClient && kernel !== zeroAddress) {
+          nonce = await publicClient.readContract({
+            address: kernel,
+            abi: SIGNER_NONCES_ABI,
+            functionName: 'signerNonces',
+            args: [draft.account],
+          })
+        }
+      } catch {
+        nonce = 0n
+      }
+
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600)
+      const signature = await signTypedDataAsync({
+        domain: {
+          name: 'SailKernel',
+          version: '1',
+          chainId: draft.chainId,
+          verifyingContract: kernel,
+        },
+        types: {
+          RegisterPermissions: [
+            { name: 'account', type: 'address' },
+            { name: 'permissions', type: 'address[]' },
+            { name: 'nonce', type: 'uint256' },
+            { name: 'deadline', type: 'uint256' },
+          ],
+        },
+        primaryType: 'RegisterPermissions',
+        message: { account: draft.account, permissions, nonce, deadline },
+      })
+
+      const res = await fetch('/api/mandate-submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signature, signedAt: new Date().toISOString() }),
+      })
+      if (!res.ok) throw new Error(`Submit failed (${res.status})`)
+
+      setPhase('done')
+      setTimeout(() => {
+        window.location.hash = '#/dashboard'
+      }, 2200)
+    } catch (err) {
+      setErrorMsg(err?.shortMessage || err?.message || 'Signing failed')
+      setPhase('review')
+    }
+  }
+
+  return (
+    <div className={`${shared.pageShell} ${styles.shell}`}>
+      <FluidBackground />
+      <HeaderBar
+        onLogo={() => {
+          window.location.hash = '#/dashboard'
+        }}
+        state={phase === 'done' ? 'confirming' : 'review'}
+      />
+
+      <main className={styles.stage}>
+        <div className={styles.stageInner}>
+          {phase === 'done' ? (
+            <ConfirmState progress="confirmed" />
+          ) : (
+            <GlassCard className={styles.authCard}>
+              <CardHeader
+                kicker="REVIEW MANDATE"
+                title="Authorize your agent"
+                sub="Sign with your wallet — Sail never holds your keys."
+              />
+
+              {!isConnected ? (
+                <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 8 }}>
+                  <ConnectButton showBalance={false} />
+                </div>
+              ) : (
+                <>
+                  <ul
+                    style={{
+                      listStyle: 'none',
+                      padding: 0,
+                      margin: '12px 0',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 10,
+                    }}
+                  >
+                    {(draft.items ?? []).map((it, i) => (
+                      <li
+                        key={i}
+                        style={{
+                          padding: '10px 12px',
+                          borderRadius: 10,
+                          background: 'var(--glass-bg)',
+                          border: '1px solid var(--glass-border)',
+                        }}
+                      >
+                        <span
+                          style={{
+                            color: 'var(--text-secondary)',
+                            fontSize: 14,
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          {it.explanation}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {errorMsg && (
+                    <p style={{ color: '#ff6b6b', fontSize: 13, margin: '8px 0' }}>{errorMsg}</p>
+                  )}
+
+                  <SailButton fullWidth onClick={onSign} disabled={phase === 'signing'}>
+                    {phase === 'signing' ? 'Waiting for wallet…' : 'Sign mandate'}
+                  </SailButton>
+                  <p className={styles.fineprint}>
+                    Revocable on-chain at any time from your dashboard.
+                  </p>
+                </>
+              )}
+            </GlassCard>
+          )}
         </div>
       </main>
     </div>

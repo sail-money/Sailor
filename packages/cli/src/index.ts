@@ -3,7 +3,7 @@ import { Command } from "commander";
 import { accountCreate } from "./commands/account.js";
 import { initCommand } from "./commands/init.js";
 import { keysGenerate, keysShow } from "./commands/keys.js";
-import { mandateSign } from "./commands/mandate.js";
+import { mandatePrepare, mandateSign } from "./commands/mandate.js";
 import { runCommand } from "./commands/run.js";
 import { sessionPause, sessionResume } from "./commands/session.js";
 import { status } from "./commands/status.js";
@@ -65,8 +65,12 @@ account
 
 const mandate = program.command("mandate").description("Manage mandates");
 mandate
+  .command("prepare")
+  .description("Prepare a mandate draft for review and signing in the UI (MetaMask)")
+  .action(action(mandatePrepare));
+mandate
   .command("sign")
-  .description("Review and sign the agent's mandate")
+  .description("Review and sign the agent's mandate with a local key (advanced)")
   .action(action(mandateSign));
 
 program

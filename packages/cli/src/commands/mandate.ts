@@ -128,6 +128,63 @@ function buildMandateTypedData(account: StoredAccount, items: MandateItem[]) {
   return { domain, types, message };
 }
 
+type MandateDraftItem = { template: Address; params: Hex; explanation: string };
+type MandateDraft = {
+  account: Address;
+  chainId: number;
+  items: MandateDraftItem[];
+  createdAt: string;
+};
+
+/**
+ * `sailor mandate prepare` — builds a signable mandate draft and writes it to
+ * .sail/mandate-draft.json for the UI to review and sign with the owner's
+ * wallet (MetaMask). No local key required — the browser produces the
+ * signature. For power users with a local key, `sailor mandate sign` still
+ * signs entirely from the CLI.
+ */
+export async function mandatePrepare(): Promise<void> {
+  const account = readJsonFile<StoredAccount>(sailPath("account.json"));
+  if (!account) {
+    throw new Error(
+      'No account found at .sail/account.json.\nRun "sailor account create" first.',
+    );
+  }
+
+  const source = locateMandateSource();
+  if (!source) {
+    throw new Error(
+      "Could not find a mandate definition (src/mandate.ts or the dca-rebalancer template).",
+    );
+  }
+  const items = parseMandateItems(fs.readFileSync(source.path, "utf-8"));
+  if (items.length === 0) {
+    throw new Error(`No known permission templates found in ${source.label}.`);
+  }
+
+  const draftItems: MandateDraftItem[] = items.map((item) => ({
+    template: item.template.address,
+    params: item.template.encoder.encode(item.params),
+    explanation: item.template.explainer.explain(item.params).humanReadable.join("; "),
+  }));
+
+  const draft: MandateDraft = {
+    account: checksum(account.safe),
+    chainId: account.chainId,
+    items: draftItems,
+    createdAt: new Date().toISOString(),
+  };
+  writeJsonFile(sailPath("mandate-draft.json"), draft);
+
+  console.log(`\nMandate draft from ${source.label}:\n`);
+  for (const it of draftItems) {
+    console.log(`• ${it.explanation}`);
+  }
+  console.log(
+    "\nMandate draft saved. Open the UI to review and sign at http://localhost:5173",
+  );
+}
+
 /**
  * `sailor mandate sign` — explains the agent's requested permissions in plain
  * English, asks for confirmation, signs the EIP-712 mandate with the permission
