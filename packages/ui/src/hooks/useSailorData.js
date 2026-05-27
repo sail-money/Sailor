@@ -3,11 +3,11 @@ import { useCallback, useEffect, useState } from 'react'
 const POLL_MS = 5000
 
 /**
- * Polls a JSON endpoint every 5s. Never throws: on network failure or a
+ * Polls a JSON endpoint on an interval. Never throws: on network failure or a
  * non-OK response it falls back to `fallback` and surfaces the error so
  * callers can decide whether to show mock data instead.
  */
-function usePolledJson(url, fallback) {
+function usePolledJson(url, fallback, intervalMs = POLL_MS) {
   const [data, setData] = useState(fallback)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -38,13 +38,13 @@ function usePolledJson(url, fallback) {
     }
 
     load()
-    const timer = setInterval(load, POLL_MS)
+    const timer = setInterval(load, intervalMs)
     return () => {
       alive = false
       clearInterval(timer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url])
+  }, [url, intervalMs])
 
   return { data, loading, error }
 }
@@ -59,6 +59,18 @@ export function useSailorAccount() {
 export function useSailorActivity() {
   const { data, loading, error } = usePolledJson('/api/activity', [])
   return { events: Array.isArray(data) ? data : [], loading, error }
+}
+
+/** The signed mandate from `.sail/mandate.json`, or null. Polls every 10s. */
+export function useSailorMandate() {
+  const { data, loading, error } = usePolledJson('/api/mandate', null, 10000)
+  return { mandate: data, loading, error }
+}
+
+/** Whether `sailor run` is currently running. Polls every 5s. */
+export function useSailorAgentStatus() {
+  const { data, loading } = usePolledJson('/api/agent-status', { running: false }, 5000)
+  return { running: data?.running === true, pid: data?.pid ?? null, loading }
 }
 
 /** Wizard progress from `.sail/.wizard-state.json`, with an updater. */

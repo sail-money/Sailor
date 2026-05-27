@@ -54,6 +54,61 @@ export function startServer(sailDir) {
     }
   })
 
+  // GET /api/mandate — the signed mandate, or null if not signed yet.
+  app.get('/api/mandate', (_req, res) => {
+    try {
+      res.json(JSON.parse(fs.readFileSync(at('mandate.json'), 'utf-8')))
+    } catch {
+      res.json(null)
+    }
+  })
+
+  // Reads the agent PID, or null if no (valid) PID file exists.
+  const readAgentPid = () => {
+    try {
+      const pid = Number.parseInt(fs.readFileSync(at('agent.pid'), 'utf-8').trim(), 10)
+      return Number.isNaN(pid) ? null : pid
+    } catch {
+      return null
+    }
+  }
+
+  // True if a process with the given PID is currently alive.
+  const isAlive = (pid) => {
+    try {
+      process.kill(pid, 0) // signal 0 = existence check only
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  // GET /api/agent-status — whether `sailor run` is currently running.
+  app.get('/api/agent-status', (_req, res) => {
+    const pid = readAgentPid()
+    if (pid !== null && isAlive(pid)) res.json({ running: true, pid })
+    else res.json({ running: false })
+  })
+
+  // POST /api/agent-status { action: 'stop' } — SIGTERM the running agent.
+  app.post('/api/agent-status', (req, res) => {
+    if (req.body?.action !== 'stop') {
+      res.status(400).json({ error: 'unknown action' })
+      return
+    }
+    const pid = readAgentPid()
+    if (pid !== null && isAlive(pid)) {
+      try {
+        process.kill(pid, 'SIGTERM')
+        res.json({ ok: true, stopped: pid })
+      } catch (err) {
+        res.status(500).json({ error: String(err) })
+      }
+    } else {
+      res.json({ ok: true, running: false })
+    }
+  })
+
   // GET /api/wizard-state — current wizard progress, or null.
   app.get('/api/wizard-state', (_req, res) => {
     try {
