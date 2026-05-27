@@ -1,2 +1,125 @@
-# sail-operator
-Toolkit for building and operating Sail Protocol onchain SMAs run by agents. 
+# Sailor
+
+> A toolkit for building and operating Sail Protocol SMAs with AI agents.
+
+Sailor is the operator layer for [Sail Protocol](../SailProtocol): the tooling an agent builder uses to create a Separately Managed Account, bound it with permissions, and run a strategy against it. It wraps the on-chain primitives — SailKernel dispatch, MandateFactory registration, EIP-712 mandate signing — behind a TypeScript SDK, a CLI, and a local dashboard. An agent is an async function that receives context and returns intended transactions; Sailor previews each through the kernel, executes the approved ones, and records what happened. It does not deploy the protocol or author new permission templates — that lives in Sail Protocol. It sits one level up: turning a deployed SailKernel into something an operator can actually drive.
+
+---
+
+## What's inside
+
+| Package | Name | Role |
+|---|---|---|
+| `packages/sdk` | `@sail/sdk` | TypeScript library wrapping SailKernel and MandateFactory |
+| `packages/cli` | `sailor` | CLI for account setup, mandate signing, and agent execution |
+| `packages/chains` | `@sail/chains` | Per-chain address registry (EVM-compatible) |
+| `packages/ui` | `sailor-ui` | Local dashboard running on localhost:5173 |
+| `packages/create-app` | `create-sailor-agent` | `npx` scaffolder for new agent projects |
+| `templates/dca-rebalancer` | — | Starter template: DCA portfolio rebalancer |
+
+---
+
+## How it works
+
+The path from nothing to a running agent is seven steps:
+
+1. **Generate keys** — a manager key (the agent's dispatch signer) and a permissionSigner key, both generated and encrypted on disk.
+2. **Deploy SMA** — a Safe registered with SailKernel, with the manager and permissionSigner addresses set at registration.
+3. **Write a strategy** — an async `tick` function that receives a context and returns a list of intended dispatches.
+4. **Sign a mandate** — a set of registered permissions that bound what the agent can do, authorized via EIP-712 by the permission signer through MetaMask or a local key.
+5. **Dry-run** — the kernel's `previewBatch` confirms the named permission passes before anything executes on-chain.
+6. **Run the agent** — locally on a cron schedule, or via GitHub Actions on a timer.
+7. **Monitor** — the local dashboard on localhost:5173 reflects live mandate state, agent status, and activity.
+
+---
+
+## Roles
+
+Sailor operates the three roles Sail Protocol separates:
+
+| Role | Authority | Held by |
+|---|---|---|
+| **Owner** | Holds the Safe. Custody anchor. | The LP (Safe owner) — same wallet as MetaMask |
+| **Permission Signer** | Signs mandate registration and revocation via EIP-712. | Same as Owner, or a separate key |
+| **Manager** | Executes dispatches within permitted bounds. Signs each dispatch. | The agent key — encrypted in `.sail/keys/manager.json` |
+
+---
+
+## Quickstart
+
+Prerequisites:
+
+- Node.js 18+
+- pnpm (`npm install -g pnpm`)
+- A wallet (MetaMask or Rabby)
+- An RPC URL (Alchemy free tier)
+- A Sail Protocol SMA deployed on an EVM chain (kernel + mandateFactory addresses required in `@sail/chains`)
+
+```bash
+npx create-sailor-agent my-agent
+cd my-agent
+pnpm install
+sailor keys generate        # generates manager key
+sailor account create       # deploys SMA via SailKernel
+sailor mandate prepare      # writes mandate draft to .sail/
+# open localhost:5173 → connect wallet → sign mandate
+sailor run --once           # dry-run: preview + execute one tick
+sailor run                  # continuous: runs every 60s
+```
+
+---
+
+## Architecture
+
+```
+   ┌────────────────────┐                          ┌────────────────────┐
+   │  Permission Signer │                          │    Manager/Agent   │
+   │  MetaMask / local  │                          │ .sail/keys/manager │
+   └─────────┬──────────┘                          └─────────┬──────────┘
+             │                                               │
+             │ EIP-712 mandate                               │ dispatch
+             ▼                                               ▼
+   ┌─────────────────────────────────────────────────────────────────────┐
+   │                            SailKernel                               │
+   │                          (Sail Protocol)                            │
+   └─────────┬───────────────────────┬───────────────────────┬───────────┘
+             │                       │                       │
+             │ registration          │ execution             │ evaluation
+             ▼                       ▼                       ▼
+   ┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐
+   │   MandateFactory   │  │         Safe       │  │     Permissions    │
+   │  (register perms)  │  │      (custody)     │  │  (named, per-call) │
+   └────────────────────┘  └────────────────────┘  └────────────────────┘
+
+          sailor CLI / @sail/sdk drive both signing paths above.
+          .sail/ (account · mandate · activity) ──→ sailor-ui (localhost:5173)
+```
+
+The CLI and SDK sit between the operator and SailKernel: they build the EIP-712 payloads, submit dispatches, and read kernel state via viem. The permission signer authorizes the mandate — registration runs through MandateFactory — while the manager key signs each dispatch the kernel evaluates against a named permission before executing it through the Safe. All local state — the deployed account, the signed mandate, and the agent's activity log — lives under `.sail/` on disk, which the dashboard reads through a small local server. Sailor never holds the Owner key and runs no hosted backend; the wallet talks to the chain directly.
+
+---
+
+## Security model
+
+- The agent signs dispatches; the kernel evaluates the named permission on every call. A permission returning false or exceeding its gas cap is treated as denial — fail-closed.
+- The Owner key controls the Safe and is never read by Sailor. Mandate signing requires a deliberate action by the permission signer.
+- The manager key is encrypted on disk using geth keystore v3 (scrypt + aes-128-ctr) and is never transmitted.
+- The session can be paused instantly via `sailor session pause` or the dashboard stop button; this does not affect Safe custody.
+
+---
+
+## State of the project
+
+Sailor is functional but depends on a deployed SailKernel instance — it has nothing to drive without one. Sail Protocol is currently in audit and is not deployed on mainnet, so `@sail/chains` ships with an empty registry; `account create`, `mandate sign`, and `run` report a missing chain configuration until kernel and mandateFactory addresses are present. The SDK, CLI, keystore, mandate flows, agent runner, and dashboard are implemented and exercised end to end against those addresses. `@sail/chains` will be updated with mainnet addresses at launch.
+
+---
+
+## Contributing
+
+Sailor and Sail Protocol are separate repositories with separate concerns. Protocol questions — SailKernel internals, permission templates, MandateFactory, fee policies — belong in the [SailProtocol](../SailProtocol) repository. Sailor questions — the SDK, CLI, dashboard, and agent templates — belong here.
+
+---
+
+## License
+
+MIT
