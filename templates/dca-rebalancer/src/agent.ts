@@ -22,13 +22,25 @@ export const agent: Agent = {
   async tick(ctx: AgentContext): Promise<Dispatch[]> {
     const { client, safe, manager } = ctx;
 
-    console.log(`[dca-rebalancer] tick — block ${ctx.blockNumber}, safe ${safe}`);
+    ctx.log(`tick — block ${ctx.blockNumber}, safe ${safe}`);
 
-    // ── Step 1: Fetch on-chain balances ──────────────────────────────────────
-    // In a real implementation:
-    //   const balances = await Promise.all(ALLOWED_TOKENS.map(t => fetchBalance(t, safe)));
-    //   const totalUsd = balances.reduce((s, b) => s + b.usd, 0n);
-    //   const currentAllocations = balances.map(b => b.usd / totalUsd);
+    // ── Step 0: Bring your own data ───────────────────────────────────────────
+    // Sailor bakes in no third-party data APIs. Plug your own data source into
+    // ctx.data (seeded from SAILOR_DATA, or mutated here). Build first-party
+    // APIs via the x402 standard and read them however you like:
+    //
+    //   const apys = ctx.data.apys as Record<string, number>; // your data layer / x402 API
+    //   const bestVenue = pickHighestApy(apys);
+
+    // ── Step 1: Read on-chain balances via ctx.read ───────────────────────────
+    // USDC is the first token in the basket; read the SMA's live balance.
+    const usdc = ALLOWED_TOKENS[0];
+    const usdcBalance = await ctx.read.balance(usdc);
+    const ethBalance = await ctx.read.balance("native");
+    ctx.log(`USDC balance: ${usdcBalance} · native balance: ${ethBalance}`);
+
+    // In a real implementation you'd value the whole basket and compute drift:
+    //   const balances = await Promise.all(ALLOWED_TOKENS.map((t) => ctx.read.balance(t)));
     //   const targetAllocation = 1 / ALLOWED_TOKENS.length; // equal-weight
 
     // ── Step 2: Identify tokens that need rebalancing ────────────────────────

@@ -21,6 +21,28 @@ const DEFAULT_INTERVAL_SEC = 60;
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Minimal ERC-20 ABI fragment for reading a token balance. */
+const ERC20_BALANCE_ABI = [
+  {
+    type: "function",
+    name: "balanceOf",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+] as const;
+
+/** Loads the agent data slot from SAILOR_DATA (a JSON file path), or {} . */
+function loadAgentData(filePath: string | undefined): Record<string, unknown> {
+  if (!filePath) return {};
+  try {
+    const parsed = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
 /** Dynamically imports the agent from the current project (tsx/ts-node for .ts, or a built .js). */
 async function loadAgent(): Promise<Agent> {
   const candidates = ["src/agent.ts", "src/agent.js", "dist/agent.js", "dist/src/agent.js"];
@@ -136,6 +158,23 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
     appendActivity({ ts: nowIso(), type: "log", msg });
   };
 
+  // Open data slot — seeded once from SAILOR_DATA (JSON file) if set, else {}.
+  // The same object is passed every tick so agents can cache across ticks.
+  const agentData = loadAgentData(env["SAILOR_DATA"] ?? process.env["SAILOR_DATA"]);
+
+  // SMA balance reader: native ETH via getBalance, ERC-20 via balanceOf.
+  const readBalance = async (token: Address | "native"): Promise<bigint> => {
+    if (token === "native") {
+      return publicClient.getBalance({ address: accountAddr });
+    }
+    return publicClient.readContract({
+      address: token,
+      abi: ERC20_BALANCE_ABI,
+      functionName: "balanceOf",
+      args: [accountAddr],
+    });
+  };
+
   // ── One tick: agent.tick → preview → execute → log ───────────────────────────
   async function runTick(): Promise<void> {
     appendActivity({ ts: nowIso(), type: "tick_start" });
@@ -157,6 +196,8 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
       client: readClient,
       manager,
       log,
+      data: agentData,
+      read: { balance: readBalance },
     };
 
     let dispatches: Dispatch[];

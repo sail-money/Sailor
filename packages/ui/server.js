@@ -63,6 +63,59 @@ export function startServer(sailDir) {
     }
   })
 
+  // GET /api/mandate-draft — a mandate awaiting signature (from `sailor
+  // mandate prepare`), or null.
+  app.get('/api/mandate-draft', (_req, res) => {
+    try {
+      res.json(JSON.parse(fs.readFileSync(at('mandate-draft.json'), 'utf-8')))
+    } catch {
+      res.json(null)
+    }
+  })
+
+  // POST /api/mandate-submit { signature, signedAt } — combines the draft with
+  // the browser-produced signature into the canonical mandate.json shape (the
+  // same shape `sailor mandate sign` writes, so downstream code is path-agnostic),
+  // then deletes the draft. Returns the persisted mandate.
+  app.post('/api/mandate-submit', (req, res) => {
+    const { signature, signedAt } = req.body ?? {}
+    if (!signature) {
+      res.status(400).json({ error: 'missing signature' })
+      return
+    }
+    let draft
+    try {
+      draft = JSON.parse(fs.readFileSync(at('mandate-draft.json'), 'utf-8'))
+    } catch {
+      res.status(404).json({ error: 'no mandate draft to submit' })
+      return
+    }
+    const mandate = {
+      safe: draft.account,
+      chainId: draft.chainId,
+      signedAt: signedAt || new Date().toISOString(),
+      signature,
+      registeredOnChain: false,
+      permissions: (draft.items ?? []).map((it) => ({
+        template: it.template,
+        params: it.params,
+        explanation: it.explanation,
+      })),
+    }
+    try {
+      fs.mkdirSync(sailDir, { recursive: true })
+      fs.writeFileSync(at('mandate.json'), `${JSON.stringify(mandate, null, 2)}\n`)
+      try {
+        fs.rmSync(at('mandate-draft.json'))
+      } catch {
+        // draft already gone — fine
+      }
+      res.json(mandate)
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  })
+
   // Reads the agent PID, or null if no (valid) PID file exists.
   const readAgentPid = () => {
     try {

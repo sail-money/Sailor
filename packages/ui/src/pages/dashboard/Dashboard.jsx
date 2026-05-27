@@ -186,7 +186,13 @@ function LiveMandateCard({ mandate }) {
             </span>
             <span className={styles.mandateSummaryPermBody}>
               <span className={styles.mandateSummaryPermLabel}>{p.template}</span>
-              {explainPermission(p).map((line, j) => (
+              {/* UI-signed mandates carry a pre-rendered `explanation` string;
+                  CLI-signed mandates carry template name + params, explained
+                  locally. Either path renders plain-English here. */}
+              {(p.explanation
+                ? String(p.explanation).split('; ')
+                : explainPermission(p)
+              ).map((line, j) => (
                 <span key={j} className={styles.mandateSummaryPermSub}>
                   {line}
                 </span>
