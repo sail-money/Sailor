@@ -1,5 +1,40 @@
 node_modules/
+
+# Package manager / local tooling
+.pnpm-store/
+.yarn/
+!.yarn/releases/
+!.yarn/plugins/
+!.yarn/sdks/
+!.yarn/versions/
+
+# Test and build outputs
 dist/
+coverage/
+out/
+cache/
+broadcast/
+.vite/
+.vitest/
 *.tsbuildinfo
+
+# Environment — never commit real secrets
 .env
-.env.local
+.env.*
+!.env.example
+
+# Sail local runtime state and encrypted keys
+**/.sail/keys/
+**/.sail/runtime/
+**/.sail/state/
+**/.sail/.env.local
+**/.sail/.wizard-state.json
+**/.sail/account.json
+**/.sail/mandate.json
+**/.sail/mandate-draft.json
+**/.sail/activity.jsonl
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

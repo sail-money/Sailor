@@ -33,9 +33,11 @@ function action(fn: () => Promise<void>): () => Promise<void> {
 program
   .command("init [name]")
   .description("Scaffold a new Sail agent from the DCA-rebalancer template")
-  .action(async (name?: string) => {
+  .option("--chain <id>", "Default EVM chain id written to .sail/config.json and .env.example")
+  .option("--rpc-url <url>", "Default RPC_URL written to .sail/.env.local")
+  .action(async (name: string | undefined, opts: { chain?: string; rpcUrl?: string }) => {
     try {
-      await initCommand(name);
+      await initCommand(name, opts);
     } catch (err) {
       console.error(`Error: ${(err as Error).message}`);
       process.exit(1);
@@ -52,10 +54,7 @@ keys
   .command("generate")
   .description("Generate and encrypt a manager or permissionSigner key")
   .action(action(keysGenerate));
-keys
-  .command("show")
-  .description("Show the address of each stored key")
-  .action(action(keysShow));
+keys.command("show").description("Show the address of each stored key").action(action(keysShow));
 
 const account = program.command("account").description("Manage the Sail SMA");
 account
@@ -98,10 +97,7 @@ session
   .command("pause")
   .description("Pause the manager session (revoke dispatch rights)")
   .action(action(sessionPause));
-session
-  .command("resume")
-  .description("Resume a paused session")
-  .action(action(sessionResume));
+session.command("resume").description("Resume a paused session").action(action(sessionResume));
 
 // ── Stubs ─────────────────────────────────────────────────────────────────────
 

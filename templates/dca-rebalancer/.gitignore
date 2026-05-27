@@ -1,6 +1,25 @@
 node_modules/
 dist/
+out/
+cache/
+broadcast/
+*.tsbuildinfo
 
-# Sail runtime state — keep .gitkeep so the directory exists in the repo
-.sail/*
+# Environment — never commit real secrets
+.env
+.env.*
+!.env.example
+
+# Sail runtime state and encrypted keys
+.sail/keys/
+.sail/runtime/
+.sail/state/
+.sail/.env.local
+.sail/.wizard-state.json
+.sail/account.json
+.sail/mandate.json
+.sail/mandate-draft.json
+.sail/activity.jsonl
 !.sail/.gitkeep
+!.sail/config.json
+!.sail/contracts/

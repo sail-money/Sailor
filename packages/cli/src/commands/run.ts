@@ -2,8 +2,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { getChain } from "@sail/chains";
-import { type Agent, type AgentContext, type Dispatch, SailorClient } from "@sail/sdk";
-import { type Address, createPublicClient, createWalletClient, defineChain, http } from "viem";
+import {
+  type Agent,
+  type AgentContext,
+  type Dispatch,
+  type ILocalKeyring,
+  SailorClient,
+} from "@sail/sdk";
+import { http, type Address, createPublicClient, createWalletClient, defineChain } from "viem";
 import {
   appendActivity,
   checksum,
@@ -86,8 +92,8 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
   }
 
   const env = parseEnvFile(sailPath(".env.local"));
-  const rpcUrl = env["RPC_URL"] ?? process.env["RPC_URL"];
-  const chainIdRaw = env["CHAIN_ID"] ?? process.env["CHAIN_ID"];
+  const rpcUrl = env.RPC_URL ?? process.env.RPC_URL;
+  const chainIdRaw = env.CHAIN_ID ?? process.env.CHAIN_ID;
   if (!rpcUrl || !chainIdRaw) {
     throw new Error(
       "RPC_URL and CHAIN_ID must be set in .sail/.env.local.\n" +
@@ -100,7 +106,9 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
   }
 
   if (!keyExists("manager")) {
-    throw new Error('No manager key found.\nRun "sailor keys generate" and choose "manager" first.');
+    throw new Error(
+      'No manager key found.\nRun "sailor keys generate" and choose "manager" first.',
+    );
   }
 
   // ── Resolve kernel address (registry, overridable via env) ───────────────────
@@ -115,18 +123,22 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
   } catch {
     // chain not in @sail/chains registry — env override may still supply it
   }
-  if (env["KERNEL_ADDRESS"]) kernel = checksum(env["KERNEL_ADDRESS"]);
-  if (env["MANDATE_FACTORY"]) mandateFactory = checksum(env["MANDATE_FACTORY"]);
+  if (env.KERNEL_ADDRESS) kernel = checksum(env.KERNEL_ADDRESS);
+  if (env.MANDATE_FACTORY) mandateFactory = checksum(env.MANDATE_FACTORY);
   if (!kernel) {
     throw new Error(
-      `No SailKernel address for chain ${chainId}.\n` +
-        "Configure the chain in @sail/chains or set KERNEL_ADDRESS in .sail/.env.local.",
+      `No SailKernel address for chain ${chainId}.\nConfigure the chain in @sail/chains or set KERNEL_ADDRESS in .sail/.env.local.`,
     );
   }
 
   // ── Load the manager key (password asked once, then release stdin) ───────────
   const manager = await loadKeyring("manager");
   closePrompts();
+  const agentManager: ILocalKeyring = {
+    address: manager.address,
+    sign: manager.sign.bind(manager),
+    signTyped: manager.signTyped.bind(manager),
+  };
 
   // ── Build clients ────────────────────────────────────────────────────────────
   const accountAddr = checksum(account.safe);
@@ -148,7 +160,7 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
   const agent = await loadAgent();
 
   const intervalSec = (() => {
-    const raw = env["SAILOR_INTERVAL"] ?? process.env["SAILOR_INTERVAL"];
+    const raw = env.SAILOR_INTERVAL ?? process.env.SAILOR_INTERVAL;
     const n = raw === undefined ? DEFAULT_INTERVAL_SEC : Number(raw);
     return Number.isNaN(n) || n <= 0 ? DEFAULT_INTERVAL_SEC : n;
   })();
@@ -160,7 +172,7 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
 
   // Open data slot — seeded once from SAILOR_DATA (JSON file) if set, else {}.
   // The same object is passed every tick so agents can cache across ticks.
-  const agentData = loadAgentData(env["SAILOR_DATA"] ?? process.env["SAILOR_DATA"]);
+  const agentData = loadAgentData(env.SAILOR_DATA ?? process.env.SAILOR_DATA);
 
   // SMA balance reader: native ETH via getBalance, ERC-20 via balanceOf.
   const readBalance = async (token: Address | "native"): Promise<bigint> => {
@@ -194,7 +206,7 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
       timestamp: Math.floor(Date.now() / 1000),
       now: new Date(),
       client: readClient,
-      manager,
+      manager: agentManager,
       log,
       data: agentData,
       read: { balance: readBalance },
@@ -241,7 +253,11 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
             continue;
           }
 
-          const preview = await execClient.dispatch.preview(accountAddr, permission, dispatch.calls);
+          const preview = await execClient.dispatch.preview(
+            accountAddr,
+            permission,
+            dispatch.calls,
+          );
           if (!preview.approved) {
             const reason = preview.reason ?? "denied";
             appendActivity({ ts: nowIso(), type: "dispatch_denied", permission, target, reason });

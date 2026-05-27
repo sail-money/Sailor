@@ -5,16 +5,13 @@ import { fileURLToPath } from "node:url";
 
 function findWorkspaceRoot(from: string): string {
   let dir = from;
-  for (;;) {
+  for (let depth = 0; depth < 20; depth++) {
     if (fs.existsSync(path.join(dir, "pnpm-workspace.yaml"))) return dir;
     const parent = path.dirname(dir);
-    if (parent === dir) {
-      throw new Error(
-        "Could not locate pnpm-workspace.yaml — is this a Sailor monorepo checkout?",
-      );
-    }
+    if (parent === dir) break;
     dir = parent;
   }
+  throw new Error("Could not locate pnpm-workspace.yaml — is this a Sailor monorepo checkout?");
 }
 
 /**

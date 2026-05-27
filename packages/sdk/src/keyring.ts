@@ -4,25 +4,26 @@ import {
   randomBytes,
   randomUUID,
   scryptSync,
+  timingSafeEqual,
 } from "node:crypto";
 import { readFileSync } from "node:fs";
 import {
   type Address,
   type Hex,
-  hashTypedData,
-  keccak256,
   type LocalAccount,
   type TypedDataDomain,
+  hashTypedData,
+  keccak256,
 } from "viem";
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
 import type { ILocalKeyring } from "./types.js";
 
 // scrypt KDF parameters for keystore encryption (geth keystore v3 compatible).
-const SCRYPT_N = 1 << 15; // 32768 — fast enough for an interactive CLI
+const SCRYPT_N = 1 << 18; // 262144 — OWASP-recommended minimum for keystores
 const SCRYPT_R = 8;
 const SCRYPT_P = 1;
 const SCRYPT_DKLEN = 32;
-const SCRYPT_MAXMEM = 64 * 1024 * 1024;
+const SCRYPT_MAXMEM = 512 * 1024 * 1024; // 512 MB — N=262144,r=8 requires ~256 MB
 
 /** Encrypted keystore file format (ERC-55 / Geth-compatible). */
 export type EncryptedKeystore = {
@@ -113,8 +114,11 @@ export class LocalKeyring implements ILocalKeyring {
       maxmem: SCRYPT_MAXMEM,
     });
     const ciphertext = Buffer.from(crypto.ciphertext, "hex");
-    const macInput = `0x${Buffer.concat([derived.subarray(16, 32), ciphertext]).toString("hex")}` as Hex;
-    if (keccak256(macInput).slice(2) !== crypto.mac.toLowerCase()) {
+    const macInput =
+      `0x${Buffer.concat([derived.subarray(16, 32), ciphertext]).toString("hex")}` as Hex;
+    const computedMac = Buffer.from(keccak256(macInput).slice(2), "hex");
+    const storedMac = Buffer.from(crypto.mac.toLowerCase(), "hex");
+    if (computedMac.length !== storedMac.length || !timingSafeEqual(computedMac, storedMac)) {
       throw new Error("Invalid password or corrupt keystore");
     }
     const decipher = createDecipheriv(
@@ -167,7 +171,9 @@ export class LocalKeyring implements ILocalKeyring {
   /** Exports the private key as an encrypted keystore JSON (scrypt + aes-128-ctr, geth v3). */
   async exportKeystore(password: string): Promise<EncryptedKeystore> {
     if (!this.privateKey) {
-      throw new Error("Private key unavailable — only privateKey/generated keyrings can be exported");
+      throw new Error(
+        "Private key unavailable — only privateKey/generated keyrings can be exported",
+      );
     }
     const salt = randomBytes(32);
     const derived = scryptSync(password, salt, SCRYPT_DKLEN, {
@@ -180,7 +186,8 @@ export class LocalKeyring implements ILocalKeyring {
     const cipher = createCipheriv("aes-128-ctr", derived.subarray(0, 16), iv);
     const pkBytes = Buffer.from(this.privateKey.slice(2), "hex");
     const ciphertext = Buffer.concat([cipher.update(pkBytes), cipher.final()]);
-    const macInput = `0x${Buffer.concat([derived.subarray(16, 32), ciphertext]).toString("hex")}` as Hex;
+    const macInput =
+      `0x${Buffer.concat([derived.subarray(16, 32), ciphertext]).toString("hex")}` as Hex;
     const mac = keccak256(macInput).slice(2);
 
     return {
