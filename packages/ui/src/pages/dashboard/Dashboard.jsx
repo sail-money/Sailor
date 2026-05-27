@@ -24,7 +24,12 @@ import PendingModal from './PendingModal'
 import CreateSMAModal from './CreateSMAModal'
 import ContractModal from './ContractModal'
 import { useDemoState } from '../../demo/useDemoState'
-import { useSailorAccount } from '../../hooks/useSailorData'
+import {
+  useSailorAccount,
+  useSailorActivity,
+  useSailorAgentStatus,
+  useSailorMandate,
+} from '../../hooks/useSailorData'
 
 function brandClass(name) {
   const n = (name ?? '').toLowerCase()
@@ -94,6 +99,193 @@ function truncateSma(addr) {
   return `${addr.slice(0, 10)}...${addr.slice(-7)}`
 }
 
+// ── Live data (.sail/) helpers ────────────────────────────────────────────────
+//
+// Mirrors the plain-English output of the @sail/sdk template explainers for the
+// permission templates the DCA mandate uses. Kept local to avoid coupling the
+// browser bundle to the SDK's built output. Unknown templates fall back to no
+// detail lines (the template name still renders).
+const PERMISSION_EXPLAINERS = {
+  SharedBoundedSwapPermission: (p) => [
+    `Maximum swap size: $${Number(p.maxSwapValueUsd ?? 0).toLocaleString()} USD per transaction`,
+    `Maximum slippage: ${Number(p.maxSlippageBps ?? 0) / 100}%`,
+    `Allowed input tokens: ${(p.allowedInputTokens ?? []).join(', ')}`,
+    `Allowed output tokens: ${(p.allowedOutputTokens ?? []).join(', ')}`,
+    `Allowed protocols: ${(p.allowedProtocols ?? []).join(', ')}`,
+  ],
+  SharedTransferTargetPermission: (p) => [
+    `ERC-20 transfers restricted to ${(p.allowedRecipients ?? []).length} approved recipient(s)`,
+    `Applies to: ${(p.allowedTokens ?? []).length === 0 ? 'all tokens' : (p.allowedTokens ?? []).join(', ')}`,
+    `Approved recipients: ${(p.allowedRecipients ?? []).join(', ')}`,
+  ],
+}
+
+function explainPermission(perm) {
+  const fn = PERMISSION_EXPLAINERS[perm?.template]
+  if (!fn) return []
+  try {
+    return fn(perm.params ?? {})
+  } catch {
+    return []
+  }
+}
+
+function fmtActivityTime(ts) {
+  try {
+    return new Date(ts).toLocaleTimeString()
+  } catch {
+    return ts ?? ''
+  }
+}
+
+const ACTIVITY_LABELS = {
+  dispatch_executed: 'executed dispatch',
+  dispatch_approved: 'approved dispatch',
+  dispatch_denied: 'denied dispatch',
+  tick_start: 'tick started',
+  tick_end: 'tick ended',
+  error: 'error',
+  log: 'log',
+}
+
+function activityStatus(type) {
+  if (type === 'dispatch_executed' || type === 'dispatch_approved') return 'success'
+  if (type === 'dispatch_denied' || type === 'error') return 'rejected'
+  return 'info'
+}
+
+/** Live mandate card built from .sail/mandate.json (replaces the mock summary cards). */
+function LiveMandateCard({ mandate }) {
+  const permissions = mandate?.permissions ?? []
+  const status = mandate?.registeredOnChain ? 'active' : 'pending'
+  const signed = mandate?.signedAt ? new Date(mandate.signedAt).toLocaleDateString() : ''
+  return (
+    <article className={styles.mandateSummary}>
+      <header className={styles.mandateSummaryHead}>
+        <div className={styles.mandateSummaryHeadText}>
+          <span className={styles.mandateSummaryKicker}>
+            Live mandate{signed ? ` · signed ${signed}` : ''}
+          </span>
+          <h3 className={styles.mandateSummaryTitle}>
+            {mandate?.chainId ? `Mandate · chain ${mandate.chainId}` : 'Mandate'}
+          </h3>
+        </div>
+        <div className={styles.mandateSummaryHeadRight}>
+          <MandateStatus status={status} />
+          <span className={styles.mandateSummaryCount}>
+            {permissions.length} permission{permissions.length === 1 ? '' : 's'}
+          </span>
+        </div>
+      </header>
+
+      <ul className={styles.mandateSummaryPerms}>
+        {permissions.map((p, i) => (
+          <li key={`${p.template}-${i}`} className={styles.mandateSummaryPermRow}>
+            <span className={styles.mandateSummaryCheck} aria-hidden>
+              <CheckMark />
+            </span>
+            <span className={styles.mandateSummaryPermBody}>
+              <span className={styles.mandateSummaryPermLabel}>{p.template}</span>
+              {explainPermission(p).map((line, j) => (
+                <span key={j} className={styles.mandateSummaryPermSub}>
+                  {line}
+                </span>
+              ))}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <footer className={styles.mandateSummaryFoot}>
+        <span className={styles.mandateSummaryFootMeta}>
+          {status === 'active' ? 'Registered on-chain' : 'Signed — awaiting on-chain registration'}
+        </span>
+      </footer>
+    </article>
+  )
+}
+
+/** Live agent card reflecting the real `sailor run` process state. */
+function LiveAgentCard({ running, pid }) {
+  return (
+    <article
+      className={`${styles.mCard} ${running ? styles.mCardActive : styles.mCardMuted}`}
+    >
+      <header className={styles.mCardTop}>
+        <span className={styles.mAiRow}>
+          <span className={styles.mAiText}>Sailor agent</span>
+        </span>
+        <MandateStatus status={running ? 'active' : 'paused'} kind="agent" />
+      </header>
+
+      <div className={styles.mTitleBlock}>
+        <h3 className={`${shared.displayHeadline} ${styles.mTitle}`}>Agent runner</h3>
+        <span className={styles.mScope}>{running ? `running · PID ${pid}` : 'stopped'}</span>
+        <span className={styles.mDelegatedTag}>local process</span>
+      </div>
+
+      <div className={styles.mCardMid}>
+        <span
+          className={`${styles.mascot} ${running ? styles.mascotLive : styles.mascotMuted}`}
+          aria-hidden
+        >
+          <Sai size={48} animate={running} />
+        </span>
+      </div>
+    </article>
+  )
+}
+
+/** Live activity feed from .sail/activity.jsonl (newest first). */
+function LiveActivityFeed({ events }) {
+  const rows = [...events].slice(-12).reverse()
+  return (
+    <ul className={agentStyles.journalList}>
+      {rows.map((e, i) => {
+        const st = activityStatus(e.type)
+        const hasTx = e.txHash && e.txHash !== '0x'
+        return (
+          <li key={`${e.ts}-${i}`}>
+            <div className={agentStyles.journalRow}>
+              <span className={agentStyles.journalTime}>{fmtActivityTime(e.ts)}</span>
+              <span
+                className={`${agentStyles.journalMark} ${agentStyles[`jStatus_${st}`] ?? ''}`}
+                aria-hidden
+              >
+                {st === 'success' && <CheckSm />}
+                {st === 'rejected' && <CrossSm />}
+                {st === 'info' && <DotSm />}
+              </span>
+              <span className={agentStyles.journalBody}>
+                <span className={agentStyles.journalTitle}>
+                  <span className={agentStyles.journalAction}>
+                    {ACTIVITY_LABELS[e.type] ?? e.type}
+                  </span>
+                </span>
+                <span className={agentStyles.journalMeta}>
+                  {e.permission ? truncateAddr(e.permission) : e.reason ?? e.msg ?? ''}
+                  {hasTx && (
+                    <>
+                      {' · '}
+                      <a
+                        href={`https://basescan.org/tx/${e.txHash}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {truncateAddr(e.txHash)}
+                      </a>
+                    </>
+                  )}
+                </span>
+              </span>
+            </div>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 export default function Dashboard() {
   const demo = useDemoState()
   const hasSMA = demo.demo !== 'empty'
@@ -139,6 +331,30 @@ export default function Dashboard() {
         network: CHAIN_NAMES[realAccount.chainId] ?? baseSma?.network,
       }
     : baseSma
+
+  // Live project state from .sail/. When present, the dashboard renders real
+  // mandate/agent/activity cards; otherwise it falls back to the mock data.
+  const { mandate: liveMandate } = useSailorMandate()
+  const { events: liveActivity } = useSailorActivity()
+  const { running: agentRunning, pid: agentPid } = useSailorAgentStatus()
+  const [stopping, setStopping] = useState(false)
+  const hasLiveMandate = liveMandate != null
+  const liveMode = hasLiveMandate || agentRunning
+
+  async function stopAgent() {
+    setStopping(true)
+    try {
+      await fetch('/api/agent-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'stop' }),
+      })
+    } catch {
+      // server unreachable — the agent-status poll will reconcile state
+    } finally {
+      setStopping(false)
+    }
+  }
 
   function copySma() {
     if (!sma) return
@@ -290,12 +506,23 @@ export default function Dashboard() {
                 <button
                   type="button"
                   className={agentStyles.stopAllBtn}
-                  onClick={() => setStopAllOpen(true)}
-                  disabled={!anyActiveAgent}
-                  title={anyActiveAgent ? 'Stop every agent under this mandate' : 'All agents already stopped'}
+                  onClick={() => {
+                    if (agentRunning) stopAgent()
+                    else if (!liveMode) setStopAllOpen(true)
+                  }}
+                  disabled={liveMode ? !agentRunning || stopping : !anyActiveAgent}
+                  title={
+                    liveMode
+                      ? agentRunning
+                        ? 'Send SIGTERM to the running agent'
+                        : 'Agent is not running'
+                      : anyActiveAgent
+                        ? 'Stop every agent under this mandate'
+                        : 'All agents already stopped'
+                  }
                 >
                   <StopIcon />
-                  <span>Stop all agents</span>
+                  <span>{stopping ? 'Stopping…' : 'Stop all agents'}</span>
                 </button>
               </div>
 
@@ -378,15 +605,25 @@ export default function Dashboard() {
                   Your mandates
                 </h2>
                 <span className={styles.mandatesSectionMeta}>
-                  {smaMandates.length} signed mandates
+                  {hasLiveMandate
+                    ? `${(liveMandate.permissions ?? []).length} permission${
+                        (liveMandate.permissions ?? []).length === 1 ? '' : 's'
+                      } · live`
+                    : `${smaMandates.length} signed mandates`}
                 </span>
               </header>
 
               <div className={styles.mandateList}>
-                {smaMandates.map((m) => (
-                  <MandateSummaryCard key={m.id} mandate={m} />
-                ))}
-                <NewMandateTile onClick={() => setHandoff({ variant: 'new' })} />
+                {hasLiveMandate ? (
+                  <LiveMandateCard mandate={liveMandate} />
+                ) : (
+                  <>
+                    {smaMandates.map((m) => (
+                      <MandateSummaryCard key={m.id} mandate={m} />
+                    ))}
+                    <NewMandateTile onClick={() => setHandoff({ variant: 'new' })} />
+                  </>
+                )}
               </div>
             </section>
 
@@ -412,24 +649,33 @@ export default function Dashboard() {
                 <div className={styles.agentsHeadRight}>
                   {/* Filter chips only — the "Add agent" CTA lives as
                       the trailing tile in the card grid, so there's no
-                      need for a duplicate button in the section head. */}
-                  <FilterChips active={filter} counts={counts} onChange={setFilter} />
+                      need for a duplicate button in the section head.
+                      Hidden in live mode (a single real agent process). */}
+                  {!liveMode && (
+                    <FilterChips active={filter} counts={counts} onChange={setFilter} />
+                  )}
                 </div>
               </header>
 
               <div className={styles.mandateCards}>
-                {visibleMandates.map((m) => (
-                  <MandateCard
-                    key={m.id}
-                    mandate={m}
-                    onView={() => { window.location.hash = `#/agent/${m.id}` }}
-                  />
-                ))}
-                {visibleMandates.length === 0 && (
-                  <EmptyAgentsState
-                    filter={filter}
-                    onNew={() => setHandoff({ variant: 'new' })}
-                  />
+                {liveMode ? (
+                  <LiveAgentCard running={agentRunning} pid={agentPid} />
+                ) : (
+                  <>
+                    {visibleMandates.map((m) => (
+                      <MandateCard
+                        key={m.id}
+                        mandate={m}
+                        onView={() => { window.location.hash = `#/agent/${m.id}` }}
+                      />
+                    ))}
+                    {visibleMandates.length === 0 && (
+                      <EmptyAgentsState
+                        filter={filter}
+                        onNew={() => setHandoff({ variant: 'new' })}
+                      />
+                    )}
+                  </>
                 )}
               </div>
             </section>
@@ -448,47 +694,59 @@ export default function Dashboard() {
                 </div>
               </header>
 
-              <ul className={agentStyles.journalList}>
-                {mockDashboardJournal.map((e) => (
-                  <li key={e.id}>
-                    <button
-                      type="button"
-                      className={`${agentStyles.journalRow} ${
-                        e.status === 'rejected' ? agentStyles.journalRowRejected : ''
-                      }`}
-                      onClick={() => { window.location.hash = `#/journal/${e.id}` }}
-                    >
-                      <span className={agentStyles.journalTime}>{e.time}</span>
-                      <span
-                        className={`${agentStyles.journalMark} ${agentStyles[`jStatus_${e.status}`] ?? ''}`}
-                        aria-hidden
-                      >
-                        {e.status === 'success' && <CheckSm />}
-                        {e.status === 'rejected' && <CrossSm />}
-                        {(e.status === 'info' || e.status === 'warn') && <DotSm />}
-                      </span>
-                      <span className={agentStyles.journalBody}>
-                        <span className={agentStyles.journalTitle}>
-                          <span className={agentStyles.journalActor}>{e.actor}</span>
-                          <span className={agentStyles.journalAction}> {e.action}</span>
-                        </span>
-                        <span className={agentStyles.journalMeta}>{e.meta}</span>
-                      </span>
-                      <span className={`${agentStyles.journalKind} ${agentStyles[`jKind_${e.kind}`] ?? ''}`}>
-                        {e.kindLabel}
-                      </span>
-                      <span className={agentStyles.journalChevron} aria-hidden>
-                        <ChevronRight />
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              {liveActivity.length > 0 ? (
+                <LiveActivityFeed events={liveActivity} />
+              ) : liveMode ? (
+                <div className={styles.emptyAgents}>
+                  <p className={styles.emptyAgentsBody}>
+                    No activity yet — run <code>sailor run</code> to start
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <ul className={agentStyles.journalList}>
+                    {mockDashboardJournal.map((e) => (
+                      <li key={e.id}>
+                        <button
+                          type="button"
+                          className={`${agentStyles.journalRow} ${
+                            e.status === 'rejected' ? agentStyles.journalRowRejected : ''
+                          }`}
+                          onClick={() => { window.location.hash = `#/journal/${e.id}` }}
+                        >
+                          <span className={agentStyles.journalTime}>{e.time}</span>
+                          <span
+                            className={`${agentStyles.journalMark} ${agentStyles[`jStatus_${e.status}`] ?? ''}`}
+                            aria-hidden
+                          >
+                            {e.status === 'success' && <CheckSm />}
+                            {e.status === 'rejected' && <CrossSm />}
+                            {(e.status === 'info' || e.status === 'warn') && <DotSm />}
+                          </span>
+                          <span className={agentStyles.journalBody}>
+                            <span className={agentStyles.journalTitle}>
+                              <span className={agentStyles.journalActor}>{e.actor}</span>
+                              <span className={agentStyles.journalAction}> {e.action}</span>
+                            </span>
+                            <span className={agentStyles.journalMeta}>{e.meta}</span>
+                          </span>
+                          <span className={`${agentStyles.journalKind} ${agentStyles[`jKind_${e.kind}`] ?? ''}`}>
+                            {e.kindLabel}
+                          </span>
+                          <span className={agentStyles.journalChevron} aria-hidden>
+                            <ChevronRight />
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
 
-              <button type="button" className={agentStyles.journalViewAll}>
-                View full activity log
-                <ArrowRightSm />
-              </button>
+                  <button type="button" className={agentStyles.journalViewAll}>
+                    View full activity log
+                    <ArrowRightSm />
+                  </button>
+                </>
+              )}
             </section>
 
             {/* Local-first disclosure — calm footer so the user knows
