@@ -73,6 +73,12 @@ export function useSailorAgentStatus() {
   return { running: data?.running === true, pid: data?.pid ?? null, loading }
 }
 
+/** A mandate draft awaiting signature (from `sailor mandate prepare`), or null. Polls every 5s. */
+export function useSailorMandateDraft() {
+  const { data, loading, error } = usePolledJson('/api/mandate-draft', null, 5000)
+  return { draft: data, loading, error }
+}
+
 /** Wizard progress from `.sail/.wizard-state.json`, with an updater. */
 export function useWizardState() {
   const { data, loading } = usePolledJson('/api/wizard-state', null)

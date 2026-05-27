@@ -346,6 +346,21 @@ export type AgentContext = {
   manager: ILocalKeyring;
   /** Logs to the console and appends a line to .sail/activity.jsonl. */
   log: (msg: string) => void;
+  /**
+   * Open slot for user-provided data sources. Sailor bakes in no third-party
+   * APIs — plug in your own (e.g. an x402 first-party API) by mutating this in
+   * your agent, or seed it from a JSON file via the SAILOR_DATA env var.
+   * Defaults to an empty object.
+   */
+  data: Record<string, unknown>;
+  /** Helpers for reading the SMA's on-chain state. */
+  read: {
+    /**
+     * Returns the SMA's balance of `token`. Pass `'native'` for the chain's
+     * native asset (ETH), or an ERC-20 token address for its `balanceOf`.
+     */
+    balance: (token: Address | "native") => Promise<bigint>;
+  };
 };
 
 /** A Sailor agent: define tick() and wire it up to a runner. */
