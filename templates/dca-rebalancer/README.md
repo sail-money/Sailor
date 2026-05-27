@@ -6,5 +6,5 @@ Open this folder in **Claude Code**, **Cursor**, or **Codex** (or any LLM-powere
 
 > start
 
-The wizard in `sail/WIZARD.md` will guide you through every step — from RPC setup to first
+The setup guide in `sail/WIZARD.md` will guide you through every step — from RPC setup to first
 on-chain tick. No manual config needed; just follow the prompts.

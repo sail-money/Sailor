@@ -115,7 +115,7 @@ function stub(name: string, description: string): void {
     });
 }
 
-stub("wizard", "Walk through the interactive setup wizard");
+stub("setup", "Walk through the Sailor setup guide");
 stub("dispatch preview", "Preview a dispatch without submitting");
 
 program.parse(process.argv);

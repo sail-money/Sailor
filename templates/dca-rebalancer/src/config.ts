@@ -6,7 +6,7 @@ export function getEnvConfig(): { rpcUrl: string; chainId: number } {
   if (!rpcUrl) {
     throw new Error(
       "RPC_URL is not set.\n" +
-        "Run the Sailor wizard (open this folder in your LLM tool and say 'start') or\n" +
+        "Run the Sailor setup guide (open this folder in your LLM tool and say 'start') or\n" +
         "add RPC_URL to .sail/.env.local manually.",
     );
   }
