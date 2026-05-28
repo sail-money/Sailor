@@ -4,10 +4,14 @@ import type { Address, Hex } from "viem";
 // Signing handoff — CLI ↔ browser signing station protocol
 //
 // The agent (CLI) cannot hold the owner's wallet key, so any owner-authorized
-// action (deploy a Safe, deploy a mandate, authorize a permission) is handed
-// off to a browser signing station over a small HTTP + WebSocket channel. The
-// agent enqueues a SigningRequest; the browser renders an approval card, the
-// owner signs/submits with their wallet, and a SigningResponse comes back.
+// action (deploy a Safe, deploy a mandate, authorize a permission, or any
+// arbitrary call) is handed off to a browser signing station over a small
+// HTTP + WebSocket channel. The agent enqueues a SigningRequest; the browser
+// renders an approval card, the owner signs/submits with their wallet, and a
+// SigningResponse comes back.
+//
+// "arbitrary-tx" kind is supported for any custom calldata the agent needs the
+// owner to execute (e.g. calling admin functions on custom IPermission contracts).
 // ---------------------------------------------------------------------------
 
 export type SigningRequestKind =
@@ -15,7 +19,8 @@ export type SigningRequestKind =
   | "deploy-mandate" // Deploy a new mandate (permission) contract — contract-creation tx, no `to`
   | "register-permission" // Authorize a mandate via EIP-712 (typed-data)
   | "attach-mandate" // Configure + authorize a shared template (typed-data)
-  | "set-delegate"; // Rotate manager key (on-chain tx)
+  | "set-delegate" // Rotate manager key (on-chain tx)
+  | "arbitrary-tx"; // Arbitrary transaction — the agent can request the owner to sign any calldata (e.g. admin calls on custom permissions)
 
 /** Fields shared by all signing request variants. */
 export type SigningRequestBase = {

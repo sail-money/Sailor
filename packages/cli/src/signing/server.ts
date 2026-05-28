@@ -333,7 +333,7 @@ export class SigningServer {
           const parsed = JSON.parse(body) as
             | Omit<SigningTxRequest, "id" | "createdAt">
             | Omit<SigningTypedDataRequest, "id" | "createdAt">;
-          if (!parsed.kind || !["create-sma","deploy-mandate","register-permission","attach-mandate","set-delegate"].includes(parsed.kind)) {
+          if (!parsed.kind || !["create-sma","deploy-mandate","register-permission","attach-mandate","set-delegate","arbitrary-tx"].includes(parsed.kind)) {
             throw new Error(`Unknown signing request kind: ${String(parsed.kind)}`);
           }
           const request = this.enqueue(parsed);
