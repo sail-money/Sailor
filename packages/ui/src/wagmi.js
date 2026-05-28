@@ -1,20 +1,48 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit'
-import { arbitrum, base, baseSepolia, mainnet, optimism, polygon } from 'wagmi/chains'
+import {
+  mainnet, arbitrum, arbitrumNova, arbitrumSepolia,
+  base, baseSepolia,
+  optimism, optimismSepolia,
+  polygon, polygonAmoy, polygonZkEvm,
+  bsc,
+  avalanche, avalancheFuji,
+  gnosis,
+  celo,
+  linea, lineaSepolia,
+  zkSync,
+  scroll, scrollSepolia,
+  mantle,
+  blast, blastSepolia,
+  mode,
+  manta,
+  metis,
+  fraxtal,
+  worldchain,
+  aurora,
+  fantom,
+  moonbeam, moonriver,
+  cronos,
+  filecoin,
+  taiko, taikoHekla,
+  berachainTestnetbArtio,
+  zora,
+  ancient8,
+  apeChain,
+} from 'wagmi/chains'
 
-/**
- * Supported EVM chains. mainnet is the default (listed first); the user
- * can switch to any of the others from the RainbowKit chain selector.
- * Sail SMAs are single-chain, so the connected chain selects which SMA
- * the dashboard reads. baseSepolia is included so the signing station can
- * approve testnet onboarding / mandate-deploy flows.
- */
-export const chains = [mainnet, arbitrum, base, baseSepolia, optimism, polygon]
+export const chains = [
+  // Tier 1 mainnets
+  base, arbitrum, optimism, mainnet, polygon, bsc,
+  // L2s
+  arbitrumNova, polygonZkEvm, linea, zkSync, scroll, mantle, blast, mode,
+  manta, metis, fraxtal, worldchain, zora, aurora, ancient8, apeChain,
+  // L1 alts
+  avalanche, gnosis, celo, fantom, moonbeam, moonriver, cronos, filecoin, taiko,
+  // Testnets
+  baseSepolia, arbitrumSepolia, optimismSepolia, polygonAmoy, lineaSepolia,
+  scrollSepolia, blastSepolia, avalancheFuji, taikoHekla, berachainTestnetbArtio,
+]
 
-/**
- * A WalletConnect projectId is required by getDefaultConfig. Injected
- * wallets (MetaMask, Rabby, etc.) work locally without a real one; set
- * VITE_WALLETCONNECT_PROJECT_ID to enable WalletConnect/mobile wallets.
- */
 const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'sailor-local-dev'
 
 export const wagmiConfig = getDefaultConfig({

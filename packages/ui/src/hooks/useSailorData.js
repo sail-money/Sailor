@@ -73,6 +73,72 @@ export function useSailorAgentStatus() {
   return { running: data?.running === true, pid: data?.pid ?? null, loading }
 }
 
+/** Pending signing requests from the station daemon, or []. Polls every 3s. */
+export function useSailorPending() {
+  const { data, loading } = usePolledJson('/api/station/pending', [], 3000)
+  return { pending: Array.isArray(data) ? data : [], loading }
+}
+
+const SAFE_TX_SERVICE = {
+  1:      'https://safe-transaction-mainnet.safe.global',
+  10:     'https://safe-transaction-optimism.safe.global',
+  56:     'https://safe-transaction-bsc.safe.global',
+  100:    'https://safe-transaction-gnosis-chain.safe.global',
+  137:    'https://safe-transaction-polygon.safe.global',
+  8453:   'https://safe-transaction-base.safe.global',
+  42161:  'https://safe-transaction-arbitrum.safe.global',
+  43114:  'https://safe-transaction-avalanche.safe.global',
+  59144:  'https://safe-transaction-linea.safe.global',
+  84532:  'https://safe-transaction-base-sepolia.safe.global',
+  421614: 'https://safe-transaction-arbitrum-sepolia.safe.global',
+  11155111: 'https://safe-transaction-sepolia.safe.global',
+}
+
+/**
+ * Scans the Safe Transaction Service for Safes owned by `ownerAddress`.
+ * Tries all supported chains, returns the first match as a minimal account object.
+ * Only fires when `enabled` is true (i.e. wallet connected but no local account found).
+ */
+export function useDiscoverSafe(ownerAddress, enabled) {
+  const [discovered, setDiscovered] = useState(null)
+  const [scanning, setScanning] = useState(false)
+
+  useEffect(() => {
+    if (!enabled || !ownerAddress) return
+    let alive = true
+    setScanning(true)
+
+    async function scan() {
+      for (const [chainIdStr, base] of Object.entries(SAFE_TX_SERVICE)) {
+        try {
+          const res = await fetch(`${base}/api/v1/owners/${ownerAddress}/safes/`)
+          if (!res.ok) continue
+          const json = await res.json()
+          const safes = json?.safes ?? []
+          if (safes.length > 0 && alive) {
+            setDiscovered({
+              safe: safes[0],
+              owner: ownerAddress,
+              permissionSigner: ownerAddress,
+              manager: ownerAddress,
+              chainId: Number(chainIdStr),
+              createdAtBlock: '0',
+            })
+            setScanning(false)
+            return
+          }
+        } catch { /* network error on this chain, try next */ }
+      }
+      if (alive) setScanning(false)
+    }
+
+    scan()
+    return () => { alive = false }
+  }, [ownerAddress, enabled])
+
+  return { discovered, scanning }
+}
+
 /** A mandate draft awaiting signature (from `sailor mandate prepare`), or null. Polls every 5s. */
 export function useSailorMandateDraft() {
   const { data, loading, error } = usePolledJson('/api/mandate-draft', null, 5000)

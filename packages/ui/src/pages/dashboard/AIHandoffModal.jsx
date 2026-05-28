@@ -15,10 +15,13 @@ const PROVIDER_OPEN_TINTS = {
   default: { bg: 'linear-gradient(180deg, #2F9CFF 0%, #1378E8 100%)', border: '#2D8EE8', text: '#FFFFFF', shadow: 'rgba(25, 144, 255, 0.5)' },
 }
 
-/* Map a mandate's `aiName` field to a provider key in the tints map.
-   Accepts the common variants ("Claude" / "Anthropic", "Cursor",
-   "Codex" / "ChatGPT" / "OpenAI"). Falls back to "default" so the
-   button still renders cleanly for unknown providers. */
+const PROVIDER_URLS = {
+  claude:  'claude://',
+  cursor:  'cursor://',
+  codex:   'chatgpt://',
+  default: 'claude://',
+}
+
 function resolveProvider(aiName) {
   const n = (aiName ?? '').toLowerCase()
   if (n === 'claude' || n === 'anthropic') return 'claude'
@@ -46,7 +49,7 @@ function ProviderOpenBtn({ provider, onClick, children }) {
   )
 }
 
-export default function AIHandoffModal({ open, variant = 'new', mandate = null, onClose }) {
+export default function AIHandoffModal({ open, variant = 'new', context = 'agent', mandate = null, onClose }) {
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
@@ -63,9 +66,12 @@ export default function AIHandoffModal({ open, variant = 'new', mandate = null, 
   if (!open) return null
 
   const isRedraft = variant === 'redraft'
+  const isMandate = context === 'mandate'
   const prompt = isRedraft && mandate
     ? `Sail, redraft my "${mandate.title}" agent. I want to change [describe the change].`
-    : `Sail, draft an agent to deposit up to $500 of my USDC into yield strategies on Arbitrum for 30 days.`
+    : isMandate
+    ? `Sail, create a mandate that lets my agent deposit up to $500 USDC into yield strategies on Arbitrum for 30 days.`
+    : `Sail, draft an agent to manage my USDC yield on Arbitrum — deposit up to $500 into the best pool and rebalance weekly.`
 
   // The mandate carries the provider that drafted it ("Claude" / "Cursor"
   // / "Codex"). The hand-off button picks that one provider — the user
@@ -87,13 +93,15 @@ export default function AIHandoffModal({ open, variant = 'new', mandate = null, 
         <button type="button" className={styles.close} onClick={onClose} aria-label="Close">×</button>
 
         <h2 className={`${shared.displayHeadline} ${styles.headline}`}>
-          {isRedraft ? 'Send this back to your AI.' : 'Agents start with your AI.'}
+          {isRedraft ? 'Send this back to your AI.' : isMandate ? 'Mandates start with your AI.' : 'Agents start with your AI.'}
         </h2>
 
         <p className={`${shared.italicMannerism} ${styles.lede}`}>
           {isRedraft
             ? 'Tell your AI what to change. It will redraft the agent and a new signature request will appear here.'
-            : 'Sail signs what your AI drafts. Tell it what you want, and a request will appear here.'}
+            : isMandate
+            ? 'A mandate defines the permissions your agents operate under. Your AI drafts it — you sign each permission onchain.'
+            : 'Your AI drafts the agent strategy. You review and authorize it here before it touches your funds.'}
         </p>
 
         <div className={styles.promptBlock}>
@@ -105,13 +113,21 @@ export default function AIHandoffModal({ open, variant = 'new', mandate = null, 
         </div>
 
         <div className={styles.actions}>
-          <ProviderOpenBtn provider={providerKey} onClick={onClose}>
-            Open in {providerName} →
+          <ProviderOpenBtn
+            provider={providerKey}
+            onClick={() => {
+              if (navigator?.clipboard?.writeText) navigator.clipboard.writeText(prompt)
+              const url = PROVIDER_URLS[providerKey]
+              if (url) window.location.href = url
+              onClose?.()
+            }}
+          >
+            Open {providerName} →
           </ProviderOpenBtn>
         </div>
 
         <p className={styles.foot}>
-          Or run <code className={styles.kbd}>/sail</code> in any Sail-enabled AI client.
+          Prompt is copied to clipboard. Paste it into your AI console or terminal.
         </p>
       </GlassCard>
     </div>

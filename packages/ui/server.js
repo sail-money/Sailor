@@ -33,6 +33,22 @@ export function startServer(sailDir) {
     }
   })
 
+  // POST /api/account — persist a newly deployed SMA from the browser signing flow.
+  app.post('/api/account', (req, res) => {
+    const { safe, owner, permissionSigner, manager, chainId, createdAtBlock } = req.body ?? {}
+    if (!safe || !owner || !chainId) {
+      res.status(400).json({ error: 'safe, owner, and chainId are required' })
+      return
+    }
+    try {
+      fs.mkdirSync(sailDir, { recursive: true })
+      fs.writeFileSync(at('account.json'), `${JSON.stringify({ safe, owner, permissionSigner: permissionSigner ?? owner, manager: manager ?? owner, chainId, createdAtBlock: createdAtBlock ?? '0' }, null, 2)}\n`)
+      res.json({ ok: true })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  })
+
   // GET /api/activity — one JSON object per line; empty array if absent.
   app.get('/api/activity', (_req, res) => {
     try {
@@ -159,6 +175,21 @@ export function startServer(sailDir) {
       }
     } else {
       res.json({ ok: true, running: false })
+    }
+  })
+
+  // GET /api/station/pending — proxy to the signing station daemon, or [] if not running.
+  // The station writes its port to .sail/runtime/server.json when it starts.
+  app.get('/api/station/pending', async (_req, res) => {
+    try {
+      const stateRaw = fs.readFileSync(at('runtime/server.json'), 'utf-8')
+      const { port } = JSON.parse(stateRaw)
+      if (!port) { res.json([]); return }
+      const response = await fetch(`http://127.0.0.1:${port}/pending`)
+      if (!response.ok) { res.json([]); return }
+      res.json(await response.json())
+    } catch {
+      res.json([])
     }
   })
 

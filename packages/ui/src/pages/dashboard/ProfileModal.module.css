@@ -226,18 +226,8 @@
   overflow-x: hidden;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
-  /* Fade content as it approaches the top/bottom edges of the
-     scrollable area — Apple-style soft horizon. */
-  mask-image: linear-gradient(180deg,
-    transparent 0px,
-    #000 14px,
-    #000 calc(100% - 14px),
-    transparent 100%);
-  -webkit-mask-image: linear-gradient(180deg,
-    transparent 0px,
-    #000 14px,
-    #000 calc(100% - 14px),
-    transparent 100%);
+  padding-top: 2px;
+  padding-bottom: 2px;
   /* Firefox scrollbar */
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
