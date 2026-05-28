@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useAccount, useSendTransaction, useWaitForTransactionReceipt } from 'wagmi'
-import { encodeFunctionData } from 'viem'
-import { SAFE_V141, buildSafeSetupInitializer } from '@sail/sdk/safe'
+import { useAccount, useSendTransaction, useSwitchChain, useWaitForTransactionReceipt } from 'wagmi'
+import { encodeFunctionData, zeroAddress } from 'viem'
+import { SAFE_V141, buildSafeSetupInitializer, gnosisSafeAbi } from '@sail/sdk/safe'
 import { getSailDeployment } from '@sail/sdk/deployments'
 import { GlassCard, Sai, SailButton, RevealCalldata } from '../shared'
 import shared from '../shared/shared.module.css'
@@ -61,9 +61,11 @@ export default function CreateSMAModal({ open, onClose, onComplete }) {
   const [networks, setNetworks] = useState([DEFAULT_NETWORK_ID])
   const [txError, setTxError] = useState('')
   const [deployedSafe, setDeployedSafe] = useState(null)
+  const [createdAccount, setCreatedAccount] = useState(null)
 
   const { address: ownerAddress, chainId: walletChainId } = useAccount()
   const { sendTransactionAsync } = useSendTransaction()
+  const { switchChainAsync } = useSwitchChain()
   const [txHash, setTxHash] = useState(null)
   const { data: receipt, isSuccess: txConfirmed } = useWaitForTransactionReceipt({ hash: txHash })
 
@@ -72,16 +74,18 @@ export default function CreateSMAModal({ open, onClose, onComplete }) {
     if (!txConfirmed || !receipt) return
     const safe = getSafeAddressFromReceipt(receipt)
     setDeployedSafe(safe)
-    if (safe && ownerAddress && walletChainId) {
-      saveAccount({
-        safe,
-        owner: ownerAddress,
-        permissionSigner: ownerAddress,
-        manager: ownerAddress,
-        chainId: walletChainId,
-        createdAtBlock: receipt.blockNumber?.toString() ?? '0',
-      })
-    }
+    const account = safe && ownerAddress && walletChainId
+      ? {
+          safe,
+          owner: ownerAddress,
+          permissionSigner: ownerAddress,
+          manager: ownerAddress,
+          chainId: walletChainId,
+          createdAtBlock: receipt.blockNumber?.toString() ?? '0',
+        }
+      : null
+    if (account) saveAccount(account)
+    setCreatedAccount(account)
     setStep('ready')
   }, [txConfirmed, receipt, ownerAddress, walletChainId])
 
@@ -92,6 +96,7 @@ export default function CreateSMAModal({ open, onClose, onComplete }) {
     setTxError('')
     setTxHash(null)
     setDeployedSafe(null)
+    setCreatedAccount(null)
     document.body.style.overflow = 'hidden'
     const onKey = (e) => { if (e.key === 'Escape' && step !== 'confirm') onClose?.() }
     window.addEventListener('keydown', onKey)
@@ -104,23 +109,28 @@ export default function CreateSMAModal({ open, onClose, onComplete }) {
 
   async function handleSign() {
     if (!ownerAddress) { setTxError('No wallet connected.'); return }
-    const selectedNet = SAIL_NETWORKS.find((n) => networks.includes(n.id))
+    const selectedNet = ALL_NETWORKS.find((n) => networks.includes(n.id))
     if (!selectedNet) { setTxError('Select a network.'); return }
 
-    let deployment
-    try {
-      deployment = getSailDeployment(selectedNet.chainId)
-    } catch {
-      setTxError(`No Sail deployment on ${selectedNet.name} yet.`)
-      return
-    }
+    // Build initializer — use Sail kernel when deployed on this chain, plain Safe otherwise.
+    let initializer
+    let deployment = null
+    try { deployment = getSailDeployment(selectedNet.chainId) } catch { /* not yet deployed */ }
 
-    const initializer = buildSafeSetupInitializer({
-      owners: [ownerAddress],
-      threshold: 1n,
-      kernel: deployment.kernel,
-      safeModuleEnabler: deployment.safeModuleEnabler,
-    })
+    if (deployment) {
+      initializer = buildSafeSetupInitializer({
+        owners: [ownerAddress],
+        threshold: 1n,
+        kernel: deployment.kernel,
+        safeModuleEnabler: deployment.safeModuleEnabler,
+      })
+    } else {
+      initializer = encodeFunctionData({
+        abi: gnosisSafeAbi,
+        functionName: 'setup',
+        args: [[ownerAddress], 1n, zeroAddress, '0x', SAFE_V141.fallbackHandler, zeroAddress, 0n, zeroAddress],
+      })
+    }
 
     const data = encodeFunctionData({
       abi: PROXY_FACTORY_ABI,
@@ -131,6 +141,10 @@ export default function CreateSMAModal({ open, onClose, onComplete }) {
     setStep('confirm')
     setTxError('')
     try {
+      // Switch wallet to the target chain if needed.
+      if (walletChainId !== selectedNet.chainId) {
+        await switchChainAsync({ chainId: selectedNet.chainId })
+      }
       const hash = await sendTransactionAsync({
         to: SAFE_V141.proxyFactory,
         data,
@@ -184,7 +198,7 @@ export default function CreateSMAModal({ open, onClose, onComplete }) {
           />
         )}
         {step === 'confirm' && <ConfirmStep confirmed={txConfirmed} networks={networks} />}
-        {step === 'ready'   && <ReadyStep safeAddress={deployedSafe} onContinue={() => { onClose?.(); onComplete?.() }} />}
+        {step === 'ready'   && <ReadyStep safeAddress={deployedSafe} onContinue={() => { onClose?.(); onComplete?.(createdAccount) }} />}
       </GlassCard>
     </div>
   )
@@ -273,7 +287,7 @@ function IntroStep({ onContinue }) {
 
 /* ─────────── Step 2 · Review ─────────── */
 function ReviewStep({ onBack, onSign, networks, onNetworksChange, error, ownerAddress }) {
-  const selectedNets = SAIL_NETWORKS.filter((n) => networks.includes(n.id))
+  const selectedNets = ALL_NETWORKS.filter((n) => networks.includes(n.id))
   const totalGasUsd = selectedNets.reduce((sum, n) => sum + parseGasUsd(n.gas), 0)
   const gasLabel = formatGasUsd(totalGasUsd)
   const [signing, setSigning] = useState(false)
@@ -444,11 +458,51 @@ function ReadyStep({ onContinue, safeAddress }) {
   )
 }
 
-/* Chains with a live Sail Protocol deployment. */
-const SAIL_NETWORKS = [
-  { id: 'base',         name: 'Base',           chainId: 8453,  color: '#0052FF', gas: '$0.18', tier: 'L2' },
-  { id: 'arbitrum',     name: 'Arbitrum One',   chainId: 42161, color: '#28A0F0', gas: '$0.42', tier: 'L2' },
-  { id: 'baseSepolia',  name: 'Base Sepolia',   chainId: 84532, color: '#3c6ef5', gas: '$0.01', tier: 'Testnet' },
+const ALL_NETWORKS = [
+  // ── Sail deployed ────────────────────────────────────────────────────
+  { id: 'base',              name: 'Base',              chainId: 8453,    color: '#0052FF', gas: '$0.18',  tier: 'L2',       sail: true  },
+  { id: 'arbitrum',          name: 'Arbitrum One',      chainId: 42161,   color: '#28A0F0', gas: '$0.42',  tier: 'L2',       sail: true  },
+  { id: 'baseSepolia',       name: 'Base Sepolia',      chainId: 84532,   color: '#3c6ef5', gas: '$0.01',  tier: 'Testnet',  sail: true  },
+  // ── Mainnets ─────────────────────────────────────────────────────────
+  { id: 'ethereum',          name: 'Ethereum',          chainId: 1,       color: '#627EEA', gas: '$24.80', tier: 'L1'                    },
+  { id: 'optimism',          name: 'Optimism',          chainId: 10,      color: '#FF0420', gas: '$0.24',  tier: 'L2'                    },
+  { id: 'bsc',               name: 'BNB Chain',         chainId: 56,      color: '#F3BA2F', gas: '$0.12',  tier: 'L1'                    },
+  { id: 'gnosis',            name: 'Gnosis',            chainId: 100,     color: '#04795B', gas: '$0.04',  tier: 'L1'                    },
+  { id: 'polygon',           name: 'Polygon PoS',       chainId: 137,     color: '#8247E5', gas: '$0.06',  tier: 'Sidechain'             },
+  { id: 'fantom',            name: 'Fantom',            chainId: 250,     color: '#1969FF', gas: '$0.10',  tier: 'L1'                    },
+  { id: 'filecoin',          name: 'Filecoin',          chainId: 314,     color: '#0090FF', gas: '$0.40',  tier: 'L1'                    },
+  { id: 'zkSync',            name: 'zkSync Era',        chainId: 324,     color: '#8C8DFC', gas: '$0.22',  tier: 'L2 zk'                 },
+  { id: 'worldchain',        name: 'World Chain',       chainId: 480,     color: '#14171A', gas: '$0.10',  tier: 'L2'                    },
+  { id: 'zora',              name: 'Zora',              chainId: 7777777, color: '#A1723A', gas: '$0.14',  tier: 'L2'                    },
+  { id: 'aurora',            name: 'Aurora',            chainId: 1313161554, color: '#78D64B', gas: '$0.08', tier: 'L2'                  },
+  { id: 'moonbeam',          name: 'Moonbeam',          chainId: 1284,    color: '#53CBC8', gas: '$0.12',  tier: 'L1'                    },
+  { id: 'moonriver',         name: 'Moonriver',         chainId: 1285,    color: '#F2A007', gas: '$0.14',  tier: 'L1'                    },
+  { id: 'metis',             name: 'Metis',             chainId: 1088,    color: '#00DACC', gas: '$0.18',  tier: 'L2'                    },
+  { id: 'mantle',            name: 'Mantle',            chainId: 5000,    color: '#68CEC1', gas: '$0.14',  tier: 'L2'                    },
+  { id: 'celo',              name: 'Celo',              chainId: 42220,   color: '#FCFF52', gas: '$0.08',  tier: 'L1'                    },
+  { id: 'avalanche',         name: 'Avalanche',         chainId: 43114,   color: '#E84142', gas: '$0.34',  tier: 'L1'                    },
+  { id: 'linea',             name: 'Linea',             chainId: 59144,   color: '#61DFFF', gas: '$0.20',  tier: 'L2 zk'                 },
+  { id: 'polygonZkEvm',      name: 'Polygon zkEVM',     chainId: 1101,    color: '#9F71E8', gas: '$0.26',  tier: 'L2 zk'                 },
+  { id: 'scroll',            name: 'Scroll',            chainId: 534352,  color: '#FFEEDA', gas: '$0.32',  tier: 'L2 zk'                 },
+  { id: 'manta',             name: 'Manta Pacific',     chainId: 169,     color: '#23AAF2', gas: '$0.20',  tier: 'L2'                    },
+  { id: 'fraxtal',           name: 'Fraxtal',           chainId: 252,     color: '#F3C26C', gas: '$0.20',  tier: 'L2'                    },
+  { id: 'mode',              name: 'Mode',              chainId: 34443,   color: '#DFFE00', gas: '$0.16',  tier: 'L2'                    },
+  { id: 'blast',             name: 'Blast',             chainId: 81457,   color: '#FCFC03', gas: '$0.18',  tier: 'L2'                    },
+  { id: 'taiko',             name: 'Taiko',             chainId: 167000,  color: '#E81899', gas: '$0.24',  tier: 'L2 zk'                 },
+  { id: 'apeChain',          name: 'ApeChain',          chainId: 33139,   color: '#0054FA', gas: '$0.10',  tier: 'L2'                    },
+  { id: 'ancient8',          name: 'Ancient8',          chainId: 888888888, color: '#FF6B35', gas: '$0.06', tier: 'L2'                   },
+  { id: 'arbitrumNova',      name: 'Arbitrum Nova',     chainId: 42170,   color: '#EF8220', gas: '$0.02',  tier: 'L2'                    },
+  { id: 'cronos',            name: 'Cronos',            chainId: 25,      color: '#002D74', gas: '$0.14',  tier: 'L1'                    },
+  // ── Testnets ─────────────────────────────────────────────────────────
+  { id: 'arbitrumSepolia',   name: 'Arbitrum Sepolia',  chainId: 421614,  color: '#28A0F0', gas: '$0.01',  tier: 'Testnet'               },
+  { id: 'optimismSepolia',   name: 'Optimism Sepolia',  chainId: 11155420,color: '#FF0420', gas: '$0.01',  tier: 'Testnet'               },
+  { id: 'polygonAmoy',       name: 'Polygon Amoy',      chainId: 80002,   color: '#8247E5', gas: '$0.01',  tier: 'Testnet'               },
+  { id: 'scrollSepolia',     name: 'Scroll Sepolia',    chainId: 534351,  color: '#FFEEDA', gas: '$0.01',  tier: 'Testnet'               },
+  { id: 'lineaSepolia',      name: 'Linea Sepolia',     chainId: 59141,   color: '#61DFFF', gas: '$0.01',  tier: 'Testnet'               },
+  { id: 'blastSepolia',      name: 'Blast Sepolia',     chainId: 168587773, color: '#FCFC03', gas: '$0.01', tier: 'Testnet'              },
+  { id: 'taikoHekla',        name: 'Taiko Hekla',       chainId: 167009,  color: '#E81899', gas: '$0.01',  tier: 'Testnet'               },
+  { id: 'berachainTestnet',  name: 'Berachain bArtio',  chainId: 80084,   color: '#8B4513', gas: '$0.01',  tier: 'Testnet'               },
+  { id: 'avalancheFuji',     name: 'Avalanche Fuji',    chainId: 43113,   color: '#E84142', gas: '$0.01',  tier: 'Testnet'               },
 ]
 const DEFAULT_NETWORK_ID = 'base'
 
@@ -459,7 +513,7 @@ const DEFAULT_NETWORK_ID = 'base'
    plus a stack of dots once more than one is selected. */
 function NetworkMultiSelect({ value, onChange }) {
   const [open, setOpen] = useState(false)
-  const selected = SAIL_NETWORKS.filter((n) => value.includes(n.id))
+  const selected = ALL_NETWORKS.filter((n) => value.includes(n.id))
   const single = selected.length === 1 ? selected[0] : null
 
   useEffect(() => {
@@ -553,7 +607,7 @@ function NetworkMultiSelect({ value, onChange }) {
             </button>
           </header>
           <ul className={styles.netSelectMenuList}>
-            {SAIL_NETWORKS.map((n) => {
+            {ALL_NETWORKS.map((n) => {
               const checked = value.includes(n.id)
               return (
                 <li key={n.id}>
@@ -570,8 +624,11 @@ function NetworkMultiSelect({ value, onChange }) {
                       aria-hidden
                     />
                     <span className={styles.netSelectOptionBody}>
-                      <span className={styles.netSelectOptionName}>{n.name}</span>
-                      <span className={styles.netSelectOptionMeta}>{n.tier} · chainId {n.chainId}</span>
+                      <span className={styles.netSelectOptionName}>
+                        {n.name}
+                        {n.sail && <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--accent-blue)', opacity: 0.9 }}>● Sail</span>}
+                      </span>
+                      <span className={styles.netSelectOptionMeta}>{n.tier} · chain {n.chainId}</span>
                     </span>
                     <span
                       className={`${styles.netSelectCheckbox} ${checked ? styles.netSelectCheckboxOn : ''}`}

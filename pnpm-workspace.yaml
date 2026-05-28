@@ -10,3 +10,5 @@ allowBuilds:
   esbuild: true
   keccak: true
   utf-8-validate: true
+overrides:
+  sailor: link:packages/cli

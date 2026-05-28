@@ -19,6 +19,7 @@ import {
   useSailorAgentStatus,
   useSailorMandate,
   useSailorPending,
+  useDiscoverSafe,
 } from '../../hooks/useSailorData'
 
 /**
@@ -296,28 +297,43 @@ export default function Dashboard() {
   const { running: agentRunning, pid: agentPid } = useSailorAgentStatus()
   const { pending } = useSailorPending()
 
-  const hasSMA = realAccount != null
-  const hasLiveMandate = liveMandate != null
-  const liveMode = hasLiveMandate || agentRunning
+  const [justCreatedAccount, setJustCreatedAccount] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('sail.account') ?? 'null') } catch { return null }
+  })
 
-  const realNetwork = realAccount ? (CHAIN_NAMES[realAccount.chainId] ?? 'ethereum') : null
-  const sma = realAccount
-    ? {
-        id: 'live-sma',
-        name: 'My SMA',
-        address: realAccount.safe,
-        network: realNetwork,
-      }
-    : null
+  const { discovered, scanning } = useDiscoverSafe(
+    wagmiAddress,
+    isConnected && !accountLoading && !realAccount && !justCreatedAccount,
+  )
 
-  const ownerAddr = realAccount?.owner ?? wagmiAddress ?? null
-
+  useEffect(() => {
+    if (!discovered) return
+    setJustCreatedAccount(discovered)
+    try { localStorage.setItem('sail.account', JSON.stringify(discovered)) } catch {}
+  }, [discovered])
   const [copiedAddr, setCopiedAddr] = useState(false)
   const [stopping, setStopping] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [createSMAOpen, setCreateSMAOpen] = useState(false)
   const [handoff, setHandoff] = useState(null)
   const [safeNames, setSafeNames] = useState({})
+
+  const effectiveAccount = realAccount ?? justCreatedAccount
+  const hasSMA = effectiveAccount != null
+  const hasLiveMandate = liveMandate != null
+  const liveMode = hasLiveMandate || agentRunning
+
+  const realNetwork = effectiveAccount ? (CHAIN_NAMES[effectiveAccount.chainId] ?? 'ethereum') : null
+  const sma = effectiveAccount
+    ? {
+        id: 'live-sma',
+        name: 'My SMA',
+        address: effectiveAccount.safe,
+        network: realNetwork,
+      }
+    : null
+
+  const ownerAddr = effectiveAccount?.owner ?? wagmiAddress ?? null
 
   const smaName = safeNames['live-sma'] ?? sma?.name ?? 'My SMA'
   const profileSafes = sma
@@ -400,8 +416,17 @@ export default function Dashboard() {
       <main className={agentStyles.main}>
         {!isConnected ? (
           <ConnectWalletHero />
-        ) : accountLoading ? null : !hasSMA ? (
-          <SetupHero onCreate={() => setCreateSMAOpen(true)} />
+        ) : accountLoading || scanning ? (
+          <ScanningHero />
+        ) : !hasSMA ? (
+          <SetupHero
+            onCreate={() => setCreateSMAOpen(true)}
+            onImport={(account) => {
+              setJustCreatedAccount(account)
+              try { localStorage.setItem('sail.account', JSON.stringify(account)) } catch {}
+            }}
+            ownerAddr={ownerAddr}
+          />
         ) : (
           <>
             {pending.length > 0 && (
@@ -522,7 +547,7 @@ export default function Dashboard() {
                 {hasLiveMandate ? (
                   <LiveMandateCard mandate={liveMandate} network={realNetwork} />
                 ) : (
-                  <NewMandateTile onClick={() => setHandoff({ variant: 'new' })} />
+                  <NewMandateTile onClick={() => setHandoff({ variant: 'new', context: 'mandate' })} />
                 )}
               </div>
             </section>
@@ -553,7 +578,7 @@ export default function Dashboard() {
                 {liveMode ? (
                   <LiveAgentCard running={agentRunning} pid={agentPid} />
                 ) : (
-                  <EmptyAgentsState onNew={() => setHandoff({ variant: 'new' })} />
+                  <EmptyAgentsState onNew={() => setHandoff({ variant: 'new', context: 'agent' })} />
                 )}
               </div>
             </section>
@@ -602,6 +627,7 @@ export default function Dashboard() {
       <AIHandoffModal
         open={!!handoff}
         variant={handoff?.variant}
+        context={handoff?.context}
         mandate={handoff?.mandate}
         onClose={() => setHandoff(null)}
       />
@@ -613,7 +639,12 @@ export default function Dashboard() {
         currentSafeId="live-sma"
         hasSMA={hasSMA}
         onClose={() => setProfileOpen(false)}
-        onDisconnect={() => { setProfileOpen(false); disconnect() }}
+        onDisconnect={() => {
+          setProfileOpen(false)
+          setJustCreatedAccount(null)
+          try { localStorage.removeItem('sail.account') } catch {}
+          disconnect()
+        }}
         onCreateSMA={() => { setProfileOpen(false); setCreateSMAOpen(true) }}
         onRenameSafe={(id, name) => setSafeNames((m) => ({ ...m, [id]: name }))}
         onSelectSafe={() => {}}
@@ -622,13 +653,32 @@ export default function Dashboard() {
       <CreateSMAModal
         open={createSMAOpen}
         onClose={() => setCreateSMAOpen(false)}
-        onComplete={() => { window.location.hash = '#/dashboard' }}
+        onComplete={(account) => {
+          if (account) {
+            setJustCreatedAccount(account)
+            try { localStorage.setItem('sail.account', JSON.stringify(account)) } catch {}
+          }
+          setCreateSMAOpen(false)
+        }}
       />
 
       {/* Contract preview modal retired — viewing the signed contract
           now lives inside MandatePage at /mandate/:id, which the
           Your mandate card on the dashboard routes to. */}
     </div>
+  )
+}
+
+/* ────────── Scanning hero ────────── */
+function ScanningHero() {
+  return (
+    <section className={styles.noSMAHero}>
+      <div className={styles.noSMAMascot} aria-hidden>
+        <Sai size={64} animate />
+      </div>
+      <h2 className={styles.noSMATitle}>Looking for your SMA…</h2>
+      <p className={styles.noSMASub}>Scanning Safe Transaction Service across supported chains.</p>
+    </section>
   )
 }
 
@@ -652,7 +702,23 @@ function ConnectWalletHero() {
 }
 
 /* ────────── Setup hero (wallet connected, no .sail/account.json yet) ────────── */
-function SetupHero({ onCreate }) {
+function SetupHero({ onCreate, onImport, ownerAddr }) {
+  const [showImport, setShowImport] = useState(false)
+  const [safeInput, setSafeInput] = useState('')
+  const [chainInput, setChainInput] = useState('8453')
+  const [err, setErr] = useState('')
+
+  function handleImport() {
+    const safe = safeInput.trim()
+    if (!/^0x[0-9a-fA-F]{40}$/.test(safe)) {
+      setErr('Enter a valid 0x address.')
+      return
+    }
+    const chainId = Number(chainInput)
+    if (!chainId) { setErr('Enter a valid chain ID.'); return }
+    onImport?.({ safe, owner: ownerAddr ?? safe, permissionSigner: ownerAddr ?? safe, manager: ownerAddr ?? safe, chainId, createdAtBlock: '0' })
+  }
+
   return (
     <section className={styles.noSMAHero}>
       <div className={styles.noSMAMascot} aria-hidden>
@@ -660,15 +726,49 @@ function SetupHero({ onCreate }) {
       </div>
       <div className={styles.noSMAStatus}>
         <span className={styles.noSMAStatusDot} aria-hidden />
-        No SMA created yet
+        No SMA found
       </div>
       <h2 className={styles.noSMATitle}>Your wallet is connected.</h2>
       <p className={styles.noSMASub}>
         Sail deploys your Separately Managed Account the moment you create your first agent — so you only pay gas when there&rsquo;s something for your AI to do.
       </p>
-      <div className={styles.noSMACta}>
-        <SailButton onClick={onCreate}>Create your first agent</SailButton>
-      </div>
+
+      {!showImport ? (
+        <>
+          <div className={styles.noSMACta}>
+            <SailButton onClick={onCreate}>Create your first agent</SailButton>
+          </div>
+          <button type="button" className={styles.noSMAImportLink} onClick={() => setShowImport(true)}>
+            Already have an SMA? Import it
+          </button>
+        </>
+      ) : (
+        <div className={styles.noSMAImport}>
+          <input
+            className={styles.noSMAImportInput}
+            type="text"
+            placeholder="Safe address  0x…"
+            value={safeInput}
+            onChange={(e) => { setSafeInput(e.target.value); setErr('') }}
+            spellCheck={false}
+          />
+          <input
+            className={styles.noSMAImportInput}
+            type="text"
+            placeholder="Chain ID  e.g. 8453"
+            value={chainInput}
+            onChange={(e) => { setChainInput(e.target.value); setErr('') }}
+          />
+          {err && <span className={styles.noSMAImportErr}>{err}</span>}
+          <div className={styles.noSMAImportActions}>
+            <SailButton onClick={handleImport}>Import SMA</SailButton>
+            <button type="button" className={styles.noSMAImportLink} onClick={() => setShowImport(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       <p className={styles.noSMAFine}>Self-custody. Sail never holds your keys.</p>
     </section>
   )
@@ -716,7 +816,9 @@ function EmptyAgentsState({ onNew }) {
   return (
     <div className={styles.emptyAgents}>
       <h3 className={styles.emptyAgentsTitle}>No agents yet</h3>
-      <p className={styles.emptyAgentsBody}>Ask your AI to draft your first agent mandate.</p>
+      <p className={styles.emptyAgentsBody}>
+        Once you have a mandate, ask your AI to draft an agent strategy. It will appear here for your signature.
+      </p>
       <SailButton onClick={onNew}>Create your first agent</SailButton>
     </div>
   )
