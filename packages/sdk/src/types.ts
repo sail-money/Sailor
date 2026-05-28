@@ -1,4 +1,5 @@
 import type { Address, Hex } from "viem";
+import type { KernelCapabilities } from "./capabilities.js";
 
 export type { Address, Hex };
 
@@ -328,6 +329,11 @@ export interface ISailorClient {
   session: ISessionNamespace;
   fees: IFeesNamespace;
   principal: IPrincipalNamespace;
+  /**
+   * Detect the deployed kernel's dispatch model and EIP-712 shape (conjunctive
+   * vs selective) by reading its on-chain typehash constants.
+   */
+  capabilities(): Promise<KernelCapabilities>;
 }
 
 /** Context passed to Agent.tick on every scheduled execution. */

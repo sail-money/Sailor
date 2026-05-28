@@ -31,6 +31,22 @@ export {
   normalizeDeployment,
   sailDeployments,
 } from "./deployments.js";
+export type { DispatchModel, KernelCapabilities } from "./capabilities.js";
+export {
+  DISPATCH_TYPE_STRINGS,
+  DISPATCH_TYPEHASHES,
+  REGISTER_PERMISSION_TYPE_STRINGS,
+  REGISTER_PERMISSION_TYPEHASHES,
+  clearCapabilityCache,
+  detectKernelCapabilities,
+} from "./capabilities.js";
+export type { KernelError } from "./errors.js";
+export {
+  KERNEL_ERROR_ABI,
+  KERNEL_ERROR_SIGNATURES,
+  decodeKernelError,
+  explainKernelRevert,
+} from "./errors.js";
 export {
   REGISTER_PERMISSION_TYPES,
   buildRegisterPermissionTypedData,

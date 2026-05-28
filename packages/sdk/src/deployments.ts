@@ -1,4 +1,5 @@
 import type { Address } from "viem";
+import type { DispatchModel } from "./capabilities.js";
 
 /** Chains with a bundled Sail Protocol deployment: Base, Base Sepolia, Arbitrum. */
 export type SailChainId = 8453 | 84532 | 42161;
@@ -27,6 +28,14 @@ export type SailDeployment = {
   maxPermissionFeeWei: bigint;
   initialBaseFee: bigint;
   initialComplexityRate: bigint;
+  /**
+   * Dispatch model this kernel implements, as a static hint. Verified on-chain
+   * against each kernel's DISPATCH_TYPEHASH. The SDK still prefers live detection
+   * (detectKernelCapabilities) and uses this only as a fallback when the on-chain
+   * read is unavailable. NOTE: both Base chains run the older "conjunctive" model
+   * — do NOT assume "selective".
+   */
+  dispatchModel?: DispatchModel;
   /** Pre-audited shared mandate templates available on this chain. */
   knownTemplates?: KnownTemplate[];
   /**
@@ -53,6 +62,7 @@ export const sailDeployments: Record<SailChainId, SailDeployment> = {
     maxPermissionFeeWei: 10_000_000_000_000_000n,
     initialBaseFee: 100_000_000_000_000n,
     initialComplexityRate: 100n,
+    dispatchModel: "conjunctive", // verified on-chain via DISPATCH_TYPEHASH
     knownTemplates: [],
     standaloneTemplates: {
       azuroPrediction: "0x10f98807E7DBBAed599b8246167660e0660C490b",
@@ -83,6 +93,7 @@ export const sailDeployments: Record<SailChainId, SailDeployment> = {
     maxPermissionFeeWei: 10_000_000_000_000_000n,
     initialBaseFee: 0n,
     initialComplexityRate: 0n,
+    dispatchModel: "conjunctive", // verified on-chain via DISPATCH_TYPEHASH
     knownTemplates: [
       {
         address: "0xe5DE579F8D8C99F83C0b979a85049c7D68b381c6",
@@ -115,6 +126,7 @@ export const sailDeployments: Record<SailChainId, SailDeployment> = {
     maxPermissionFeeWei: 1_000_000_000_000_000n,
     initialBaseFee: 0n,
     initialComplexityRate: 0n,
+    dispatchModel: "selective", // verified on-chain via DISPATCH_TYPEHASH
     knownTemplates: [],
   },
 };
@@ -142,5 +154,6 @@ export function normalizeDeployment(input: Record<string, unknown>): SailDeploym
     maxPermissionFeeWei: BigInt(input.maxPermissionFeeWei as string | number | bigint),
     initialBaseFee: BigInt(input.initialBaseFee as string | number | bigint),
     initialComplexityRate: BigInt(input.initialComplexityRate as string | number | bigint),
+    dispatchModel: input.dispatchModel as SailDeployment["dispatchModel"],
   };
 }

@@ -13,6 +13,12 @@ import {
   zeroAddress,
 } from "viem";
 import { SailKernelAbi } from "./abis/SailKernel.js";
+import {
+  type KernelCapabilities,
+  detectKernelCapabilities,
+} from "./capabilities.js";
+import { sailDeployments } from "./deployments.js";
+import { explainKernelRevert } from "./errors.js";
 import type {
   Account,
   Address,
@@ -81,6 +87,63 @@ const CALL_COMPONENTS = [
   { name: "data", type: "bytes" },
 ] as const;
 
+/**
+ * Minimal ABI for the older "conjunctive" kernel's dispatch — it takes NO
+ * `permission` argument (the kernel checks every registered permission), so the
+ * selective SailKernelAbi cannot encode a call to it.
+ */
+const CONJUNCTIVE_DISPATCH_ABI = [
+  {
+    type: "function",
+    name: "dispatch",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "account", type: "address" },
+      { name: "target", type: "address" },
+      { name: "value", type: "uint256" },
+      { name: "data", type: "bytes" },
+      { name: "managerSig", type: "bytes" },
+      { name: "deadline", type: "uint256" },
+    ],
+    outputs: [],
+  },
+] as const;
+
+/** EIP-712 Dispatch struct fields, per dispatch model. */
+const DISPATCH_EIP712_FIELDS = {
+  selective: [
+    { name: "account", type: "address" },
+    { name: "permission", type: "address" },
+    { name: "target", type: "address" },
+    { name: "value", type: "uint256" },
+    { name: "dataHash", type: "bytes32" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+  conjunctive: [
+    { name: "account", type: "address" },
+    { name: "target", type: "address" },
+    { name: "value", type: "uint256" },
+    { name: "dataHash", type: "bytes32" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
+
+/**
+ * Wrap a thrown dispatch error with a decoded kernel diagnosis, when one can be
+ * recovered. The original error is preserved as `.cause`.
+ */
+async function enrichKernelRevert(err: unknown): Promise<Error> {
+  const decoded = await explainKernelRevert(err);
+  const base = err instanceof Error ? err : new Error(String(err));
+  if (!decoded) return base;
+  const wrapped = new Error(`Kernel reverted: ${decoded.message}`);
+  (wrapped as Error & { cause?: unknown }).cause = base;
+  (wrapped as Error & { kernelError?: unknown }).kernelError = decoded;
+  return wrapped;
+}
+
 /** Shared base providing the public client, config, and an optional signer. */
 abstract class KernelNamespace {
   constructor(
@@ -106,6 +169,21 @@ abstract class KernelNamespace {
       );
     }
     return this.walletClient;
+  }
+
+  /**
+   * Detect (and cache) the deployed kernel's dispatch model. Prefers reading the
+   * on-chain DISPATCH_TYPEHASH; falls back to the bundled deployment's static
+   * `dispatchModel` hint if the on-chain read is unavailable.
+   */
+  protected async capabilities(): Promise<KernelCapabilities> {
+    const kernel = this.requireKernel();
+    const staticModel = sailDeployments[this.config.chainId as keyof typeof sailDeployments]
+      ?.dispatchModel;
+    return detectKernelCapabilities(this.publicClient, kernel, {
+      chainId: this.config.chainId,
+      staticModel,
+    });
   }
 }
 
@@ -304,6 +382,8 @@ class DispatchNamespace extends KernelNamespace implements IDispatchNamespace {
     const kernel = this.requireKernel();
     const wallet = this.requireSigner();
     const deadline = defaultDeadline();
+    const caps = await this.capabilities();
+    const selective = caps.dispatchModel === "selective";
 
     const nonce = await this.publicClient.readContract({
       address: kernel,
@@ -313,39 +393,42 @@ class DispatchNamespace extends KernelNamespace implements IDispatchNamespace {
     });
 
     const dataHash = keccak256(call.data);
+
+    // Sign the Dispatch struct matching the deployed kernel's model. Signing the
+    // wrong shape (e.g. a permission field the kernel doesn't expect) recovers a
+    // different address and reverts with InvalidManagerSignature.
+    const message: Record<string, unknown> = selective
+      ? { account: safe, permission, target: call.target, value: call.value, dataHash, nonce, deadline }
+      : { account: safe, target: call.target, value: call.value, dataHash, nonce, deadline };
+
     const managerSig = await manager.signTyped(
       kernelDomain(kernel, this.config.chainId),
       {
         primaryType: "Dispatch",
-        types: {
-          Dispatch: [
-            { name: "account", type: "address" },
-            { name: "permission", type: "address" },
-            { name: "target", type: "address" },
-            { name: "value", type: "uint256" },
-            { name: "dataHash", type: "bytes32" },
-            { name: "nonce", type: "uint256" },
-            { name: "deadline", type: "uint256" },
-          ],
-        },
+        types: { Dispatch: DISPATCH_EIP712_FIELDS[caps.dispatchModel] as unknown as { name: string; type: string }[] },
       },
-      {
-        account: safe,
-        permission,
-        target: call.target,
-        value: call.value,
-        dataHash,
-        nonce,
-        deadline,
-      },
+      message,
     );
 
-    const txHash = await wallet.writeContract({
-      address: kernel,
-      abi: SailKernelAbi,
-      functionName: "dispatch",
-      args: [safe, permission, call.target, call.value, call.data, managerSig, deadline],
-    });
+    // Conjunctive kernels take no `permission` arg and use a different ABI.
+    let txHash: Hex;
+    try {
+      txHash = selective
+        ? await wallet.writeContract({
+            address: kernel,
+            abi: SailKernelAbi,
+            functionName: "dispatch",
+            args: [safe, permission, call.target, call.value, call.data, managerSig, deadline],
+          })
+        : await wallet.writeContract({
+            address: kernel,
+            abi: CONJUNCTIVE_DISPATCH_ABI,
+            functionName: "dispatch",
+            args: [safe, call.target, call.value, call.data, managerSig, deadline],
+          });
+    } catch (err) {
+      throw await enrichKernelRevert(err);
+    }
 
     const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash });
     return {
@@ -369,6 +452,15 @@ class DispatchNamespace extends KernelNamespace implements IDispatchNamespace {
     const kernel = this.requireKernel();
     const wallet = this.requireSigner();
     const deadline = defaultDeadline();
+
+    const caps = await this.capabilities();
+    if (caps.dispatchModel === "conjunctive") {
+      throw new Error(
+        `Batch dispatch is not supported by the conjunctive kernel at ${kernel} ` +
+          "(it has no dispatchBatch). Submit calls individually via dispatch.single, " +
+          "ensuring the manager nonce advances between them.",
+      );
+    }
 
     const nonce = await this.publicClient.readContract({
       address: kernel,
@@ -398,12 +490,17 @@ class DispatchNamespace extends KernelNamespace implements IDispatchNamespace {
       { account: safe, permission, callsHash, nonce, deadline },
     );
 
-    const txHash = await wallet.writeContract({
-      address: kernel,
-      abi: SailKernelAbi,
-      functionName: "dispatchBatch",
-      args: [safe, permission, calls, managerSig, deadline],
-    });
+    let txHash: Hex;
+    try {
+      txHash = await wallet.writeContract({
+        address: kernel,
+        abi: SailKernelAbi,
+        functionName: "dispatchBatch",
+        args: [safe, permission, calls, managerSig, deadline],
+      });
+    } catch (err) {
+      throw await enrichKernelRevert(err);
+    }
 
     const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash });
     return {
@@ -417,6 +514,14 @@ class DispatchNamespace extends KernelNamespace implements IDispatchNamespace {
   /** Dry-run a batch via kernel.previewBatch — a read call, no signing. */
   async preview(safe: Address, permission: Address, calls: Call[]): Promise<PreviewResult> {
     const kernel = this.requireKernel();
+    const caps = await this.capabilities();
+    if (caps.dispatchModel === "conjunctive") {
+      throw new Error(
+        `Dry-run preview is not supported by the conjunctive kernel at ${kernel} ` +
+          "(it has no previewBatch view). Validate calls off-chain against each registered " +
+          "permission's evaluate() logic, or simulate the dispatch.single tx instead.",
+      );
+    }
     const [approved, reason] = await this.publicClient.readContract({
       address: kernel,
       abi: SailKernelAbi,
@@ -512,11 +617,13 @@ export class SailorClient implements ISailorClient {
 
   private readonly config: SailorClientConfig;
   private readonly walletClient?: Signer;
+  private readonly publicClient: PublicClient;
 
   constructor(config: SailorClientConfig, walletClient?: Signer) {
     this.config = config;
     this.walletClient = walletClient;
     const publicClient = buildPublicClient(config);
+    this.publicClient = publicClient;
     this.account = new AccountNamespace(publicClient, config, walletClient);
     this.mandate = new MandateNamespace(publicClient, config, walletClient);
     this.dispatch = new DispatchNamespace(publicClient, config, walletClient);
@@ -532,5 +639,25 @@ export class SailorClient implements ISailorClient {
    */
   withSigner(walletClient: Signer): SailorClient {
     return new SailorClient(this.config, walletClient);
+  }
+
+  /**
+   * Detect (and cache) the deployed kernel's dispatch model and EIP-712 shape by
+   * reading its on-chain typehash constants. Falls back to the bundled
+   * deployment's static `dispatchModel` hint if the on-chain read is unavailable.
+   * Call this during onboarding/preflight to fail loudly on a kernel the SDK
+   * cannot safely sign for.
+   */
+  async capabilities(): Promise<KernelCapabilities> {
+    const kernel = this.config.kernel;
+    if (!kernel) {
+      throw new Error("SailKernel address not configured — set `kernel` in SailorClientConfig.");
+    }
+    const staticModel = sailDeployments[this.config.chainId as keyof typeof sailDeployments]
+      ?.dispatchModel;
+    return detectKernelCapabilities(this.publicClient, kernel, {
+      chainId: this.config.chainId,
+      staticModel,
+    });
   }
 }
