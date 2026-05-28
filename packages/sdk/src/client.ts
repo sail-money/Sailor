@@ -19,6 +19,13 @@ import {
 } from "./capabilities.js";
 import { sailDeployments } from "./deployments.js";
 import { explainKernelRevert } from "./errors.js";
+import {
+  DEFAULT_SLIPPAGE,
+  ERC20_ALLOWANCE_ABI,
+  encodeApprove,
+  fetchLifiQuote,
+  LIFI_ROUTERS,
+} from "./lifi.js";
 import type {
   Account,
   Address,
@@ -37,6 +44,7 @@ import type {
   IPrincipalNamespace,
   ISailorClient,
   ISessionNamespace,
+  IStrategyNamespace,
   Mandate,
   MandateDraftInput,
   MandateExplanation,
@@ -46,6 +54,8 @@ import type {
   RegisterAccountParams,
   SailorClientConfig,
   Session,
+  SwapParams,
+  SwapResult,
   TxResult,
 } from "./types.js";
 
@@ -644,6 +654,93 @@ class DispatchNamespace extends KernelNamespace implements IDispatchNamespace {
   }
 }
 
+class StrategyNamespace extends KernelNamespace implements IStrategyNamespace {
+  constructor(
+    publicClient: PublicClient,
+    config: SailorClientConfig,
+    private readonly dispatch: DispatchNamespace,
+    walletClient?: Signer,
+  ) {
+    super(publicClient, config, walletClient);
+  }
+
+  /**
+   * Execute a delegated token swap via LiFi. Fetches an executable quote, tops up
+   * the router allowance only when it's below `amount` (approving `approveAmount`
+   * — default `amount` — so DCA loops can batch a larger approve and skip it on
+   * subsequent buys), then dispatches the swap. Both legs go through
+   * `dispatch.single`, so the manager nonce is orchestrated across them
+   * automatically. Kernel reverts are surfaced via the decoded-revert path.
+   */
+  async swap(safe: Address, params: SwapParams, manager: ILocalKeyring): Promise<SwapResult> {
+    const recipient = params.recipient ?? safe;
+    const slippage = params.slippage ?? DEFAULT_SLIPPAGE;
+    const router = params.router ?? LIFI_ROUTERS[this.config.chainId];
+    if (!router) {
+      throw new Error(
+        `No LiFi router known for chain ${this.config.chainId}. Pass params.router explicitly.`,
+      );
+    }
+
+    // Selective kernels validate the named permission; conjunctive kernels ignore
+    // it (they check every registered permission). Fail loudly if a selective
+    // kernel is missing the permission rather than signing an unusable dispatch.
+    const caps = await this.capabilities();
+    const swapPermission = params.swapPermission ?? router;
+    const approvePermission = params.approvePermission ?? params.swapPermission ?? router;
+    if (caps.dispatchModel === "selective" && !params.swapPermission) {
+      throw new Error(
+        "This kernel uses the selective dispatch model — params.swapPermission is " +
+          "required (the permission that authorizes the swap).",
+      );
+    }
+
+    const quote = await fetchLifiQuote({
+      chainId: this.config.chainId,
+      fromToken: params.from,
+      toToken: params.to,
+      fromAmount: params.amount,
+      fromAddress: safe,
+      toAddress: recipient,
+      slippage,
+    });
+
+    // Top up the router allowance only when it's short of the trade size.
+    const allowance = await this.publicClient.readContract({
+      address: params.from,
+      abi: ERC20_ALLOWANCE_ABI,
+      functionName: "allowance",
+      args: [safe, router],
+    });
+
+    let approve: Dispatch | undefined;
+    if (allowance < params.amount) {
+      const approveAmount = params.approveAmount ?? params.amount;
+      approve = await this.dispatch.single(
+        safe,
+        approvePermission,
+        { target: params.from, value: 0n, data: encodeApprove(router, approveAmount) },
+        manager,
+      );
+    }
+
+    const swap = await this.dispatch.single(
+      safe,
+      swapPermission,
+      { target: quote.target, value: quote.value, data: quote.data },
+      manager,
+    );
+
+    return {
+      swap,
+      approve,
+      router,
+      estimatedToAmount: quote.toAmount,
+      tool: quote.tool,
+    };
+  }
+}
+
 class SessionNamespace extends KernelNamespace implements ISessionNamespace {
   revoke(_safe: Address, _signer: ILocalKeyring): Promise<void> {
     return notImplemented();
@@ -723,6 +820,7 @@ export class SailorClient implements ISailorClient {
   readonly account: IAccountNamespace;
   readonly mandate: IMandateNamespace;
   readonly dispatch: IDispatchNamespace;
+  readonly strategy: IStrategyNamespace;
   readonly session: ISessionNamespace;
   readonly fees: IFeesNamespace;
   readonly principal: IPrincipalNamespace;
@@ -738,7 +836,9 @@ export class SailorClient implements ISailorClient {
     this.publicClient = publicClient;
     this.account = new AccountNamespace(publicClient, config, walletClient);
     this.mandate = new MandateNamespace(publicClient, config, walletClient);
-    this.dispatch = new DispatchNamespace(publicClient, config, walletClient);
+    const dispatch = new DispatchNamespace(publicClient, config, walletClient);
+    this.dispatch = dispatch;
+    this.strategy = new StrategyNamespace(publicClient, config, dispatch, walletClient);
     this.session = new SessionNamespace(publicClient, config, walletClient);
     this.fees = new FeesNamespace(publicClient, config, walletClient);
     this.principal = new PrincipalNamespace(publicClient, config, walletClient);

@@ -98,6 +98,52 @@ export type DispatchOptions = {
   deadline?: bigint;
 };
 
+/** Parameters for a delegated token swap via the integrated aggregator (LiFi). */
+export type SwapParams = {
+  /** Input token address. */
+  from: Address;
+  /** Output token address. */
+  to: Address;
+  /** Input amount, in `from`-token base units. */
+  amount: bigint;
+  /**
+   * Slippage tolerance as a fraction (0.03 = 3%). Defaults to 0.03 — LiFi's own
+   * 0.5% default reverts (`CumulativeSlippageTooHigh`) on small trades.
+   */
+  slippage?: number;
+  /**
+   * Permission that authorizes the swap dispatch. Required for selective kernels;
+   * ignored by conjunctive kernels (which check every registered permission).
+   */
+  swapPermission?: Address;
+  /** Permission authorizing the approve dispatch. Defaults to `swapPermission`. */
+  approvePermission?: Address;
+  /**
+   * Amount to approve to the router when the current allowance is below `amount`.
+   * Defaults to `amount`. Approving a larger batch collapses most subsequent buys
+   * to a single (swap-only) dispatch — useful for DCA loops.
+   */
+  approveAmount?: bigint;
+  /** Swap output recipient. Defaults to `safe` (the SMA itself). */
+  recipient?: Address;
+  /** Override the aggregator router address (defaults to the chain's LiFi diamond). */
+  router?: Address;
+};
+
+/** Outcome of a `client.strategy.swap` call. */
+export type SwapResult = {
+  /** The swap dispatch result. */
+  swap: Dispatch;
+  /** The approve dispatch, present only when the allowance was topped up. */
+  approve?: Dispatch;
+  /** Router/aggregator that executed the swap. */
+  router: Address;
+  /** Expected output amount in `to`-token base units, from the quote. */
+  estimatedToAmount: bigint;
+  /** Aggregator sub-route / tool that produced the quote. */
+  tool?: string;
+};
+
 /** Manager session state on a Safe. */
 export type Session = {
   safe: Address;
@@ -310,6 +356,16 @@ export interface IDispatchNamespace {
   preview(safe: Address, permission: Address, calls: Call[]): Promise<PreviewResult>;
 }
 
+export interface IStrategyNamespace {
+  /**
+   * Execute a delegated token swap via the integrated aggregator (LiFi):
+   * fetches a quote, tops up the router allowance only when it's below `amount`,
+   * then dispatches the swap. Approve and swap go through `dispatch.single`, so
+   * the manager nonce is orchestrated automatically across the two calls.
+   */
+  swap(safe: Address, params: SwapParams, manager: ILocalKeyring): Promise<SwapResult>;
+}
+
 export interface ISessionNamespace {
   /** Revokes the manager's dispatch rights. No further dispatches can execute. */
   revoke(safe: Address, signer: ILocalKeyring): Promise<void>;
@@ -357,6 +413,7 @@ export interface ISailorClient {
   account: IAccountNamespace;
   mandate: IMandateNamespace;
   dispatch: IDispatchNamespace;
+  strategy: IStrategyNamespace;
   session: ISessionNamespace;
   fees: IFeesNamespace;
   principal: IPrincipalNamespace;
