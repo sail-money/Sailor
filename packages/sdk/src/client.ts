@@ -26,6 +26,7 @@ import type {
   Call,
   CreateAccountParams,
   Dispatch,
+  DispatchOptions,
   FeePolicy,
   Hex,
   IAccountNamespace,
@@ -78,6 +79,20 @@ function kernelDomain(kernel: Address, chainId: number) {
 /** Default signature deadline: 5 minutes from now (unix seconds). */
 function defaultDeadline(): bigint {
   return BigInt(Math.floor(Date.now() / 1000) + 300);
+}
+
+/**
+ * Default gas limit for a single dispatch. Passing an explicit limit makes viem
+ * skip its `eth_estimateGas` pre-flight, which a load-balanced RPC can route to a
+ * lagging node — computing the digest against a stale nonce and failing with
+ * InvalidManagerSignature even though the tx would mine fine. Generous enough for
+ * an ERC-20 approve, a transfer, or a LiFi-diamond swap.
+ */
+const DEFAULT_DISPATCH_GAS = 2_000_000n;
+
+/** Resolve after `ms` milliseconds. */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /** ABI tuple components for the kernel's `Call` struct. */
@@ -370,27 +385,113 @@ class MandateNamespace extends KernelNamespace implements IMandateNamespace {
 
 class DispatchNamespace extends KernelNamespace implements IDispatchNamespace {
   /**
+   * Per-account expected next manager nonce, recorded after each confirmed
+   * `single` dispatch. The next dispatch on the same account waits until the
+   * on-chain `managerNonces` reflects this value before signing, so a lagging
+   * node in a load-balanced RPC pool can't make us sign with a stale nonce.
+   * Keyed by `${kernel}:${safe}` (lowercased).
+   */
+  private readonly nextNonce = new Map<string, bigint>();
+
+  private nonceKey(kernel: Address, safe: Address): string {
+    return `${kernel.toLowerCase()}:${safe.toLowerCase()}`;
+  }
+
+  /** Read the current on-chain manager nonce for an account. */
+  private readManagerNonce(kernel: Address, safe: Address): Promise<bigint> {
+    return this.publicClient.readContract({
+      address: kernel,
+      abi: SailKernelAbi,
+      functionName: "managerNonces",
+      args: [safe],
+    });
+  }
+
+  /**
+   * Poll `managerNonces` until it reaches at least `expected`. A load-balanced
+   * RPC may briefly serve a stale (lower) value from a node that hasn't yet
+   * indexed the prior dispatch; retrying guarantees the next dispatch is signed
+   * against — and validated with — the correct nonce.
+   */
+  private async waitForManagerNonce(
+    kernel: Address,
+    safe: Address,
+    expected: bigint,
+    tries = 30,
+  ): Promise<bigint> {
+    let latest = 0n;
+    for (let i = 0; i < tries; i++) {
+      latest = await this.readManagerNonce(kernel, safe);
+      if (latest >= expected) return latest;
+      await delay(1000);
+    }
+    throw new Error(
+      `Manager nonce for ${safe} did not reach ${expected} after ${tries}s ` +
+        `(last seen ${latest}). The prior dispatch may not have mined, or the RPC ` +
+        "endpoint is lagging. Retry, or pass an explicit nonce via options.nonce.",
+    );
+  }
+
+  /**
+   * Determine the nonce to sign with. Honors an explicit `options.nonce`
+   * verbatim; otherwise waits for the on-chain nonce to reach any pending
+   * expectation (explicit `options.awaitNonce` or the value tracked from a prior
+   * dispatch on this account) before reading the live value.
+   */
+  private async resolveNonce(
+    kernel: Address,
+    safe: Address,
+    options?: DispatchOptions,
+  ): Promise<bigint> {
+    if (options?.nonce !== undefined) return options.nonce;
+    const expected = options?.awaitNonce ?? this.nextNonce.get(this.nonceKey(kernel, safe));
+    if (expected !== undefined) {
+      return this.waitForManagerNonce(kernel, safe, expected);
+    }
+    return this.readManagerNonce(kernel, safe);
+  }
+
+  /**
+   * Wait for a receipt, retrying transient RPC failures. A dispatch that has been
+   * submitted will mine; a flaky read of its receipt must not be reported as a
+   * failed dispatch.
+   */
+  private async awaitReceipt(txHash: Hex, tries = 5) {
+    let lastErr: unknown;
+    for (let i = 0; i < tries; i++) {
+      try {
+        return await this.publicClient.waitForTransactionReceipt({ hash: txHash });
+      } catch (err) {
+        lastErr = err;
+        await delay(1000);
+      }
+    }
+    throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+  }
+
+  /**
    * Single-call dispatch. The manager signs the EIP-712 Dispatch struct; the
    * attached wallet submits kernel.dispatch and we wait for the receipt.
+   *
+   * Nonce ordering is handled automatically: sequential `single` calls on the
+   * same account wait for the prior dispatch's nonce bump to propagate before
+   * signing, so callers don't hand-roll nonce tracking. Pass `options.nonce` to
+   * take over ordering, or `options.gas` to override the default gas limit.
    */
   async single(
     safe: Address,
     permission: Address,
     call: Call,
     manager: ILocalKeyring,
+    options?: DispatchOptions,
   ): Promise<Dispatch> {
     const kernel = this.requireKernel();
     const wallet = this.requireSigner();
-    const deadline = defaultDeadline();
+    const deadline = options?.deadline ?? defaultDeadline();
     const caps = await this.capabilities();
     const selective = caps.dispatchModel === "selective";
 
-    const nonce = await this.publicClient.readContract({
-      address: kernel,
-      abi: SailKernelAbi,
-      functionName: "managerNonces",
-      args: [safe],
-    });
+    const nonce = await this.resolveNonce(kernel, safe, options);
 
     const dataHash = keccak256(call.data);
 
@@ -410,7 +511,10 @@ class DispatchNamespace extends KernelNamespace implements IDispatchNamespace {
       message,
     );
 
-    // Conjunctive kernels take no `permission` arg and use a different ABI.
+    // Pass an explicit gas limit so viem skips eth_estimateGas (see
+    // DEFAULT_DISPATCH_GAS). Conjunctive kernels take no `permission` arg and use
+    // a different ABI.
+    const gas = options?.gas ?? DEFAULT_DISPATCH_GAS;
     let txHash: Hex;
     try {
       txHash = selective
@@ -419,22 +523,30 @@ class DispatchNamespace extends KernelNamespace implements IDispatchNamespace {
             abi: SailKernelAbi,
             functionName: "dispatch",
             args: [safe, permission, call.target, call.value, call.data, managerSig, deadline],
+            gas,
           })
         : await wallet.writeContract({
             address: kernel,
             abi: CONJUNCTIVE_DISPATCH_ABI,
             functionName: "dispatch",
             args: [safe, call.target, call.value, call.data, managerSig, deadline],
+            gas,
           });
     } catch (err) {
       throw await enrichKernelRevert(err);
     }
 
-    const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash });
+    const receipt = await this.awaitReceipt(txHash);
+    const success = receipt.status === "success";
+    // Record the next expected nonce only on success: a reverted dispatch reverts
+    // the whole tx, so the kernel does NOT bump managerNonces.
+    if (success) {
+      this.nextNonce.set(this.nonceKey(kernel, safe), nonce + 1n);
+    }
     return {
       txHash,
       calls: [call],
-      success: receipt.status === "success",
+      success,
       gasUsed: receipt.gasUsed,
     };
   }

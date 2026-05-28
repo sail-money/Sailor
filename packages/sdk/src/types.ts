@@ -68,6 +68,36 @@ export type TxResult = {
   txHash: Hex;
 };
 
+/**
+ * Optional controls for a single dispatch. All fields are optional; the defaults
+ * make back-to-back dispatches safe with no manual nonce tracking.
+ */
+export type DispatchOptions = {
+  /**
+   * Explicit manager nonce to sign with. When set, the SDK signs with exactly
+   * this value and performs no nonce polling — the caller owns nonce ordering.
+   */
+  nonce?: bigint;
+  /**
+   * Minimum on-chain `managerNonces` value to wait for before reading and
+   * signing. Use after a prior dispatch so a lagging RPC node in a load-balanced
+   * pool can catch up to the bumped nonce before the next dispatch is signed.
+   * Ignored when `nonce` is set. The SDK also tracks this automatically across
+   * sequential `dispatch.single` calls on the same account, so this is rarely
+   * needed explicitly.
+   */
+  awaitNonce?: bigint;
+  /**
+   * Explicit gas limit for the dispatch transaction. Passing one makes viem skip
+   * its `eth_estimateGas` pre-flight, which can be routed to a lagging node and
+   * fail with a stale-nonce `InvalidManagerSignature` even though the tx would
+   * mine fine. Defaults to a generous fixed limit when omitted.
+   */
+  gas?: bigint;
+  /** Signature deadline (unix seconds). Defaults to 5 minutes from now. */
+  deadline?: bigint;
+};
+
 /** Manager session state on a Safe. */
 export type Session = {
   safe: Address;
@@ -258,6 +288,7 @@ export interface IDispatchNamespace {
     permission: Address,
     call: Call,
     manager: ILocalKeyring,
+    options?: DispatchOptions,
   ): Promise<Dispatch>;
 
   /**
