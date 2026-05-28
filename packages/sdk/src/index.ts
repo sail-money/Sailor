@@ -25,7 +25,13 @@ export {
   safeModuleEnablerAbi,
 } from "./safe.js";
 export { discoverSafesForOwner, getSafeTransactionServiceUrl } from "./discovery.js";
-export type { KnownTemplate, SailChainId, SailDeployment } from "./deployments.js";
+export type {
+  CloneTemplateInfo,
+  CloneTemplateParam,
+  KnownTemplate,
+  SailChainId,
+  SailDeployment,
+} from "./deployments.js";
 export {
   getSailDeployment,
   normalizeDeployment,
