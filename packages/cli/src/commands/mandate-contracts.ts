@@ -15,7 +15,7 @@
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { SailKernelAbi, getSailDeployment } from "@sail/sdk";
 import {
   http,
@@ -107,6 +107,14 @@ async function runDeploy(
   if (options.attach && !options.sma) throw new Error("--attach requires --sma <address>");
   if (options.sma && !isAddress(options.sma)) {
     throw new Error(`Invalid --sma address: ${options.sma}`);
+  }
+
+  if (project.chainId !== 8453) {
+    say(() =>
+      console.warn(
+        `\n⚠  Testnet mode: deploying mandate on chain ${project.chainId}, not Base mainnet (8453).\n   Set chainId to 8453 in .sail/config.json for production.\n`,
+      ),
+    );
   }
 
   const { abi, bytecode, contractName, artifactPath } = resolveArtifact(options);
@@ -397,6 +405,16 @@ function resolveArtifact(options: DeployOptions): {
     if (!options.contract) throw new Error("Provide --artifact <path> or --contract <name>");
     artifactPath = join(options.out, `${options.contract}.sol`, `${options.contract}.json`);
   }
+
+  // Prevent path traversal: resolve and assert the path stays within cwd.
+  const resolved = resolve(artifactPath);
+  const projectRoot = resolve(process.cwd());
+  if (!resolved.startsWith(projectRoot + "/") && resolved !== projectRoot) {
+    throw new Error(
+      `Artifact path must be inside the project directory.\nResolved: ${resolved}`,
+    );
+  }
+  artifactPath = resolved;
 
   if (options.build) runForgeBuild();
 

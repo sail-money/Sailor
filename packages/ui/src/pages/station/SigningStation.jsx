@@ -20,10 +20,14 @@ const SIGNING_SERVER_BASE_PORT = 3141
 const SIGNING_SERVER_PORT_RANGE = 10 // scans 3141–3150
 const POLL_INTERVAL_MS = 3_000
 
-const SERVER_OVERRIDE =
-  typeof window !== 'undefined'
-    ? new URLSearchParams(window.location.search).get('server')
-    : null
+const SERVER_OVERRIDE = (() => {
+  if (typeof window === 'undefined') return null
+  const raw = new URLSearchParams(window.location.search).get('server')
+  if (!raw) return null
+  const port = Number(raw)
+  if (!Number.isInteger(port) || port < 1024 || port > 65535) return null
+  return port
+})()
 
 async function discoverSigningServer() {
   if (SERVER_OVERRIDE) {
@@ -145,7 +149,7 @@ export default function SigningStation() {
     <div className={styles.shell}>
       <header className={styles.topbar}>
         <div>
-          <p className={styles.eyebrow}>Approval Station</p>
+          <p className={styles.eyebrow}>Signing Station</p>
           <h1 className={styles.title}>Pending Signatures</h1>
         </div>
         <ConnectButton />

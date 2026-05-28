@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { type IncomingMessage, type ServerResponse, createServer } from "node:http";
 import { createServer as createNetServer } from "node:net";
@@ -16,6 +17,7 @@ import { WebSocket, WebSocketServer } from "ws";
 export const DEFAULT_SIGNING_PORT = 3141; // π — memorable, thematic
 const RUNTIME_SUBDIR = join(".sail", "runtime");
 const SERVER_STATE_FILE = "server.json";
+const REQUEST_SECRET_HEADER = "x-sailor-secret";
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -102,6 +104,9 @@ export class SigningServer {
    * on a discovery race. The browser UI finds servers by port-probing anyway.
    */
   private readonly advertise: boolean;
+  /** Random secret generated at startup. Required on POST /requests to prevent
+   *  cross-origin pages from injecting signing requests. */
+  private requestSecret = "";
 
   constructor(
     opts: { projectRoot?: string; port?: number; uiDist?: string; advertise?: boolean } = {},
@@ -128,6 +133,7 @@ export class SigningServer {
   async start(): Promise<void> {
     this.port = await findAvailablePort(this.port);
     this._url = `http://localhost:${this.port}`;
+    this.requestSecret = randomBytes(16).toString("hex");
 
     const http = createServer((req, res) => this.handleHttp(req, res));
     this.wss = new WebSocketServer({ server: http });
@@ -269,9 +275,14 @@ export class SigningServer {
   }
 
   private handleHttp(req: IncomingMessage, res: ServerResponse): void {
-    res.setHeader("Access-Control-Allow-Origin", "*");
+    // Restrict CORS to same-origin localhost requests only. Cross-origin pages
+    // must not be able to POST signing requests or read pending queue state.
+    const origin = req.headers.origin;
+    const allowedOrigin = origin?.startsWith("http://localhost:") ? origin : this._url;
+    res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Headers", `Content-Type, ${REQUEST_SECRET_HEADER}`);
+    res.setHeader("Vary", "Origin");
 
     if (req.method === "OPTIONS") {
       res.writeHead(204);
@@ -290,6 +301,7 @@ export class SigningServer {
           port: this.port,
           pid: process.pid,
           pendingCount: this.pending.size,
+          requestSecret: this.requestSecret,
         }),
       );
       return;
@@ -308,11 +320,22 @@ export class SigningServer {
     }
 
     if (url === "/requests" && req.method === "POST") {
+      // Require the per-startup secret so only the CLI and daemon-served UI
+      // can inject signing requests — cross-origin pages cannot read this secret.
+      const supplied = req.headers[REQUEST_SECRET_HEADER];
+      if (supplied !== this.requestSecret) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "forbidden" }));
+        return;
+      }
       this.readBody(req)
         .then((body) => {
           const parsed = JSON.parse(body) as
             | Omit<SigningTxRequest, "id" | "createdAt">
             | Omit<SigningTypedDataRequest, "id" | "createdAt">;
+          if (!parsed.kind || !["create-sma","deploy-mandate","register-permission","attach-mandate","set-delegate"].includes(parsed.kind)) {
+            throw new Error(`Unknown signing request kind: ${String(parsed.kind)}`);
+          }
           const request = this.enqueue(parsed);
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ id: request.id }));
@@ -390,8 +413,13 @@ export class SigningServer {
 
   private handleClientMessage(_ws: WebSocket, msg: ClientMessage): void {
     if (msg.type === "wallet-connected") {
-      this._connectedWallet = msg.address;
-      for (const listener of this.walletListeners) listener(msg.address);
+      // Only accept a wallet-connected message if the address is a plausible
+      // EVM address. We can't fully verify it server-side (no challenge/response),
+      // but we reject obviously malformed values and require the UI to be served
+      // by this same server (CORS + secret on POST /requests cover the rest).
+      if (typeof msg.address !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(msg.address)) return;
+      this._connectedWallet = msg.address as Address;
+      for (const listener of this.walletListeners) listener(msg.address as Address);
       this.walletListeners = [];
       return;
     }
@@ -459,6 +487,7 @@ export class SigningServer {
           port: this.port,
           startedAt: new Date().toISOString(),
           pid: process.pid,
+          requestSecret: this.requestSecret,
         },
         null,
         2,

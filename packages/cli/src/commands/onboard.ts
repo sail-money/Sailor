@@ -100,6 +100,14 @@ async function runOnboard(
 
   say(() => console.log(`\nProject: ${project.name}`));
 
+  if (project.chainId !== 8453) {
+    say(() =>
+      console.warn(
+        `\n⚠  Testnet mode: operating on chain ${project.chainId}, not Base mainnet (8453).\n   Set chainId to 8453 in .sail/config.json for production.\n`,
+      ),
+    );
+  }
+
   // ── Step 1: Ensure a manager (agent) key ────────────────────────────────────
   if (!keyExists("manager")) {
     throw new Error('No manager key found. Run "sailor keys generate" and choose "manager" first.');

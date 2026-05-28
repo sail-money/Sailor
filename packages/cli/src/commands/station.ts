@@ -98,12 +98,30 @@ export async function stationStatus(options: { json?: boolean }): Promise<void> 
   }
 }
 
-export function stationStop(options: { json?: boolean }): void {
+export async function stationStop(options: { json?: boolean }): Promise<void> {
   const projectRoot = process.cwd();
   const state = readState(projectRoot);
   if (!state?.pid) {
     emit(options.json, () => console.log("No signing station appears to be running."), {
       status: "stopped",
+    });
+    return;
+  }
+
+  // Verify the daemon is actually reachable at the recorded URL before
+  // sending SIGTERM — prevents sending signals to unrelated processes if
+  // server.json is stale or was corrupted.
+  const daemon = await discoverDaemon(projectRoot);
+  if (!daemon) {
+    const file = join(projectRoot, RUNTIME_SERVER_FILE);
+    try {
+      if (existsSync(file)) rmSync(file);
+    } catch {
+      /* ignore */
+    }
+    emit(options.json, () => console.log("Station process not found; cleared stale state."), {
+      status: "stopped",
+      note: "process-not-found",
     });
     return;
   }

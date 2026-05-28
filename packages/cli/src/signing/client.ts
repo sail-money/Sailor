@@ -35,7 +35,10 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export class SigningClient implements SigningChannel {
   readonly remote = true;
 
-  constructor(private readonly baseUrl: string) {}
+  constructor(
+    private readonly baseUrl: string,
+    private readonly requestSecret: string = "",
+  ) {}
 
   get url(): string {
     return this.baseUrl;
@@ -65,7 +68,7 @@ export class SigningClient implements SigningChannel {
   ): Promise<SigningResponse> {
     const enqueueRes = await fetch(`${this.baseUrl}/requests`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-sailor-secret": this.requestSecret },
       body: JSON.stringify(req),
     });
     if (!enqueueRes.ok) {
@@ -103,7 +106,7 @@ export class SigningClient implements SigningChannel {
   }
 }
 
-type RuntimeServerState = { url?: string; port?: number; pid?: number };
+type RuntimeServerState = { url?: string; port?: number; pid?: number; requestSecret?: string };
 
 function readRuntimeServerState(projectRoot: string): RuntimeServerState | null {
   const file = join(projectRoot, RUNTIME_SERVER_FILE);
@@ -121,7 +124,7 @@ export async function discoverDaemon(
 ): Promise<SigningClient | null> {
   const state = readRuntimeServerState(projectRoot);
   if (!state?.url) return null;
-  const client = new SigningClient(state.url);
+  const client = new SigningClient(state.url, state.requestSecret ?? "");
   return (await client.ping()) ? client : null;
 }
 
