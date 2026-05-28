@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { ConnectButton, useConnectModal } from '@rainbow-me/rainbowkit'
+import { useAccount, useDisconnect } from 'wagmi'
 import {
-  BrandMark,
   FluidBackground,
   MandateStatus,
   Sai,
@@ -9,35 +10,16 @@ import {
 import shared from '../shared/shared.module.css'
 import styles from './Dashboard.module.css'
 import agentStyles from './SharedLayout.module.css'
-import {
-  mockWallet,
-  mockSafes,
-  mockMandates,
-  mockPending,
-  mockSmaMandates,
-  mockDashboardJournal,
-} from './mockData'
-import PendingDrawer from './PendingDrawer'
 import AIHandoffModal from './AIHandoffModal'
 import ProfileModal from './ProfileModal'
-import PendingModal from './PendingModal'
 import CreateSMAModal from './CreateSMAModal'
-import ContractModal from './ContractModal'
-import { useDemoState } from '../../demo/useDemoState'
 import {
   useSailorAccount,
   useSailorActivity,
   useSailorAgentStatus,
   useSailorMandate,
+  useSailorPending,
 } from '../../hooks/useSailorData'
-
-function brandClass(name) {
-  const n = (name ?? '').toLowerCase()
-  if (n === 'claude' || n === 'anthropic') return styles.mCard_claude
-  if (n === 'cursor') return styles.mCard_cursor
-  if (n === 'codex' || n === 'chatgpt' || n === 'openai' || n === 'gpt') return styles.mCard_openai
-  return ''
-}
 
 /**
  * Dashboard — SMA-centric main view.
@@ -155,10 +137,11 @@ function activityStatus(type) {
 }
 
 /** Live mandate card built from .sail/mandate.json (replaces the mock summary cards). */
-function LiveMandateCard({ mandate }) {
+function LiveMandateCard({ mandate, network }) {
   const permissions = mandate?.permissions ?? []
   const status = mandate?.registeredOnChain ? 'active' : 'pending'
   const signed = mandate?.signedAt ? new Date(mandate.signedAt).toLocaleDateString() : ''
+  const networkLabel = network ?? (mandate?.chainId ? CHAIN_NAMES[mandate.chainId] : null)
   return (
     <article className={styles.mandateSummary}>
       <header className={styles.mandateSummaryHead}>
@@ -167,7 +150,7 @@ function LiveMandateCard({ mandate }) {
             Live mandate{signed ? ` · signed ${signed}` : ''}
           </span>
           <h3 className={styles.mandateSummaryTitle}>
-            {mandate?.chainId ? `Mandate · chain ${mandate.chainId}` : 'Mandate'}
+            {networkLabel ? `Mandate · ${networkLabel}` : 'Mandate'}
           </h3>
         </div>
         <div className={styles.mandateSummaryHeadRight}>
@@ -242,8 +225,19 @@ function LiveAgentCard({ running, pid }) {
   )
 }
 
+const TX_EXPLORER = {
+  arbitrum: (hash) => `https://arbiscan.io/tx/${hash}`,
+  ethereum: (hash) => `https://etherscan.io/tx/${hash}`,
+  base:     (hash) => `https://basescan.org/tx/${hash}`,
+  optimism: (hash) => `https://optimistic.etherscan.io/tx/${hash}`,
+  polygon:  (hash) => `https://polygonscan.com/tx/${hash}`,
+}
+function txUrl(network, hash) {
+  return (TX_EXPLORER[network] ?? TX_EXPLORER.ethereum)(hash)
+}
+
 /** Live activity feed from .sail/activity.jsonl (newest first). */
-function LiveActivityFeed({ events }) {
+function LiveActivityFeed({ events, network }) {
   const rows = [...events].slice(-12).reverse()
   return (
     <ul className={agentStyles.journalList}>
@@ -274,7 +268,7 @@ function LiveActivityFeed({ events }) {
                     <>
                       {' · '}
                       <a
-                        href={`https://basescan.org/tx/${e.txHash}`}
+                        href={txUrl(network ?? 'ethereum', e.txHash)}
                         target="_blank"
                         rel="noreferrer"
                       >
@@ -293,59 +287,45 @@ function LiveActivityFeed({ events }) {
 }
 
 export default function Dashboard() {
-  const demo = useDemoState()
-  const hasSMA = demo.demo !== 'empty'
-  const initialPending = !hasSMA
-    ? []
-    : demo.demo === 'incoming' && demo.incoming
-    ? [demo.incoming]
-    : mockPending
-
-  // Local state — kept minimal. The dashboard's job is to read, not
-  // to orchestrate write flows; those live in modal dialogs.
-  const [smaMandates] = useState(mockSmaMandates)
-  const [mandates, setMandates] = useState(mockMandates)
-  const [filter, setFilter] = useState('all')
-  const [revokeTarget, setRevokeTarget] = useState(null)
-  const [stopAllOpen, setStopAllOpen] = useState(false)
-  const [copiedAddr, setCopiedAddr] = useState(false)
-  const [pending, setPending] = useState(initialPending)
-
-  const [profileOpen, setProfileOpen] = useState(false)
-  const [pendingModalOpen, setPendingModalOpen] = useState(false)
-  const [pendingDrawerOpen, setPendingDrawerOpen] = useState(false)
-  const [pendingDrawerSel, setPendingDrawerSel] = useState(null)
-  const [createSMAOpen, setCreateSMAOpen] = useState(false)
-  const [handoff, setHandoff] = useState(null)
-  const [currentSafeId, setCurrentSafeId] = useState(mockSafes[0].id)
-  const [safeNames, setSafeNames] = useState({})
-
-  const resolvedSafes = useMemo(
-    () => mockSafes.map((s) => ({ ...s, name: safeNames[s.id] ?? s.name })),
-    [safeNames],
-  )
-  const baseSma = resolvedSafes.find((s) => s.id === currentSafeId) ?? resolvedSafes[0]
-
-  // Real account from .sail/account.json, if the SMA has been deployed.
-  // When present, show its on-chain address + chain over the mock SMA;
-  // otherwise fall back to the existing mock display.
-  const { account: realAccount } = useSailorAccount()
-  const sma = realAccount
-    ? {
-        ...baseSma,
-        address: realAccount.safe,
-        network: CHAIN_NAMES[realAccount.chainId] ?? baseSma?.network,
-      }
-    : baseSma
-
-  // Live project state from .sail/. When present, the dashboard renders real
-  // mandate/agent/activity cards; otherwise it falls back to the mock data.
+  const { isConnected, address: wagmiAddress } = useAccount()
+  const { disconnect } = useDisconnect()
+  const { openConnectModal } = useConnectModal()
+  const { account: realAccount, loading: accountLoading } = useSailorAccount()
   const { mandate: liveMandate } = useSailorMandate()
   const { events: liveActivity } = useSailorActivity()
   const { running: agentRunning, pid: agentPid } = useSailorAgentStatus()
-  const [stopping, setStopping] = useState(false)
+  const { pending } = useSailorPending()
+
+  const hasSMA = realAccount != null
   const hasLiveMandate = liveMandate != null
   const liveMode = hasLiveMandate || agentRunning
+
+  const realNetwork = realAccount ? (CHAIN_NAMES[realAccount.chainId] ?? 'ethereum') : null
+  const sma = realAccount
+    ? {
+        id: 'live-sma',
+        name: 'My SMA',
+        address: realAccount.safe,
+        network: realNetwork,
+      }
+    : null
+
+  const ownerAddr = realAccount?.owner ?? wagmiAddress ?? null
+
+  const [copiedAddr, setCopiedAddr] = useState(false)
+  const [stopping, setStopping] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [createSMAOpen, setCreateSMAOpen] = useState(false)
+  const [handoff, setHandoff] = useState(null)
+  const [safeNames, setSafeNames] = useState({})
+
+  const smaName = safeNames['live-sma'] ?? sma?.name ?? 'My SMA'
+  const profileSafes = sma
+    ? [{ ...sma, name: smaName, networks: [realNetwork], agentCount: agentRunning ? 1 : 0, createdAt: null }]
+    : []
+
+  const safeUrl = sma ? safeAppUrl(sma.network, sma.address) : '#'
+  const debankUrl = sma ? `https://debank.com/profile/${sma.address}` : '#'
 
   async function stopAgent() {
     setStopping(true)
@@ -356,7 +336,7 @@ export default function Dashboard() {
         body: JSON.stringify({ action: 'stop' }),
       })
     } catch {
-      // server unreachable — the agent-status poll will reconcile state
+      // agent-status poll will reconcile
     } finally {
       setStopping(false)
     }
@@ -368,80 +348,6 @@ export default function Dashboard() {
     setCopiedAddr(true)
     setTimeout(() => setCopiedAddr(false), 1400)
   }
-
-  function stopAll() {
-    // "Stop all" pauses every active mandate without revoking it —
-    // open positions stay in place. Mockup: flip status flag.
-    setMandates((arr) =>
-      arr.map((m) => (m.status === 'active' ? { ...m, status: 'paused', activeNow: false } : m)),
-    )
-    setStopAllOpen(false)
-  }
-
-  function confirmRevokeMandate() {
-    if (!revokeTarget) return
-    setMandates((arr) =>
-      arr.map((m) =>
-        m.id === revokeTarget.id ? { ...m, status: 'revoked', activeNow: false } : m,
-      ),
-    )
-    setRevokeTarget(null)
-  }
-
-  function confirmRevokePermission() {
-    if (!pendingRevoke) return
-    setPermissions((arr) =>
-      arr.map((p) => (p.id === pendingRevoke.id ? { ...p, revoked: true } : p)),
-    )
-    setPendingRevoke(null)
-  }
-
-  function authorizePending(id) {
-    setPending((prev) => prev.filter((x) => x.id !== id))
-    setPendingDrawerSel(null)
-    if (pending.length <= 1) setPendingDrawerOpen(false)
-  }
-  function rejectPending(id) {
-    setPending((prev) => prev.filter((x) => x.id !== id))
-    setPendingDrawerSel(null)
-    if (pending.length <= 1) setPendingDrawerOpen(false)
-  }
-
-  // Deep-link consumers — preserve the existing ?pending=<id> behavior.
-  useEffect(() => {
-    const consume = () => {
-      const raw = window.location.hash
-      const qIdx = raw.indexOf('?')
-      if (qIdx < 0) return
-      const params = new URLSearchParams(raw.slice(qIdx + 1))
-      const pendingId = params.get('pending')
-      if (pendingId) {
-        setPendingDrawerSel(pendingId)
-        setPendingDrawerOpen(true)
-      }
-      if (pendingId) {
-        history.replaceState(null, '', raw.slice(0, qIdx) || '#/dashboard')
-      }
-    }
-    consume()
-    window.addEventListener('hashchange', consume)
-    return () => window.removeEventListener('hashchange', consume)
-  }, [])
-
-  const counts = useMemo(() => ({
-    all:     mandates.length,
-    active:  mandates.filter((m) => m.status === 'active').length,
-    revoked: mandates.filter((m) => m.status === 'revoked').length,
-    expired: mandates.filter((m) => m.status === 'expired').length,
-    paused:  mandates.filter((m) => m.status === 'paused').length,
-  }), [mandates])
-  const visibleMandates = useMemo(
-    () => (filter === 'all' ? mandates : mandates.filter((m) => m.status === filter)),
-    [mandates, filter],
-  )
-  const anyActiveAgent = counts.active > 0
-  const safeUrl = sma ? safeAppUrl(sma.network, sma.address) : '#'
-  const debankUrl = sma ? `https://debank.com/profile/${sma.address}` : '#'
 
   return (
     <div className={`${shared.pageShell} ${styles.shell}`}>
@@ -466,8 +372,8 @@ export default function Dashboard() {
           <button
             type="button"
             className={`${styles.notifBtn} ${pending.length > 0 ? styles.notifBtnLive : ''}`}
-            onClick={() => setPendingModalOpen(true)}
-            aria-label={pending.length > 0 ? `${pending.length} pending signatures` : 'Notifications'}
+            onClick={() => { window.location.hash = '#/station' }}
+            aria-label={pending.length > 0 ? `${pending.length} pending signatures` : 'Signing station'}
           >
             <BellIcon />
             {pending.length > 0 && (
@@ -477,27 +383,31 @@ export default function Dashboard() {
           <button
             type="button"
             className={styles.avatarBtn}
-            onClick={() => setProfileOpen(true)}
-            aria-label={`Profile (${truncateAddr(mockWallet)})`}
-            title={truncateAddr(mockWallet)}
+            onClick={isConnected ? () => setProfileOpen(true) : openConnectModal}
+            aria-label={isConnected && ownerAddr ? `Profile (${truncateAddr(ownerAddr)})` : 'Connect wallet'}
+            title={isConnected && ownerAddr ? ownerAddr : undefined}
           >
             <span className={styles.avatarBtnMonogram} aria-hidden>
-              {mockWallet.slice(2, 4).toUpperCase()}
+              {isConnected && ownerAddr ? ownerAddr.slice(2, 4).toUpperCase() : '—'}
             </span>
-            <span className={styles.avatarBtnAddr}>{truncateAddr(mockWallet)}</span>
+            <span className={styles.avatarBtnAddr}>
+              {isConnected && ownerAddr ? truncateAddr(ownerAddr) : 'Not connected'}
+            </span>
           </button>
         </div>
       </header>
 
       <main className={agentStyles.main}>
-        {!hasSMA ? (
-          <NoSMAHero onCreate={() => setCreateSMAOpen(true)} />
+        {!isConnected ? (
+          <ConnectWalletHero />
+        ) : accountLoading ? null : !hasSMA ? (
+          <SetupHero onCreate={() => setCreateSMAOpen(true)} />
         ) : (
           <>
             {pending.length > 0 && (
               <PendingBanner
                 count={pending.length}
-                onReview={() => setPendingModalOpen(true)}
+                onReview={() => { window.location.hash = '#/station' }}
               />
             )}
 
@@ -508,24 +418,13 @@ export default function Dashboard() {
                 deposit UI) and created-date meta. */}
             <section className={agentStyles.titleBlock}>
               <div className={styles.titleHeadFlex}>
-                <h1 className={agentStyles.title}>{sma?.name ?? 'SMA'}</h1>
+                <h1 className={agentStyles.title}>{smaName}</h1>
                 <button
                   type="button"
                   className={agentStyles.stopAllBtn}
-                  onClick={() => {
-                    if (agentRunning) stopAgent()
-                    else if (!liveMode) setStopAllOpen(true)
-                  }}
-                  disabled={liveMode ? !agentRunning || stopping : !anyActiveAgent}
-                  title={
-                    liveMode
-                      ? agentRunning
-                        ? 'Send SIGTERM to the running agent'
-                        : 'Agent is not running'
-                      : anyActiveAgent
-                        ? 'Stop every agent under this mandate'
-                        : 'All agents already stopped'
-                  }
+                  onClick={stopAgent}
+                  disabled={!agentRunning || stopping}
+                  title={agentRunning ? 'Send SIGTERM to the running agent' : 'Agent is not running'}
                 >
                   <StopIcon />
                   <span>{stopping ? 'Stopping…' : 'Stop all agents'}</span>
@@ -615,20 +514,15 @@ export default function Dashboard() {
                     ? `${(liveMandate.permissions ?? []).length} permission${
                         (liveMandate.permissions ?? []).length === 1 ? '' : 's'
                       } · live`
-                    : `${smaMandates.length} signed mandates`}
+                    : 'No mandate yet'}
                 </span>
               </header>
 
               <div className={styles.mandateList}>
                 {hasLiveMandate ? (
-                  <LiveMandateCard mandate={liveMandate} />
+                  <LiveMandateCard mandate={liveMandate} network={realNetwork} />
                 ) : (
-                  <>
-                    {smaMandates.map((m) => (
-                      <MandateSummaryCard key={m.id} mandate={m} />
-                    ))}
-                    <NewMandateTile onClick={() => setHandoff({ variant: 'new' })} />
-                  </>
+                  <NewMandateTile onClick={() => setHandoff({ variant: 'new' })} />
                 )}
               </div>
             </section>
@@ -652,36 +546,14 @@ export default function Dashboard() {
                     Delegated signers running under this mandate. Click View to inspect the agent in detail.
                   </p>
                 </div>
-                <div className={styles.agentsHeadRight}>
-                  {/* Filter chips only — the "Add agent" CTA lives as
-                      the trailing tile in the card grid, so there's no
-                      need for a duplicate button in the section head.
-                      Hidden in live mode (a single real agent process). */}
-                  {!liveMode && (
-                    <FilterChips active={filter} counts={counts} onChange={setFilter} />
-                  )}
-                </div>
+                <div className={styles.agentsHeadRight} />
               </header>
 
               <div className={styles.mandateCards}>
                 {liveMode ? (
                   <LiveAgentCard running={agentRunning} pid={agentPid} />
                 ) : (
-                  <>
-                    {visibleMandates.map((m) => (
-                      <MandateCard
-                        key={m.id}
-                        mandate={m}
-                        onView={() => { window.location.hash = `#/agent/${m.id}` }}
-                      />
-                    ))}
-                    {visibleMandates.length === 0 && (
-                      <EmptyAgentsState
-                        filter={filter}
-                        onNew={() => setHandoff({ variant: 'new' })}
-                      />
-                    )}
-                  </>
+                  <EmptyAgentsState onNew={() => setHandoff({ variant: 'new' })} />
                 )}
               </div>
             </section>
@@ -701,57 +573,15 @@ export default function Dashboard() {
               </header>
 
               {liveActivity.length > 0 ? (
-                <LiveActivityFeed events={liveActivity} />
-              ) : liveMode ? (
+                <LiveActivityFeed events={liveActivity} network={realNetwork} />
+              ) : (
                 <div className={styles.emptyAgents}>
                   <p className={styles.emptyAgentsBody}>
-                    No activity yet — run <code>sailor run</code> to start
+                    {liveMode
+                      ? <>No activity yet — run <code>sailor run</code> to start</>
+                      : 'Activity from your agents will appear here.'}
                   </p>
                 </div>
-              ) : (
-                <>
-                  <ul className={agentStyles.journalList}>
-                    {mockDashboardJournal.map((e) => (
-                      <li key={e.id}>
-                        <button
-                          type="button"
-                          className={`${agentStyles.journalRow} ${
-                            e.status === 'rejected' ? agentStyles.journalRowRejected : ''
-                          }`}
-                          onClick={() => { window.location.hash = `#/journal/${e.id}` }}
-                        >
-                          <span className={agentStyles.journalTime}>{e.time}</span>
-                          <span
-                            className={`${agentStyles.journalMark} ${agentStyles[`jStatus_${e.status}`] ?? ''}`}
-                            aria-hidden
-                          >
-                            {e.status === 'success' && <CheckSm />}
-                            {e.status === 'rejected' && <CrossSm />}
-                            {(e.status === 'info' || e.status === 'warn') && <DotSm />}
-                          </span>
-                          <span className={agentStyles.journalBody}>
-                            <span className={agentStyles.journalTitle}>
-                              <span className={agentStyles.journalActor}>{e.actor}</span>
-                              <span className={agentStyles.journalAction}> {e.action}</span>
-                            </span>
-                            <span className={agentStyles.journalMeta}>{e.meta}</span>
-                          </span>
-                          <span className={`${agentStyles.journalKind} ${agentStyles[`jKind_${e.kind}`] ?? ''}`}>
-                            {e.kindLabel}
-                          </span>
-                          <span className={agentStyles.journalChevron} aria-hidden>
-                            <ChevronRight />
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <button type="button" className={agentStyles.journalViewAll}>
-                    View full activity log
-                    <ArrowRightSm />
-                  </button>
-                </>
               )}
             </section>
 
@@ -769,35 +599,6 @@ export default function Dashboard() {
         )}
       </main>
 
-      {/* Journal detail used to open here as a right-side drawer.
-          It now lives at /journal/:entryId as a full page so the user
-          gets the same chrome as the Mandate and Agent pages. */}
-
-      <ConfirmStopModal
-        open={stopAllOpen}
-        count={counts.active}
-        onCancel={() => setStopAllOpen(false)}
-        onConfirm={stopAll}
-      />
-
-      {/* Per-permission revoke modal retired — revoking is mandate-
-          level only. The mandate detail page hosts the proper
-          contract-fade + REVOKED stamp animation. */}
-
-      <PendingDrawer
-        open={pendingDrawerOpen}
-        pending={pending}
-        selectedId={pendingDrawerSel}
-        onClose={() => {
-          setPendingDrawerOpen(false)
-          setTimeout(() => setPendingDrawerSel(null), 320)
-        }}
-        onSelect={(id) => setPendingDrawerSel(id)}
-        onBack={() => setPendingDrawerSel(null)}
-        onAuthorize={authorizePending}
-        onReject={rejectPending}
-      />
-
       <AIHandoffModal
         open={!!handoff}
         variant={handoff?.variant}
@@ -807,49 +608,21 @@ export default function Dashboard() {
 
       <ProfileModal
         open={profileOpen}
-        wallet={mockWallet}
-        safes={resolvedSafes}
-        currentSafeId={currentSafeId}
+        wallet={ownerAddr}
+        safes={profileSafes}
+        currentSafeId="live-sma"
         hasSMA={hasSMA}
         onClose={() => setProfileOpen(false)}
+        onDisconnect={() => { setProfileOpen(false); disconnect() }}
         onCreateSMA={() => { setProfileOpen(false); setCreateSMAOpen(true) }}
         onRenameSafe={(id, name) => setSafeNames((m) => ({ ...m, [id]: name }))}
-        onSelectSafe={(s) => setCurrentSafeId(s.id)}
-      />
-
-      <PendingModal
-        open={pendingModalOpen}
-        pending={pending}
-        onClose={() => setPendingModalOpen(false)}
-        onAuthorize={(id) => {
-          authorizePending(id)
-          if (pending.length <= 1) setPendingModalOpen(false)
-        }}
-        onReject={(id) => {
-          rejectPending(id)
-          if (pending.length <= 1) setPendingModalOpen(false)
-        }}
+        onSelectSafe={() => {}}
       />
 
       <CreateSMAModal
         open={createSMAOpen}
         onClose={() => setCreateSMAOpen(false)}
-        onComplete={() => {
-          window.location.hash = '#/dashboard?demo=funded-empty'
-        }}
-      />
-
-      {/* Revoke via the signed contract itself — the destructive
-          confirmation IS the contract fading out with a REVOKED stamp.
-          That animation was the previous build's strongest trust signal;
-          we preserve it intact. */}
-      <ContractModal
-        open={!!revokeTarget}
-        mode="revoke"
-        mandate={revokeTarget}
-        signedDate={revokeTarget ? '2026-04-27' : ''}
-        onClose={() => setRevokeTarget(null)}
-        onRevoke={confirmRevokeMandate}
+        onComplete={() => { window.location.hash = '#/dashboard' }}
       />
 
       {/* Contract preview modal retired — viewing the signed contract
@@ -859,8 +632,27 @@ export default function Dashboard() {
   )
 }
 
-/* ────────── No-SMA hero ────────── */
-function NoSMAHero({ onCreate }) {
+/* ────────── Connect wallet hero ────────── */
+function ConnectWalletHero() {
+  return (
+    <section className={styles.noSMAHero}>
+      <div className={styles.noSMAMascot} aria-hidden>
+        <Sai size={64} animate />
+      </div>
+      <h2 className={styles.noSMATitle}>Connect your wallet</h2>
+      <p className={styles.noSMASub}>
+        Connect the owner wallet you used when running <code>sailor init</code> to view your SMA and mandates.
+      </p>
+      <div className={styles.noSMACta}>
+        <ConnectButton showBalance={false} />
+      </div>
+      <p className={styles.noSMAFine}>Self-custody. Sail never holds your keys.</p>
+    </section>
+  )
+}
+
+/* ────────── Setup hero (wallet connected, no .sail/account.json yet) ────────── */
+function SetupHero({ onCreate }) {
   return (
     <section className={styles.noSMAHero}>
       <div className={styles.noSMAMascot} aria-hidden>
@@ -906,366 +698,6 @@ function PendingBanner({ count, onReview }) {
   )
 }
 
-/* ────────── Journal detail drawer ────────── */
-function JournalDrawer({ entry, open, onClose }) {
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e) => { if (e.key === 'Escape') onClose?.() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
-
-  return (
-    <>
-      <div
-        className={`${agentStyles.drawerScrim} ${open ? agentStyles.drawerScrimOpen : ''}`}
-        onClick={onClose}
-        aria-hidden
-      />
-      <aside
-        className={`${agentStyles.drawer} ${open ? agentStyles.drawerOpen : ''}`}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Decision detail"
-      >
-        {entry && (
-          <>
-            <header className={agentStyles.drawerHead}>
-              <div className={agentStyles.drawerHeadLeft}>
-                <span className={`${agentStyles.drawerKindChip} ${agentStyles[`jKind_${entry.kind}`] ?? ''}`}>
-                  {entry.kindLabel}
-                </span>
-                <span className={agentStyles.drawerTime}>{entry.time} · {entry.dateLabel}</span>
-              </div>
-              <button
-                type="button"
-                className={agentStyles.drawerClose}
-                onClick={onClose}
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </header>
-
-            <div className={agentStyles.drawerBody}>
-              <h3 className={agentStyles.drawerTitle}>
-                <span className={agentStyles.drawerActor}>{entry.actor}</span>
-                <span className={agentStyles.drawerAction}> {entry.action}</span>
-              </h3>
-
-              <DrawerSection kicker="Why" title="Agent reasoning">
-                <p className={agentStyles.drawerProse}>{entry.detail.reasoning}</p>
-              </DrawerSection>
-
-              {entry.detail.evidence?.length > 0 && (
-                <DrawerSection kicker="What it saw" title="Evidence path">
-                  <dl className={agentStyles.evidenceList}>
-                    {entry.detail.evidence.map((row, i) => (
-                      <div key={i} className={agentStyles.evidenceRow}>
-                        <dt>{row.k}</dt>
-                        <dd>{row.v}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                </DrawerSection>
-              )}
-
-              {entry.detail.authorization && (
-                <DrawerSection kicker="Authorization" title="Which permission allowed this">
-                  <div className={agentStyles.authRow}>
-                    <span className={agentStyles.authMark} aria-hidden>
-                      {entry.status === 'rejected' ? <CrossMark /> : <CheckMark />}
-                    </span>
-                    <div className={agentStyles.authBody}>
-                      <span className={agentStyles.authLabel}>{entry.detail.authorization.label}</span>
-                      <span className={agentStyles.authSub}>{entry.detail.authorization.sub}</span>
-                    </div>
-                  </div>
-                </DrawerSection>
-              )}
-
-              {entry.detail.artifact && (
-                <DrawerSection kicker="Artifact" title="Onchain receipt">
-                  <dl className={agentStyles.artifactList}>
-                    {Object.entries(entry.detail.artifact).map(([k, v]) => (
-                      <div key={k} className={agentStyles.evidenceRow}>
-                        <dt>{k}</dt>
-                        <dd className={agentStyles.mono}>{v}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                </DrawerSection>
-              )}
-            </div>
-          </>
-        )}
-      </aside>
-    </>
-  )
-}
-
-function DrawerSection({ kicker, title, children }) {
-  return (
-    <section className={agentStyles.drawerSection}>
-      <header className={agentStyles.drawerSectionHead}>
-        <span className={agentStyles.drawerSectionKicker}>{kicker}</span>
-        <h4 className={agentStyles.drawerSectionTitle}>{title}</h4>
-      </header>
-      {children}
-    </section>
-  )
-}
-
-/* ────────── Confirmation modals ────────── */
-function ConfirmStopModal({ open, count, onCancel, onConfirm }) {
-  if (!open) return null
-  return (
-    <div className={agentStyles.confirmScrim} onClick={onCancel}>
-      <div
-        className={agentStyles.confirmCard}
-        role="dialog"
-        aria-modal="true"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className={agentStyles.confirmTitle}>Stop all agents?</h3>
-        <p className={agentStyles.confirmBody}>
-          Pauses each of the {count} agent{count === 1 ? '' : 's'} running under
-          this SMA. This is local and reversible — the agents' schedules stop
-          firing, but nothing onchain changes. Open positions stay put; you can
-          resume any agent individually without re-signing. For a stronger,
-          onchain kill switch that halts all dispatch in one signed action,
-          open the mandate and use <strong>Revoke mandate</strong>.
-        </p>
-        <div className={agentStyles.confirmActions}>
-          <button type="button" className={agentStyles.confirmCancel} onClick={onCancel}>
-            Cancel
-          </button>
-          <button type="button" className={agentStyles.confirmDanger} onClick={onConfirm}>
-            Stop all agents
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ConfirmRevokePermissionModal({ permission, onCancel, onConfirm }) {
-  if (!permission) return null
-  return (
-    <div className={agentStyles.confirmScrim} onClick={onCancel}>
-      <div
-        className={agentStyles.confirmCard}
-        role="dialog"
-        aria-modal="true"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className={agentStyles.confirmTitle}>Revoke this permission?</h3>
-        <p className={agentStyles.confirmBody}>
-          <span className={agentStyles.confirmPerm}>“{permission.label}”</span>
-          {' '}will be removed from the mandate. Your agents lose authority to
-          take this action immediately. This can&rsquo;t be undone — to restore it,
-          ask your AI to draft a replacement mandate.
-        </p>
-        <div className={agentStyles.confirmActions}>
-          <button type="button" className={agentStyles.confirmCancel} onClick={onCancel}>
-            Cancel
-          </button>
-          <button type="button" className={agentStyles.confirmDanger} onClick={onConfirm}>
-            Revoke
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ────────── Filter chips ──────────
-   Lifted from the previous Dashboard. Lets the user scope the agent
-   grid to Active / Revoked / Expired without losing the All count. */
-function FilterChips({ active, counts, onChange }) {
-  // Agents are *stopped*, never revoked. The legacy `revoked` status
-  // (back-compat with older mock data) really means "the parent mandate
-  // was revoked, so the agent ended" — surfaced to users as "Ended".
-  const options = [
-    { id: 'all',     label: 'All',     count: counts.all },
-    { id: 'active',  label: 'Active',  count: counts.active },
-    { id: 'paused',  label: 'Stopped', count: counts.paused },
-    { id: 'revoked', label: 'Ended',   count: counts.revoked },
-    { id: 'expired', label: 'Expired', count: counts.expired },
-  ].filter((o) => o.id === 'all' || o.count > 0)
-  return (
-    <div className={styles.filterChips} role="tablist" aria-label="Filter agents">
-      {options.map((o) => (
-        <button
-          key={o.id}
-          type="button"
-          role="tab"
-          aria-selected={active === o.id}
-          className={`${styles.filterChip} ${active === o.id ? styles.filterChipActive : ''}`}
-          onClick={() => onChange(o.id)}
-        >
-          <span>{o.label}</span>
-          <span className={styles.filterChipCount}>{o.count}</span>
-        </button>
-      ))}
-    </div>
-  )
-}
-
-/* ────────── Mandate card ──────────
-   The "agent card" the user asked us to restore: brand mark + status
-   on top, mandate title + duration below, animated Sai in the middle,
-   View / Edit / overflow-Revoke in the footer. Same visual language as
-   before; it just lives inside the new SMA-centric dashboard. */
-/* ────────── Mandate summary card ──────────
-   Wide stacked card representing one signed mandate on the dashboard.
-   Title + status + permissions count in the header; up to N allowed
-   permissions listed inline (no disallowed rows — anything not
-   listed is forbidden by the contract). Whole card is a click target
-   into /mandate/:id where the full receipt + revoke action live. */
-function MandateSummaryCard({ mandate }) {
-  const go = () => { window.location.hash = `#/mandate/${mandate.id}` }
-  const aiClass = brandClass(mandate.aiName)
-  return (
-    <article
-      className={`${styles.mandateSummary} ${aiClass}`}
-      onClick={go}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          go()
-        }
-      }}
-      role="button"
-      tabIndex={0}
-      aria-label={`Open ${mandate.title}`}
-    >
-      <header className={styles.mandateSummaryHead}>
-        <div className={styles.mandateSummaryHeadText}>
-          <span className={styles.mandateSummaryKicker}>
-            <BrandMark name={mandate.aiName} size={14} />
-            Drafted in {mandate.aiName} · {mandate.signedAt}
-          </span>
-          <h3 className={styles.mandateSummaryTitle}>{mandate.title}</h3>
-        </div>
-        <div className={styles.mandateSummaryHeadRight}>
-          <MandateStatus status={mandate.status} />
-          <span className={styles.mandateSummaryCount}>
-            {mandate.permissionsAllowed.length} permission
-            {mandate.permissionsAllowed.length === 1 ? '' : 's'}
-          </span>
-        </div>
-      </header>
-
-      <ul className={styles.mandateSummaryPerms}>
-        {mandate.permissionsAllowed.map((p) => (
-          <li key={p.id} className={styles.mandateSummaryPermRow}>
-            <span className={styles.mandateSummaryCheck} aria-hidden>
-              <CheckMark />
-            </span>
-            <span className={styles.mandateSummaryPermBody}>
-              <span className={styles.mandateSummaryPermLabel}>{p.label}</span>
-              <span className={styles.mandateSummaryPermSub}>{p.sub}</span>
-              {(p.template || p.version) && (
-                <span className={styles.mandateSummaryPermMeta}>
-                  {p.template && (
-                    <span className={styles.mandateSummaryPermMetaTpl}>{p.template}</span>
-                  )}
-                  {p.template && p.version && (
-                    <span className={styles.mandateSummaryPermMetaSep} aria-hidden>·</span>
-                  )}
-                  {p.version && (
-                    <span className={styles.mandateSummaryPermMetaVer}>v{p.version}</span>
-                  )}
-                </span>
-              )}
-            </span>
-          </li>
-        ))}
-      </ul>
-
-      <footer className={styles.mandateSummaryFoot}>
-        <span className={styles.mandateSummaryFootMeta}>
-          {mandate.agentIds.length} delegated signer
-          {mandate.agentIds.length === 1 ? '' : 's'} running
-        </span>
-        <span className={styles.mandateSummaryOpenHint}>
-          View full mandate
-          <ArrowRightSm />
-        </span>
-      </footer>
-    </article>
-  )
-}
-
-function MandateCard({ mandate, onView }) {
-  const isActive = mandate.status === 'active'
-  const aiClass = brandClass(mandate.aiName)
-  // The role is now the primary identity — "USDC Yield Specialist",
-  // "ETH Hedge Operator", etc. The mandate scope (e.g. "$500 USDC
-  // yield on Arbitrum") becomes the subtitle.
-  const role = mandate.role ?? mandate.title
-
-  return (
-    <article
-      className={`${styles.mCard} ${styles.mCardClickable} ${aiClass} ${isActive ? styles.mCardActive : styles.mCardMuted}`}
-      onClick={onView}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onView?.()
-        }
-      }}
-      role="button"
-      tabIndex={0}
-      aria-label={`View ${role}`}
-    >
-      <header className={styles.mCardTop}>
-        <span className={styles.mAiRow}>
-          <BrandMark name={mandate.aiName} size={20} />
-          <span className={styles.mAiText}>Created in {mandate.aiName}</span>
-        </span>
-        <MandateStatus status={mandate.status} kind="agent" />
-      </header>
-
-      <div className={styles.mTitleBlock}>
-        <h3 className={`${shared.displayHeadline} ${styles.mTitle}`}>{role}</h3>
-        <span className={styles.mScope}>{mandate.title}</span>
-        <span className={styles.mDuration}>{mandate.duration}</span>
-        <span className={styles.mDelegatedTag}>delegated signer</span>
-      </div>
-
-      <div className={styles.mCardMid}>
-        <span
-          className={`${styles.mascot} ${isActive ? styles.mascotLive : styles.mascotMuted}`}
-          aria-hidden
-        >
-          <Sai size={48} animate={isActive} />
-        </span>
-      </div>
-
-      <footer className={styles.mCardFoot}>
-        <button
-          type="button"
-          className={`${styles.mBtn} ${styles.mBtnPrimary} ${styles.mBtnFull}`}
-          onClick={(e) => { e.stopPropagation(); onView?.() }}
-        >
-          View
-        </button>
-      </footer>
-    </article>
-  )
-}
-
-/* Edit + Overflow components retired — the card is now a single View
-   target. Provider tinting still lives on the card body via `brandClass`
-   so each agent retains its AI-provider visual signature, but Edit and
-   Revoke moved entirely to the rich AgentPage detail. */
-
-/* New-mandate tile — wide, dashed-border card that sits at the end of
-   the Your-mandates stack. Adding a mandate is a new signed bundle of
-   permissions on the SMA, not a per-agent action — so the affordance
-   lives in the mandate section, parallel to the MandateSummaryCards. */
 function NewMandateTile({ onClick }) {
   return (
     <button type="button" className={styles.newMandateTile} onClick={onClick}>
@@ -1280,27 +712,12 @@ function NewMandateTile({ onClick }) {
   )
 }
 
-/* Legacy alias preserved in case any modal still references it. */
-function NewMandateCard({ onClick }) {
-  return <NewMandateTile onClick={onClick} />
-}
-
-function EmptyAgentsState({ filter, onNew }) {
-  const labels = {
-    active:  { title: 'No active agents',  body: 'When your AI drafts one, it appears here for you to authorize.', cta: 'Create an agent' },
-    paused:  { title: 'No stopped agents', body: 'Agents you stop land here. You can resume them at any time.', cta: null },
-    revoked: { title: 'No ended agents',   body: 'Agents whose parent mandate was revoked land here as a record.', cta: null },
-    expired: { title: 'No expired agents', body: 'When an agent hits its end date, it moves here.', cta: null },
-    all:     { title: 'No agents yet',     body: 'Ask your AI to draft your first agent.', cta: 'Create your first agent' },
-  }
-  const meta = labels[filter] ?? labels.all
+function EmptyAgentsState({ onNew }) {
   return (
     <div className={styles.emptyAgents}>
-      <h3 className={styles.emptyAgentsTitle}>{meta.title}</h3>
-      <p className={styles.emptyAgentsBody}>{meta.body}</p>
-      {meta.cta && (
-        <SailButton onClick={onNew}>{meta.cta}</SailButton>
-      )}
+      <h3 className={styles.emptyAgentsTitle}>No agents yet</h3>
+      <p className={styles.emptyAgentsBody}>Ask your AI to draft your first agent mandate.</p>
+      <SailButton onClick={onNew}>Create your first agent</SailButton>
     </div>
   )
 }
@@ -1326,13 +743,6 @@ function ArrowRightSm() {
   return (
     <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M3 7h8M8 4l3 3-3 3" />
-    </svg>
-  )
-}
-function ChevronRight() {
-  return (
-    <svg viewBox="0 0 14 14" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M5 3l4 4-4 4" />
     </svg>
   )
 }
@@ -1362,13 +772,6 @@ function CrossSm() {
   return (
     <svg viewBox="0 0 14 14" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M3.5 3.5l7 7M10.5 3.5l-7 7" />
-    </svg>
-  )
-}
-function CrossMark() {
-  return (
-    <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M4 4l8 8M12 4L4 12" />
     </svg>
   )
 }

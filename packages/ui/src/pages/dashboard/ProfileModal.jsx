@@ -48,10 +48,8 @@ export default function ProfileModal({
   currentSafeId,
   hasSMA = true,
   onClose,
+  onDisconnect,
   onCreateSMA,
-  onOpenSMA,
-  onDeposit,
-  onWithdraw,
   onRenameSafe,
   onSelectSafe,
 }) {
@@ -127,7 +125,7 @@ export default function ProfileModal({
           <button
             type="button"
             className={styles.disconnectPill}
-            onClick={handleClose}
+            onClick={onDisconnect ?? handleClose}
           >
             Disconnect
           </button>

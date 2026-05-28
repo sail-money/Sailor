@@ -86,6 +86,9 @@ importers:
       '@sail/chains':
         specifier: workspace:*
         version: link:../chains
+      '@sail/sdk':
+        specifier: workspace:*
+        version: link:../sdk
       '@tanstack/react-query':
         specifier: ^5.59.0
         version: 5.100.14(react@18.3.1)
@@ -2227,7 +2230,7 @@ packages:
         optional: true
 
   ox@https://pkg.pr.new/ox@386a3439fe1ce76d237930f8c6e6bb493746069a:
-    resolution: {integrity: sha512-OHHm9re1yVjiMN66GZ2JSGuqmvJPrk40zh3PIS/3I6prZLbt6U/zKlgW18eIIkO0Y/ZyySKr6D/4mUXjBmky1g==, tarball: https://pkg.pr.new/ox@386a3439fe1ce76d237930f8c6e6bb493746069a}
+    resolution: {tarball: https://pkg.pr.new/ox@386a3439fe1ce76d237930f8c6e6bb493746069a}
     version: 0.14.26-386a343.0
     peerDependencies:
       typescript: '>=5.4.0'

@@ -11,7 +11,6 @@ import Dashboard from './pages/dashboard/Dashboard'
 import AgentPage from './pages/dashboard/AgentPage'
 import MandatePage from './pages/dashboard/MandatePage'
 import JournalPage from './pages/dashboard/JournalPage'
-import DemoConsole from './demo/DemoConsole'
 import { wagmiConfig } from './wagmi'
 import './styles/globals.css'
 
@@ -49,23 +48,8 @@ function Router() {
     const onHash = () => setRoute(readRoute())
     window.addEventListener('hashchange', onHash)
 
-    // Shift+D toggles the demo console
-    const onKey = (e) => {
-      if (e.shiftKey && (e.key === 'D' || e.key === 'd') && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        const target = e.target
-        const tag = target?.tagName
-        if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return
-        try {
-          const current = localStorage.getItem('sail.demoConsole')
-          localStorage.setItem('sail.demoConsole', current === 'hidden' ? 'visible' : 'hidden')
-          window.location.reload()
-        } catch {}
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => {
+      return () => {
       window.removeEventListener('hashchange', onHash)
-      window.removeEventListener('keydown', onKey)
     }
   }, [])
 
@@ -87,17 +71,14 @@ function Router() {
     )
   }
   else if (route.startsWith('/agent/')) {
-    // /agent/:id — agent-only detail (identity, gas, decision journal,
-    // runs, stop/resume). Mandate + permission detail lives under
-    // /mandate/:id now.
     const id = route.slice('/agent/'.length).split('?')[0]
     page = (
       <AgentPage
         key={route}
         agentId={id}
-        onBack={() => { window.location.hash = '#/dashboard?demo=full' }}
-        onEdit={() => { window.location.hash = `#/dashboard?edit=${id}` }}
-        onRevoke={() => { window.location.hash = '#/dashboard?demo=full' }}
+        onBack={() => { window.location.hash = '#/dashboard' }}
+        onEdit={() => { window.location.hash = '#/dashboard' }}
+        onRevoke={() => { window.location.hash = '#/dashboard' }}
       />
     )
   }
@@ -119,12 +100,7 @@ function Router() {
   else if (route.startsWith('/landing')) page = <App />
   else page = <Dashboard key={route} />
 
-  return (
-    <>
-      {page}
-      <DemoConsole />
-    </>
-  )
+  return page
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(

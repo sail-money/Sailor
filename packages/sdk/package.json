@@ -13,6 +13,14 @@
     "./templates": {
       "import": "./dist/templates/index.js",
       "types": "./dist/templates/index.d.ts"
+    },
+    "./safe": {
+      "import": "./dist/safe.js",
+      "types": "./dist/safe.d.ts"
+    },
+    "./deployments": {
+      "import": "./dist/deployments.js",
+      "types": "./dist/deployments.d.ts"
     }
   },
   "scripts": {
