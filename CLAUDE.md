@@ -58,4 +58,18 @@ cd ~/SailFramework && git pull && ./install-sail
 
 ## Status
 
-Repository is in initial setup. No source code exists yet.
+Implemented as a pnpm monorepo:
+
+- `packages/sdk` (`@sail/sdk`) — `SailorClient` (account/mandate/dispatch/session/fees/principal), `LocalKeyring`, kernel + governance ABIs, permission templates, and the onboarding primitives: signing-handoff types, the bundled deployment registry (`getSailDeployment` for Base / Base Sepolia / Arbitrum), Safe setup initializer, `RegisterPermission` EIP-712 builder, and `estimatePermissionFee` (legacy `baseFee + byteLength*complexityRate` model, capped, with a flat-fee fallback).
+- `packages/cli` (`sailor`) — commands: `init`, `keys`, `account`, `mandate (prepare|sign|deploy|attach|templates|list)`, `onboard`, `station (start|status|stop)`, `owner (connect|show)`, `scan`, `run`, `session`, `status`, `ui`. The `signing/` module is a local HTTP + WebSocket daemon bridging the agent and the browser wallet.
+- `packages/ui` (`sailor-ui`) — React dashboard + the signing station at `#/station` (auto-shown when served by the daemon on ports 3141–3150).
+- `packages/chains` (`@sail/chains`) — per-chain registry, empty until mainnet launch.
+
+### Agent onboarding & custom mandates
+
+The agent never holds the owner key. For owner-authorized actions it pushes a signing request to the signing station (`sailor station start`, or an ephemeral per-command server) and the owner approves it in the browser:
+
+- **create-sma / deploy-mandate** — transaction requests submitted by the owner's wallet. A `deploy-mandate` request has no `to`: it is a contract-creation tx whose `data` is the compiled mandate's creation bytecode; the deployed address comes from `receipt.contractAddress` and is tracked in `.sail/state/mandates.json`.
+- **register-permission** — a `RegisterPermission` EIP-712 message the owner signs off-chain; the agent (manager key) then submits `kernel.registerPermission(account, permission, sig)` with the exact fee from `estimatePermissionFee`.
+
+Mandates are authored as Foundry contracts under `mandates/` (scaffolded by `sailor init`) and must be fully configured by their constructor, so one deploy tx + one attach signature completes setup. Every command supports `--json`; `SAIL_PASSPHRASE` unlocks the manager key headlessly.

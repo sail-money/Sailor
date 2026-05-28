@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WagmiProvider } from 'wagmi'
 import App from './App'
 import Signing from './pages/signing/Signing'
+import SigningStation from './pages/station/SigningStation'
 import Dashboard from './pages/dashboard/Dashboard'
 import AgentPage from './pages/dashboard/AgentPage'
 import MandatePage from './pages/dashboard/MandatePage'
@@ -22,6 +23,17 @@ function readRoute() {
   return raw.startsWith('/') ? raw : `/${raw}`
 }
 
+/**
+ * The signing daemon serves this SPA on ports 3141–3150. When the page is
+ * opened from there (the URL the CLI prints), default to the signing station
+ * instead of the dashboard so approvals are front-and-center.
+ */
+function servedBySigningDaemon() {
+  if (typeof window === 'undefined') return false
+  const port = Number(window.location.port)
+  return port >= 3141 && port <= 3150
+}
+
 function Router() {
   const [route, setRoute] = useState(readRoute)
 
@@ -29,7 +41,7 @@ function Router() {
   // landing page remains accessible at #/landing.
   useEffect(() => {
     if (route === '/' || route === '') {
-      window.location.replace('#/dashboard')
+      window.location.replace(servedBySigningDaemon() ? '#/station' : '#/dashboard')
     }
   }, [route])
 
@@ -58,7 +70,8 @@ function Router() {
   }, [])
 
   let page
-  if (route.startsWith('/signing')) page = <Signing key={route} />
+  if (route.startsWith('/station')) page = <SigningStation key={route} />
+  else if (route.startsWith('/signing')) page = <Signing key={route} />
   else if (route.startsWith('/mandate/')) {
     // /mandate/:id — the canonical home for contract + permissions
     // detail. Revoking from here triggers the contract animation, then

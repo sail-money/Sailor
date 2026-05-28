@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { scaffoldFoundryWorkspace } from "../lib/foundry.js";
 
 function findWorkspaceRoot(from: string): string {
   let dir = from;
@@ -145,6 +146,8 @@ export async function initCommand(
   }
 
   scaffoldProjectWorkspace(dest, name, options);
+  // Foundry workspace for authoring + deploying custom mandate contracts.
+  scaffoldFoundryWorkspace(dest);
 
   console.log(`\nDone! Your agent is ready at ./${name}/\n`);
   console.log("Next steps:");

@@ -69,6 +69,45 @@ sailor run                  # continuous: runs every 60s
 
 ---
 
+## Agent-driven onboarding & custom mandates
+
+For chains with a bundled Sail deployment (Base, Base Sepolia, Arbitrum — shipped
+in `@sail/sdk`, no `@sail/chains` entry required), an agent can drive the whole
+setup through a browser **signing station**. The station is a local HTTP +
+WebSocket daemon that bridges the CLI and the owner's wallet: the agent never
+holds the owner key — it pushes signing requests, the owner approves them in the
+browser, and the agent submits the transactions it's allowed to.
+
+```bash
+sailor keys generate                       # manager (agent) key
+sailor station start &                      # signing daemon (serves the UI)
+# owner opens the printed URL once and connects their wallet
+sailor owner connect                        # detect & persist the owner
+sailor scan                                 # discover the owner's Safes + state
+sailor onboard --new-sma                    # create an SMA + (optionally) attach a mandate
+```
+
+Agents author their own permission contracts and deploy them from the scaffolded
+Foundry workspace (`mandates/`, with `@sail/interfaces/IPermission.sol` vendored
+under `.sail/contracts/`):
+
+```bash
+forge build
+sailor mandate deploy --contract MyMandate \
+  --args '["0xPermissionSigner", ["0xTarget"]]' \
+  --attach --sma 0xSafe
+```
+
+`deploy` emits a contract-creation signing request (the owner signs it in the
+browser); the deployed address is read from the receipt and tracked in
+`.sail/state/mandates.json`. `attach` reads the signer nonce, has the owner sign
+a `RegisterPermission` EIP-712 message, then the agent submits
+`kernel.registerPermission` with the exact registration fee. Every command takes
+`--json` for headless agent use; set `SAIL_PASSPHRASE` to unlock the manager key
+non-interactively.
+
+---
+
 ## Architecture
 
 ```
@@ -110,7 +149,9 @@ The CLI and SDK sit between the operator and SailKernel: they build the EIP-712 
 
 ## State of the project
 
-Sailor is functional but depends on a deployed SailKernel instance — it has nothing to drive without one. Sail Protocol is currently in audit and is not deployed on mainnet, so `@sail/chains` ships with an empty registry; `account create`, `mandate sign`, and `run` report a missing chain configuration until kernel and mandateFactory addresses are present. The SDK, CLI, keystore, mandate flows, agent runner, and dashboard are implemented and exercised end to end against those addresses. `@sail/chains` will be updated with mainnet addresses at launch.
+Sailor is functional but depends on a deployed SailKernel instance. Sail Protocol is currently in audit and is not deployed on mainnet, so `@sail/chains` ships with an empty registry; the `SailorClient`-based paths (`account create`, `mandate sign`, `run`) report a missing chain configuration until kernel and mandateFactory addresses are present there.
+
+The agent-driven onboarding, signing-station, and custom-mandate deploy/attach flows do not need `@sail/chains`: they target the verified deployments bundled in `@sail/sdk` (Base, Base Sepolia, Arbitrum), and have been exercised end to end against Base Sepolia. The SDK, CLI, keystore, mandate flows, agent runner, and dashboard are implemented. `@sail/chains` will be updated with mainnet addresses at launch.
 
 ---
 
