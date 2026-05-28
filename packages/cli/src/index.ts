@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import { accountCreate } from "./commands/account.js";
+import { doctor } from "./commands/doctor.js";
 import { initCommand } from "./commands/init.js";
 import { keysGenerate, keysShow } from "./commands/keys.js";
 import {
@@ -205,6 +206,13 @@ session
   .description("Pause the manager session (revoke dispatch rights)")
   .action(action(sessionPause));
 session.command("resume").description("Resume a paused session").action(action(sessionResume));
+
+program
+  .command("doctor")
+  .description("Preflight (read-only): kernel dispatch model + permission health, before spending gas")
+  .option("--json", "Output machine-readable JSON")
+  .option("--account <address>", "SMA to check (defaults to .sail/account.json)")
+  .action(actionWith(doctor));
 
 // ── Stubs ─────────────────────────────────────────────────────────────────────
 
