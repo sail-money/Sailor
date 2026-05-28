@@ -616,7 +616,7 @@ export default function Dashboard() {
                 localhost; all project state is under .sail/ on disk. */}
             <footer className={styles.localFootnote}>
               <span className={styles.localFootnoteDot} aria-hidden />
-              Running locally at <code>localhost:3333</code> · project state lives in
+              Running locally at <code>{window.location.host}</code> · project state lives in
               {' '}<code>.sail/</code>. There is no Sail-hosted backend; your wallet
               talks to the chain directly.
             </footer>
