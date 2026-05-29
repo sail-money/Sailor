@@ -10,13 +10,17 @@ import ConfirmDestructiveModal from '../shared/ConfirmDestructiveModal'
 import shared from '../shared/shared.module.css'
 import layout from './SharedLayout.module.css'
 import styles from './MandatePage.module.css'
-import {
-  mockSmaMandates,
-  mockMandates,
-  mockSafes,
-  mockGovernance,
-  mockManagerEndpoint,
-} from './mockData'
+import { useSailorAccount, useSailorMandate } from '../../hooks/useSailorData'
+import { useAccount } from 'wagmi'
+
+// SailKernel protocol constants (from SailProtocol source)
+const GOVERNANCE = {
+  maxPermissionsPerAccount: 10,
+  permissionRegistrationFeeEth: '0.001',
+  permissionGasCapK: 100,
+  protocolCutBps: 0,
+  MAX_PROTOCOL_CUT_BPS: 1000,
+}
 import ContractModal from './ContractModal'
 import AIHandoffModal from './AIHandoffModal'
 
@@ -39,34 +43,34 @@ import AIHandoffModal from './AIHandoffModal'
  * own AgentPage — that's a separate, reversible action.
  */
 export default function MandatePage({ mandateId, onBack, onRevoke }) {
-  // Resolve the mandate by routing id. Falls back to the first
-  // mandate if the id is missing or unknown so the page never blanks
-  // out during navigation transitions.
-  const baseMandate = useMemo(
-    () => mockSmaMandates.find((m) => m.id === mandateId) ?? mockSmaMandates[0],
-    [mandateId],
-  )
+  const { mandate: liveMandate } = useSailorMandate()
+  const { account } = useSailorAccount()
+  const { address: walletAddress } = useAccount()
+
+  const baseMandate = useMemo(() => {
+    if (!liveMandate) return null
+    return { id: mandateId ?? 'live', ...liveMandate }
+  }, [liveMandate, mandateId])
   // Local revocation state — which individual permissions the user has
   // revoked since the page mounted. The mandate itself stays signed;
   // these are surgical opt-outs of specific lines inside it.
   const [revokedPermIds, setRevokedPermIds] = useState(() => new Set())
   const [permRevokeTarget, setPermRevokeTarget] = useState(null)
 
-  // Project current revocations into the mandate object so render code
-  // can treat the data uniformly.
-  const mandate = useMemo(() => ({
-    ...baseMandate,
-    permissionsAllowed: baseMandate.permissionsAllowed.map((p) => ({
-      ...p,
-      revoked: revokedPermIds.has(p.id) || p.revoked === true,
-    })),
-  }), [baseMandate, revokedPermIds])
+  const mandate = useMemo(() => {
+    if (!baseMandate) return null
+    const perms = baseMandate.permissionsAllowed ?? baseMandate.permissions ?? []
+    return {
+      ...baseMandate,
+      permissionsAllowed: perms.map((p) => ({
+        ...p,
+        revoked: revokedPermIds.has(p.id) || p.revoked === true,
+      })),
+    }
+  }, [baseMandate, revokedPermIds])
 
-  const sma = mockSafes[0]
-  const agents = useMemo(
-    () => mockMandates.filter((m) => mandate.agentIds.includes(m.id)),
-    [mandate],
-  )
+  const sma = account ? { name: 'My SMA', address: account.safe } : null
+  const agents = []
 
   const [revokeOpen, setRevokeOpen] = useState(false)
   const [contractOpen, setContractOpen] = useState(false)
@@ -83,8 +87,8 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
     setPermRevokeTarget(null)
   }
 
-  const activePermissionCount = mandate.permissionsAllowed.filter((p) => !p.revoked).length
-  const revokedPermissionCount = mandate.permissionsAllowed.length - activePermissionCount
+  const activePermissionCount = mandate?.permissionsAllowed?.filter((p) => !p.revoked).length ?? 0
+  const revokedPermissionCount = (mandate?.permissionsAllowed?.length ?? 0) - activePermissionCount
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' })
@@ -368,17 +372,17 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
             <span className={styles.metricKicker}>Permission slots</span>
             <span className={styles.metricValue}>
               {activePermissionCount}
-              <span className={styles.metricValueDim}> / {mandate.permissionsCap ?? mockGovernance.maxPermissionsPerAccount}</span>
+              <span className={styles.metricValueDim}> / {mandate.permissionsCap ?? GOVERNANCE.maxPermissionsPerAccount}</span>
             </span>
             <div className={styles.metricBar} aria-hidden>
               <div
                 className={styles.metricBarFill}
-                style={{ width: `${Math.min(100, (activePermissionCount / (mandate.permissionsCap ?? mockGovernance.maxPermissionsPerAccount)) * 100)}%` }}
+                style={{ width: `${Math.min(100, (activePermissionCount / (mandate.permissionsCap ?? GOVERNANCE.maxPermissionsPerAccount)) * 100)}%` }}
               />
             </div>
             <p className={styles.metricSub}>
               Per-account ceiling set by governance. Registration fee:{' '}
-              <strong>{mandate.registrationFeeEth ?? mockGovernance.permissionRegistrationFeeEth} ETH</strong> per permission.
+              <strong>{mandate.registrationFeeEth ?? GOVERNANCE.permissionRegistrationFeeEth} ETH</strong> per permission.
             </p>
           </article>
 
@@ -424,15 +428,15 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
           </header>
 
           <dl className={styles.bookGrid}>
-            <BookRow k="URL" v={mockManagerEndpoint.url} mono />
-            <BookRow k="Public key" v={`${mockManagerEndpoint.publicKey.slice(0, 10)}…${mockManagerEndpoint.publicKey.slice(-6)}`} mono />
-            <BookRow k="Last seen" v={mockManagerEndpoint.lastSeenAt} />
+            <BookRow k="URL" v={account?.manager ?? "—"} mono />
+            <BookRow k="Public key" v={`${account?.manager?.slice(0, 10)}…${account?.manager?.slice(-6) ?? "—"}`} mono />
+            <BookRow k="Last seen" v={"—"} />
             <BookRow
               k="Recommendations verified"
               v={
                 <>
-                  {mockManagerEndpoint.signaturesVerified.toLocaleString()}
-                  {mockManagerEndpoint.signaturesFailed > 0 && (
+                  {"—"}
+                  {false && (
                     <span className={styles.endpointFailCount}> · {mockManagerEndpoint.signaturesFailed} failed</span>
                   )}
                 </>
@@ -571,12 +575,12 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
             <li>
               <strong>Fail-closed evaluation.</strong> The kernel reads each permission's{' '}
               <code className={styles.aboutMono}>evaluate(...)</code> via a static call under a{' '}
-              <strong>{mockGovernance.permissionGasCapK}k gas cap</strong>. Revert or gas exhaustion blocks the dispatch.
+              <strong>{GOVERNANCE.permissionGasCapK}k gas cap</strong>. Revert or gas exhaustion blocks the dispatch.
             </li>
             <li>
               <strong>Bounded protocol fee.</strong> Sail's protocol cut is currently{' '}
-              <strong>{mockGovernance.protocolCutBps} bps</strong> on manager-collected fees, capped immutably at{' '}
-              <strong>{mockGovernance.MAX_PROTOCOL_CUT_BPS} bps</strong> in the kernel source.
+              <strong>{GOVERNANCE.protocolCutBps} bps</strong> on manager-collected fees, capped immutably at{' '}
+              <strong>{GOVERNANCE.MAX_PROTOCOL_CUT_BPS} bps</strong> in the kernel source.
             </li>
           </ul>
         </section>

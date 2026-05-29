@@ -3,13 +3,8 @@ import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { getChain } from '@sail/chains'
 import { zeroAddress } from 'viem'
 import { useAccount, usePublicClient, useSignTypedData } from 'wagmi'
-import {
-  FluidBackground,
-  GlassCard,
-  Sai,
-  RevealCalldata,
-  SailButton,
-} from '../shared'
+import { FluidBackground, GlassCard, Sai, RevealCalldata, SailButton } from '../shared'
+import PageHeader from '../shared/PageHeader'
 import shared from '../shared/shared.module.css'
 import styles from './Signing.module.css'
 import { useSailorMandateDraft } from '../../hooks/useSailorData'
@@ -44,9 +39,9 @@ function OnboardingFlow() {
   const [state, setState] = useState('welcome')
 
   return (
-    <div className={`${shared.pageShell} ${styles.shell}`}>
+    <div className={styles.shell}>
       <FluidBackground />
-      <HeaderBar onLogo={() => setState('welcome')} state={state} />
+      <HeaderBar state={state} />
       <main className={styles.stage}>
         <div key={state} className={styles.stageInner}>
           {state === 'welcome' && (
@@ -158,14 +153,9 @@ function MandateSigningFlow({ draft }) {
   }
 
   return (
-    <div className={`${shared.pageShell} ${styles.shell}`}>
+    <div className={styles.shell}>
       <FluidBackground />
-      <HeaderBar
-        onLogo={() => {
-          window.location.hash = '#/dashboard'
-        }}
-        state={phase === 'done' ? 'confirming' : 'review'}
-      />
+      <HeaderBar state={phase === 'done' ? 'confirming' : 'review'} />
 
       <main className={styles.stage}>
         <div className={styles.stageInner}>
@@ -239,23 +229,13 @@ function MandateSigningFlow({ draft }) {
 }
 
 /* ─────────── Header bar ─────────── */
-function HeaderBar({ onLogo, state }) {
+function HeaderBar({ state }) {
   return (
-    <header className={styles.headerBar}>
-      <button
-        type="button"
-        className={styles.logoBtn}
-        onClick={onLogo}
-        aria-label="Sail home"
-      >
-        <Sai size={56} animate />
-      </button>
-      {state !== 'confirming' && (
-        <span className={styles.headerHint}>
-          Sail never sees your keys
-        </span>
-      )}
-    </header>
+    <PageHeader
+      eyebrow="Signing"
+      title={state === 'confirming' ? 'Signed' : 'Sail never sees your keys'}
+      backTo="#/dashboard"
+    />
   )
 }
 

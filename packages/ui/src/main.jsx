@@ -40,7 +40,7 @@ function Router() {
   // landing page remains accessible at #/landing.
   useEffect(() => {
     if (route === '/' || route === '') {
-      window.location.replace(servedBySigningDaemon() ? '#/station' : '#/dashboard')
+      window.location.replace('#/dashboard')
     }
   }, [route])
 
@@ -54,7 +54,8 @@ function Router() {
   }, [])
 
   let page
-  if (route.startsWith('/station')) page = <SigningStation key={route} />
+  if (route.startsWith('/home')) page = <Dashboard key={route} />
+  else if (route.startsWith('/station')) page = <SigningStation key={route} />
   else if (route.startsWith('/signing')) page = <Signing key={route} />
   else if (route.startsWith('/mandate/')) {
     // /mandate/:id — the canonical home for contract + permissions

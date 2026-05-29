@@ -694,8 +694,8 @@ export default function Dashboard() {
         <button
           type="button"
           className={styles.brand}
-          onClick={() => { window.location.hash = '#/signing' }}
-          aria-label="Go to sign-in"
+          onClick={() => { window.location.hash = '#/dashboard' }}
+          aria-label="Go to dashboard"
         >
           <Sai size={48} animate />
         </button>

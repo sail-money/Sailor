@@ -8,16 +8,8 @@ import {
 } from '../shared'
 import shared from '../shared/shared.module.css'
 import styles from './AgentPage.module.css'
-import {
-  mockMandates,
-  mockSafe,
-  mockSafes,
-  mockWallet,
-  mockManagerEndpoint,
-  getParentMandate,
-  getAgentPermissionIds,
-  getAgentSchedules,
-} from './mockData'
+import { useSailorAccount, useSailorMandate } from '../../hooks/useSailorData'
+import { useAccount } from 'wagmi'
 import ContractModal from './ContractModal'
 
 /**
@@ -32,39 +24,16 @@ import ContractModal from './ContractModal'
  * recommendation.
  */
 export default function AgentPage({ agentId, onBack, onEdit, onRevoke }) {
-  const mandate = useMemo(
-    () => mockMandates.find((m) => m.id === agentId),
-    [agentId],
-  )
+  const { mandate: liveMandate } = useSailorMandate()
+  const { account } = useSailorAccount()
+  const { address: mockWallet } = useAccount()
+  const mockSafe = account?.safe ?? null
+  const mockSafes = account ? [{ name: 'My SMA', address: account.safe }] : []
+
+  const mandate = liveMandate ?? null
   const view = useMemo(() => buildAgentView(mandate), [mandate])
-  // The SMA mandate this agent operates under, and the specific
-  // permissions inside it that this agent uses. The agent inherits
-  // *all* of the parent mandate's permissions, but we highlight the
-  // subset it actively exercises so the relationship is unambiguous.
-  const parentMandate = useMemo(
-    () => (mandate ? getParentMandate(mandate.id) : null),
-    [mandate],
-  )
-  const usedPermissionIds = useMemo(
-    () => (mandate ? new Set(getAgentPermissionIds(mandate.id)) : new Set()),
-    [mandate],
-  )
-  const agentPermissions = useMemo(
-    () => (parentMandate?.permissionsAllowed ?? []).map((p) => ({
-      ...p,
-      usedByThisAgent: usedPermissionIds.has(p.id),
-    })),
-    [parentMandate, usedPermissionIds],
-  )
-  // Cron schedules driving this agent's runner. Per the framework,
-  // schedules are local — flipping `enabled` doesn't touch onchain
-  // state, only the runner's firing loop.
-  const initialSchedules = useMemo(
-    () => (mandate ? getAgentSchedules(mandate.id) : []),
-    [mandate],
-  )
-  const [schedules, setSchedules] = useState(initialSchedules)
-  useEffect(() => { setSchedules(initialSchedules) }, [initialSchedules])
+  const agentPermissions = (liveMandate?.permissions ?? []).map((p) => ({ ...p, usedByThisAgent: true }))
+  const [schedules, setSchedules] = useState([])
 
   function toggleSchedule(scheduleId) {
     setSchedules((arr) =>

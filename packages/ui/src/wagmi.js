@@ -1,46 +1,27 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit'
-import {
-  mainnet, arbitrum, arbitrumNova, arbitrumSepolia,
-  base, baseSepolia,
-  optimism, optimismSepolia,
-  polygon, polygonAmoy, polygonZkEvm,
-  bsc,
-  avalanche, avalancheFuji,
-  gnosis,
-  celo,
-  linea, lineaSepolia,
-  zkSync,
-  scroll, scrollSepolia,
-  mantle,
-  blast, blastSepolia,
-  mode,
-  manta,
-  metis,
-  fraxtal,
-  worldchain,
-  aurora,
-  fantom,
-  moonbeam, moonriver,
-  cronos,
-  filecoin,
-  taiko, taikoHekla,
-  berachainTestnetbArtio,
-  zora,
-  ancient8,
-  apeChain,
-} from 'wagmi/chains'
+import { mainnet, sepolia, arbitrum, arbitrumSepolia, base, baseSepolia } from 'wagmi/chains'
+import { defineChain } from 'viem'
+
+const unichain = defineChain({
+  id: 130,
+  name: 'Unichain',
+  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+  rpcUrls: { default: { http: ['https://mainnet.unichain.org/'] } },
+  blockExplorers: { default: { name: 'Uniscan', url: 'https://uniscan.xyz' } },
+})
+
+const unichainSepolia = defineChain({
+  id: 1301,
+  name: 'Unichain Sepolia',
+  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+  rpcUrls: { default: { http: ['https://sepolia.unichain.org/'] } },
+  blockExplorers: { default: { name: 'Uniscan Sepolia', url: 'https://sepolia.uniscan.xyz' } },
+  testnet: true,
+})
 
 export const chains = [
-  // Tier 1 mainnets
-  base, arbitrum, optimism, mainnet, polygon, bsc,
-  // L2s
-  arbitrumNova, polygonZkEvm, linea, zkSync, scroll, mantle, blast, mode,
-  manta, metis, fraxtal, worldchain, zora, aurora, ancient8, apeChain,
-  // L1 alts
-  avalanche, gnosis, celo, fantom, moonbeam, moonriver, cronos, filecoin, taiko,
-  // Testnets
-  baseSepolia, arbitrumSepolia, optimismSepolia, polygonAmoy, lineaSepolia,
-  scrollSepolia, blastSepolia, avalancheFuji, taikoHekla, berachainTestnetbArtio,
+  base, arbitrum, mainnet, unichain,
+  baseSepolia, arbitrumSepolia, unichainSepolia, sepolia,
 ]
 
 const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'sailor-local-dev'
