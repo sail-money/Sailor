@@ -19,6 +19,13 @@ import {
 } from "./capabilities.js";
 import { sailDeployments } from "./deployments.js";
 import { explainKernelRevert } from "./errors.js";
+import {
+  DEFAULT_SLIPPAGE,
+  ERC20_ALLOWANCE_ABI,
+  encodeApprove,
+  fetchLifiQuote,
+  LIFI_ROUTERS,
+} from "./lifi.js";
 import type {
   Account,
   Address,
@@ -26,6 +33,7 @@ import type {
   Call,
   CreateAccountParams,
   Dispatch,
+  DispatchOptions,
   FeePolicy,
   Hex,
   IAccountNamespace,
@@ -36,6 +44,7 @@ import type {
   IPrincipalNamespace,
   ISailorClient,
   ISessionNamespace,
+  IStrategyNamespace,
   Mandate,
   MandateDraftInput,
   MandateExplanation,
@@ -45,6 +54,8 @@ import type {
   RegisterAccountParams,
   SailorClientConfig,
   Session,
+  SwapParams,
+  SwapResult,
   TxResult,
 } from "./types.js";
 
@@ -78,6 +89,20 @@ function kernelDomain(kernel: Address, chainId: number) {
 /** Default signature deadline: 5 minutes from now (unix seconds). */
 function defaultDeadline(): bigint {
   return BigInt(Math.floor(Date.now() / 1000) + 300);
+}
+
+/**
+ * Default gas limit for a single dispatch. Passing an explicit limit makes viem
+ * skip its `eth_estimateGas` pre-flight, which a load-balanced RPC can route to a
+ * lagging node — computing the digest against a stale nonce and failing with
+ * InvalidManagerSignature even though the tx would mine fine. Generous enough for
+ * an ERC-20 approve, a transfer, or a LiFi-diamond swap.
+ */
+const DEFAULT_DISPATCH_GAS = 2_000_000n;
+
+/** Resolve after `ms` milliseconds. */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /** ABI tuple components for the kernel's `Call` struct. */
@@ -370,27 +395,113 @@ class MandateNamespace extends KernelNamespace implements IMandateNamespace {
 
 class DispatchNamespace extends KernelNamespace implements IDispatchNamespace {
   /**
+   * Per-account expected next manager nonce, recorded after each confirmed
+   * `single` dispatch. The next dispatch on the same account waits until the
+   * on-chain `managerNonces` reflects this value before signing, so a lagging
+   * node in a load-balanced RPC pool can't make us sign with a stale nonce.
+   * Keyed by `${kernel}:${safe}` (lowercased).
+   */
+  private readonly nextNonce = new Map<string, bigint>();
+
+  private nonceKey(kernel: Address, safe: Address): string {
+    return `${kernel.toLowerCase()}:${safe.toLowerCase()}`;
+  }
+
+  /** Read the current on-chain manager nonce for an account. */
+  private readManagerNonce(kernel: Address, safe: Address): Promise<bigint> {
+    return this.publicClient.readContract({
+      address: kernel,
+      abi: SailKernelAbi,
+      functionName: "managerNonces",
+      args: [safe],
+    });
+  }
+
+  /**
+   * Poll `managerNonces` until it reaches at least `expected`. A load-balanced
+   * RPC may briefly serve a stale (lower) value from a node that hasn't yet
+   * indexed the prior dispatch; retrying guarantees the next dispatch is signed
+   * against — and validated with — the correct nonce.
+   */
+  private async waitForManagerNonce(
+    kernel: Address,
+    safe: Address,
+    expected: bigint,
+    tries = 30,
+  ): Promise<bigint> {
+    let latest = 0n;
+    for (let i = 0; i < tries; i++) {
+      latest = await this.readManagerNonce(kernel, safe);
+      if (latest >= expected) return latest;
+      await delay(1000);
+    }
+    throw new Error(
+      `Manager nonce for ${safe} did not reach ${expected} after ${tries}s ` +
+        `(last seen ${latest}). The prior dispatch may not have mined, or the RPC ` +
+        "endpoint is lagging. Retry, or pass an explicit nonce via options.nonce.",
+    );
+  }
+
+  /**
+   * Determine the nonce to sign with. Honors an explicit `options.nonce`
+   * verbatim; otherwise waits for the on-chain nonce to reach any pending
+   * expectation (explicit `options.awaitNonce` or the value tracked from a prior
+   * dispatch on this account) before reading the live value.
+   */
+  private async resolveNonce(
+    kernel: Address,
+    safe: Address,
+    options?: DispatchOptions,
+  ): Promise<bigint> {
+    if (options?.nonce !== undefined) return options.nonce;
+    const expected = options?.awaitNonce ?? this.nextNonce.get(this.nonceKey(kernel, safe));
+    if (expected !== undefined) {
+      return this.waitForManagerNonce(kernel, safe, expected);
+    }
+    return this.readManagerNonce(kernel, safe);
+  }
+
+  /**
+   * Wait for a receipt, retrying transient RPC failures. A dispatch that has been
+   * submitted will mine; a flaky read of its receipt must not be reported as a
+   * failed dispatch.
+   */
+  private async awaitReceipt(txHash: Hex, tries = 5) {
+    let lastErr: unknown;
+    for (let i = 0; i < tries; i++) {
+      try {
+        return await this.publicClient.waitForTransactionReceipt({ hash: txHash });
+      } catch (err) {
+        lastErr = err;
+        await delay(1000);
+      }
+    }
+    throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+  }
+
+  /**
    * Single-call dispatch. The manager signs the EIP-712 Dispatch struct; the
    * attached wallet submits kernel.dispatch and we wait for the receipt.
+   *
+   * Nonce ordering is handled automatically: sequential `single` calls on the
+   * same account wait for the prior dispatch's nonce bump to propagate before
+   * signing, so callers don't hand-roll nonce tracking. Pass `options.nonce` to
+   * take over ordering, or `options.gas` to override the default gas limit.
    */
   async single(
     safe: Address,
     permission: Address,
     call: Call,
     manager: ILocalKeyring,
+    options?: DispatchOptions,
   ): Promise<Dispatch> {
     const kernel = this.requireKernel();
     const wallet = this.requireSigner();
-    const deadline = defaultDeadline();
+    const deadline = options?.deadline ?? defaultDeadline();
     const caps = await this.capabilities();
     const selective = caps.dispatchModel === "selective";
 
-    const nonce = await this.publicClient.readContract({
-      address: kernel,
-      abi: SailKernelAbi,
-      functionName: "managerNonces",
-      args: [safe],
-    });
+    const nonce = await this.resolveNonce(kernel, safe, options);
 
     const dataHash = keccak256(call.data);
 
@@ -410,7 +521,10 @@ class DispatchNamespace extends KernelNamespace implements IDispatchNamespace {
       message,
     );
 
-    // Conjunctive kernels take no `permission` arg and use a different ABI.
+    // Pass an explicit gas limit so viem skips eth_estimateGas (see
+    // DEFAULT_DISPATCH_GAS). Conjunctive kernels take no `permission` arg and use
+    // a different ABI.
+    const gas = options?.gas ?? DEFAULT_DISPATCH_GAS;
     let txHash: Hex;
     try {
       txHash = selective
@@ -419,22 +533,30 @@ class DispatchNamespace extends KernelNamespace implements IDispatchNamespace {
             abi: SailKernelAbi,
             functionName: "dispatch",
             args: [safe, permission, call.target, call.value, call.data, managerSig, deadline],
+            gas,
           })
         : await wallet.writeContract({
             address: kernel,
             abi: CONJUNCTIVE_DISPATCH_ABI,
             functionName: "dispatch",
             args: [safe, call.target, call.value, call.data, managerSig, deadline],
+            gas,
           });
     } catch (err) {
       throw await enrichKernelRevert(err);
     }
 
-    const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash });
+    const receipt = await this.awaitReceipt(txHash);
+    const success = receipt.status === "success";
+    // Record the next expected nonce only on success: a reverted dispatch reverts
+    // the whole tx, so the kernel does NOT bump managerNonces.
+    if (success) {
+      this.nextNonce.set(this.nonceKey(kernel, safe), nonce + 1n);
+    }
     return {
       txHash,
       calls: [call],
-      success: receipt.status === "success",
+      success,
       gasUsed: receipt.gasUsed,
     };
   }
@@ -532,6 +654,93 @@ class DispatchNamespace extends KernelNamespace implements IDispatchNamespace {
   }
 }
 
+class StrategyNamespace extends KernelNamespace implements IStrategyNamespace {
+  constructor(
+    publicClient: PublicClient,
+    config: SailorClientConfig,
+    private readonly dispatch: DispatchNamespace,
+    walletClient?: Signer,
+  ) {
+    super(publicClient, config, walletClient);
+  }
+
+  /**
+   * Execute a delegated token swap via LiFi. Fetches an executable quote, tops up
+   * the router allowance only when it's below `amount` (approving `approveAmount`
+   * — default `amount` — so DCA loops can batch a larger approve and skip it on
+   * subsequent buys), then dispatches the swap. Both legs go through
+   * `dispatch.single`, so the manager nonce is orchestrated across them
+   * automatically. Kernel reverts are surfaced via the decoded-revert path.
+   */
+  async swap(safe: Address, params: SwapParams, manager: ILocalKeyring): Promise<SwapResult> {
+    const recipient = params.recipient ?? safe;
+    const slippage = params.slippage ?? DEFAULT_SLIPPAGE;
+    const router = params.router ?? LIFI_ROUTERS[this.config.chainId];
+    if (!router) {
+      throw new Error(
+        `No LiFi router known for chain ${this.config.chainId}. Pass params.router explicitly.`,
+      );
+    }
+
+    // Selective kernels validate the named permission; conjunctive kernels ignore
+    // it (they check every registered permission). Fail loudly if a selective
+    // kernel is missing the permission rather than signing an unusable dispatch.
+    const caps = await this.capabilities();
+    const swapPermission = params.swapPermission ?? router;
+    const approvePermission = params.approvePermission ?? params.swapPermission ?? router;
+    if (caps.dispatchModel === "selective" && !params.swapPermission) {
+      throw new Error(
+        "This kernel uses the selective dispatch model — params.swapPermission is " +
+          "required (the permission that authorizes the swap).",
+      );
+    }
+
+    const quote = await fetchLifiQuote({
+      chainId: this.config.chainId,
+      fromToken: params.from,
+      toToken: params.to,
+      fromAmount: params.amount,
+      fromAddress: safe,
+      toAddress: recipient,
+      slippage,
+    });
+
+    // Top up the router allowance only when it's short of the trade size.
+    const allowance = await this.publicClient.readContract({
+      address: params.from,
+      abi: ERC20_ALLOWANCE_ABI,
+      functionName: "allowance",
+      args: [safe, router],
+    });
+
+    let approve: Dispatch | undefined;
+    if (allowance < params.amount) {
+      const approveAmount = params.approveAmount ?? params.amount;
+      approve = await this.dispatch.single(
+        safe,
+        approvePermission,
+        { target: params.from, value: 0n, data: encodeApprove(router, approveAmount) },
+        manager,
+      );
+    }
+
+    const swap = await this.dispatch.single(
+      safe,
+      swapPermission,
+      { target: quote.target, value: quote.value, data: quote.data },
+      manager,
+    );
+
+    return {
+      swap,
+      approve,
+      router,
+      estimatedToAmount: quote.toAmount,
+      tool: quote.tool,
+    };
+  }
+}
+
 class SessionNamespace extends KernelNamespace implements ISessionNamespace {
   revoke(_safe: Address, _signer: ILocalKeyring): Promise<void> {
     return notImplemented();
@@ -611,6 +820,7 @@ export class SailorClient implements ISailorClient {
   readonly account: IAccountNamespace;
   readonly mandate: IMandateNamespace;
   readonly dispatch: IDispatchNamespace;
+  readonly strategy: IStrategyNamespace;
   readonly session: ISessionNamespace;
   readonly fees: IFeesNamespace;
   readonly principal: IPrincipalNamespace;
@@ -626,7 +836,9 @@ export class SailorClient implements ISailorClient {
     this.publicClient = publicClient;
     this.account = new AccountNamespace(publicClient, config, walletClient);
     this.mandate = new MandateNamespace(publicClient, config, walletClient);
-    this.dispatch = new DispatchNamespace(publicClient, config, walletClient);
+    const dispatch = new DispatchNamespace(publicClient, config, walletClient);
+    this.dispatch = dispatch;
+    this.strategy = new StrategyNamespace(publicClient, config, dispatch, walletClient);
     this.session = new SessionNamespace(publicClient, config, walletClient);
     this.fees = new FeesNamespace(publicClient, config, walletClient);
     this.principal = new PrincipalNamespace(publicClient, config, walletClient);

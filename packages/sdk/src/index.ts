@@ -25,7 +25,13 @@ export {
   safeModuleEnablerAbi,
 } from "./safe.js";
 export { discoverSafesForOwner, getSafeTransactionServiceUrl } from "./discovery.js";
-export type { KnownTemplate, SailChainId, SailDeployment } from "./deployments.js";
+export type {
+  CloneTemplateInfo,
+  CloneTemplateParam,
+  KnownTemplate,
+  SailChainId,
+  SailDeployment,
+} from "./deployments.js";
 export {
   getSailDeployment,
   normalizeDeployment,
@@ -54,3 +60,11 @@ export {
   signRegisterPermission,
 } from "./eip712.js";
 export { estimatePermissionFee } from "./fees.js";
+export type { FetchLifiQuoteParams, LifiSwapQuote } from "./lifi.js";
+export {
+  DEFAULT_SLIPPAGE,
+  LIFI_QUOTE_URL,
+  LIFI_ROUTERS,
+  encodeApprove,
+  fetchLifiQuote,
+} from "./lifi.js";

@@ -68,6 +68,82 @@ export type TxResult = {
   txHash: Hex;
 };
 
+/**
+ * Optional controls for a single dispatch. All fields are optional; the defaults
+ * make back-to-back dispatches safe with no manual nonce tracking.
+ */
+export type DispatchOptions = {
+  /**
+   * Explicit manager nonce to sign with. When set, the SDK signs with exactly
+   * this value and performs no nonce polling — the caller owns nonce ordering.
+   */
+  nonce?: bigint;
+  /**
+   * Minimum on-chain `managerNonces` value to wait for before reading and
+   * signing. Use after a prior dispatch so a lagging RPC node in a load-balanced
+   * pool can catch up to the bumped nonce before the next dispatch is signed.
+   * Ignored when `nonce` is set. The SDK also tracks this automatically across
+   * sequential `dispatch.single` calls on the same account, so this is rarely
+   * needed explicitly.
+   */
+  awaitNonce?: bigint;
+  /**
+   * Explicit gas limit for the dispatch transaction. Passing one makes viem skip
+   * its `eth_estimateGas` pre-flight, which can be routed to a lagging node and
+   * fail with a stale-nonce `InvalidManagerSignature` even though the tx would
+   * mine fine. Defaults to a generous fixed limit when omitted.
+   */
+  gas?: bigint;
+  /** Signature deadline (unix seconds). Defaults to 5 minutes from now. */
+  deadline?: bigint;
+};
+
+/** Parameters for a delegated token swap via the integrated aggregator (LiFi). */
+export type SwapParams = {
+  /** Input token address. */
+  from: Address;
+  /** Output token address. */
+  to: Address;
+  /** Input amount, in `from`-token base units. */
+  amount: bigint;
+  /**
+   * Slippage tolerance as a fraction (0.03 = 3%). Defaults to 0.03 — LiFi's own
+   * 0.5% default reverts (`CumulativeSlippageTooHigh`) on small trades.
+   */
+  slippage?: number;
+  /**
+   * Permission that authorizes the swap dispatch. Required for selective kernels;
+   * ignored by conjunctive kernels (which check every registered permission).
+   */
+  swapPermission?: Address;
+  /** Permission authorizing the approve dispatch. Defaults to `swapPermission`. */
+  approvePermission?: Address;
+  /**
+   * Amount to approve to the router when the current allowance is below `amount`.
+   * Defaults to `amount`. Approving a larger batch collapses most subsequent buys
+   * to a single (swap-only) dispatch — useful for DCA loops.
+   */
+  approveAmount?: bigint;
+  /** Swap output recipient. Defaults to `safe` (the SMA itself). */
+  recipient?: Address;
+  /** Override the aggregator router address (defaults to the chain's LiFi diamond). */
+  router?: Address;
+};
+
+/** Outcome of a `client.strategy.swap` call. */
+export type SwapResult = {
+  /** The swap dispatch result. */
+  swap: Dispatch;
+  /** The approve dispatch, present only when the allowance was topped up. */
+  approve?: Dispatch;
+  /** Router/aggregator that executed the swap. */
+  router: Address;
+  /** Expected output amount in `to`-token base units, from the quote. */
+  estimatedToAmount: bigint;
+  /** Aggregator sub-route / tool that produced the quote. */
+  tool?: string;
+};
+
 /** Manager session state on a Safe. */
 export type Session = {
   safe: Address;
@@ -258,6 +334,7 @@ export interface IDispatchNamespace {
     permission: Address,
     call: Call,
     manager: ILocalKeyring,
+    options?: DispatchOptions,
   ): Promise<Dispatch>;
 
   /**
@@ -277,6 +354,16 @@ export interface IDispatchNamespace {
    * by an Alchemy simulation for state-diff output.
    */
   preview(safe: Address, permission: Address, calls: Call[]): Promise<PreviewResult>;
+}
+
+export interface IStrategyNamespace {
+  /**
+   * Execute a delegated token swap via the integrated aggregator (LiFi):
+   * fetches a quote, tops up the router allowance only when it's below `amount`,
+   * then dispatches the swap. Approve and swap go through `dispatch.single`, so
+   * the manager nonce is orchestrated automatically across the two calls.
+   */
+  swap(safe: Address, params: SwapParams, manager: ILocalKeyring): Promise<SwapResult>;
 }
 
 export interface ISessionNamespace {
@@ -326,6 +413,7 @@ export interface ISailorClient {
   account: IAccountNamespace;
   mandate: IMandateNamespace;
   dispatch: IDispatchNamespace;
+  strategy: IStrategyNamespace;
   session: ISessionNamespace;
   fees: IFeesNamespace;
   principal: IPrincipalNamespace;

@@ -13,6 +13,36 @@ export type KnownTemplate = {
   description?: string;
 };
 
+/** One `initialize()` parameter of a clone template, for wizard/tooling display. */
+export type CloneTemplateParam = {
+  name: string;
+  /** Solidity ABI type, e.g. "address[]", "uint256[]", "bytes4[]". */
+  type: string;
+  description?: string;
+};
+
+/**
+ * Rich, self-describing metadata for an EIP-1167 clone permission template — the
+ * wizard-/tooling-facing companion to the bare `standaloneTemplates` address map.
+ * `address` mirrors `standaloneTemplates[key]` (the clone LOGIC). A clone is created
+ * per account via `PermissionFactory.deployAndAttach(account, address, salt,
+ * initData)`, where `initData` ABI-encodes a call to `initialize(initParams…)`.
+ */
+export type CloneTemplateInfo = {
+  /** Matching key in `standaloneTemplates`. */
+  key: string;
+  /** Clone LOGIC address (mirrors `standaloneTemplates[key]`). */
+  address: Address;
+  /** IPermission.discriminator() contract name. */
+  kind: string;
+  label: string;
+  description?: string;
+  /** ABI of the clone's `initialize(...)`, in order — what a wizard collects. */
+  initParams: CloneTemplateParam[];
+  /** Path (within this repo) to the canonical reference source. */
+  sourceRef?: string;
+};
+
 /** Full on-chain deployment of the Sail Protocol on a given chain. */
 export type SailDeployment = {
   chainId: SailChainId;
@@ -43,6 +73,13 @@ export type SailDeployment = {
    * short name. These are the `impl` argument to PermissionFactory.deployAndAttach.
    */
   standaloneTemplates?: Record<string, Address>;
+  /**
+   * Self-describing metadata for selected `standaloneTemplates`, so a wizard can
+   * present and configure them (label, description, `initialize()` params) without
+   * authoring Solidity. Optional and incremental — not every standalone template
+   * has an entry here yet.
+   */
+  cloneTemplates?: CloneTemplateInfo[];
 };
 
 const zero = "0x0000000000000000000000000000000000000000" as Address;
@@ -109,6 +146,50 @@ export const sailDeployments: Record<SailChainId, SailDeployment> = {
         chainId: 8453,
         label: "Shared Transfer Target",
         description: "Allows transfers only to a pre-approved target address.",
+      },
+    ],
+    standaloneTemplates: {
+      // EIP-1167 clone LOGIC for LiFi DCA on Base mainnet — pass-through,
+      // initialize()-configured, registered per account via deployAndAttach.
+      // boundedLiFi: LifiDiamondSwapPermissionCloneable (swap bounded to the LiFi
+      //   diamond + selector allowlist + receiver==account + minAmount cap).
+      // boundedApprove: LifiBoundedApprovePermissionCloneable (approve only the LiFi
+      //   diamond, PER-TOKEN caps so mixed-decimal tokens like DAI/USDC are bounded).
+      boundedLiFi: "0xF1abcF774250fD1A8147B56DA07Bf9021064650A",
+      boundedApprove: "0x9c0b86daf9e75d759a5D165aD7366e52b3353fD8",
+    },
+    cloneTemplates: [
+      {
+        key: "boundedLiFi",
+        address: "0xF1abcF774250fD1A8147B56DA07Bf9021064650A",
+        kind: "LifiDiamondSwapPermissionCloneable",
+        label: "LiFi Swap (bounded)",
+        description:
+          "Restricts manager swaps to the official LiFi Diamond — selector allowlist, " +
+          "receiver must equal the account, and a cap on the minAmount field. Passes " +
+          "through non-LiFi calls (conjunctive model).",
+        initParams: [
+          { name: "allowedSelectors", type: "bytes4[]", description: "LiFi Diamond selectors to allowlist (e.g. 0x5fd9ae2e)." },
+          { name: "maxMinAmountPerTx", type: "uint256", description: "Cap on the minAmount field; type(uint256).max = uncapped." },
+          { name: "permissionSigner", type: "address", description: "Owner wallet; sole authority for post-init updates." },
+        ],
+        sourceRef: "templates/lifi-permissions/LifiDiamondSwapPermissionCloneable.sol",
+      },
+      {
+        key: "boundedApprove",
+        address: "0x9c0b86daf9e75d759a5D165aD7366e52b3353fD8",
+        kind: "LifiBoundedApprovePermissionCloneable",
+        label: "LiFi Approve (per-token cap)",
+        description:
+          "Approve only the LiFi Diamond, only on tokens with a configured cap, up to " +
+          "that cap. Per-token caps because token value/decimals differ (1 DAI = 1e18 vs " +
+          "1 USDC = 1e6). Passes through non-approve calls (conjunctive model).",
+        initParams: [
+          { name: "tokens", type: "address[]", description: "Tokens the manager may approve to the LiFi Diamond." },
+          { name: "caps", type: "uint256[]", description: "Per-token cap in base units; index-aligned with tokens." },
+          { name: "permissionSigner", type: "address", description: "Owner wallet; sole authority for post-init updates." },
+        ],
+        sourceRef: "templates/lifi-permissions/LifiBoundedApprovePermissionCloneable.sol",
       },
     ],
   },
