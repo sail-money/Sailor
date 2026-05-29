@@ -6,7 +6,7 @@ import express from 'express'
 import { SailKernelAbi, getSailDeployment } from '@sail/sdk'
 import { createPublicClient, formatEther, getAddress, http, isAddress } from 'viem'
 
-const PORT = 3334
+const PORT = Number(process.env.PORT ?? 3334)
 
 // ── Overview helpers ─────────────────────────────────────────────────────────
 
@@ -469,8 +469,16 @@ export function startServer(sailDir) {
     res.json(result)
   })
 
+  // When SERVE_DIST=1 (set by `sailor ui`), also serve the built UI so a
+  // single process handles everything — no Vite dev server needed.
+  if (process.env.SERVE_DIST === '1') {
+    const distDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'dist')
+    app.use(express.static(distDir))
+    app.get('*', (_req, res) => res.sendFile(path.join(distDir, 'index.html')))
+  }
+
   return app.listen(PORT, () => {
-    console.log(`Sailor data server on http://localhost:${PORT} (reading ${sailDir})`)
+    console.log(`Sailor UI running at http://localhost:${PORT} (reading ${sailDir})`)
   })
 }
 

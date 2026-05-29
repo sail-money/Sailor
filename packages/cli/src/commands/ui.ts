@@ -15,47 +15,51 @@ function findWorkspaceRoot(from: string): string {
 }
 
 /**
- * `sailor ui` — starts the local data server and the Vite dev server.
+ * `sailor ui` — builds (if needed) and serves the UI via the Express server.
  *
  * The Express server (packages/ui/server.js) reads project state from the
- * current working directory's `.sail/` folder and serves it on :3334.
- * Vite serves the UI on :3333 and proxies /api → :3334.
+ * current working directory's `.sail/` folder, serves the API on /api, and
+ * serves the built UI from packages/ui/dist on /.
  */
 export async function uiCommand(): Promise<void> {
   const packageDir = path.dirname(fileURLToPath(import.meta.url));
   const workspaceRoot = findWorkspaceRoot(packageDir);
   const uiDir = path.join(workspaceRoot, "packages", "ui");
   const sailDir = path.join(process.cwd(), ".sail");
+  const distDir = path.join(uiDir, "dist");
 
   if (!fs.existsSync(uiDir)) {
     throw new Error(`UI package not found at ${uiDir}`);
   }
 
-  const children: ChildProcess[] = [];
+  // Build the UI if dist is missing or stale (src newer than dist/index.html).
+  const distIndex = path.join(distDir, "index.html");
+  const needsBuild = !fs.existsSync(distIndex) || (() => {
+    try {
+      const distMtime = fs.statSync(distIndex).mtimeMs;
+      const srcMtime = fs.statSync(path.join(uiDir, "src")).mtimeMs;
+      return srcMtime > distMtime;
+    } catch { return true }
+  })();
 
-  // Local data server — reads the project's .sail/ directory.
-  children.push(
-    spawn("node", ["server.js"], {
-      cwd: uiDir,
-      stdio: "inherit",
-      env: { ...process.env, SAIL_DIR: sailDir },
-    }),
-  );
+  if (needsBuild) {
+    console.log("Building Sailor UI…");
+    await new Promise<void>((resolve, reject) => {
+      const build = spawn("npx", ["vite", "build"], { cwd: uiDir, stdio: "inherit" });
+      build.on("close", (code) => code === 0 ? resolve() : reject(new Error(`Build failed (exit ${code})`)));
+    });
+  }
 
-  // Vite dev server on port 3333 (proxies /api to the data server).
-  children.push(
-    spawn("npx", ["vite", "--port", "3333"], {
-      cwd: uiDir,
-      stdio: "inherit",
-    }),
-  );
+  // Single server: API + static UI on port 3333.
+  spawn("node", ["server.js"], {
+    cwd: uiDir,
+    stdio: "inherit",
+    env: { ...process.env, SAIL_DIR: sailDir, SERVE_DIST: "1", PORT: "3333" },
+  });
 
   console.log("Sailor UI running at http://localhost:3333");
 
-  const shutdown = () => {
-    for (const child of children) child.kill();
-    process.exit(0);
-  };
+  const shutdown = () => process.exit(0);
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 }
