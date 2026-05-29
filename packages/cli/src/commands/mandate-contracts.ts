@@ -25,11 +25,14 @@ import {
   type Hex,
   type PublicClient,
   createPublicClient,
+  createWalletClient,
   encodeDeployData,
+  encodeFunctionData,
   isAddress,
   publicActions,
 } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
+import { appendActivity, nowIso } from "../lib/io.js";
 import { type DeployedMandate, MandateStore } from "../lib/mandates.js";
 import { emit } from "../lib/output.js";
 import { ProjectContext, loadManagerSigner } from "../lib/project.js";
@@ -54,6 +57,48 @@ export interface AttachOptions {
   label?: string;
   json?: boolean;
 }
+
+export interface RevokeOptions {
+  address?: string;
+  sma: string;
+  all?: boolean;
+  json?: boolean;
+}
+
+// The deployed Base kernel (conjunctive v1) revokes via a batch call the owner
+// authorizes off-chain and the agent submits. These fragments aren't in the
+// SDK's SailKernelAbi (which targets the newer selective model), so we carry
+// the minimal old-kernel shapes here, matching the on-chain typehash.
+const REVOKE_PERMISSIONS_ABI = [
+  {
+    type: "function",
+    name: "revokePermissions",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "account", type: "address" },
+      { name: "permissions", type: "address[]" },
+      { name: "deadline", type: "uint256" },
+      { name: "sig", type: "bytes" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "signerNonces",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ type: "uint256" }],
+  },
+] as const;
+
+const REVOKE_PERMISSIONS_TYPES = {
+  RevokePermissions: [
+    { name: "account", type: "address" },
+    { name: "permissions", type: "address[]" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
 
 function requireProject(): ProjectContext {
   if (!ProjectContext.exists()) {
@@ -174,6 +219,19 @@ async function runDeploy(
   store.add(record);
   say(() => console.log("Tracked in .sail/state/mandates.json"));
 
+  // Owner-paid contract creation: the owner signed/paid for this deploy tx
+  // (the signing server logged the approval); here we record the confirmed
+  // outcome, enriched with the address the receipt revealed.
+  appendActivity({
+    ts: nowIso(),
+    actor: "owner",
+    type: "mandate_deployed",
+    name: record.name,
+    address: deployed,
+    txHash: response.txHash,
+    chainId,
+  });
+
   let attachTxHash: Hex | undefined;
   if (options.attach && options.sma) {
     attachTxHash = await attachToSma(
@@ -256,6 +314,160 @@ async function runAttach(
   emit(json, () => {}, {
     status: "ok",
     attached: { sma: options.sma, mandate: mandateAddress, txHash },
+  });
+}
+
+// ── revoke ───────────────────────────────────────────────────────────────────
+
+export async function mandateRevoke(options: RevokeOptions): Promise<void> {
+  const project = requireProject();
+  const channel = await createSigningChannel(process.cwd());
+  try {
+    await channel.start();
+    await runRevoke(project, channel, options);
+  } catch (err) {
+    fail(err, options.json);
+  } finally {
+    channel.stop();
+  }
+}
+
+/**
+ * Revoke one or more permissions from an SMA. The owner authorizes the removal
+ * with an EIP-712 RevokePermissions signature in the browser; the agent
+ * (manager) submits kernel.revokePermissions and pays gas. Each removed
+ * permission is recorded to the activity log so Recent Activity reflects it.
+ */
+async function runRevoke(
+  project: ProjectContext,
+  channel: SigningChannel,
+  options: RevokeOptions,
+): Promise<void> {
+  const json = !!options.json;
+  const say = (fn: () => void) => {
+    if (!json) fn();
+  };
+  if (!isAddress(options.sma)) throw new Error(`Invalid --sma address: ${options.sma}`);
+  if (!options.all && !options.address) {
+    throw new Error("Provide --address <permission> (or a tracked name), or --all");
+  }
+
+  const sma = options.sma as Address;
+  const kernel = project.contracts.kernel;
+  const publicClient = publicClientFor(project);
+
+  // Resolve which permissions to revoke against the kernel's live set.
+  const onchain = (await publicClient.readContract({
+    address: kernel,
+    abi: SailKernelAbi,
+    functionName: "getPermissions",
+    args: [sma],
+  })) as Address[];
+  if (onchain.length === 0) throw new Error(`No permissions registered on ${sma}.`);
+
+  const store = new MandateStore();
+  let targets: Address[];
+  if (options.all) {
+    targets = onchain;
+  } else {
+    const tracked = store.find(options.address as string);
+    const wanted = (tracked?.address ?? options.address) as string;
+    if (!isAddress(wanted)) {
+      throw new Error(`--address must be a permission address or a tracked name: ${options.address}`);
+    }
+    const match = onchain.find((p) => p.toLowerCase() === wanted.toLowerCase());
+    if (!match) {
+      throw new Error(`${wanted} is not in the SMA's current permission set; nothing to revoke.`);
+    }
+    targets = [match];
+  }
+
+  const nameFor = (addr: Address): string | undefined => store.find(addr)?.name;
+
+  const nonce = (await publicClient.readContract({
+    address: kernel,
+    abi: REVOKE_PERMISSIONS_ABI,
+    functionName: "signerNonces",
+    args: [sma],
+  })) as bigint;
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
+
+  say(() => {
+    console.log(`\nRevoking ${targets.length} permission(s) from ${sma}:`);
+    for (const p of targets) console.log(`  ${nameFor(p) ?? p}  ${p}`);
+    console.log(
+      `\n→ Signing station:\n  Open ${channel.url} in your browser and connect your Owner wallet\n`,
+    );
+  });
+
+  const response = await channel.requestSignature({
+    type: "typed-data",
+    kind: "revoke-permissions",
+    title: targets.length === 1 ? `Revoke "${nameFor(targets[0]) ?? targets[0]}"` : `Revoke ${targets.length} permissions`,
+    description:
+      "Authorize removing the listed permission(s) from your SMA. The agent submits the on-chain transaction.",
+    chainId: project.chainId,
+    details: [
+      { label: "SMA", value: sma },
+      ...targets.map((p, i) => ({ label: `[${i}] ${nameFor(p) ?? "permission"}`, value: p })),
+      { label: "Signer nonce", value: nonce.toString() },
+    ],
+    typedData: {
+      domain: { name: "SailKernel", version: "1", chainId: project.chainId, verifyingContract: kernel },
+      types: REVOKE_PERMISSIONS_TYPES as unknown as Record<string, { name: string; type: string }[]>,
+      primaryType: "RevokePermissions",
+      message: { account: sma, permissions: targets, nonce: nonce.toString(), deadline: deadline.toString() },
+    },
+  });
+
+  if (response.status === "rejected") {
+    throw new Error(`User rejected revocation: ${response.reason ?? "no reason given"}`);
+  }
+  if (response.status !== "signature") {
+    throw new Error(`Expected EIP-712 signature response, got: ${response.status}`);
+  }
+
+  const agentSigner = await loadManagerSigner();
+  const walletClient = createWalletClient({
+    account: agentSigner.viemAccount,
+    chain: getChainById(project.chainId),
+    transport: http(getRpcUrl(project.chainId)),
+  });
+
+  say(() => console.log("Submitting kernel.revokePermissions (agent pays gas)…"));
+  const txHash = await walletClient.writeContract({
+    address: kernel,
+    abi: REVOKE_PERMISSIONS_ABI,
+    functionName: "revokePermissions",
+    args: [sma, targets, deadline, response.signature],
+  });
+
+  say(() => console.log("Waiting for confirmation…"));
+  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+  if (receipt.status !== "success") {
+    throw new Error(`revokePermissions reverted (tx ${txHash})`);
+  }
+  say(() => console.log("✓", `Revoked ${targets.length} permission(s) — tx ${txHash}`));
+
+  // The agent (manager) submitted and paid; the owner's authorization signature
+  // was logged separately by the signing server (revoke-permissions → owner_signed).
+  for (const permission of targets) {
+    appendActivity({
+      ts: nowIso(),
+      actor: "agent",
+      type: "permission_revoked",
+      permission,
+      name: nameFor(permission),
+      sma,
+      txHash,
+      chainId: project.chainId,
+    });
+  }
+
+  emit(json, () => {}, {
+    status: "ok",
+    revoked: targets,
+    txHash,
   });
 }
 

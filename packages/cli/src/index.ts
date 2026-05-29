@@ -7,9 +7,11 @@ import { keysGenerate, keysShow } from "./commands/keys.js";
 import {
   type AttachOptions,
   type DeployOptions,
+  type RevokeOptions,
   mandateAttach,
   mandateContractsList,
   mandateDeploy,
+  mandateRevoke,
   mandateTemplates,
 } from "./commands/mandate-contracts.js";
 import { mandatePrepare, mandateSign } from "./commands/mandate.js";
@@ -119,6 +121,14 @@ mandate
   .option("--label <label>", "Human-readable label shown in the signing UI")
   .option("--json", "Emit machine-readable JSON")
   .action(actionWith<AttachOptions>(mandateAttach));
+mandate
+  .command("revoke")
+  .description("Revoke permission(s) from a Safe (EIP-712 RevokePermissions, owner-authorized)")
+  .option("--address <permissionOrName>", "Permission address, or a name tracked locally")
+  .requiredOption("--sma <address>", "Safe (SMA) to revoke the permission(s) from")
+  .option("--all", "Revoke every permission currently registered on the SMA")
+  .option("--json", "Output JSON")
+  .action(actionWith<RevokeOptions>(mandateRevoke));
 mandate
   .command("templates")
   .description("List pre-deployed mandate templates available on this chain")

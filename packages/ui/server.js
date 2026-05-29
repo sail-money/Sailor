@@ -128,6 +128,26 @@ export function startServer(sailDir) {
     }
   })
 
+  // POST /api/activity — append one event to the unified log. Used by the
+  // browser for owner-submitted actions (e.g. a wallet-signed mandate revoke)
+  // so they show up in Recent Activity alongside CLI- and agent-written events.
+  // Local-first, single user: we trust the caller and only require a `type`.
+  app.post('/api/activity', (req, res) => {
+    const ev = req.body
+    if (!ev || typeof ev !== 'object' || typeof ev.type !== 'string') {
+      res.status(400).json({ error: 'event with a string "type" is required' })
+      return
+    }
+    const event = { ...ev, ts: ev.ts ?? new Date().toISOString(), actor: ev.actor ?? 'owner' }
+    try {
+      fs.mkdirSync(sailDir, { recursive: true })
+      fs.appendFileSync(at('activity.jsonl'), `${JSON.stringify(event)}\n`)
+      res.json({ ok: true, event })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  })
+
   // GET /api/mandate — the signed mandate, or null if not signed yet.
   app.get('/api/mandate', (_req, res) => {
     try {

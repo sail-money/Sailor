@@ -4541,3 +4541,78 @@
   transition: background 0.16s ease;
 }
 .notifFootBtn:hover { background: rgba(25, 144, 255, 0.16); }
+
+/* ── Recent-activity actor filter + actor badge ──────────────────────────── */
+.activityFilter {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+}
+.activityFilterBtn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.16s var(--ease-apple, ease), color 0.16s ease;
+}
+.activityFilterBtn:hover { color: var(--text-primary); }
+.activityFilterBtnActive,
+.activityFilterBtnActive:hover {
+  background: var(--glass-bg-strong);
+  color: var(--text-primary);
+  box-shadow: var(--glass-inset);
+}
+
+/* Actor tag preceding the action label in each row. */
+.activityActor {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 5px;
+  margin-right: 7px;
+  border: 1px solid transparent;
+  vertical-align: middle;
+}
+.activityActor_owner {
+  color: var(--status-success, #1f9d55);
+  background: var(--status-success-bg, rgba(31, 157, 85, 0.12));
+  border-color: var(--status-success-border, rgba(31, 157, 85, 0.28));
+}
+.activityActor_agent {
+  color: var(--accent-blue, #1990ff);
+  background: rgba(25, 144, 255, 0.1);
+  border-color: rgba(25, 144, 255, 0.26);
+}
+
+/* Revoke action on an attached-mandate row. */
+.mandateRowRevoke {
+  appearance: none;
+  flex-shrink: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--status-revoked, #e5484d);
+  background: var(--status-revoked-bg, rgba(229, 72, 77, 0.1));
+  border: 1px solid var(--status-revoked-border, rgba(229, 72, 77, 0.26));
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+.mandateRowRevoke:hover {
+  background: rgba(229, 72, 77, 0.18);
+  border-color: rgba(229, 72, 77, 0.4);
+}

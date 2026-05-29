@@ -36,7 +36,7 @@ import {
   publicActions,
 } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
-import { checksum, prompt, sailPath, writeJsonFile } from "../lib/io.js";
+import { appendActivity, checksum, nowIso, prompt, sailPath, writeJsonFile } from "../lib/io.js";
 import { keyExists } from "../lib/keys.js";
 import { emit } from "../lib/output.js";
 import { ProjectContext, loadManagerSigner } from "../lib/project.js";
@@ -409,6 +409,16 @@ async function createSma(
 
   const safeAddress = registered.args.account;
   say(() => console.log("✓", `Safe created at ${safeAddress}`));
+  appendActivity({
+    ts: nowIso(),
+    actor: "owner",
+    type: "sma_created",
+    sma: safeAddress,
+    owner: ownerAddress,
+    manager: agentAddress,
+    txHash: response.txHash,
+    chainId: project.chainId,
+  });
   return { sma: safeAddress, owner: ownerAddress };
 }
 
@@ -508,6 +518,19 @@ export async function attachMandate(
   }
 
   say(() => console.log("✓", `Mandate "${template.label}" registered`));
+  // The agent (manager) submits and pays for this on-chain registration; the
+  // owner's off-chain authorization signature was logged separately by the
+  // signing server (register-permission → owner_signed).
+  appendActivity({
+    ts: nowIso(),
+    actor: "agent",
+    type: "permission_registered",
+    permission: templateAddress,
+    name: template.label,
+    sma: smaAddress,
+    txHash,
+    chainId: project.chainId,
+  });
   return txHash;
 }
 

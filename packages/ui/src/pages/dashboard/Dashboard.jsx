@@ -13,6 +13,7 @@ import agentStyles from './SharedLayout.module.css'
 import AIHandoffModal from './AIHandoffModal'
 import ProfileModal from './ProfileModal'
 import CreateSMAModal from './CreateSMAModal'
+import RevokeMandateModal from './RevokeMandateModal'
 import {
   useSailorAccount,
   useSailorActivity,
@@ -144,6 +145,7 @@ const SIGNING_CHAIN_NAMES = {
 }
 
 const ACTIVITY_LABELS = {
+  // Delegated signer (agent) — from `sailor run`
   dispatch_executed: 'executed dispatch',
   dispatch_approved: 'approved dispatch',
   dispatch_denied: 'denied dispatch',
@@ -151,12 +153,64 @@ const ACTIVITY_LABELS = {
   tick_end: 'tick ended',
   error: 'error',
   log: 'log',
+  // Agent-submitted on-chain confirmations
+  permission_registered: 'registered permission',
+  permission_revoked: 'revoked permission',
+  // Owner — from the signing station + owner-paid txs
+  owner_signed: 'signed in wallet',
+  owner_rejected: 'rejected signing',
+  sma_created: 'created Safe (SMA)',
+  mandate_deployed: 'deployed mandate',
+  mandate_attached: 'attached mandate',
 }
 
+const SUCCESS_TYPES = new Set([
+  'dispatch_executed',
+  'dispatch_approved',
+  'owner_signed',
+  'sma_created',
+  'mandate_deployed',
+  'mandate_attached',
+  'permission_registered',
+])
+const REJECTED_TYPES = new Set([
+  'dispatch_denied',
+  'error',
+  'owner_rejected',
+  'permission_revoked',
+])
+
 function activityStatus(type) {
-  if (type === 'dispatch_executed' || type === 'dispatch_approved') return 'success'
-  if (type === 'dispatch_denied' || type === 'error') return 'rejected'
+  if (SUCCESS_TYPES.has(type)) return 'success'
+  if (REJECTED_TYPES.has(type)) return 'rejected'
   return 'info'
+}
+
+/** Normalize the actor for display; events written before the field default to agent. */
+function activityActor(e) {
+  return e.actor === 'owner' ? 'owner' : 'agent'
+}
+
+const ACTOR_LABEL = { owner: 'Owner', agent: 'Agent' }
+
+/**
+ * Secondary text for an activity row. Owner/lifecycle events carry richer
+ * fields (title, mandate name + address) than the agent's dispatch events,
+ * so we surface the most specific identifier available and fall back honestly.
+ */
+function activityDetail(e) {
+  if (e.type === 'owner_signed' || e.type === 'owner_rejected') {
+    return e.title ?? e.reason ?? e.kind ?? ''
+  }
+  if (e.type === 'sma_created') return truncateAddr(e.sma)
+  if (e.type === 'mandate_deployed' || e.type === 'mandate_attached') {
+    return e.name ?? truncateAddr(e.address ?? e.permission)
+  }
+  if (e.type === 'permission_registered' || e.type === 'permission_revoked') {
+    return e.name ?? truncateAddr(e.permission)
+  }
+  if (e.permission) return truncateAddr(e.permission)
+  return e.reason ?? e.msg ?? ''
 }
 
 // ── Overview helpers (active mandates + signer balances) ──────────────────────
@@ -187,11 +241,11 @@ const SIGNER_ROLE = {
  * Each row is one registered permission; the name comes from the local deploy
  * history when known, otherwise we show the address honestly rather than guess.
  */
-function AttachedMandatesPanel({ mandates, network, onchain }) {
+function AttachedMandatesPanel({ mandates, network, onchain, onRevoke }) {
   return (
     <div className={styles.mandateRows}>
       {mandates.map((m) => (
-        <MandateRow key={m.address} mandate={m} network={network} />
+        <MandateRow key={m.address} mandate={m} network={network} onRevoke={onRevoke} />
       ))}
       <div className={styles.mandateRowsFoot}>
         {onchain
@@ -202,7 +256,7 @@ function AttachedMandatesPanel({ mandates, network, onchain }) {
   )
 }
 
-function MandateRow({ mandate, network }) {
+function MandateRow({ mandate, network, onRevoke }) {
   const name = mandate.name ?? 'Unrecognized permission'
   return (
     <article className={`${styles.mandateRow} ${mandate.name ? '' : styles.mandateRowUnknown}`}>
@@ -213,6 +267,16 @@ function MandateRow({ mandate, network }) {
         <span className={styles.mandateRowName}>{name}</span>
         <span className={styles.mandateRowAddr}>{mandate.address}</span>
       </span>
+      {onRevoke && (
+        <button
+          type="button"
+          className={styles.mandateRowRevoke}
+          onClick={() => onRevoke(mandate)}
+          aria-label={`Revoke ${name}`}
+        >
+          Revoke
+        </button>
+      )}
       <a
         className={styles.mandateRowOpen}
         href={explorerUrl(network ?? mandate.network, mandate.address)}
@@ -429,53 +493,95 @@ function txUrl(network, hash) {
   return (TX_EXPLORER[network] ?? TX_EXPLORER.ethereum)(hash)
 }
 
-/** Live activity feed from .sail/activity.jsonl (newest first). */
+const ACTIVITY_FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'owner', label: 'Owner' },
+  { key: 'agent', label: 'Agent' },
+]
+
+/**
+ * Live activity feed from .sail/activity.jsonl (newest first), capturing both
+ * actors: the owner's signing-station decisions and the delegated signer's
+ * dispatches. A small segmented filter lets you isolate one actor — the two
+ * streams interleave on-chain but answer different questions ("what did I
+ * authorize?" vs "what is the agent doing?").
+ */
 function LiveActivityFeed({ events, network }) {
-  const rows = [...events].slice(-12).reverse()
+  const [filter, setFilter] = useState('all')
+  const filtered = filter === 'all' ? events : events.filter((e) => activityActor(e) === filter)
+  const rows = [...filtered].slice(-12).reverse()
+
   return (
-    <ul className={agentStyles.journalList}>
-      {rows.map((e, i) => {
-        const st = activityStatus(e.type)
-        const hasTx = e.txHash && e.txHash !== '0x'
-        return (
-          <li key={`${e.ts}-${i}`}>
-            <div className={agentStyles.journalRow}>
-              <span className={agentStyles.journalTime}>{fmtActivityTime(e.ts)}</span>
-              <span
-                className={`${agentStyles.journalMark} ${agentStyles[`jStatus_${st}`] ?? ''}`}
-                aria-hidden
-              >
-                {st === 'success' && <CheckSm />}
-                {st === 'rejected' && <CrossSm />}
-                {st === 'info' && <DotSm />}
-              </span>
-              <span className={agentStyles.journalBody}>
-                <span className={agentStyles.journalTitle}>
-                  <span className={agentStyles.journalAction}>
-                    {ACTIVITY_LABELS[e.type] ?? e.type}
+    <>
+      <div className={styles.activityFilter} role="tablist" aria-label="Filter activity by actor">
+        {ACTIVITY_FILTERS.map((f) => (
+          <button
+            key={f.key}
+            type="button"
+            role="tab"
+            aria-selected={filter === f.key}
+            className={`${styles.activityFilterBtn} ${filter === f.key ? styles.activityFilterBtnActive : ''}`}
+            onClick={() => setFilter(f.key)}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+      {rows.length === 0 ? (
+        <div className={styles.emptyAgents}>
+          <p className={styles.emptyAgentsBody}>No {filter === 'all' ? '' : `${filter} `}activity yet.</p>
+        </div>
+      ) : (
+        <ul className={agentStyles.journalList}>
+          {rows.map((e, i) => {
+            const st = activityStatus(e.type)
+            const actor = activityActor(e)
+            const hasTx = e.txHash && e.txHash !== '0x'
+            const detail = activityDetail(e)
+            return (
+              <li key={`${e.ts}-${i}`}>
+                <div className={agentStyles.journalRow}>
+                  <span className={agentStyles.journalTime}>{fmtActivityTime(e.ts)}</span>
+                  <span
+                    className={`${agentStyles.journalMark} ${agentStyles[`jStatus_${st}`] ?? ''}`}
+                    aria-hidden
+                  >
+                    {st === 'success' && <CheckSm />}
+                    {st === 'rejected' && <CrossSm />}
+                    {st === 'info' && <DotSm />}
                   </span>
-                </span>
-                <span className={agentStyles.journalMeta}>
-                  {e.permission ? truncateAddr(e.permission) : e.reason ?? e.msg ?? ''}
-                  {hasTx && (
-                    <>
-                      {' · '}
-                      <a
-                        href={txUrl(network ?? 'ethereum', e.txHash)}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {truncateAddr(e.txHash)}
-                      </a>
-                    </>
-                  )}
-                </span>
-              </span>
-            </div>
-          </li>
-        )
-      })}
-    </ul>
+                  <span className={agentStyles.journalBody}>
+                    <span className={agentStyles.journalTitle}>
+                      <span className={`${styles.activityActor} ${styles[`activityActor_${actor}`] ?? ''}`}>
+                        {ACTOR_LABEL[actor]}
+                      </span>
+                      <span className={agentStyles.journalAction}>
+                        {ACTIVITY_LABELS[e.type] ?? e.type}
+                      </span>
+                    </span>
+                    <span className={agentStyles.journalMeta}>
+                      {detail}
+                      {hasTx && (
+                        <>
+                          {detail ? ' · ' : ''}
+                          <a
+                            href={txUrl(network ?? 'ethereum', e.txHash)}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {truncateAddr(e.txHash)}
+                          </a>
+                        </>
+                      )}
+                    </span>
+                  </span>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </>
   )
 }
 
@@ -510,6 +616,7 @@ export default function Dashboard() {
   const [profileOpen, setProfileOpen] = useState(false)
   const [createSMAOpen, setCreateSMAOpen] = useState(false)
   const [handoff, setHandoff] = useState(null)
+  const [revokeTarget, setRevokeTarget] = useState(null)
   const [safeNames, setSafeNames] = useState({})
 
   // Local-first: the overview (read from .sail/ + confirmed on-chain) is the
@@ -783,6 +890,7 @@ export default function Dashboard() {
                     mandates={overviewMandates}
                     network={overview?.network ?? realNetwork}
                     onchain={overview?.onchain}
+                    onRevoke={overview?.kernel && overview?.sma?.address ? setRevokeTarget : undefined}
                   />
                 ) : hasLiveMandate ? (
                   <LiveMandateCard mandate={liveMandate} network={realNetwork} />
@@ -921,6 +1029,16 @@ export default function Dashboard() {
           }
           setCreateSMAOpen(false)
         }}
+      />
+
+      <RevokeMandateModal
+        open={revokeTarget != null}
+        mandate={revokeTarget}
+        sma={overview?.sma?.address}
+        kernel={overview?.kernel}
+        chainId={overview?.chainId}
+        onClose={() => setRevokeTarget(null)}
+        onRevoked={() => setRevokeTarget(null)}
       />
 
       {/* Contract preview modal retired — viewing the signed contract

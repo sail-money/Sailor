@@ -167,7 +167,7 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
 
   const log = (msg: string): void => {
     console.log(`[agent] ${msg}`);
-    appendActivity({ ts: nowIso(), type: "log", msg });
+    appendActivity({ ts: nowIso(), actor: "agent", type: "log", msg });
   };
 
   // Open data slot — seeded once from SAILOR_DATA (JSON file) if set, else {}.
@@ -189,7 +189,7 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
 
   // ── One tick: agent.tick → preview → execute → log ───────────────────────────
   async function runTick(): Promise<void> {
-    appendActivity({ ts: nowIso(), type: "tick_start" });
+    appendActivity({ ts: nowIso(), actor: "agent", type: "tick_start" });
 
     let blockNumber = 0n;
     try {
@@ -218,8 +218,8 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
     } catch (err) {
       const reason = (err as Error).message;
       console.error(`tick error: ${reason}`);
-      appendActivity({ ts: nowIso(), type: "error", reason });
-      appendActivity({ ts: nowIso(), type: "tick_end" });
+      appendActivity({ ts: nowIso(), actor: "agent", type: "error", reason });
+      appendActivity({ ts: nowIso(), actor: "agent", type: "tick_end" });
       return;
     }
 
@@ -239,12 +239,19 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
         const target = firstCall?.target ?? "0x";
         try {
           if (dispatch.calls.length === 0) {
-            appendActivity({ ts: nowIso(), type: "dispatch_denied", target, reason: "no calls" });
+            appendActivity({
+              ts: nowIso(),
+              actor: "agent",
+              type: "dispatch_denied",
+              target,
+              reason: "no calls",
+            });
             continue;
           }
           if (!permission) {
             appendActivity({
               ts: nowIso(),
+              actor: "agent",
               type: "dispatch_denied",
               target,
               reason: "no registered permission",
@@ -260,12 +267,25 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
           );
           if (!preview.approved) {
             const reason = preview.reason ?? "denied";
-            appendActivity({ ts: nowIso(), type: "dispatch_denied", permission, target, reason });
+            appendActivity({
+              ts: nowIso(),
+              actor: "agent",
+              type: "dispatch_denied",
+              permission,
+              target,
+              reason,
+            });
             console.log(`denied: ${reason}`);
             continue;
           }
 
-          appendActivity({ ts: nowIso(), type: "dispatch_approved", permission, target });
+          appendActivity({
+            ts: nowIso(),
+            actor: "agent",
+            type: "dispatch_approved",
+            permission,
+            target,
+          });
           const result =
             dispatch.calls.length > 1
               ? await execClient.dispatch.batch(accountAddr, permission, dispatch.calls, manager)
@@ -277,6 +297,7 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
                 );
           appendActivity({
             ts: nowIso(),
+            actor: "agent",
             type: "dispatch_executed",
             permission,
             target,
@@ -287,12 +308,12 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
           // One failed dispatch must not stop the loop.
           const reason = (err as Error).message;
           console.error(`dispatch error: ${reason}`);
-          appendActivity({ ts: nowIso(), type: "error", permission, target, reason });
+          appendActivity({ ts: nowIso(), actor: "agent", type: "error", permission, target, reason });
         }
       }
     }
 
-    appendActivity({ ts: nowIso(), type: "tick_end" });
+    appendActivity({ ts: nowIso(), actor: "agent", type: "tick_end" });
   }
 
   // ── Header ────────────────────────────────────────────────────────────────────
