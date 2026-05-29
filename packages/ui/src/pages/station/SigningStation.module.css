@@ -478,3 +478,75 @@
   padding: 1px 6px;
   border-radius: 5px;
 }
+
+/* ── Empty queue card (matches Signing page style) ── */
+.emptyCard {
+  align-self: center;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 560px;
+  padding: 40px 44px 28px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.018) 60%, rgba(255,255,255,0.01) 100%),
+    rgba(8, 14, 28, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 28px;
+  backdrop-filter: blur(40px) saturate(160%);
+  -webkit-backdrop-filter: blur(40px) saturate(160%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 28px 90px -28px rgba(0, 0, 0, 0.75),
+    0 2px 12px rgba(0, 0, 0, 0.25);
+  animation: rise 480ms var(--ease-out-expo) both;
+}
+@keyframes rise {
+  0%   { opacity: 0; transform: translateY(14px) scale(0.985); filter: blur(6px); }
+  100% { opacity: 1; transform: translateY(0)    scale(1);     filter: blur(0); }
+}
+.emptyCardSai {
+  align-self: center;
+  margin: -4px 0 18px;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.emptyCardHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: center;
+  align-items: center;
+  padding-bottom: 6px;
+}
+.emptyKicker {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(25, 144, 255, 0.78);
+}
+.emptyHeadline {
+  font-size: 30px;
+  line-height: 1.1;
+  letter-spacing: -0.028em;
+  color: var(--text-primary);
+  margin: 0;
+}
+.emptyTagline {
+  margin-top: 6px;
+  font-size: 15px;
+  color: var(--ocean-light);
+  text-align: center;
+  letter-spacing: -0.005em;
+}
+.emptyCta {
+  display: flex;
+  flex-direction: column;
+  margin: 26px 0 18px;
+}
+.emptyCta > * { width: 100%; max-width: 360px; align-self: center; }

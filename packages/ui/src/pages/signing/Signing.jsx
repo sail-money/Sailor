@@ -32,7 +32,43 @@ import { useSailorMandateDraft } from '../../hooks/useSailorData'
  */
 export default function Signing() {
   const { draft } = useSailorMandateDraft()
-  return draft ? <MandateSigningFlow draft={draft} /> : <OnboardingFlow />
+  const { isConnected } = useAccount()
+
+  if (draft) return <MandateSigningFlow draft={draft} />
+  if (isConnected) return <NoPendingFlow />
+  return <OnboardingFlow />
+}
+
+function NoPendingFlow() {
+  return (
+    <div className={styles.shell}>
+      <FluidBackground />
+      <HeaderBar state="welcome" />
+      <main className={styles.stage}>
+        <div className={styles.stageInner}>
+          <GlassCard className={styles.welcomeCard}>
+            <div className={styles.cardSai} aria-hidden>
+              <Sai size={64} animate />
+            </div>
+            <header className={styles.cardHeader}>
+              <span className={styles.kicker}>SIGNING STATION</span>
+              <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
+                No pending signatures.
+              </h1>
+              <p className={`${shared.italicMannerism} ${styles.cardTagline}`}>
+                Run <code style={{ fontSize: 13, opacity: 0.8 }}>sailor mandate prepare</code> to queue a mandate for signing.
+              </p>
+            </header>
+            <div className={styles.welcomeCta}>
+              <SailButton fullWidth onClick={() => { window.location.hash = '#/dashboard' }}>
+                Go to dashboard
+              </SailButton>
+            </div>
+          </GlassCard>
+        </div>
+      </main>
+    </div>
+  )
 }
 
 function OnboardingFlow() {

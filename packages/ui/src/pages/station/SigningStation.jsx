@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAccount, useChains, useDisconnect, useSendTransaction, useSignTypedData, useSwitchChain } from 'wagmi'
-import { FluidBackground } from '../shared'
+import { FluidBackground, GlassCard, Sai, SailButton } from '../shared'
 import PageHeader from '../shared/PageHeader'
 import ChainIcon from '../shared/ChainIcon'
 import ProfileModal from '../dashboard/ProfileModal'
+import AIHandoffModal from '../dashboard/AIHandoffModal'
 import styles from './SigningStation.module.css'
+import shared from '../shared/shared.module.css'
 import { useSailorAccount } from '../../hooks/useSailorData'
 
 const SIGNING_SERVER_BASE_PORT = 3141
@@ -101,6 +103,7 @@ export default function SigningStation() {
   const [requests, setRequests] = useState([])
   const [phase, setPhase] = useState({ phase: 'idle' })
   const [profileOpen, setProfileOpen] = useState(false)
+  const [aiOpen, setAiOpen] = useState(false)
 
   const wsRef = useRef(null)
   const sendRef = useRef(null)
@@ -166,7 +169,7 @@ export default function SigningStation() {
       <main className={styles.main}>
 
         {requests.length === 0 ? (
-          <EmptyQueue daemonConnected={daemonStatus === 'connected'} />
+          <EmptyQueue daemonConnected={daemonStatus === 'connected'} onAsk={() => setAiOpen(true)} />
         ) : (
           <Orchestrator requests={requests} chains={chains} phase={phase} setPhase={setPhase} sendRef={sendRef} />
         )}
@@ -183,6 +186,13 @@ export default function SigningStation() {
         onCreateSMA={() => { setProfileOpen(false); window.location.hash = '#/dashboard' }}
         onRenameSafe={() => {}}
         onSelectSafe={() => {}}
+      />
+
+      <AIHandoffModal
+        open={aiOpen}
+        variant="new"
+        context="station"
+        onClose={() => setAiOpen(false)}
       />
     </div>
   )
@@ -290,21 +300,28 @@ function DetailRow({ label, value, mono = true }) {
   )
 }
 
-function EmptyQueue({ daemonConnected }) {
+function EmptyQueue({ daemonConnected, onAsk }) {
   return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
-      padding: '72px 32px', gap: 14, borderRadius: 20,
-      background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.08)',
-    }}>
-      <h2 style={{ fontFamily: 'system-ui, sans-serif', fontSize: 18, fontWeight: 600, color: '#ffffff', margin: 0 }}>
-        No signatures pending
-      </h2>
-      <p style={{ fontFamily: 'system-ui, sans-serif', fontSize: 14, color: 'rgba(255,255,255,0.55)', margin: 0, lineHeight: 1.6 }}>
-        {daemonConnected
-          ? 'The agent will push approval requests here as it works.'
-          : <>Run <code style={{ fontFamily: 'monospace', fontSize: 12, background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: 4, color: 'rgba(255,255,255,0.8)', whiteSpace: 'nowrap' }}>sailor station start</code> to connect — this page will reconnect automatically.</>}
-      </p>
-    </div>
+    <GlassCard className={styles.emptyCard}>
+      <div className={styles.emptyCardSai} aria-hidden>
+        <Sai size={64} animate />
+      </div>
+      <header className={styles.emptyCardHeader}>
+        <span className={styles.emptyKicker}>SIGNING STATION</span>
+        <h1 className={`${shared.displayHeadline} ${styles.emptyHeadline}`}>
+          No signatures pending.
+        </h1>
+        <p className={`${shared.italicMannerism} ${styles.emptyTagline}`}>
+          {daemonConnected
+            ? 'The agent will push approval requests here as it works.'
+            : <>Run <code style={{ fontSize: 13, opacity: 0.8 }}>sailor station start</code> to connect — this page will reconnect automatically.</>}
+        </p>
+      </header>
+      <div className={styles.emptyCta}>
+        <SailButton fullWidth onClick={onAsk}>
+          Ask AI how to get started
+        </SailButton>
+      </div>
+    </GlassCard>
   )
 }
