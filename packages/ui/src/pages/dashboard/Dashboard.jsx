@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ConnectButton, useConnectModal } from '@rainbow-me/rainbowkit'
 import { useAccount, useDisconnect } from 'wagmi'
 import {
@@ -18,6 +18,7 @@ import {
   useSailorActivity,
   useSailorAgentStatus,
   useSailorMandate,
+  useSailorOverview,
   useSailorPending,
   useDiscoverSafe,
 } from '../../hooks/useSailorData'
@@ -121,6 +122,27 @@ function fmtActivityTime(ts) {
   }
 }
 
+// Human labels for the signing-request kinds the agent pushes to the station.
+// Mirrors the station's own KIND_LABELS so the bell dropdown and the station
+// read the same way.
+const SIGNING_KIND_LABELS = {
+  'create-sma': 'Create Safe (SMA)',
+  'deploy-mandate': 'Deploy mandate',
+  'register-permission': 'Register permission',
+  'attach-mandate': 'Attach mandate',
+  'set-delegate': 'Set agent as manager',
+  'arbitrary-tx': 'Arbitrary transaction',
+}
+
+const SIGNING_CHAIN_NAMES = {
+  1: 'Ethereum',
+  10: 'Optimism',
+  137: 'Polygon',
+  8453: 'Base',
+  42161: 'Arbitrum One',
+  84532: 'Base Sepolia',
+}
+
 const ACTIVITY_LABELS = {
   dispatch_executed: 'executed dispatch',
   dispatch_approved: 'approved dispatch',
@@ -135,6 +157,176 @@ function activityStatus(type) {
   if (type === 'dispatch_executed' || type === 'dispatch_approved') return 'success'
   if (type === 'dispatch_denied' || type === 'error') return 'rejected'
   return 'info'
+}
+
+// ── Overview helpers (active mandates + signer balances) ──────────────────────
+
+/** Compact native-balance formatting: keep small balances legible. */
+function fmtEth(eth) {
+  const n = Number(eth ?? 0)
+  if (!Number.isFinite(n)) return '—'
+  if (n === 0) return '0'
+  if (n < 0.0001) return n.toFixed(6)
+  return n.toFixed(n < 1 ? 5 : 4)
+}
+
+const BALANCE_STATUS = {
+  ok: { label: 'Funded' },
+  low: { label: 'Low' },
+  critical: { label: 'Empty' },
+}
+
+const SIGNER_ROLE = {
+  manager: { label: 'Delegated signer', sub: 'Pays gas for every dispatch — keep it funded.' },
+  owner: { label: 'Owner', sub: 'Holds the Safe and signs mandates.' },
+  permissionSigner: { label: 'Permission signer', sub: 'Authorizes which mandates apply.' },
+}
+
+/**
+ * The mandates (IPermission contracts) currently attached to the SMA on-chain.
+ * Each row is one registered permission; the name comes from the local deploy
+ * history when known, otherwise we show the address honestly rather than guess.
+ */
+function AttachedMandatesPanel({ mandates, network, onchain }) {
+  return (
+    <div className={styles.mandateRows}>
+      {mandates.map((m) => (
+        <MandateRow key={m.address} mandate={m} network={network} />
+      ))}
+      <div className={styles.mandateRowsFoot}>
+        {onchain
+          ? `Reflecting the kernel's live permission set${network ? ` on ${network}` : ''}.`
+          : 'Last known set — on-chain confirmation unavailable.'}
+      </div>
+    </div>
+  )
+}
+
+function MandateRow({ mandate, network }) {
+  const name = mandate.name ?? 'Unrecognized permission'
+  return (
+    <article className={`${styles.mandateRow} ${mandate.name ? '' : styles.mandateRowUnknown}`}>
+      <span className={styles.mandateRowIcon} aria-hidden>
+        {mandate.name ? <CheckMark /> : <DocGlyph />}
+      </span>
+      <span className={styles.mandateRowBody}>
+        <span className={styles.mandateRowName}>{name}</span>
+        <span className={styles.mandateRowAddr}>{mandate.address}</span>
+      </span>
+      <a
+        className={styles.mandateRowOpen}
+        href={explorerUrl(network ?? mandate.network, mandate.address)}
+        target="_blank"
+        rel="noreferrer"
+        aria-label="Open permission contract on block explorer"
+      >
+        <ArrowOutIcon />
+      </a>
+    </article>
+  )
+}
+
+/** Delegated-signer balances with top-up status. */
+function SignersPanel({ overview, sma }) {
+  const signers = overview?.signers ?? []
+  if (signers.length === 0) {
+    return (
+      <div className={styles.signersOffline}>
+        {overview?.onchainError
+          ? `Balances unavailable — ${overview.onchainError}`
+          : 'Connect an RPC to read signer balances.'}
+      </div>
+    )
+  }
+  return (
+    <div className={styles.signerGrid}>
+      {signers.map((s) => (
+        <SignerCard key={s.address} signer={s} network={overview.network} />
+      ))}
+      {sma && overview?.sma?.balanceEth != null && (
+        <SignerCard
+          signer={{
+            role: 'sma',
+            address: overview.sma.address,
+            balanceEth: overview.sma.balanceEth,
+            // The Safe holds funds/tokens, not gas — never flag it for top-up.
+            status: 'vault',
+          }}
+          network={overview.network}
+        />
+      )}
+    </div>
+  )
+}
+
+function SignerCard({ signer, network }) {
+  const [copied, setCopied] = useState(false)
+  const role = signer.role === 'sma'
+    ? { label: 'SMA (Safe)', sub: 'Holds your funds. Native ETH shown; tokens not counted.' }
+    : (SIGNER_ROLE[signer.role] ?? { label: signer.role, sub: '' })
+  const bal = signer.role === 'sma' ? null : (BALANCE_STATUS[signer.status] ?? BALANCE_STATUS.ok)
+  const needsTopUp = signer.status === 'low' || signer.status === 'critical'
+
+  function copy() {
+    if (navigator?.clipboard?.writeText) navigator.clipboard.writeText(signer.address)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1400)
+  }
+
+  return (
+    <article
+      className={`${styles.signerCard} ${needsTopUp ? styles.signerCardWarn : ''} ${
+        signer.status === 'critical' ? styles.signerCardCrit : ''
+      }`}
+    >
+      <header className={styles.signerCardHead}>
+        <span className={styles.signerRole}>{role.label}</span>
+        {bal && (
+          <span className={`${styles.balancePill} ${styles[`balancePill_${signer.status}`] ?? ''}`}>
+            <span className={styles.balancePillDot} aria-hidden />
+            {bal.label}
+          </span>
+        )}
+      </header>
+
+      <div className={styles.signerBalance}>
+        <span className={styles.signerBalanceNum}>{fmtEth(signer.balanceEth)}</span>
+        <span className={styles.signerBalanceUnit}>ETH</span>
+      </div>
+      <p className={styles.signerSub}>{role.sub}</p>
+
+      <footer className={styles.signerFoot}>
+        <button
+          type="button"
+          className={styles.signerAddrPill}
+          onClick={copy}
+          title={signer.address}
+          aria-label="Copy signer address"
+        >
+          <span className={styles.signerAddrMono}>{truncateAddr(signer.address)}</span>
+          <span className={styles.signerAddrIcon} aria-hidden>
+            {copied ? <CheckSm /> : <CopyGlyph />}
+          </span>
+        </button>
+        <a
+          className={styles.signerAddrOpen}
+          href={explorerUrl(network, signer.address)}
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Open on block explorer"
+        >
+          <ArrowOutIcon />
+        </a>
+      </footer>
+
+      {needsTopUp && (
+        <div className={styles.signerTopUp}>
+          {signer.status === 'critical' ? 'Out of gas — ' : 'Running low — '}
+          send ETH to this address to top up.
+        </div>
+      )}
+    </article>
+  )
 }
 
 /** Live mandate card built from .sail/mandate.json (replaces the mock summary cards). */
@@ -292,6 +484,7 @@ export default function Dashboard() {
   const { disconnect } = useDisconnect()
   const { openConnectModal } = useConnectModal()
   const { account: realAccount, loading: accountLoading } = useSailorAccount()
+  const { overview } = useSailorOverview()
   const { mandate: liveMandate } = useSailorMandate()
   const { events: liveActivity } = useSailorActivity()
   const { running: agentRunning, pid: agentPid } = useSailorAgentStatus()
@@ -313,13 +506,29 @@ export default function Dashboard() {
   }, [discovered])
   const [copiedAddr, setCopiedAddr] = useState(false)
   const [stopping, setStopping] = useState(false)
+  const [notifOpen, setNotifOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [createSMAOpen, setCreateSMAOpen] = useState(false)
   const [handoff, setHandoff] = useState(null)
   const [safeNames, setSafeNames] = useState({})
 
-  const effectiveAccount = realAccount ?? justCreatedAccount
+  // Local-first: the overview (read from .sail/ + confirmed on-chain) is the
+  // primary source, so the SMA renders without a browser wallet connected. The
+  // wallet is only needed for actions that actually sign. Fall back to the
+  // legacy /api/account and the just-created/imported account for the setup
+  // flow before an SMA exists.
+  const overviewAccount = overview?.sma?.address
+    ? {
+        safe: overview.sma.address,
+        owner: overview.sma.owner,
+        permissionSigner: overview.sma.permissionSigner,
+        manager: overview.sma.manager,
+        chainId: overview.chainId,
+      }
+    : null
+  const effectiveAccount = overviewAccount ?? realAccount ?? justCreatedAccount
   const hasSMA = effectiveAccount != null
+  const overviewMandates = overview?.mandates ?? []
   const hasLiveMandate = liveMandate != null
   const liveMode = hasLiveMandate || agentRunning
 
@@ -385,17 +594,13 @@ export default function Dashboard() {
         </button>
 
         <div className={styles.topActionsPill}>
-          <button
-            type="button"
-            className={`${styles.notifBtn} ${pending.length > 0 ? styles.notifBtnLive : ''}`}
-            onClick={() => { window.location.hash = '#/station' }}
-            aria-label={pending.length > 0 ? `${pending.length} pending signatures` : 'Signing station'}
-          >
-            <BellIcon />
-            {pending.length > 0 && (
-              <span className={styles.notifBadge}>{pending.length}</span>
-            )}
-          </button>
+          <NotificationsBell
+            pending={pending}
+            open={notifOpen}
+            onToggle={() => setNotifOpen((o) => !o)}
+            onClose={() => setNotifOpen(false)}
+            onOpenStation={() => { setNotifOpen(false); window.location.hash = '#/station' }}
+          />
           <button
             type="button"
             className={styles.avatarBtn}
@@ -414,9 +619,12 @@ export default function Dashboard() {
       </header>
 
       <main className={agentStyles.main}>
-        {!isConnected ? (
+        {/* Local-first: if we know the SMA (from .sail/), show the monitoring
+            view straight away — no wallet connection required just to look.
+            The connect / scan / setup heroes only appear when no SMA exists. */}
+        {!hasSMA && !isConnected ? (
           <ConnectWalletHero />
-        ) : accountLoading || scanning ? (
+        ) : !hasSMA && (accountLoading || scanning) ? (
           <ScanningHero />
         ) : !hasSMA ? (
           <SetupHero
@@ -483,6 +691,28 @@ export default function Dashboard() {
                   SMA · created {sma?.createdAt ?? sma?.createdAgo ?? '—'}
                 </span>
               </div>
+
+              {overview?.sma && (
+                <div className={styles.smaBadges}>
+                  {overview.sma.registered && (
+                    <span className={styles.smaBadge}>
+                      <ShieldGlyphSm />
+                      Registered SMA
+                    </span>
+                  )}
+                  {overview.sma.registered != null && (
+                    <MandateStatus status={overview.sma.sessionActive ? 'active' : 'paused'} />
+                  )}
+                  {overview.network && (
+                    <span className={styles.smaBadge}>{overview.network}</span>
+                  )}
+                  {!overview.onchain && (
+                    <span className={`${styles.smaBadge} ${styles.smaBadgeWarn}`}>
+                      on-chain read unavailable
+                    </span>
+                  )}
+                </div>
+              )}
             </section>
 
             {/* ── Quick links ─────────────────────────────────────────
@@ -535,21 +765,52 @@ export default function Dashboard() {
                   Your mandates
                 </h2>
                 <span className={styles.mandatesSectionMeta}>
-                  {hasLiveMandate
-                    ? `${(liveMandate.permissions ?? []).length} permission${
-                        (liveMandate.permissions ?? []).length === 1 ? '' : 's'
-                      } · live`
-                    : 'No mandate yet'}
+                  {overviewMandates.length > 0
+                    ? `${overviewMandates.length} permission${
+                        overviewMandates.length === 1 ? '' : 's'
+                      }${overview?.onchain ? ' · attached on-chain' : ''}`
+                    : hasLiveMandate
+                      ? `${(liveMandate.permissions ?? []).length} permission${
+                          (liveMandate.permissions ?? []).length === 1 ? '' : 's'
+                        } · live`
+                      : 'No mandate yet'}
                 </span>
               </header>
 
               <div className={styles.mandateList}>
-                {hasLiveMandate ? (
+                {overviewMandates.length > 0 ? (
+                  <AttachedMandatesPanel
+                    mandates={overviewMandates}
+                    network={overview?.network ?? realNetwork}
+                    onchain={overview?.onchain}
+                  />
+                ) : hasLiveMandate ? (
                   <LiveMandateCard mandate={liveMandate} network={realNetwork} />
                 ) : (
                   <NewMandateTile onClick={() => setHandoff({ variant: 'new', context: 'mandate' })} />
                 )}
               </div>
+            </section>
+
+            {/* ── Delegated signers — gas balances ────────────────────
+                The manager (delegated signer) pays gas for every dispatch;
+                if it runs dry the agent stalls. This section surfaces each
+                signer's live native balance with a top-up status so you can
+                refill before that happens. Read-only: Sail never holds keys,
+                so "top up" means sending ETH to the shown address yourself. */}
+            <section className={styles.signersSection} aria-label="Delegated signers">
+              <header className={styles.mandatesSectionHead}>
+                <h2 className={styles.mandatesSectionTitle}>
+                  <KeyGlyph />
+                  Delegated signers
+                </h2>
+                <span className={styles.mandatesSectionMeta}>
+                  {overview?.onchain
+                    ? 'live balances · refill when low'
+                    : 'balances unavailable'}
+                </span>
+              </header>
+              <SignersPanel overview={overview} sma={sma} />
             </section>
 
             {/* ── Your agents — restored card grid ─────────────────
@@ -824,6 +1085,101 @@ function EmptyAgentsState({ onNew }) {
   )
 }
 
+/* ────────── Notifications bell + dropdown ──────────
+   The bell badges the count of signing requests the agent has pushed to the
+   running station daemon (via /api/station/pending). The dropdown gives a brief
+   read on each pending tx/signature without leaving the dashboard; "Open
+   signing station" jumps to #/station to actually approve. */
+function NotificationsBell({ pending, open, onToggle, onClose, onOpenStation }) {
+  const wrapRef = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onDocClick(e) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) onClose()
+    }
+    function onEsc(e) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('mousedown', onDocClick)
+    document.addEventListener('keydown', onEsc)
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+      document.removeEventListener('keydown', onEsc)
+    }
+  }, [open, onClose])
+
+  const count = pending.length
+
+  return (
+    <div className={styles.notifWrap} ref={wrapRef}>
+      <button
+        type="button"
+        className={`${styles.notifBtn} ${count > 0 ? styles.notifBtnLive : ''}`}
+        onClick={onToggle}
+        aria-label={count > 0 ? `${count} pending signatures` : 'Pending signatures'}
+        aria-expanded={open}
+      >
+        <BellIcon />
+        {count > 0 && <span className={styles.notifBadge}>{count}</span>}
+      </button>
+
+      {open && (
+        <div className={styles.notifPanel} role="menu">
+          <header className={styles.notifPanelHead}>
+            <span className={styles.notifPanelTitle}>Pending signatures</span>
+            <span className={styles.notifPanelCount}>
+              {count === 0 ? 'none' : `${count} waiting`}
+            </span>
+          </header>
+
+          {count === 0 ? (
+            <div className={styles.notifEmpty}>
+              <p className={styles.notifEmptyBody}>
+                Nothing to approve right now. When your agent needs a signature it
+                appears here — start it with <code>sailor station start</code>.
+              </p>
+            </div>
+          ) : (
+            <ul className={styles.notifList}>
+              {pending.map((req) => (
+                <li key={req.id}>
+                  <button
+                    type="button"
+                    className={styles.notifItem}
+                    onClick={onOpenStation}
+                  >
+                    <span className={styles.notifItemTop}>
+                      <span className={styles.notifItemKind}>
+                        {SIGNING_KIND_LABELS[req.kind] ?? req.kind}
+                      </span>
+                      <span className={styles.notifItemType}>
+                        {req.type === 'typed-data' ? 'signature' : 'transaction'}
+                      </span>
+                    </span>
+                    <span className={styles.notifItemTitle}>{req.title}</span>
+                    {req.description && (
+                      <span className={styles.notifItemDesc}>{req.description}</span>
+                    )}
+                    <span className={styles.notifItemMeta}>
+                      {SIGNING_CHAIN_NAMES[req.chainId] ?? `Chain ${req.chainId}`}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <button type="button" className={styles.notifFootBtn} onClick={onOpenStation}>
+            Open signing station
+            <ArrowRightSm />
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ────────── Icons ────────── */
 function BellIcon() {
   return (
@@ -941,6 +1297,14 @@ function ClockGlyph() {
     <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <circle cx="8" cy="8" r="5.5" />
       <path d="M8 5v3.2l2.1 1.5" />
+    </svg>
+  )
+}
+function KeyGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="5.5" cy="6" r="2.8" />
+      <path d="M7.7 7.8l4.3 4.3M10.4 10.5l1.2-1.2M12 12.1l1.2-1.2" />
     </svg>
   )
 }

@@ -55,6 +55,18 @@ export function useSailorAccount() {
   return { account: data, loading, error }
 }
 
+/**
+ * The consolidated, local-first overview from `/api/overview`: the SMA
+ * (confirmed on-chain), its currently-attached mandates, and the delegated
+ * signer + owner with their native ETH balances and top-up status. Polls every
+ * 15s — balances move slowly and each poll is several RPC reads. `null` until
+ * an SMA exists locally.
+ */
+export function useSailorOverview() {
+  const { data, loading, error } = usePolledJson('/api/overview', null, 15000)
+  return { overview: data, loading, error }
+}
+
 /** Decision-journal events from `.sail/activity.jsonl`, or []. */
 export function useSailorActivity() {
   const { data, loading, error } = usePolledJson('/api/activity', [])

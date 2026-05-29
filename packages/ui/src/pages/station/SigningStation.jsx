@@ -1,7 +1,13 @@
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAccount, useSendTransaction, useSignTypedData, useSwitchChain } from 'wagmi'
+import { FluidBackground, Sai } from '../shared'
+import shared from '../shared/shared.module.css'
 import styles from './SigningStation.module.css'
+
+function goToDashboard() {
+  window.location.hash = '#/dashboard'
+}
 
 /**
  * Signing Station — the browser side of the CLI ↔ UI signing handoff.
@@ -148,14 +154,43 @@ export default function SigningStation() {
   }, [status, walletAddress, isConnected])
 
   return (
-    <div className={styles.shell}>
+    <div className={`${shared.pageShell} ${styles.shell}`}>
+      <FluidBackground />
+
+      {/* Header mirrors the dashboard: brand mascot on the left (also the
+          home link), a connection-status chip, and the wallet button on the
+          right. A dedicated "Back to dashboard" button makes the round trip
+          obvious now that the station is a first-class page. */}
       <header className={styles.topbar}>
-        <div>
-          <p className={styles.eyebrow}>Signing Station</p>
-          <h1 className={styles.title}>Pending Signatures</h1>
+        <div className={styles.topbarLeft}>
+          <button
+            type="button"
+            className={styles.brand}
+            onClick={goToDashboard}
+            aria-label="Back to dashboard"
+          >
+            <Sai size={40} animate />
+          </button>
+          <button type="button" className={styles.backBtn} onClick={goToDashboard}>
+            <ArrowLeftIcon />
+            <span>Dashboard</span>
+          </button>
         </div>
-        <ConnectButton />
+
+        <div className={styles.topbarRight}>
+          <StatusChip status={status} count={requests.length} />
+          <ConnectButton showBalance={false} />
+        </div>
       </header>
+
+      <div className={styles.titleBlock}>
+        <p className={styles.eyebrow}>Signing Station</p>
+        <h1 className={`${shared.displayHeadline} ${styles.title}`}>Pending signatures</h1>
+        <p className={styles.subtitle}>
+          Review and approve what your agent is asking you to sign. Nothing is
+          signed without you.
+        </p>
+      </div>
 
       <div className={styles.stack}>
         {status !== 'connected' ? (
@@ -172,6 +207,30 @@ export default function SigningStation() {
         )}
       </div>
     </div>
+  )
+}
+
+/** Connection-status chip — mirrors the dashboard's pill vocabulary. */
+function StatusChip({ status, count }) {
+  const label =
+    status === 'connected'
+      ? count > 0
+        ? `${count} pending`
+        : 'Agent connected'
+      : status === 'checking'
+        ? 'Looking for agent…'
+        : 'Agent offline'
+  const cls =
+    status === 'connected'
+      ? count > 0
+        ? styles.chipLive
+        : styles.chipOk
+      : styles.chipIdle
+  return (
+    <span className={`${styles.statusChip} ${cls}`}>
+      <span className={styles.statusChipDot} aria-hidden />
+      {label}
+    </span>
   )
 }
 
@@ -268,7 +327,10 @@ function OperationCard({ request, phase, onSign, onReject }) {
         ))}
         <DetailRow label="Network" value={chainName(request.chainId)} mono={false} />
         {request.type === 'transaction' && request.to && (
-          <DetailRow label="Contract" value={request.to} />
+          <DetailRow
+            label={request.data && request.data !== '0x' ? 'Contract' : 'To'}
+            value={request.to}
+          />
         )}
         {request.type === 'transaction' && !request.to && (
           <DetailRow label="Action" value="Deploys a new contract" mono={false} />
@@ -355,22 +417,29 @@ function DetailRow({ label, value, mono = true }) {
 function WaitingState({ status }) {
   return (
     <div className={styles.empty}>
+      <span className={styles.emptyMascot} aria-hidden>
+        <Sai size={56} animate={status === 'checking'} />
+      </span>
       {status === 'checking' ? (
         <>
-          <h2>Looking for agent…</h2>
-          <p>
+          <h2 className={styles.emptyTitle}>Looking for agent…</h2>
+          <p className={styles.emptyBody}>
             Run <code>sailor onboard</code> or any command requiring your approval.
           </p>
         </>
       ) : (
         <>
-          <h2>Agent not running</h2>
-          <p>
+          <h2 className={styles.emptyTitle}>Agent not running</h2>
+          <p className={styles.emptyBody}>
             Start a <code>sailor</code> command in your terminal — this page reconnects
             automatically.
           </p>
         </>
       )}
+      <button type="button" className={styles.ghostBtn} onClick={goToDashboard}>
+        <ArrowLeftIcon />
+        Back to dashboard
+      </button>
     </div>
   )
 }
@@ -378,8 +447,25 @@ function WaitingState({ status }) {
 function EmptyQueue() {
   return (
     <div className={styles.empty}>
-      <h2>Agent is connected</h2>
-      <p>No approvals pending. The agent will push requests here as it builds your strategy.</p>
+      <span className={styles.emptyMascot} aria-hidden>
+        <Sai size={56} animate />
+      </span>
+      <h2 className={styles.emptyTitle}>Agent is connected</h2>
+      <p className={styles.emptyBody}>
+        No approvals pending. The agent will push requests here as it builds your strategy.
+      </p>
+      <button type="button" className={styles.ghostBtn} onClick={goToDashboard}>
+        <ArrowLeftIcon />
+        Back to dashboard
+      </button>
     </div>
+  )
+}
+
+function ArrowLeftIcon() {
+  return (
+    <svg viewBox="0 0 14 14" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M11 7H3M6 4 3 7l3 3" />
+    </svg>
   )
 }
