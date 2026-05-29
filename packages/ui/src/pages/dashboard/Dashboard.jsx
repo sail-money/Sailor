@@ -16,12 +16,14 @@ import CreateSMAModal from './CreateSMAModal'
 import RevokeMandateModal from './RevokeMandateModal'
 import {
   useSailorAccount,
+  useSailorAccounts,
   useSailorActivity,
   useSailorAgentStatus,
   useSailorMandate,
   useSailorOverview,
   useSailorPending,
   useDiscoverSafe,
+  switchSailorAccount,
 } from '../../hooks/useSailorData'
 
 /**
@@ -590,6 +592,7 @@ export default function Dashboard() {
   const { disconnect } = useDisconnect()
   const { openConnectModal } = useConnectModal()
   const { account: realAccount, loading: accountLoading } = useSailorAccount()
+  const { accounts: allAccounts } = useSailorAccounts()
   const { overview } = useSailorOverview()
   const { mandate: liveMandate } = useSailorMandate()
   const { events: liveActivity } = useSailorActivity()
@@ -652,7 +655,21 @@ export default function Dashboard() {
   const ownerAddr = effectiveAccount?.owner ?? wagmiAddress ?? null
 
   const smaName = safeNames['live-sma'] ?? sma?.name ?? 'My SMA'
-  const profileSafes = sma
+  const profileSafes = allAccounts.length > 0
+    ? allAccounts.map((a) => {
+        const net = CHAIN_NAMES[a.chainId] ?? 'ethereum'
+        const isCurrent = a.active ?? (a.safe?.toLowerCase() === effectiveAccount?.safe?.toLowerCase())
+        return {
+          id: a.safe,
+          name: isCurrent ? smaName : (a.name ?? 'My SMA'),
+          address: a.safe,
+          network: net,
+          networks: [net],
+          agentCount: isCurrent && agentRunning ? 1 : 0,
+          createdAt: a.addedAt ?? null,
+        }
+      })
+    : sma
     ? [{ ...sma, name: smaName, networks: [realNetwork], agentCount: agentRunning ? 1 : 0, createdAt: null }]
     : []
 
@@ -1005,7 +1022,7 @@ export default function Dashboard() {
         open={profileOpen}
         wallet={ownerAddr}
         safes={profileSafes}
-        currentSafeId="live-sma"
+        currentSafeId={effectiveAccount?.safe ?? 'live-sma'}
         hasSMA={hasSMA}
         onClose={() => setProfileOpen(false)}
         onDisconnect={() => {
@@ -1016,7 +1033,10 @@ export default function Dashboard() {
         }}
         onCreateSMA={() => { setProfileOpen(false); setCreateSMAOpen(true) }}
         onRenameSafe={(id, name) => setSafeNames((m) => ({ ...m, [id]: name }))}
-        onSelectSafe={() => {}}
+        onSelectSafe={async (sma) => {
+          try { await switchSailorAccount(sma.address) } catch { /* server not running */ }
+          setProfileOpen(false)
+        }}
       />
 
       <CreateSMAModal

@@ -99,9 +99,52 @@ export function startServer(sailDir) {
       return
     }
     try {
-      fs.mkdirSync(sailDir, { recursive: true })
-      fs.writeFileSync(at('account.json'), `${JSON.stringify({ safe, owner, permissionSigner: permissionSigner ?? owner, manager: manager ?? owner, chainId, createdAtBlock: createdAtBlock ?? '0' }, null, 2)}\n`)
+      fs.mkdirSync(at('state'), { recursive: true })
+      const record = { safe, owner, permissionSigner: permissionSigner ?? owner, manager: manager ?? owner, chainId, createdAtBlock: createdAtBlock ?? '0' }
+      fs.writeFileSync(at('account.json'), `${JSON.stringify(record, null, 2)}\n`)
+      // Append to accounts list if not already present
+      const accountsPath = at('state/accounts.json')
+      let accounts = []
+      try { accounts = JSON.parse(fs.readFileSync(accountsPath, 'utf-8')) } catch { /* first entry */ }
+      if (!accounts.find((a) => a.safe.toLowerCase() === safe.toLowerCase())) {
+        accounts.push({ ...record, name: `SMA ${accounts.length + 1}`, addedAt: new Date().toISOString() })
+        fs.writeFileSync(accountsPath, `${JSON.stringify(accounts, null, 2)}\n`)
+      }
       res.json({ ok: true })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  })
+
+  // GET /api/accounts — all known SMAs in order of creation.
+  app.get('/api/accounts', (_req, res) => {
+    try {
+      const accounts = JSON.parse(fs.readFileSync(at('state/accounts.json'), 'utf-8'))
+      // Annotate which one is currently active
+      let active = null
+      try { active = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8')).safe } catch { /* none */ }
+      res.json(accounts.map((a) => ({ ...a, active: a.safe.toLowerCase() === active?.toLowerCase() })))
+    } catch {
+      // Fall back to current account.json as a single-item list
+      try {
+        const a = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
+        res.json([{ ...a, name: 'My SMA', active: true, addedAt: null }])
+      } catch {
+        res.json([])
+      }
+    }
+  })
+
+  // POST /api/account/switch — make a known SMA the active one.
+  app.post('/api/account/switch', (req, res) => {
+    const { safe } = req.body ?? {}
+    if (!safe) { res.status(400).json({ error: 'safe is required' }); return }
+    try {
+      const accounts = JSON.parse(fs.readFileSync(at('state/accounts.json'), 'utf-8'))
+      const target = accounts.find((a) => a.safe.toLowerCase() === safe.toLowerCase())
+      if (!target) { res.status(404).json({ error: 'SMA not found in accounts list' }); return }
+      fs.writeFileSync(at('account.json'), `${JSON.stringify(target, null, 2)}\n`)
+      res.json({ ok: true, active: target })
     } catch (err) {
       res.status(500).json({ error: String(err) })
     }

@@ -55,6 +55,21 @@ export function useSailorAccount() {
   return { account: data, loading, error }
 }
 
+export function useSailorAccounts() {
+  const { data, loading, error } = usePolledJson('/api/accounts', [])
+  return { accounts: data ?? [], loading, error }
+}
+
+export async function switchSailorAccount(safe) {
+  const res = await fetch('/api/account/switch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ safe }),
+  })
+  if (!res.ok) throw new Error(`Switch failed (${res.status})`)
+  return res.json()
+}
+
 /**
  * The consolidated, local-first overview from `/api/overview`: the SMA
  * (confirmed on-chain), its currently-attached mandates, and the delegated
