@@ -13,6 +13,7 @@ import type {
 } from "@sail/sdk";
 import type { Address, Hex } from "viem";
 import { WebSocket, WebSocketServer } from "ws";
+import { appendActivity, nowIso } from "../lib/io.js";
 
 export const DEFAULT_SIGNING_PORT = 3141; // π — memorable, thematic
 const RUNTIME_SUBDIR = join(".sail", "runtime");
@@ -154,7 +155,10 @@ export class SigningServer {
   stop(): void {
     for (const [id, entry] of this.pending) {
       clearTimeout(entry.timer);
-      this.recordResult({ status: "rejected", requestId: id, reason: "Signing server stopped" });
+      this.recordResult(
+        { status: "rejected", requestId: id, reason: "Signing server stopped" },
+        entry.request,
+      );
     }
     this.pending.clear();
 
@@ -212,11 +216,14 @@ export class SigningServer {
     const timer = setTimeout(() => {
       if (this.pending.has(id)) {
         this.pending.delete(id);
-        this.recordResult({
-          status: "rejected",
-          requestId: id,
-          reason: `timed out after ${timeoutMs / 1000}s`,
-        });
+        this.recordResult(
+          {
+            status: "rejected",
+            requestId: id,
+            reason: `timed out after ${timeoutMs / 1000}s`,
+          },
+          request,
+        );
       }
     }, timeoutMs);
 
@@ -262,7 +269,7 @@ export class SigningServer {
     return result;
   }
 
-  private recordResult(response: SigningResponse): void {
+  private recordResult(response: SigningResponse, request?: SigningRequest): void {
     const id = response.requestId;
     this.results.set(id, response);
     const waiters = this.resultWaiters.get(id);
@@ -272,6 +279,42 @@ export class SigningServer {
     }
     this.broadcast({ type: "request-resolved", requestId: id });
     setTimeout(() => this.results.delete(id), 10 * 60 * 1000).unref?.();
+    this.logOwnerActivity(response, request);
+  }
+
+  /**
+   * Append the owner's signing decision to the unified activity log. This is
+   * the single place every owner action lands — whether the request was
+   * approved (a signed tx or an off-chain EIP-712 signature) or rejected — so
+   * the dashboard's Recent Activity can show what the owner did, alongside the
+   * agent's dispatches. We only log when the originating request is known
+   * (its `kind`/`title` give the event meaning); a bare result with no request
+   * carries nothing worth showing.
+   */
+  private logOwnerActivity(response: SigningResponse, request?: SigningRequest): void {
+    if (!request) return;
+    const base = {
+      ts: nowIso(),
+      actor: "owner" as const,
+      kind: request.kind,
+      title: request.title,
+      chainId: request.chainId,
+    };
+    let event: Record<string, unknown>;
+    if (response.status === "signed") {
+      event = { ...base, type: "owner_signed", txHash: response.txHash };
+    } else if (response.status === "signature") {
+      // Off-chain authorization (e.g. register-permission): no tx of its own;
+      // the agent submits the on-chain tx and logs that separately.
+      event = { ...base, type: "owner_signed", offchain: true };
+    } else {
+      event = { ...base, type: "owner_rejected", reason: response.reason };
+    }
+    try {
+      appendActivity(event, join(this.projectRoot, ".sail"));
+    } catch {
+      // Activity logging is best-effort — never let it break the signing flow.
+    }
   }
 
   private handleHttp(req: IncomingMessage, res: ServerResponse): void {
@@ -333,7 +376,7 @@ export class SigningServer {
           const parsed = JSON.parse(body) as
             | Omit<SigningTxRequest, "id" | "createdAt">
             | Omit<SigningTypedDataRequest, "id" | "createdAt">;
-          if (!parsed.kind || !["create-sma","deploy-mandate","register-permission","attach-mandate","set-delegate","arbitrary-tx"].includes(parsed.kind)) {
+          if (!parsed.kind || !["create-sma","deploy-mandate","register-permission","attach-mandate","revoke-permissions","set-delegate","arbitrary-tx"].includes(parsed.kind)) {
             throw new Error(`Unknown signing request kind: ${String(parsed.kind)}`);
           }
           const request = this.enqueue(parsed);
@@ -433,21 +476,27 @@ export class SigningServer {
 
     clearTimeout(entry.timer);
     this.pending.delete(msg.requestId);
+    const { request } = entry;
 
     if (msg.type === "signed") {
-      this.recordResult({ status: "signed", requestId: msg.requestId, txHash: msg.txHash as Hex });
+      this.recordResult(
+        { status: "signed", requestId: msg.requestId, txHash: msg.txHash as Hex },
+        request,
+      );
     } else if (msg.type === "signature") {
-      this.recordResult({
-        status: "signature",
-        requestId: msg.requestId,
-        signature: msg.signature as Hex,
-      });
+      this.recordResult(
+        { status: "signature", requestId: msg.requestId, signature: msg.signature as Hex },
+        request,
+      );
     } else {
-      this.recordResult({
-        status: "rejected",
-        requestId: msg.requestId,
-        reason: (msg as { reason?: string }).reason,
-      });
+      this.recordResult(
+        {
+          status: "rejected",
+          requestId: msg.requestId,
+          reason: (msg as { reason?: string }).reason,
+        },
+        request,
+      );
     }
   }
 

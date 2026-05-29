@@ -19,6 +19,7 @@ export type SigningRequestKind =
   | "deploy-mandate" // Deploy a new mandate (permission) contract — contract-creation tx, no `to`
   | "register-permission" // Authorize a mandate via EIP-712 (typed-data)
   | "attach-mandate" // Configure + authorize a shared template (typed-data)
+  | "revoke-permissions" // Authorize removing permission(s) via EIP-712 RevokePermissions (typed-data)
   | "set-delegate" // Rotate manager key (on-chain tx)
   | "arbitrary-tx"; // Arbitrary transaction — the agent can request the owner to sign any calldata (e.g. admin calls on custom permissions)
 

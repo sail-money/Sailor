@@ -40,9 +40,23 @@ export function nowIso(): string {
   return `${new Date().toISOString().slice(0, 19)}Z`;
 }
 
-/** Appends one JSON line to .sail/activity.jsonl, creating .sail/ if needed. */
-export function appendActivity(event: Record<string, unknown>): void {
-  const filePath = sailPath("activity.jsonl");
+/**
+ * Appends one JSON line to `activity.jsonl`, creating the `.sail/` dir if
+ * needed. The unified activity log holds events from both actors — the
+ * delegated signer/agent (`sailor run` dispatches) and the owner (signing-
+ * station approvals + mandate lifecycle). Every event SHOULD carry an `actor`
+ * field (`"owner"` | `"agent"`); readers treat a missing actor as `"agent"`
+ * for back-compat with logs written before the field existed.
+ *
+ * `baseSailDir` defaults to the current project's `.sail/`. The signing server
+ * passes its own `projectRoot/.sail` so owner events land in the right project
+ * even when it runs as a standalone daemon from a different cwd.
+ */
+export function appendActivity(
+  event: Record<string, unknown>,
+  baseSailDir: string = sailDir(),
+): void {
+  const filePath = path.join(baseSailDir, "activity.jsonl");
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.appendFileSync(filePath, `${JSON.stringify(event)}\n`);
 }

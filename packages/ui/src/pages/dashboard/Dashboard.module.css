@@ -4142,3 +4142,477 @@
   color: var(--accent-blue, #1990FF);
 }
 .mandateSummary:hover .mandateSummaryOpenHint { color: var(--ocean-light, #6ba3ff); }
+
+/* ────── SMA status badges (title block) ────── */
+.smaBadges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.smaBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--text-secondary);
+  text-transform: capitalize;
+}
+.smaBadge svg { color: var(--text-tertiary); }
+.smaBadgeWarn {
+  border-color: rgba(255, 184, 0, 0.4);
+  background: rgba(255, 184, 0, 0.08);
+  color: #ffce5a;
+  text-transform: none;
+}
+
+/* ────── Attached mandates (on-chain permission rows) ────── */
+.mandateRows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mandateRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+.mandateRow:hover { border-color: var(--glass-border-strong); }
+.mandateRowUnknown { opacity: 0.85; }
+.mandateRowIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: rgba(25, 144, 255, 0.14);
+  color: var(--ocean-light, #6ba3ff);
+}
+.mandateRowUnknown .mandateRowIcon {
+  background: var(--glass-bg);
+  color: var(--text-tertiary);
+}
+.mandateRowBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.mandateRowName {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.mandateRowAddr {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mandateRowOpen {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  transition: color 0.18s ease, border-color 0.18s ease;
+}
+.mandateRowOpen:hover { color: var(--ocean-light, #6ba3ff); border-color: var(--glass-border-strong); }
+.mandateRowsFoot {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* ────── Delegated signers ────── */
+.signersSection { margin-top: 28px; }
+.signerGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+.signersOffline {
+  padding: 18px;
+  border-radius: 14px;
+  border: 1px dashed var(--glass-border);
+  background: var(--glass-bg);
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+.signerCard {
+  display: flex;
+  flex-direction: column;
+  padding: 18px;
+  border-radius: 16px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  transition: border-color 0.18s ease;
+}
+.signerCard:hover { border-color: var(--glass-border-strong); }
+.signerCardWarn {
+  border-color: rgba(255, 184, 0, 0.42);
+  background: rgba(255, 184, 0, 0.06);
+}
+.signerCardCrit {
+  border-color: rgba(255, 86, 86, 0.5);
+  background: rgba(255, 86, 86, 0.07);
+}
+.signerCardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.signerRole {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--text-secondary);
+}
+.signerBalance {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.signerBalanceNum {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.signerBalanceUnit {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+.signerSub {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-tertiary);
+}
+.signerFoot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+.signerAddrPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color 0.18s ease;
+}
+.signerAddrPill:hover { border-color: var(--glass-border-strong); }
+.signerAddrMono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12px;
+}
+.signerAddrIcon { display: inline-flex; color: var(--text-tertiary); }
+.signerAddrOpen {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  transition: color 0.18s ease, border-color 0.18s ease;
+}
+.signerAddrOpen:hover { color: var(--ocean-light, #6ba3ff); border-color: var(--glass-border-strong); }
+.signerTopUp {
+  margin-top: 12px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: rgba(255, 184, 0, 0.1);
+  border: 1px solid rgba(255, 184, 0, 0.28);
+  font-size: 12px;
+  line-height: 1.4;
+  color: #ffce5a;
+}
+.signerCardCrit .signerTopUp {
+  background: rgba(255, 86, 86, 0.12);
+  border-color: rgba(255, 86, 86, 0.32);
+  color: #ff8f8f;
+}
+
+/* ────── Balance health pill ────── */
+.balancePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+}
+.balancePillDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
+.balancePill_ok {
+  color: #5fe0a0;
+  border-color: rgba(95, 224, 160, 0.32);
+  background: rgba(95, 224, 160, 0.08);
+}
+.balancePill_ok .balancePillDot { background: #5fe0a0; }
+.balancePill_low {
+  color: #ffce5a;
+  border-color: rgba(255, 184, 0, 0.36);
+  background: rgba(255, 184, 0, 0.08);
+}
+.balancePill_low .balancePillDot { background: #ffce5a; }
+.balancePill_critical {
+  color: #ff8f8f;
+  border-color: rgba(255, 86, 86, 0.4);
+  background: rgba(255, 86, 86, 0.1);
+}
+.balancePill_critical .balancePillDot { background: #ff6b6b; }
+
+/* ────── Notifications bell dropdown ────── */
+.notifWrap { position: relative; }
+.notifPanel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  border: 1px solid var(--glass-border-strong);
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur-strong);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5), var(--glass-inset);
+  overflow: hidden;
+  animation: notifPanelIn 160ms var(--ease-apple, ease);
+}
+@keyframes notifPanelIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.notifPanelHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--glass-border);
+}
+.notifPanelTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.notifPanelCount {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.notifEmpty { padding: 20px 16px; }
+.notifEmptyBody {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+.notifEmptyBody code {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--ocean-light, #6ba3ff);
+}
+.notifList {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  max-height: 360px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.notifItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  text-align: left;
+  padding: 11px 12px;
+  border-radius: 11px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+.notifItem:hover {
+  background: var(--glass-bg);
+  border-color: var(--glass-border);
+}
+.notifItemTop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.notifItemKind {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ocean-light, #6ba3ff);
+}
+.notifItemType {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+}
+.notifItemTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.notifItemDesc {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.notifItemMeta {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.notifFootBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px;
+  border: 0;
+  border-top: 1px solid var(--glass-border);
+  background: rgba(25, 144, 255, 0.08);
+  color: var(--ocean-light, #6ba3ff);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.16s ease;
+}
+.notifFootBtn:hover { background: rgba(25, 144, 255, 0.16); }
+
+/* ── Recent-activity actor filter + actor badge ──────────────────────────── */
+.activityFilter {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+}
+.activityFilterBtn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.16s var(--ease-apple, ease), color 0.16s ease;
+}
+.activityFilterBtn:hover { color: var(--text-primary); }
+.activityFilterBtnActive,
+.activityFilterBtnActive:hover {
+  background: var(--glass-bg-strong);
+  color: var(--text-primary);
+  box-shadow: var(--glass-inset);
+}
+
+/* Actor tag preceding the action label in each row. */
+.activityActor {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 5px;
+  margin-right: 7px;
+  border: 1px solid transparent;
+  vertical-align: middle;
+}
+.activityActor_owner {
+  color: var(--status-success, #1f9d55);
+  background: var(--status-success-bg, rgba(31, 157, 85, 0.12));
+  border-color: var(--status-success-border, rgba(31, 157, 85, 0.28));
+}
+.activityActor_agent {
+  color: var(--accent-blue, #1990ff);
+  background: rgba(25, 144, 255, 0.1);
+  border-color: rgba(25, 144, 255, 0.26);
+}
+
+/* Revoke action on an attached-mandate row. */
+.mandateRowRevoke {
+  appearance: none;
+  flex-shrink: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--status-revoked, #e5484d);
+  background: var(--status-revoked-bg, rgba(229, 72, 77, 0.1));
+  border: 1px solid var(--status-revoked-border, rgba(229, 72, 77, 0.26));
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+.mandateRowRevoke:hover {
+  background: rgba(229, 72, 77, 0.18);
+  border-color: rgba(229, 72, 77, 0.4);
+}

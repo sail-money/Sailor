@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { GlassCard, BrandMark, ConfirmDestructiveModal } from '../shared'
 import shared from '../shared/shared.module.css'
 import styles from './ContractModal.module.css'
-import { mockWallet, mockSafes, mockSafe } from './mockData'
+import { useAccount } from 'wagmi'
+import { useSailorAccount } from '../../hooks/useSailorData'
 import {
   getNetwork,
   getToken,
@@ -55,6 +56,11 @@ export default function ContractModal({
   // preview → signing → signed (sign mode)
   // preview → revoking → revoked (revoke mode)
   // signed (view mode, immediate)
+  const { address: mockWallet } = useAccount()
+  const { account } = useSailorAccount()
+  const mockSafe = account?.safe ?? null
+  const mockSafes = account ? [{ name: 'My SMA', address: account.safe }] : []
+
   const [phase, setPhase] = useState('preview')
   const [signedAt, setSignedAt] = useState(null)
   const [rejectOpen, setRejectOpen] = useState(false)

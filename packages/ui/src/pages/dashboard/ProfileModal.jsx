@@ -145,7 +145,7 @@ export default function ProfileModal({
           {visibleSafes.length > 0 ? (
             <ul className={styles.smaList}>
               {visibleSafes.map((sma) => {
-                const isCurrent = sma.id === currentSafeId
+                const isCurrent = sma.id?.toLowerCase() === currentSafeId?.toLowerCase()
                 const isEditing = sma.id === editingId
                 return (
                 <li key={sma.id} className={`${styles.smaCard} ${isCurrent ? styles.smaCardPrimary : ''}`}>

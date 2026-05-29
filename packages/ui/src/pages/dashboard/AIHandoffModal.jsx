@@ -67,10 +67,13 @@ export default function AIHandoffModal({ open, variant = 'new', context = 'agent
 
   const isRedraft = variant === 'redraft'
   const isMandate = context === 'mandate'
+  const isStation = context === 'station'
   const prompt = isRedraft && mandate
     ? `Sail, redraft my "${mandate.title}" agent. I want to change [describe the change].`
     : isMandate
     ? `Sail, create a mandate that lets my agent deposit up to $500 USDC into yield strategies on Arbitrum for 30 days.`
+    : isStation
+    ? `How do I get started with Sailor? I want to set up an agent, deploy a mandate, and start the signing station.`
     : `Sail, draft an agent to manage my USDC yield on Arbitrum — deposit up to $500 into the best pool and rebalance weekly.`
 
   // The mandate carries the provider that drafted it ("Claude" / "Cursor"
@@ -93,7 +96,7 @@ export default function AIHandoffModal({ open, variant = 'new', context = 'agent
         <button type="button" className={styles.close} onClick={onClose} aria-label="Close">×</button>
 
         <h2 className={`${shared.displayHeadline} ${styles.headline}`}>
-          {isRedraft ? 'Send this back to your AI.' : isMandate ? 'Mandates start with your AI.' : 'Agents start with your AI.'}
+          {isRedraft ? 'Send this back to your AI.' : isMandate ? 'Mandates start with your AI.' : isStation ? 'Get started with your AI.' : 'Agents start with your AI.'}
         </h2>
 
         <p className={`${shared.italicMannerism} ${styles.lede}`}>
@@ -101,6 +104,8 @@ export default function AIHandoffModal({ open, variant = 'new', context = 'agent
             ? 'Tell your AI what to change. It will redraft the agent and a new signature request will appear here.'
             : isMandate
             ? 'A mandate defines the permissions your agents operate under. Your AI drafts it — you sign each permission onchain.'
+            : isStation
+            ? 'Ask your AI to walk you through setting up Sailor — from keys and mandates to running your first agent.'
             : 'Your AI drafts the agent strategy. You review and authorize it here before it touches your funds.'}
         </p>
 

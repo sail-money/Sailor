@@ -55,6 +55,43 @@ export function useSailorAccount() {
   return { account: data, loading, error }
 }
 
+export function useSailorAccounts() {
+  const { data, loading, error } = usePolledJson('/api/accounts', [])
+  return { accounts: data ?? [], loading, error }
+}
+
+export async function switchSailorAccount(safe) {
+  const res = await fetch('/api/account/switch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ safe }),
+  })
+  if (!res.ok) throw new Error(`Switch failed (${res.status})`)
+  return res.json()
+}
+
+export async function renameSailorAccount(safe, name) {
+  const res = await fetch('/api/account/rename', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ safe, name }),
+  })
+  if (!res.ok) throw new Error(`Rename failed (${res.status})`)
+  return res.json()
+}
+
+/**
+ * The consolidated, local-first overview from `/api/overview`: the SMA
+ * (confirmed on-chain), its currently-attached mandates, and the delegated
+ * signer + owner with their native ETH balances and top-up status. Polls every
+ * 15s — balances move slowly and each poll is several RPC reads. `null` until
+ * an SMA exists locally.
+ */
+export function useSailorOverview() {
+  const { data, loading, error } = usePolledJson('/api/overview', null, 15000)
+  return { overview: data, loading, error }
+}
+
 /** Decision-journal events from `.sail/activity.jsonl`, or []. */
 export function useSailorActivity() {
   const { data, loading, error } = usePolledJson('/api/activity', [])
