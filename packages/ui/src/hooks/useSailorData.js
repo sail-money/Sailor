@@ -70,6 +70,16 @@ export async function switchSailorAccount(safe) {
   return res.json()
 }
 
+export async function renameSailorAccount(safe, name) {
+  const res = await fetch('/api/account/rename', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ safe, name }),
+  })
+  if (!res.ok) throw new Error(`Rename failed (${res.status})`)
+  return res.json()
+}
+
 /**
  * The consolidated, local-first overview from `/api/overview`: the SMA
  * (confirmed on-chain), its currently-attached mandates, and the delegated

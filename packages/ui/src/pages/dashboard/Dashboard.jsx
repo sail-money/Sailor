@@ -24,6 +24,7 @@ import {
   useSailorPending,
   useDiscoverSafe,
   switchSailorAccount,
+  renameSailorAccount,
 } from '../../hooks/useSailorData'
 
 /**
@@ -654,14 +655,16 @@ export default function Dashboard() {
 
   const ownerAddr = effectiveAccount?.owner ?? wagmiAddress ?? null
 
-  const smaName = safeNames['live-sma'] ?? sma?.name ?? 'My SMA'
+  const activeAccount = allAccounts.find((a) => a.active) ?? allAccounts[0] ?? null
+  const smaName = safeNames[activeAccount?.safe ?? 'live-sma'] ?? activeAccount?.name ?? sma?.name ?? 'My SMA'
+  const currentSafeId = activeAccount?.safe ?? effectiveAccount?.safe ?? 'live-sma'
   const profileSafes = allAccounts.length > 0
     ? allAccounts.map((a) => {
         const net = CHAIN_NAMES[a.chainId] ?? 'ethereum'
-        const isCurrent = a.active ?? (a.safe?.toLowerCase() === effectiveAccount?.safe?.toLowerCase())
+        const isCurrent = a.safe?.toLowerCase() === currentSafeId?.toLowerCase()
         return {
           id: a.safe,
-          name: isCurrent ? smaName : (a.name ?? 'My SMA'),
+          name: safeNames[a.safe] ?? a.name ?? 'My SMA',
           address: a.safe,
           network: net,
           networks: [net],
@@ -1022,7 +1025,7 @@ export default function Dashboard() {
         open={profileOpen}
         wallet={ownerAddr}
         safes={profileSafes}
-        currentSafeId={effectiveAccount?.safe ?? 'live-sma'}
+        currentSafeId={currentSafeId}
         hasSMA={hasSMA}
         onClose={() => setProfileOpen(false)}
         onDisconnect={() => {
@@ -1032,7 +1035,10 @@ export default function Dashboard() {
           disconnect()
         }}
         onCreateSMA={() => { setProfileOpen(false); setCreateSMAOpen(true) }}
-        onRenameSafe={(id, name) => setSafeNames((m) => ({ ...m, [id]: name }))}
+        onRenameSafe={(id, name) => {
+          setSafeNames((m) => ({ ...m, [id]: name }))
+          renameSailorAccount(id, name).catch(() => {})
+        }}
         onSelectSafe={async (sma) => {
           try { await switchSailorAccount(sma.address) } catch { /* server not running */ }
           setProfileOpen(false)

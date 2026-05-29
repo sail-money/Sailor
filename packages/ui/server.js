@@ -150,6 +150,23 @@ export function startServer(sailDir) {
     }
   })
 
+  // POST /api/account/rename — update the display name of a known SMA.
+  app.post('/api/account/rename', (req, res) => {
+    const { safe, name } = req.body ?? {}
+    if (!safe || !name) { res.status(400).json({ error: 'safe and name are required' }); return }
+    try {
+      const accountsPath = at('state/accounts.json')
+      const accounts = JSON.parse(fs.readFileSync(accountsPath, 'utf-8'))
+      const idx = accounts.findIndex((a) => a.safe.toLowerCase() === safe.toLowerCase())
+      if (idx === -1) { res.status(404).json({ error: 'SMA not found' }); return }
+      accounts[idx] = { ...accounts[idx], name }
+      fs.writeFileSync(accountsPath, `${JSON.stringify(accounts, null, 2)}\n`)
+      res.json({ ok: true })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  })
+
   // GET /api/activity — one JSON object per line; empty array if absent.
   app.get('/api/activity', (_req, res) => {
     try {
