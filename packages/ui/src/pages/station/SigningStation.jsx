@@ -3,6 +3,7 @@ import { useAccount, useChains, useDisconnect, useSendTransaction, useSignTypedD
 import { FluidBackground, GlassCard, Sai, SailButton } from '../shared'
 import PageHeader from '../shared/PageHeader'
 import ChainIcon from '../shared/ChainIcon'
+import NotConnectedCard from '../shared/NotConnectedCard'
 import ProfileModal from '../dashboard/ProfileModal'
 import AIHandoffModal from '../dashboard/AIHandoffModal'
 import styles from './SigningStation.module.css'
@@ -167,8 +168,11 @@ export default function SigningStation() {
       />
 
       <main className={styles.main}>
-
-        {requests.length === 0 ? (
+        {!isConnected ? (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, padding: '40px 0' }}>
+            <NotConnectedCard eyebrow="SIGNING STATION" title="Connect to approve requests." sub="Connect the owner wallet to review and sign pending agent requests." />
+          </div>
+        ) : requests.length === 0 ? (
           <EmptyQueue daemonConnected={daemonStatus === 'connected'} onAsk={() => setAiOpen(true)} />
         ) : (
           <Orchestrator requests={requests} chains={chains} phase={phase} setPhase={setPhase} sendRef={sendRef} />

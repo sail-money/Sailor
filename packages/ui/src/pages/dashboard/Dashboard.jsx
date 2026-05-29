@@ -12,6 +12,7 @@ import styles from './Dashboard.module.css'
 import agentStyles from './SharedLayout.module.css'
 import AIHandoffModal from './AIHandoffModal'
 import ProfileModal from './ProfileModal'
+import NotConnectedCard from '../shared/NotConnectedCard'
 import CreateSMAModal from './CreateSMAModal'
 import RevokeMandateModal from './RevokeMandateModal'
 import {
@@ -749,8 +750,10 @@ export default function Dashboard() {
         {/* Local-first: if we know the SMA (from .sail/), show the monitoring
             view straight away — no wallet connection required just to look.
             The connect / scan / setup heroes only appear when no SMA exists. */}
-        {!hasSMA && !isConnected ? (
-          <ConnectWalletHero />
+        {!isConnected ? (
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '40px 24px' }}>
+            <NotConnectedCard eyebrow="DASHBOARD" title="Connect to view your SMA." sub="Connect the owner wallet you used with sailor init to see your mandates and activity." />
+          </div>
         ) : !hasSMA && (accountLoading || scanning) ? (
           <ScanningHero />
         ) : !hasSMA ? (
