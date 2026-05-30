@@ -1,4 +1,4 @@
-name: Publish SDK
+name: Publish Sail CLI
 
 on:
   push:
@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
       - id: compute
         run: |
-          BASE=$(node -p "require('./sdk/package.json').version")
+          BASE=$(node -p "require('./packages/cli/package.json').version")
           SUFFIX=${{ github.event_name == 'workflow_dispatch' && 'dev' || 'main' }}
           echo "prerelease=${BASE}-${SUFFIX}.${{ github.run_number }}" >> $GITHUB_OUTPUT
           echo "dist_tag=${SUFFIX}" >> $GITHUB_OUTPUT
