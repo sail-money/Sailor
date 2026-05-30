@@ -1,16 +1,13 @@
-name: Publish Sail CLI
+name: Publish to GitHub Packages
 
 on:
   push:
     branches:
       - main
-    tags:
-      - 'v*'
   workflow_dispatch:
 
 jobs:
   version:
-    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
       prerelease: ${{ steps.compute.outputs.prerelease }}
@@ -19,12 +16,12 @@ jobs:
       - uses: actions/checkout@v4
       - id: compute
         run: |
-          BASE=$(node -p "require('./packages/cli/package.json').version")
+          BASE=$(node -p "require('./packages/sdk/package.json').version")
           SUFFIX=${{ github.event_name == 'workflow_dispatch' && 'dev' || 'main' }}
           echo "prerelease=${BASE}-${SUFFIX}.${{ github.run_number }}" >> $GITHUB_OUTPUT
           echo "dist_tag=${SUFFIX}" >> $GITHUB_OUTPUT
 
-  publish-sdk-github:
+  publish-sdk:
     needs: version
     permissions:
       id-token: write
@@ -32,20 +29,9 @@ jobs:
       packages: write
     uses: SailAgent/devops-templates/.github/workflows/publish-npm.yaml@SAIL-131-publishing-fw
     with:
-      package_dir: packages/cli
-      package_name: '@sailagent/cli'
+      package_dir: packages/sdk
+      package_name: '@sailagent/sdk'
       package_version: ${{ needs.version.outputs.prerelease }}
       dist_tag: ${{ needs.version.outputs.dist_tag }}
       use_github_registry: true
-    secrets: inherit
-
-  publish-sdk-npm:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    permissions:
-      id-token: write
-      contents: read
-    uses: SailAgent/devops-templates/.github/workflows/publish-npm.yaml@SAIL-131-publishing-fw
-    with:
-      package_dir: packages/cli
-      package_version: ${{ github.ref_name }}
     secrets: inherit

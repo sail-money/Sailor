@@ -1,0 +1,17 @@
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish-sdk:
+    permissions:
+      id-token: write
+      contents: read
+    uses: SailAgent/devops-templates/.github/workflows/publish-npm.yaml@SAIL-131-publishing-fw
+    with:
+      package_dir: packages/sdk
+      package_version: ${{ github.ref_name }}
+    secrets: inherit
