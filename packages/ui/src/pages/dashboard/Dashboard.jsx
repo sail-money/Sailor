@@ -677,7 +677,17 @@ export default function Dashboard() {
   const effectiveAccount = overviewAccount ?? realAccount ?? justCreatedAccount
   const hasSMA = effectiveAccount != null
   const overviewMandates = overview?.mandates ?? []
-  const hasLiveMandate = liveMandate != null
+  // The locally-signed mandate (.sail/mandate.json) is a single global file. In a
+  // multi-SMA project it would otherwise render against whatever SMA is active —
+  // showing a stale draft that belongs to a different account. Only treat it as
+  // "this SMA's mandate" when its safe matches the active account; a legacy entry
+  // with no safe is trusted only on single-SMA projects where it's unambiguous.
+  const activeSafe = (overviewAccount ?? realAccount)?.safe?.toLowerCase()
+  const hasLiveMandate =
+    liveMandate != null &&
+    (liveMandate.safe != null
+      ? liveMandate.safe.toLowerCase() === activeSafe
+      : allAccounts.length <= 1)
   const liveMode = hasLiveMandate || agentRunning
 
   const realNetwork = effectiveAccount ? (CHAIN_NAMES[effectiveAccount.chainId] ?? 'ethereum') : null

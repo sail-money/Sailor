@@ -21,6 +21,10 @@
     "./deployments": {
       "import": "./dist/deployments.js",
       "types": "./dist/deployments.d.ts"
+    },
+    "./abis": {
+      "import": "./dist/abis/index.js",
+      "types": "./dist/abis/index.d.ts"
     }
   },
   "scripts": {
