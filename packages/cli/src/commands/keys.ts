@@ -46,7 +46,7 @@ export async function keysGenerate(): Promise<void> {
  * address of each (after the password decrypts it). Private keys never print.
  */
 export async function keysShow(): Promise<void> {
-  const present = ROLES.filter(keyExists);
+  const present = ROLES.filter((role) => keyExists(role));
   if (present.length === 0) {
     console.log("No keys found in .sail/keys/.");
     console.log('Run "sailor keys generate" to create one.');

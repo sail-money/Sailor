@@ -105,7 +105,7 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
     throw new Error(`Invalid CHAIN_ID: "${chainIdRaw}".`);
   }
 
-  if (!keyExists("manager")) {
+  if (!keyExists("manager", account.safe)) {
     throw new Error(
       'No manager key found.\nRun "sailor keys generate" and choose "manager" first.',
     );
@@ -132,7 +132,7 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
   }
 
   // ── Load the manager key (password asked once, then release stdin) ───────────
-  const manager = await loadKeyring("manager");
+  const manager = await loadKeyring("manager", account.safe);
   closePrompts();
   const agentManager: ILocalKeyring = {
     address: manager.address,

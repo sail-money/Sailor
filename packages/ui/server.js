@@ -3,8 +3,9 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import cors from 'cors'
 import express from 'express'
-import { SailKernelAbi, getSailDeployment } from '@sail/sdk'
-import { createPublicClient, formatEther, getAddress, http, isAddress, zeroAddress } from 'viem'
+import { LocalKeyring, SailKernelAbi, getSailDeployment } from '@sail/sdk'
+import { createPublicClient, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
+import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
 
 const PORT = Number(process.env.PORT ?? 3334)
 
@@ -302,6 +303,80 @@ export function startServer(sailDir) {
     }
   })
 
+  // Per-SMA delegated-signer keystore path.
+  const managerKeyPath = (safe) => at(`keys/manager-${safe.toLowerCase()}.json`)
+
+  // POST /api/signer — create or import the delegated-signer (manager) key for
+  // the active SMA. Stored as a geth-v3 encrypted keystore (scrypt + aes-128-ctr,
+  // the same format `sailor run` loads) at .sail/keys/manager-<safe>.json.
+  //
+  // Security: the secret (private key / recovery phrase) and the password are
+  // used only to derive + encrypt the key, are NEVER logged, and are NEVER
+  // returned to the browser. The one exception is `method: "generate"`, which
+  // returns the freshly-minted private key exactly once so the user can back it
+  // up — after that it lives only inside the encrypted keystore.
+  app.post('/api/signer', async (req, res) => {
+    const { method, secret, password, derivationPath } = req.body ?? {}
+    if (typeof password !== 'string' || password.length < 8) {
+      res.status(400).json({ error: 'A password of at least 8 characters is required to encrypt the key.' })
+      return
+    }
+    const safe = readActiveSafe()
+    if (!safe) {
+      res.status(400).json({ error: 'No active SMA to attach a signer to.' })
+      return
+    }
+
+    // Resolve a raw private key from the chosen method.
+    let privateKey
+    let revealed = null
+    try {
+      if (method === 'generate') {
+        privateKey = generatePrivateKey()
+        revealed = privateKey // shown to the user once, for backup
+      } else if (method === 'privateKey') {
+        if (typeof secret !== 'string' || !secret.trim()) throw new Error('Enter a private key.')
+        const pk = secret.trim().startsWith('0x') ? secret.trim() : `0x${secret.trim()}`
+        privateKeyToAccount(pk) // throws on malformed key
+        privateKey = pk
+      } else if (method === 'mnemonic') {
+        const phrase = typeof secret === 'string' ? secret.trim().replace(/\s+/g, ' ') : ''
+        const words = phrase ? phrase.split(' ').length : 0
+        if (words !== 12 && words !== 24) throw new Error('Enter a 12- or 24-word recovery phrase.')
+        const acct = mnemonicToAccount(phrase, derivationPath ? { path: derivationPath } : undefined)
+        const pkBytes = acct.getHdKey().privateKey
+        if (!pkBytes) throw new Error('Could not derive a key from that phrase.')
+        privateKey = toHex(pkBytes)
+      } else {
+        throw new Error('Unknown method — expected generate, privateKey, or mnemonic.')
+      }
+    } catch (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : 'Invalid key material.' })
+      return
+    }
+
+    try {
+      const keyring = LocalKeyring.fromPrivateKey(privateKey)
+      const keystore = await keyring.exportKeystore(password)
+      fs.mkdirSync(at('keys'), { recursive: true })
+      fs.writeFileSync(managerKeyPath(safe), `${JSON.stringify(keystore, null, 2)}\n`)
+
+      // Record the creation (address only — never the secret) in the activity log.
+      try {
+        const ev = { ts: new Date().toISOString(), actor: 'owner', type: 'signer_created', method, address: keyring.address, safe }
+        fs.appendFileSync(at('activity.jsonl'), `${JSON.stringify(ev)}\n`)
+      } catch { /* non-fatal */ }
+
+      // Invalidate the cached overview so the new local signer shows immediately.
+      overviewCacheByAccount.delete(safe.toLowerCase())
+      try { fs.rmSync(overviewSnapshotPath(safe)) } catch { /* none */ }
+
+      res.json({ ok: true, address: keyring.address, revealed })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  })
+
   // GET /api/mandate — the signed mandate, or null if not signed yet.
   app.get('/api/mandate', (_req, res) => {
     try {
@@ -564,8 +639,25 @@ export function startServer(sailDir) {
         // address' balance, which is both meaningless and confusing.
         const managerSet = Boolean(manager) && getAddress(manager) !== zeroAddress
 
+        // A delegated-signer key created locally (via the dashboard's "add
+        // signer" flow or the CLI) for this SMA — surfaced even before it has
+        // been delegated on-chain, so the user sees the key they just made.
+        let localSigner = null
+        try {
+          const ks = JSON.parse(fs.readFileSync(managerKeyPath(safe), 'utf-8'))
+          if (ks?.address) localSigner = getAddress(`0x${String(ks.address).replace(/^0x/, '')}`)
+        } catch {
+          /* no local signer key for this SMA */
+        }
+
+        // Address to display as the manager: the on-chain delegate if set,
+        // otherwise the locally-created key (pending on-chain delegation).
+        const managerAddr = managerSet ? getAddress(manager) : localSigner
+
         // Balances for every distinct *real* signer address in one parallel batch.
-        const signerAddrs = [...new Set([managerSet ? manager : null, account.owner].filter(Boolean).map(getAddress))]
+        const signerAddrs = [
+          ...new Set([managerAddr, account.owner ? getAddress(account.owner) : null].filter(Boolean)),
+        ]
         const balances = await Promise.all(signerAddrs.map((a) => client.getBalance({ address: a })))
         const balanceByAddr = new Map(signerAddrs.map((a, i) => [a.toLowerCase(), balances[i]]))
 
@@ -584,12 +676,21 @@ export function startServer(sailDir) {
           network,
         }))
 
+        let managerEntry
+        if (managerSet) {
+          managerEntry = signerEntry('manager', managerAddr, balanceByAddr)
+        } else if (localSigner) {
+          // Key exists locally but isn't the kernel's delegate yet. Show its
+          // address/balance but mark it 'local' so the UI says "not delegated".
+          managerEntry = { ...signerEntry('manager', localSigner, balanceByAddr), status: 'local' }
+        } else {
+          managerEntry = { role: 'manager', address: null, balanceWei: null, balanceEth: null, status: 'unconfigured' }
+        }
+
         result.signers = [
-          managerSet
-            ? signerEntry('manager', getAddress(manager), balanceByAddr)
-            : { role: 'manager', address: null, balanceWei: null, balanceEth: null, status: 'unconfigured' },
+          managerEntry,
           // Owner is the permission signer here; only list it once.
-          ...(account.owner && (!managerSet || getAddress(account.owner) !== getAddress(manager))
+          ...(account.owner && (!managerAddr || getAddress(account.owner) !== managerAddr)
             ? [signerEntry('owner', getAddress(account.owner), balanceByAddr)]
             : []),
         ]

@@ -15,6 +15,7 @@ import ProfileModal from './ProfileModal'
 import NotConnectedCard from '../shared/NotConnectedCard'
 import CreateSMAModal from './CreateSMAModal'
 import RevokeMandateModal from './RevokeMandateModal'
+import AddSignerModal from './AddSignerModal'
 import {
   useSailorAccount,
   useSailorAccounts,
@@ -295,7 +296,7 @@ function MandateRow({ mandate, network, onRevoke }) {
 }
 
 /** Delegated-signer balances with top-up status. */
-function SignersPanel({ overview, sma }) {
+function SignersPanel({ overview, sma, onAddSigner }) {
   const signers = overview?.signers ?? []
   if (signers.length === 0) {
     return (
@@ -309,7 +310,7 @@ function SignersPanel({ overview, sma }) {
   return (
     <div className={styles.signerGrid}>
       {signers.map((s) => (
-        <SignerCard key={s.role} signer={s} network={overview.network} />
+        <SignerCard key={s.role} signer={s} network={overview.network} onAddSigner={onAddSigner} />
       ))}
       {sma && overview?.sma?.balanceEth != null && (
         <SignerCard
@@ -327,13 +328,16 @@ function SignersPanel({ overview, sma }) {
   )
 }
 
-function SignerCard({ signer, network }) {
+function SignerCard({ signer, network, onAddSigner }) {
   const [copied, setCopied] = useState(false)
   const role = signer.role === 'sma'
     ? { label: 'SMA (Safe)', sub: 'Holds your funds. Native ETH shown; tokens not counted.' }
     : (SIGNER_ROLE[signer.role] ?? { label: signer.role, sub: '' })
   const unconfigured = signer.status === 'unconfigured'
-  const bal = signer.role === 'sma' || unconfigured ? null : (BALANCE_STATUS[signer.status] ?? BALANCE_STATUS.ok)
+  const isLocal = signer.status === 'local'
+  const bal = signer.role === 'sma' || unconfigured || isLocal
+    ? null
+    : (BALANCE_STATUS[signer.status] ?? BALANCE_STATUS.ok)
   const needsTopUp = signer.status === 'low' || signer.status === 'critical'
 
   function copy() {
@@ -356,6 +360,12 @@ function SignerCard({ signer, network }) {
             {bal.label}
           </span>
         )}
+        {isLocal && (
+          <span className={styles.balancePill} style={{ color: 'var(--text-secondary)' }}>
+            <span className={styles.balancePillDot} aria-hidden style={{ background: 'var(--accent-blue)' }} />
+            Local
+          </span>
+        )}
       </header>
 
       <div className={styles.signerBalance}>
@@ -370,9 +380,17 @@ function SignerCard({ signer, network }) {
       </div>
       <p className={styles.signerSub}>
         {unconfigured
-          ? 'No delegated signer assigned yet — set one when you configure an agent.'
-          : role.sub}
+          ? 'No delegated signer assigned yet — create or import one to let your agent sign.'
+          : isLocal
+            ? 'Created locally — not yet delegated on-chain.'
+            : role.sub}
       </p>
+
+      {unconfigured && (
+        <SailButton fullWidth variant="secondary" onClick={onAddSigner}>
+          Add delegated signer
+        </SailButton>
+      )}
 
       {signer.address && (
         <footer className={styles.signerFoot}>
@@ -610,6 +628,7 @@ export default function Dashboard() {
   // instead of waiting for its next poll — the server serves the target SMA's
   // cached snapshot instantly, so the switch feels immediate.
   const [refreshTick, setRefreshTick] = useState(0)
+  const [addSignerOpen, setAddSignerOpen] = useState(false)
   const { account: realAccount, loading: accountLoading } = useSailorAccount(refreshTick)
   const { accounts: allAccounts } = useSailorAccounts(refreshTick)
   const { overview } = useSailorOverview(refreshTick)
@@ -958,7 +977,7 @@ export default function Dashboard() {
                     : 'balances unavailable'}
                 </span>
               </header>
-              <SignersPanel overview={overview} sma={sma} />
+              <SignersPanel overview={overview} sma={sma} onAddSigner={() => setAddSignerOpen(true)} />
             </section>
 
             {/* ── Your agents — restored card grid ─────────────────
@@ -1065,6 +1084,13 @@ export default function Dashboard() {
           setRefreshTick((t) => t + 1)
           setProfileOpen(false)
         }}
+      />
+
+      <AddSignerModal
+        open={addSignerOpen}
+        safe={overview?.sma?.address}
+        onClose={() => setAddSignerOpen(false)}
+        onCreated={() => { setAddSignerOpen(false); setRefreshTick((t) => t + 1) }}
       />
 
       <CreateSMAModal
