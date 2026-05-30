@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import cors from 'cors'
 import express from 'express'
 import { SailKernelAbi, getSailDeployment } from '@sail/sdk'
-import { createPublicClient, formatEther, getAddress, http, isAddress } from 'viem'
+import { createPublicClient, formatEther, getAddress, http, isAddress, zeroAddress } from 'viem'
 
 const PORT = Number(process.env.PORT ?? 3334)
 
@@ -61,7 +61,6 @@ function signerEntry(role, address, balanceByAddr) {
   }
 }
 
-const overviewCache = { at: 0, data: null }
 const OVERVIEW_TTL_MS = 10_000
 
 /**
@@ -80,6 +79,46 @@ export function startServer(sailDir) {
   app.use(express.json())
 
   const at = (name) => path.join(sailDir, name)
+
+  // ── Per-SMA overview cache ───────────────────────────────────────────────
+  // Switching between SMAs should feel instant. The consolidated overview is
+  // several RPC reads, so we cache it per account (keyed by safe address) in
+  // memory AND on disk. A switch serves the last snapshot immediately and
+  // refreshes from chain in the background (stale-while-revalidate), so the UI
+  // never blocks on RPC for an SMA it has seen before — even across restarts.
+  const overviewCacheByAccount = new Map() // safeLower -> { at, data }
+  const overviewInFlight = new Set() // safeLower currently refreshing
+  const overviewSnapshotPath = (safe) => at(`state/overview/${safe.toLowerCase()}.json`)
+
+  const readOverviewSnapshot = (safe) => {
+    try {
+      return JSON.parse(fs.readFileSync(overviewSnapshotPath(safe), 'utf-8'))
+    } catch {
+      return null
+    }
+  }
+  const writeOverviewSnapshot = (safe, data) => {
+    try {
+      fs.mkdirSync(at('state/overview'), { recursive: true })
+      fs.writeFileSync(overviewSnapshotPath(safe), `${JSON.stringify(data, null, 2)}\n`)
+    } catch {
+      /* best-effort disk cache — fine if it fails */
+    }
+  }
+  const storeOverview = (safe, data) => {
+    overviewCacheByAccount.set(safe.toLowerCase(), { at: Date.now(), data })
+    writeOverviewSnapshot(safe, data)
+  }
+  // Refresh one account's overview from chain in the background, deduped per safe.
+  const refreshOverviewInBackground = (account) => {
+    const key = account.safe.toLowerCase()
+    if (overviewInFlight.has(key)) return
+    overviewInFlight.add(key)
+    computeOverview(account)
+      .then((data) => storeOverview(account.safe, data))
+      .catch(() => {})
+      .finally(() => overviewInFlight.delete(key))
+  }
 
   // GET /api/account — the deployed SMA, or 404 before it exists.
   app.get('/api/account', (_req, res) => {
@@ -182,7 +221,20 @@ export function startServer(sailDir) {
     }
   })
 
-  // GET /api/activity — one JSON object per line; empty array if absent.
+  // The active SMA's address, or null before one exists.
+  const readActiveSafe = () => {
+    try {
+      return JSON.parse(fs.readFileSync(at('account.json'), 'utf-8')).safe ?? null
+    } catch {
+      return null
+    }
+  }
+
+  // GET /api/activity — events for the *active* SMA only. Each event carries a
+  // `safe` tag (stamped on write); legacy events written before per-SMA tagging
+  // have none and are attributed to the first known SMA — the one that existed
+  // before a second was ever created. With a single SMA (no accounts list) we
+  // don't filter, preserving the original behavior.
   app.get('/api/activity', (_req, res) => {
     try {
       const raw = fs.readFileSync(at('activity.jsonl'), 'utf-8')
@@ -197,7 +249,27 @@ export function startServer(sailDir) {
           }
         })
         .filter((e) => e !== null)
-      res.json(events)
+
+      const activeSafe = readActiveSafe()
+      let knownCount = 0
+      let legacySafe = activeSafe
+      try {
+        const accts = JSON.parse(fs.readFileSync(at('state/accounts.json'), 'utf-8'))
+        knownCount = accts.length
+        if (accts[0]?.safe) legacySafe = accts[0].safe
+      } catch {
+        /* no list yet — single-SMA project */
+      }
+
+      // Only one (or zero) SMA in play: nothing to disambiguate, return all.
+      if (!activeSafe || knownCount < 2) {
+        res.json(events)
+        return
+      }
+
+      const active = activeSafe.toLowerCase()
+      const fallback = (legacySafe ?? activeSafe).toLowerCase()
+      res.json(events.filter((e) => (e.safe ? String(e.safe).toLowerCase() : fallback) === active))
     } catch {
       res.json([])
     }
@@ -213,7 +285,14 @@ export function startServer(sailDir) {
       res.status(400).json({ error: 'event with a string "type" is required' })
       return
     }
-    const event = { ...ev, ts: ev.ts ?? new Date().toISOString(), actor: ev.actor ?? 'owner' }
+    // Tag the event with the SMA it belongs to so Recent Activity stays
+    // per-SMA. Honor an explicit `safe` if the caller set one.
+    const event = {
+      ...ev,
+      ts: ev.ts ?? new Date().toISOString(),
+      actor: ev.actor ?? 'owner',
+      safe: ev.safe ?? readActiveSafe() ?? undefined,
+    }
     try {
       fs.mkdirSync(sailDir, { recursive: true })
       fs.appendFileSync(at('activity.jsonl'), `${JSON.stringify(event)}\n`)
@@ -379,11 +458,6 @@ export function startServer(sailDir) {
   // unreachable we still return the local account + a best-effort mandate list
   // so the UI degrades gracefully instead of going blank.
   app.get('/api/overview', async (_req, res) => {
-    if (overviewCache.data && Date.now() - overviewCache.at < OVERVIEW_TTL_MS) {
-      res.json(overviewCache.data)
-      return
-    }
-
     let account = null
     try {
       account = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
@@ -391,7 +465,40 @@ export function startServer(sailDir) {
       res.json(null)
       return
     }
+    if (!account?.safe) {
+      res.json(null)
+      return
+    }
 
+    const key = account.safe.toLowerCase()
+    const cached = overviewCacheByAccount.get(key)
+
+    // Fresh in memory → serve as-is.
+    if (cached && Date.now() - cached.at < OVERVIEW_TTL_MS) {
+      res.json(cached.data)
+      return
+    }
+
+    // Stale memory entry or a persisted snapshot → serve instantly, then
+    // refresh from chain in the background. This is what makes switching SMAs
+    // feel immediate: a previously-seen SMA never blocks on RPC.
+    const snapshot = cached?.data ?? readOverviewSnapshot(account.safe)
+    if (snapshot) {
+      res.json(snapshot)
+      refreshOverviewInBackground(account)
+      return
+    }
+
+    // Cold (never seen this SMA): compute once synchronously, cache, return.
+    const data = await computeOverview(account)
+    storeOverview(account.safe, data)
+    res.json(data)
+  })
+
+  // Build the consolidated overview for a local account record by reading the
+  // kernel + balances on-chain. Never throws: on RPC failure it returns a
+  // best-effort result with `onchainError` set so the UI degrades gracefully.
+  async function computeOverview(account) {
     const env = parseEnvFile(at('.env.local'))
     const chainId = Number(account.chainId ?? env.CHAIN_ID ?? 0)
     let kernel = env.KERNEL_ADDRESS
@@ -451,8 +558,14 @@ export function startServer(sailDir) {
         ])
         const [permissionSigner, manager, , sessionActive] = configs
 
-        // Balances for every distinct signer address in one parallel batch.
-        const signerAddrs = [...new Set([manager, permissionSigner, account.owner].filter(Boolean).map(getAddress))]
+        // An unregistered SMA has no delegated signer yet: the kernel returns
+        // the zero address for `manager`. Treat that as "not configured" rather
+        // than a real signer — otherwise we'd read (and display) the burn
+        // address' balance, which is both meaningless and confusing.
+        const managerSet = Boolean(manager) && getAddress(manager) !== zeroAddress
+
+        // Balances for every distinct *real* signer address in one parallel batch.
+        const signerAddrs = [...new Set([managerSet ? manager : null, account.owner].filter(Boolean).map(getAddress))]
         const balances = await Promise.all(signerAddrs.map((a) => client.getBalance({ address: a })))
         const balanceByAddr = new Map(signerAddrs.map((a, i) => [a.toLowerCase(), balances[i]]))
 
@@ -472,9 +585,11 @@ export function startServer(sailDir) {
         }))
 
         result.signers = [
-          signerEntry('manager', manager, balanceByAddr),
+          managerSet
+            ? signerEntry('manager', getAddress(manager), balanceByAddr)
+            : { role: 'manager', address: null, balanceWei: null, balanceEth: null, status: 'unconfigured' },
           // Owner is the permission signer here; only list it once.
-          ...(account.owner && getAddress(account.owner) !== getAddress(manager)
+          ...(account.owner && (!managerSet || getAddress(account.owner) !== getAddress(manager))
             ? [signerEntry('owner', getAddress(account.owner), balanceByAddr)]
             : []),
         ]
@@ -496,10 +611,8 @@ export function startServer(sailDir) {
       result.onchainError = 'No kernel/RPC configured for on-chain reads'
     }
 
-    overviewCache.at = Date.now()
-    overviewCache.data = result
-    res.json(result)
-  })
+    return result
+  }
 
   // When SERVE_DIST=1 (set by `sailor ui`), also serve the built UI so a
   // single process handles everything — no Vite dev server needed.

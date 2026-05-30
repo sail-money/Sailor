@@ -309,7 +309,7 @@ function SignersPanel({ overview, sma }) {
   return (
     <div className={styles.signerGrid}>
       {signers.map((s) => (
-        <SignerCard key={s.address} signer={s} network={overview.network} />
+        <SignerCard key={s.role} signer={s} network={overview.network} />
       ))}
       {sma && overview?.sma?.balanceEth != null && (
         <SignerCard
@@ -332,7 +332,8 @@ function SignerCard({ signer, network }) {
   const role = signer.role === 'sma'
     ? { label: 'SMA (Safe)', sub: 'Holds your funds. Native ETH shown; tokens not counted.' }
     : (SIGNER_ROLE[signer.role] ?? { label: signer.role, sub: '' })
-  const bal = signer.role === 'sma' ? null : (BALANCE_STATUS[signer.status] ?? BALANCE_STATUS.ok)
+  const unconfigured = signer.status === 'unconfigured'
+  const bal = signer.role === 'sma' || unconfigured ? null : (BALANCE_STATUS[signer.status] ?? BALANCE_STATUS.ok)
   const needsTopUp = signer.status === 'low' || signer.status === 'critical'
 
   function copy() {
@@ -358,34 +359,46 @@ function SignerCard({ signer, network }) {
       </header>
 
       <div className={styles.signerBalance}>
-        <span className={styles.signerBalanceNum}>{fmtEth(signer.balanceEth)}</span>
-        <span className={styles.signerBalanceUnit}>ETH</span>
+        {unconfigured ? (
+          <span className={styles.signerBalanceNum} style={{ opacity: 0.4 }}>—</span>
+        ) : (
+          <>
+            <span className={styles.signerBalanceNum}>{fmtEth(signer.balanceEth)}</span>
+            <span className={styles.signerBalanceUnit}>ETH</span>
+          </>
+        )}
       </div>
-      <p className={styles.signerSub}>{role.sub}</p>
+      <p className={styles.signerSub}>
+        {unconfigured
+          ? 'No delegated signer assigned yet — set one when you configure an agent.'
+          : role.sub}
+      </p>
 
-      <footer className={styles.signerFoot}>
-        <button
-          type="button"
-          className={styles.signerAddrPill}
-          onClick={copy}
-          title={signer.address}
-          aria-label="Copy signer address"
-        >
-          <span className={styles.signerAddrMono}>{truncateAddr(signer.address)}</span>
-          <span className={styles.signerAddrIcon} aria-hidden>
-            {copied ? <CheckSm /> : <CopyGlyph />}
-          </span>
-        </button>
-        <a
-          className={styles.signerAddrOpen}
-          href={explorerUrl(network, signer.address)}
-          target="_blank"
-          rel="noreferrer"
-          aria-label="Open on block explorer"
-        >
-          <ArrowOutIcon />
-        </a>
-      </footer>
+      {signer.address && (
+        <footer className={styles.signerFoot}>
+          <button
+            type="button"
+            className={styles.signerAddrPill}
+            onClick={copy}
+            title={signer.address}
+            aria-label="Copy signer address"
+          >
+            <span className={styles.signerAddrMono}>{truncateAddr(signer.address)}</span>
+            <span className={styles.signerAddrIcon} aria-hidden>
+              {copied ? <CheckSm /> : <CopyGlyph />}
+            </span>
+          </button>
+          <a
+            className={styles.signerAddrOpen}
+            href={explorerUrl(network, signer.address)}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Open on block explorer"
+          >
+            <ArrowOutIcon />
+          </a>
+        </footer>
+      )}
 
       {needsTopUp && (
         <div className={styles.signerTopUp}>
@@ -593,11 +606,15 @@ export default function Dashboard() {
   const { isConnected, address: wagmiAddress } = useAccount()
   const { disconnect } = useDisconnect()
   const { openConnectModal } = useConnectModal()
-  const { account: realAccount, loading: accountLoading } = useSailorAccount()
-  const { accounts: allAccounts } = useSailorAccounts()
-  const { overview } = useSailorOverview()
-  const { mandate: liveMandate } = useSailorMandate()
-  const { events: liveActivity } = useSailorActivity()
+  // Bumped on SMA switch/rename to force every panel to refetch immediately
+  // instead of waiting for its next poll — the server serves the target SMA's
+  // cached snapshot instantly, so the switch feels immediate.
+  const [refreshTick, setRefreshTick] = useState(0)
+  const { account: realAccount, loading: accountLoading } = useSailorAccount(refreshTick)
+  const { accounts: allAccounts } = useSailorAccounts(refreshTick)
+  const { overview } = useSailorOverview(refreshTick)
+  const { mandate: liveMandate } = useSailorMandate(refreshTick)
+  const { events: liveActivity } = useSailorActivity(refreshTick)
   const { running: agentRunning, pid: agentPid } = useSailorAgentStatus()
   const { pending } = useSailorPending()
 
@@ -1041,9 +1058,11 @@ export default function Dashboard() {
         onRenameSafe={(id, name) => {
           setSafeNames((m) => ({ ...m, [id]: name }))
           renameSailorAccount(id, name).catch(() => {})
+          setRefreshTick((t) => t + 1)
         }}
         onSelectSafe={async (sma) => {
           try { await switchSailorAccount(sma.address) } catch { /* server not running */ }
+          setRefreshTick((t) => t + 1)
           setProfileOpen(false)
         }}
       />

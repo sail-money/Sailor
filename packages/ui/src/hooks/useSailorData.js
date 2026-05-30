@@ -7,7 +7,7 @@ const POLL_MS = 5000
  * non-OK response it falls back to `fallback` and surfaces the error so
  * callers can decide whether to show mock data instead.
  */
-function usePolledJson(url, fallback, intervalMs = POLL_MS) {
+function usePolledJson(url, fallback, intervalMs = POLL_MS, trigger = 0) {
   const [data, setData] = useState(fallback)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -44,19 +44,19 @@ function usePolledJson(url, fallback, intervalMs = POLL_MS) {
       clearInterval(timer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url, intervalMs])
+  }, [url, intervalMs, trigger])
 
   return { data, loading, error }
 }
 
 /** The deployed SMA from `.sail/account.json`, or null if not yet deployed. */
-export function useSailorAccount() {
-  const { data, loading, error } = usePolledJson('/api/account', null)
+export function useSailorAccount(trigger) {
+  const { data, loading, error } = usePolledJson('/api/account', null, POLL_MS, trigger)
   return { account: data, loading, error }
 }
 
-export function useSailorAccounts() {
-  const { data, loading, error } = usePolledJson('/api/accounts', [])
+export function useSailorAccounts(trigger) {
+  const { data, loading, error } = usePolledJson('/api/accounts', [], POLL_MS, trigger)
   return { accounts: data ?? [], loading, error }
 }
 
@@ -87,20 +87,20 @@ export async function renameSailorAccount(safe, name) {
  * 15s — balances move slowly and each poll is several RPC reads. `null` until
  * an SMA exists locally.
  */
-export function useSailorOverview() {
-  const { data, loading, error } = usePolledJson('/api/overview', null, 15000)
+export function useSailorOverview(trigger) {
+  const { data, loading, error } = usePolledJson('/api/overview', null, 15000, trigger)
   return { overview: data, loading, error }
 }
 
 /** Decision-journal events from `.sail/activity.jsonl`, or []. */
-export function useSailorActivity() {
-  const { data, loading, error } = usePolledJson('/api/activity', [])
+export function useSailorActivity(trigger) {
+  const { data, loading, error } = usePolledJson('/api/activity', [], POLL_MS, trigger)
   return { events: Array.isArray(data) ? data : [], loading, error }
 }
 
 /** The signed mandate from `.sail/mandate.json`, or null. Polls every 10s. */
-export function useSailorMandate() {
-  const { data, loading, error } = usePolledJson('/api/mandate', null, 10000)
+export function useSailorMandate(trigger) {
+  const { data, loading, error } = usePolledJson('/api/mandate', null, 10000, trigger)
   return { mandate: data, loading, error }
 }
 
