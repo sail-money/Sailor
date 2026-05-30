@@ -101,15 +101,30 @@ export function startServer(sailDir) {
     try {
       fs.mkdirSync(at('state'), { recursive: true })
       const record = { safe, owner, permissionSigner: permissionSigner ?? owner, manager: manager ?? owner, chainId, createdAtBlock: createdAtBlock ?? '0' }
-      fs.writeFileSync(at('account.json'), `${JSON.stringify(record, null, 2)}\n`)
-      // Append to accounts list if not already present
+
+      // Load the known-SMAs list. If it doesn't exist yet, the first SMA was
+      // created outside the browser (CLI / onboarding writes account.json
+      // directly and never seeds this list). Backfill it from the currently
+      // active account.json *before* we overwrite it, otherwise creating a
+      // second SMA would silently drop the first from the list.
       const accountsPath = at('state/accounts.json')
       let accounts = []
-      try { accounts = JSON.parse(fs.readFileSync(accountsPath, 'utf-8')) } catch { /* first entry */ }
+      try {
+        accounts = JSON.parse(fs.readFileSync(accountsPath, 'utf-8'))
+      } catch {
+        try {
+          const prev = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
+          if (prev?.safe) accounts.push({ ...prev, name: 'SMA 1', addedAt: null })
+        } catch { /* truly the first SMA — nothing to backfill */ }
+      }
+
       if (!accounts.find((a) => a.safe.toLowerCase() === safe.toLowerCase())) {
         accounts.push({ ...record, name: `SMA ${accounts.length + 1}`, addedAt: new Date().toISOString() })
-        fs.writeFileSync(accountsPath, `${JSON.stringify(accounts, null, 2)}\n`)
       }
+      fs.writeFileSync(accountsPath, `${JSON.stringify(accounts, null, 2)}\n`)
+
+      // Make the new SMA the active one.
+      fs.writeFileSync(at('account.json'), `${JSON.stringify(record, null, 2)}\n`)
       res.json({ ok: true })
     } catch (err) {
       res.status(500).json({ error: String(err) })
