@@ -14,4 +14,5 @@ jobs:
     with:
       package_dir: .
       package_version: ${{ github.ref_name }}
+      pnpm-version: '11'
     secrets: inherit

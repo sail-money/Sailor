@@ -34,4 +34,5 @@ jobs:
       package_version: ${{ needs.version.outputs.prerelease }}
       dist_tag: ${{ needs.version.outputs.dist_tag }}
       use_github_registry: true
+      pnpm-version: '11'
     secrets: inherit
