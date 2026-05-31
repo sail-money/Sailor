@@ -6,34 +6,12 @@ on:
       - 'v*'
 
 jobs:
-  publish-sdk:
+  publish:
     permissions:
       id-token: write
       contents: read
     uses: SailAgent/devops-templates/.github/workflows/publish-pnpm.yaml@SAIL-131-publishing-fw
     with:
-      package_dir: packages/sdk
-      package_version: ${{ github.ref_name }}
-    secrets: inherit
-
-  publish-chains:
-    needs: publish-sdk
-    permissions:
-      id-token: write
-      contents: read
-    uses: SailAgent/devops-templates/.github/workflows/publish-pnpm.yaml@SAIL-131-publishing-fw
-    with:
-      package_dir: packages/chains
-      package_version: ${{ github.ref_name }}
-    secrets: inherit
-
-  publish-cli:
-    needs: publish-chains
-    permissions:
-      id-token: write
-      contents: read
-    uses: SailAgent/devops-templates/.github/workflows/publish-pnpm.yaml@SAIL-131-publishing-fw
-    with:
-      package_dir: packages/cli
+      package_dir: .
       package_version: ${{ github.ref_name }}
     secrets: inherit

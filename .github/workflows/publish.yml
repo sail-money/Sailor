@@ -16,12 +16,12 @@ jobs:
       - uses: actions/checkout@v4
       - id: compute
         run: |
-          BASE=$(node -p "require('./packages/sdk/package.json').version")
+          BASE=$(node -p "require('./package.json').version")
           SUFFIX=${{ github.event_name == 'workflow_dispatch' && 'dev' || 'main' }}
           echo "prerelease=${BASE}-${SUFFIX}.${{ github.run_number }}" >> $GITHUB_OUTPUT
           echo "dist_tag=${SUFFIX}" >> $GITHUB_OUTPUT
 
-  publish-sdk:
+  publish:
     needs: version
     permissions:
       id-token: write
@@ -29,38 +29,8 @@ jobs:
       packages: write
     uses: SailAgent/devops-templates/.github/workflows/publish-pnpm.yaml@SAIL-131-publishing-fw
     with:
-      package_dir: packages/sdk
-      package_name: '@sailagent/sdk'
-      package_version: ${{ needs.version.outputs.prerelease }}
-      dist_tag: ${{ needs.version.outputs.dist_tag }}
-      use_github_registry: true
-    secrets: inherit
-
-  publish-chains:
-    needs: [version, publish-sdk]
-    permissions:
-      id-token: write
-      contents: read
-      packages: write
-    uses: SailAgent/devops-templates/.github/workflows/publish-pnpm.yaml@SAIL-131-publishing-fw
-    with:
-      package_dir: packages/chains
-      package_name: '@sailagent/chains'
-      package_version: ${{ needs.version.outputs.prerelease }}
-      dist_tag: ${{ needs.version.outputs.dist_tag }}
-      use_github_registry: true
-    secrets: inherit
-
-  publish-cli:
-    needs: [version, publish-chains]
-    permissions:
-      id-token: write
-      contents: read
-      packages: write
-    uses: SailAgent/devops-templates/.github/workflows/publish-pnpm.yaml@SAIL-131-publishing-fw
-    with:
-      package_dir: packages/cli
-      package_name: '@sailagent/cli'
+      package_dir: .
+      package_name: sailor
       package_version: ${{ needs.version.outputs.prerelease }}
       dist_tag: ${{ needs.version.outputs.dist_tag }}
       use_github_registry: true
