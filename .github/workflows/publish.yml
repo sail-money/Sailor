@@ -7,24 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  version:
-    runs-on: ubuntu-latest
-    outputs:
-      prerelease: ${{ steps.compute.outputs.prerelease }}
-      dist_tag: ${{ steps.compute.outputs.dist_tag }}
-    steps:
-      - uses: actions/checkout@v4
-      - id: compute
-        run: |
-          BASE=$(node -p "require('./package.json').version")
-          SUFFIX=${{ github.event_name == 'workflow_dispatch' && 'dev' || 'main' }}
-          TAG=${BASE}-${SUFFIX}.${{ github.run_number }}
-          echo $TAG
-          echo "prerelease=${TAG}" >> $GITHUB_OUTPUT
-          echo "dist_tag=${SUFFIX}" >> $GITHUB_OUTPUT
-
   publish:
-    needs: version
     permissions:
       id-token: write
       contents: read
@@ -33,8 +16,8 @@ jobs:
     with:
       package_dir: .
       package_name: '@sailagent/sailor'
-      package_version: ${{ needs.version.outputs.prerelease }}
-      dist_tag: ${{ needs.version.outputs.dist_tag }}
+      is_dev_version: true
+      dist_tag: ${{ github.event_name == 'workflow_dispatch' && 'dev' || 'main' }}
       use_github_registry: true
       pnpm-version: '11'
     secrets: inherit
