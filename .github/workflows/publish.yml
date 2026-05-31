@@ -30,7 +30,7 @@ jobs:
     uses: SailAgent/devops-templates/.github/workflows/publish-pnpm.yaml@SAIL-131-publishing-fw
     with:
       package_dir: .
-      package_name: sailor
+      package_name: '@sailagent/sailor'
       package_version: ${{ needs.version.outputs.prerelease }}
       dist_tag: ${{ needs.version.outputs.dist_tag }}
       use_github_registry: true
