@@ -40,7 +40,7 @@ import { appendActivity, checksum, nowIso, prompt, sailPath, writeJsonFile } fro
 import { keyExists } from "../lib/keys.js";
 import { emit } from "../lib/output.js";
 import { ProjectContext, loadManagerSigner } from "../lib/project.js";
-import type { StoredAccount } from "../lib/state.js";
+import { type StoredAccount, upsertAccountInList } from "../lib/state.js";
 import { type SigningChannel, createSigningChannel } from "../signing/client.js";
 
 export interface OnboardOptions {
@@ -558,6 +558,10 @@ async function persistAccount(
     chainId: account.chainId,
     createdAtBlock,
   };
+  // Register the SMA in the multi-SMA list the dashboard switcher reads *before*
+  // overwriting account.json, so the previously-active SMA is backfilled into
+  // the list rather than dropped.
+  upsertAccountInList(stored);
   writeJsonFile(sailPath("account.json"), stored);
 }
 

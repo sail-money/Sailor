@@ -58,7 +58,23 @@ export function appendActivity(
 ): void {
   const filePath = path.join(baseSailDir, "activity.jsonl");
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.appendFileSync(filePath, `${JSON.stringify(event)}\n`);
+
+  // Tag the event with the SMA it belongs to so Recent Activity stays per-SMA
+  // across multiple accounts in one project. Honor an explicit tag; otherwise
+  // stamp the currently-active SMA from account.json (leave untagged if none).
+  let tagged = event;
+  if (!("safe" in event)) {
+    try {
+      const account = JSON.parse(
+        fs.readFileSync(path.join(baseSailDir, "account.json"), "utf-8"),
+      ) as { safe?: string };
+      if (account?.safe) tagged = { ...event, safe: account.safe };
+    } catch {
+      /* no active account yet — leave the event untagged */
+    }
+  }
+
+  fs.appendFileSync(filePath, `${JSON.stringify(tagged)}\n`);
 }
 
 /** Parses a dotenv-style file into a flat record. Returns {} if absent. */

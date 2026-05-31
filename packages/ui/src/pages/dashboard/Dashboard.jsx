@@ -15,6 +15,7 @@ import ProfileModal from './ProfileModal'
 import NotConnectedCard from '../shared/NotConnectedCard'
 import CreateSMAModal from './CreateSMAModal'
 import RevokeMandateModal from './RevokeMandateModal'
+import AddSignerModal from './AddSignerModal'
 import {
   useSailorAccount,
   useSailorAccounts,
@@ -121,7 +122,11 @@ function explainPermission(perm) {
 
 function fmtActivityTime(ts) {
   try {
-    return new Date(ts).toLocaleTimeString()
+    const d = new Date(ts)
+    // Include both date and time, e.g. "May 31, 14:48"
+    const datePart = d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+    const timePart = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    return `${datePart}, ${timePart}`
   } catch {
     return ts ?? ''
   }
@@ -295,7 +300,7 @@ function MandateRow({ mandate, network, onRevoke }) {
 }
 
 /** Delegated-signer balances with top-up status. */
-function SignersPanel({ overview, sma }) {
+function SignersPanel({ overview, sma, onAddSigner }) {
   const signers = overview?.signers ?? []
   if (signers.length === 0) {
     return (
@@ -309,7 +314,7 @@ function SignersPanel({ overview, sma }) {
   return (
     <div className={styles.signerGrid}>
       {signers.map((s) => (
-        <SignerCard key={s.address} signer={s} network={overview.network} />
+        <SignerCard key={s.role} signer={s} network={overview.network} onAddSigner={onAddSigner} />
       ))}
       {sma && overview?.sma?.balanceEth != null && (
         <SignerCard
@@ -327,12 +332,16 @@ function SignersPanel({ overview, sma }) {
   )
 }
 
-function SignerCard({ signer, network }) {
+function SignerCard({ signer, network, onAddSigner }) {
   const [copied, setCopied] = useState(false)
   const role = signer.role === 'sma'
     ? { label: 'SMA (Safe)', sub: 'Holds your funds. Native ETH shown; tokens not counted.' }
     : (SIGNER_ROLE[signer.role] ?? { label: signer.role, sub: '' })
-  const bal = signer.role === 'sma' ? null : (BALANCE_STATUS[signer.status] ?? BALANCE_STATUS.ok)
+  const unconfigured = signer.status === 'unconfigured'
+  const isLocal = signer.status === 'local'
+  const bal = signer.role === 'sma' || unconfigured || isLocal
+    ? null
+    : (BALANCE_STATUS[signer.status] ?? BALANCE_STATUS.ok)
   const needsTopUp = signer.status === 'low' || signer.status === 'critical'
 
   function copy() {
@@ -355,37 +364,63 @@ function SignerCard({ signer, network }) {
             {bal.label}
           </span>
         )}
+        {isLocal && (
+          <span className={styles.balancePill} style={{ color: 'var(--text-secondary)' }}>
+            <span className={styles.balancePillDot} aria-hidden style={{ background: 'var(--accent-blue)' }} />
+            Local
+          </span>
+        )}
       </header>
 
       <div className={styles.signerBalance}>
-        <span className={styles.signerBalanceNum}>{fmtEth(signer.balanceEth)}</span>
-        <span className={styles.signerBalanceUnit}>ETH</span>
+        {unconfigured ? (
+          <span className={styles.signerBalanceNum} style={{ opacity: 0.4 }}>—</span>
+        ) : (
+          <>
+            <span className={styles.signerBalanceNum}>{fmtEth(signer.balanceEth)}</span>
+            <span className={styles.signerBalanceUnit}>ETH</span>
+          </>
+        )}
       </div>
-      <p className={styles.signerSub}>{role.sub}</p>
+      <p className={styles.signerSub}>
+        {unconfigured
+          ? 'No delegated signer assigned yet — create or import one to let your agent sign.'
+          : isLocal
+            ? 'Created locally — not yet delegated on-chain.'
+            : role.sub}
+      </p>
 
-      <footer className={styles.signerFoot}>
-        <button
-          type="button"
-          className={styles.signerAddrPill}
-          onClick={copy}
-          title={signer.address}
-          aria-label="Copy signer address"
-        >
-          <span className={styles.signerAddrMono}>{truncateAddr(signer.address)}</span>
-          <span className={styles.signerAddrIcon} aria-hidden>
-            {copied ? <CheckSm /> : <CopyGlyph />}
-          </span>
-        </button>
-        <a
-          className={styles.signerAddrOpen}
-          href={explorerUrl(network, signer.address)}
-          target="_blank"
-          rel="noreferrer"
-          aria-label="Open on block explorer"
-        >
-          <ArrowOutIcon />
-        </a>
-      </footer>
+      {unconfigured && (
+        <SailButton fullWidth variant="secondary" onClick={onAddSigner}>
+          Add delegated signer
+        </SailButton>
+      )}
+
+      {signer.address && (
+        <footer className={styles.signerFoot}>
+          <button
+            type="button"
+            className={styles.signerAddrPill}
+            onClick={copy}
+            title={signer.address}
+            aria-label="Copy signer address"
+          >
+            <span className={styles.signerAddrMono}>{truncateAddr(signer.address)}</span>
+            <span className={styles.signerAddrIcon} aria-hidden>
+              {copied ? <CheckSm /> : <CopyGlyph />}
+            </span>
+          </button>
+          <a
+            className={styles.signerAddrOpen}
+            href={explorerUrl(network, signer.address)}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Open on block explorer"
+          >
+            <ArrowOutIcon />
+          </a>
+        </footer>
+      )}
 
       {needsTopUp && (
         <div className={styles.signerTopUp}>
@@ -509,11 +544,35 @@ const ACTIVITY_FILTERS = [
  * dispatches. A small segmented filter lets you isolate one actor — the two
  * streams interleave on-chain but answer different questions ("what did I
  * authorize?" vs "what is the agent doing?").
+ *
+ * Supports incremental loading of older events via "Load 10 more" button.
  */
 function LiveActivityFeed({ events, network }) {
+  const INITIAL_VISIBLE = 6
   const [filter, setFilter] = useState('all')
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE)
+
   const filtered = filter === 'all' ? events : events.filter((e) => activityActor(e) === filter)
-  const rows = [...filtered].slice(-12).reverse()
+
+  // Newest first, then take only the number we want to display
+  const allRows = [...filtered].reverse()
+  const rows = allRows.slice(0, visibleCount)
+  const hasMore = allRows.length > visibleCount
+  const canContract = visibleCount > INITIAL_VISIBLE
+
+  // Reset visible count when filter changes so we don't show stale counts
+  const handleFilterChange = (key) => {
+    setFilter(key)
+    setVisibleCount(INITIAL_VISIBLE)
+  }
+
+  const handleLoadMore = () => {
+    setVisibleCount((c) => c + 10)
+  }
+
+  const handleShowLess = () => {
+    setVisibleCount(INITIAL_VISIBLE)
+  }
 
   return (
     <>
@@ -525,7 +584,7 @@ function LiveActivityFeed({ events, network }) {
             role="tab"
             aria-selected={filter === f.key}
             className={`${styles.activityFilterBtn} ${filter === f.key ? styles.activityFilterBtnActive : ''}`}
-            onClick={() => setFilter(f.key)}
+            onClick={() => handleFilterChange(f.key)}
           >
             {f.label}
           </button>
@@ -536,54 +595,95 @@ function LiveActivityFeed({ events, network }) {
           <p className={styles.emptyAgentsBody}>No {filter === 'all' ? '' : `${filter} `}activity yet.</p>
         </div>
       ) : (
-        <ul className={agentStyles.journalList}>
-          {rows.map((e, i) => {
-            const st = activityStatus(e.type)
-            const actor = activityActor(e)
-            const hasTx = e.txHash && e.txHash !== '0x'
-            const detail = activityDetail(e)
-            return (
-              <li key={`${e.ts}-${i}`}>
-                <div className={agentStyles.journalRow}>
-                  <span className={agentStyles.journalTime}>{fmtActivityTime(e.ts)}</span>
-                  <span
-                    className={`${agentStyles.journalMark} ${agentStyles[`jStatus_${st}`] ?? ''}`}
-                    aria-hidden
-                  >
-                    {st === 'success' && <CheckSm />}
-                    {st === 'rejected' && <CrossSm />}
-                    {st === 'info' && <DotSm />}
-                  </span>
-                  <span className={agentStyles.journalBody}>
-                    <span className={agentStyles.journalTitle}>
-                      <span className={`${styles.activityActor} ${styles[`activityActor_${actor}`] ?? ''}`}>
-                        {ACTOR_LABEL[actor]}
+        <>
+          <ul className={agentStyles.journalList}>
+            {rows.map((e, i) => {
+              const st = activityStatus(e.type)
+              const actor = activityActor(e)
+              const hasTx = e.txHash && e.txHash !== '0x'
+              const detail = activityDetail(e)
+              return (
+                <li key={`${e.ts}-${i}`}>
+                  <div className={agentStyles.journalRow}>
+                    <span className={agentStyles.journalTime}>{fmtActivityTime(e.ts)}</span>
+                    <span
+                      className={`${agentStyles.journalMark} ${agentStyles[`jStatus_${st}`] ?? ''}`}
+                      aria-hidden
+                    >
+                      {st === 'success' && <CheckSm />}
+                      {st === 'rejected' && <CrossSm />}
+                      {st === 'info' && <DotSm />}
+                    </span>
+                    <span className={agentStyles.journalBody}>
+                      <span className={agentStyles.journalTitle}>
+                        <span className={`${styles.activityActor} ${styles[`activityActor_${actor}`] ?? ''}`}>
+                          {ACTOR_LABEL[actor]}
+                        </span>
+                        <span className={agentStyles.journalAction}>
+                          {ACTIVITY_LABELS[e.type] ?? e.type}
+                        </span>
                       </span>
-                      <span className={agentStyles.journalAction}>
-                        {ACTIVITY_LABELS[e.type] ?? e.type}
+                      <span className={agentStyles.journalMeta}>
+                        {detail}
+                        {hasTx && (
+                          <>
+                            {detail ? ' · ' : ''}
+                            <a
+                              href={txUrl(network ?? 'ethereum', e.txHash)}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {truncateAddr(e.txHash)}
+                            </a>
+                          </>
+                        )}
                       </span>
                     </span>
-                    <span className={agentStyles.journalMeta}>
-                      {detail}
-                      {hasTx && (
-                        <>
-                          {detail ? ' · ' : ''}
-                          <a
-                            href={txUrl(network ?? 'ethereum', e.txHash)}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            {truncateAddr(e.txHash)}
-                          </a>
-                        </>
-                      )}
-                    </span>
-                  </span>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+
+          {(hasMore || canContract) && (
+            <div style={{ marginTop: '12px', textAlign: 'center', display: 'flex', gap: '8px', justifyContent: 'center' }}>
+              {canContract && (
+                <button
+                  type="button"
+                  onClick={handleShowLess}
+                  style={{
+                    padding: '6px 14px',
+                    fontSize: '13px',
+                    borderRadius: '6px',
+                    border: '1px solid #3a3f4a',
+                    background: 'transparent',
+                    color: '#9aa0ae',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Show less
+                </button>
+              )}
+              {hasMore && (
+                <button
+                  type="button"
+                  onClick={handleLoadMore}
+                  style={{
+                    padding: '6px 14px',
+                    fontSize: '13px',
+                    borderRadius: '6px',
+                    border: '1px solid #3a3f4a',
+                    background: 'transparent',
+                    color: '#9aa0ae',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Load 10 more
+                </button>
+              )}
+            </div>
+          )}
+        </>
       )}
     </>
   )
@@ -593,11 +693,16 @@ export default function Dashboard() {
   const { isConnected, address: wagmiAddress } = useAccount()
   const { disconnect } = useDisconnect()
   const { openConnectModal } = useConnectModal()
-  const { account: realAccount, loading: accountLoading } = useSailorAccount()
-  const { accounts: allAccounts } = useSailorAccounts()
-  const { overview } = useSailorOverview()
-  const { mandate: liveMandate } = useSailorMandate()
-  const { events: liveActivity } = useSailorActivity()
+  // Bumped on SMA switch/rename to force every panel to refetch immediately
+  // instead of waiting for its next poll — the server serves the target SMA's
+  // cached snapshot instantly, so the switch feels immediate.
+  const [refreshTick, setRefreshTick] = useState(0)
+  const [addSignerOpen, setAddSignerOpen] = useState(false)
+  const { account: realAccount, loading: accountLoading } = useSailorAccount(refreshTick)
+  const { accounts: allAccounts } = useSailorAccounts(refreshTick)
+  const { overview } = useSailorOverview(refreshTick)
+  const { mandate: liveMandate } = useSailorMandate(refreshTick)
+  const { events: liveActivity } = useSailorActivity(refreshTick)
   const { running: agentRunning, pid: agentPid } = useSailorAgentStatus()
   const { pending } = useSailorPending()
 
@@ -641,7 +746,17 @@ export default function Dashboard() {
   const effectiveAccount = overviewAccount ?? realAccount ?? justCreatedAccount
   const hasSMA = effectiveAccount != null
   const overviewMandates = overview?.mandates ?? []
-  const hasLiveMandate = liveMandate != null
+  // The locally-signed mandate (.sail/mandate.json) is a single global file. In a
+  // multi-SMA project it would otherwise render against whatever SMA is active —
+  // showing a stale draft that belongs to a different account. Only treat it as
+  // "this SMA's mandate" when its safe matches the active account; a legacy entry
+  // with no safe is trusted only on single-SMA projects where it's unambiguous.
+  const activeSafe = (overviewAccount ?? realAccount)?.safe?.toLowerCase()
+  const hasLiveMandate =
+    liveMandate != null &&
+    (liveMandate.safe != null
+      ? liveMandate.safe.toLowerCase() === activeSafe
+      : allAccounts.length <= 1)
   const liveMode = hasLiveMandate || agentRunning
 
   const realNetwork = effectiveAccount ? (CHAIN_NAMES[effectiveAccount.chainId] ?? 'ethereum') : null
@@ -941,7 +1056,7 @@ export default function Dashboard() {
                     : 'balances unavailable'}
                 </span>
               </header>
-              <SignersPanel overview={overview} sma={sma} />
+              <SignersPanel overview={overview} sma={sma} onAddSigner={() => setAddSignerOpen(true)} />
             </section>
 
             {/* ── Your agents — restored card grid ─────────────────
@@ -1041,11 +1156,20 @@ export default function Dashboard() {
         onRenameSafe={(id, name) => {
           setSafeNames((m) => ({ ...m, [id]: name }))
           renameSailorAccount(id, name).catch(() => {})
+          setRefreshTick((t) => t + 1)
         }}
         onSelectSafe={async (sma) => {
           try { await switchSailorAccount(sma.address) } catch { /* server not running */ }
+          setRefreshTick((t) => t + 1)
           setProfileOpen(false)
         }}
+      />
+
+      <AddSignerModal
+        open={addSignerOpen}
+        safe={overview?.sma?.address}
+        onClose={() => setAddSignerOpen(false)}
+        onCreated={() => { setAddSignerOpen(false); setRefreshTick((t) => t + 1) }}
       />
 
       <CreateSMAModal

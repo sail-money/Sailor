@@ -14,20 +14,35 @@ export function normalizeRole(input: string): Role | null {
   return null;
 }
 
-export function keyPath(role: Role): string {
-  return sailPath("keys", `${role}.json`);
+export function keyPath(role: Role, safe?: string): string {
+  return sailPath("keys", safe ? `${role}-${safe.toLowerCase()}.json` : `${role}.json`);
 }
 
-export function keyExists(role: Role): boolean {
-  return fileExists(keyPath(role));
+/**
+ * Resolves the keystore path for a role, preferring a per-SMA key
+ * (`<role>-<safe>.json`, written by the dashboard's "add delegated signer"
+ * flow) when present, and falling back to the shared `<role>.json` otherwise.
+ * This keeps single-SMA projects working unchanged while letting each SMA hold
+ * its own delegated signer.
+ */
+export function resolveKeyPath(role: Role, safe?: string): string {
+  if (safe) {
+    const perSma = keyPath(role, safe);
+    if (fileExists(perSma)) return perSma;
+  }
+  return keyPath(role);
+}
+
+export function keyExists(role: Role, safe?: string): boolean {
+  return fileExists(resolveKeyPath(role, safe));
 }
 
 /**
  * Loads and decrypts a role key, prompting for its password.
  * Throws a clear, actionable error if the key is missing or the password is wrong.
  */
-export async function loadKeyring(role: Role): Promise<LocalKeyring> {
-  const keystore = readJsonFile<EncryptedKeystore>(keyPath(role));
+export async function loadKeyring(role: Role, safe?: string): Promise<LocalKeyring> {
+  const keystore = readJsonFile<EncryptedKeystore>(resolveKeyPath(role, safe));
   if (!keystore) {
     throw new Error(
       `No ${role} key found.\nRun "sailor keys generate" and choose "${role}" first.`,
