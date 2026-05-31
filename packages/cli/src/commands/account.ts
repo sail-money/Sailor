@@ -10,7 +10,7 @@ import {
   writeJsonFile,
 } from "../lib/io.js";
 import { keyExists, loadKeyring } from "../lib/keys.js";
-import type { StoredAccount } from "../lib/state.js";
+import { type StoredAccount, upsertAccountInList } from "../lib/state.js";
 
 function resolveChain(chainId: number): ChainConfig {
   try {
@@ -93,6 +93,7 @@ export async function accountCreate(): Promise<void> {
       chainId: account.chainId,
       createdAtBlock: account.createdAtBlock.toString(),
     };
+    upsertAccountInList(stored);
     writeJsonFile(sailPath("account.json"), stored);
     console.log(`\nSMA created. Safe address: ${stored.safe}`);
     console.log("Saved to .sail/account.json");

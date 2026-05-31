@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useAccount, useSendTransaction, useSwitchChain, useWaitForTransactionReceipt } from 'wagmi'
-import { encodeFunctionData, zeroAddress } from 'viem'
+import { encodeFunctionData, parseEventLogs, zeroAddress } from 'viem'
 import { SAFE_V141, buildSafeSetupInitializer, gnosisSafeAbi } from '@sail/sdk/safe'
 import { getSailDeployment } from '@sail/sdk/deployments'
+import { SailKernelAbi } from '@sail/sdk/abis'
 import { GlassCard, Sai, SailButton, RevealCalldata } from '../shared'
 import shared from '../shared/shared.module.css'
 import styles from './CreateSMAModal.module.css'
@@ -23,8 +24,24 @@ const PROXY_FACTORY_ABI = [
 
 const PROXY_CREATION_TOPIC = '0x4f51faf6c4561ff95f067657e43439f0f856d97c04d9ec9070a6199ad418e235'
 
+/**
+ * Recover the deployed Safe address from a receipt, regardless of which path
+ * created it.
+ *
+ * Sail-managed SMAs are deployed via SailKernel.createAccount, which derives
+ * the proxy salt from msg.sender — so the address must be read from the
+ * kernel's AccountRegistered event, NOT the proxy factory's ProxyCreation log.
+ * Plain Safes (chains without a Sail deployment) still emit only ProxyCreation.
+ */
 function getSafeAddressFromReceipt(receipt) {
-  const log = receipt?.logs?.find((l) => l.topics?.[0] === PROXY_CREATION_TOPIC)
+  if (!receipt?.logs) return null
+  const [registered] = parseEventLogs({
+    abi: SailKernelAbi,
+    eventName: 'AccountRegistered',
+    logs: receipt.logs,
+  })
+  if (registered?.args?.account) return registered.args.account
+  const log = receipt.logs.find((l) => l.topics?.[0] === PROXY_CREATION_TOPIC)
   if (!log) return null
   return `0x${log.topics[1]?.slice(26)}`
 }
@@ -112,31 +129,57 @@ export default function CreateSMAModal({ open, onClose, onComplete }) {
     const selectedNet = ALL_NETWORKS.find((n) => networks.includes(n.id))
     if (!selectedNet) { setTxError('Select a network.'); return }
 
-    // Build initializer — use Sail kernel when deployed on this chain, plain Safe otherwise.
-    let initializer
+    // Resolve the Sail deployment for the target chain. When present we deploy
+    // AND register the Safe atomically through SailKernel.createAccount — a
+    // plain createProxyWithNonce leaves the Safe unregistered, so it can never
+    // have mandates attached or dispatch (the kernel's `registered[account]`
+    // mapping is only set by createAccount / registerAccount). Chains without a
+    // Sail deployment fall back to a plain, clearly-unmanaged Safe.
     let deployment = null
     try { deployment = getSailDeployment(selectedNet.chainId) } catch { /* not yet deployed */ }
 
+    const saltNonce = BigInt(Date.now())
+    let to
+    let data
+
     if (deployment) {
-      initializer = buildSafeSetupInitializer({
+      // The kernel needs its module enabled during Safe setup, or createAccount
+      // reverts with ModuleNotEnabled().
+      const safeInitializer = buildSafeSetupInitializer({
         owners: [ownerAddress],
         threshold: 1n,
         kernel: deployment.kernel,
         safeModuleEnabler: deployment.safeModuleEnabler,
       })
+      // No agent exists yet at SMA creation, so the owner is both permission
+      // signer and manager; the manager is reassigned when an agent is bound.
+      to = deployment.kernel
+      data = encodeFunctionData({
+        abi: SailKernelAbi,
+        functionName: 'createAccount',
+        args: [
+          SAFE_V141.proxyFactory,
+          SAFE_V141.singletonL2,
+          safeInitializer,
+          saltNonce,
+          ownerAddress, // permissionSigner
+          ownerAddress, // manager
+          deployment.standardFeePolicy,
+        ],
+      })
     } else {
-      initializer = encodeFunctionData({
+      const initializer = encodeFunctionData({
         abi: gnosisSafeAbi,
         functionName: 'setup',
         args: [[ownerAddress], 1n, zeroAddress, '0x', SAFE_V141.fallbackHandler, zeroAddress, 0n, zeroAddress],
       })
+      to = SAFE_V141.proxyFactory
+      data = encodeFunctionData({
+        abi: PROXY_FACTORY_ABI,
+        functionName: 'createProxyWithNonce',
+        args: [SAFE_V141.singletonL2, initializer, saltNonce],
+      })
     }
-
-    const data = encodeFunctionData({
-      abi: PROXY_FACTORY_ABI,
-      functionName: 'createProxyWithNonce',
-      args: [SAFE_V141.singletonL2, initializer, BigInt(Date.now())],
-    })
 
     setStep('confirm')
     setTxError('')
@@ -146,7 +189,7 @@ export default function CreateSMAModal({ open, onClose, onComplete }) {
         await switchChainAsync({ chainId: selectedNet.chainId })
       }
       const hash = await sendTransactionAsync({
-        to: SAFE_V141.proxyFactory,
+        to,
         data,
         chainId: selectedNet.chainId,
       })
@@ -292,6 +335,16 @@ function ReviewStep({ onBack, onSign, networks, onNetworksChange, error, ownerAd
   const gasLabel = formatGasUsd(totalGasUsd)
   const [signing, setSigning] = useState(false)
 
+  // The deploy target chain is the first selected (handleSign deploys to one).
+  // When that chain has a Sail deployment the tx is a kernel createAccount —
+  // deploy + register in one — otherwise a plain, unmanaged Safe proxy.
+  const targetNet = selectedNets[0]
+  let deployment = null
+  if (targetNet) {
+    try { deployment = getSailDeployment(targetNet.chainId) } catch { /* not yet deployed */ }
+  }
+  const managed = Boolean(deployment)
+
   async function handleSign() {
     setSigning(true)
     try { await onSign() } finally { setSigning(false) }
@@ -316,12 +369,14 @@ function ReviewStep({ onBack, onSign, networks, onNetworksChange, error, ownerAd
           <NetworkMultiSelect value={networks} onChange={onNetworksChange} />
         </header>
         <dl className={styles.txDetails}>
-          <TxRow k="Transaction" v="Safe proxy deployment" />
+          <TxRow k="Transaction" v={managed ? 'Deploy & register SMA' : 'Safe proxy deployment'} />
           <TxRow
             k={`Network${selectedNets.length === 1 ? '' : 's'}`}
             v={<NetworkSummary nets={selectedNets} />}
           />
-          <TxRow k="Factory" v={`${SAFE_V141.proxyFactory.slice(0, 10)}…`} />
+          {managed
+            ? <TxRow k="SailKernel" v={`${deployment.kernel.slice(0, 10)}…`} />
+            : <TxRow k="Factory" v={`${SAFE_V141.proxyFactory.slice(0, 10)}…`} />}
           <TxRow
             k={selectedNets.length === 1 ? 'Gas estimate' : `Gas estimate · ${selectedNets.length} chains`}
             v={gasLabel}
