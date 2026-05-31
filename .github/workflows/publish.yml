@@ -35,3 +35,33 @@ jobs:
       dist_tag: ${{ needs.version.outputs.dist_tag }}
       use_github_registry: true
     secrets: inherit
+
+  publish-chains:
+    needs: [version, publish-sdk]
+    permissions:
+      id-token: write
+      contents: read
+      packages: write
+    uses: SailAgent/devops-templates/.github/workflows/publish-pnpm.yaml@SAIL-131-publishing-fw
+    with:
+      package_dir: packages/chains
+      package_name: '@sailagent/chains'
+      package_version: ${{ needs.version.outputs.prerelease }}
+      dist_tag: ${{ needs.version.outputs.dist_tag }}
+      use_github_registry: true
+    secrets: inherit
+
+  publish-cli:
+    needs: [version, publish-chains]
+    permissions:
+      id-token: write
+      contents: read
+      packages: write
+    uses: SailAgent/devops-templates/.github/workflows/publish-pnpm.yaml@SAIL-131-publishing-fw
+    with:
+      package_dir: packages/cli
+      package_name: '@sailagent/cli'
+      package_version: ${{ needs.version.outputs.prerelease }}
+      dist_tag: ${{ needs.version.outputs.dist_tag }}
+      use_github_registry: true
+    secrets: inherit
