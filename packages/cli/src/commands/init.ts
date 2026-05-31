@@ -1,18 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { scaffoldFoundryWorkspace } from "../lib/foundry.js";
-
-function findWorkspaceRoot(from: string): string {
-  let dir = from;
-  for (let depth = 0; depth < 20; depth++) {
-    if (fs.existsSync(path.join(dir, "pnpm-workspace.yaml"))) return dir;
-    const parent = path.dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  throw new Error("Could not locate pnpm-workspace.yaml — is this a Sailor monorepo checkout?");
-}
+import { packageRoot } from "../lib/packagePaths.js";
 
 const TEMPLATE_COPY_EXCLUDES = new Set([
   "node_modules",
@@ -121,9 +110,7 @@ export async function initCommand(
   name = "my-sailor-agent",
   options: InitOptions = {},
 ): Promise<void> {
-  const packageDir = path.dirname(fileURLToPath(import.meta.url));
-  const workspaceRoot = findWorkspaceRoot(packageDir);
-  const templateSrc = path.join(workspaceRoot, "templates", "dca-rebalancer");
+  const templateSrc = path.join(packageRoot(), "templates", "dca-rebalancer");
   const dest = path.join(process.cwd(), name);
 
   if (!fs.existsSync(templateSrc)) {

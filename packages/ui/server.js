@@ -489,7 +489,7 @@ export function startServer(sailDir) {
   // When SERVE_DIST=1 (set by `sailor ui`), also serve the built UI so a
   // single process handles everything — no Vite dev server needed.
   if (process.env.SERVE_DIST === '1') {
-    const distDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'dist')
+    const distDir = process.env.SAILOR_UI_DIST ?? path.join(path.dirname(fileURLToPath(import.meta.url)), 'dist')
     app.use(express.static(distDir))
     app.get('*', (_req, res) => res.sendFile(path.join(distDir, 'index.html')))
   }
@@ -501,7 +501,11 @@ export function startServer(sailDir) {
 
 // Allow running directly: `SAIL_DIR=/path/to/.sail node server.js`.
 // The CLI's `sailor ui` command spawns this with SAIL_DIR set.
-const isMain = process.argv[1] === fileURLToPath(import.meta.url)
+// In an esbuild CJS bundle import.meta.url is undefined; fall back to __filename.
+const _thisFile = (() => {
+  try { return fileURLToPath(import.meta.url) } catch { return __filename }
+})()
+const isMain = process.argv[1] === _thisFile
 if (isMain) {
   const sailDir = process.env.SAIL_DIR || path.join(process.cwd(), '.sail')
   startServer(sailDir)

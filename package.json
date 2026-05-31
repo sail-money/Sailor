@@ -8,6 +8,7 @@
   },
   "files": [
     "packages/cli/dist",
+    "packages/ui/dist",
     "templates",
     "README.md"
   ],

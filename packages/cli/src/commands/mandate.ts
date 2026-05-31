@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { packageRoot } from "../lib/packagePaths.js";
 import type { Address, MandateItem } from "@sail/sdk";
 import {
   type BoundedSwapParams,
@@ -21,19 +21,10 @@ function locateMandateSource(): { path: string; label: string } | null {
   if (fs.existsSync(projectMandate)) {
     return { path: projectMandate, label: "src/mandate.ts" };
   }
-  // Fall back to the monorepo template (walk up to the workspace root).
-  let dir = path.dirname(fileURLToPath(import.meta.url));
-  for (let depth = 0; depth < 20; depth++) {
-    if (fs.existsSync(path.join(dir, "pnpm-workspace.yaml"))) {
-      const templateMandate = path.join(dir, "templates", "dca-rebalancer", "src", "mandate.ts");
-      if (fs.existsSync(templateMandate)) {
-        return { path: templateMandate, label: "templates/dca-rebalancer/src/mandate.ts" };
-      }
-      return null;
-    }
-    const parent = path.dirname(dir);
-    if (parent === dir) return null;
-    dir = parent;
+  // Fall back to the bundled template.
+  const templateMandate = path.join(packageRoot(), "templates", "dca-rebalancer", "src", "mandate.ts");
+  if (fs.existsSync(templateMandate)) {
+    return { path: templateMandate, label: "templates/dca-rebalancer/src/mandate.ts" };
   }
   return null;
 }

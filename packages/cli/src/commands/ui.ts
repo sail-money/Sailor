@@ -1,60 +1,32 @@
-import { type ChildProcess, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-function findWorkspaceRoot(from: string): string {
-  let dir = from;
-  for (let depth = 0; depth < 20; depth++) {
-    if (fs.existsSync(path.join(dir, "pnpm-workspace.yaml"))) return dir;
-    const parent = path.dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  throw new Error("Could not locate pnpm-workspace.yaml — is this a Sailor monorepo checkout?");
-}
+import { cliDistDir } from "../lib/packagePaths.js";
 
 /**
- * `sailor ui` — builds (if needed) and serves the UI via the Express server.
+ * `sailor ui` — serves the UI via the bundled Express server.
  *
- * The Express server (packages/ui/server.js) reads project state from the
- * current working directory's `.sail/` folder, serves the API on /api, and
- * serves the built UI from packages/ui/dist on /.
+ * Path layout (works in both the monorepo and an installed npm package):
+ *   packages/cli/dist/index.cjs   ← this bundle
+ *   packages/cli/dist/server.cjs  ← bundled UI server
+ *   packages/ui/dist/             ← pre-built static UI assets
  */
 export async function uiCommand(): Promise<void> {
-  const packageDir = path.dirname(fileURLToPath(import.meta.url));
-  const workspaceRoot = findWorkspaceRoot(packageDir);
-  const uiDir = path.join(workspaceRoot, "packages", "ui");
+  const distDir = cliDistDir();
+  const uiDistDir = path.resolve(distDir, "../../ui/dist");
+  const serverBundle = path.resolve(distDir, "server.cjs");
   const sailDir = path.join(process.cwd(), ".sail");
-  const distDir = path.join(uiDir, "dist");
 
-  if (!fs.existsSync(uiDir)) {
-    throw new Error(`UI package not found at ${uiDir}`);
+  if (!fs.existsSync(serverBundle)) {
+    throw new Error(`Server bundle not found at ${serverBundle}. Re-run the sailor build.`);
+  }
+  if (!fs.existsSync(path.join(uiDistDir, "index.html"))) {
+    throw new Error(`UI dist not found at ${uiDistDir}. Re-run the sailor build.`);
   }
 
-  // Build the UI if dist is missing or stale (src newer than dist/index.html).
-  const distIndex = path.join(distDir, "index.html");
-  const needsBuild = !fs.existsSync(distIndex) || (() => {
-    try {
-      const distMtime = fs.statSync(distIndex).mtimeMs;
-      const srcMtime = fs.statSync(path.join(uiDir, "src")).mtimeMs;
-      return srcMtime > distMtime;
-    } catch { return true }
-  })();
-
-  if (needsBuild) {
-    console.log("Building Sailor UI…");
-    await new Promise<void>((resolve, reject) => {
-      const build = spawn("npx", ["vite", "build"], { cwd: uiDir, stdio: "inherit" });
-      build.on("close", (code) => code === 0 ? resolve() : reject(new Error(`Build failed (exit ${code})`)));
-    });
-  }
-
-  // Single server: API + static UI on port 3333.
-  spawn("node", ["server.js"], {
-    cwd: uiDir,
+  spawn("node", [serverBundle], {
     stdio: "inherit",
-    env: { ...process.env, SAIL_DIR: sailDir, SERVE_DIST: "1", PORT: "3333" },
+    env: { ...process.env, SAIL_DIR: sailDir, SERVE_DIST: "1", PORT: "3333", SAILOR_UI_DIST: uiDistDir },
   });
 
   console.log("Sailor UI running at http://localhost:3333");

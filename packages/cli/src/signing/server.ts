@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "
 import { type IncomingMessage, type ServerResponse, createServer } from "node:http";
 import { createServer as createNetServer } from "node:net";
 import { extname, join, resolve } from "node:path";
+import { cliDistDir } from "../lib/packagePaths.js";
 import type {
   ClientMessage,
   ServerMessage,
@@ -38,12 +39,10 @@ const MIME: Record<string, string> = {
  * it works both in the monorepo (tsx/dev) and as an installed npm package.
  */
 function findUiDist(): string | null {
-  const thisDir = new URL(".", import.meta.url).pathname;
+  const distDir = cliDistDir();
   const candidates = [
-    // Installed package: bundled UI sits next to dist as <package-root>/ui-dist
-    join(thisDir, "..", "ui-dist"),
-    // Monorepo dev: packages/cli/src/signing/ → ../../../ui/dist
-    join(thisDir, "..", "..", "..", "ui", "dist"),
+    // Installed package / CJS bundle: packages/cli/dist → ../../ui/dist
+    join(distDir, "..", "..", "ui", "dist"),
     // Monorepo dev via tsx run from the repo root
     join(process.cwd(), "packages", "ui", "dist"),
     join(process.cwd(), "..", "ui", "dist"),
