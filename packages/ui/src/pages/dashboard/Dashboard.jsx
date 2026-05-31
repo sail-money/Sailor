@@ -122,7 +122,11 @@ function explainPermission(perm) {
 
 function fmtActivityTime(ts) {
   try {
-    return new Date(ts).toLocaleTimeString()
+    const d = new Date(ts)
+    // Include both date and time, e.g. "May 31, 14:48"
+    const datePart = d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+    const timePart = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    return `${datePart}, ${timePart}`
   } catch {
     return ts ?? ''
   }
@@ -540,11 +544,35 @@ const ACTIVITY_FILTERS = [
  * dispatches. A small segmented filter lets you isolate one actor — the two
  * streams interleave on-chain but answer different questions ("what did I
  * authorize?" vs "what is the agent doing?").
+ *
+ * Supports incremental loading of older events via "Load 10 more" button.
  */
 function LiveActivityFeed({ events, network }) {
+  const INITIAL_VISIBLE = 6
   const [filter, setFilter] = useState('all')
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE)
+
   const filtered = filter === 'all' ? events : events.filter((e) => activityActor(e) === filter)
-  const rows = [...filtered].slice(-12).reverse()
+
+  // Newest first, then take only the number we want to display
+  const allRows = [...filtered].reverse()
+  const rows = allRows.slice(0, visibleCount)
+  const hasMore = allRows.length > visibleCount
+  const canContract = visibleCount > INITIAL_VISIBLE
+
+  // Reset visible count when filter changes so we don't show stale counts
+  const handleFilterChange = (key) => {
+    setFilter(key)
+    setVisibleCount(INITIAL_VISIBLE)
+  }
+
+  const handleLoadMore = () => {
+    setVisibleCount((c) => c + 10)
+  }
+
+  const handleShowLess = () => {
+    setVisibleCount(INITIAL_VISIBLE)
+  }
 
   return (
     <>
@@ -556,7 +584,7 @@ function LiveActivityFeed({ events, network }) {
             role="tab"
             aria-selected={filter === f.key}
             className={`${styles.activityFilterBtn} ${filter === f.key ? styles.activityFilterBtnActive : ''}`}
-            onClick={() => setFilter(f.key)}
+            onClick={() => handleFilterChange(f.key)}
           >
             {f.label}
           </button>
@@ -567,54 +595,95 @@ function LiveActivityFeed({ events, network }) {
           <p className={styles.emptyAgentsBody}>No {filter === 'all' ? '' : `${filter} `}activity yet.</p>
         </div>
       ) : (
-        <ul className={agentStyles.journalList}>
-          {rows.map((e, i) => {
-            const st = activityStatus(e.type)
-            const actor = activityActor(e)
-            const hasTx = e.txHash && e.txHash !== '0x'
-            const detail = activityDetail(e)
-            return (
-              <li key={`${e.ts}-${i}`}>
-                <div className={agentStyles.journalRow}>
-                  <span className={agentStyles.journalTime}>{fmtActivityTime(e.ts)}</span>
-                  <span
-                    className={`${agentStyles.journalMark} ${agentStyles[`jStatus_${st}`] ?? ''}`}
-                    aria-hidden
-                  >
-                    {st === 'success' && <CheckSm />}
-                    {st === 'rejected' && <CrossSm />}
-                    {st === 'info' && <DotSm />}
-                  </span>
-                  <span className={agentStyles.journalBody}>
-                    <span className={agentStyles.journalTitle}>
-                      <span className={`${styles.activityActor} ${styles[`activityActor_${actor}`] ?? ''}`}>
-                        {ACTOR_LABEL[actor]}
+        <>
+          <ul className={agentStyles.journalList}>
+            {rows.map((e, i) => {
+              const st = activityStatus(e.type)
+              const actor = activityActor(e)
+              const hasTx = e.txHash && e.txHash !== '0x'
+              const detail = activityDetail(e)
+              return (
+                <li key={`${e.ts}-${i}`}>
+                  <div className={agentStyles.journalRow}>
+                    <span className={agentStyles.journalTime}>{fmtActivityTime(e.ts)}</span>
+                    <span
+                      className={`${agentStyles.journalMark} ${agentStyles[`jStatus_${st}`] ?? ''}`}
+                      aria-hidden
+                    >
+                      {st === 'success' && <CheckSm />}
+                      {st === 'rejected' && <CrossSm />}
+                      {st === 'info' && <DotSm />}
+                    </span>
+                    <span className={agentStyles.journalBody}>
+                      <span className={agentStyles.journalTitle}>
+                        <span className={`${styles.activityActor} ${styles[`activityActor_${actor}`] ?? ''}`}>
+                          {ACTOR_LABEL[actor]}
+                        </span>
+                        <span className={agentStyles.journalAction}>
+                          {ACTIVITY_LABELS[e.type] ?? e.type}
+                        </span>
                       </span>
-                      <span className={agentStyles.journalAction}>
-                        {ACTIVITY_LABELS[e.type] ?? e.type}
+                      <span className={agentStyles.journalMeta}>
+                        {detail}
+                        {hasTx && (
+                          <>
+                            {detail ? ' · ' : ''}
+                            <a
+                              href={txUrl(network ?? 'ethereum', e.txHash)}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {truncateAddr(e.txHash)}
+                            </a>
+                          </>
+                        )}
                       </span>
                     </span>
-                    <span className={agentStyles.journalMeta}>
-                      {detail}
-                      {hasTx && (
-                        <>
-                          {detail ? ' · ' : ''}
-                          <a
-                            href={txUrl(network ?? 'ethereum', e.txHash)}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            {truncateAddr(e.txHash)}
-                          </a>
-                        </>
-                      )}
-                    </span>
-                  </span>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+
+          {(hasMore || canContract) && (
+            <div style={{ marginTop: '12px', textAlign: 'center', display: 'flex', gap: '8px', justifyContent: 'center' }}>
+              {canContract && (
+                <button
+                  type="button"
+                  onClick={handleShowLess}
+                  style={{
+                    padding: '6px 14px',
+                    fontSize: '13px',
+                    borderRadius: '6px',
+                    border: '1px solid #3a3f4a',
+                    background: 'transparent',
+                    color: '#9aa0ae',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Show less
+                </button>
+              )}
+              {hasMore && (
+                <button
+                  type="button"
+                  onClick={handleLoadMore}
+                  style={{
+                    padding: '6px 14px',
+                    fontSize: '13px',
+                    borderRadius: '6px',
+                    border: '1px solid #3a3f4a',
+                    background: 'transparent',
+                    color: '#9aa0ae',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Load 10 more
+                </button>
+              )}
+            </div>
+          )}
+        </>
       )}
     </>
   )
