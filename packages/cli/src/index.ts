@@ -60,11 +60,12 @@ function actionWith<T>(fn: (opts: T) => Promise<void> | void): (opts: T) => Prom
 // ── Implemented ───────────────────────────────────────────────────────────────
 
 program
-  .command("init [name]")
-  .description("Scaffold a new Sail agent from the DCA-rebalancer template")
+  .command("init [dir]")
+  .description("Scaffold a new Sail agent into the current directory (or [dir] subdirectory)")
+  .option("--template <name>", "Template to scaffold from (default: dca-rebalancer)")
   .option("--chain <id>", "Default EVM chain id written to .sail/config.json and .env.example")
   .option("--rpc-url <url>", "Default RPC_URL written to .sail/.env.local")
-  .action(async (name: string | undefined, opts: { chain?: string; rpcUrl?: string }) => {
+  .action(async (name: string | undefined, opts: { template?: string; chain?: string; rpcUrl?: string }) => {
     try {
       await initCommand(name, opts);
     } catch (err) {

@@ -29,6 +29,7 @@ function copyDirSync(src: string, dest: string): void {
 type InitOptions = {
   chain?: string;
   rpcUrl?: string;
+  template?: string;
 };
 
 const DEFAULT_CHAIN_ID = 8453;
@@ -107,21 +108,35 @@ CHAIN_ID=${chainId}
 }
 
 export async function initCommand(
-  name = "my-sailor-agent",
+  dir?: string,
   options: InitOptions = {},
 ): Promise<void> {
-  const templateSrc = path.join(packageRoot(), "templates", "dca-rebalancer");
-  const dest = path.join(process.cwd(), name);
+  const inPlace = !dir || dir === ".";
+  const dest = inPlace ? process.cwd() : path.join(process.cwd(), dir);
+  const name = path.basename(dest);
+
+  const templatesDir = path.join(packageRoot(), "templates");
+  const templateName = options.template ?? "dca-rebalancer";
+  const templateSrc = path.join(templatesDir, templateName);
 
   if (!fs.existsSync(templateSrc)) {
-    throw new Error(`Template not found at ${templateSrc}`);
+    const available = fs.existsSync(templatesDir)
+      ? fs.readdirSync(templatesDir)
+          .filter(e => fs.existsSync(path.join(templatesDir, e, "package.json")))
+          .join(", ")
+      : "none";
+    throw new Error(`Template "${templateName}" not found. Available: ${available}`);
   }
 
-  if (fs.existsSync(dest)) {
+  if (!inPlace && fs.existsSync(dest)) {
     throw new Error(`Directory already exists: ${dest}`);
   }
 
-  console.log(`Scaffolding ${name}/ from dca-rebalancer template…`);
+  if (inPlace && fs.existsSync(path.join(dest, ".sail", "config.json"))) {
+    throw new Error(`Already initialized — .sail/config.json exists`);
+  }
+
+  console.log(inPlace ? "Scaffolding into current directory…" : `Scaffolding ${name}/ from dca-rebalancer template…`);
   copyDirSync(templateSrc, dest);
 
   // Patch package.json name
@@ -133,15 +148,12 @@ export async function initCommand(
   }
 
   scaffoldProjectWorkspace(dest, name, options);
-  // Foundry workspace for authoring + deploying custom mandate contracts.
   scaffoldFoundryWorkspace(dest);
 
-  console.log(`\nDone! Your agent is ready at ./${name}/\n`);
+  console.log("\nDone! Your agent is ready.\n");
   console.log("Next steps:");
-  console.log(`  cd ${name}`);
-  if (!options.rpcUrl) {
-    console.log("  cp .env.example .sail/.env.local");
-  }
+  if (!inPlace) console.log(`  cd ${name}`);
+  if (!options.rpcUrl) console.log("  cp .env.example .sail/.env.local");
   console.log("  Open this folder in Claude Code, Cursor, or Codex");
   console.log('  Say: "start"\n');
   console.log("The setup guide in sail/WIZARD.md will walk you through everything.");
