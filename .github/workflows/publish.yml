@@ -7,32 +7,44 @@ on:
   workflow_dispatch:
 
 jobs:
-  version:
+  publish:
     runs-on: ubuntu-latest
-    outputs:
-      prerelease: ${{ steps.compute.outputs.prerelease }}
-      dist_tag: ${{ steps.compute.outputs.dist_tag }}
+    permissions:
+      id-token: write
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
-      - id: compute
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@sailagent'
+      - name: Compute version
+        id: version
         run: |
           BASE=$(node -p "require('./package.json').version")
           SUFFIX=${{ github.event_name == 'workflow_dispatch' && 'dev' || 'main' }}
           echo "prerelease=${BASE}-${SUFFIX}.${{ github.run_number }}" >> $GITHUB_OUTPUT
           echo "dist_tag=${SUFFIX}" >> $GITHUB_OUTPUT
-
-  publish:
-    needs: version
-    permissions:
-      id-token: write
-      contents: read
-      packages: write
-    uses: SailAgent/devops-templates/.github/workflows/publish-pnpm.yaml@SAIL-131-publishing-fw
-    with:
-      package_dir: .
-      package_name: '@sailagent/sailor'
-      package_version: ${{ needs.version.outputs.prerelease }}
-      dist_tag: ${{ needs.version.outputs.dist_tag }}
-      use_github_registry: true
-      pnpm-version: '11'
-    secrets: inherit
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build
+        run: pnpm build
+      - name: Patch package.json for publish
+        run: |
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.name = '@sailagent/sailor';
+            pkg.version = '${{ steps.version.outputs.prerelease }}';
+            delete pkg.private;
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+          "
+      - name: Publish
+        run: pnpm publish --tag ${{ steps.version.outputs.dist_tag }} --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
