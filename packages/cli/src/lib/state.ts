@@ -2,7 +2,8 @@
 // Addresses are stored checksummed; bigints are stored as decimal strings.
 
 import fs from "node:fs";
-import { nowIso, sailPath } from "./io.js";
+import path from "node:path";
+import { nowIso, sailDir } from "./io.js";
 
 export type StoredAccount = {
   safe: string;
@@ -38,9 +39,17 @@ export type AccountListEntry = StoredAccount & {
  * Call this BEFORE overwriting account.json with the new active SMA — the
  * backfill reads the previously-active account.json, so overwriting first would
  * lose the prior SMA.
+ *
+ * `baseSailDir` defaults to the current project's `.sail/`. The signing-station
+ * daemon passes its own `projectRoot/.sail` so a browser-created SMA lands in
+ * the right project even when the daemon runs from a different cwd.
  */
-export function upsertAccountInList(account: StoredAccount, name?: string): void {
-  const accountsPath = sailPath("state", "accounts.json");
+export function upsertAccountInList(
+  account: StoredAccount,
+  name?: string,
+  baseSailDir: string = sailDir(),
+): void {
+  const accountsPath = path.join(baseSailDir, "state", "accounts.json");
   let accounts: AccountListEntry[] = [];
   try {
     accounts = JSON.parse(fs.readFileSync(accountsPath, "utf-8")) as AccountListEntry[];
@@ -48,7 +57,9 @@ export function upsertAccountInList(account: StoredAccount, name?: string): void
     // No list yet: this is the first time we're seeding it. Backfill from the
     // currently-active account.json so a pre-existing SMA isn't dropped.
     try {
-      const prev = JSON.parse(fs.readFileSync(sailPath("account.json"), "utf-8")) as StoredAccount;
+      const prev = JSON.parse(
+        fs.readFileSync(path.join(baseSailDir, "account.json"), "utf-8"),
+      ) as StoredAccount;
       if (prev?.safe) accounts.push({ ...prev, name: "SMA 1", addedAt: null });
     } catch {
       /* truly the first SMA — nothing to backfill */
@@ -63,7 +74,7 @@ export function upsertAccountInList(account: StoredAccount, name?: string): void
     });
   }
 
-  fs.mkdirSync(sailPath("state"), { recursive: true });
+  fs.mkdirSync(path.join(baseSailDir, "state"), { recursive: true });
   fs.writeFileSync(accountsPath, `${JSON.stringify(accounts, null, 2)}\n`);
 }
 
