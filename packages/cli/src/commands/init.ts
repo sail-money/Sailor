@@ -129,7 +129,16 @@ export async function initCommand(
   options: InitOptions = {},
 ): Promise<void> {
   const templateSrc = path.join(packageRoot(), "templates", "dca-rebalancer");
-  const dest = path.join(process.cwd(), name);
+
+  // Prevent path traversal: resolve dest and ensure it stays within cwd.
+  // path.join(cwd, "../../etc/passwd") would escape without this check.
+  const cwd = path.resolve(process.cwd());
+  const dest = path.resolve(cwd, name);
+  if (!dest.startsWith(cwd + path.sep) && dest !== cwd) {
+    throw new Error(
+      `Project name must not contain path traversal sequences (got: "${name}").`,
+    );
+  }
 
   if (!fs.existsSync(templateSrc)) {
     throw new Error(`Template not found at ${templateSrc}`);

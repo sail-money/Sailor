@@ -105,6 +105,28 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
     throw new Error(`Invalid CHAIN_ID: "${chainIdRaw}".`);
   }
 
+  // Validate the RPC URL to prevent SSRF attacks against internal network
+  // endpoints (e.g., AWS IMDSv1 at 169.254.169.254) via a crafted .env.local.
+  try {
+    const parsed = new URL(rpcUrl);
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      throw new Error(`RPC_URL must use http or https — got: ${parsed.protocol}`);
+    }
+    // Block RFC-1918, link-local, and loopback ranges (except explicit localhost
+    // dev usage, which operators can allow by setting SAILOR_ALLOW_LOCAL_RPC=1).
+    const blocked =
+      /^(169\.254\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|127\.|0\.0\.0\.0|::1$|fd[0-9a-f]{2}:)/i;
+    if (blocked.test(parsed.hostname) && !process.env.SAILOR_ALLOW_LOCAL_RPC) {
+      throw new Error(
+        `RPC_URL hostname "${parsed.hostname}" is a private or link-local address. ` +
+          "Set SAILOR_ALLOW_LOCAL_RPC=1 to allow local RPC endpoints (dev only).",
+      );
+    }
+  } catch (e) {
+    if ((e as Error).message.startsWith("RPC_URL")) throw e;
+    throw new Error(`RPC_URL is not a valid URL: ${rpcUrl}`);
+  }
+
   if (!keyExists("manager", account.safe)) {
     throw new Error(
       'No manager key found.\nRun "sailor keys generate" and choose "manager" first.',
@@ -133,6 +155,9 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
 
   // ── Load the manager key (SAIL_PASSPHRASE env skips interactive prompt) ──────
   const manager = await loadManagerSigner(account.safe);
+  // Clear the passphrase from the process environment immediately after loading
+  // the key. Agent code runs in the same process and can read process.env.
+  delete process.env.SAIL_PASSPHRASE;
   closePrompts();
   const agentManager: ILocalKeyring = {
     address: manager.address,
@@ -205,7 +230,16 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
       blockNumber,
       timestamp: Math.floor(Date.now() / 1000),
       now: new Date(),
-      client: execClient,
+      // Expose a constrained client to agent code: dispatch and strategy namespaces
+      // use the exec client (wallet attached) so agents can sign dispatches, but
+      // fees, principal, account, mandate, and session use the read-only client
+      // (no wallet) so agent code cannot call fees.collect(), account.create(),
+      // or other privileged write operations that bypass the dispatch gate and
+      // are authorized solely by msg.sender == manager key.
+      client: Object.assign(Object.create(readClient) as typeof readClient, {
+        dispatch: execClient.dispatch,
+        strategy: execClient.strategy,
+      }),
       manager: agentManager,
       log,
       data: agentData,

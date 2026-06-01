@@ -138,7 +138,17 @@ export class SigningServer {
 
     const http = createServer((req, res) => this.handleHttp(req, res));
     this.wss = new WebSocketServer({ server: http });
-    this.wss.on("connection", (ws) => this.handleConnection(ws));
+    this.wss.on("connection", (ws, req) => {
+      // Authenticate WebSocket connections using the requestSecret passed as a
+      // query parameter (?secret=...). Browsers freely open WebSocket connections
+      // regardless of page origin, so this is the only gate for WS auth.
+      const params = new URL(req.url ?? "/", this._url).searchParams;
+      if (params.get("secret") !== this.requestSecret) {
+        ws.close(1008, "Unauthorized");
+        return;
+      }
+      this.handleConnection(ws);
+    });
 
     await new Promise<void>((res, rej) => {
       http.listen(this.port, "127.0.0.1", res);
@@ -210,7 +220,7 @@ export class SigningServer {
       | Omit<SigningTypedDataRequest, "id" | "createdAt">,
     timeoutMs = 10 * 60 * 1000,
   ): SigningRequest {
-    const id = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const id = `req_${Date.now()}_${randomBytes(6).toString("hex")}`;
     const request = { ...req, id, createdAt: Date.now() } as SigningRequest;
 
     const timer = setTimeout(() => {
@@ -271,6 +281,9 @@ export class SigningServer {
 
   private recordResult(response: SigningResponse, request?: SigningRequest): void {
     const id = response.requestId;
+    // Guard against double-resolution: a concurrent WS message and a timeout
+    // firing in the same event loop tick could both try to resolve the same request.
+    if (this.results.has(id)) return;
     this.results.set(id, response);
     const waiters = this.resultWaiters.get(id);
     if (waiters) {
@@ -318,10 +331,20 @@ export class SigningServer {
   }
 
   private handleHttp(req: IncomingMessage, res: ServerResponse): void {
-    // Restrict CORS to same-origin localhost requests only. Cross-origin pages
-    // must not be able to POST signing requests or read pending queue state.
     const origin = req.headers.origin;
-    const allowedOrigin = origin?.startsWith("http://localhost:") ? origin : this._url;
+    // CORS strategy:
+    //   - /config (discovery): allow any localhost origin so the dashboard and other
+    //     local tools can discover the station. The secret is NOT in the response body.
+    //   - All other endpoints: restrict to the exact station origin (same port).
+    //     This prevents any other localhost page from reading state or injecting requests.
+    const url0 = (req.url ?? "/").split("?")[0];
+    const isDiscoveryEndpoint = url0 === "/config";
+    const allowedOrigin =
+      isDiscoveryEndpoint && origin?.startsWith("http://localhost:")
+        ? origin
+        : origin === this._url
+          ? origin
+          : this._url;
     res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", `Content-Type, ${REQUEST_SECRET_HEADER}`);
@@ -336,27 +359,53 @@ export class SigningServer {
     const url = (req.url ?? "/").split("?")[0];
 
     if (url === "/config") {
+      // The requestSecret is NOT included in the response body when the request
+      // carries an Origin header (i.e. it is a cross-origin browser request).
+      // Same-origin requests (Origin absent — the signed UI served at this port)
+      // and exact-origin requests receive the secret embedded in wsUrl as a query
+      // parameter so the WebSocket connection can be authenticated.
+      // This ensures cross-origin pages that can discover the station cannot
+      // obtain the secret needed to inject signing requests or read pending state.
+      const isTrustedOrigin = !origin || origin === this._url;
+      const wsUrlForClient = isTrustedOrigin
+        ? `${this.wsUrl}?secret=${encodeURIComponent(this.requestSecret)}`
+        : this.wsUrl;
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
           url: this._url,
-          wsUrl: this.wsUrl,
+          wsUrl: wsUrlForClient,
           port: this.port,
           pid: process.pid,
           pendingCount: this.pending.size,
-          requestSecret: this.requestSecret,
         }),
       );
       return;
     }
 
+    // All state-bearing GET endpoints require the requestSecret header.
+    // This prevents any localhost page from reading the pending queue, the
+    // connected wallet address, or resolved signatures.
+    const secretHeader = req.headers[REQUEST_SECRET_HEADER];
+    const isAuthenticated = secretHeader === this.requestSecret;
+
     if (url === "/pending") {
+      if (!isAuthenticated) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "forbidden" }));
+        return;
+      }
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify(Array.from(this.pending.values()).map((e) => e.request)));
       return;
     }
 
     if (url === "/wallet") {
+      if (!isAuthenticated) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "forbidden" }));
+        return;
+      }
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ address: this._connectedWallet ?? null }));
       return;
@@ -392,6 +441,11 @@ export class SigningServer {
 
     const resultMatch = url.match(/^\/requests\/([^/]+)\/result$/);
     if (resultMatch && (req.method === "GET" || req.method == null)) {
+      if (!isAuthenticated) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "forbidden" }));
+        return;
+      }
       const id = decodeURIComponent(resultMatch[1]);
       this.waitForResult(id, RESULT_LONGPOLL_MS).then((result) => {
         if (result) {

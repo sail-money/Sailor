@@ -79,7 +79,10 @@ export class SigningClient implements SigningChannel {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       // The server long-polls (~25s) and returns 204 to ask us to re-poll.
-      const res = await fetch(`${this.baseUrl}/requests/${encodeURIComponent(id)}/result`);
+      // Secret header required since /requests/:id/result is now auth-gated.
+      const res = await fetch(`${this.baseUrl}/requests/${encodeURIComponent(id)}/result`, {
+        headers: { "x-sailor-secret": this.requestSecret },
+      });
       if (res.status === 200) return (await res.json()) as SigningResponse;
       if (res.status !== 204) {
         throw new Error(`Unexpected result status ${res.status} from signing station`);
@@ -92,7 +95,11 @@ export class SigningClient implements SigningChannel {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       try {
-        const r = await fetch(`${this.baseUrl}/wallet`, { signal: AbortSignal.timeout(2_000) });
+        // Secret header required since /wallet is now auth-gated.
+        const r = await fetch(`${this.baseUrl}/wallet`, {
+          headers: { "x-sailor-secret": this.requestSecret },
+          signal: AbortSignal.timeout(2_000),
+        });
         if (r.ok) {
           const { address } = (await r.json()) as { address: Address | null };
           if (address) return address;
