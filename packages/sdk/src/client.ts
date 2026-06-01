@@ -348,7 +348,14 @@ class MandateNamespace extends KernelNamespace implements IMandateNamespace {
     _salt: Hex,
     _signer: ILocalKeyring,
   ): Promise<void> {
-    return notImplemented();
+    // Clone deployment goes through PermissionFactory.attach with a configureSig
+    // signed by the permission signer — the factory handles clone deployment and
+    // initialization atomically. The CLI's `sailor mandate attach` command is the
+    // supported path until a dedicated SDK helper is added.
+    throw new Error(
+      "deployAndAttachClone is not yet implemented in the SDK.\n" +
+        "Use `sailor mandate attach --address <impl>` to attach a clone template via the factory.",
+    );
   }
 
   async list(safe: Address): Promise<Mandate[]> {

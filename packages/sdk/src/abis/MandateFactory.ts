@@ -85,27 +85,8 @@ export const MandateFactoryAbi = [
     ],
     outputs: [],
   },
-  {
-    type: "function",
-    name: "deployAndAttach",
-    stateMutability: "payable",
-    inputs: [
-      { name: "account", type: "address" },
-      { name: "impl", type: "address" },
-      { name: "salt", type: "bytes32" },
-      { name: "initData", type: "bytes" },
-      { name: "kernelSig", type: "bytes" },
-    ],
-    outputs: [{ name: "clone", type: "address" }],
-  },
-  {
-    type: "function",
-    name: "predictCloneAddress",
-    stateMutability: "view",
-    inputs: [
-      { name: "impl", type: "address" },
-      { name: "salt", type: "bytes32" },
-    ],
-    outputs: [{ name: "", type: "address" }],
-  },
 ] as const;
+// Note: deployAndAttach and predictCloneAddress were removed — they do not
+// exist on the deployed PermissionFactory contract. Clone template deployment
+// goes through PermissionFactory.attach with a configureSig signed by the
+// permission signer, which handles clone deployment + initialization atomically.

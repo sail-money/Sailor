@@ -107,6 +107,16 @@ export class LocalKeyring implements ILocalKeyring {
       throw new Error(`Unsupported keystore KDF: ${crypto.kdf}`);
     }
     const { n, r, p, dklen, salt } = crypto.kdfparams;
+    // Enforce minimum work factor. An externally-supplied keystore with N=1 would
+    // decrypt without error but be trivially brute-forceable.
+    if (n < 1 << 14) {
+      throw new Error(
+        `Keystore scrypt N=${n} is below the minimum accepted value (16384). Refusing to decrypt.`,
+      );
+    }
+    if (r < 8) {
+      throw new Error(`Keystore scrypt r=${r} is below the minimum accepted value (8).`);
+    }
     const derived = scryptSync(password, Buffer.from(salt, "hex"), dklen, {
       N: n,
       r,
