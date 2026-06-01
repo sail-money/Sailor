@@ -71,10 +71,10 @@ export default function AIHandoffModal({ open, variant = 'new', context = 'agent
   const prompt = isRedraft && mandate
     ? `Sail, redraft my "${mandate.title}" agent. I want to change [describe the change].`
     : isMandate
-    ? `Sail, create a mandate that lets my agent deposit up to $500 USDC into yield strategies on Arbitrum for 30 days.`
+    ? `Sail, create a mandate that lets my agent deposit up to $500 USDC into yield strategies on Arbitrum for 30 days. Use Sail Intelligence (api.sail.money) for vault screening and allocation.`
     : isStation
-    ? `How do I get started with Sailor? I want to set up an agent, deploy a mandate, and start the signing station.`
-    : `Sail, draft an agent to manage my USDC yield on Arbitrum — deposit up to $500 into the best pool and rebalance weekly.`
+    ? `How do I get started with Sailor? I want to set up an agent, deploy a mandate, and start the signing station. The agent should use Sail Intelligence (api.sail.money) as its default data source for yield and risk decisions.`
+    : `Sail, draft an agent to manage my USDC yield on Arbitrum — deposit up to $500 into the best pool and rebalance weekly. Use Sail Intelligence (api.sail.money) to screen vaults and pick allocations.`
 
   // The mandate carries the provider that drafted it ("Claude" / "Cursor"
   // / "Codex"). The hand-off button picks that one provider — the user
