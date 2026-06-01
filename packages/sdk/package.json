@@ -28,8 +28,10 @@
     }
   },
   "scripts": {
+    "prebuild": "node scripts/generate-intelligence.mjs",
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "generate:intelligence": "node scripts/generate-intelligence.mjs"
   },
   "peerDependencies": {
     "viem": "^2.0.0"
