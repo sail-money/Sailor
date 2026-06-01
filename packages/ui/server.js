@@ -613,15 +613,24 @@ export function startServer(sailDir) {
     }
     const rpcUrl = env.RPC_URL
 
-    // Friendly name lookup: address → most-recently-deployed mandate name.
+    // Friendly name lookup: address → name or template.
     const nameByAddr = new Map()
+    const templateByAddr = new Map()
     try {
       const tracked = JSON.parse(fs.readFileSync(at('state/mandates.json'), 'utf-8'))
       for (const m of tracked.mandates ?? []) {
         if (m.address && m.name) nameByAddr.set(m.address.toLowerCase(), m.name)
       }
     } catch {
-      /* no local mandate history — names fall back to the address */
+      /* no local mandate history */
+    }
+    try {
+      const local = JSON.parse(fs.readFileSync(at('mandate.json'), 'utf-8'))
+      for (const p of local.permissions ?? []) {
+        if (p.address && p.template) templateByAddr.set(p.address.toLowerCase(), p.template)
+      }
+    } catch {
+      /* no mandate.json */
     }
 
     const network = CHAIN_NAMES[chainId] ?? null
@@ -700,6 +709,7 @@ export function startServer(sailDir) {
         result.mandates = perms.map((addr) => ({
           address: addr,
           name: nameByAddr.get(addr.toLowerCase()) ?? null,
+          template: templateByAddr.get(addr.toLowerCase()) ?? null,
           network,
         }))
 
@@ -726,11 +736,15 @@ export function startServer(sailDir) {
         // Best-effort mandate list from the local active set when chain is down.
         try {
           const local = JSON.parse(fs.readFileSync(at('mandate.json'), 'utf-8'))
-          result.mandates = (local.permissions ?? []).map((addr) => ({
-            address: addr,
-            name: nameByAddr.get(String(addr).toLowerCase()) ?? null,
-            network,
-          }))
+          result.mandates = (local.permissions ?? []).map((p) => {
+            const addr = typeof p === 'string' ? p : p.address
+            return {
+              address: addr,
+              name: nameByAddr.get(addr.toLowerCase()) ?? null,
+              template: (typeof p === 'object' ? p.template : null) ?? templateByAddr.get(addr.toLowerCase()) ?? null,
+              network,
+            }
+          })
         } catch {
           /* no local mandate */
         }

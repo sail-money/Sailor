@@ -266,11 +266,12 @@ function AttachedMandatesPanel({ mandates, network, onchain, onRevoke }) {
 }
 
 function MandateRow({ mandate, network, onRevoke }) {
-  const name = mandate.name ?? 'Unrecognized permission'
+  const name = mandate.name ?? mandate.template ?? 'Unrecognized permission'
+  const known = !!(mandate.name ?? mandate.template)
   return (
-    <article className={`${styles.mandateRow} ${mandate.name ? '' : styles.mandateRowUnknown}`}>
+    <article className={`${styles.mandateRow} ${known ? '' : styles.mandateRowUnknown}`}>
       <span className={styles.mandateRowIcon} aria-hidden>
-        {mandate.name ? <CheckMark /> : <DocGlyph />}
+        {known ? <CheckMark /> : <DocGlyph />}
       </span>
       <span className={styles.mandateRowBody}>
         <span className={styles.mandateRowName}>{name}</span>
