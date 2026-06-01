@@ -504,12 +504,14 @@ function LiveMandateCard({ mandate, network }) {
 }
 
 /** Live agent card reflecting the real `sailor run` process state. */
-function LiveAgentCard({ running, pid, source }) {
+function LiveAgentCard({ running, pid, source, githubActions }) {
   const isRemote = source === 'remote'
   const scopeLabel = running
     ? isRemote ? 'running · remote' : `running · PID ${pid}`
     : 'stopped'
   const locationLabel = isRemote ? 'remote agent' : 'local process'
+  const showGhSetup = !running && githubActions
+
   return (
     <article
       className={`${styles.mCard} ${running ? styles.mCardActive : styles.mCardMuted}`}
@@ -524,7 +526,7 @@ function LiveAgentCard({ running, pid, source }) {
       <div className={styles.mTitleBlock}>
         <h3 className={`${shared.displayHeadline} ${styles.mTitle}`}>Agent runner</h3>
         <span className={styles.mScope}>{scopeLabel}</span>
-        <span className={styles.mDelegatedTag}>{locationLabel}</span>
+        <span className={styles.mDelegatedTag}>{isRemote ? 'remote agent' : showGhSetup ? 'github actions' : locationLabel}</span>
       </div>
 
       <div className={styles.mCardMid}>
@@ -535,6 +537,28 @@ function LiveAgentCard({ running, pid, source }) {
           <Sai size={48} animate={running} />
         </span>
       </div>
+
+      {showGhSetup && (
+        <div className={styles.ghSetupBanner}>
+          <span className={styles.ghSetupIcon} aria-hidden>⚠</span>
+          <div className={styles.ghSetupBody}>
+            <span className={styles.ghSetupTitle}>GH Actions workflow not running</span>
+            <span className={styles.ghSetupSub}>
+              Add secrets to your repo, then trigger the workflow manually once.
+            </span>
+          </div>
+          {githubActions.repoUrl && (
+            <a
+              className={styles.ghSetupLink}
+              href={`${githubActions.repoUrl}/settings/secrets/actions`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Add secrets →
+            </a>
+          )}
+        </div>
+      )}
     </article>
   )
 }
@@ -721,7 +745,7 @@ export default function Dashboard() {
   const { overview } = useSailorOverview(refreshTick)
   const { mandate: liveMandate } = useSailorMandate(refreshTick)
   const { events: liveActivity } = useSailorActivity(refreshTick)
-  const { running: agentRunning, pid: agentPid, source: agentSource } = useSailorAgentStatus()
+  const { running: agentRunning, pid: agentPid, source: agentSource, githubActions } = useSailorAgentStatus()
   const { pending } = useSailorPending()
 
   const [justCreatedAccount, setJustCreatedAccount] = useState(() => {
@@ -1110,7 +1134,7 @@ export default function Dashboard() {
 
               <div className={styles.mandateCards}>
                 {liveMode ? (
-                  <LiveAgentCard running={agentRunning} pid={agentPid} source={agentSource} />
+                  <LiveAgentCard running={agentRunning} pid={agentPid} source={agentSource} githubActions={githubActions} />
                 ) : (
                   <EmptyAgentsState onNew={() => setHandoff({ variant: 'new', context: 'agent' })} />
                 )}

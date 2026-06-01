@@ -4668,3 +4668,49 @@
   background: rgba(229, 72, 77, 0.18);
   border-color: rgba(229, 72, 77, 0.4);
 }
+
+/* ── GH Actions setup banner ─────────────────────────────────────────────── */
+.ghSetupBanner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.22);
+}
+.ghSetupIcon {
+  font-size: 14px;
+  line-height: 1.4;
+  color: rgba(251, 191, 36, 0.9);
+  flex-shrink: 0;
+}
+.ghSetupBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.ghSetupTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 0.01em;
+}
+.ghSetupSub {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.4;
+}
+.ghSetupLink {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(251, 191, 36, 0.85);
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  align-self: center;
+}
+.ghSetupLink:hover { color: rgba(251, 191, 36, 1); text-decoration: underline; }
