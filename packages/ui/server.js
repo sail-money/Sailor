@@ -486,13 +486,40 @@ export function startServer(sailDir) {
   })
 
   // GET /api/station/pending — proxy to the signing station daemon, or [] if not running.
-  // The station writes its port to .sail/runtime/server.json when it starts.
+  // Discovery order: runtime/server.json (written by `sailor station start`),
+  // then port-scan 3141–3150 (same range the UI station page uses), with a
+  // short timeout so a stale/hanging daemon never blocks the dashboard.
+  const STATION_PORTS = Array.from({ length: 10 }, (_, i) => 3141 + i)
+  let stationPortCache = null // { port, expiresAt }
+
+  async function discoverStationPort() {
+    if (stationPortCache && Date.now() < stationPortCache.expiresAt) {
+      return stationPortCache.port
+    }
+    // 1. Try runtime/server.json first — cheapest path.
+    try {
+      const { port } = JSON.parse(fs.readFileSync(at('runtime/server.json'), 'utf-8'))
+      if (port) {
+        const ok = await fetch(`http://127.0.0.1:${port}/config`, { signal: AbortSignal.timeout(500) }).then(r => r.ok).catch(() => false)
+        if (ok) { stationPortCache = { port, expiresAt: Date.now() + 10_000 }; return port }
+      }
+    } catch { /* fall through to port-scan */ }
+    // 2. Port-scan the known range (same as the station UI page does).
+    for (const port of STATION_PORTS) {
+      try {
+        const ok = await fetch(`http://127.0.0.1:${port}/config`, { signal: AbortSignal.timeout(300) }).then(r => r.ok).catch(() => false)
+        if (ok) { stationPortCache = { port, expiresAt: Date.now() + 10_000 }; return port }
+      } catch { /* next */ }
+    }
+    stationPortCache = null
+    return null
+  }
+
   app.get('/api/station/pending', async (_req, res) => {
     try {
-      const stateRaw = fs.readFileSync(at('runtime/server.json'), 'utf-8')
-      const { port } = JSON.parse(stateRaw)
+      const port = await discoverStationPort()
       if (!port) { res.json([]); return }
-      const response = await fetch(`http://127.0.0.1:${port}/pending`)
+      const response = await fetch(`http://127.0.0.1:${port}/pending`, { signal: AbortSignal.timeout(2_000) })
       if (!response.ok) { res.json([]); return }
       res.json(await response.json())
     } catch {
