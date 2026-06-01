@@ -69,15 +69,35 @@ export {
   fetchLifiQuote,
 } from "./lifi.js";
 
-// ── Intelligence API ──────────────────────────────────────────────────────────
+// ── Intelligence API (auto-generated from api.sail.money/openapi.json) ────────
 export type {
   AllocationItem,
-  AllocationResult,
-  OpportunityItem,
-  RebalancePlan,
-  RiskTier,
+  AllocationRequest,
+  AllocationResponse,
+  BenchmarkResponse,
+  ComparePosition,
+  CompareRequest,
+  CompareResponse,
+  ExplainRequest,
+  ExplainResponse,
+  InstitutionalRequest,
+  InstitutionalResponse,
+  OpportunitiesResponse,
+  PortfolioCheckResponse,
+  RebalanceRequest,
+  RebalanceResponse,
+  RisksSummaryResponse,
+  SafeCheckResponse,
   SailIntelligenceOptions,
+  ScreenRequest,
+  ScreenResponse,
+  ValidateRequest,
+  ValidateResponse,
+  VaultRiskResponse,
   VaultScreenResult,
+  YieldOpportunity,
+  YieldSourceItem,
+  YieldSourcesResponse,
 } from "./intelligence.js";
 export {
   SAIL_INTELLIGENCE_BASE_URL,
