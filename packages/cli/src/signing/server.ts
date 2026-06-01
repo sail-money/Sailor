@@ -15,6 +15,7 @@ import type {
 import type { Address, Hex } from "viem";
 import { WebSocket, WebSocketServer } from "ws";
 import { appendActivity, nowIso } from "../lib/io.js";
+import { type StoredAccount, upsertAccountInList } from "../lib/state.js";
 
 export const DEFAULT_SIGNING_PORT = 3141; // π — memorable, thematic
 const RUNTIME_SUBDIR = join(".sail", "runtime");
@@ -316,6 +317,102 @@ export class SigningServer {
     }
   }
 
+  /** Path to `<projectRoot>/.sail/<...segments>`. */
+  private sailFile(...segments: string[]): string {
+    return join(this.projectRoot, ".sail", ...segments);
+  }
+
+  /** Stream a JSON file back, or a fallback body when it is missing/invalid. */
+  private sendJsonFile(
+    res: ServerResponse,
+    filePath: string,
+    fallback: { status: number; body: unknown },
+  ): void {
+    try {
+      const raw = readFileSync(filePath, "utf-8");
+      JSON.parse(raw); // validate before sending
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(raw);
+    } catch {
+      res.writeHead(fallback.status, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(fallback.body));
+    }
+  }
+
+  /**
+   * Persist a Safe deployed/imported from the dashboard. Mirrors the UI data
+   * server's `POST /api/account` (packages/ui/server.js): upsert the SMA into
+   * `state/accounts.json` (so the account switcher and the agent see it) BEFORE
+   * overwriting `account.json` with the new active SMA — the upsert backfills
+   * from the previously-active account.json, so writing it first would drop the
+   * prior SMA.
+   */
+  private handleSaveAccount(req: IncomingMessage, res: ServerResponse): void {
+    this.readBody(req)
+      .then((body) => {
+        const parsed = (body ? JSON.parse(body) : {}) as Partial<StoredAccount>;
+        const { safe, owner, permissionSigner, manager, chainId, createdAtBlock } = parsed;
+        if (!safe || !owner || !chainId) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "safe, owner, and chainId are required" }));
+          return;
+        }
+        const record: StoredAccount = {
+          safe,
+          owner,
+          permissionSigner: permissionSigner ?? owner,
+          manager: manager ?? owner,
+          chainId,
+          createdAtBlock: createdAtBlock ?? "0",
+        };
+        const baseSailDir = this.sailFile();
+        upsertAccountInList(record, undefined, baseSailDir);
+        mkdirSync(baseSailDir, { recursive: true });
+        writeFileSync(this.sailFile("account.json"), `${JSON.stringify(record, null, 2)}\n`);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true }));
+      })
+      .catch((err) => {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      });
+  }
+
+  /** All known SMAs, annotating the currently-active one (mirrors the UI server). */
+  private handleListAccounts(res: ServerResponse): void {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    let active: string | null = null;
+    try {
+      active = (JSON.parse(readFileSync(this.sailFile("account.json"), "utf-8")) as StoredAccount)
+        .safe;
+    } catch {
+      /* no active account */
+    }
+    try {
+      const accounts = JSON.parse(
+        readFileSync(this.sailFile("state", "accounts.json"), "utf-8"),
+      ) as Array<StoredAccount & { name?: string }>;
+      res.end(
+        JSON.stringify(
+          accounts.map((a) => ({
+            ...a,
+            active: a.safe.toLowerCase() === active?.toLowerCase(),
+          })),
+        ),
+      );
+    } catch {
+      // Fall back to the active account.json as a single-item list.
+      try {
+        const a = JSON.parse(
+          readFileSync(this.sailFile("account.json"), "utf-8"),
+        ) as StoredAccount;
+        res.end(JSON.stringify([{ ...a, name: "My SMA", active: true, addedAt: null }]));
+      } catch {
+        res.end("[]");
+      }
+    }
+  }
+
   private handleHttp(req: IncomingMessage, res: ServerResponse): void {
     // Restrict CORS to same-origin localhost requests only. Cross-origin pages
     // must not be able to POST signing requests or read pending queue state.
@@ -386,6 +483,29 @@ export class SigningServer {
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
         });
+      return;
+    }
+
+    // ── SMA persistence ────────────────────────────────────────────────────
+    // The station daemon serves the dashboard, but unlike `sailor ui`'s data
+    // server it has no Express /api. So a Safe deployed from the dashboard's
+    // Create/Import flow (CreateSMAModal → POST /api/account) had nowhere to
+    // land: the request 404'd and the SMA lived only in browser localStorage,
+    // invisible to the agent reading account.json / state/accounts.json. These
+    // endpoints persist it to disk so the agent perceives the active SMA.
+    if (url === "/api/account" && req.method === "POST") {
+      this.handleSaveAccount(req, res);
+      return;
+    }
+    if (url === "/api/account" && (req.method === "GET" || req.method == null)) {
+      this.sendJsonFile(res, join(this.projectRoot, ".sail", "account.json"), {
+        status: 404,
+        body: { error: "account not found" },
+      });
+      return;
+    }
+    if (url === "/api/accounts" && (req.method === "GET" || req.method == null)) {
+      this.handleListAccounts(res);
       return;
     }
 

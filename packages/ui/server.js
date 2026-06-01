@@ -459,11 +459,28 @@ export function startServer(sailDir) {
     }
   }
 
+  // Checks activity.jsonl for a recent entry — detects remote agents (CI/GH
+  // Actions) that don't write a local PID file. "Recent" = last entry within
+  // 10 minutes, treating that as the agent being actively scheduled.
+  const recentActivityMs = () => {
+    try {
+      const raw = fs.readFileSync(at('activity.jsonl'), 'utf-8').trimEnd()
+      const lastLine = raw.slice(raw.lastIndexOf('\n') + 1)
+      const entry = JSON.parse(lastLine)
+      if (entry?.ts) return Date.now() - new Date(entry.ts).getTime()
+    } catch {}
+    return Infinity
+  }
+
   // GET /api/agent-status — whether `sailor run` is currently running.
+  // Local agent: PID file + process check. Remote agent (CI / GH Actions):
+  // falls back to activity.jsonl recency (within 10 min = running).
   app.get('/api/agent-status', (_req, res) => {
     const pid = readAgentPid()
-    if (pid !== null && isAlive(pid)) res.json({ running: true, pid })
-    else res.json({ running: false })
+    if (pid !== null && isAlive(pid)) return res.json({ running: true, pid, source: 'local' })
+    const ageMs = recentActivityMs()
+    if (ageMs < 10 * 60 * 1000) return res.json({ running: true, source: 'remote', lastActivityMs: ageMs })
+    res.json({ running: false })
   })
 
   // POST /api/agent-status { action: 'stop' } — SIGTERM the running agent.
@@ -486,13 +503,40 @@ export function startServer(sailDir) {
   })
 
   // GET /api/station/pending — proxy to the signing station daemon, or [] if not running.
-  // The station writes its port to .sail/runtime/server.json when it starts.
+  // Discovery order: runtime/server.json (written by `sailor station start`),
+  // then port-scan 3141–3150 (same range the UI station page uses), with a
+  // short timeout so a stale/hanging daemon never blocks the dashboard.
+  const STATION_PORTS = Array.from({ length: 10 }, (_, i) => 3141 + i)
+  let stationPortCache = null // { port, expiresAt }
+
+  async function discoverStationPort() {
+    if (stationPortCache && Date.now() < stationPortCache.expiresAt) {
+      return stationPortCache.port
+    }
+    // 1. Try runtime/server.json first — cheapest path.
+    try {
+      const { port } = JSON.parse(fs.readFileSync(at('runtime/server.json'), 'utf-8'))
+      if (port) {
+        const ok = await fetch(`http://127.0.0.1:${port}/config`, { signal: AbortSignal.timeout(500) }).then(r => r.ok).catch(() => false)
+        if (ok) { stationPortCache = { port, expiresAt: Date.now() + 10_000 }; return port }
+      }
+    } catch { /* fall through to port-scan */ }
+    // 2. Port-scan the known range (same as the station UI page does).
+    for (const port of STATION_PORTS) {
+      try {
+        const ok = await fetch(`http://127.0.0.1:${port}/config`, { signal: AbortSignal.timeout(300) }).then(r => r.ok).catch(() => false)
+        if (ok) { stationPortCache = { port, expiresAt: Date.now() + 10_000 }; return port }
+      } catch { /* next */ }
+    }
+    stationPortCache = null
+    return null
+  }
+
   app.get('/api/station/pending', async (_req, res) => {
     try {
-      const stateRaw = fs.readFileSync(at('runtime/server.json'), 'utf-8')
-      const { port } = JSON.parse(stateRaw)
+      const port = await discoverStationPort()
       if (!port) { res.json([]); return }
-      const response = await fetch(`http://127.0.0.1:${port}/pending`)
+      const response = await fetch(`http://127.0.0.1:${port}/pending`, { signal: AbortSignal.timeout(2_000) })
       if (!response.ok) { res.json([]); return }
       res.json(await response.json())
     } catch {
@@ -586,15 +630,24 @@ export function startServer(sailDir) {
     }
     const rpcUrl = env.RPC_URL
 
-    // Friendly name lookup: address → most-recently-deployed mandate name.
+    // Friendly name lookup: address → name or template.
     const nameByAddr = new Map()
+    const templateByAddr = new Map()
     try {
       const tracked = JSON.parse(fs.readFileSync(at('state/mandates.json'), 'utf-8'))
       for (const m of tracked.mandates ?? []) {
         if (m.address && m.name) nameByAddr.set(m.address.toLowerCase(), m.name)
       }
     } catch {
-      /* no local mandate history — names fall back to the address */
+      /* no local mandate history */
+    }
+    try {
+      const local = JSON.parse(fs.readFileSync(at('mandate.json'), 'utf-8'))
+      for (const p of local.permissions ?? []) {
+        if (p.address && p.template) templateByAddr.set(p.address.toLowerCase(), p.template)
+      }
+    } catch {
+      /* no mandate.json */
     }
 
     const network = CHAIN_NAMES[chainId] ?? null
@@ -673,6 +726,7 @@ export function startServer(sailDir) {
         result.mandates = perms.map((addr) => ({
           address: addr,
           name: nameByAddr.get(addr.toLowerCase()) ?? null,
+          template: templateByAddr.get(addr.toLowerCase()) ?? null,
           network,
         }))
 
@@ -699,11 +753,15 @@ export function startServer(sailDir) {
         // Best-effort mandate list from the local active set when chain is down.
         try {
           const local = JSON.parse(fs.readFileSync(at('mandate.json'), 'utf-8'))
-          result.mandates = (local.permissions ?? []).map((addr) => ({
-            address: addr,
-            name: nameByAddr.get(String(addr).toLowerCase()) ?? null,
-            network,
-          }))
+          result.mandates = (local.permissions ?? []).map((p) => {
+            const addr = typeof p === 'string' ? p : p.address
+            return {
+              address: addr,
+              name: nameByAddr.get(addr.toLowerCase()) ?? null,
+              template: (typeof p === 'object' ? p.template : null) ?? templateByAddr.get(addr.toLowerCase()) ?? null,
+              network,
+            }
+          })
         } catch {
           /* no local mandate */
         }
