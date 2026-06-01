@@ -107,7 +107,13 @@ export function useSailorMandate(trigger) {
 /** Whether `sailor run` is currently running. Polls every 5s. */
 export function useSailorAgentStatus() {
   const { data, loading } = usePolledJson('/api/agent-status', { running: false }, 5000)
-  return { running: data?.running === true, pid: data?.pid ?? null, loading }
+  return {
+    running: data?.running === true,
+    pid: data?.pid ?? null,
+    source: data?.source ?? null,
+    lastActivityMs: data?.lastActivityMs ?? null,
+    loading,
+  }
 }
 
 /** Pending signing requests from the station daemon, or []. Polls every 3s. */

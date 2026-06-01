@@ -459,11 +459,28 @@ export function startServer(sailDir) {
     }
   }
 
+  // Checks activity.jsonl for a recent entry — detects remote agents (CI/GH
+  // Actions) that don't write a local PID file. "Recent" = last entry within
+  // 10 minutes, treating that as the agent being actively scheduled.
+  const recentActivityMs = () => {
+    try {
+      const raw = fs.readFileSync(at('activity.jsonl'), 'utf-8').trimEnd()
+      const lastLine = raw.slice(raw.lastIndexOf('\n') + 1)
+      const entry = JSON.parse(lastLine)
+      if (entry?.ts) return Date.now() - new Date(entry.ts).getTime()
+    } catch {}
+    return Infinity
+  }
+
   // GET /api/agent-status — whether `sailor run` is currently running.
+  // Local agent: PID file + process check. Remote agent (CI / GH Actions):
+  // falls back to activity.jsonl recency (within 10 min = running).
   app.get('/api/agent-status', (_req, res) => {
     const pid = readAgentPid()
-    if (pid !== null && isAlive(pid)) res.json({ running: true, pid })
-    else res.json({ running: false })
+    if (pid !== null && isAlive(pid)) return res.json({ running: true, pid, source: 'local' })
+    const ageMs = recentActivityMs()
+    if (ageMs < 10 * 60 * 1000) return res.json({ running: true, source: 'remote', lastActivityMs: ageMs })
+    res.json({ running: false })
   })
 
   // POST /api/agent-status { action: 'stop' } — SIGTERM the running agent.

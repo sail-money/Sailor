@@ -492,7 +492,12 @@ function LiveMandateCard({ mandate, network }) {
 }
 
 /** Live agent card reflecting the real `sailor run` process state. */
-function LiveAgentCard({ running, pid }) {
+function LiveAgentCard({ running, pid, source }) {
+  const isRemote = source === 'remote'
+  const scopeLabel = running
+    ? isRemote ? 'running · remote' : `running · PID ${pid}`
+    : 'stopped'
+  const locationLabel = isRemote ? 'remote agent' : 'local process'
   return (
     <article
       className={`${styles.mCard} ${running ? styles.mCardActive : styles.mCardMuted}`}
@@ -506,8 +511,8 @@ function LiveAgentCard({ running, pid }) {
 
       <div className={styles.mTitleBlock}>
         <h3 className={`${shared.displayHeadline} ${styles.mTitle}`}>Agent runner</h3>
-        <span className={styles.mScope}>{running ? `running · PID ${pid}` : 'stopped'}</span>
-        <span className={styles.mDelegatedTag}>local process</span>
+        <span className={styles.mScope}>{scopeLabel}</span>
+        <span className={styles.mDelegatedTag}>{locationLabel}</span>
       </div>
 
       <div className={styles.mCardMid}>
@@ -704,7 +709,7 @@ export default function Dashboard() {
   const { overview } = useSailorOverview(refreshTick)
   const { mandate: liveMandate } = useSailorMandate(refreshTick)
   const { events: liveActivity } = useSailorActivity(refreshTick)
-  const { running: agentRunning, pid: agentPid } = useSailorAgentStatus()
+  const { running: agentRunning, pid: agentPid, source: agentSource } = useSailorAgentStatus()
   const { pending } = useSailorPending()
 
   const [justCreatedAccount, setJustCreatedAccount] = useState(() => {
@@ -902,8 +907,14 @@ export default function Dashboard() {
                   type="button"
                   className={agentStyles.stopAllBtn}
                   onClick={stopAgent}
-                  disabled={!agentRunning || stopping}
-                  title={agentRunning ? 'Send SIGTERM to the running agent' : 'Agent is not running'}
+                  disabled={!agentRunning || stopping || agentSource === 'remote'}
+                  title={
+                    agentSource === 'remote'
+                      ? 'Remote agent — stop it from your CI/GH Actions workflow'
+                      : agentRunning
+                      ? 'Send SIGTERM to the running agent'
+                      : 'Agent is not running'
+                  }
                 >
                   <StopIcon />
                   <span>{stopping ? 'Stopping…' : 'Stop all agents'}</span>
@@ -1084,7 +1095,7 @@ export default function Dashboard() {
 
               <div className={styles.mandateCards}>
                 {liveMode ? (
-                  <LiveAgentCard running={agentRunning} pid={agentPid} />
+                  <LiveAgentCard running={agentRunning} pid={agentPid} source={agentSource} />
                 ) : (
                   <EmptyAgentsState onNew={() => setHandoff({ variant: 'new', context: 'agent' })} />
                 )}
