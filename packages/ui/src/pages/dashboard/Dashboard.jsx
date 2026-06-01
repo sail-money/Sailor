@@ -24,7 +24,7 @@ import {
   useSailorMandate,
   useSailorOverview,
   useSailorPending,
-  useDiscoverSafe,
+  useDiscoverSafes,
   switchSailorAccount,
   renameSailorAccount,
 } from '../../hooks/useSailorData'
@@ -306,9 +306,21 @@ function SignersPanel({ overview, sma, onAddSigner }) {
   if (signers.length === 0) {
     return (
       <div className={styles.signersOffline}>
-        {overview?.onchainError
-          ? `Balances unavailable — ${overview.onchainError}`
-          : 'Connect an RPC to read signer balances.'}
+        <p className={styles.signersOfflineMsg}>
+          {overview?.onchainError
+            ? `Balances unavailable — ${overview.onchainError}`
+            : overview?.rpcConfigured === false
+              ? 'Add RPC_URL to .sail/.env.local to read signer balances.'
+              : 'Reading balances…'}
+        </p>
+        {/* The agent needs a delegated signer to dispatch; offer to create or
+            import one even before the on-chain read lands, as long as an SMA
+            exists for the key to attach to. */}
+        {sma && (
+          <SailButton variant="secondary" onClick={onAddSigner}>
+            Add delegated signer
+          </SailButton>
+        )}
       </div>
     )
   }
@@ -716,16 +728,11 @@ export default function Dashboard() {
     try { return JSON.parse(localStorage.getItem('sail.account') ?? 'null') } catch { return null }
   })
 
-  const { discovered, scanning } = useDiscoverSafe(
-    wagmiAddress,
-    isConnected && !accountLoading && !realAccount && !justCreatedAccount,
-  )
-
-  useEffect(() => {
-    if (!discovered) return
-    setJustCreatedAccount(discovered)
-    try { localStorage.setItem('sail.account', JSON.stringify(discovered)) } catch {}
-  }, [discovered])
+  // We no longer auto-adopt the first Safe the connected wallet owns. An
+  // existing Safe is surfaced only inside the explicit Import flow (SetupHero),
+  // where the user picks which one to adopt as their SMA — so the dashboard
+  // starts from a clean "create or import" state instead of silently binding to
+  // whatever Safe happens to be associated with the wallet.
   const [copiedAddr, setCopiedAddr] = useState(false)
   const [stopping, setStopping] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
@@ -875,7 +882,7 @@ export default function Dashboard() {
           <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '40px 24px' }}>
             <NotConnectedCard eyebrow="DASHBOARD" title="Connect to view your SMA." sub="Connect the owner wallet you used with sailor init to see your mandates and activity." />
           </div>
-        ) : !hasSMA && (accountLoading || scanning) ? (
+        ) : !hasSMA && accountLoading ? (
           <ScanningHero />
         ) : !hasSMA ? (
           <SetupHero
@@ -883,6 +890,14 @@ export default function Dashboard() {
             onImport={(account) => {
               setJustCreatedAccount(account)
               try { localStorage.setItem('sail.account', JSON.stringify(account)) } catch {}
+              // Persist server-side so /api/overview can read on-chain balances
+              // and the CLI/agent see the same SMA — not just this browser.
+              fetch('/api/account', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(account),
+              }).catch(() => {})
+              setRefreshTick((t) => t + 1)
             }}
             ownerAddr={ownerAddr}
           />
@@ -1220,8 +1235,8 @@ function ScanningHero() {
       <div className={styles.noSMAMascot} aria-hidden>
         <Sai size={64} animate />
       </div>
-      <h2 className={styles.noSMATitle}>Looking for your SMA…</h2>
-      <p className={styles.noSMASub}>Scanning Safe Transaction Service across supported chains.</p>
+      <h2 className={styles.noSMATitle}>Loading your project…</h2>
+      <p className={styles.noSMASub}>Reading local state from <code>.sail/</code>.</p>
     </section>
   )
 }
@@ -1245,14 +1260,32 @@ function ConnectWalletHero() {
   )
 }
 
-/* ────────── Setup hero (wallet connected, no .sail/account.json yet) ────────── */
+/* ────────── Setup hero (wallet connected, no .sail/account.json yet) ──────────
+   The SMA section starts empty: the user either creates their first SMA or
+   imports an existing Safe. Import discovers the Safes the connected wallet
+   owns (Safe Transaction Service, the same source the old auto-load used) and
+   lets the user pick which to adopt — with a manual-address fallback for Safes
+   on chains the service doesn't index. */
 function SetupHero({ onCreate, onImport, ownerAddr }) {
   const [showImport, setShowImport] = useState(false)
+  const [manual, setManual] = useState(false)
   const [safeInput, setSafeInput] = useState('')
   const [chainInput, setChainInput] = useState('8453')
   const [err, setErr] = useState('')
+  const { safes, scanning, done } = useDiscoverSafes(ownerAddr, showImport && !manual)
 
-  function handleImport() {
+  function importSafe(safe, chainId) {
+    onImport?.({
+      safe,
+      owner: ownerAddr ?? safe,
+      permissionSigner: ownerAddr ?? safe,
+      manager: ownerAddr ?? safe,
+      chainId,
+      createdAtBlock: '0',
+    })
+  }
+
+  function handleManualImport() {
     const safe = safeInput.trim()
     if (!/^0x[0-9a-fA-F]{40}$/.test(safe)) {
       setErr('Enter a valid 0x address.')
@@ -1260,7 +1293,7 @@ function SetupHero({ onCreate, onImport, ownerAddr }) {
     }
     const chainId = Number(chainInput)
     if (!chainId) { setErr('Enter a valid chain ID.'); return }
-    onImport?.({ safe, owner: ownerAddr ?? safe, permissionSigner: ownerAddr ?? safe, manager: ownerAddr ?? safe, chainId, createdAtBlock: '0' })
+    importSafe(safe, chainId)
   }
 
   return (
@@ -1270,11 +1303,11 @@ function SetupHero({ onCreate, onImport, ownerAddr }) {
       </div>
       <div className={styles.noSMAStatus}>
         <span className={styles.noSMAStatusDot} aria-hidden />
-        No SMA found
+        No SMA yet
       </div>
       <h2 className={styles.noSMATitle}>Your wallet is connected.</h2>
       <p className={styles.noSMASub}>
-        Sail deploys your Separately Managed Account the moment you create your first agent — so you only pay gas when there&rsquo;s something for your AI to do.
+        Create a new Separately Managed Account for your AI to operate — you only pay gas when there&rsquo;s something for it to do — or import an existing Safe you already own.
       </p>
 
       {!showImport ? (
@@ -1283,10 +1316,10 @@ function SetupHero({ onCreate, onImport, ownerAddr }) {
             <SailButton onClick={onCreate}>Create your first agent</SailButton>
           </div>
           <button type="button" className={styles.noSMAImportLink} onClick={() => setShowImport(true)}>
-            Already have an SMA? Import it
+            Already have a Safe? Import it as your SMA
           </button>
         </>
-      ) : (
+      ) : manual ? (
         <div className={styles.noSMAImport}>
           <input
             className={styles.noSMAImportInput}
@@ -1305,7 +1338,46 @@ function SetupHero({ onCreate, onImport, ownerAddr }) {
           />
           {err && <span className={styles.noSMAImportErr}>{err}</span>}
           <div className={styles.noSMAImportActions}>
-            <SailButton onClick={handleImport}>Import SMA</SailButton>
+            <SailButton onClick={handleManualImport}>Import SMA</SailButton>
+            <button type="button" className={styles.noSMAImportLink} onClick={() => { setManual(false); setErr('') }}>
+              Back to discovered Safes
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className={styles.noSMAImport}>
+          {scanning && safes.length === 0 && (
+            <span className={styles.noSMAImportScan}>
+              Scanning for Safes owned by {truncateAddr(ownerAddr)}…
+            </span>
+          )}
+          {safes.length > 0 && (
+            <ul className={styles.importSafeList}>
+              {safes.map((s) => (
+                <li key={`${s.chainId}-${s.safe}`}>
+                  <button
+                    type="button"
+                    className={styles.importSafeRow}
+                    onClick={() => importSafe(s.safe, s.chainId)}
+                  >
+                    <span className={styles.importSafeAddr}>{truncateSma(s.safe)}</span>
+                    <span className={styles.importSafeNet}>
+                      {CHAIN_NAMES[s.chainId] ?? `chain ${s.chainId}`}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {done && safes.length === 0 && (
+            <span className={styles.noSMAImportScan}>
+              No Safes found for this wallet on supported chains.
+            </span>
+          )}
+          <div className={styles.noSMAImportActions}>
+            <button type="button" className={styles.noSMAImportLink} onClick={() => setManual(true)}>
+              Enter an address manually
+            </button>
             <button type="button" className={styles.noSMAImportLink} onClick={() => setShowImport(false)}>
               Cancel
             </button>
