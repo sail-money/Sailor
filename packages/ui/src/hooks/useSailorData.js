@@ -112,6 +112,7 @@ export function useSailorAgentStatus() {
     pid: data?.pid ?? null,
     source: data?.source ?? null,
     lastActivityMs: data?.lastActivityMs ?? null,
+    githubActions: data?.githubActions ?? null,
     loading,
   }
 }
