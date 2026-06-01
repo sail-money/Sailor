@@ -139,11 +139,30 @@ export async function initCommand(
   console.log(inPlace ? "Scaffolding into current directory…" : `Scaffolding ${name}/ from dca-rebalancer template…`);
   copyDirSync(templateSrc, dest);
 
-  // Patch package.json name
+  // Patch package.json: set name and resolve @sail/sdk.
+  // The template uses `workspace:*` (pnpm monorepo protocol) which is invalid
+  // outside the Sailor monorepo. When installed as an npm package, resolve it to
+  // the SDK bundled alongside the CLI in the same package installation.
   const pkgPath = path.join(dest, "package.json");
   if (fs.existsSync(pkgPath)) {
-    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as Record<string, unknown>;
-    pkg.name = name;
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as Record<
+      string,
+      Record<string, string>
+    >;
+    pkg.name = name as never;
+    const deps = pkg.dependencies ?? {};
+    if (deps["@sail/sdk"] === "workspace:*") {
+      // Resolve to the SDK installed alongside this CLI package.
+      // packageRoot() = …/node_modules/@sailagent/sailor → SDK is at packages/sdk
+      // relative to the monorepo root, but when distributed only packages/cli/dist
+      // and packages/ui/dist are shipped. Point at the dist that IS present.
+      const sdkPath = path.join(packageRoot(), "packages", "sdk");
+      deps["@sail/sdk"] = fs.existsSync(sdkPath)
+        ? `file:${sdkPath}`
+        : // Fallback: SDK not bundled — user must install it manually.
+          "0.1.0";
+    }
+    pkg.dependencies = deps;
     fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
   }
 

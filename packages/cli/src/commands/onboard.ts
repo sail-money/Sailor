@@ -20,6 +20,7 @@ import {
   SailKernelAbi,
   buildRegisterPermissionTypedData,
   buildSafeSetupInitializer,
+  detectKernelCapabilities,
   estimatePermissionFee,
   getSailDeployment,
 } from "@sail/sdk";
@@ -214,6 +215,61 @@ async function runOnboard(
   const template = await resolveTemplate(project, options, json);
   if (!template) {
     return { sma: smaAddress, agent: agentAddress, mandates: [], created: justCreated };
+  }
+
+  // Detect conjunctive kernel and guard against unsafe mandate configurations
+  // before attaching anything. Warnings are always printed (even with --json)
+  // because they concern fund security, not just UX.
+  let isConjunctive = false;
+  try {
+    const caps = await detectKernelCapabilities(publicClient, project.contracts.kernel, {
+      chainId: project.chainId,
+    });
+    isConjunctive = caps.dispatchModel === "conjunctive";
+    if (isConjunctive) {
+      console.log(
+        "\n⚠  Conjunctive kernel detected. Every registered permission evaluates every dispatch.\n" +
+          "   The shared templates (SharedBoundedSwapPermission, SharedTransferTargetPermission)\n" +
+          "   are NOT pass-through — they will block any dispatch they do not recognise.\n" +
+          "   Use pass-through clone templates (sailor mandate templates) for conjunctive kernels.\n",
+      );
+    }
+  } catch {
+    // Capability detection is advisory — don't block onboard if it fails.
+  }
+
+  // MEDIUM security guard: if a LiFi swap permission (boundedLiFi / boundedApprove)
+  // is being attached without a transfer-restriction companion, warn the operator.
+  // These pass-through permissions leave ERC-20 transfer() calls unrestricted —
+  // the manager key can call token.transfer(attacker, balance) from the Safe.
+  // Production deployments must add SharedTransferTargetPermission or equivalent.
+  const LIFI_PERMISSION_KINDS = new Set([
+    "LifiDiamondSwapPermissionCloneable",
+    "LifiBoundedApprovePermissionCloneable",
+  ]);
+  const TRANSFER_RESTRICTION_KINDS = new Set([
+    "SharedTransferTargetPermission",
+    "TransferTargetPermission",
+  ]);
+  const attachingLifi = LIFI_PERMISSION_KINDS.has(template.label) || LIFI_PERMISSION_KINDS.has(template.address);
+  if (attachingLifi) {
+    // Check if a transfer-restriction permission is already registered.
+    const existing = (await publicClient.readContract({
+      address: project.contracts.kernel,
+      abi: SailKernelAbi,
+      functionName: "getPermissions",
+      args: [smaAddress],
+    })) as Address[];
+    const hasTransferRestriction = existing.some((p) => TRANSFER_RESTRICTION_KINDS.has(p));
+    if (!hasTransferRestriction) {
+      console.log(
+        "\n⚠  SECURITY: You are attaching a LiFi permission without a transfer-restriction companion.\n" +
+          "   LiFi clone permissions pass through all calls whose target is not the LiFi Diamond.\n" +
+          "   This means the manager key can call ERC-20 transfer() to any address from the Safe.\n" +
+          "   Before managing real funds, also attach SharedTransferTargetPermission to restrict\n" +
+          "   token transfers to approved recipients only.\n",
+      );
+    }
   }
 
   await attachMandate(

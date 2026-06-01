@@ -472,15 +472,42 @@ export function startServer(sailDir) {
     return Infinity
   }
 
+  // Scans the project root (.sail/..) for GH Actions workflows that invoke
+  // sailor. Returns { file, repoUrl } when found, null otherwise. repoUrl
+  // is parsed from the workflow's `uses: actions/checkout` or left null.
+  const detectGithubActions = () => {
+    try {
+      const workflowsDir = path.resolve(sailDir, '../.github/workflows')
+      const files = fs.readdirSync(workflowsDir).filter((f) => f.endsWith('.yml') || f.endsWith('.yaml'))
+      for (const file of files) {
+        const content = fs.readFileSync(path.join(workflowsDir, file), 'utf-8')
+        if (!content.includes('sailor') && !content.includes('sail')) continue
+        // Try to extract the repo remote from .git/config so we can link
+        // directly to the repo secrets page.
+        let repoUrl = null
+        try {
+          const gitConfig = fs.readFileSync(path.resolve(sailDir, '../.git/config'), 'utf-8')
+          const match = gitConfig.match(/url\s*=\s*(https:\/\/github\.com\/[^\s]+)/)
+          if (match) repoUrl = match[1].replace(/\.git$/, '')
+        } catch {}
+        return { file, repoUrl }
+      }
+    } catch {}
+    return null
+  }
+
   // GET /api/agent-status — whether `sailor run` is currently running.
   // Local agent: PID file + process check. Remote agent (CI / GH Actions):
   // falls back to activity.jsonl recency (within 10 min = running).
+  // Either way, surfaces GH Actions workflow info so the UI can guide
+  // users who deployed to CI but haven't set secrets or triggered the run.
   app.get('/api/agent-status', (_req, res) => {
+    const githubActions = detectGithubActions()
     const pid = readAgentPid()
-    if (pid !== null && isAlive(pid)) return res.json({ running: true, pid, source: 'local' })
+    if (pid !== null && isAlive(pid)) return res.json({ running: true, pid, source: 'local', githubActions })
     const ageMs = recentActivityMs()
-    if (ageMs < 10 * 60 * 1000) return res.json({ running: true, source: 'remote', lastActivityMs: ageMs })
-    res.json({ running: false })
+    if (ageMs < 10 * 60 * 1000) return res.json({ running: true, source: 'remote', lastActivityMs: ageMs, githubActions })
+    res.json({ running: false, githubActions })
   })
 
   // POST /api/agent-status { action: 'stop' } — SIGTERM the running agent.
