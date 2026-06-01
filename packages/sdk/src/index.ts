@@ -68,3 +68,19 @@ export {
   encodeApprove,
   fetchLifiQuote,
 } from "./lifi.js";
+
+// ── Intelligence API ──────────────────────────────────────────────────────────
+export type {
+  AllocationItem,
+  AllocationResult,
+  OpportunityItem,
+  RebalancePlan,
+  RiskTier,
+  SailIntelligenceOptions,
+  VaultScreenResult,
+} from "./intelligence.js";
+export {
+  SAIL_INTELLIGENCE_BASE_URL,
+  SAIL_INTELLIGENCE_DOCS_URL,
+  SailIntelligence,
+} from "./intelligence.js";
