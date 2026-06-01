@@ -20,6 +20,7 @@ import {
   SailKernelAbi,
   buildRegisterPermissionTypedData,
   buildSafeSetupInitializer,
+  detectKernelCapabilities,
   estimatePermissionFee,
   getSailDeployment,
 } from "@sail/sdk";
@@ -214,6 +215,28 @@ async function runOnboard(
   const template = await resolveTemplate(project, options, json);
   if (!template) {
     return { sma: smaAddress, agent: agentAddress, mandates: [], created: justCreated };
+  }
+
+  // On a conjunctive kernel every registered permission evaluates every dispatch.
+  // The shared templates (SharedBoundedSwapPermission, SharedTransferTargetPermission)
+  // are NOT pass-through — they reject any call outside their specific scope, which
+  // bricks all other dispatches. Warn before attaching to a conjunctive kernel.
+  try {
+    const caps = await detectKernelCapabilities(publicClient, project.contracts.kernel, {
+      chainId: project.chainId,
+    });
+    if (caps.dispatchModel === "conjunctive") {
+      say(() =>
+        console.log(
+          "\n⚠  Conjunctive kernel detected. Every registered permission evaluates every dispatch.\n" +
+            "   The shared templates (SharedBoundedSwapPermission, SharedTransferTargetPermission)\n" +
+            "   are NOT pass-through — they will block any dispatch they do not recognise.\n" +
+            "   Use pass-through clone templates (sailor mandate templates) for conjunctive kernels.\n",
+        ),
+      );
+    }
+  } catch {
+    // Capability detection is advisory — don't block onboard if it fails.
   }
 
   await attachMandate(

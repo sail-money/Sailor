@@ -3,15 +3,22 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { scaffoldFoundryWorkspace } from "../lib/foundry.js";
 
-function findWorkspaceRoot(from: string): string {
-  let dir = from;
-  for (let depth = 0; depth < 20; depth++) {
-    if (fs.existsSync(path.join(dir, "pnpm-workspace.yaml"))) return dir;
-    const parent = path.dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  throw new Error("Could not locate pnpm-workspace.yaml — is this a Sailor monorepo checkout?");
+/**
+ * Returns the root of the @sailagent/sailor package, where `templates/` lives.
+ *
+ * Works in two contexts:
+ *   - Installed via npm: `import.meta.url` is inside `packages/cli/dist/`,
+ *     so going up three levels reaches the package root.
+ *   - Monorepo checkout: same path structure, same result.
+ *
+ * The previous approach (`findWorkspaceRoot` walking up for pnpm-workspace.yaml)
+ * failed when the package was installed as an npm dependency because no workspace
+ * file exists in the parent directories of `node_modules/`.
+ */
+function packageRoot(): string {
+  const distDir = path.dirname(fileURLToPath(import.meta.url));
+  // distDir = …/packages/cli/dist  →  up × 3 = package root
+  return path.resolve(distDir, "../../..");
 }
 
 const TEMPLATE_COPY_EXCLUDES = new Set([
@@ -121,9 +128,7 @@ export async function initCommand(
   name = "my-sailor-agent",
   options: InitOptions = {},
 ): Promise<void> {
-  const packageDir = path.dirname(fileURLToPath(import.meta.url));
-  const workspaceRoot = findWorkspaceRoot(packageDir);
-  const templateSrc = path.join(workspaceRoot, "templates", "dca-rebalancer");
+  const templateSrc = path.join(packageRoot(), "templates", "dca-rebalancer");
   const dest = path.join(process.cwd(), name);
 
   if (!fs.existsSync(templateSrc)) {
@@ -137,11 +142,30 @@ export async function initCommand(
   console.log(`Scaffolding ${name}/ from dca-rebalancer template…`);
   copyDirSync(templateSrc, dest);
 
-  // Patch package.json name
+  // Patch package.json: set name and resolve @sail/sdk.
+  // The template uses `workspace:*` (pnpm monorepo protocol) which is invalid
+  // outside the Sailor monorepo. When installed as an npm package, resolve it to
+  // the SDK bundled alongside the CLI in the same package installation.
   const pkgPath = path.join(dest, "package.json");
   if (fs.existsSync(pkgPath)) {
-    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as Record<string, unknown>;
-    pkg.name = name;
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as Record<
+      string,
+      Record<string, string>
+    >;
+    pkg.name = name as never;
+    const deps = pkg.dependencies ?? {};
+    if (deps["@sail/sdk"] === "workspace:*") {
+      // Resolve to the SDK installed alongside this CLI package.
+      // packageRoot() = …/node_modules/@sailagent/sailor → SDK is at packages/sdk
+      // relative to the monorepo root, but when distributed only packages/cli/dist
+      // and packages/ui/dist are shipped. Point at the dist that IS present.
+      const sdkPath = path.join(packageRoot(), "packages", "sdk");
+      deps["@sail/sdk"] = fs.existsSync(sdkPath)
+        ? `file:${sdkPath}`
+        : // Fallback: SDK not bundled — user must install it manually.
+          "0.1.0";
+    }
+    pkg.dependencies = deps;
     fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
   }
 

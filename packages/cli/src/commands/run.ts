@@ -19,7 +19,7 @@ import {
   readJsonFile,
   sailPath,
 } from "../lib/io.js";
-import { keyExists, loadKeyring } from "../lib/keys.js";
+import { keyExists, loadManagerSigner } from "../lib/keys.js";
 import { clearAgentPid, writeAgentPid } from "../lib/process.js";
 import type { StoredAccount, StoredMandate } from "../lib/state.js";
 
@@ -131,8 +131,8 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
     );
   }
 
-  // ── Load the manager key (password asked once, then release stdin) ───────────
-  const manager = await loadKeyring("manager", account.safe);
+  // ── Load the manager key (SAIL_PASSPHRASE env skips interactive prompt) ──────
+  const manager = await loadManagerSigner(account.safe);
   closePrompts();
   const agentManager: ILocalKeyring = {
     address: manager.address,
@@ -205,7 +205,7 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
       blockNumber,
       timestamp: Math.floor(Date.now() / 1000),
       now: new Date(),
-      client: readClient,
+      client: execClient,
       manager: agentManager,
       log,
       data: agentData,

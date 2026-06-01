@@ -56,6 +56,24 @@ export async function loadKeyring(role: Role, safe?: string): Promise<LocalKeyri
   }
 }
 
+/**
+ * Loads the manager key for non-interactive use.
+ * Reads SAIL_PASSPHRASE from the environment (injected from .sail/.env.local by
+ * the caller) to skip the password prompt — required for `sailor run` in CI
+ * and GitHub Actions where stdin is not a TTY.
+ */
+export async function loadManagerSigner(safe?: string): Promise<LocalKeyring> {
+  const passphrase = process.env.SAIL_PASSPHRASE;
+  if (passphrase) {
+    const keystore = readJsonFile<EncryptedKeystore>(resolveKeyPath("manager", safe));
+    if (!keystore) {
+      throw new Error('No manager key found.\nRun "sailor keys generate" and choose "manager".');
+    }
+    return LocalKeyring.fromKeystore(keystore, passphrase);
+  }
+  return loadKeyring("manager", safe);
+}
+
 /** Loads whichever signing key is available, preferring the permission signer. */
 export async function loadAnySigner(): Promise<LocalKeyring> {
   if (keyExists("permissionSigner")) return loadKeyring("permissionSigner");
