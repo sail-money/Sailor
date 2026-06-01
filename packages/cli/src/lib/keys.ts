@@ -15,7 +15,14 @@ export function normalizeRole(input: string): Role | null {
 }
 
 export function keyPath(role: Role, safe?: string): string {
-  return sailPath("keys", safe ? `${role}-${safe.toLowerCase()}.json` : `${role}.json`);
+  if (safe) {
+    // Validate that the safe address component cannot escape the keys/ directory.
+    // A crafted address containing path separators or ".." would be rejected by
+    // the EVM address regex check at call sites, but guard here as defense-in-depth.
+    const normalised = safe.toLowerCase().replace(/[^0-9a-f]/g, "");
+    return sailPath("keys", `${role}-${normalised}.json`);
+  }
+  return sailPath("keys", `${role}.json`);
 }
 
 /**
