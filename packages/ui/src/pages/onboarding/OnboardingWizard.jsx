@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
-import { getAddress } from 'viem'
+import { encodeFunctionData, getAddress } from 'viem'
 import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi'
 import { FluidBackground, GlassCard, Sai, SailButton } from '../shared'
 import shared from '../shared/shared.module.css'
@@ -422,10 +422,8 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onDone, pro
     }
 
     if (useRegisterPath) {
-      // Two-step path: deploy Safe directly via factory, then registerAccount
-      setStatus(chainId, 'switching')
-      try { await switchChainAsync({ chainId }) } catch {}
-
+      // Two-step path: deploy Safe directly via factory, then registerAccount on kernel.
+      // Server builds the deploy tx; wizard parses Safe address from receipt (no RPC needed).
       setStatus(chainId, 'building')
       const pathRes = await fetch('/api/onboard/build-register-path', {
         method: 'POST',
@@ -435,19 +433,31 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onDone, pro
       const path = await pathRes.json()
       if (!pathRes.ok) throw new Error(path?.error ?? 'Build failed')
 
-      // Step 1: deploy Safe
+      // Step 1: deploy Safe directly via factory
       setStatus(chainId, 'wallet')
       const deployHash = await sendTransactionAsync({ to: path.deployTx.to, data: path.deployTx.data, chainId })
       setStatus(chainId, 'confirming')
-      await waitForReceipt(deployHash, chainId)
+      const deployReceipt = await waitForReceipt(deployHash, chainId)
 
-      // Step 2: register with kernel
+      // Parse the Safe address from ProxyCreation event (topic[1] = proxy address, indexed)
+      // ProxyCreation(address indexed proxy, address singleton) — factory emits this
+      const proxyLog = deployReceipt?.logs?.find(
+        l => l.address?.toLowerCase() === path.deployTx.to.toLowerCase() && l.topics?.length >= 2
+      )
+      if (!proxyLog) throw new Error('ProxyCreation event not found in deploy receipt')
+      const safe = getAddress(`0x${proxyLog.topics[1].slice(26)}`)
+
+      // Step 2: register with kernel (build registerAccount calldata client-side)
+      const registerData = encodeFunctionData({
+        abi: [{ name: 'registerAccount', type: 'function', inputs: [{ type: 'address' }, { type: 'address' }, { type: 'address' }], outputs: [] }],
+        functionName: 'registerAccount',
+        args: [safe, owner, managerAddress],
+      })
       setStatus(chainId, 'wallet')
-      const registerHash = await sendTransactionAsync({ to: path.registerTx.to, data: path.registerTx.data, chainId })
+      const registerHash = await sendTransactionAsync({ to: path.kernel, data: registerData, chainId })
       setStatus(chainId, 'confirming')
       await waitForReceipt(registerHash, chainId)
 
-      const safe = path.predictedSafe
       await fetch('/api/onboard/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

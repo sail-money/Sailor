@@ -766,11 +766,9 @@ export function startServer(sailDir, { port = PORT } = {}) {
 
   // POST /api/onboard/build-register-path { owner, manager, chainId?, saltNonce? } —
   // Alternative to build-create-tx for chains where the kernel doesn't trust the factory.
-  // Returns two sequential transactions:
-  //   1. deployTx  — SafeProxyFactory.createProxyWithNonce (deploys Safe directly)
-  //   2. registerTx — SailKernel.registerAccount (registers existing Safe with kernel)
-  // The predicted Safe address (from CREATE2) is returned upfront so the UI can display it.
-  app.post('/api/onboard/build-register-path', async (req, res) => {
+  // Returns the deploy tx (SafeProxyFactory.createProxyWithNonce) and the kernel address.
+  // The wizard parses the Safe address from the deploy receipt and builds registerAccount itself.
+  app.post('/api/onboard/build-register-path', (req, res) => {
     try {
       const { owner, manager, chainId: reqChainId, saltNonce: reqSaltNonce } = req.body ?? {}
       if (!isAddress(owner) || !isAddress(manager)) {
@@ -783,7 +781,6 @@ export function startServer(sailDir, { port = PORT } = {}) {
       const kernel = deployment?.kernel ?? config?.contracts?.kernel
       if (!kernel) return res.status(400).json({ error: 'no kernel address for this chain' })
       const safeModuleEnabler = deployment?.safeModuleEnabler
-      const standardFeePolicy = deployment?.standardFeePolicy ?? config?.contracts?.standardFeePolicy ?? zeroAddress
 
       const initializer = buildSafeSetupInitializer({
         owners: [owner],
@@ -793,36 +790,6 @@ export function startServer(sailDir, { port = PORT } = {}) {
       })
       const saltNonce = reqSaltNonce != null ? BigInt(reqSaltNonce) : BigInt(Date.now())
 
-      // Compute the CREATE2 salt the Safe factory uses:
-      // salt = keccak256(abi.encodePacked(keccak256(initializer), saltNonce))
-      const { keccak256, concat, toHex, pad } = await import('viem')
-      const initHash = keccak256(initializer)
-      const saltBytes = keccak256(concat([initHash, pad(toHex(saltNonce), { size: 32 })]))
-
-      // Read the factory's proxyCreationCode to compute the CREATE2 address.
-      // Fall back to public RPCs per chain when no local RPC is configured.
-      const PUBLIC_RPCS = { 8453: 'https://mainnet.base.org', 84532: 'https://sepolia.base.org', 42161: 'https://arb1.arbitrum.io/rpc', 421614: 'https://sepolia-rollup.arbitrum.io/rpc' }
-      const env = parseEnvFile(at('.env.local'))
-      const rpcUrl = env.RPC_URL || PUBLIC_RPCS[chainId] || null
-      if (!rpcUrl) return res.status(400).json({ error: 'no RPC available for this chain' })
-      const client = createPublicClient({ transport: http(rpcUrl) })
-
-      const PROXY_CREATION_CODE_ABI = [{ name: 'proxyCreationCode', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'bytes' }] }]
-      const proxyCreationCode = await client.readContract({
-        address: SAFE_V141.proxyFactory,
-        abi: PROXY_CREATION_CODE_ABI,
-        functionName: 'proxyCreationCode',
-      })
-      const deploymentData = concat([proxyCreationCode, pad(SAFE_V141.singletonL2, { size: 32 })])
-      const { getContractAddress } = await import('viem')
-      const predictedSafe = getContractAddress({
-        opcode: 'CREATE2',
-        from: SAFE_V141.proxyFactory,
-        salt: saltBytes,
-        bytecode: deploymentData,
-      })
-
-      // Tx 1: Deploy Safe directly via factory (no kernel involved)
       const PROXY_FACTORY_ABI = [{
         name: 'createProxyWithNonce',
         type: 'function',
@@ -840,29 +807,10 @@ export function startServer(sailDir, { port = PORT } = {}) {
         args: [SAFE_V141.singletonL2, initializer, saltNonce],
       })
 
-      // Tx 2: Register the deployed Safe with the kernel
-      const REGISTER_ABI = [{
-        name: 'registerAccount',
-        type: 'function',
-        stateMutability: 'nonpayable',
-        inputs: [
-          { name: 'safe', type: 'address' },
-          { name: 'permissionSigner', type: 'address' },
-          { name: 'manager', type: 'address' },
-        ],
-        outputs: [],
-      }]
-      const registerData = encodeFunctionData({
-        abi: REGISTER_ABI,
-        functionName: 'registerAccount',
-        args: [predictedSafe, owner, manager],
-      })
-
       res.json({
-        predictedSafe,
-        deployTx:    { to: SAFE_V141.proxyFactory, data: deployData, chainId },
-        registerTx:  { to: kernel, data: registerData, chainId },
-        saltNonce:   saltNonce.toString(),
+        deployTx: { to: SAFE_V141.proxyFactory, data: deployData, chainId },
+        kernel,
+        saltNonce: saltNonce.toString(),
       })
     } catch (err) {
       res.status(500).json({ error: String(err) })
