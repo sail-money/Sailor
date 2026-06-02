@@ -135,7 +135,15 @@ export async function initCommand(
       : "none";
 
   if (!fs.existsSync(templateSrc) || !fs.existsSync(path.join(templateSrc, "package.json"))) {
-    throw new Error(`Template "${templateName}" not found. Available: ${availableTemplates()}`);
+    const available = availableTemplates();
+    const hint =
+      available === "none"
+        ? `\nNo templates found under ${templatesDir}.\n` +
+          "If you're running the in-tree CLI bundle from a monorepo checkout, the scaffolder\n" +
+          "couldn't locate the repo's templates/ directory. Install the published package, or\n" +
+          "run from the repo root."
+        : ` Available: ${available}`;
+    throw new Error(`Template "${templateName}" not found.${hint}`);
   }
 
   const cwd = process.cwd();
@@ -188,6 +196,8 @@ export async function initCommand(
   console.log("Next steps:");
   if (!inPlace) console.log(`  cd ${name}`);
   if (!options.rpcUrl) console.log("  cp .env.example .sail/.env.local");
+  console.log("  sailor capabilities    # what you can build here — read-only, no gas, no wallet");
+  console.log("  sailor doctor          # kernel model + RPC + gas balances — read-only, no gas");
   console.log("  Open this folder in Claude Code, Cursor, or Codex");
   console.log('  Say: "start"\n');
   console.log("The setup guide in sail/WIZARD.md will walk you through everything.");

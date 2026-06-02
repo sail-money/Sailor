@@ -2,6 +2,17 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Scope — read first.** This is the **Sailor toolkit/monorepo**, for people developing
+> Sailor itself. End users do **not** work here: they scaffold a project with `sailor init`
+> and operate in *that* folder, guided by its own `AGENTS.md` → which is the canonical agent
+> doc. If you are setting up or running an agent (not developing the toolkit), open a
+> scaffolded project instead of this repo.
+>
+> The **`sail` CLI** mentioned under "Related Tooling" below is a **separate sibling tool**
+> from the SailFramework repo — it is *not* the `sailor` CLI shipped here. The operator CLI
+> in this repo is `sailor` (`sailor doctor`, `sailor capabilities`, `sailor init`, …). Don't
+> conflate the two.
+
 ## Purpose
 
 `Sailor` is a toolkit for building and operating Sail Protocol onchain SMAs run by agents. It sits alongside two sibling repos:

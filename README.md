@@ -149,23 +149,30 @@ pnpm add sailor --ignore-scripts
 
 Prerequisites:
 
-- Node.js 18+
-- pnpm (`npm install -g pnpm`)
+- Node.js 18+ (the CLI runs on 18; `pnpm install` needs Node 22+)
 - A wallet (MetaMask or Rabby)
-- An RPC URL (Alchemy free tier)
-- A Sail Protocol SMA deployed on an EVM chain (kernel + mandateFactory addresses required in `@sail/chains`)
+- An RPC URL (e.g. Alchemy free tier)
+- A supported chain: **Base, Base Sepolia, or Arbitrum** — these use the verified deployments bundled in `@sail/sdk`, so no `@sail/chains` entry is needed. Other chains require kernel + mandateFactory addresses in `@sail/chains` (see [State of the project](#state-of-the-project)).
 
 ```bash
-mkdir my-agent && cd my-agent
-npx sailor init                # scaffold into current directory
-pnpm install
-sailor keys generate           # generates manager key
-sailor account create          # deploys SMA via SailKernel
-sailor mandate prepare         # writes mandate draft to .sail/
-sailor ui start &              # open dashboard → connect wallet → sign mandate
-sailor run --once              # dry-run: preview + execute one tick
-sailor run                     # continuous: runs every 60s
+npx sailor init my-agent && cd my-agent
+npm install                    # or `pnpm install` (needs Node 22+)
+
+# 1. Ground yourself — read-only, no gas, no wallet:
+sailor capabilities            # what you can build on this chain
+sailor doctor                  # kernel model + RPC reachability + gas balances
+
+# 2. Set up the account in the browser wizard (choose chain, connect wallet,
+#    generate the agent key, deploy your SMA):
+sailor ui start                # open http://localhost:3333 and follow steps 1–4
+
+# 3. Back in the terminal: configure .sail/.env.local, fund the agent key for gas,
+sailor mandate prepare         # draft permissions → approve in the browser
+sailor run                     # start the agent (use --once for a single tick)
 ```
+
+The SMA is deployed through the browser wizard (it submits from your wallet), not a
+terminal command — see the scaffolded project's `AGENTS.md` for the full 8-step flow.
 
 ---
 
