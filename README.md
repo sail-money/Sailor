@@ -13,7 +13,7 @@ Sailor is the operator layer for [Sail Protocol](../SailProtocol): the tooling a
 | `packages/sdk` | `@sail/sdk` | TypeScript library wrapping SailKernel and MandateFactory |
 | `packages/cli` | `sailor` | CLI for account setup, mandate signing, and agent execution |
 | `packages/chains` | `@sail/chains` | Per-chain address registry (EVM-compatible) |
-| `packages/ui` | `sailor-ui` | Local dashboard running on localhost:5173 |
+| `packages/ui` | `sailor-ui` | Local dashboard running on localhost:3333 |
 | `packages/create-app` | `create-sailor-agent` | `npx` scaffolder for new agent projects |
 | `templates/dca-rebalancer` | — | Starter template: DCA portfolio rebalancer (default for `sailor init`) |
 | `templates/custom-mandate` | — | Solidity reference: allowlist mandate contracts (not a project template) |
@@ -31,7 +31,7 @@ The path from nothing to a running agent is seven steps:
 4. **Sign a mandate** — a set of registered permissions that bound what the agent can do, authorized via EIP-712 by the permission signer through MetaMask or a local key.
 5. **Dry-run** — the kernel's `previewBatch` confirms the named permission passes before anything executes on-chain.
 6. **Run the agent** — locally on a cron schedule, or via GitHub Actions on a timer.
-7. **Monitor** — the local dashboard on localhost:5173 reflects live mandate state, agent status, and activity.
+7. **Monitor** — the local dashboard on localhost:3333 reflects live mandate state, agent status, and activity.
 
 ---
 
@@ -162,7 +162,7 @@ pnpm install
 sailor keys generate           # generates manager key
 sailor account create          # deploys SMA via SailKernel
 sailor mandate prepare         # writes mandate draft to .sail/
-# open localhost:5173 → connect wallet → sign mandate
+sailor ui start &              # open dashboard → connect wallet → sign mandate
 sailor run --once              # dry-run: preview + execute one tick
 sailor run                     # continuous: runs every 60s
 ```
@@ -204,6 +204,50 @@ are excluded from the available list.
 
 Template files are bundled into the published `sailor` npm package via the
 `files` field in the root `package.json`.
+
+---
+
+## Dashboard (`sailor ui`)
+
+The Sailor dashboard is a local React app served at `http://localhost:3333`.
+It shows live account state, mandate health, signer balances, and recent
+activity — all read from the project's `.sail/` directory with no hosted
+backend.
+
+### Commands
+
+```bash
+sailor ui             # start the dashboard (same as sailor ui start)
+sailor ui start       # start the dashboard at http://localhost:3333
+sailor ui stop        # stop the running dashboard
+sailor ui status      # show whether the dashboard is running + pid
+```
+
+### How it works
+
+`sailor ui start` spawns a bundled Express server (`server.cjs`) that:
+
+- Serves the pre-built React UI as static files on `/`
+- Exposes a local API on `/api` that reads `.sail/` state from the current
+  working directory
+
+The server PID is written to `.sail/runtime/ui.json` on start. `sailor ui stop`
+reads that file, sends `SIGTERM` to the server process, and removes the file.
+This means you can start the dashboard in one terminal and stop it from another.
+
+### Running in the background
+
+```bash
+# macOS / Linux
+sailor ui start &
+sailor ui status      # ● running  http://localhost:3333  (pid 12345)
+sailor ui stop        # Stopped Sailor UI (pid 12345).
+
+# Windows (PowerShell)
+Start-Job { sailor ui start }
+sailor ui status
+sailor ui stop
+```
 
 ---
 
@@ -269,7 +313,7 @@ non-interactively.
    └────────────────────┘  └────────────────────┘  └────────────────────┘
 
           sailor CLI / @sail/sdk drive both signing paths above.
-          .sail/ (account · mandate · activity) ──→ sailor-ui (localhost:5173)
+          .sail/ (account · mandate · activity) ──→ sailor-ui (localhost:3333)
 ```
 
 The CLI and SDK sit between the operator and SailKernel: they build the EIP-712 payloads, submit dispatches, and read kernel state via viem. The permission signer authorizes the mandate — registration runs through MandateFactory — while the manager key signs each dispatch the kernel evaluates against a named permission before executing it through the Safe. All local state — the deployed account, the signed mandate, and the agent's activity log — lives under `.sail/` on disk, which the dashboard reads through a small local server. Sailor never holds the Owner key and runs no hosted backend; the wallet talks to the chain directly.
