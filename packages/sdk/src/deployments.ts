@@ -100,7 +100,7 @@ export const sailDeployments: Record<SailChainId, SailDeployment> = {
     initialComplexityRate: 100n,
     // PENDING post-Octane redeploy — do NOT activate until timelock allowlists are set
     // kernel 0x2e22Cc96F5C069C9eC8B9310E1BbF08C41Ae613E | mandateFactory 0x19650F55577242953Cea668D59F5049a6faf3480 | governance 0x2287e52c7fDb5748bB05a857c026D732D1634707
-    dispatchModel: "selective", // selective: verified against on-chain DISPATCH_TYPEHASH
+    dispatchModel: "conjunctive", // conjunctive: verified on-chain DISPATCH_TYPEHASH 0x7510c80e081cb7da97f59eadd13c9941a013c4a37d514f597bd209c0c746599a
     knownTemplates: [],
     standaloneTemplates: {
       azuroPrediction: "0x10f98807E7DBBAed599b8246167660e0660C490b",
@@ -133,7 +133,7 @@ export const sailDeployments: Record<SailChainId, SailDeployment> = {
     initialComplexityRate: 0n,
     // PENDING post-Octane redeploy — do NOT activate until timelock allowlists are set
     // kernel 0x852553c5ceb0B2c4c429F355fFBB719ECeF6d0d4 | mandateFactory 0x0402b812cCD90608Ca91AdE265082aCa0b8780C8 | governance 0xe88668dEd183ef283A606b0D7f6Dbcc4D3f4639B
-    dispatchModel: "selective", // selective: verified against on-chain DISPATCH_TYPEHASH
+    dispatchModel: "conjunctive", // conjunctive: verified on-chain DISPATCH_TYPEHASH 0x7510c80e081cb7da97f59eadd13c9941a013c4a37d514f597bd209c0c746599a
     knownTemplates: [
       {
         address: "0xe5DE579F8D8C99F83C0b979a85049c7D68b381c6",
@@ -212,7 +212,7 @@ export const sailDeployments: Record<SailChainId, SailDeployment> = {
     initialComplexityRate: 0n,
     // PENDING post-Octane redeploy — do NOT activate until timelock allowlists are set
     // kernel 0x7542c3BCEd0014C14d79dA9A98Ec043F1ceC63E2 | mandateFactory 0x19BD2629790e602aF22840b37208e44e4F9B0aaE | governance 0xA3ee24e4fB7800c4f4c1481Bd920A4034Dfc34cf
-    dispatchModel: "selective", // selective: verified against on-chain DISPATCH_TYPEHASH
+    dispatchModel: "selective", // selective: verified on-chain DISPATCH_TYPEHASH 0xbe50c5391dcf9e08d11d2c30dbee822c14ad07af2ceb503c778d265801fb0e5c
     knownTemplates: [],
   },
 };

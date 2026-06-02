@@ -30,16 +30,31 @@ Use the user-facing terms in all CLI output, prompts, and errors. The code ident
 
 ## Dispatch model
 
-All active kernels implement the **selective** dispatch model:
+Active kernels vary by chain — verified on-chain via `DISPATCH_TYPEHASH()`:
 
+| Chain | Kernel | Model | DISPATCH_TYPEHASH |
+|---|---|---|---|
+| Base 8453 | `0xbEd6F78c6d89547Fb9B43d599621dd80ce57F154` | **conjunctive** | `0x7510c80e...` |
+| Base Sepolia 84532 | `0x7d3BDAAB150af93f057C38e9baef88061B17dE1D` | **conjunctive** | `0x7510c80e...` |
+| Arbitrum 42161 | `0xD985029960a9B7C2E7E38e102C448b8b8539B156` | **selective** | `0xbe50c539...` |
+
+The PENDING (post-Octane redeploy) kernels — commented out in `deployments.ts` and `chains/src/index.ts`
+— implement the **selective** model but are NOT usable until timelock allowlists are set.
+
+**Always use `detectKernelCapabilities` for the real model** — it reads the on-chain typehash and
+overrides the static label in `deployments.ts`. The static label is a fallback for offline use only.
+
+Type strings:
 ```
-DISPATCH_TYPEHASH = Dispatch(address account,address permission,address target,uint256 value,bytes32 dataHash,uint256 nonce,uint256 deadline)
-REGISTER_PERMISSION_TYPEHASH = RegisterPermission(address account,address permission,uint256 nonce,uint256 deadline)
+conjunctive: Dispatch(address account,address target,uint256 value,bytes32 dataHash,uint256 nonce,uint256 deadline)
+selective:   Dispatch(address account,address permission,address target,uint256 value,bytes32 dataHash,uint256 nonce,uint256 deadline)
+
+conjunctive RegisterPermission: RegisterPermission(address account,address permission,uint256 nonce)
+selective   RegisterPermission: RegisterPermission(address account,address permission,uint256 nonce,uint256 deadline)
 ```
 
-Every dispatch names exactly one permission. `RegisterPermission` includes `deadline`. Never use
-the conjunctive type strings. The conjunctive constants in `capabilities.ts` exist only for
-on-chain detection — do not build new code paths against them.
+`buildRegisterPermissionTypedData` accepts `hasDeadline` from `KernelCapabilities.registerPermissionHasDeadline`.
+Pass the detected value — never hardcode the type shape.
 
 ## Active addresses
 

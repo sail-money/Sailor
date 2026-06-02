@@ -507,12 +507,26 @@ export async function attachMandate(
     args: [smaAddress],
   })) as bigint;
 
+  // Detect the kernel's RegisterPermission shape so we use the right type string.
+  // Conjunctive kernels (Base 8453, Base Sepolia 84532) use noDeadline; selective
+  // kernels (Arbitrum 42161) use withDeadline. Falls back to false if detection fails.
+  let registerPermissionHasDeadline = false;
+  try {
+    const caps = await detectKernelCapabilities(publicClient, project.contracts.kernel, {
+      chainId: project.chainId,
+    });
+    registerPermissionHasDeadline = caps.registerPermissionHasDeadline;
+  } catch {
+    // advisory — proceed with noDeadline fallback
+  }
+
   const typedData = buildRegisterPermissionTypedData({
     chainId: project.chainId,
     kernel: project.contracts.kernel,
     account: smaAddress,
     permission: templateAddress,
     nonce,
+    hasDeadline: registerPermissionHasDeadline,
   });
 
   say(() => console.log(`\nPushing signing request for "${template.label}" permission…`));
