@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ConnectButton, useConnectModal } from '@rainbow-me/rainbowkit'
-import { useAccount, useDisconnect } from 'wagmi'
+import { parseEther } from 'viem'
+import { useAccount, useDisconnect, useSendTransaction } from 'wagmi'
 import {
   FluidBackground,
   MandateStatus,
@@ -24,6 +25,7 @@ import {
   useSailorMandate,
   useSailorOverview,
   useSailorPending,
+  useSailorPositions,
   useDiscoverSafes,
   switchSailorAccount,
   renameSailorAccount,
@@ -347,6 +349,8 @@ function SignersPanel({ overview, sma, onAddSigner }) {
 
 function SignerCard({ signer, network, onAddSigner }) {
   const [copied, setCopied] = useState(false)
+  const [funding, setFunding] = useState(false)
+  const { sendTransactionAsync } = useSendTransaction()
   const role = signer.role === 'sma'
     ? { label: 'SMA (Safe)', sub: 'Holds your funds. Native ETH shown; tokens not counted.' }
     : (SIGNER_ROLE[signer.role] ?? { label: signer.role, sub: '' })
@@ -437,8 +441,23 @@ function SignerCard({ signer, network, onAddSigner }) {
 
       {needsTopUp && (
         <div className={styles.signerTopUp}>
-          {signer.status === 'critical' ? 'Out of gas — ' : 'Running low — '}
-          send ETH to this address to top up.
+          <span className={styles.signerTopUpMsg}>
+            {signer.status === 'critical' ? 'Out of gas — agent is stalled.' : 'Running low — top up soon.'}
+          </span>
+          <button
+            type="button"
+            className={styles.signerFundBtn}
+            disabled={funding}
+            onClick={async () => {
+              setFunding(true)
+              try {
+                await sendTransactionAsync({ to: signer.address, value: parseEther('0.01') })
+              } catch { /* user rejected or no wallet */ }
+              setFunding(false)
+            }}
+          >
+            {funding ? 'Check wallet…' : 'Fund 0.01 ETH'}
+          </button>
         </div>
       )}
     </article>
@@ -581,40 +600,116 @@ const ACTIVITY_FILTERS = [
 ]
 
 /**
- * Live activity feed from .sail/activity.jsonl (newest first), capturing both
- * actors: the owner's signing-station decisions and the delegated signer's
- * dispatches. A small segmented filter lets you isolate one actor — the two
- * streams interleave on-chain but answer different questions ("what did I
- * authorize?" vs "what is the agent doing?").
- *
- * Supports incremental loading of older events via "Load 10 more" button.
+ * Groups raw activity events into ticks (agent runs) + standalone owner events.
+ * Each tick bundles tick_start → log* → tick_end into one summary object.
+ * Non-tick events (owner_signed, mandate_deployed, etc.) stay as individual rows.
  */
-function LiveActivityFeed({ events, network }) {
-  const INITIAL_VISIBLE = 6
+function groupActivityItems(events) {
+  const items = []
+  let openTick = null
+  // Events come oldest-first from the server; we process in order then reverse.
+  for (const e of events) {
+    if (e.type === 'tick_start') {
+      openTick = { kind: 'tick', startTs: e.ts, endTs: null, durationMs: null, logs: [], complete: false }
+    } else if (e.type === 'tick_end' && openTick) {
+      openTick.endTs = e.ts
+      openTick.durationMs = new Date(e.ts) - new Date(openTick.startTs)
+      openTick.complete = true
+      items.push(openTick)
+      openTick = null
+    } else if (e.type === 'log' && openTick) {
+      if (e.msg) openTick.logs.push(e.msg)
+    } else if (e.type !== 'tick_start' && e.type !== 'tick_end' && e.type !== 'log') {
+      // Owner / lifecycle event — always shown individually
+      if (openTick) { items.push(openTick); openTick = null }
+      items.push({ kind: 'event', event: e })
+    }
+  }
+  if (openTick) items.push({ kind: 'tick', ...openTick }) // in-progress
+  return items.reverse() // newest first
+}
+
+function fmtDuration(ms) {
+  if (!ms) return ''
+  if (ms < 1000) return `${ms}ms`
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
+  return `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`
+}
+
+function TickCard({ tick, positions }) {
+  const [expanded, setExpanded] = useState(false)
+  const isLive = !tick.complete
+  const holdLine = tick.logs.find((l) => l.includes('hold') || l.includes('below threshold'))
+  const moveLine = tick.logs.find((l) => l.includes('rebalance') || l.includes('deposit') || l.includes('withdraw'))
+  const portfolioLine = tick.logs.find((l) => l.startsWith('portfolio:'))
+  const headline = moveLine ?? holdLine ?? portfolioLine ?? (tick.logs[0] ?? (isLive ? 'Running…' : 'Tick complete'))
+  const totalUsd = positions?.reduce((s, p) => s + (p.valueUsd ?? 0), 0) ?? null
+
+  return (
+    <li className={styles.tickCard}>
+      <button
+        type="button"
+        className={styles.tickCardHead}
+        onClick={() => setExpanded((x) => !x)}
+        aria-expanded={expanded}
+      >
+        <span className={`${styles.tickDot} ${isLive ? styles.tickDotLive : ''}`} aria-hidden />
+        <span className={styles.tickMeta}>
+          <span className={styles.tickTime}>{fmtActivityTime(tick.startTs)}</span>
+          {tick.durationMs != null && (
+            <span className={styles.tickDuration}>{fmtDuration(tick.durationMs)}</span>
+          )}
+        </span>
+        <span className={styles.tickHeadline}>{headline}</span>
+        {totalUsd != null && (
+          <span className={styles.tickValue}>${totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        )}
+        <span className={styles.tickChevron} aria-hidden>{expanded ? '▴' : '▾'}</span>
+      </button>
+      {expanded && (
+        <div className={styles.tickBody}>
+          {tick.logs.map((l, i) => (
+            <p key={i} className={styles.tickLog}>{l}</p>
+          ))}
+          {positions && positions.length > 0 && (
+            <div className={styles.tickPositions}>
+              {positions.map((p) => (
+                <div key={p.vaultAddress} className={styles.tickPosition}>
+                  <span className={styles.tickPositionToken}>{(p.token ?? 'token').toUpperCase()}</span>
+                  <span className={styles.tickPositionValue}>${(p.valueUsd ?? 0).toFixed(2)}</span>
+                  {p.protocol && <span className={styles.tickPositionProto}>{p.protocol}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </li>
+  )
+}
+
+/**
+ * Live activity feed — groups agent ticks into collapsible summary cards,
+ * keeps owner/lifecycle events as individual rows.
+ */
+function LiveActivityFeed({ events, positions, network }) {
+  const INITIAL_VISIBLE = 8
   const [filter, setFilter] = useState('all')
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE)
 
-  const filtered = filter === 'all' ? events : events.filter((e) => activityActor(e) === filter)
+  const allItems = groupActivityItems(events)
+  const filtered = filter === 'all'
+    ? allItems
+    : allItems.filter((item) =>
+        item.kind === 'tick'
+          ? filter === 'agent'
+          : activityActor(item.event) === filter
+      )
 
-  // Newest first, then take only the number we want to display
-  const allRows = [...filtered].reverse()
-  const rows = allRows.slice(0, visibleCount)
-  const hasMore = allRows.length > visibleCount
-  const canContract = visibleCount > INITIAL_VISIBLE
+  const rows = filtered.slice(0, visibleCount)
+  const hasMore = filtered.length > visibleCount
 
-  // Reset visible count when filter changes so we don't show stale counts
-  const handleFilterChange = (key) => {
-    setFilter(key)
-    setVisibleCount(INITIAL_VISIBLE)
-  }
-
-  const handleLoadMore = () => {
-    setVisibleCount((c) => c + 10)
-  }
-
-  const handleShowLess = () => {
-    setVisibleCount(INITIAL_VISIBLE)
-  }
+  const handleFilterChange = (key) => { setFilter(key); setVisibleCount(INITIAL_VISIBLE) }
 
   return (
     <>
@@ -638,8 +733,12 @@ function LiveActivityFeed({ events, network }) {
         </div>
       ) : (
         <>
-          <ul className={agentStyles.journalList}>
-            {rows.map((e, i) => {
+          <ul className={`${agentStyles.journalList} ${styles.tickList}`}>
+            {rows.map((item, i) => {
+              if (item.kind === 'tick') {
+                return <TickCard key={`tick-${item.startTs}-${i}`} tick={item} positions={positions} />
+              }
+              const e = item.event
               const st = activityStatus(e.type)
               const actor = activityActor(e)
               const hasTx = e.txHash && e.txHash !== '0x'
@@ -687,42 +786,15 @@ function LiveActivityFeed({ events, network }) {
             })}
           </ul>
 
-          {(hasMore || canContract) && (
-            <div style={{ marginTop: '12px', textAlign: 'center', display: 'flex', gap: '8px', justifyContent: 'center' }}>
-              {canContract && (
-                <button
-                  type="button"
-                  onClick={handleShowLess}
-                  style={{
-                    padding: '6px 14px',
-                    fontSize: '13px',
-                    borderRadius: '6px',
-                    border: '1px solid #3a3f4a',
-                    background: 'transparent',
-                    color: '#9aa0ae',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Show less
-                </button>
-              )}
-              {hasMore && (
-                <button
-                  type="button"
-                  onClick={handleLoadMore}
-                  style={{
-                    padding: '6px 14px',
-                    fontSize: '13px',
-                    borderRadius: '6px',
-                    border: '1px solid #3a3f4a',
-                    background: 'transparent',
-                    color: '#9aa0ae',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Load 10 more
-                </button>
-              )}
+          {hasMore && (
+            <div style={{ marginTop: '12px', textAlign: 'center' }}>
+              <button
+                type="button"
+                onClick={() => setVisibleCount((c) => c + 10)}
+                style={{ padding: '6px 14px', fontSize: '13px', borderRadius: '6px', border: '1px solid #3a3f4a', background: 'transparent', color: '#9aa0ae', cursor: 'pointer' }}
+              >
+                Load more
+              </button>
             </div>
           )}
         </>
@@ -745,6 +817,7 @@ export default function Dashboard() {
   const { overview } = useSailorOverview(refreshTick)
   const { mandate: liveMandate } = useSailorMandate(refreshTick)
   const { events: liveActivity } = useSailorActivity(refreshTick)
+  const { positions: livePositions } = useSailorPositions(refreshTick)
   const { running: agentRunning, pid: agentPid, source: agentSource, githubActions } = useSailorAgentStatus()
   const { pending } = useSailorPending()
 
@@ -1156,7 +1229,7 @@ export default function Dashboard() {
               </header>
 
               {liveActivity.length > 0 ? (
-                <LiveActivityFeed events={liveActivity} network={realNetwork} />
+                <LiveActivityFeed events={liveActivity} positions={livePositions} network={realNetwork} />
               ) : (
                 <div className={styles.emptyAgents}>
                   <p className={styles.emptyAgentsBody}>

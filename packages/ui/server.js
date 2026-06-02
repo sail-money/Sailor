@@ -283,6 +283,19 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
   })
 
+  // GET /api/positions — latest positions snapshot from state/positions-<chainId>.json
+  app.get('/api/positions', (_req, res) => {
+    try {
+      const account = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
+      const chainId = account?.chainId ?? 8453
+      const posFile = at(`state/positions-${chainId}.json`)
+      const data = JSON.parse(fs.readFileSync(posFile, 'utf-8'))
+      res.json(data)
+    } catch {
+      res.json({ positions: [], updatedAt: null })
+    }
+  })
+
   // POST /api/activity — append one event to the unified log. Used by the
   // browser for owner-submitted actions (e.g. a wallet-signed mandate revoke)
   // so they show up in Recent Activity alongside CLI- and agent-written events.
