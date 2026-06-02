@@ -18,7 +18,7 @@ Open **http://localhost:3333** in the browser. The UI guides steps 1–4 interac
 1. **Choose networks** — which chains the agent will operate on
 2. **Connect owner wallet** — the wallet that controls the account and authorises permissions
 3. **Generate agent key** — a separate signing key the agent uses to submit transactions (never holds custody)
-4. **Deploy account** — creates the on-chain Separately Managed Account (SMA)
+4. **Deploy account** — creates the on-chain account (SMA — a smart contract wallet your agent operates within)
 
 ## Steps 5–8 — done here in the terminal
 
@@ -26,7 +26,7 @@ Open **http://localhost:3333** in the browser. The UI guides steps 1–4 interac
    ```
    RPC_URL=https://...        # node endpoint for the chosen chain
    SAIL_API_KEY=...           # from api.sail.money
-   SAIL_PASSPHRASE=...        # the passphrase chosen in step 3
+   SAIL_PASSPHRASE=...        # passphrase chosen in step 3 — unlocks the agent key
    ```
 6. **Fund the agent key** — send a small amount of ETH to the agent address (shown on the dashboard at localhost:3333) to cover gas
 7. **Set permissions** — run `sailor mandate prepare` to draft the permission set, then approve it in the browser at localhost:3333
