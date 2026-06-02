@@ -44,8 +44,11 @@ This folder is the local workspace for one Sailor agent deployment.
 - \`keys/\` stores encrypted local signing keys. Never commit these files.
 - \`runtime/\` is for local UI and signing handoff state.
 - \`state/\` is for persistent agent state, audit logs, and tx history.
-AI coding agents should read this file, \`config.json\`, and \`../sail/WIZARD.md\`
-before changing strategy code or running commands that touch funds.
+
+AI coding agents should read this file and \`config.json\`, plus \`../AGENTS.md\`
+(setup + operating index), \`../sail/WIZARD.md\` (account setup), and
+\`../AGENT_PLAYBOOK.md\` + \`../docs/PERMISSION_MODEL.md\` (operating — read before any
+dispatch) before changing strategy code or running commands that touch funds.
 `;
 
 function writeIfMissing(file: string, content: string): void {
