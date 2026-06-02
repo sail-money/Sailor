@@ -426,25 +426,34 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onDone, pro
     setRunning(true)
     const results = []
     for (const chainId of chainIds) {
-      if (statuses[chainId] === 'done') continue
+      if (statuses[chainId] === 'done' || statuses[chainId] === 'skipped') continue
       try {
         const result = await deployChain(chainId)
         results.push(result)
         setDeployed(prev => [...prev, result])
       } catch (err) {
-        setError(chainId, err?.shortMessage || err?.message || 'Failed')
-        setStatus(chainId, 'error')
-        setRunning(false)
-        return // stop on first error — user retries that chain
+        const msg = err?.shortMessage || err?.message || 'Failed'
+        // UntrustedFactory = kernel config issue, not user error — skip, don't retry
+        if (msg.includes('UntrustedFactory')) {
+          setError(chainId, 'Factory not approved on this chain yet')
+          setStatus(chainId, 'skipped')
+          // Continue to next chain rather than stopping
+        } else {
+          setError(chainId, msg)
+          setStatus(chainId, 'error')
+          setRunning(false)
+          return // stop on real errors — user retries
+        }
       }
     }
     setRunning(false)
-    const allDone = [...deployed, ...results]
-    if (allDone.length === chainIds.length) onDone(allDone)
+    const allSettled = [...deployed, ...results]
+    onDone(allSettled) // pass whatever succeeded
   }
 
-  const allDone = chainIds.every(id => statuses[id] === 'done')
-  const hasError = chainIds.some(id => statuses[id] === 'error')
+  const allSettled = chainIds.every(id => statuses[id] === 'done' || statuses[id] === 'skipped' || statuses[id] === 'error')
+  const hasRetryableError = chainIds.some(id => statuses[id] === 'error')
+  const anyDeployed = chainIds.some(id => statuses[id] === 'done') || deployed.length > 0
 
   return (
     <GlassCard className={styles.authCard}>
@@ -470,6 +479,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onDone, pro
                 {status === 'wallet' && 'Confirm in wallet'}
                 {status === 'confirming' && 'Confirming…'}
                 {status === 'done' && '✓ Deployed'}
+                {status === 'skipped' && `⚠ ${err ?? 'Skipped'}`}
                 {status === 'error' && `✗ ${err ?? 'Error'}`}
               </span>
             </div>
@@ -478,15 +488,25 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onDone, pro
       </div>
       <Detail label="Owner" value={owner} />
       <Detail label="Agent key" value={managerAddress} />
-      {!allDone && (
+      {!allSettled && (
         <SailButton fullWidth onClick={deployAll} disabled={running} style={{ marginTop: 14 }}>
-          {running ? 'Deploying…' : hasError ? 'Retry failed chains' : 'Deploy all Safes'}
+          {running ? 'Deploying…' : 'Deploy Safes'}
         </SailButton>
       )}
-      {allDone && (
+      {allSettled && hasRetryableError && (
+        <SailButton fullWidth onClick={deployAll} disabled={running} style={{ marginTop: 14 }}>
+          Retry failed chains
+        </SailButton>
+      )}
+      {allSettled && anyDeployed && (
         <SailButton fullWidth onClick={() => onDone(deployed)} style={{ marginTop: 14 }}>
           Continue →
         </SailButton>
+      )}
+      {allSettled && !anyDeployed && (
+        <p style={{ color: '#f87171', fontSize: 13, margin: '14px 0 0', textAlign: 'center' }}>
+          No chains deployed successfully. Go back and select a supported network.
+        </p>
       )}
       <p className={styles.fineprint}>
         Same address on all chains — deterministic CREATE2 deployment with a fixed salt.
