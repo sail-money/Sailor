@@ -4,8 +4,8 @@ import { fileURLToPath } from 'node:url'
 import cors from 'cors'
 import express from 'express'
 import { WebSocket, WebSocketServer } from 'ws'
-import { LocalKeyring, SailKernelAbi, getSailDeployment } from '@sail/sdk'
-import { createPublicClient, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
+import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, getSailDeployment } from '@sail/sdk'
+import { createPublicClient, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
 
 const PORT = Number(process.env.PORT ?? 3334)
@@ -601,6 +601,164 @@ export function startServer(sailDir) {
       res.json(await response.json())
     } catch {
       res.json([])
+    }
+  })
+
+  // ── UI Onboarding ─────────────────────────────────────────────────────────
+  //
+  // Three-step browser-driven setup (alternative to `sailor onboard` CLI):
+  //   1. User connects wallet in browser  (no server call)
+  //   2. POST /api/onboard/generate-key   → server writes keys/manager.json
+  //   3. Browser sends kernel.createAccount tx via wagmi
+  //   4. POST /api/onboard/complete       → server writes account.json
+  //
+  // The CLI path (sailor onboard) remains unchanged and uses the same files.
+
+  // GET /api/onboard/state — tells the wizard what's already done.
+  app.get('/api/onboard/state', (_req, res) => {
+    const config = (() => { try { return JSON.parse(fs.readFileSync(at('config.json'), 'utf-8')) } catch { return null } })()
+    const hasAccount = fs.existsSync(at('account.json'))
+    const managerKeyPath = at('keys/manager.json')
+    let managerAddress = null
+    try {
+      const ks = JSON.parse(fs.readFileSync(managerKeyPath, 'utf-8'))
+      managerAddress = ks?.address ? getAddress(`0x${String(ks.address).replace(/^0x/, '')}`) : null
+    } catch {}
+    const chainId = config?.chainId ?? 8453
+    let deployment = null
+    try { deployment = getSailDeployment(chainId) } catch {}
+    res.json({
+      hasAccount,
+      hasManagerKey: Boolean(managerAddress),
+      managerAddress,
+      chainId,
+      projectName: config?.name ?? null,
+      kernel: deployment?.kernel ?? config?.contracts?.kernel ?? null,
+      safeModuleEnabler: deployment?.safeModuleEnabler ?? null,
+      proxyFactory: SAFE_V141.proxyFactory,
+      singleton: SAFE_V141.singletonL2,
+      standardFeePolicy: deployment?.standardFeePolicy ?? config?.contracts?.standardFeePolicy ?? null,
+    })
+  })
+
+  // POST /api/onboard/generate-key { passphrase } — generates a manager key at
+  // keys/manager.json if one doesn't already exist. Returns the address.
+  app.post('/api/onboard/generate-key', async (req, res) => {
+    const managerKeyPath = at('keys/manager.json')
+    // Return existing key address without regenerating.
+    if (fs.existsSync(managerKeyPath)) {
+      try {
+        const ks = JSON.parse(fs.readFileSync(managerKeyPath, 'utf-8'))
+        const addr = ks?.address ? getAddress(`0x${String(ks.address).replace(/^0x/, '')}`) : null
+        return res.json({ address: addr, existed: true })
+      } catch {}
+    }
+    try {
+      const passphrase = req.body?.passphrase ?? ''
+      const privateKey = generatePrivateKey()
+      const keyring = LocalKeyring.fromPrivateKey(privateKey)
+      const keystore = await keyring.toKeystore(passphrase)
+      fs.mkdirSync(at('keys'), { recursive: true })
+      fs.writeFileSync(managerKeyPath, `${JSON.stringify(keystore, null, 2)}\n`)
+      res.json({ address: keyring.address, existed: false })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  })
+
+  // POST /api/onboard/build-create-tx { owner, manager } — builds the
+  // kernel.createAccount calldata so the browser can send the tx via wagmi
+  // without importing the SDK.
+  app.post('/api/onboard/build-create-tx', (req, res) => {
+    try {
+      const { owner, manager } = req.body ?? {}
+      if (!isAddress(owner) || !isAddress(manager)) {
+        return res.status(400).json({ error: 'owner and manager must be valid addresses' })
+      }
+      const config = JSON.parse(fs.readFileSync(at('config.json'), 'utf-8'))
+      const chainId = config?.chainId ?? 8453
+      let deployment = null
+      try { deployment = getSailDeployment(chainId) } catch {}
+      const kernel = deployment?.kernel ?? config?.contracts?.kernel
+      if (!kernel) return res.status(400).json({ error: 'no kernel address for this chain' })
+      const safeModuleEnabler = deployment?.safeModuleEnabler
+      const standardFeePolicy = deployment?.standardFeePolicy ?? config?.contracts?.standardFeePolicy ?? zeroAddress
+      const initializer = buildSafeSetupInitializer({
+        owners: [owner],
+        threshold: 1n,
+        kernel,
+        safeModuleEnabler,
+      })
+      const saltNonce = BigInt(Date.now())
+      const data = encodeFunctionData({
+        abi: SailKernelAbi,
+        functionName: 'createAccount',
+        args: [
+          SAFE_V141.proxyFactory,
+          SAFE_V141.singletonL2,
+          initializer,
+          saltNonce,
+          owner,       // permissionSigner = owner's wallet
+          manager,     // manager = agent key
+          standardFeePolicy,
+        ],
+      })
+      res.json({ to: kernel, data, chainId })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  })
+
+  // POST /api/onboard/complete { safe, owner, manager, txHash, chainId } —
+  // called after the browser wallet confirms kernel.createAccount. Writes
+  // account.json (same format as `sailor onboard`).
+  app.post('/api/onboard/complete', async (req, res) => {
+    try {
+      const { safe, owner, manager, txHash, chainId: reqChainId } = req.body ?? {}
+      if (!isAddress(safe) || !isAddress(owner)) {
+        return res.status(400).json({ error: 'safe and owner must be valid addresses' })
+      }
+      const config = (() => { try { return JSON.parse(fs.readFileSync(at('config.json'), 'utf-8')) } catch { return {} } })()
+      const chainId = reqChainId ?? config?.chainId ?? 8453
+      let createdAtBlock = '0'
+      try {
+        const env = parseEnvFile(at('.env.local'))
+        if (env.RPC_URL) {
+          const client = createPublicClient({ transport: http(env.RPC_URL) })
+          createdAtBlock = (await client.getBlockNumber()).toString()
+        }
+      } catch {}
+      const managerKeyPath = at('keys/manager.json')
+      let resolvedManager = manager
+      if (!resolvedManager) {
+        try {
+          const ks = JSON.parse(fs.readFileSync(managerKeyPath, 'utf-8'))
+          resolvedManager = ks?.address ? getAddress(`0x${String(ks.address).replace(/^0x/, '')}`) : owner
+        } catch { resolvedManager = owner }
+      }
+      const record = {
+        safe: getAddress(safe),
+        owner: getAddress(owner),
+        permissionSigner: getAddress(owner),
+        manager: getAddress(resolvedManager),
+        chainId,
+        createdAtBlock,
+        ...(txHash ? { txHash } : {}),
+      }
+      fs.mkdirSync(sailDir, { recursive: true })
+      // Append to multi-SMA list before overwriting the active pointer.
+      const listPath = at('state/accounts.json')
+      try {
+        fs.mkdirSync(at('state'), { recursive: true })
+        const existing = (() => { try { return JSON.parse(fs.readFileSync(listPath, 'utf-8')) } catch { return [] } })()
+        const already = existing.find((a) => a.safe?.toLowerCase() === record.safe.toLowerCase())
+        if (!already) existing.push(record)
+        fs.writeFileSync(listPath, `${JSON.stringify(existing, null, 2)}\n`)
+      } catch {}
+      fs.writeFileSync(at('account.json'), `${JSON.stringify(record, null, 2)}\n`)
+      res.json({ ok: true, account: record })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
     }
   })
 
