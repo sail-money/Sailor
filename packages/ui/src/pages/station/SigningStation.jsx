@@ -10,8 +10,6 @@ import styles from './SigningStation.module.css'
 import shared from '../shared/shared.module.css'
 import { useSailorAccount } from '../../hooks/useSailorData'
 
-const SIGNING_SERVER_BASE_PORT = 3141
-const SIGNING_SERVER_PORT_RANGE = 10
 const POLL_INTERVAL_MS = 3_000
 
 const SERVER_OVERRIDE = (() => {
@@ -23,21 +21,52 @@ const SERVER_OVERRIDE = (() => {
   return port
 })()
 
+/** Same-origin WebSocket URL for the sailor-ui signing-station proxy. */
+function proxyWsUrl() {
+  if (typeof window === 'undefined') return null
+  const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${scheme}//${window.location.host}/api/station/ws`
+}
+
+/**
+ * Resolve a WebSocket URL for the signing daemon.
+ *
+ * Two serving contexts:
+ *   • Daemon-served (this page came from the daemon itself, ports 3141–3150) —
+ *     /config is same-origin and embeds the secret, so connect directly.
+ *   • sailor-ui-served (port 3333) — the daemon withholds the secret from
+ *     cross-origin /config, so we can't open the socket from the browser. Route
+ *     through the same-origin proxy (server.js), which holds the secret
+ *     server-side. The proxy closes the socket if no daemon is running.
+ *
+ * Returns { wsUrl } or null.
+ */
 async function discoverSigningServer() {
   if (SERVER_OVERRIDE) {
     try {
       const res = await fetch(`http://localhost:${SERVER_OVERRIDE}/config`, { signal: AbortSignal.timeout(1_500) })
-      if (res.ok) return res.json()
-    } catch { /* fall through */ }
-    return null
+      if (res.ok) {
+        const cfg = await res.json()
+        if (cfg?.wsUrl?.includes('secret=')) return cfg
+      }
+    } catch { /* fall through to proxy */ }
+    const proxy = proxyWsUrl()
+    return proxy ? { wsUrl: proxy } : null
   }
-  for (let port = SIGNING_SERVER_BASE_PORT; port < SIGNING_SERVER_BASE_PORT + SIGNING_SERVER_PORT_RANGE; port++) {
-    try {
-      const res = await fetch(`http://localhost:${port}/config`, { signal: AbortSignal.timeout(500) })
-      if (res.ok) return res.json()
-    } catch { /* try next */ }
-  }
-  return null
+
+  // Daemon-served? A same-origin /config that carries the secret means we can
+  // talk to the daemon directly without the proxy.
+  try {
+    const res = await fetch(`${window.location.origin}/config`, { signal: AbortSignal.timeout(500) })
+    if (res.ok) {
+      const cfg = await res.json()
+      if (cfg?.wsUrl?.includes('secret=')) return cfg
+    }
+  } catch { /* not daemon-served — fall through to the proxy */ }
+
+  // sailor-ui-served: the proxy discovers the daemon and authenticates for us.
+  const proxy = proxyWsUrl()
+  return proxy ? { wsUrl: proxy } : null
 }
 
 
