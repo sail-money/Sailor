@@ -1,0 +1,10 @@
+[profile.default]
+src = "mandates"
+out = "out"
+libs = ["lib"]
+remappings = ["@sail/=.sail/contracts/"]
+solc = "0.8.26"
+optimizer = true
+optimizer_runs = 200
+# Mandates are deployed as standalone contracts and configured via their
+# constructor, then attached to a Safe with `sailor mandate attach`.

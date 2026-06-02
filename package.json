@@ -21,6 +21,7 @@
     "postinstall": "node scripts/postinstall.js",
     "typecheck": "pnpm --filter @sail/sdk build && pnpm --filter @sail/chains build && pnpm -r typecheck",
     "docs:check": "node scripts/check-docs.mjs",
+    "init:check": "node scripts/check-init.mjs",
     "eval": "node evals/run.mjs",
     "lint": "biome check ."
   },

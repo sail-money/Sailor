@@ -18,3 +18,24 @@ jobs:
       # doc references a `sailor` command or `client.*` method that no longer exists.
       - name: Doc-drift check
         run: node scripts/check-docs.mjs
+
+  init-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      # The CLI bundle is all `init` needs (esbuild bundles its deps). Scaffolds
+      # from the monorepo checkout — exactly the in-tree path that regressed when
+      # packageRoot() resolved to a templates-less bin.sailor package.
+      - name: Build CLI bundle
+        run: pnpm --filter sailor build
+      - name: Init smoke test
+        run: pnpm run init:check

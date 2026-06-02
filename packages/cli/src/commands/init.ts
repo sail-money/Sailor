@@ -115,7 +115,11 @@ export async function initCommand(
   options: InitOptions = {},
 ): Promise<void> {
   const inPlace = !dir || dir === ".";
-  const dest = inPlace ? process.cwd() : path.join(process.cwd(), dir);
+  // Use resolve (not join) so an absolute path or one with `..` resolves to its
+  // true location — the containment check below then rejects anything outside the
+  // cwd with a clear error, instead of join() silently nesting an absolute path
+  // into `<cwd>/<abs path>` and reporting "Done!".
+  const dest = inPlace ? process.cwd() : path.resolve(process.cwd(), dir);
   const name = path.basename(dest);
 
   const templatesDir = path.join(packageRoot(), "templates");
