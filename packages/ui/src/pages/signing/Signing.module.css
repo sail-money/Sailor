@@ -1011,6 +1011,20 @@
 }
 .doneCopyBtn:hover { color: rgba(255,255,255,0.75); border-color: rgba(255,255,255,0.22); }
 
+/* ── Add network button ──────────────────────────────────────────────────── */
+.addNetworkBtn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+  border: none;
+  background: none;
+  color: rgba(255,255,255,0.35);
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 150ms;
+}
+.addNetworkBtn:hover { color: rgba(255,255,255,0.65); }
+
 /* ── Progress dots ───────────────────────────────────────────────────────── */
 .progressDots {
   display: flex;
@@ -1056,8 +1070,9 @@
   text-align: left;
   transition: border-color 150ms, background 150ms;
 }
-.networkCard:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.14); }
+.networkCard:hover:not(.networkCardSoon) { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.14); }
 .networkCardSelected { background: rgba(255,255,255,0.06); border-color: var(--net-color, rgba(255,255,255,0.4)); }
+.networkCardSoon { opacity: 0.4; cursor: not-allowed; }
 .networkDot {
   width: 8px;
   height: 8px;

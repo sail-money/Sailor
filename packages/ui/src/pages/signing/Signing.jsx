@@ -35,17 +35,24 @@ export default function Signing() {
   const { draft } = useSailorMandateDraft()
   const { isConnected } = useAccount()
   const [onboardState, setOnboardState] = useState(null)
+  const [addingNetwork, setAddingNetwork] = useState(false)
 
   useEffect(() => {
     fetch('/api/onboard/state').then((r) => r.json()).then(setOnboardState).catch(() => {})
   }, [])
 
   if (draft) return <MandateSigningFlow draft={draft} />
-  if (isConnected && onboardState?.hasAccount) return <NoPendingFlow />
-  return <OnboardingFlow onboardState={onboardState} />
+  if (isConnected && onboardState?.hasAccount && !addingNetwork)
+    return <NoPendingFlow onAddNetwork={() => setAddingNetwork(true)} />
+  return (
+    <OnboardingFlow
+      onboardState={onboardState}
+      addingNetwork={isConnected && (onboardState?.hasAccount || addingNetwork)}
+    />
+  )
 }
 
-function NoPendingFlow() {
+function NoPendingFlow({ onAddNetwork }) {
   return (
     <div className={styles.shell}>
       <FluidBackground />
@@ -69,6 +76,9 @@ function NoPendingFlow() {
               <SailButton fullWidth onClick={() => { window.location.hash = '#/dashboard' }}>
                 Go to dashboard
               </SailButton>
+              <button type="button" className={styles.addNetworkBtn} onClick={onAddNetwork}>
+                + Deploy Safe on another network
+              </button>
             </div>
           </GlassCard>
         </div>
@@ -80,35 +90,38 @@ function NoPendingFlow() {
 // topic0 of AccountRegistered(address indexed account, address indexed permissionSigner, address indexed manager)
 const ACCOUNT_REGISTERED_TOPIC = '0x05f9a81a3b5e45d338f25347928e56b0aaaa0c65d4087a980c4e41370fcccfeb'
 
+// live: chainIds with a deployed SailKernel (getSailDeployment returns a result)
+const LIVE_CHAIN_IDS = new Set([8453, 84532, 42161])
+
 const SUPPORTED_NETWORKS = [
   // ── Mainnets ──
-  { chainId: 1,      name: 'Ethereum',       group: 'mainnet', description: 'The original chain.', color: '#627eea' },
   { chainId: 8453,   name: 'Base',           group: 'mainnet', description: 'Fast, cheap Coinbase L2.', color: '#0052ff' },
   { chainId: 42161,  name: 'Arbitrum One',   group: 'mainnet', description: 'Low-fee Ethereum L2.', color: '#28a0f0' },
+  { chainId: 1,      name: 'Ethereum',       group: 'mainnet', description: 'The original chain.', color: '#627eea' },
   { chainId: 130,    name: 'Unichain',       group: 'mainnet', description: 'Uniswap-native L2.', color: '#ff007a' },
   // ── Testnets ──
-  { chainId: 11155111, name: 'Ethereum Sepolia', group: 'testnet', description: 'Ethereum test network.', color: '#627eea' },
   { chainId: 84532,    name: 'Base Sepolia',     group: 'testnet', description: 'Free to experiment.', color: '#0052ff' },
   { chainId: 421614,   name: 'Arbitrum Sepolia', group: 'testnet', description: 'Arbitrum test network.', color: '#28a0f0' },
+  { chainId: 11155111, name: 'Ethereum Sepolia', group: 'testnet', description: 'Ethereum test network.', color: '#627eea' },
   { chainId: 1301,     name: 'Unichain Sepolia', group: 'testnet', description: 'Unichain test network.', color: '#ff007a' },
 ]
 
 // Steps that show progress dots (excludes welcome + done).
 const PROGRESS_STEPS = ['network', 'connect', 'keygen', 'create-sma']
 
-function OnboardingFlow({ onboardState }) {
+function OnboardingFlow({ onboardState, addingNetwork }) {
   const { isConnected, address } = useAccount()
-  const [step, setStep] = useState('welcome')
+  const [step, setStep] = useState(addingNetwork ? 'network' : 'welcome')
   const [selectedChainId, setSelectedChainId] = useState(onboardState?.chainId ?? 8453)
   const [managerAddress, setManagerAddress] = useState(onboardState?.managerAddress ?? null)
   const [safeAddress, setSafeAddress] = useState(null)
 
-  // Resume from the right step when the page is refreshed with wallet still connected.
+  // Resume from the right step when page refreshes with wallet still connected (first-time flow only).
   useEffect(() => {
-    if (!isConnected) return
+    if (addingNetwork || !isConnected) return
     if (onboardState?.hasManagerKey) setStep('create-sma')
     else setStep('keygen')
-  }, [isConnected, onboardState?.hasManagerKey])
+  }, [addingNetwork, isConnected, onboardState?.hasManagerKey])
 
   const progressIndex = PROGRESS_STEPS.indexOf(step)
 
@@ -125,10 +138,10 @@ function OnboardingFlow({ onboardState }) {
             <NetworkStep
               selected={selectedChainId}
               onSelect={setSelectedChainId}
-              onBack={() => setStep('welcome')}
-              onDone={() => setStep('connect')}
+              onBack={addingNetwork ? null : () => setStep('welcome')}
+              onDone={() => setStep(addingNetwork ? 'create-sma' : 'connect')}
               progressIndex={progressIndex}
-              progressTotal={progressSteps.length}
+              progressTotal={PROGRESS_STEPS.length}
             />
           )}
           {step === 'connect' && (
@@ -136,7 +149,7 @@ function OnboardingFlow({ onboardState }) {
               onBack={() => setStep('network')}
               onDone={() => setStep(onboardState?.hasManagerKey ? 'create-sma' : 'keygen')}
               progressIndex={progressIndex}
-              progressTotal={progressSteps.length}
+              progressTotal={PROGRESS_STEPS.length}
             />
           )}
           {step === 'keygen' && (
@@ -144,7 +157,7 @@ function OnboardingFlow({ onboardState }) {
               existingAddress={onboardState?.managerAddress}
               onDone={(addr) => { setManagerAddress(addr); setStep('create-sma') }}
               progressIndex={progressIndex}
-              progressTotal={progressSteps.length}
+              progressTotal={PROGRESS_STEPS.length}
             />
           )}
           {step === 'create-sma' && (
@@ -154,7 +167,7 @@ function OnboardingFlow({ onboardState }) {
               chainId={selectedChainId}
               onDone={(safe) => { setSafeAddress(safe); setStep('done') }}
               progressIndex={progressIndex}
-              progressTotal={progressSteps.length}
+              progressTotal={PROGRESS_STEPS.length}
             />
           )}
           {step === 'done' && (
@@ -217,16 +230,18 @@ function NetworkStep({ selected, onSelect, onBack, onDone, progressIndex, progre
 }
 
 function NetworkCard({ net, selected, onSelect }) {
+  const live = LIVE_CHAIN_IDS.has(net.chainId)
   return (
     <button
       type="button"
-      className={`${styles.networkCard} ${selected ? styles.networkCardSelected : ''}`}
-      onClick={() => onSelect(net.chainId)}
-      style={{ '--net-color': net.color }}
+      className={`${styles.networkCard} ${selected ? styles.networkCardSelected : ''} ${!live ? styles.networkCardSoon : ''}`}
+      onClick={() => live && onSelect(net.chainId)}
+      style={{ '--net-color': live ? net.color : 'rgba(255,255,255,0.18)' }}
+      title={live ? undefined : 'Sail kernel coming soon'}
     >
       <span className={styles.networkDot} />
       <span className={styles.networkName}>{net.name}</span>
-      <span className={styles.networkDesc}>{net.description}</span>
+      <span className={styles.networkDesc}>{live ? net.description : 'Coming soon'}</span>
     </button>
   )
 }
