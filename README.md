@@ -47,6 +47,104 @@ Sailor operates the three roles Sail Protocol separates:
 
 ---
 
+## Installation
+
+### Global CLI
+
+Install `sailor` globally to use the CLI from any directory:
+
+```bash
+npm install -g sailor
+# or
+pnpm add -g sailor
+```
+
+### Project install
+
+Install `sailor` as a project dependency:
+
+```bash
+npm install sailor
+# or
+pnpm add sailor
+```
+
+### Auto-scaffolding on install (`postinstall`)
+
+When you install `sailor` into a directory that has not yet been initialised,
+the package automatically runs `sailor init` to scaffold a new agent project in
+place. This means installing `sailor` and having a ready-to-run project are a
+single step.
+
+**What happens:**
+
+1. Copies the default template (`dca-rebalancer`) into the current directory.
+2. Creates the `.sail/` workspace (`keys/`, `runtime/`, `state/`, `config.json`).
+3. Scaffolds the Foundry workspace (`foundry.toml`, `mandates/`, `IPermission.sol`).
+4. Writes `.env.example` and patches `package.json` with the project name.
+
+**It is safe to re-run** — if `.sail/config.json` already exists the step is
+skipped silently, so upgrading `sailor` never overwrites an existing project.
+
+#### With npm — runs automatically
+
+```bash
+mkdir my-agent && cd my-agent
+npm install sailor
+# Project is ready. No extra step needed.
+```
+
+#### With pnpm — requires one-time approval
+
+pnpm 8+ blocks install scripts by default for security. You have two options:
+
+**Option A — pre-approve in `package.json`** (recommended for teams, checked in
+to source control so every member gets the same behaviour):
+
+```json
+{
+  "pnpm": {
+    "allowedBuilds": ["sailor"]
+  }
+}
+```
+
+Then install normally:
+
+```bash
+pnpm add sailor
+```
+
+**Option B — approve interactively after the first install:**
+
+```bash
+pnpm add sailor
+pnpm approve-builds   # select sailor → Enter
+pnpm install          # postinstall runs on the next install
+```
+
+#### Opting out of auto-scaffolding
+
+If you want to install `sailor` without scaffolding (e.g. you are adding it to
+an existing project and will run `sailor init` yourself later), skip the
+postinstall:
+
+```bash
+# Skip via env var (only skips sailor init, other install scripts still run)
+SAILOR_SKIP_INIT=1 npm install sailor
+
+# Skip all install scripts entirely
+npm install sailor --ignore-scripts
+pnpm add sailor --ignore-scripts
+```
+
+> **Consequences of skipping:** The CLI is installed and the `sailor` command is
+> available, but no project files are created. Run `sailor init` manually
+> whenever you are ready to scaffold — it is safe to run in any empty or
+> partially-initialised directory.
+
+---
+
 ## Quickstart
 
 Prerequisites:
