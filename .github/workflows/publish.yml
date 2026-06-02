@@ -1,9 +1,23 @@
-name: Publish SDK
+name: Publish to GitHub Packages
 
 on:
   push:
     branches:
       - main
-    tags:
-      - 'v*'
   workflow_dispatch:
+
+jobs:
+  publish:
+    permissions:
+      id-token: write
+      contents: read
+      packages: write
+    uses: SailAgent/devops-templates/.github/workflows/publish-pnpm.yaml@SAIL-131-publishing-fw
+    with:
+      package_dir: .
+      package_name: '@sailagent/sailor'
+      is_dev_version: true
+      dist_tag: ${{ github.event_name == 'workflow_dispatch' && 'dev' || 'main' }}
+      use_github_registry: true
+      pnpm-version: '11'
+    secrets: inherit

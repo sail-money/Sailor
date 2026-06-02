@@ -9,7 +9,7 @@ node_modules/
 !.yarn/versions/
 
 # Test and build outputs
-dist/
+*dist*
 coverage/
 out/
 cache/

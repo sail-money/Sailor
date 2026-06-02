@@ -10,6 +10,12 @@ import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem
 
 const PORT = Number(process.env.PORT ?? 3334)
 
+// Resolve the current file path in both ESM and esbuild CJS bundles.
+// import.meta.url is undefined in CJS bundles; __filename is the fallback.
+const _thisFile = (() => {
+  try { return fileURLToPath(import.meta.url) } catch { return __filename }
+})()
+
 // ── Overview helpers ─────────────────────────────────────────────────────────
 
 /** Minimal `.env`-style parser for `.sail/.env.local` (RPC_URL, KERNEL_ADDRESS…). */
@@ -994,7 +1000,7 @@ export function startServer(sailDir) {
   // When SERVE_DIST=1 (set by `sailor ui`), also serve the built UI so a
   // single process handles everything — no Vite dev server needed.
   if (process.env.SERVE_DIST === '1') {
-    const distDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'dist')
+    const distDir = process.env.SAILOR_UI_DIST ?? path.join(path.dirname(_thisFile), 'dist')
     app.use(express.static(distDir))
     app.get('*', (_req, res) => res.sendFile(path.join(distDir, 'index.html')))
   }
@@ -1076,7 +1082,10 @@ export function startServer(sailDir) {
 
 // Allow running directly: `SAIL_DIR=/path/to/.sail node server.js`.
 // The CLI's `sailor ui` command spawns this with SAIL_DIR set.
-const isMain = process.argv[1] === fileURLToPath(import.meta.url)
+// Use case-insensitive comparison on Windows: path.resolve() and __filename
+// can disagree on drive-letter case (c:\ vs C:\), breaking a strict === check.
+const _norm = p => path.resolve(p)[process.platform === 'win32' ? 'toLowerCase' : 'toString']()
+const isMain = Boolean(process.argv[1]) && _norm(process.argv[1]) === _norm(_thisFile)
 if (isMain) {
   const sailDir = process.env.SAIL_DIR || path.join(process.cwd(), '.sail')
   startServer(sailDir)
