@@ -4714,3 +4714,93 @@
   align-self: center;
 }
 .ghSetupLink:hover { color: rgba(251, 191, 36, 1); text-decoration: underline; }
+
+/* ── Activity timeline tick cards ────────────────────────────────────────── */
+.tickList { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; }
+
+.tickCard {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.02);
+  transition: border-color 150ms;
+}
+.tickCard:hover { border-color: rgba(255,255,255,0.12); }
+
+.tickCardHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+
+.tickDot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  flex-shrink: 0;
+}
+.tickDotLive {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34,197,94,0.6);
+  animation: tickPulse 1.4s ease-in-out infinite;
+}
+@keyframes tickPulse { 0%,100% { opacity: 1 } 50% { opacity: 0.4 } }
+
+.tickMeta { display: flex; flex-direction: column; gap: 1px; flex-shrink: 0; min-width: 80px; }
+.tickTime { font-size: 11px; color: rgba(255,255,255,0.35); }
+.tickDuration { font-size: 10px; color: rgba(255,255,255,0.25); }
+.tickHeadline { flex: 1; font-size: 13px; color: rgba(255,255,255,0.75); line-height: 1.4; }
+.tickValue { font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.5); flex-shrink: 0; }
+.tickChevron { font-size: 10px; color: rgba(255,255,255,0.3); flex-shrink: 0; }
+
+.tickBody {
+  padding: 0 14px 12px 31px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tickLog { font-size: 12px; color: rgba(255,255,255,0.45); line-height: 1.5; margin: 0; }
+
+.tickPositions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.tickPosition {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+}
+.tickPositionToken { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.5); letter-spacing: 0.06em; }
+.tickPositionValue { font-size: 12px; color: rgba(255,255,255,0.8); font-weight: 600; }
+.tickPositionProto { font-size: 11px; color: rgba(255,255,255,0.3); }
+
+/* ── Fund agent button ───────────────────────────────────────────────────── */
+.signerTopUpMsg { font-size: 12px; color: rgba(255,255,255,0.55); }
+.signerFundBtn {
+  margin-top: 8px;
+  width: 100%;
+  padding: 8px 0;
+  border-radius: 8px;
+  border: 1px solid rgba(251,191,36,0.35);
+  background: rgba(251,191,36,0.08);
+  color: rgba(251,191,36,0.9);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms, border-color 150ms;
+}
+.signerFundBtn:hover:not(:disabled) { background: rgba(251,191,36,0.14); border-color: rgba(251,191,36,0.5); }
+.signerFundBtn:disabled { opacity: 0.5; cursor: not-allowed; }

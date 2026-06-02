@@ -221,3 +221,9 @@ export function useWizardState() {
 
   return { state: data, update, loading }
 }
+
+/** Latest positions snapshot from state/positions-<chainId>.json. Polls every 15s. */
+export function useSailorPositions(trigger) {
+  const { data, loading, error } = usePolledJson('/api/positions', { positions: [], updatedAt: null }, 15000, trigger)
+  return { positions: data?.positions ?? [], updatedAt: data?.updatedAt ?? null, loading, error }
+}

@@ -41,7 +41,7 @@ const MIME: Record<string, string> = {
  */
 function findUiDist(): string | null {
   const candidates = [
-    // Installed package (any scope): walk up to package root via templates/ marker
+    // Installed package (any scope): walk up to package root via bin.sailor marker
     join(packageRoot(), "packages", "ui", "dist"),
     // Monorepo dev via tsx run from the repo root
     join(process.cwd(), "packages", "ui", "dist"),

@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { getChain } from '@sail/chains'
-import { zeroAddress } from 'viem'
-import { useAccount, usePublicClient, useSignTypedData } from 'wagmi'
+import { getAddress, zeroAddress } from 'viem'
+import { useAccount, usePublicClient, useSendTransaction, useSignTypedData, useWaitForTransactionReceipt } from 'wagmi'
 import { FluidBackground, GlassCard, Sai, RevealCalldata, SailButton } from '../shared'
 import PageHeader from '../shared/PageHeader'
 import shared from '../shared/shared.module.css'
 import styles from './Signing.module.css'
 import { useSailorMandateDraft } from '../../hooks/useSailorData'
+import { useSigningSocket } from '../../hooks/useSigningSocket'
 
 /**
  * Sign-in & onboarding flow.
@@ -33,10 +34,15 @@ import { useSailorMandateDraft } from '../../hooks/useSailorData'
 export default function Signing() {
   const { draft } = useSailorMandateDraft()
   const { isConnected } = useAccount()
+  const [onboardState, setOnboardState] = useState(null)
+
+  useEffect(() => {
+    fetch('/api/onboard/state').then((r) => r.json()).then(setOnboardState).catch(() => {})
+  }, [])
 
   if (draft) return <MandateSigningFlow draft={draft} />
-  if (isConnected) return <NoPendingFlow />
-  return <OnboardingFlow />
+  if (isConnected && onboardState?.hasAccount) return <NoPendingFlow />
+  return <OnboardingFlow onboardState={onboardState} />
 }
 
 function NoPendingFlow() {
@@ -71,27 +77,320 @@ function NoPendingFlow() {
   )
 }
 
-function OnboardingFlow() {
-  const [state, setState] = useState('welcome')
+// topic0 of AccountRegistered(address indexed account, address indexed permissionSigner, address indexed manager)
+const ACCOUNT_REGISTERED_TOPIC = '0x05f9a81a3b5e45d338f25347928e56b0aaaa0c65d4087a980c4e41370fcccfeb'
+
+function OnboardingFlow({ onboardState }) {
+  const { isConnected, address } = useAccount()
+  const [step, setStep] = useState('welcome')
+  const [managerAddress, setManagerAddress] = useState(onboardState?.managerAddress ?? null)
+  const [safeAddress, setSafeAddress] = useState(null)
+
+  // Skip straight to the right step if partially complete.
+  useEffect(() => {
+    if (!isConnected) return
+    if (onboardState?.hasManagerKey) setStep('create-sma')
+    else setStep('keygen')
+  }, [isConnected, onboardState?.hasManagerKey])
 
   return (
     <div className={styles.shell}>
       <FluidBackground />
-      <HeaderBar state={state} />
+      <HeaderBar state="welcome" />
       <main className={styles.stage}>
-        <div key={state} className={styles.stageInner}>
-          {state === 'welcome' && (
-            <WelcomeState onConnect={() => setState('connect')} />
+        <div key={step} className={styles.stageInner}>
+          {step === 'welcome' && (
+            <WelcomeState onConnect={() => setStep('connect')} />
           )}
-          {state === 'connect' && (
-            <ConnectState
-              onBack={() => setState('welcome')}
-              onAuthed={() => { window.location.hash = '#/dashboard' }}
+          {step === 'connect' && (
+            <ConnectStep
+              onBack={() => setStep('welcome')}
+              onDone={() => setStep(onboardState?.hasManagerKey ? 'create-sma' : 'keygen')}
             />
+          )}
+          {step === 'keygen' && (
+            <KeygenStep
+              existingAddress={onboardState?.managerAddress}
+              onDone={(addr) => { setManagerAddress(addr); setStep('create-sma') }}
+            />
+          )}
+          {step === 'create-sma' && (
+            <CreateSmaStep
+              owner={address}
+              managerAddress={managerAddress ?? onboardState?.managerAddress}
+              onDone={(safe) => { setSafeAddress(safe); setStep('done') }}
+            />
+          )}
+          {step === 'done' && (
+            <DoneStep safeAddress={safeAddress} />
           )}
         </div>
       </main>
     </div>
+  )
+}
+
+/* ── Step 1: Welcome ── */
+function WelcomeState({ onConnect }) {
+  return (
+    <GlassCard className={styles.welcomeCard}>
+      <div className={styles.cardSai} aria-hidden>
+        <Sai size={64} animate />
+      </div>
+      <header className={styles.cardHeader}>
+        <span className={styles.kicker}>WELCOME TO SAIL</span>
+        <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
+          Separately Managed Accounts.
+        </h1>
+        <p className={`${shared.italicMannerism} ${styles.cardTagline}`}>
+          Enforced by code, run by agents.
+        </p>
+      </header>
+      <div className={styles.welcomeCta}>
+        <SailButton fullWidth onClick={onConnect}>Connect wallet</SailButton>
+      </div>
+      <p className={styles.fineprint}>Self-custody. Sail never holds your keys.</p>
+    </GlassCard>
+  )
+}
+
+/* ── Step 2: Connect wallet ── */
+function ConnectStep({ onBack, onDone }) {
+  const { isConnected, address } = useAccount()
+  const { status, send } = useSigningSocket()
+
+  useEffect(() => {
+    if (!isConnected || !address) return
+    if (status === 'connected') {
+      send({ type: 'wallet-connected', address })
+      onDone?.()
+    } else if (status === 'disconnected') {
+      onDone?.()
+    }
+    // status === 'checking': wait for socket to resolve, re-runs on status change
+  }, [isConnected, address, status, send, onDone])
+
+  return (
+    <GlassCard className={styles.authCard}>
+      <CardHeader
+        kicker="STEP 1 OF 3"
+        title="Connect your wallet"
+        sub="This wallet will own your Safe. It signs mandates — it never executes trades."
+        onBack={onBack}
+      />
+      <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 8 }}>
+        <ConnectButton showBalance={false} />
+      </div>
+    </GlassCard>
+  )
+}
+
+/* ── Step 3: Generate delegated signer key ── */
+function KeygenStep({ existingAddress, onDone }) {
+  const [passphrase, setPassphrase] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [generated, setGenerated] = useState(existingAddress ?? null)
+  const [copied, setCopied] = useState(false)
+
+  async function generate() {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/onboard/generate-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passphrase }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setGenerated(data.address)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function copy(text) {
+    navigator?.clipboard?.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  return (
+    <GlassCard className={styles.authCard}>
+      <CardHeader
+        kicker="STEP 2 OF 3"
+        title="Create delegated signer"
+        sub="An agent key that executes within your permissions. It never holds custody."
+      />
+      {!generated ? (
+        <>
+          <div className={styles.passphraseRow}>
+            <label className={styles.passphraseLabel}>
+              Passphrase <span style={{ opacity: 0.5 }}>(optional)</span>
+            </label>
+            <input
+              type="password"
+              className={styles.passphraseInput}
+              placeholder="Encrypts the key on disk"
+              value={passphrase}
+              onChange={(e) => setPassphrase(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') generate() }}
+            />
+          </div>
+          {error && <p style={{ color: '#ff6b6b', fontSize: 13, margin: '8px 0' }}>{error}</p>}
+          <SailButton fullWidth onClick={generate} disabled={loading}>
+            {loading ? 'Generating…' : 'Generate key'}
+          </SailButton>
+          <p className={styles.fineprint}>
+            If set, save this passphrase — your agent needs it as <code>SAIL_PASSPHRASE</code>.
+          </p>
+        </>
+      ) : (
+        <>
+          <div className={styles.generatedKey}>
+            <span className={styles.generatedKeyLabel}>Agent address</span>
+            <button
+              type="button"
+              className={styles.generatedKeyAddr}
+              onClick={() => copy(generated)}
+              title="Copy address"
+            >
+              <code>{generated}</code>
+              <span className={styles.copyHint}>{copied ? '✓' : 'copy'}</span>
+            </button>
+          </div>
+          {passphrase && (
+            <div className={styles.passphraseReminder}>
+              <span style={{ opacity: 0.6, fontSize: 12 }}>Remember:</span>{' '}
+              <code style={{ fontSize: 12 }}>SAIL_PASSPHRASE=&quot;{passphrase}&quot;</code>
+            </div>
+          )}
+          <SailButton fullWidth onClick={() => onDone(generated)}>Continue →</SailButton>
+        </>
+      )}
+    </GlassCard>
+  )
+}
+
+/* ── Step 4: Create SMA on-chain ── */
+function CreateSmaStep({ owner, managerAddress, onDone }) {
+  const [phase, setPhase] = useState('idle') // idle | building | wallet | confirming | error
+  const [error, setError] = useState('')
+  const [txHash, setTxHash] = useState(undefined)
+  const { sendTransactionAsync } = useSendTransaction()
+  const { data: receipt } = useWaitForTransactionReceipt({ hash: txHash, confirmations: 1 })
+
+  useEffect(() => {
+    if (!receipt) return
+    const log = receipt.logs?.find((l) => l.topics?.[0] === ACCOUNT_REGISTERED_TOPIC)
+    if (!log) { setError('AccountRegistered event not found — tx may have failed'); setPhase('error'); return }
+    const safe = getAddress(`0x${log.topics[1].slice(26)}`)
+    fetch('/api/onboard/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ safe, owner, manager: managerAddress, txHash: receipt.transactionHash }),
+    })
+      .then(() => onDone(safe))
+      .catch((err) => { setError(err.message); setPhase('error') })
+  }, [receipt, owner, managerAddress, onDone])
+
+  async function create() {
+    setPhase('building')
+    setError('')
+    try {
+      const buildRes = await fetch('/api/onboard/build-create-tx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ owner, manager: managerAddress }),
+      })
+      const { to, data } = await buildRes.json()
+      if (!buildRes.ok) throw new Error(data?.error ?? 'Build failed')
+      setPhase('wallet')
+      const hash = await sendTransactionAsync({ to, data })
+      setTxHash(hash)
+      setPhase('confirming')
+    } catch (err) {
+      setError(err?.shortMessage || err?.message || 'Transaction failed')
+      setPhase('error')
+    }
+  }
+
+  const phaseLabel = {
+    idle:       'Create Safe (SMA)',
+    building:   'Building transaction…',
+    wallet:     'Confirm in wallet…',
+    confirming: 'Waiting for confirmation…',
+    error:      'Retry',
+  }[phase] ?? 'Create Safe'
+
+  return (
+    <GlassCard className={styles.authCard}>
+      <CardHeader
+        kicker="STEP 3 OF 3"
+        title="Deploy your Safe"
+        sub="A 1-of-1 Safe registered with SailKernel. Your wallet pays the deployment gas."
+      />
+      <div className={styles.smaDetails}>
+        <Detail label="Owner" value={owner} />
+        <Detail label="Agent" value={managerAddress} />
+      </div>
+      {error && <p style={{ color: '#ff6b6b', fontSize: 13, margin: '8px 0' }}>{error}</p>}
+      <SailButton
+        fullWidth
+        onClick={create}
+        disabled={phase !== 'idle' && phase !== 'error'}
+      >
+        {phaseLabel}
+      </SailButton>
+      <p className={styles.fineprint}>
+        Deploys a Safe via SailKernel.createAccount — one transaction, no custody transfer.
+      </p>
+    </GlassCard>
+  )
+}
+
+function Detail({ label, value }) {
+  return (
+    <div className={styles.detailRow}>
+      <span className={styles.detailLabel}>{label}</span>
+      <code className={styles.detailValue}>{value ? `${value.slice(0, 10)}…${value.slice(-6)}` : '—'}</code>
+    </div>
+  )
+}
+
+/* ── Step 5: Done ── */
+function DoneStep({ safeAddress }) {
+  return (
+    <GlassCard className={styles.welcomeCard}>
+      <div className={styles.cardSai} aria-hidden>
+        <Sai size={64} animate />
+      </div>
+      <header className={styles.cardHeader}>
+        <span className={styles.kicker}>SETUP COMPLETE</span>
+        <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
+          Your agent is ready.
+        </h1>
+        <p className={`${shared.italicMannerism} ${styles.cardTagline}`}>
+          Safe deployed. Continue in your terminal with your AI.
+        </p>
+        {safeAddress && (
+          <code style={{ fontSize: 12, opacity: 0.6, marginTop: 8, display: 'block', wordBreak: 'break-all' }}>
+            {safeAddress}
+          </code>
+        )}
+      </header>
+      <div className={styles.welcomeCta}>
+        <SailButton fullWidth onClick={() => { window.location.hash = '#/dashboard' }}>
+          Go to dashboard
+        </SailButton>
+      </div>
+      <p className={styles.fineprint}>
+        Your AI can now deploy mandates and run your agent from the terminal.
+      </p>
+    </GlassCard>
   )
 }
 
@@ -179,9 +478,6 @@ function MandateSigningFlow({ draft }) {
       if (!res.ok) throw new Error(`Submit failed (${res.status})`)
 
       setPhase('done')
-      setTimeout(() => {
-        window.location.hash = '#/dashboard'
-      }, 2200)
     } catch (err) {
       setErrorMsg(err?.shortMessage || err?.message || 'Signing failed')
       setPhase('review')
@@ -196,7 +492,7 @@ function MandateSigningFlow({ draft }) {
       <main className={styles.stage}>
         <div className={styles.stageInner}>
           {phase === 'done' ? (
-            <ConfirmState progress="confirmed" />
+            <MandateSignedCard draft={draft} />
           ) : (
             <GlassCard className={styles.authCard}>
               <CardHeader
@@ -272,64 +568,6 @@ function HeaderBar({ state }) {
       title={state === 'confirming' ? 'Signed' : 'Sail never sees your keys'}
       backTo="#/dashboard"
     />
-  )
-}
-
-
-/* ─────────── Welcome — single Connect CTA ─────────── */
-function WelcomeState({ onConnect }) {
-  return (
-    <GlassCard className={styles.welcomeCard}>
-      <div className={styles.cardSai} aria-hidden>
-        <Sai size={64} animate />
-      </div>
-
-      <header className={styles.cardHeader}>
-        <span className={styles.kicker}>WELCOME TO SAIL</span>
-        <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
-          Separately Managed Accounts.
-        </h1>
-        <p className={`${shared.italicMannerism} ${styles.cardTagline}`}>
-          Enforced by code, run by agents.
-        </p>
-      </header>
-
-      <div className={styles.welcomeCta}>
-        <SailButton fullWidth onClick={onConnect}>
-          Connect wallet
-        </SailButton>
-      </div>
-
-      <p className={styles.fineprint}>
-        Authentication handled by Privy. Sail never holds your keys.
-      </p>
-    </GlassCard>
-  )
-}
-
-function ConnectState({ onBack, onAuthed }) {
-  const { isConnected } = useAccount()
-
-  // Once the wallet connects, continue the flow exactly as the mock did —
-  // route onward to the dashboard. Real account presence is resolved
-  // there via useSailorAccount(). No walletId is passed, so the parent's
-  // default (non-Ledger) routing applies.
-  useEffect(() => {
-    if (isConnected) onAuthed?.()
-  }, [isConnected, onAuthed])
-
-  return (
-    <GlassCard className={styles.authCard}>
-      <CardHeader
-        kicker="CONNECT WALLET"
-        title="Choose a wallet"
-        sub="Sail is self-custody. Connect the EOA that will own your SMA."
-        onBack={onBack}
-      />
-      <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 8 }}>
-        <ConnectButton showBalance={false} />
-      </div>
-    </GlassCard>
   )
 }
 
@@ -476,6 +714,51 @@ function ArrowRight() {
     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M5 12h14M13 6l6 6-6 6" />
     </svg>
+  )
+}
+
+/* ── Mandate signed: contextual done state ── */
+function MandateSignedCard({ draft }) {
+  const [copied, setCopied] = useState(false)
+  const permCount = (draft?.items ?? []).length
+  const safeShort = draft?.account ? `${draft.account.slice(0, 10)}…${draft.account.slice(-6)}` : null
+  const prompt = `My mandate is signed on Safe ${draft?.account ?? 'my Safe'}. ${permCount} permission${permCount === 1 ? '' : 's'} registered. Now deploy and start the agent — use SAIL_PASSPHRASE from my config and run sailor run.`
+
+  function copy() {
+    navigator?.clipboard?.writeText(prompt)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  return (
+    <GlassCard className={styles.welcomeCard}>
+      <div className={styles.cardSai} aria-hidden>
+        <Sai size={64} animate />
+      </div>
+      <header className={styles.cardHeader}>
+        <span className={styles.kicker}>MANDATE SIGNED</span>
+        <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
+          Permissions registered.
+        </h1>
+        <p className={`${shared.italicMannerism} ${styles.cardTagline}`}>
+          {permCount} permission{permCount === 1 ? '' : 's'} authorized
+          {safeShort ? ` on ${safeShort}` : ''}.
+          Tell your AI to start the agent.
+        </p>
+      </header>
+      <div className={styles.mandateSignedPrompt}>
+        <span className={styles.mandateSignedPromptLabel}>Copy prompt for your AI</span>
+        <p className={styles.mandateSignedPromptText}>"{prompt}"</p>
+        <button type="button" className={styles.mandateSignedCopyBtn} onClick={copy}>
+          {copied ? '✓ Copied' : 'Copy'}
+        </button>
+      </div>
+      <div className={styles.welcomeCta}>
+        <SailButton fullWidth onClick={() => { window.location.hash = '#/dashboard' }}>
+          Go to dashboard
+        </SailButton>
+      </div>
+    </GlassCard>
   )
 }
 

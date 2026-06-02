@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "name": "fresh-agent",
+  "chainId": 8453,
+  "stateDir": ".sail/state",
+  "contracts": {
+    "kernel": "0xbEd6F78c6d89547Fb9B43d599621dd80ce57F154",
+    "mandateFactory": "0xc3FFb7128bc95B5e3a3268f6E168c331FF13fE07"
+  }
+}

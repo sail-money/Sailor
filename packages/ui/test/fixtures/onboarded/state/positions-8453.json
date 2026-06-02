@@ -1,0 +1,19 @@
+{
+  "positions": [
+    {
+      "protocol": "Aave",
+      "token": "USDC",
+      "valueUsd": 2400.50,
+      "apy": 4.2,
+      "chain": "base"
+    },
+    {
+      "protocol": "Compound",
+      "token": "ETH",
+      "valueUsd": 850.00,
+      "apy": 2.8,
+      "chain": "base"
+    }
+  ],
+  "updatedAt": "2026-06-01T12:00:00.000Z"
+}

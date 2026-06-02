@@ -3,8 +3,9 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import cors from 'cors'
 import express from 'express'
-import { LocalKeyring, SailKernelAbi, getSailDeployment } from '@sail/sdk'
-import { createPublicClient, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
+import { WebSocket, WebSocketServer } from 'ws'
+import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, getSailDeployment } from '@sail/sdk'
+import { createPublicClient, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
 
 const PORT = Number(process.env.PORT ?? 3334)
@@ -80,7 +81,7 @@ const OVERVIEW_TTL_MS = 10_000
  *
  * @param {string} sailDir Absolute path to the project's `.sail/` directory.
  */
-export function startServer(sailDir) {
+export function startServer(sailDir, { port = PORT } = {}) {
   const app = express()
   app.use(cors({ origin: 'http://localhost:3333' }))
   app.use(express.json())
@@ -279,6 +280,19 @@ export function startServer(sailDir) {
       res.json(events.filter((e) => (e.safe ? String(e.safe).toLowerCase() : fallback) === active))
     } catch {
       res.json([])
+    }
+  })
+
+  // GET /api/positions — latest positions snapshot from state/positions-<chainId>.json
+  app.get('/api/positions', (_req, res) => {
+    try {
+      const account = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
+      const chainId = account?.chainId ?? 8453
+      const posFile = at(`state/positions-${chainId}.json`)
+      const data = JSON.parse(fs.readFileSync(posFile, 'utf-8'))
+      res.json(data)
+    } catch {
+      res.json({ positions: [], updatedAt: null })
     }
   })
 
@@ -539,41 +553,231 @@ export function startServer(sailDir) {
   // Discovery order: runtime/server.json (written by `sailor station start`),
   // then port-scan 3141–3150 (same range the UI station page uses), with a
   // short timeout so a stale/hanging daemon never blocks the dashboard.
+  //
+  // The daemon gates /pending behind the per-startup requestSecret (see
+  // packages/cli/src/signing/server.ts), so discovery must capture that secret
+  // and the proxy must forward it as `x-sailor-secret` — otherwise every read
+  // 403s and the dashboard bell silently shows an empty queue. We get the secret
+  // either straight from runtime/server.json or, on the port-scan path, from
+  // /config's wsUrl (the daemon embeds `?secret=…` for requests with no Origin,
+  // which a server-side fetch is).
   const STATION_PORTS = Array.from({ length: 10 }, (_, i) => 3141 + i)
-  let stationPortCache = null // { port, expiresAt }
+  let stationCache = null // { port, secret, expiresAt }
 
-  async function discoverStationPort() {
-    if (stationPortCache && Date.now() < stationPortCache.expiresAt) {
-      return stationPortCache.port
-    }
-    // 1. Try runtime/server.json first — cheapest path.
+  function secretFromConfig(config) {
     try {
-      const { port } = JSON.parse(fs.readFileSync(at('runtime/server.json'), 'utf-8'))
+      return new URL(config?.wsUrl ?? '').searchParams.get('secret') ?? null
+    } catch {
+      return null
+    }
+  }
+
+  async function discoverStation() {
+    if (stationCache && Date.now() < stationCache.expiresAt) {
+      return stationCache
+    }
+    // 1. Try runtime/server.json first — cheapest path, and it carries the secret.
+    try {
+      const { port, requestSecret } = JSON.parse(fs.readFileSync(at('runtime/server.json'), 'utf-8'))
       if (port) {
-        const ok = await fetch(`http://127.0.0.1:${port}/config`, { signal: AbortSignal.timeout(500) }).then(r => r.ok).catch(() => false)
-        if (ok) { stationPortCache = { port, expiresAt: Date.now() + 10_000 }; return port }
+        const config = await fetch(`http://127.0.0.1:${port}/config`, { signal: AbortSignal.timeout(500) }).then(r => r.ok ? r.json() : null).catch(() => null)
+        if (config) {
+          const secret = requestSecret ?? secretFromConfig(config)
+          stationCache = { port, secret, expiresAt: Date.now() + 10_000 }
+          return stationCache
+        }
       }
     } catch { /* fall through to port-scan */ }
-    // 2. Port-scan the known range (same as the station UI page does).
+    // 2. Port-scan the known range (same as the station UI page does), reading
+    //    the secret out of /config's wsUrl.
     for (const port of STATION_PORTS) {
       try {
-        const ok = await fetch(`http://127.0.0.1:${port}/config`, { signal: AbortSignal.timeout(300) }).then(r => r.ok).catch(() => false)
-        if (ok) { stationPortCache = { port, expiresAt: Date.now() + 10_000 }; return port }
+        const config = await fetch(`http://127.0.0.1:${port}/config`, { signal: AbortSignal.timeout(300) }).then(r => r.ok ? r.json() : null).catch(() => null)
+        if (config) {
+          stationCache = { port, secret: secretFromConfig(config), expiresAt: Date.now() + 10_000 }
+          return stationCache
+        }
       } catch { /* next */ }
     }
-    stationPortCache = null
+    stationCache = null
     return null
   }
 
   app.get('/api/station/pending', async (_req, res) => {
     try {
-      const port = await discoverStationPort()
-      if (!port) { res.json([]); return }
-      const response = await fetch(`http://127.0.0.1:${port}/pending`, { signal: AbortSignal.timeout(2_000) })
-      if (!response.ok) { res.json([]); return }
+      const station = await discoverStation()
+      if (!station) { res.json([]); return }
+      const response = await fetch(`http://127.0.0.1:${station.port}/pending`, {
+        headers: station.secret ? { 'x-sailor-secret': station.secret } : {},
+        signal: AbortSignal.timeout(2_000),
+      })
+      if (!response.ok) {
+        // A 403 means we found the daemon but lack/holds a stale secret — drop the
+        // cache so the next poll re-discovers it instead of looping on a bad secret.
+        if (response.status === 403) stationCache = null
+        res.json([]); return
+      }
       res.json(await response.json())
     } catch {
       res.json([])
+    }
+  })
+
+  // ── UI Onboarding ─────────────────────────────────────────────────────────
+  //
+  // Three-step browser-driven setup (alternative to `sailor onboard` CLI):
+  //   1. User connects wallet in browser  (no server call)
+  //   2. POST /api/onboard/generate-key   → server writes keys/manager.json
+  //   3. Browser sends kernel.createAccount tx via wagmi
+  //   4. POST /api/onboard/complete       → server writes account.json
+  //
+  // The CLI path (sailor onboard) remains unchanged and uses the same files.
+
+  // GET /api/onboard/state — tells the wizard what's already done.
+  app.get('/api/onboard/state', (_req, res) => {
+    const config = (() => { try { return JSON.parse(fs.readFileSync(at('config.json'), 'utf-8')) } catch { return null } })()
+    const hasAccount = fs.existsSync(at('account.json'))
+    const managerKeyPath = at('keys/manager.json')
+    let managerAddress = null
+    try {
+      const ks = JSON.parse(fs.readFileSync(managerKeyPath, 'utf-8'))
+      managerAddress = ks?.address ? getAddress(`0x${String(ks.address).replace(/^0x/, '')}`) : null
+    } catch {}
+    const chainId = config?.chainId ?? 8453
+    let deployment = null
+    try { deployment = getSailDeployment(chainId) } catch {}
+    res.json({
+      hasAccount,
+      hasManagerKey: Boolean(managerAddress),
+      managerAddress,
+      chainId,
+      projectName: config?.name ?? null,
+      kernel: deployment?.kernel ?? config?.contracts?.kernel ?? null,
+      safeModuleEnabler: deployment?.safeModuleEnabler ?? null,
+      proxyFactory: SAFE_V141.proxyFactory,
+      singleton: SAFE_V141.singletonL2,
+      standardFeePolicy: deployment?.standardFeePolicy ?? config?.contracts?.standardFeePolicy ?? null,
+    })
+  })
+
+  // POST /api/onboard/generate-key { passphrase } — generates a manager key at
+  // keys/manager.json if one doesn't already exist. Returns the address.
+  app.post('/api/onboard/generate-key', async (req, res) => {
+    const managerKeyPath = at('keys/manager.json')
+    // Return existing key address without regenerating.
+    if (fs.existsSync(managerKeyPath)) {
+      try {
+        const ks = JSON.parse(fs.readFileSync(managerKeyPath, 'utf-8'))
+        const addr = ks?.address ? getAddress(`0x${String(ks.address).replace(/^0x/, '')}`) : null
+        return res.json({ address: addr, existed: true })
+      } catch {}
+    }
+    try {
+      const passphrase = req.body?.passphrase ?? ''
+      const privateKey = generatePrivateKey()
+      const keyring = LocalKeyring.fromPrivateKey(privateKey)
+      const keystore = await keyring.exportKeystore(passphrase)
+      fs.mkdirSync(at('keys'), { recursive: true })
+      fs.writeFileSync(managerKeyPath, `${JSON.stringify(keystore, null, 2)}\n`)
+      res.json({ address: keyring.address, existed: false })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  })
+
+  // POST /api/onboard/build-create-tx { owner, manager } — builds the
+  // kernel.createAccount calldata so the browser can send the tx via wagmi
+  // without importing the SDK.
+  app.post('/api/onboard/build-create-tx', (req, res) => {
+    try {
+      const { owner, manager } = req.body ?? {}
+      if (!isAddress(owner) || !isAddress(manager)) {
+        return res.status(400).json({ error: 'owner and manager must be valid addresses' })
+      }
+      const config = JSON.parse(fs.readFileSync(at('config.json'), 'utf-8'))
+      const chainId = config?.chainId ?? 8453
+      let deployment = null
+      try { deployment = getSailDeployment(chainId) } catch {}
+      const kernel = deployment?.kernel ?? config?.contracts?.kernel
+      if (!kernel) return res.status(400).json({ error: 'no kernel address for this chain' })
+      const safeModuleEnabler = deployment?.safeModuleEnabler
+      const standardFeePolicy = deployment?.standardFeePolicy ?? config?.contracts?.standardFeePolicy ?? zeroAddress
+      const initializer = buildSafeSetupInitializer({
+        owners: [owner],
+        threshold: 1n,
+        kernel,
+        safeModuleEnabler,
+      })
+      const saltNonce = BigInt(Date.now())
+      const data = encodeFunctionData({
+        abi: SailKernelAbi,
+        functionName: 'createAccount',
+        args: [
+          SAFE_V141.proxyFactory,
+          SAFE_V141.singletonL2,
+          initializer,
+          saltNonce,
+          owner,       // permissionSigner = owner's wallet
+          manager,     // manager = agent key
+          standardFeePolicy,
+        ],
+      })
+      res.json({ to: kernel, data, chainId })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  })
+
+  // POST /api/onboard/complete { safe, owner, manager, txHash, chainId } —
+  // called after the browser wallet confirms kernel.createAccount. Writes
+  // account.json (same format as `sailor onboard`).
+  app.post('/api/onboard/complete', async (req, res) => {
+    try {
+      const { safe, owner, manager, txHash, chainId: reqChainId } = req.body ?? {}
+      if (!isAddress(safe) || !isAddress(owner)) {
+        return res.status(400).json({ error: 'safe and owner must be valid addresses' })
+      }
+      const config = (() => { try { return JSON.parse(fs.readFileSync(at('config.json'), 'utf-8')) } catch { return {} } })()
+      const chainId = reqChainId ?? config?.chainId ?? 8453
+      let createdAtBlock = '0'
+      try {
+        const env = parseEnvFile(at('.env.local'))
+        if (env.RPC_URL) {
+          const client = createPublicClient({ transport: http(env.RPC_URL) })
+          createdAtBlock = (await client.getBlockNumber()).toString()
+        }
+      } catch {}
+      const managerKeyPath = at('keys/manager.json')
+      let resolvedManager = manager
+      if (!resolvedManager) {
+        try {
+          const ks = JSON.parse(fs.readFileSync(managerKeyPath, 'utf-8'))
+          resolvedManager = ks?.address ? getAddress(`0x${String(ks.address).replace(/^0x/, '')}`) : owner
+        } catch { resolvedManager = owner }
+      }
+      const record = {
+        safe: getAddress(safe),
+        owner: getAddress(owner),
+        permissionSigner: getAddress(owner),
+        manager: getAddress(resolvedManager),
+        chainId,
+        createdAtBlock,
+        ...(txHash ? { txHash } : {}),
+      }
+      fs.mkdirSync(sailDir, { recursive: true })
+      // Append to multi-SMA list before overwriting the active pointer.
+      const listPath = at('state/accounts.json')
+      try {
+        fs.mkdirSync(at('state'), { recursive: true })
+        const existing = (() => { try { return JSON.parse(fs.readFileSync(listPath, 'utf-8')) } catch { return [] } })()
+        const already = existing.find((a) => a.safe?.toLowerCase() === record.safe.toLowerCase())
+        if (!already) existing.push(record)
+        fs.writeFileSync(listPath, `${JSON.stringify(existing, null, 2)}\n`)
+      } catch {}
+      fs.writeFileSync(at('account.json'), `${JSON.stringify(record, null, 2)}\n`)
+      res.json({ ok: true, account: record })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
     }
   })
 
@@ -595,6 +799,19 @@ export function startServer(sailDir) {
       res.json({ ok: true })
     } catch (err) {
       res.status(500).json({ error: String(err) })
+    }
+  })
+
+  // GET /api/positions — latest vault positions snapshot for the active SMA.
+  // Written by the agent at state/positions-<chainId>.json after each tick.
+  app.get('/api/positions', (_req, res) => {
+    try {
+      const account = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
+      const chainId = account?.chainId ?? 8453
+      const file = at(`state/positions-${chainId}.json`)
+      res.json(JSON.parse(fs.readFileSync(file, 'utf-8')))
+    } catch {
+      res.status(404).json({ error: 'no positions snapshot' })
     }
   })
 
@@ -814,9 +1031,79 @@ export function startServer(sailDir) {
     app.get('*', (_req, res) => res.sendFile(path.join(distDir, 'index.html')))
   }
 
-  return app.listen(PORT, () => {
-    console.log(`Sailor UI running at http://localhost:${PORT} (reading ${sailDir})`)
+  const httpServer = app.listen(port, () => {
+    console.log(`Sailor UI running at http://localhost:${port} (reading ${sailDir})`)
   })
+
+  // ── Signing-station WebSocket proxy ───────────────────────────────────────
+  // The signing station page (#/station) needs a live WebSocket to the daemon
+  // to receive requests and send the owner's signed/rejected decisions. The
+  // daemon authenticates that socket with the per-startup requestSecret, and
+  // deliberately withholds the secret from cross-origin /config responses — so a
+  // page served here (port 3333), not by the daemon itself, can't open the
+  // socket directly. Rather than leak the secret into the browser (re-opening
+  // the cross-origin-injection hole the daemon's secret closes), we relay the
+  // socket through this server: it discovers the daemon, holds the secret
+  // server-side, and pipes frames both ways. The browser only ever talks to its
+  // own same-origin endpoint.
+  const wss = new WebSocketServer({ noServer: true })
+
+  httpServer.on('upgrade', (req, socket, head) => {
+    let pathname
+    try {
+      pathname = new URL(req.url, `http://localhost:${PORT}`).pathname
+    } catch {
+      socket.destroy()
+      return
+    }
+    if (pathname !== '/api/station/ws') {
+      socket.destroy()
+      return
+    }
+    wss.handleUpgrade(req, socket, head, (client) => relayToDaemon(client))
+  })
+
+  async function relayToDaemon(client) {
+    const station = await discoverStation()
+    if (!station?.secret) {
+      // No daemon, or we couldn't obtain its secret. Close so the page shows
+      // "disconnected" and retries on its next poll.
+      try { client.close(1011, 'signing daemon unavailable') } catch { /* already closed */ }
+      return
+    }
+    const upstream = new WebSocket(`ws://127.0.0.1:${station.port}/?secret=${encodeURIComponent(station.secret)}`)
+    // Frames the browser sends before the upstream socket is open are buffered,
+    // then flushed on connect — otherwise an early wallet-connected/signed frame
+    // would be dropped.
+    let upstreamOpen = false
+    const queued = []
+
+    upstream.on('open', () => {
+      upstreamOpen = true
+      for (const frame of queued) upstream.send(frame)
+      queued.length = 0
+    })
+    upstream.on('message', (data) => {
+      if (client.readyState === WebSocket.OPEN) client.send(data.toString())
+    })
+    upstream.on('close', () => { try { client.close() } catch { /* already closed */ } })
+    upstream.on('error', () => {
+      // A bad/stale secret reaches here as a 1008 close → drop the discovery
+      // cache so the next connection re-resolves the daemon.
+      stationCache = null
+      try { client.close(1011, 'daemon connection failed') } catch { /* already closed */ }
+    })
+
+    client.on('message', (data) => {
+      const frame = data.toString()
+      if (upstreamOpen) upstream.send(frame)
+      else queued.push(frame)
+    })
+    client.on('close', () => { try { upstream.close() } catch { /* already closed */ } })
+    client.on('error', () => { try { upstream.close() } catch { /* already closed */ } })
+  }
+
+  return httpServer
 }
 
 // Allow running directly: `SAIL_DIR=/path/to/.sail node server.js`.
