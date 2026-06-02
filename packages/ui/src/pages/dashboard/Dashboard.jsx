@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import OnboardingWizard from '../onboarding/OnboardingWizard'
 import { ConnectButton, useConnectModal } from '@rainbow-me/rainbowkit'
 import { parseEther } from 'viem'
 import { useAccount, useDisconnect, useSendTransaction } from 'wagmi'
@@ -804,6 +805,36 @@ function LiveActivityFeed({ events, positions, network }) {
 }
 
 export default function Dashboard() {
+  const [onboardState, setOnboardState] = useState(null)
+  const [onboardChecked, setOnboardChecked] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/onboard/state')
+      .then(r => r.json())
+      .then(s => { setOnboardState(s); setOnboardChecked(true) })
+      .catch(() => setOnboardChecked(true))
+  }, [])
+
+  // Show wizard until the project has a deployed Safe.
+  if (!onboardChecked) return null
+  if (!onboardState?.hasAccount) {
+    return (
+      <OnboardingWizard
+        onboardState={onboardState}
+        onComplete={() => {
+          fetch('/api/onboard/state')
+            .then(r => r.json())
+            .then(setOnboardState)
+            .catch(() => {})
+        }}
+      />
+    )
+  }
+
+  return <DashboardContent />
+}
+
+function DashboardContent() {
   const { isConnected, address: wagmiAddress } = useAccount()
   const { disconnect } = useDisconnect()
   const { openConnectModal } = useConnectModal()

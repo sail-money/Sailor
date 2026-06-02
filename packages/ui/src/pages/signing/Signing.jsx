@@ -1,14 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { getChain } from '@sail/chains'
-import { getAddress, zeroAddress } from 'viem'
-import { useAccount, usePublicClient, useSendTransaction, useSignTypedData, useWaitForTransactionReceipt } from 'wagmi'
+import { zeroAddress } from 'viem'
+import { useAccount, usePublicClient, useSignTypedData } from 'wagmi'
 import { FluidBackground, GlassCard, Sai, RevealCalldata, SailButton } from '../shared'
 import PageHeader from '../shared/PageHeader'
 import shared from '../shared/shared.module.css'
 import styles from './Signing.module.css'
 import { useSailorMandateDraft } from '../../hooks/useSailorData'
-import { useSigningSocket } from '../../hooks/useSigningSocket'
 
 /**
  * Sign-in & onboarding flow.
@@ -33,26 +32,12 @@ import { useSigningSocket } from '../../hooks/useSigningSocket'
  */
 export default function Signing() {
   const { draft } = useSailorMandateDraft()
-  const { isConnected } = useAccount()
-  const [onboardState, setOnboardState] = useState(null)
-  const [addingNetwork, setAddingNetwork] = useState(false)
-
-  useEffect(() => {
-    fetch('/api/onboard/state').then((r) => r.json()).then(setOnboardState).catch(() => {})
-  }, [])
 
   if (draft) return <MandateSigningFlow draft={draft} />
-  if (isConnected && onboardState?.hasAccount && !addingNetwork)
-    return <NoPendingFlow onAddNetwork={() => setAddingNetwork(true)} />
-  return (
-    <OnboardingFlow
-      onboardState={onboardState}
-      addingNetwork={isConnected && (onboardState?.hasAccount || addingNetwork)}
-    />
-  )
+  return <NoPendingFlow />
 }
 
-function NoPendingFlow({ onAddNetwork }) {
+function NoPendingFlow() {
   return (
     <div className={styles.shell}>
       <FluidBackground />
@@ -76,9 +61,6 @@ function NoPendingFlow({ onAddNetwork }) {
               <SailButton fullWidth onClick={() => { window.location.hash = '#/dashboard' }}>
                 Go to dashboard
               </SailButton>
-              <button type="button" className={styles.addNetworkBtn} onClick={onAddNetwork}>
-                + Deploy Safe on another network
-              </button>
             </div>
           </GlassCard>
         </div>
