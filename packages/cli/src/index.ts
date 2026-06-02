@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import { accountCreate } from "./commands/account.js";
+import { capabilities } from "./commands/capabilities.js";
 import { doctor } from "./commands/doctor.js";
 import { initCommand } from "./commands/init.js";
 import { keysGenerate, keysShow } from "./commands/keys.js";
@@ -65,19 +66,30 @@ program
   .option("--template <name>", "Template to scaffold from (default: dca-rebalancer)")
   .option("--chain <id>", "Default EVM chain id written to .sail/config.json and .env.example")
   .option("--rpc-url <url>", "Default RPC_URL written to .sail/.env.local")
-  .action(async (name: string | undefined, opts: { template?: string; chain?: string; rpcUrl?: string }) => {
-    try {
-      await initCommand(name, opts);
-    } catch (err) {
-      console.error(`Error: ${(err as Error).message}`);
-      process.exit(1);
-    }
-  });
+  .action(
+    async (
+      name: string | undefined,
+      opts: { template?: string; chain?: string; rpcUrl?: string },
+    ) => {
+      try {
+        await initCommand(name, opts);
+      } catch (err) {
+        console.error(`Error: ${(err as Error).message}`);
+        process.exit(1);
+      }
+    },
+  );
 
 const ui = program.command("ui").description("Manage the local Sailor dashboard");
-ui.command("start").description("Start the dashboard at localhost:3333 (default)").action(action(uiCommand));
-ui.command("stop").description("Stop the running dashboard").action(() => uiStop());
-ui.command("status").description("Show whether the dashboard is running").action(() => uiStatus());
+ui.command("start")
+  .description("Start the dashboard at localhost:3333 (default)")
+  .action(action(uiCommand));
+ui.command("stop")
+  .description("Stop the running dashboard")
+  .action(() => uiStop());
+ui.command("status")
+  .description("Show whether the dashboard is running")
+  .action(() => uiStatus());
 ui.action(action(uiCommand));
 
 const keys = program.command("keys").description("Manage local signing keys");
@@ -221,10 +233,20 @@ session.command("resume").description("Resume a paused session").action(action(s
 
 program
   .command("doctor")
-  .description("Preflight (read-only): kernel dispatch model + permission health, before spending gas")
+  .description(
+    "Preflight (read-only): kernel model, permission health, RPC + gas balances, before spending gas",
+  )
   .option("--json", "Output machine-readable JSON")
   .option("--account <address>", "SMA to check (defaults to .sail/account.json)")
   .action(actionWith(doctor));
+
+program
+  .command("capabilities")
+  .description(
+    "Feasibility map (read-only): chains, kernel model, mandate templates, strategy primitives",
+  )
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<{ json?: boolean }>(capabilities));
 
 // ── Stubs ─────────────────────────────────────────────────────────────────────
 

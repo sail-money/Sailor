@@ -107,4 +107,4 @@ cause and fix.
 - `client.strategy.swap(safe, {from,to,amount,slippage,swapPermission?,approveAmount?}, manager)` — approve-when-low + LiFi swap.
 - `explainKernelRevert(err)` / `decodeKernelError(data)` — human-readable revert.
 - `getSailDeployment(chainId).cloneTemplates` — wizard-ready clone templates + their `initialize()` params.
-- CLI: `sailor doctor`, `sailor onboard`, `sailor mandate …`, `sailor station start`.
+- CLI: `sailor capabilities` (feasibility map), `sailor doctor` (preflight: model, permissions, RPC + gas), `sailor onboard`, `sailor mandate …`, `sailor station start`.

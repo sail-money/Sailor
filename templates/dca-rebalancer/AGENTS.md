@@ -65,13 +65,15 @@ question; all support `--json` for headless reads.
 | Who is the **owner** (the user's wallet)? | `sailor owner show` | saved owner (set by `sailor owner connect`) |
 | What's the **agent (manager) key address**? | `sailor keys show` | local keystore |
 | What Safes does the owner have, and which are Sail SMAs (manager, permissionSigner, session, mandates)? | `sailor scan` | on-chain + Safe service → `.sail/state/context.json` |
-| What kernel model am I on, and are my permissions healthy (read-only, no gas)? | `sailor doctor` | on-chain kernel + permissions |
+| Kernel model + permission health + **RPC reachability + owner/manager gas balances** (read-only, no gas)? | `sailor doctor` | on-chain kernel, permissions, balances |
+| What can I actually build on this chain (templates, strategy primitives)? | `sailor capabilities` | bundled deployment registry |
 | What's the kernel dispatch model, in code? | `await client.capabilities()` | on-chain `DISPATCH_TYPEHASH` |
 
-**Gas / balances:** there is no single CLI balance command today — the owner and agent
-ETH balances are shown on the dashboard at **localhost:3333** (`/api/overview`). Before
-`sailor run`, confirm the **manager** address is funded for gas; an unfunded manager
-can't submit dispatches even when permissions are perfect.
+**Gas / balances:** `sailor doctor` reports the owner and manager native (ETH) balances,
+flags an **unfunded** or **low** manager, and warns if the RPC serves the wrong chain.
+The same balances appear on the dashboard at **localhost:3333** (`/api/overview`). Before
+`sailor run`, confirm the **manager** address is funded for gas — the manager pays for
+every dispatch, so an unfunded manager fails even when permissions are perfect.
 
 ## Operating the agent
 
@@ -82,13 +84,16 @@ guidance, and the revert failure-mode catalog. Read it before dispatching anythi
 ## Interpreting what the user asks for
 
 Users arrive with very different backgrounds. Match the request to what the protocol
-can actually do — never invent capabilities.
+can actually do — never invent capabilities. **Run `sailor capabilities` first** to see
+the concrete feasibility map (supported chains, kernel model, mandate templates with
+their params, strategy primitives, Intelligence API) and ground your answer in it.
 
 - **What's buildable here:** strategies expressed as `client.strategy.swap` (one-off or
   looped for DCA/rebalance) and dispatches gated by registered permissions. New kinds of
   action need a permission: prefer a clone template (`getSailDeployment(chainId).cloneTemplates`,
   no Solidity) or author a Foundry mandate under `mandates/`. Vault/allocation advice can
-  come from the Sail Intelligence API (`api.sail.money`).
+  come from the Sail Intelligence API (`api.sail.money`). `sailor capabilities` lists all of
+  these for the resolved chain.
 - **Experienced DeFi user** ("DCA $50 USDC→WETH daily on Base, 0.5% slippage"): translate
   directly into a mandate + strategy with those exact bounds. Confirm each permission line
   in plain English before signing (see WIZARD stage 4).
@@ -97,8 +102,8 @@ can actually do — never invent capabilities.
   gas is spent.
 - **Out of scope** (buying NFTs, leveraged shorts, anything not expressible as a permitted
   on-chain call): say so plainly and explain why, rather than scaffolding something that
-  will revert. When unsure whether something is buildable, run `sailor doctor` / check the
-  available templates first.
+  will revert. When unsure whether something is buildable, run `sailor capabilities`
+  first.
 
 ## Key files
 
