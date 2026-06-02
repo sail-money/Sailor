@@ -93,8 +93,8 @@ const SUPPORTED_NETWORKS = [
   { chainId: 1301,     name: 'Unichain Sepolia', group: 'testnet', description: 'Unichain test network.', color: '#ff007a' },
 ]
 
-// Steps in order — used for the progress indicator.
-const WIZARD_STEPS = ['welcome', 'network', 'connect', 'keygen', 'create-sma', 'done']
+// Steps that show progress dots (excludes welcome + done).
+const PROGRESS_STEPS = ['network', 'connect', 'keygen', 'create-sma']
 
 function OnboardingFlow({ onboardState }) {
   const { isConnected, address } = useAccount()
@@ -103,18 +103,14 @@ function OnboardingFlow({ onboardState }) {
   const [managerAddress, setManagerAddress] = useState(onboardState?.managerAddress ?? null)
   const [safeAddress, setSafeAddress] = useState(null)
 
-  // If reconnecting with partial progress, skip only as far as needed.
-  // Never skip the network step — the user should always confirm their chain.
+  // Resume from the right step when the page is refreshed with wallet still connected.
   useEffect(() => {
     if (!isConnected) return
     if (onboardState?.hasManagerKey) setStep('create-sma')
     else setStep('keygen')
   }, [isConnected, onboardState?.hasManagerKey])
 
-  const stepIndex = WIZARD_STEPS.indexOf(step)
-  // progress dots: exclude welcome (no dot) and done, show for network..create-sma
-  const progressSteps = ['network', 'connect', 'keygen', 'create-sma']
-  const progressIndex = progressSteps.indexOf(step)
+  const progressIndex = PROGRESS_STEPS.indexOf(step)
 
   return (
     <div className={styles.shell}>
@@ -235,7 +231,30 @@ function NetworkCard({ net, selected, onSelect }) {
   )
 }
 
-/* ── Step 1: Welcome ── */
+const SETUP_STAGES = [
+  {
+    group: 'In this app',
+    color: 'rgba(255,255,255,0.75)',
+    items: [
+      { n: 1, name: 'Choose your network',  detail: 'Base, Arbitrum, Ethereum, Unichain…' },
+      { n: 2, name: 'Connect your wallet',  detail: 'Becomes the owner of your Safe' },
+      { n: 3, name: 'Create agent key',     detail: 'Signs transactions on your behalf' },
+      { n: 4, name: 'Deploy your Safe',     detail: 'One-time gas payment, permanent account' },
+    ],
+  },
+  {
+    group: 'In your terminal (with AI)',
+    color: 'rgba(255,255,255,0.35)',
+    items: [
+      { n: 5, name: 'Configure RPC & API keys', detail: 'Add to .sail/.env.local' },
+      { n: 6, name: 'Fund agent key',           detail: 'Small ETH for gas' },
+      { n: 7, name: 'Set permissions',           detail: 'sailor mandate prepare → sign here' },
+      { n: 8, name: 'Start agent',               detail: 'sailor run' },
+    ],
+  },
+]
+
+/* ── Step 0: Welcome / setup overview ── */
 function WelcomeState({ onStart }) {
   return (
     <GlassCard className={styles.welcomeCard}>
@@ -245,14 +264,29 @@ function WelcomeState({ onStart }) {
       <header className={styles.cardHeader}>
         <span className={styles.kicker}>WELCOME TO SAIL</span>
         <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
-          Your AI agent,<br />on-chain.
+          Your AI agent, on-chain.
         </h1>
-        <p className={`${shared.italicMannerism} ${styles.cardTagline}`}>
-          Set up your account in 4 steps — takes about 2 minutes.
-        </p>
       </header>
+
+      <div className={styles.stageList}>
+        {SETUP_STAGES.map((group) => (
+          <div key={group.group} className={styles.stageGroup}>
+            <span className={styles.stageGroupLabel}>{group.group}</span>
+            {group.items.map((item) => (
+              <div key={item.n} className={styles.stageRow}>
+                <span className={styles.stageNum} style={{ color: group.color }}>{item.n}</span>
+                <span className={styles.stageBody}>
+                  <span className={styles.stageName} style={{ color: group.color }}>{item.name}</span>
+                  <span className={styles.stageDetail}>{item.detail}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+
       <div className={styles.welcomeCta}>
-        <SailButton fullWidth onClick={onStart}>Get started →</SailButton>
+        <SailButton fullWidth onClick={onStart}>Start setup →</SailButton>
       </div>
       <p className={styles.fineprint}>Self-custody. Sail never holds your keys.</p>
     </GlassCard>
@@ -476,34 +510,67 @@ function Detail({ label, value, mono = true }) {
 }
 
 /* ── Step 5: Done ── */
-function DoneStep({ safeAddress }) {
+function DoneStep({ safeAddress, chainId }) {
+  const [copied, setCopied] = useState(false)
+  const network = SUPPORTED_NETWORKS.find(n => n.chainId === chainId)
+  const safeShort = safeAddress ? `${safeAddress.slice(0, 10)}…${safeAddress.slice(-6)}` : null
+
+  const aiPrompt = [
+    `My Sail SMA is deployed on ${network?.name ?? `chain ${chainId}`}.`,
+    safeAddress ? `Safe address: ${safeAddress}` : null,
+    '',
+    'Please help me finish the setup — steps 5–8 from the Sail onboarding:',
+    '',
+    '5. Configure RPC & API keys',
+    '   - Add RPC_URL for the network to .sail/.env.local',
+    '   - Add SAIL_API_KEY=<your key from api.sail.money>',
+    '',
+    '6. Fund agent key',
+    '   - Send a small amount of ETH to the agent address shown on the dashboard',
+    '',
+    '7. Set permissions (mandate)',
+    '   - Run: sailor mandate prepare',
+    '   - Then sign it at the Sail UI signing page',
+    '',
+    '8. Start the agent',
+    '   - Run: sailor run',
+  ].filter(l => l !== null).join('\n')
+
+  function copy() {
+    navigator?.clipboard?.writeText(aiPrompt)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1800)
+  }
+
   return (
     <GlassCard className={styles.welcomeCard}>
       <div className={styles.cardSai} aria-hidden>
         <Sai size={64} animate />
       </div>
       <header className={styles.cardHeader}>
-        <span className={styles.kicker}>SETUP COMPLETE</span>
+        <span className={styles.kicker}>STEPS 1–4 COMPLETE</span>
         <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
-          Your agent is ready.
+          Safe deployed.
         </h1>
         <p className={`${shared.italicMannerism} ${styles.cardTagline}`}>
-          Safe deployed. Continue in your terminal with your AI.
+          {safeShort && <><code style={{ fontSize: 12 }}>{safeShort}</code>{' '}on {network?.name ?? `chain ${chainId}`}. </>}
+          Now continue in your terminal with AI.
         </p>
-        {safeAddress && (
-          <code style={{ fontSize: 12, opacity: 0.6, marginTop: 8, display: 'block', wordBreak: 'break-all' }}>
-            {safeAddress}
-          </code>
-        )}
       </header>
+
+      <div className={styles.doneNextSteps}>
+        <span className={styles.doneNextLabel}>Remaining steps (5–8) — copy to your AI</span>
+        <pre className={styles.donePromptText}>{aiPrompt}</pre>
+        <button type="button" className={styles.doneCopyBtn} onClick={copy}>
+          {copied ? '✓ Copied' : 'Copy prompt'}
+        </button>
+      </div>
+
       <div className={styles.welcomeCta}>
         <SailButton fullWidth onClick={() => { window.location.hash = '#/dashboard' }}>
           Go to dashboard
         </SailButton>
       </div>
-      <p className={styles.fineprint}>
-        Your AI can now deploy mandates and run your agent from the terminal.
-      </p>
     </GlassCard>
   )
 }

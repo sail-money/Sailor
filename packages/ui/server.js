@@ -636,6 +636,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
   // GET /api/onboard/state — tells the wizard what's already done.
   app.get('/api/onboard/state', (_req, res) => {
     const config = (() => { try { return JSON.parse(fs.readFileSync(at('config.json'), 'utf-8')) } catch { return null } })()
+    const env = parseEnvFile(at('.env.local'))
     const hasAccount = fs.existsSync(at('account.json'))
     const managerKeyPath = at('keys/manager.json')
     let managerAddress = null
@@ -650,6 +651,9 @@ export function startServer(sailDir, { port = PORT } = {}) {
       hasAccount,
       hasManagerKey: Boolean(managerAddress),
       managerAddress,
+      hasRpc: Boolean(env.RPC_URL),
+      rpcUrl: env.RPC_URL ?? null,
+      hasSailApiKey: Boolean(env.SAIL_API_KEY),
       chainId,
       projectName: config?.name ?? null,
       kernel: deployment?.kernel ?? config?.contracts?.kernel ?? null,
@@ -658,6 +662,25 @@ export function startServer(sailDir, { port = PORT } = {}) {
       singleton: SAFE_V141.singletonL2,
       standardFeePolicy: deployment?.standardFeePolicy ?? config?.contracts?.standardFeePolicy ?? null,
     })
+  })
+
+  // POST /api/onboard/save-config { rpcUrl, sailApiKey, chainId } — merges the
+  // provided values into .sail/.env.local without clobbering existing keys.
+  app.post('/api/onboard/save-config', (req, res) => {
+    const { rpcUrl, sailApiKey, chainId } = req.body ?? {}
+    try {
+      const envPath = at('.env.local')
+      const existing = parseEnvFile(envPath)
+      if (rpcUrl) existing.RPC_URL = rpcUrl
+      if (sailApiKey) existing.SAIL_API_KEY = sailApiKey
+      if (chainId) existing.CHAIN_ID = String(chainId)
+      const content = Object.entries(existing).map(([k, v]) => `${k}=${v}`).join('\n') + '\n'
+      fs.mkdirSync(sailDir, { recursive: true })
+      fs.writeFileSync(envPath, content)
+      res.json({ ok: true })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
   })
 
   // POST /api/onboard/generate-key { passphrase } — generates a manager key at
