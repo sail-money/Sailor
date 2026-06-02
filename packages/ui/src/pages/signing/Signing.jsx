@@ -308,15 +308,23 @@ function WelcomeState({ onConnect }) {
 }
 
 function ConnectState({ onBack, onAuthed }) {
-  const { isConnected } = useAccount()
+  const { isConnected, address } = useAccount()
 
-  // Once the wallet connects, continue the flow exactly as the mock did —
-  // route onward to the dashboard. Real account presence is resolved
-  // there via useSailorAccount(). No walletId is passed, so the parent's
-  // default (non-Ledger) routing applies.
+  // When the wallet connects, notify the CLI signing server (port 3141) via
+  // WebSocket before navigating. The CLI waits for { type: "wallet-connected" }
+  // to save the owner address and exit cleanly. Non-fatal if WS fails (e.g.
+  // when the page is opened standalone, not via `sailor owner connect`).
   useEffect(() => {
-    if (isConnected) onAuthed?.()
-  }, [isConnected, onAuthed])
+    if (!isConnected || !address) return
+    try {
+      const ws = new WebSocket(`ws://${window.location.host}`)
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: 'wallet-connected', address }))
+        ws.close()
+      }
+    } catch { /* non-fatal */ }
+    onAuthed?.()
+  }, [isConnected, address, onAuthed])
 
   return (
     <GlassCard className={styles.authCard}>
