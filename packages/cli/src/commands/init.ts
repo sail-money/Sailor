@@ -117,15 +117,27 @@ export async function initCommand(
 
   const templatesDir = path.join(packageRoot(), "templates");
   const templateName = options.template ?? "dca-rebalancer";
+
+  if (/[/\\.]/.test(templateName) || templateName.includes("..")) {
+    throw new Error(`Invalid template name: "${templateName}"`);
+  }
+
   const templateSrc = path.join(templatesDir, templateName);
 
-  if (!fs.existsSync(templateSrc)) {
-    const available = fs.existsSync(templatesDir)
+  const availableTemplates = (): string =>
+    fs.existsSync(templatesDir)
       ? fs.readdirSync(templatesDir)
           .filter(e => fs.existsSync(path.join(templatesDir, e, "package.json")))
-          .join(", ")
+          .join(", ") || "none"
       : "none";
-    throw new Error(`Template "${templateName}" not found. Available: ${available}`);
+
+  if (!fs.existsSync(templateSrc) || !fs.existsSync(path.join(templateSrc, "package.json"))) {
+    throw new Error(`Template "${templateName}" not found. Available: ${availableTemplates()}`);
+  }
+
+  const cwd = process.cwd();
+  if (!inPlace && !dest.startsWith(cwd + path.sep) && dest !== cwd) {
+    throw new Error(`Directory must be inside the current working directory`);
   }
 
   if (!inPlace && fs.existsSync(dest)) {
@@ -136,7 +148,7 @@ export async function initCommand(
     throw new Error(`Already initialized — .sail/config.json exists`);
   }
 
-  console.log(inPlace ? "Scaffolding into current directory…" : `Scaffolding ${name}/ from dca-rebalancer template…`);
+  console.log(inPlace ? "Scaffolding into current directory…" : `Scaffolding ${name}/ from ${templateName} template…`);
   copyDirSync(templateSrc, dest);
 
   // Patch package.json: set name and resolve @sail/sdk.

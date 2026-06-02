@@ -24,14 +24,17 @@ export async function uiCommand(): Promise<void> {
     throw new Error(`UI dist not found at ${uiDistDir}. Re-run the sailor build.`);
   }
 
-  spawn("node", [serverBundle], {
+  const child = spawn("node", [serverBundle], {
     stdio: "inherit",
     env: { ...process.env, SAIL_DIR: sailDir, SERVE_DIST: "1", PORT: "3333", SAILOR_UI_DIST: uiDistDir },
   });
 
   console.log("Sailor UI running at http://localhost:3333");
 
-  const shutdown = () => process.exit(0);
+  const shutdown = () => {
+    child.kill();
+    process.exit(0);
+  };
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 }

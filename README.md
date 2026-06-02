@@ -15,7 +15,9 @@ Sailor is the operator layer for [Sail Protocol](../SailProtocol): the tooling a
 | `packages/chains` | `@sail/chains` | Per-chain address registry (EVM-compatible) |
 | `packages/ui` | `sailor-ui` | Local dashboard running on localhost:5173 |
 | `packages/create-app` | `create-sailor-agent` | `npx` scaffolder for new agent projects |
-| `templates/dca-rebalancer` | — | Starter template: DCA portfolio rebalancer |
+| `templates/dca-rebalancer` | — | Starter template: DCA portfolio rebalancer (default for `sailor init`) |
+| `templates/custom-mandate` | — | Solidity reference: allowlist mandate contracts (not a project template) |
+| `templates/lifi-permissions` | — | Solidity reference: LiFi clone permission contracts (not a project template) |
 
 ---
 
@@ -56,16 +58,54 @@ Prerequisites:
 - A Sail Protocol SMA deployed on an EVM chain (kernel + mandateFactory addresses required in `@sail/chains`)
 
 ```bash
-npx create-sailor-agent my-agent
-cd my-agent
+mkdir my-agent && cd my-agent
+npx sailor init                # scaffold into current directory
 pnpm install
-sailor keys generate        # generates manager key
-sailor account create       # deploys SMA via SailKernel
-sailor mandate prepare      # writes mandate draft to .sail/
+sailor keys generate           # generates manager key
+sailor account create          # deploys SMA via SailKernel
+sailor mandate prepare         # writes mandate draft to .sail/
 # open localhost:5173 → connect wallet → sign mandate
-sailor run --once           # dry-run: preview + execute one tick
-sailor run                  # continuous: runs every 60s
+sailor run --once              # dry-run: preview + execute one tick
+sailor run                     # continuous: runs every 60s
 ```
+
+---
+
+## Templates
+
+`sailor init` scaffolds a new agent project from a template. By default it
+writes into the **current directory**; pass a name to create a subdirectory.
+
+```bash
+sailor init                              # scaffold into cwd
+sailor init my-agent                     # create ./my-agent/ and scaffold there
+sailor init --template dca-rebalancer    # explicit (same as default)
+sailor init my-agent --template <name>   # named subdirectory + specific template
+```
+
+### Available templates
+
+| Template | Description |
+|---|---|
+| `dca-rebalancer` | Dollar-cost-averaging portfolio rebalancer. Includes a full agent loop, mandate configuration, GitHub Actions cron job, and the Sailor setup guide (`sail/WIZARD.md`). **Default.** |
+
+### What makes a valid template
+
+A valid template is any directory under `templates/` that contains a
+`package.json`. Directories without one (e.g. `custom-mandate`,
+`lifi-permissions`) are Solidity reference sources, not project scaffolds, and
+are excluded from the available list.
+
+### Adding a template
+
+1. Create a directory under `templates/<your-template-name>/`.
+2. Add a `package.json` (the `name` field is patched to the project name on
+   init).
+3. Add a `.sail/` workspace structure if the agent needs local state.
+4. The template will appear automatically in `sailor init --template <name>`.
+
+Template files are bundled into the published `sailor` npm package via the
+`files` field in the root `package.json`.
 
 ---
 

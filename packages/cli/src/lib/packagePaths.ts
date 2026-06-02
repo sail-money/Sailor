@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 
 /**
@@ -12,11 +13,23 @@ export function cliDistDir(): string {
 }
 
 /**
- * Sailor package root — two directories above packages/cli/dist/.
+ * Sailor package root — the directory that contains `templates/` and `packages/`.
+ *
+ * Walks up from cliDistDir() until it finds a directory with a `templates/`
+ * subdirectory, falling back to three levels up (the layout used in both the
+ * monorepo checkout and the published npm package).
  *
  * Monorepo checkout:  .../sailor/packages/cli/dist → .../sailor/
  * npm install:        .../node_modules/sailor/packages/cli/dist → .../node_modules/sailor/
+ * tsx dev invocation: .../sailor/packages/cli/src → walks up to .../sailor/
  */
 export function packageRoot(): string {
+  let dir = cliDistDir();
+  for (let depth = 0; depth < 6; depth++) {
+    if (fs.existsSync(path.join(dir, "templates"))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
   return path.resolve(cliDistDir(), "../../..");
 }
