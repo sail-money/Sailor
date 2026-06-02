@@ -403,8 +403,9 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onDone, pro
     const body = await buildRes.json()
     if (!buildRes.ok) throw new Error(body?.error ?? 'Build failed')
 
-    // Simulate before sending so we don't waste gas on doomed transactions
+    // Simulate before sending — detect UntrustedFactory without spending gas
     const rpc = PUBLIC_RPC[chainId]
+    let useRegisterPath = false
     if (rpc) {
       const sim = await fetch(rpc, {
         method: 'POST',
@@ -416,15 +417,51 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onDone, pro
       const revertMsg = sim?.error?.message ?? ''
       // UntrustedFactory(address) selector = 0xe6c4247b
       if (revertData.startsWith('0xe6c4247b') || revertMsg.includes('UntrustedFactory')) {
-        throw new Error('UntrustedFactory')
+        useRegisterPath = true
       }
     }
 
+    if (useRegisterPath) {
+      // Two-step path: deploy Safe directly via factory, then registerAccount
+      setStatus(chainId, 'switching')
+      try { await switchChainAsync({ chainId }) } catch {}
+
+      setStatus(chainId, 'building')
+      const pathRes = await fetch('/api/onboard/build-register-path', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ owner, manager: managerAddress, chainId, saltNonce }),
+      })
+      const path = await pathRes.json()
+      if (!pathRes.ok) throw new Error(path?.error ?? 'Build failed')
+
+      // Step 1: deploy Safe
+      setStatus(chainId, 'wallet')
+      const deployHash = await sendTransactionAsync({ to: path.deployTx.to, data: path.deployTx.data, chainId })
+      setStatus(chainId, 'confirming')
+      await waitForReceipt(deployHash, chainId)
+
+      // Step 2: register with kernel
+      setStatus(chainId, 'wallet')
+      const registerHash = await sendTransactionAsync({ to: path.registerTx.to, data: path.registerTx.data, chainId })
+      setStatus(chainId, 'confirming')
+      await waitForReceipt(registerHash, chainId)
+
+      const safe = path.predictedSafe
+      await fetch('/api/onboard/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ safe, owner, manager: managerAddress, txHash: registerHash, chainId }),
+      })
+      setStatus(chainId, 'done')
+      return { chainId, safe }
+    }
+
+    // Direct path: kernel.createAccount
     setStatus(chainId, 'wallet')
     const hash = await sendTransactionAsync({ to: body.to, data: body.data, chainId })
 
     setStatus(chainId, 'confirming')
-    // Poll for receipt
     const receipt = await waitForReceipt(hash, chainId)
     const log = receipt?.logs?.find(l => l.topics?.[0] === ACCOUNT_REGISTERED_TOPIC)
     if (!log) throw new Error('AccountRegistered event not found')
@@ -478,7 +515,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onDone, pro
       <CardHeader
         kicker="STEP 4 OF 4"
         title="Deploy your Safes"
-        sub="Same Safe address on every chain. Your wallet will switch networks and sign each deployment."
+        sub="Same Safe address on every chain. Some chains need 2 transactions — your wallet will prompt for each."
       />
       <div className={styles.chainDeployList}>
         {chainIds.map(chainId => {
