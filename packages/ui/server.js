@@ -3,6 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import cors from 'cors'
 import express from 'express'
+import { WebSocket, WebSocketServer } from 'ws'
 import { LocalKeyring, SailKernelAbi, getSailDeployment } from '@sail/sdk'
 import { createPublicClient, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
@@ -533,38 +534,70 @@ export function startServer(sailDir) {
   // Discovery order: runtime/server.json (written by `sailor station start`),
   // then port-scan 3141–3150 (same range the UI station page uses), with a
   // short timeout so a stale/hanging daemon never blocks the dashboard.
+  //
+  // The daemon gates /pending behind the per-startup requestSecret (see
+  // packages/cli/src/signing/server.ts), so discovery must capture that secret
+  // and the proxy must forward it as `x-sailor-secret` — otherwise every read
+  // 403s and the dashboard bell silently shows an empty queue. We get the secret
+  // either straight from runtime/server.json or, on the port-scan path, from
+  // /config's wsUrl (the daemon embeds `?secret=…` for requests with no Origin,
+  // which a server-side fetch is).
   const STATION_PORTS = Array.from({ length: 10 }, (_, i) => 3141 + i)
-  let stationPortCache = null // { port, expiresAt }
+  let stationCache = null // { port, secret, expiresAt }
 
-  async function discoverStationPort() {
-    if (stationPortCache && Date.now() < stationPortCache.expiresAt) {
-      return stationPortCache.port
-    }
-    // 1. Try runtime/server.json first — cheapest path.
+  function secretFromConfig(config) {
     try {
-      const { port } = JSON.parse(fs.readFileSync(at('runtime/server.json'), 'utf-8'))
+      return new URL(config?.wsUrl ?? '').searchParams.get('secret') ?? null
+    } catch {
+      return null
+    }
+  }
+
+  async function discoverStation() {
+    if (stationCache && Date.now() < stationCache.expiresAt) {
+      return stationCache
+    }
+    // 1. Try runtime/server.json first — cheapest path, and it carries the secret.
+    try {
+      const { port, requestSecret } = JSON.parse(fs.readFileSync(at('runtime/server.json'), 'utf-8'))
       if (port) {
-        const ok = await fetch(`http://127.0.0.1:${port}/config`, { signal: AbortSignal.timeout(500) }).then(r => r.ok).catch(() => false)
-        if (ok) { stationPortCache = { port, expiresAt: Date.now() + 10_000 }; return port }
+        const config = await fetch(`http://127.0.0.1:${port}/config`, { signal: AbortSignal.timeout(500) }).then(r => r.ok ? r.json() : null).catch(() => null)
+        if (config) {
+          const secret = requestSecret ?? secretFromConfig(config)
+          stationCache = { port, secret, expiresAt: Date.now() + 10_000 }
+          return stationCache
+        }
       }
     } catch { /* fall through to port-scan */ }
-    // 2. Port-scan the known range (same as the station UI page does).
+    // 2. Port-scan the known range (same as the station UI page does), reading
+    //    the secret out of /config's wsUrl.
     for (const port of STATION_PORTS) {
       try {
-        const ok = await fetch(`http://127.0.0.1:${port}/config`, { signal: AbortSignal.timeout(300) }).then(r => r.ok).catch(() => false)
-        if (ok) { stationPortCache = { port, expiresAt: Date.now() + 10_000 }; return port }
+        const config = await fetch(`http://127.0.0.1:${port}/config`, { signal: AbortSignal.timeout(300) }).then(r => r.ok ? r.json() : null).catch(() => null)
+        if (config) {
+          stationCache = { port, secret: secretFromConfig(config), expiresAt: Date.now() + 10_000 }
+          return stationCache
+        }
       } catch { /* next */ }
     }
-    stationPortCache = null
+    stationCache = null
     return null
   }
 
   app.get('/api/station/pending', async (_req, res) => {
     try {
-      const port = await discoverStationPort()
-      if (!port) { res.json([]); return }
-      const response = await fetch(`http://127.0.0.1:${port}/pending`, { signal: AbortSignal.timeout(2_000) })
-      if (!response.ok) { res.json([]); return }
+      const station = await discoverStation()
+      if (!station) { res.json([]); return }
+      const response = await fetch(`http://127.0.0.1:${station.port}/pending`, {
+        headers: station.secret ? { 'x-sailor-secret': station.secret } : {},
+        signal: AbortSignal.timeout(2_000),
+      })
+      if (!response.ok) {
+        // A 403 means we found the daemon but lack/holds a stale secret — drop the
+        // cache so the next poll re-discovers it instead of looping on a bad secret.
+        if (response.status === 403) stationCache = null
+        res.json([]); return
+      }
       res.json(await response.json())
     } catch {
       res.json([])
@@ -808,9 +841,79 @@ export function startServer(sailDir) {
     app.get('*', (_req, res) => res.sendFile(path.join(distDir, 'index.html')))
   }
 
-  return app.listen(PORT, () => {
+  const httpServer = app.listen(PORT, () => {
     console.log(`Sailor UI running at http://localhost:${PORT} (reading ${sailDir})`)
   })
+
+  // ── Signing-station WebSocket proxy ───────────────────────────────────────
+  // The signing station page (#/station) needs a live WebSocket to the daemon
+  // to receive requests and send the owner's signed/rejected decisions. The
+  // daemon authenticates that socket with the per-startup requestSecret, and
+  // deliberately withholds the secret from cross-origin /config responses — so a
+  // page served here (port 3333), not by the daemon itself, can't open the
+  // socket directly. Rather than leak the secret into the browser (re-opening
+  // the cross-origin-injection hole the daemon's secret closes), we relay the
+  // socket through this server: it discovers the daemon, holds the secret
+  // server-side, and pipes frames both ways. The browser only ever talks to its
+  // own same-origin endpoint.
+  const wss = new WebSocketServer({ noServer: true })
+
+  httpServer.on('upgrade', (req, socket, head) => {
+    let pathname
+    try {
+      pathname = new URL(req.url, `http://localhost:${PORT}`).pathname
+    } catch {
+      socket.destroy()
+      return
+    }
+    if (pathname !== '/api/station/ws') {
+      socket.destroy()
+      return
+    }
+    wss.handleUpgrade(req, socket, head, (client) => relayToDaemon(client))
+  })
+
+  async function relayToDaemon(client) {
+    const station = await discoverStation()
+    if (!station?.secret) {
+      // No daemon, or we couldn't obtain its secret. Close so the page shows
+      // "disconnected" and retries on its next poll.
+      try { client.close(1011, 'signing daemon unavailable') } catch { /* already closed */ }
+      return
+    }
+    const upstream = new WebSocket(`ws://127.0.0.1:${station.port}/?secret=${encodeURIComponent(station.secret)}`)
+    // Frames the browser sends before the upstream socket is open are buffered,
+    // then flushed on connect — otherwise an early wallet-connected/signed frame
+    // would be dropped.
+    let upstreamOpen = false
+    const queued = []
+
+    upstream.on('open', () => {
+      upstreamOpen = true
+      for (const frame of queued) upstream.send(frame)
+      queued.length = 0
+    })
+    upstream.on('message', (data) => {
+      if (client.readyState === WebSocket.OPEN) client.send(data.toString())
+    })
+    upstream.on('close', () => { try { client.close() } catch { /* already closed */ } })
+    upstream.on('error', () => {
+      // A bad/stale secret reaches here as a 1008 close → drop the discovery
+      // cache so the next connection re-resolves the daemon.
+      stationCache = null
+      try { client.close(1011, 'daemon connection failed') } catch { /* already closed */ }
+    })
+
+    client.on('message', (data) => {
+      const frame = data.toString()
+      if (upstreamOpen) upstream.send(frame)
+      else queued.push(frame)
+    })
+    client.on('close', () => { try { upstream.close() } catch { /* already closed */ } })
+    client.on('error', () => { try { upstream.close() } catch { /* already closed */ } })
+  }
+
+  return httpServer
 }
 
 // Allow running directly: `SAIL_DIR=/path/to/.sail node server.js`.
