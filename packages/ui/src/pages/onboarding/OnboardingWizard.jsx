@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { encodeFunctionData, getAddress } from 'viem'
 import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi'
@@ -70,6 +70,13 @@ export default function OnboardingWizard({ onboardState, onComplete }) {
   // Fixed salt so the same Safe address is produced on every chain via CREATE2
   const [saltNonce] = useState(() => String(Date.now()))
 
+
+  // If the wallet is already connected when the user lands on welcome,
+  // advance to network so they can pick their chains — but no further.
+  // The ConnectStep handles its own transition once they've explicitly connected.
+  useEffect(() => {
+    if (step === 'welcome' && isConnected) setStep('network')
+  }, [step, isConnected])
 
   function toggleChain(chainId) {
     setSelectedChainIds(prev =>
@@ -252,9 +259,15 @@ function NetworkCard({ net, selected, onToggle }) {
 function ConnectStep({ onBack, onDone, progressIndex, progressTotal }) {
   const { isConnected, address } = useAccount()
   const { status, send } = useSigningSocket()
+  // Track whether the wallet was already connected when this step mounted.
+  // Only auto-advance when the user connects *during* this step — don't bypass
+  // it (and the signing-daemon handshake) when the wallet persists from a
+  // previous session.
+  const wasConnectedOnMount = useRef(isConnected)
 
   useEffect(() => {
     if (!isConnected || !address) return
+    if (wasConnectedOnMount.current) return // let the user proceed manually
     if (status === 'connected') {
       send({ type: 'wallet-connected', address })
       onDone?.()
@@ -275,6 +288,14 @@ function ConnectStep({ onBack, onDone, progressIndex, progressTotal }) {
       <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 8 }}>
         <ConnectButton showBalance={false} />
       </div>
+      {isConnected && wasConnectedOnMount.current && (
+        <SailButton fullWidth onClick={() => {
+          if (status === 'connected') send({ type: 'wallet-connected', address })
+          onDone?.()
+        }} style={{ marginTop: 12 }}>
+          Continue →
+        </SailButton>
+      )}
     </GlassCard>
   )
 }
