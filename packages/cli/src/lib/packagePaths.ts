@@ -13,20 +13,27 @@ export function cliDistDir(): string {
 }
 
 /**
- * Sailor package root — the directory that contains `templates/` and `packages/`.
+ * Sailor package root — the directory whose package.json declares the sailor bin.
  *
- * Walks up from cliDistDir() until it finds a directory with a `templates/`
- * subdirectory, falling back to three levels up (the layout used in both the
- * monorepo checkout and the published npm package).
+ * Walks up from cliDistDir() until it finds a package.json with
+ * `bin.sailor` defined. This is resilient to any package scope or org name
+ * (@sailagent/sailor, @sail/sailor, sailor, etc.) and does not rely on
+ * directory names like `templates/`.
  *
  * Monorepo checkout:  .../sailor/packages/cli/dist → .../sailor/
- * npm install:        .../node_modules/sailor/packages/cli/dist → .../node_modules/sailor/
+ * npm install:        .../node_modules/@org/sailor/packages/cli/dist → .../node_modules/@org/sailor/
  * tsx dev invocation: .../sailor/packages/cli/src → walks up to .../sailor/
  */
 export function packageRoot(): string {
   let dir = cliDistDir();
   for (let depth = 0; depth < 6; depth++) {
-    if (fs.existsSync(path.join(dir, "templates"))) return dir;
+    const pkgFile = path.join(dir, "package.json");
+    if (fs.existsSync(pkgFile)) {
+      try {
+        const pkg = JSON.parse(fs.readFileSync(pkgFile, "utf-8")) as { bin?: Record<string, string> };
+        if (pkg.bin?.sailor) return dir;
+      } catch { /* keep walking */ }
+    }
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;

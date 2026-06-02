@@ -12,7 +12,7 @@ jobs:
       id-token: write
       contents: read
       packages: write
-    uses: SailAgent/devops-templates/.github/workflows/publish-pnpm.yaml@SAIL-131-publishing-fw
+    uses: SailAgent/devops-templates/.github/workflows/publish-pnpm.yaml@main
     with:
       package_dir: .
       package_name: '@sailagent/sailor'
