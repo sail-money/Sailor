@@ -31,8 +31,12 @@ export async function ownerConnect(options: { json?: boolean; timeout?: string }
     await channel.start();
 
     if (!options.json) {
+      // Point at the signing station route explicitly. The bare URL redirects to
+      // the dashboard, which has no wallet-connect relay for an already-onboarded
+      // project — so `waitForWallet` would never resolve. `#/station` exposes a
+      // Connect button and relays `wallet-connected` to this daemon in any state.
       console.log("→ Open this in your browser and connect your wallet:");
-      console.log(`  ${channel.url}`);
+      console.log(`  ${channel.url}/#/station`);
       if (channel.remote) console.log("  (using the running signing station)");
       console.log("\nWaiting for a wallet connection…");
     }

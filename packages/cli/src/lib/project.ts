@@ -97,7 +97,13 @@ export class ProjectContext {
 
   getOwner(): Address | null {
     const state = readJsonFile<OwnerState>(sailPath("state", "owner.json"));
-    return state?.owner ? getAddress(state.owner) : null;
+    if (state?.owner) return getAddress(state.owner);
+    // Fallback: a deployed SMA records its owner in account.json even when the
+    // owner was never persisted via `sailor owner connect` (e.g. created through
+    // the wizard/onboard path). Surface that so `owner show` and agents relying
+    // on it resolve the connected wallet once an account exists.
+    const account = readJsonFile<{ owner?: string }>(sailPath("account.json"));
+    return account?.owner ? getAddress(account.owner) : null;
   }
 
   setOwner(owner: Address): void {
