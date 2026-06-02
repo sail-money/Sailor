@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { cliDistDir } from "../lib/packagePaths.js";
+import { cliDistDir, packageRoot } from "../lib/packagePaths.js";
 
 const UI_STATE_FILE = path.join(".sail", "runtime", "ui.json");
 
@@ -27,7 +27,7 @@ function isAlive(pid: number): boolean {
  */
 export async function uiCommand(): Promise<void> {
   const distDir = cliDistDir();
-  const uiDistDir = path.resolve(distDir, "../../ui/dist");
+  const uiDistDir = path.join(packageRoot(), "packages", "ui", "dist");
   const serverBundle = path.resolve(distDir, "server.cjs");
   const projectRoot = process.cwd();
   const sailDir = path.join(projectRoot, ".sail");
