@@ -403,6 +403,23 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onDone, pro
     const body = await buildRes.json()
     if (!buildRes.ok) throw new Error(body?.error ?? 'Build failed')
 
+    // Simulate before sending so we don't waste gas on doomed transactions
+    const rpc = PUBLIC_RPC[chainId]
+    if (rpc) {
+      const sim = await fetch(rpc, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ from: owner, to: body.to, data: body.data }, 'latest'] }),
+      }).then(r => r.json()).catch(() => null)
+
+      const revertData = sim?.error?.data ?? ''
+      const revertMsg = sim?.error?.message ?? ''
+      // UntrustedFactory(address) selector = 0xe6c4247b
+      if (revertData.startsWith('0xe6c4247b') || revertMsg.includes('UntrustedFactory')) {
+        throw new Error('UntrustedFactory')
+      }
+    }
+
     setStatus(chainId, 'wallet')
     const hash = await sendTransactionAsync({ to: body.to, data: body.data, chainId })
 
@@ -515,15 +532,16 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onDone, pro
   )
 }
 
+const PUBLIC_RPC = {
+  8453:   'https://mainnet.base.org',
+  84532:  'https://sepolia.base.org',
+  42161:  'https://arb1.arbitrum.io/rpc',
+  421614: 'https://sepolia-rollup.arbitrum.io/rpc',
+}
+
 // Poll for a transaction receipt (public client not available as hook here).
 async function waitForReceipt(hash, chainId) {
-  const rpcMap = {
-    8453: 'https://mainnet.base.org',
-    84532: 'https://sepolia.base.org',
-    42161: 'https://arb1.arbitrum.io/rpc',
-    421614: 'https://sepolia-rollup.arbitrum.io/rpc',
-  }
-  const rpc = rpcMap[chainId]
+  const rpc = PUBLIC_RPC[chainId]
   if (!rpc) throw new Error(`No public RPC for chain ${chainId}`)
   for (let i = 0; i < 60; i++) {
     await new Promise(r => setTimeout(r, 2000))
