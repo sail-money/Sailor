@@ -15,6 +15,8 @@
   ],
   "scripts": {
     "build": "pnpm --filter @sail/sdk build && pnpm --filter @sail/chains build && pnpm --filter sailor build && pnpm --filter sailor-ui build",
+    "test": "pnpm --filter sailor-ui test",
+    "test:ui": "pnpm --filter sailor-ui test:ui",
     "link:cli": "pnpm link --global",
     "postinstall": "node scripts/postinstall.js",
     "typecheck": "pnpm --filter @sail/sdk build && pnpm --filter @sail/chains build && pnpm -r typecheck",

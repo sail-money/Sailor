@@ -81,7 +81,7 @@ const OVERVIEW_TTL_MS = 10_000
  *
  * @param {string} sailDir Absolute path to the project's `.sail/` directory.
  */
-export function startServer(sailDir) {
+export function startServer(sailDir, { port = PORT } = {}) {
   const app = express()
   app.use(cors({ origin: 'http://localhost:3333' }))
   app.use(express.json())
@@ -663,7 +663,7 @@ export function startServer(sailDir) {
       const passphrase = req.body?.passphrase ?? ''
       const privateKey = generatePrivateKey()
       const keyring = LocalKeyring.fromPrivateKey(privateKey)
-      const keystore = await keyring.toKeystore(passphrase)
+      const keystore = await keyring.exportKeystore(passphrase)
       fs.mkdirSync(at('keys'), { recursive: true })
       fs.writeFileSync(managerKeyPath, `${JSON.stringify(keystore, null, 2)}\n`)
       res.json({ address: keyring.address, existed: false })
@@ -786,6 +786,19 @@ export function startServer(sailDir) {
       res.json({ ok: true })
     } catch (err) {
       res.status(500).json({ error: String(err) })
+    }
+  })
+
+  // GET /api/positions — latest vault positions snapshot for the active SMA.
+  // Written by the agent at state/positions-<chainId>.json after each tick.
+  app.get('/api/positions', (_req, res) => {
+    try {
+      const account = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
+      const chainId = account?.chainId ?? 8453
+      const file = at(`state/positions-${chainId}.json`)
+      res.json(JSON.parse(fs.readFileSync(file, 'utf-8')))
+    } catch {
+      res.status(404).json({ error: 'no positions snapshot' })
     }
   })
 
@@ -1005,8 +1018,8 @@ export function startServer(sailDir) {
     app.get('*', (_req, res) => res.sendFile(path.join(distDir, 'index.html')))
   }
 
-  const httpServer = app.listen(PORT, () => {
-    console.log(`Sailor UI running at http://localhost:${PORT} (reading ${sailDir})`)
+  const httpServer = app.listen(port, () => {
+    console.log(`Sailor UI running at http://localhost:${port} (reading ${sailDir})`)
   })
 
   // ── Signing-station WebSocket proxy ───────────────────────────────────────
