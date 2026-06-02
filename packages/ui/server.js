@@ -138,6 +138,17 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
   })
 
+  // DELETE /api/account — remove account.json so the onboarding wizard shows again.
+  app.delete('/api/account', (_req, res) => {
+    try {
+      fs.rmSync(at('account.json'), { force: true })
+      overviewCacheByAccount.clear()
+      res.json({ ok: true })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  })
+
   // POST /api/account — persist a newly deployed SMA from the browser signing flow.
   app.post('/api/account', (req, res) => {
     const { safe, owner, permissionSigner, manager, chainId, createdAtBlock } = req.body ?? {}

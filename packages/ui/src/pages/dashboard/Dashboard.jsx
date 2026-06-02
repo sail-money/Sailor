@@ -811,12 +811,14 @@ export default function Dashboard() {
   const [onboardChecked, setOnboardChecked] = useState(false)
   const { draft } = useSailorMandateDraft()
 
-  useEffect(() => {
+  function refreshOnboard() {
     fetch('/api/onboard/state')
       .then(r => r.json())
       .then(s => { setOnboardState(s); setOnboardChecked(true) })
       .catch(() => setOnboardChecked(true))
-  }, [])
+  }
+
+  useEffect(() => { refreshOnboard() }, [])
 
   // Mandate draft (from `sailor mandate prepare`) takes priority — show signing flow.
   if (draft) return <MandateSigningFlow draft={draft} />
@@ -824,23 +826,13 @@ export default function Dashboard() {
   // Show wizard until the project has a deployed Safe.
   if (!onboardChecked) return null
   if (!onboardState?.hasAccount) {
-    return (
-      <OnboardingWizard
-        onboardState={onboardState}
-        onComplete={() => {
-          fetch('/api/onboard/state')
-            .then(r => r.json())
-            .then(setOnboardState)
-            .catch(() => {})
-        }}
-      />
-    )
+    return <OnboardingWizard onboardState={onboardState} onComplete={refreshOnboard} />
   }
 
-  return <DashboardContent />
+  return <DashboardContent onReset={refreshOnboard} />
 }
 
-function DashboardContent() {
+function DashboardContent({ onReset }) {
   const { isConnected, address: wagmiAddress } = useAccount()
   const { disconnect } = useDisconnect()
   const { openConnectModal } = useConnectModal()
@@ -1009,12 +1001,21 @@ function DashboardContent() {
       </header>
 
       <main className={agentStyles.main}>
-        {/* Local-first: if we know the SMA (from .sail/), show the monitoring
-            view straight away — no wallet connection required just to look.
-            The connect / scan / setup heroes only appear when no SMA exists. */}
-        {!isConnected ? (
+        {/* Wallet mismatch: connected wallet ≠ account owner in .sail/account.json */}
+        {isConnected && hasSMA && wagmiAddress && effectiveAccount?.owner &&
+          wagmiAddress.toLowerCase() !== effectiveAccount.owner.toLowerCase() ? (
+          <WalletMismatchCard
+            projectOwner={effectiveAccount.owner}
+            connectedAddress={wagmiAddress}
+            onReset={async () => {
+              await fetch('/api/account', { method: 'DELETE' }).catch(() => {})
+              onReset()
+            }}
+            onConnect={openConnectModal}
+          />
+        ) : !isConnected ? (
           <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '40px 24px' }}>
-            <NotConnectedCard eyebrow="DASHBOARD" title="Connect to view your SMA." sub="Connect the owner wallet you used with sailor init to see your mandates and activity." />
+            <NotConnectedCard eyebrow="DASHBOARD" title="Connect to view your SMA." sub="Connect the owner wallet you used to set up this project." />
           </div>
         ) : !hasSMA && accountLoading ? (
           <ScanningHero />
@@ -1363,6 +1364,53 @@ function DashboardContent() {
 }
 
 /* ────────── Scanning hero ────────── */
+function WalletMismatchCard({ projectOwner, connectedAddress, onReset, onConnect }) {
+  const [resetting, setResetting] = useState(false)
+  return (
+    <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '40px 24px' }}>
+      <div style={{
+        maxWidth: 440, width: '100%',
+        background: 'rgba(255,255,255,0.03)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: 20,
+        padding: '36px 32px',
+        display: 'flex', flexDirection: 'column', gap: 16,
+      }}>
+        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,165,0,0.7)' }}>
+          Wrong wallet
+        </span>
+        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 600, color: '#fff', lineHeight: 1.2 }}>
+          This project belongs to a different wallet.
+        </h2>
+        <p style={{ margin: 0, fontSize: 14, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6 }}>
+          Project owner: <code style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)' }}>{truncateAddr(projectOwner)}</code><br />
+          Connected: <code style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)' }}>{truncateAddr(connectedAddress)}</code>
+        </p>
+        <p style={{ margin: 0, fontSize: 13, color: 'rgba(255,255,255,0.4)', lineHeight: 1.5 }}>
+          Connect the owner wallet to manage this SMA, or reset to start a new project with the current wallet.
+        </p>
+        <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+          <SailButton onClick={onConnect} style={{ flex: 1 }}>
+            Switch wallet
+          </SailButton>
+          <button
+            type="button"
+            disabled={resetting}
+            onClick={async () => { setResetting(true); await onReset() }}
+            style={{
+              flex: 1, padding: '10px 16px', borderRadius: 12, fontSize: 14, fontWeight: 500,
+              color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.1)', cursor: resetting ? 'default' : 'pointer',
+            }}
+          >
+            {resetting ? 'Resetting…' : 'Reset project'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ScanningHero() {
   return (
     <section className={styles.noSMAHero}>
