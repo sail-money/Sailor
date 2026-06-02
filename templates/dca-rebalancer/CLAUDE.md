@@ -10,7 +10,7 @@ The setup wizard lives in the browser — not the terminal. Before anything else
 sailor ui start
 ```
 
-Then open **http://localhost:3333** and follow the 8-step onboarding wizard.
+Then open **http://localhost:3333** and follow the 8-step onboarding wizard (network, wallet, agent key, deploy SMA — then terminal steps guided from there).
 
 ## The 8-step onboarding
 
