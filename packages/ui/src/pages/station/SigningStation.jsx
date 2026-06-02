@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useAccount, useChains, useDisconnect, useSendTransaction, useSignTypedData, useSwitchChain } from 'wagmi'
 import { FluidBackground, GlassCard, Sai, SailButton } from '../shared'
 import PageHeader from '../shared/PageHeader'
@@ -9,66 +9,7 @@ import AIHandoffModal from '../dashboard/AIHandoffModal'
 import styles from './SigningStation.module.css'
 import shared from '../shared/shared.module.css'
 import { useSailorAccount } from '../../hooks/useSailorData'
-
-const POLL_INTERVAL_MS = 3_000
-
-const SERVER_OVERRIDE = (() => {
-  if (typeof window === 'undefined') return null
-  const raw = new URLSearchParams(window.location.search).get('server')
-  if (!raw) return null
-  const port = Number(raw)
-  if (!Number.isInteger(port) || port < 1024 || port > 65535) return null
-  return port
-})()
-
-/** Same-origin WebSocket URL for the sailor-ui signing-station proxy. */
-function proxyWsUrl() {
-  if (typeof window === 'undefined') return null
-  const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${scheme}//${window.location.host}/api/station/ws`
-}
-
-/**
- * Resolve a WebSocket URL for the signing daemon.
- *
- * Two serving contexts:
- *   • Daemon-served (this page came from the daemon itself, ports 3141–3150) —
- *     /config is same-origin and embeds the secret, so connect directly.
- *   • sailor-ui-served (port 3333) — the daemon withholds the secret from
- *     cross-origin /config, so we can't open the socket from the browser. Route
- *     through the same-origin proxy (server.js), which holds the secret
- *     server-side. The proxy closes the socket if no daemon is running.
- *
- * Returns { wsUrl } or null.
- */
-async function discoverSigningServer() {
-  if (SERVER_OVERRIDE) {
-    try {
-      const res = await fetch(`http://localhost:${SERVER_OVERRIDE}/config`, { signal: AbortSignal.timeout(1_500) })
-      if (res.ok) {
-        const cfg = await res.json()
-        if (cfg?.wsUrl?.includes('secret=')) return cfg
-      }
-    } catch { /* fall through to proxy */ }
-    const proxy = proxyWsUrl()
-    return proxy ? { wsUrl: proxy } : null
-  }
-
-  // Daemon-served? A same-origin /config that carries the secret means we can
-  // talk to the daemon directly without the proxy.
-  try {
-    const res = await fetch(`${window.location.origin}/config`, { signal: AbortSignal.timeout(500) })
-    if (res.ok) {
-      const cfg = await res.json()
-      if (cfg?.wsUrl?.includes('secret=')) return cfg
-    }
-  } catch { /* not daemon-served — fall through to the proxy */ }
-
-  // sailor-ui-served: the proxy discovers the daemon and authenticates for us.
-  const proxy = proxyWsUrl()
-  return proxy ? { wsUrl: proxy } : null
-}
-
+import { useSigningSocket } from '../../hooks/useSigningSocket'
 
 const KIND_LABELS = {
   'create-sma': 'Create Safe (SMA)',
@@ -129,58 +70,32 @@ function ChainDropdown({ open, onClose }) {
 }
 
 export default function SigningStation() {
-  const [daemonStatus, setDaemonStatus] = useState('checking')
   const [requests, setRequests] = useState([])
   const [phase, setPhase] = useState({ phase: 'idle' })
   const [profileOpen, setProfileOpen] = useState(false)
   const [aiOpen, setAiOpen] = useState(false)
-
-  const wsRef = useRef(null)
-  const sendRef = useRef(null)
 
   const { address: walletAddress, isConnected } = useAccount()
   const chains = useChains()
   const { disconnect } = useDisconnect()
   const { account: realAccount } = useSailorAccount()
 
-  const connectWs = useCallback((wsUrl) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return
-    const ws = new WebSocket(wsUrl)
-    wsRef.current = ws
-    sendRef.current = (msg) => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg)) }
-    ws.onopen = () => setDaemonStatus('connected')
-    ws.onmessage = (evt) => {
-      try {
-        const msg = JSON.parse(evt.data)
-        if (msg.type === 'pending') setRequests(msg.requests)
-        else if (msg.type === 'request') setRequests((prev) => prev.find((r) => r.id === msg.request.id) ? prev : [...prev, msg.request])
-        else if (msg.type === 'request-resolved') {
-          setRequests((prev) => prev.filter((r) => r.id !== msg.requestId))
-          setPhase((p) => (p.requestId === msg.requestId ? { phase: 'idle' } : p))
-        }
-      } catch { /* ignore malformed */ }
+  const handleMessage = useCallback((msg) => {
+    if (msg.type === 'pending') setRequests(msg.requests)
+    else if (msg.type === 'request') setRequests((prev) => prev.find((r) => r.id === msg.request.id) ? prev : [...prev, msg.request])
+    else if (msg.type === 'request-resolved') {
+      setRequests((prev) => prev.filter((r) => r.id !== msg.requestId))
+      setPhase((p) => (p.requestId === msg.requestId ? { phase: 'idle' } : p))
     }
-    ws.onclose = () => { setDaemonStatus('disconnected'); wsRef.current = null }
-    ws.onerror = () => { setDaemonStatus('disconnected'); wsRef.current = null }
   }, [])
 
-  useEffect(() => {
-    const poll = async () => {
-      if (wsRef.current?.readyState === WebSocket.OPEN) return
-      const cfg = await discoverSigningServer()
-      if (cfg) connectWs(cfg.wsUrl)
-      else setDaemonStatus((s) => (s === 'checking' ? 'disconnected' : s))
-    }
-    poll()
-    const t = setInterval(poll, POLL_INTERVAL_MS)
-    return () => clearInterval(t)
-  }, [connectWs])
+  const { status: daemonStatus, send } = useSigningSocket({ onMessage: handleMessage })
 
   useEffect(() => {
     if (daemonStatus !== 'connected') return
-    if (isConnected && walletAddress) sendRef.current?.({ type: 'wallet-connected', address: walletAddress })
-    else sendRef.current?.({ type: 'wallet-disconnected' })
-  }, [daemonStatus, walletAddress, isConnected])
+    if (isConnected && walletAddress) send({ type: 'wallet-connected', address: walletAddress })
+    else send({ type: 'wallet-disconnected' })
+  }, [daemonStatus, walletAddress, isConnected, send])
 
   const profileSafes = realAccount
     ? [{ id: 'live-sma', name: 'My SMA', address: realAccount.safe, network: realAccount.chainId === 8453 ? 'base' : realAccount.chainId === 42161 ? 'arbitrum' : 'ethereum', networks: [], agentCount: 0, createdAt: null }]
@@ -204,7 +119,7 @@ export default function SigningStation() {
         ) : requests.length === 0 ? (
           <EmptyQueue daemonConnected={daemonStatus === 'connected'} onAsk={() => setAiOpen(true)} />
         ) : (
-          <Orchestrator requests={requests} chains={chains} phase={phase} setPhase={setPhase} sendRef={sendRef} />
+          <Orchestrator requests={requests} chains={chains} phase={phase} setPhase={setPhase} send={send} />
         )}
       </main>
 
@@ -231,7 +146,7 @@ export default function SigningStation() {
   )
 }
 
-function Orchestrator({ requests, chains, phase, setPhase, sendRef }) {
+function Orchestrator({ requests, chains, phase, setPhase, send }) {
   const { sendTransactionAsync } = useSendTransaction()
   const { signTypedDataAsync } = useSignTypedData()
 
@@ -246,24 +161,24 @@ function Orchestrator({ requests, chains, phase, setPhase, sendRef }) {
           chainId: req.chainId,
         })
         setPhase({ phase: 'done', requestId: req.id, txHash: hash })
-        sendRef.current?.({ type: 'signed', requestId: req.id, txHash: hash })
+        send({ type: 'signed', requestId: req.id, txHash: hash })
       } else {
         const message = Object.fromEntries(
           Object.entries(req.typedData.message).map(([k, v]) => [k, typeof v === 'string' && /^\d+$/.test(v) ? BigInt(v) : v])
         )
         const sig = await signTypedDataAsync({ domain: req.typedData.domain, types: req.typedData.types, primaryType: req.typedData.primaryType, message })
         setPhase({ phase: 'done', requestId: req.id, txHash: sig })
-        sendRef.current?.({ type: 'signature', requestId: req.id, signature: sig })
+        send({ type: 'signature', requestId: req.id, signature: sig })
       }
     } catch (err) {
       setPhase({ phase: 'error', requestId: req.id, message: err instanceof Error ? err.message : String(err) })
     }
-  }, [sendTransactionAsync, signTypedDataAsync, setPhase, sendRef])
+  }, [sendTransactionAsync, signTypedDataAsync, setPhase, send])
 
   const handleReject = useCallback((id) => {
     setPhase({ phase: 'idle' })
-    sendRef.current?.({ type: 'rejected', requestId: id })
-  }, [setPhase, sendRef])
+    send({ type: 'rejected', requestId: id })
+  }, [setPhase, send])
 
   return (
     <>

@@ -8,6 +8,7 @@ import PageHeader from '../shared/PageHeader'
 import shared from '../shared/shared.module.css'
 import styles from './Signing.module.css'
 import { useSailorMandateDraft } from '../../hooks/useSailorData'
+import { useSigningSocket } from '../../hooks/useSigningSocket'
 
 /**
  * Sign-in & onboarding flow.
@@ -308,15 +309,26 @@ function WelcomeState({ onConnect }) {
 }
 
 function ConnectState({ onBack, onAuthed }) {
-  const { isConnected } = useAccount()
+  const { isConnected, address } = useAccount()
+  // Authenticated socket to the daemon (direct same-origin, or via the
+  // sailor-ui proxy) — the same path the signing station uses.
+  const { status, send } = useSigningSocket()
 
-  // Once the wallet connects, continue the flow exactly as the mock did —
-  // route onward to the dashboard. Real account presence is resolved
-  // there via useSailorAccount(). No walletId is passed, so the parent's
-  // default (non-Ledger) routing applies.
+  // When the wallet connects, notify the CLI (e.g. `sailor owner connect`, which
+  // blocks on a `wallet-connected` message to save the owner and exit), then
+  // continue to the dashboard. Best-effort: if no daemon is reachable (the UI
+  // opened standalone), don't block onboarding.
   useEffect(() => {
-    if (isConnected) onAuthed?.()
-  }, [isConnected, onAuthed])
+    if (!isConnected || !address) return
+    if (status === 'connected') {
+      send({ type: 'wallet-connected', address })
+      onAuthed?.()
+    } else if (status === 'disconnected') {
+      onAuthed?.()
+    }
+    // status === 'checking': wait for the socket to resolve; this effect re-runs
+    // when `status` changes.
+  }, [isConnected, address, status, send, onAuthed])
 
   return (
     <GlassCard className={styles.authCard}>
