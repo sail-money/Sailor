@@ -22,7 +22,7 @@ import { scan } from "./commands/scan.js";
 import { sessionPause, sessionResume } from "./commands/session.js";
 import { stationStart, stationStatus, stationStop } from "./commands/station.js";
 import { status } from "./commands/status.js";
-import { uiCommand } from "./commands/ui.js";
+import { uiCommand, uiStatus, uiStop } from "./commands/ui.js";
 import { closePrompts } from "./lib/io.js";
 
 const program = new Command();
@@ -60,11 +60,12 @@ function actionWith<T>(fn: (opts: T) => Promise<void> | void): (opts: T) => Prom
 // ── Implemented ───────────────────────────────────────────────────────────────
 
 program
-  .command("init [name]")
-  .description("Scaffold a new Sail agent from the DCA-rebalancer template")
+  .command("init [dir]")
+  .description("Scaffold a new Sail agent into the current directory (or [dir] subdirectory)")
+  .option("--template <name>", "Template to scaffold from (default: dca-rebalancer)")
   .option("--chain <id>", "Default EVM chain id written to .sail/config.json and .env.example")
   .option("--rpc-url <url>", "Default RPC_URL written to .sail/.env.local")
-  .action(async (name: string | undefined, opts: { chain?: string; rpcUrl?: string }) => {
+  .action(async (name: string | undefined, opts: { template?: string; chain?: string; rpcUrl?: string }) => {
     try {
       await initCommand(name, opts);
     } catch (err) {
@@ -73,10 +74,11 @@ program
     }
   });
 
-program
-  .command("ui")
-  .description("Open the local dashboard at localhost:3333")
-  .action(action(uiCommand));
+const ui = program.command("ui").description("Manage the local Sailor dashboard");
+ui.command("start").description("Start the dashboard at localhost:3333 (default)").action(action(uiCommand));
+ui.command("stop").description("Stop the running dashboard").action(() => uiStop());
+ui.command("status").description("Show whether the dashboard is running").action(() => uiStatus());
+ui.action(action(uiCommand));
 
 const keys = program.command("keys").description("Manage local signing keys");
 keys

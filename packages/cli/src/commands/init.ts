@@ -1,25 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { scaffoldFoundryWorkspace } from "../lib/foundry.js";
-
-/**
- * Returns the root of the @sailagent/sailor package, where `templates/` lives.
- *
- * Works in two contexts:
- *   - Installed via npm: `import.meta.url` is inside `packages/cli/dist/`,
- *     so going up three levels reaches the package root.
- *   - Monorepo checkout: same path structure, same result.
- *
- * The previous approach (`findWorkspaceRoot` walking up for pnpm-workspace.yaml)
- * failed when the package was installed as an npm dependency because no workspace
- * file exists in the parent directories of `node_modules/`.
- */
-function packageRoot(): string {
-  const distDir = path.dirname(fileURLToPath(import.meta.url));
-  // distDir = …/packages/cli/dist  →  up × 3 = package root
-  return path.resolve(distDir, "../../..");
-}
+import { packageRoot } from "../lib/packagePaths.js";
 
 const TEMPLATE_COPY_EXCLUDES = new Set([
   "node_modules",
@@ -47,6 +29,7 @@ function copyDirSync(src: string, dest: string): void {
 type InitOptions = {
   chain?: string;
   rpcUrl?: string;
+  template?: string;
 };
 
 const DEFAULT_CHAIN_ID = 8453;
@@ -125,30 +108,47 @@ CHAIN_ID=${chainId}
 }
 
 export async function initCommand(
-  name = "my-sailor-agent",
+  dir?: string,
   options: InitOptions = {},
 ): Promise<void> {
-  const templateSrc = path.join(packageRoot(), "templates", "dca-rebalancer");
+  const inPlace = !dir || dir === ".";
+  const dest = inPlace ? process.cwd() : path.join(process.cwd(), dir);
+  const name = path.basename(dest);
 
-  // Prevent path traversal: resolve dest and ensure it stays within cwd.
-  // path.join(cwd, "../../etc/passwd") would escape without this check.
-  const cwd = path.resolve(process.cwd());
-  const dest = path.resolve(cwd, name);
-  if (!dest.startsWith(cwd + path.sep) && dest !== cwd) {
-    throw new Error(
-      `Project name must not contain path traversal sequences (got: "${name}").`,
-    );
+  const templatesDir = path.join(packageRoot(), "templates");
+  const templateName = options.template ?? "dca-rebalancer";
+
+  if (/[/\\.]/.test(templateName) || templateName.includes("..")) {
+    throw new Error(`Invalid template name: "${templateName}"`);
   }
 
-  if (!fs.existsSync(templateSrc)) {
-    throw new Error(`Template not found at ${templateSrc}`);
+  const templateSrc = path.join(templatesDir, templateName);
+
+  const availableTemplates = (): string =>
+    fs.existsSync(templatesDir)
+      ? fs.readdirSync(templatesDir)
+          .filter(e => fs.existsSync(path.join(templatesDir, e, "package.json")))
+          .join(", ") || "none"
+      : "none";
+
+  if (!fs.existsSync(templateSrc) || !fs.existsSync(path.join(templateSrc, "package.json"))) {
+    throw new Error(`Template "${templateName}" not found. Available: ${availableTemplates()}`);
   }
 
-  if (fs.existsSync(dest)) {
+  const cwd = process.cwd();
+  if (!inPlace && !dest.startsWith(cwd + path.sep) && dest !== cwd) {
+    throw new Error(`Directory must be inside the current working directory`);
+  }
+
+  if (!inPlace && fs.existsSync(dest)) {
     throw new Error(`Directory already exists: ${dest}`);
   }
 
-  console.log(`Scaffolding ${name}/ from dca-rebalancer template…`);
+  if (inPlace && fs.existsSync(path.join(dest, ".sail", "config.json"))) {
+    throw new Error(`Already initialized — .sail/config.json exists`);
+  }
+
+  console.log(inPlace ? "Scaffolding into current directory…" : `Scaffolding ${name}/ from ${templateName} template…`);
   copyDirSync(templateSrc, dest);
 
   // Patch package.json: set name and resolve @sail/sdk.
@@ -179,15 +179,12 @@ export async function initCommand(
   }
 
   scaffoldProjectWorkspace(dest, name, options);
-  // Foundry workspace for authoring + deploying custom mandate contracts.
   scaffoldFoundryWorkspace(dest);
 
-  console.log(`\nDone! Your agent is ready at ./${name}/\n`);
+  console.log("\nDone! Your agent is ready.\n");
   console.log("Next steps:");
-  console.log(`  cd ${name}`);
-  if (!options.rpcUrl) {
-    console.log("  cp .env.example .sail/.env.local");
-  }
+  if (!inPlace) console.log(`  cd ${name}`);
+  if (!options.rpcUrl) console.log("  cp .env.example .sail/.env.local");
   console.log("  Open this folder in Claude Code, Cursor, or Codex");
   console.log('  Say: "start"\n');
   console.log("The setup guide in sail/WIZARD.md will walk you through everything.");
