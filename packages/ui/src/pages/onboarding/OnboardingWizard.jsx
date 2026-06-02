@@ -32,9 +32,9 @@ const SETUP_STAGES = [
     color: 'rgba(255,255,255,0.75)',
     items: [
       { n: 1, name: 'Choose your network',  detail: 'Base, Arbitrum, Ethereum, Unichain…' },
-      { n: 2, name: 'Connect your wallet',  detail: 'Becomes the owner of your Safe' },
+      { n: 2, name: 'Connect your wallet',  detail: 'Becomes the owner of your SMA' },
       { n: 3, name: 'Create agent key',     detail: 'Signs transactions on your behalf' },
-      { n: 4, name: 'Deploy your Safe',     detail: 'One-time gas payment, permanent account' },
+      { n: 4, name: 'Deploy your SMA',      detail: 'One-time gas payment, permanent account' },
     ],
   },
   {
@@ -200,7 +200,7 @@ function NetworkStep({ selected, onToggle, onBack, onDone, progressIndex, progre
       <CardHeader
         kicker="STEP 1 OF 4"
         title="Choose your networks"
-        sub="Same Safe address on every chain — deployed via CREATE2 with the same salt."
+        sub="Same SMA address on every chain — deployed via CREATE2 with the same salt."
         onBack={onBack}
       />
       <div className={styles.networkSection}>
@@ -269,7 +269,7 @@ function ConnectStep({ onBack, onDone, progressIndex, progressTotal }) {
       <CardHeader
         kicker="STEP 2 OF 4"
         title="Connect your wallet"
-        sub="This wallet owns your Safe and signs mandates. It never executes trades."
+        sub="This wallet owns your SMA and signs mandates. It never executes trades."
         onBack={onBack}
       />
       <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 8 }}>
@@ -370,7 +370,7 @@ function KeygenStep({ existingAddress, onDone, progressIndex, progressTotal }) {
   )
 }
 
-/* ── Step 4: Deploy Safes — one per selected chain ── */
+/* ── Step 4: Deploy SMAs — one per selected chain ── */
 function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onDone, progressIndex, progressTotal }) {
   const { sendTransactionAsync } = useSendTransaction()
   const { switchChainAsync } = useSwitchChain()
@@ -524,8 +524,8 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onDone, pro
       <ProgressDots current={progressIndex} total={progressTotal} />
       <CardHeader
         kicker="STEP 4 OF 4"
-        title="Deploy your Safes"
-        sub="Same Safe address on every chain. Some chains need 2 transactions — your wallet will prompt for each."
+        title="Deploy your SMAs"
+        sub="Same SMA address on every chain. Some chains need 2 transactions — your wallet will prompt for each."
       />
       <div className={styles.chainDeployList}>
         {chainIds.map(chainId => {
@@ -554,7 +554,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onDone, pro
       <Detail label="Agent key" value={managerAddress} />
       {!allSettled && (
         <SailButton fullWidth onClick={deployAll} disabled={running} style={{ marginTop: 14 }}>
-          {running ? 'Deploying…' : 'Deploy Safes'}
+          {running ? 'Deploying…' : 'Deploy SMAs'}
         </SailButton>
       )}
       {allSettled && hasRetryableError && (
@@ -664,7 +664,7 @@ function DoneStep({ deployedSafes, onComplete }) {
       <header className={styles.cardHeader}>
         <span className={styles.kicker}>STEPS 1–4 COMPLETE</span>
         <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
-          {deployedSafes.length === 1 ? 'Safe deployed.' : `${deployedSafes.length} Safes deployed.`}
+          {deployedSafes.length === 1 ? 'SMA deployed.' : `${deployedSafes.length} SMAs deployed.`}
         </h1>
         <p className={`${shared.italicMannerism} ${styles.cardTagline}`}>
           {deployedSafes.map(({ chainId }) => SUPPORTED_NETWORKS.find(n => n.chainId === chainId)?.name).join(' + ')}.
