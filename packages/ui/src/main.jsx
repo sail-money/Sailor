@@ -5,7 +5,6 @@ import { RainbowKitProvider } from '@rainbow-me/rainbowkit'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WagmiProvider } from 'wagmi'
 import App from './App'
-import Signing from './pages/signing/Signing'
 import SigningStation from './pages/station/SigningStation'
 import Dashboard from './pages/dashboard/Dashboard'
 import AgentPage from './pages/dashboard/AgentPage'
@@ -56,7 +55,7 @@ function Router() {
   let page
   if (route.startsWith('/home')) page = <Dashboard key={route} />
   else if (route.startsWith('/station')) page = <SigningStation key={route} />
-  else if (route.startsWith('/signing')) page = <Signing key={route} />
+  else if (route.startsWith('/signing')) page = <Dashboard key={route} />
   else if (route.startsWith('/mandate/')) {
     // /mandate/:id — the canonical home for contract + permissions
     // detail. Revoking from here triggers the contract animation, then

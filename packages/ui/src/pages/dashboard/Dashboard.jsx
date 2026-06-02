@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import OnboardingWizard from '../onboarding/OnboardingWizard'
+import { MandateSigningFlow } from '../signing/Signing'
 import { ConnectButton, useConnectModal } from '@rainbow-me/rainbowkit'
 import { parseEther } from 'viem'
 import { useAccount, useDisconnect, useSendTransaction } from 'wagmi'
@@ -24,6 +25,7 @@ import {
   useSailorActivity,
   useSailorAgentStatus,
   useSailorMandate,
+  useSailorMandateDraft,
   useSailorOverview,
   useSailorPending,
   useSailorPositions,
@@ -807,6 +809,7 @@ function LiveActivityFeed({ events, positions, network }) {
 export default function Dashboard() {
   const [onboardState, setOnboardState] = useState(null)
   const [onboardChecked, setOnboardChecked] = useState(false)
+  const { draft } = useSailorMandateDraft()
 
   useEffect(() => {
     fetch('/api/onboard/state')
@@ -814,6 +817,9 @@ export default function Dashboard() {
       .then(s => { setOnboardState(s); setOnboardChecked(true) })
       .catch(() => setOnboardChecked(true))
   }, [])
+
+  // Mandate draft (from `sailor mandate prepare`) takes priority — show signing flow.
+  if (draft) return <MandateSigningFlow draft={draft} />
 
   // Show wizard until the project has a deployed Safe.
   if (!onboardChecked) return null

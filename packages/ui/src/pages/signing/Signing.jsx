@@ -587,7 +587,7 @@ const SIGNER_NONCES_ABI = [
   },
 ]
 
-function MandateSigningFlow({ draft }) {
+export function MandateSigningFlow({ draft }) {
   const { isConnected } = useAccount()
   const { signTypedDataAsync } = useSignTypedData()
   const publicClient = usePublicClient()
