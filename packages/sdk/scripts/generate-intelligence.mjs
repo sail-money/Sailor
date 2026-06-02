@@ -153,10 +153,8 @@ for (const [path, pathItem] of Object.entries(spec.paths)) {
   for (const [httpMethod, op] of Object.entries(pathItem)) {
     if (typeof op !== "object" || !op.operationId) continue;
 
-    // Derive method name from path segments.
-    const seg = path.replace("/v1/", "").replace(/{[^}]+}/g, "").replace(/\/+$/, "");
-    const parts = seg.split("/").filter(Boolean);
-    const methodName = parts.map((p, i) => (i === 0 ? p : p[0].toUpperCase() + p.slice(1))).join("");
+    // Derive method name from operationId (unique per OpenAPI spec).
+    const methodName = snakeToCamel(op.operationId);
 
     const summary = op.summary ?? "";
     const desc = op.description ?? "";
