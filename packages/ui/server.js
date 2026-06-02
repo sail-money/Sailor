@@ -138,6 +138,17 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
   })
 
+  // DELETE /api/account — remove account.json so the onboarding wizard shows again.
+  app.delete('/api/account', (_req, res) => {
+    try {
+      fs.rmSync(at('account.json'), { force: true })
+      overviewCacheByAccount.clear()
+      res.json({ ok: true })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  })
+
   // POST /api/account — persist a newly deployed SMA from the browser signing flow.
   app.post('/api/account', (req, res) => {
     const { safe, owner, permissionSigner, manager, chainId, createdAtBlock } = req.body ?? {}
@@ -636,6 +647,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
   // GET /api/onboard/state — tells the wizard what's already done.
   app.get('/api/onboard/state', (_req, res) => {
     const config = (() => { try { return JSON.parse(fs.readFileSync(at('config.json'), 'utf-8')) } catch { return null } })()
+    const env = parseEnvFile(at('.env.local'))
     const hasAccount = fs.existsSync(at('account.json'))
     const managerKeyPath = at('keys/manager.json')
     let managerAddress = null
@@ -650,6 +662,9 @@ export function startServer(sailDir, { port = PORT } = {}) {
       hasAccount,
       hasManagerKey: Boolean(managerAddress),
       managerAddress,
+      hasRpc: Boolean(env.RPC_URL),
+      rpcUrl: env.RPC_URL ?? null,
+      hasSailApiKey: Boolean(env.SAIL_API_KEY),
       chainId,
       projectName: config?.name ?? null,
       kernel: deployment?.kernel ?? config?.contracts?.kernel ?? null,
@@ -658,6 +673,25 @@ export function startServer(sailDir, { port = PORT } = {}) {
       singleton: SAFE_V141.singletonL2,
       standardFeePolicy: deployment?.standardFeePolicy ?? config?.contracts?.standardFeePolicy ?? null,
     })
+  })
+
+  // POST /api/onboard/save-config { rpcUrl, sailApiKey, chainId } — merges the
+  // provided values into .sail/.env.local without clobbering existing keys.
+  app.post('/api/onboard/save-config', (req, res) => {
+    const { rpcUrl, sailApiKey, chainId } = req.body ?? {}
+    try {
+      const envPath = at('.env.local')
+      const existing = parseEnvFile(envPath)
+      if (rpcUrl) existing.RPC_URL = rpcUrl
+      if (sailApiKey) existing.SAIL_API_KEY = sailApiKey
+      if (chainId) existing.CHAIN_ID = String(chainId)
+      const content = Object.entries(existing).map(([k, v]) => `${k}=${v}`).join('\n') + '\n'
+      fs.mkdirSync(sailDir, { recursive: true })
+      fs.writeFileSync(envPath, content)
+      res.json({ ok: true })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
   })
 
   // POST /api/onboard/generate-key { passphrase } — generates a manager key at
@@ -685,17 +719,17 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
   })
 
-  // POST /api/onboard/build-create-tx { owner, manager } — builds the
+  // POST /api/onboard/build-create-tx { owner, manager, chainId? } — builds the
   // kernel.createAccount calldata so the browser can send the tx via wagmi
-  // without importing the SDK.
+  // without importing the SDK. chainId in the body overrides config.json.
   app.post('/api/onboard/build-create-tx', (req, res) => {
     try {
-      const { owner, manager } = req.body ?? {}
+      const { owner, manager, chainId: reqChainId, saltNonce: reqSaltNonce } = req.body ?? {}
       if (!isAddress(owner) || !isAddress(manager)) {
         return res.status(400).json({ error: 'owner and manager must be valid addresses' })
       }
-      const config = JSON.parse(fs.readFileSync(at('config.json'), 'utf-8'))
-      const chainId = config?.chainId ?? 8453
+      const config = (() => { try { return JSON.parse(fs.readFileSync(at('config.json'), 'utf-8')) } catch { return {} } })()
+      const chainId = reqChainId ?? config?.chainId ?? 8453
       let deployment = null
       try { deployment = getSailDeployment(chainId) } catch {}
       const kernel = deployment?.kernel ?? config?.contracts?.kernel
@@ -708,7 +742,9 @@ export function startServer(sailDir, { port = PORT } = {}) {
         kernel,
         safeModuleEnabler,
       })
-      const saltNonce = BigInt(Date.now())
+      // If a saltNonce is provided (multi-chain deployment), reuse it so all
+      // chains produce the same Safe address via CREATE2.
+      const saltNonce = reqSaltNonce != null ? BigInt(reqSaltNonce) : BigInt(Date.now())
       const data = encodeFunctionData({
         abi: SailKernelAbi,
         functionName: 'createAccount',
@@ -722,7 +758,60 @@ export function startServer(sailDir, { port = PORT } = {}) {
           standardFeePolicy,
         ],
       })
-      res.json({ to: kernel, data, chainId })
+      res.json({ to: kernel, data, chainId, saltNonce: saltNonce.toString() })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  })
+
+  // POST /api/onboard/build-register-path { owner, manager, chainId?, saltNonce? } —
+  // Alternative to build-create-tx for chains where the kernel doesn't trust the factory.
+  // Returns the deploy tx (SafeProxyFactory.createProxyWithNonce) and the kernel address.
+  // The wizard parses the Safe address from the deploy receipt and builds registerAccount itself.
+  app.post('/api/onboard/build-register-path', (req, res) => {
+    try {
+      const { owner, manager, chainId: reqChainId, saltNonce: reqSaltNonce } = req.body ?? {}
+      if (!isAddress(owner) || !isAddress(manager)) {
+        return res.status(400).json({ error: 'owner and manager must be valid addresses' })
+      }
+      const config = (() => { try { return JSON.parse(fs.readFileSync(at('config.json'), 'utf-8')) } catch { return {} } })()
+      const chainId = reqChainId ?? config?.chainId ?? 8453
+      let deployment = null
+      try { deployment = getSailDeployment(chainId) } catch {}
+      const kernel = deployment?.kernel ?? config?.contracts?.kernel
+      if (!kernel) return res.status(400).json({ error: 'no kernel address for this chain' })
+      const safeModuleEnabler = deployment?.safeModuleEnabler
+
+      const initializer = buildSafeSetupInitializer({
+        owners: [owner],
+        threshold: 1n,
+        kernel,
+        safeModuleEnabler,
+      })
+      const saltNonce = reqSaltNonce != null ? BigInt(reqSaltNonce) : BigInt(Date.now())
+
+      const PROXY_FACTORY_ABI = [{
+        name: 'createProxyWithNonce',
+        type: 'function',
+        stateMutability: 'nonpayable',
+        inputs: [
+          { name: '_singleton', type: 'address' },
+          { name: 'initializer', type: 'bytes' },
+          { name: 'saltNonce', type: 'uint256' },
+        ],
+        outputs: [{ type: 'address' }],
+      }]
+      const deployData = encodeFunctionData({
+        abi: PROXY_FACTORY_ABI,
+        functionName: 'createProxyWithNonce',
+        args: [SAFE_V141.singletonL2, initializer, saltNonce],
+      })
+
+      res.json({
+        deployTx: { to: SAFE_V141.proxyFactory, data: deployData, chainId },
+        kernel,
+        saltNonce: saltNonce.toString(),
+      })
     } catch (err) {
       res.status(500).json({ error: String(err) })
     }

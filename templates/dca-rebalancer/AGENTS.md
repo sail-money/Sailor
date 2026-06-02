@@ -1,24 +1,61 @@
-You are helping the user operate a Sail Protocol SMA via the Sailor toolkit. To start, deploy, configure, or run anything, read `sail/WIZARD.md` and follow it stage by stage. Treat `.sail/config.json` as the local project manifest, and track progress in `.sail/.wizard-state.json`. Never skip stages. Always ask before any action that costs gas or moves funds.
+# Sail Agent — Setup Guide
 
-## Before operating the SMA
+You are an AI assistant helping the user set up and run an autonomous on-chain agent using Sail Protocol.
 
-1. **Detect the kernel model first.** Run `sailor doctor` (read-only, no gas) — it
-   reports the dispatch model (conjunctive vs selective), lists registered
-   permissions, and on a conjunctive kernel flags any permission that would brick
-   dispatch by not passing through unrelated calls. Resolve any flags before
-   dispatching.
-2. **Understand the permission model.** See the SDK's `docs/PERMISSION_MODEL.md` —
-   on a conjunctive kernel (Base / Base Sepolia) EVERY registered permission must
-   approve EVERY call, so each permission must pass through calls outside its domain.
-3. **Use the playbook.** `AGENT_PLAYBOOK.md` (in the SDK repo) has the operational
-   decision tree (approvals, swaps, automated jobs) and a failure-mode catalog mapping
-   each kernel revert to its cause and fix.
+## On every session start — do this first
 
-## Running a DCA loop
+Run the following immediately, before anything else:
 
-- Swap with `client.strategy.swap({from, to, amount, slippage})` — it approves the
-  router only when the allowance is low and otherwise does a single swap dispatch.
-  Approve a larger batch (`approveAmount`) so most iterations are swap-only.
-- `client.dispatch.single` auto-orchestrates the manager nonce across sequential
-  dispatches; no manual nonce tracking is needed.
-- Decode any failure with `explainKernelRevert(err)`.
+```
+sailor ui status
+```
+
+- If it says **not running**, start it automatically:
+  ```
+  sailor ui start
+  ```
+  Then tell the user: "I've started the Sail UI. Open http://localhost:3333 in your browser to continue."
+- If it says **running**, confirm the URL to the user and proceed.
+
+Do not wait for the user to ask — run these commands as soon as the session begins.
+
+## How setup works
+
+Setup is split into two phases: browser (steps 1–4) then terminal (steps 5–8).
+
+The local UI at **http://localhost:3333** guides steps 1–4 interactively. When step 4 is complete, it generates a prompt — the user will paste that here to continue.
+
+## Steps 1–4 — done in the browser at localhost:3333
+
+1. **Choose networks** — which chains the agent will operate on
+2. **Connect owner wallet** — the wallet that controls the account and authorises permissions
+3. **Generate agent key** — a separate signing key the agent uses to submit transactions (never holds custody)
+4. **Deploy account** — creates the on-chain account (SMA — a smart contract wallet your agent operates within)
+
+## Steps 5–8 — done here in the terminal
+
+5. **Set RPC & API keys** — create `.sail/.env.local`:
+   ```
+   RPC_URL=https://...        # node endpoint for the chosen chain
+   SAIL_API_KEY=...           # from api.sail.money
+   SAIL_PASSPHRASE=...        # passphrase chosen in step 3 — unlocks the agent key
+   ```
+6. **Fund the agent key** — send a small amount of ETH to the agent address (shown on the dashboard at localhost:3333) to cover gas
+7. **Set permissions** — run `sailor mandate prepare` to draft the permission set, then approve it in the browser at localhost:3333
+8. **Run the agent** — `sailor run`
+
+## Key files
+
+| File | What it is |
+|------|------------|
+| `.sail/config.json` | Chain and contract addresses |
+| `.sail/account.json` | Deployed SMA address |
+| `.sail/.env.local` | RPC URL, API key, passphrase |
+| `.sail/keys/manager.json` | Encrypted agent signing key |
+| `.sail/activity.jsonl` | Log of every agent decision |
+
+## Ground rules
+- Complete steps in order — each depends on the previous
+- Never execute a transaction without confirming with the user first
+- Keep localhost:3333 running during steps 7 and 8
+- `SAIL_PASSPHRASE` in `.env.local` lets the agent sign without user interaction
