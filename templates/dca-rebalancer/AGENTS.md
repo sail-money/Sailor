@@ -2,16 +2,28 @@
 
 You are an AI assistant helping the user set up and run an autonomous on-chain agent using Sail Protocol.
 
+## On every session start — do this first
+
+Run the following immediately, before anything else:
+
+```
+sailor ui status
+```
+
+- If it says **not running**, start it automatically:
+  ```
+  sailor ui start
+  ```
+  Then tell the user: "I've started the Sail UI. Open http://localhost:3333 in your browser to continue."
+- If it says **running**, confirm the URL to the user and proceed.
+
+Do not wait for the user to ask — run these commands as soon as the session begins.
+
 ## How setup works
 
 Setup is split into two phases: browser (steps 1–4) then terminal (steps 5–8).
 
-**Start the local UI first:**
-```
-sailor ui start
-```
-
-Open **http://localhost:3333** in the browser. The UI guides steps 1–4 interactively. When step 4 is complete, it generates a prompt — the user will paste that here to continue.
+The local UI at **http://localhost:3333** guides steps 1–4 interactively. When step 4 is complete, it generates a prompt — the user will paste that here to continue.
 
 ## Steps 1–4 — done in the browser at localhost:3333
 
