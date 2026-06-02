@@ -685,17 +685,17 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
   })
 
-  // POST /api/onboard/build-create-tx { owner, manager } — builds the
+  // POST /api/onboard/build-create-tx { owner, manager, chainId? } — builds the
   // kernel.createAccount calldata so the browser can send the tx via wagmi
-  // without importing the SDK.
+  // without importing the SDK. chainId in the body overrides config.json.
   app.post('/api/onboard/build-create-tx', (req, res) => {
     try {
-      const { owner, manager } = req.body ?? {}
+      const { owner, manager, chainId: reqChainId } = req.body ?? {}
       if (!isAddress(owner) || !isAddress(manager)) {
         return res.status(400).json({ error: 'owner and manager must be valid addresses' })
       }
-      const config = JSON.parse(fs.readFileSync(at('config.json'), 'utf-8'))
-      const chainId = config?.chainId ?? 8453
+      const config = (() => { try { return JSON.parse(fs.readFileSync(at('config.json'), 'utf-8')) } catch { return {} } })()
+      const chainId = reqChainId ?? config?.chainId ?? 8453
       let deployment = null
       try { deployment = getSailDeployment(chainId) } catch {}
       const kernel = deployment?.kernel ?? config?.contracts?.kernel

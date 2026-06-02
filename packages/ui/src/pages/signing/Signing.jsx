@@ -80,18 +80,41 @@ function NoPendingFlow() {
 // topic0 of AccountRegistered(address indexed account, address indexed permissionSigner, address indexed manager)
 const ACCOUNT_REGISTERED_TOPIC = '0x05f9a81a3b5e45d338f25347928e56b0aaaa0c65d4087a980c4e41370fcccfeb'
 
+const SUPPORTED_NETWORKS = [
+  // ── Mainnets ──
+  { chainId: 1,      name: 'Ethereum',       group: 'mainnet', description: 'The original chain.', color: '#627eea' },
+  { chainId: 8453,   name: 'Base',           group: 'mainnet', description: 'Fast, cheap Coinbase L2.', color: '#0052ff' },
+  { chainId: 42161,  name: 'Arbitrum One',   group: 'mainnet', description: 'Low-fee Ethereum L2.', color: '#28a0f0' },
+  { chainId: 130,    name: 'Unichain',       group: 'mainnet', description: 'Uniswap-native L2.', color: '#ff007a' },
+  // ── Testnets ──
+  { chainId: 11155111, name: 'Ethereum Sepolia', group: 'testnet', description: 'Ethereum test network.', color: '#627eea' },
+  { chainId: 84532,    name: 'Base Sepolia',     group: 'testnet', description: 'Free to experiment.', color: '#0052ff' },
+  { chainId: 421614,   name: 'Arbitrum Sepolia', group: 'testnet', description: 'Arbitrum test network.', color: '#28a0f0' },
+  { chainId: 1301,     name: 'Unichain Sepolia', group: 'testnet', description: 'Unichain test network.', color: '#ff007a' },
+]
+
+// Steps in order — used for the progress indicator.
+const WIZARD_STEPS = ['welcome', 'network', 'connect', 'keygen', 'create-sma', 'done']
+
 function OnboardingFlow({ onboardState }) {
   const { isConnected, address } = useAccount()
   const [step, setStep] = useState('welcome')
+  const [selectedChainId, setSelectedChainId] = useState(onboardState?.chainId ?? 8453)
   const [managerAddress, setManagerAddress] = useState(onboardState?.managerAddress ?? null)
   const [safeAddress, setSafeAddress] = useState(null)
 
-  // Skip straight to the right step if partially complete.
+  // If reconnecting with partial progress, skip only as far as needed.
+  // Never skip the network step — the user should always confirm their chain.
   useEffect(() => {
     if (!isConnected) return
     if (onboardState?.hasManagerKey) setStep('create-sma')
     else setStep('keygen')
   }, [isConnected, onboardState?.hasManagerKey])
+
+  const stepIndex = WIZARD_STEPS.indexOf(step)
+  // progress dots: exclude welcome (no dot) and done, show for network..create-sma
+  const progressSteps = ['network', 'connect', 'keygen', 'create-sma']
+  const progressIndex = progressSteps.indexOf(step)
 
   return (
     <div className={styles.shell}>
@@ -100,29 +123,46 @@ function OnboardingFlow({ onboardState }) {
       <main className={styles.stage}>
         <div key={step} className={styles.stageInner}>
           {step === 'welcome' && (
-            <WelcomeState onConnect={() => setStep('connect')} />
+            <WelcomeState onStart={() => setStep('network')} />
+          )}
+          {step === 'network' && (
+            <NetworkStep
+              selected={selectedChainId}
+              onSelect={setSelectedChainId}
+              onBack={() => setStep('welcome')}
+              onDone={() => setStep('connect')}
+              progressIndex={progressIndex}
+              progressTotal={progressSteps.length}
+            />
           )}
           {step === 'connect' && (
             <ConnectStep
-              onBack={() => setStep('welcome')}
+              onBack={() => setStep('network')}
               onDone={() => setStep(onboardState?.hasManagerKey ? 'create-sma' : 'keygen')}
+              progressIndex={progressIndex}
+              progressTotal={progressSteps.length}
             />
           )}
           {step === 'keygen' && (
             <KeygenStep
               existingAddress={onboardState?.managerAddress}
               onDone={(addr) => { setManagerAddress(addr); setStep('create-sma') }}
+              progressIndex={progressIndex}
+              progressTotal={progressSteps.length}
             />
           )}
           {step === 'create-sma' && (
             <CreateSmaStep
               owner={address}
               managerAddress={managerAddress ?? onboardState?.managerAddress}
+              chainId={selectedChainId}
               onDone={(safe) => { setSafeAddress(safe); setStep('done') }}
+              progressIndex={progressIndex}
+              progressTotal={progressSteps.length}
             />
           )}
           {step === 'done' && (
-            <DoneStep safeAddress={safeAddress} />
+            <DoneStep safeAddress={safeAddress} chainId={selectedChainId} />
           )}
         </div>
       </main>
@@ -130,8 +170,73 @@ function OnboardingFlow({ onboardState }) {
   )
 }
 
+/* ── Progress dots ── */
+function ProgressDots({ current, total }) {
+  return (
+    <div className={styles.progressDots}>
+      {Array.from({ length: total }, (_, i) => (
+        <span
+          key={i}
+          className={`${styles.progressDot} ${i < current ? styles.progressDotDone : i === current ? styles.progressDotActive : ''}`}
+        />
+      ))}
+    </div>
+  )
+}
+
+/* ── Network selection step ── */
+function NetworkStep({ selected, onSelect, onBack, onDone, progressIndex, progressTotal }) {
+  const mainnets = SUPPORTED_NETWORKS.filter(n => n.group === 'mainnet')
+  const testnets = SUPPORTED_NETWORKS.filter(n => n.group === 'testnet')
+  const selectedNet = SUPPORTED_NETWORKS.find(n => n.chainId === selected)
+
+  return (
+    <GlassCard className={styles.authCard}>
+      <ProgressDots current={progressIndex} total={progressTotal} />
+      <CardHeader
+        kicker="STEP 1 OF 4"
+        title="Choose your network"
+        sub="Your agent will operate on this chain. You can add more chains later."
+        onBack={onBack}
+      />
+      <div className={styles.networkSection}>
+        <span className={styles.networkGroupLabel}>Mainnet</span>
+        <div className={styles.networkGrid}>
+          {mainnets.map(net => (
+            <NetworkCard key={net.chainId} net={net} selected={selected === net.chainId} onSelect={onSelect} />
+          ))}
+        </div>
+        <span className={styles.networkGroupLabel}>Testnet</span>
+        <div className={styles.networkGrid}>
+          {testnets.map(net => (
+            <NetworkCard key={net.chainId} net={net} selected={selected === net.chainId} onSelect={onSelect} />
+          ))}
+        </div>
+      </div>
+      <SailButton fullWidth onClick={onDone} disabled={!selected}>
+        Continue with {selectedNet?.name ?? '…'} →
+      </SailButton>
+    </GlassCard>
+  )
+}
+
+function NetworkCard({ net, selected, onSelect }) {
+  return (
+    <button
+      type="button"
+      className={`${styles.networkCard} ${selected ? styles.networkCardSelected : ''}`}
+      onClick={() => onSelect(net.chainId)}
+      style={{ '--net-color': net.color }}
+    >
+      <span className={styles.networkDot} />
+      <span className={styles.networkName}>{net.name}</span>
+      <span className={styles.networkDesc}>{net.description}</span>
+    </button>
+  )
+}
+
 /* ── Step 1: Welcome ── */
-function WelcomeState({ onConnect }) {
+function WelcomeState({ onStart }) {
   return (
     <GlassCard className={styles.welcomeCard}>
       <div className={styles.cardSai} aria-hidden>
@@ -140,14 +245,14 @@ function WelcomeState({ onConnect }) {
       <header className={styles.cardHeader}>
         <span className={styles.kicker}>WELCOME TO SAIL</span>
         <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
-          Separately Managed Accounts.
+          Your AI agent,<br />on-chain.
         </h1>
         <p className={`${shared.italicMannerism} ${styles.cardTagline}`}>
-          Enforced by code, run by agents.
+          Set up your account in 4 steps — takes about 2 minutes.
         </p>
       </header>
       <div className={styles.welcomeCta}>
-        <SailButton fullWidth onClick={onConnect}>Connect wallet</SailButton>
+        <SailButton fullWidth onClick={onStart}>Get started →</SailButton>
       </div>
       <p className={styles.fineprint}>Self-custody. Sail never holds your keys.</p>
     </GlassCard>
@@ -155,7 +260,7 @@ function WelcomeState({ onConnect }) {
 }
 
 /* ── Step 2: Connect wallet ── */
-function ConnectStep({ onBack, onDone }) {
+function ConnectStep({ onBack, onDone, progressIndex, progressTotal }) {
   const { isConnected, address } = useAccount()
   const { status, send } = useSigningSocket()
 
@@ -172,10 +277,11 @@ function ConnectStep({ onBack, onDone }) {
 
   return (
     <GlassCard className={styles.authCard}>
+      <ProgressDots current={progressIndex} total={progressTotal} />
       <CardHeader
-        kicker="STEP 1 OF 3"
+        kicker="STEP 2 OF 4"
         title="Connect your wallet"
-        sub="This wallet will own your Safe. It signs mandates — it never executes trades."
+        sub="This wallet owns your Safe and signs mandates. It never executes trades."
         onBack={onBack}
       />
       <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 8 }}>
@@ -186,7 +292,7 @@ function ConnectStep({ onBack, onDone }) {
 }
 
 /* ── Step 3: Generate delegated signer key ── */
-function KeygenStep({ existingAddress, onDone }) {
+function KeygenStep({ existingAddress, onDone, progressIndex, progressTotal }) {
   const [passphrase, setPassphrase] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -220,10 +326,11 @@ function KeygenStep({ existingAddress, onDone }) {
 
   return (
     <GlassCard className={styles.authCard}>
+      <ProgressDots current={progressIndex} total={progressTotal} />
       <CardHeader
-        kicker="STEP 2 OF 3"
-        title="Create delegated signer"
-        sub="An agent key that executes within your permissions. It never holds custody."
+        kicker="STEP 3 OF 4"
+        title="Create agent key"
+        sub="A signing key your agent uses to execute trades. It never holds custody."
       />
       {!generated ? (
         <>
@@ -276,12 +383,14 @@ function KeygenStep({ existingAddress, onDone }) {
 }
 
 /* ── Step 4: Create SMA on-chain ── */
-function CreateSmaStep({ owner, managerAddress, onDone }) {
+function CreateSmaStep({ owner, managerAddress, chainId, onDone, progressIndex, progressTotal }) {
   const [phase, setPhase] = useState('idle') // idle | building | wallet | confirming | error
   const [error, setError] = useState('')
   const [txHash, setTxHash] = useState(undefined)
   const { sendTransactionAsync } = useSendTransaction()
   const { data: receipt } = useWaitForTransactionReceipt({ hash: txHash, confirmations: 1 })
+
+  const network = SUPPORTED_NETWORKS.find(n => n.chainId === chainId)
 
   useEffect(() => {
     if (!receipt) return
@@ -291,11 +400,11 @@ function CreateSmaStep({ owner, managerAddress, onDone }) {
     fetch('/api/onboard/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ safe, owner, manager: managerAddress, txHash: receipt.transactionHash }),
+      body: JSON.stringify({ safe, owner, manager: managerAddress, txHash: receipt.transactionHash, chainId }),
     })
       .then(() => onDone(safe))
       .catch((err) => { setError(err.message); setPhase('error') })
-  }, [receipt, owner, managerAddress, onDone])
+  }, [receipt, owner, managerAddress, chainId, onDone])
 
   async function create() {
     setPhase('building')
@@ -304,7 +413,7 @@ function CreateSmaStep({ owner, managerAddress, onDone }) {
       const buildRes = await fetch('/api/onboard/build-create-tx', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ owner, manager: managerAddress }),
+        body: JSON.stringify({ owner, manager: managerAddress, chainId }),
       })
       const { to, data } = await buildRes.json()
       if (!buildRes.ok) throw new Error(data?.error ?? 'Build failed')
@@ -319,23 +428,25 @@ function CreateSmaStep({ owner, managerAddress, onDone }) {
   }
 
   const phaseLabel = {
-    idle:       'Create Safe (SMA)',
+    idle:       'Deploy Safe',
     building:   'Building transaction…',
     wallet:     'Confirm in wallet…',
     confirming: 'Waiting for confirmation…',
     error:      'Retry',
-  }[phase] ?? 'Create Safe'
+  }[phase] ?? 'Deploy Safe'
 
   return (
     <GlassCard className={styles.authCard}>
+      <ProgressDots current={progressIndex} total={progressTotal} />
       <CardHeader
-        kicker="STEP 3 OF 3"
+        kicker="STEP 4 OF 4"
         title="Deploy your Safe"
         sub="A 1-of-1 Safe registered with SailKernel. Your wallet pays the deployment gas."
       />
       <div className={styles.smaDetails}>
+        <Detail label="Network" value={network?.name ?? `Chain ${chainId}`} mono={false} />
         <Detail label="Owner" value={owner} />
-        <Detail label="Agent" value={managerAddress} />
+        <Detail label="Agent key" value={managerAddress} />
       </div>
       {error && <p style={{ color: '#ff6b6b', fontSize: 13, margin: '8px 0' }}>{error}</p>}
       <SailButton
@@ -346,17 +457,20 @@ function CreateSmaStep({ owner, managerAddress, onDone }) {
         {phaseLabel}
       </SailButton>
       <p className={styles.fineprint}>
-        Deploys a Safe via SailKernel.createAccount — one transaction, no custody transfer.
+        One transaction — deploys a Safe and registers it with SailKernel. No custody transfer.
       </p>
     </GlassCard>
   )
 }
 
-function Detail({ label, value }) {
+function Detail({ label, value, mono = true }) {
+  const display = mono && value && value.length > 20 ? `${value.slice(0, 10)}…${value.slice(-6)}` : (value || '—')
   return (
     <div className={styles.detailRow}>
       <span className={styles.detailLabel}>{label}</span>
-      <code className={styles.detailValue}>{value ? `${value.slice(0, 10)}…${value.slice(-6)}` : '—'}</code>
+      {mono
+        ? <code className={styles.detailValue}>{display}</code>
+        : <span className={styles.detailValue}>{display}</span>}
     </div>
   )
 }
