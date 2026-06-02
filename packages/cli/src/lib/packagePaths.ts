@@ -4,12 +4,17 @@ import path from "node:path";
 /**
  * Directory containing the executing CLI bundle (packages/cli/dist/).
  *
- * In an esbuild CJS bundle import.meta.url is undefined, so we rely on
- * process.argv[1] which always holds the absolute path to the running script
- * regardless of how it was invoked (node, npx, pnpm exec, global bin).
+ * Uses fs.realpathSync to resolve bin symlinks before computing the directory.
+ * On macOS/Linux, `npx sailor` executes the bin symlink and process.argv[1]
+ * holds the symlink path (node_modules/.bin/sailor), not the real file.
+ * On Windows, Node resolves symlinks before setting process.argv[1].
  */
 export function cliDistDir(): string {
-  return path.dirname(path.resolve(process.argv[1]));
+  try {
+    return path.dirname(fs.realpathSync(process.argv[1]));
+  } catch {
+    return path.dirname(path.resolve(process.argv[1]));
+  }
 }
 
 /**
