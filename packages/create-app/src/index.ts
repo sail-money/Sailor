@@ -20,4 +20,12 @@ const result = spawnSync(bin, ["init", ...initArgs], {
   shell: false,
 });
 
+if (result.status === 0) {
+  console.log("\n─────────────────────────────────────────────");
+  console.log("  Project ready. You're already in the right place.");
+  console.log("");
+  console.log('  Say: "start"');
+  console.log("─────────────────────────────────────────────");
+}
+
 process.exit(result.status ?? 0);

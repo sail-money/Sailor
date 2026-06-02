@@ -65,10 +65,10 @@ export interface RevokeOptions {
   json?: boolean;
 }
 
-// The deployed Base kernel (conjunctive v1) revokes via a batch call the owner
+// The deployed kernels (selective model) revoke via a batch call the owner
 // authorizes off-chain and the agent submits. These fragments aren't in the
-// SDK's SailKernelAbi (which targets the newer selective model), so we carry
-// the minimal old-kernel shapes here, matching the on-chain typehash.
+// SDK's SailKernelAbi, so we carry the minimal shapes here, matching the
+// on-chain REVOKE_PERMISSIONS_TYPEHASH.
 const REVOKE_PERMISSIONS_ABI = [
   {
     type: "function",
@@ -179,8 +179,8 @@ async function runDeploy(
   const response = await channel.requestSignature({
     type: "transaction",
     kind: "deploy-mandate",
-    title: `Deploy "${contractName}" mandate`,
-    description: `Deploy a new ${contractName} mandate contract from your wallet. You pay gas; the contract is created with the parameters baked into its constructor.`,
+    title: `Deploy "${contractName}" permission contract`,
+    description: `Deploy a new ${contractName} permission contract from your wallet. You pay gas; the contract is created with the parameters baked into its constructor.`,
     chainId,
     // No `to` — this is a contract-creation transaction.
     data: deployData,
@@ -191,7 +191,7 @@ async function runDeploy(
   });
 
   if (response.status === "rejected") {
-    throw new Error(`User rejected mandate deployment: ${response.reason ?? "no reason given"}`);
+    throw new Error(`User rejected permission deployment: ${response.reason ?? "no reason given"}`);
   }
   if (response.status !== "signed") {
     throw new Error(`Expected a signed transaction, got: ${response.status}`);
@@ -204,7 +204,7 @@ async function runDeploy(
   }
 
   const deployed = receipt.contractAddress;
-  say(() => console.log("✓", `Mandate deployed at ${deployed}`));
+  say(() => console.log("✓", `Permission deployed at ${deployed}`));
 
   const record: DeployedMandate = {
     name: options.name ?? contractName,
@@ -247,7 +247,7 @@ async function runDeploy(
   } else {
     say(() =>
       console.log(
-        `\nAttach it later with: sailor mandate attach --address ${deployed} --sma <safe>`,
+        `\nRegister it later with: sailor mandate attach --address ${deployed} --sma <SMA>`,
       ),
     );
   }
@@ -493,7 +493,7 @@ async function attachToSma(
     args: [sma],
   });
   if (!registered) {
-    throw new Error(`Safe ${sma} is not registered with SailKernel; cannot attach a mandate.`);
+    throw new Error(`SMA ${sma} is not registered with SailKernel; cannot register a permission.`);
   }
 
   const kernelConfig = (await publicClient.readContract({
@@ -518,9 +518,9 @@ async function attachToSma(
   const attached = await pollForPermission(publicClient, project.contracts.kernel, sma, mandate);
   say(() => {
     if (!attached) {
-      console.log("⚠  Mandate not yet visible in the permission set — verify on-chain.");
+      console.log("⚠  Permission not yet visible in the permission set — verify on-chain.");
     } else {
-      console.log("✓", `Mandate present in getPermissions(${sma})`);
+      console.log("✓", `Permission present in getPermissions(${sma})`);
     }
   });
   return txHash;
@@ -549,39 +549,51 @@ async function pollForPermission(
 
 // ── templates / list ───────────────────────────────────────────────────────
 
+/**
+ * `sailor mandate templates` — Sailor does not ship a blessed library of
+ * permission contracts. This points users at the custom-mandate scaffold so they
+ * author, review, and deploy their OWN IPermission contracts. Any addresses
+ * shown are community-deployed and unaudited — informational only.
+ */
 export function mandateTemplates(options: { json?: boolean }): void {
   const project = requireProject();
   const chainId = project.chainId;
-  let templates: Array<{ kind: string; address: string; label: string; description?: string }> = [];
+
+  // Community-deployed standalone permission addresses on the active chain.
+  // Informational only — NOT audited or endorsed by Sail.
+  let community: Array<{ key: string; address: string }> = [];
   try {
-    templates = (getSailDeployment(chainId).knownTemplates ?? []).map((t) => ({
-      kind: t.kind,
-      address: t.address,
-      label: t.label,
-      description: t.description,
+    const standalone = getSailDeployment(chainId).standaloneTemplates ?? {};
+    community = Object.entries(standalone).map(([key, address]) => ({
+      key,
+      address: String(address),
     }));
   } catch {
-    templates = [];
+    community = [];
   }
 
   emit(
     options.json,
     () => {
-      if (templates.length === 0) {
-        console.log(`No known templates for chain ${chainId}.`);
+      console.log("Author your own permission contract (recommended):");
+      console.log("  1. Copy templates/custom-mandate/mandates/AllowlistTargetMandate.sol as a starting point");
+      console.log("  2. Implement IPermission.evaluate(txData, ctx) with your policy logic");
+      console.log("  3. forge build");
+      console.log("  4. sailor mandate deploy --contract <Name> --attach --sma <yourSMA>");
+      console.log("\n  See templates/custom-mandate/README.md for the full guide.");
+
+      if (community.length > 0) {
         console.log(
-          'If no template fits the strategy, author a new mandate and use "sailor mandate deploy".',
+          "\nCommunity-deployed permission contracts (informational — NOT audited or\n" +
+            "endorsed by Sail; review the source before registering any of them):",
         );
-        return;
-      }
-      console.log(`Mandate templates on chain ${chainId}:`);
-      for (const t of templates) {
-        console.log(`  ${t.label} (${t.kind})`);
-        console.log(`    ${t.address}`);
-        if (t.description) console.log(`    ${t.description}`);
+        for (const c of community) {
+          console.log(`  ${c.key}`);
+          console.log(`    ${c.address}`);
+        }
       }
     },
-    { chainId, templates },
+    { chainId, community },
   );
 }
 
@@ -589,7 +601,7 @@ export function mandateContractsList(): void {
   const store = new MandateStore();
   const mandates = store.list();
   if (mandates.length === 0) {
-    console.log('No mandates deployed yet. Use "sailor mandate deploy".');
+    console.log('No permission contracts deployed yet. Use "sailor mandate deploy".');
     return;
   }
   for (const m of mandates) {
@@ -597,7 +609,7 @@ export function mandateContractsList(): void {
     console.log("  Address: ", m.address);
     console.log("  Deployed:", m.deployedAt);
     if (m.attachments?.length) {
-      console.log("  Attached to:", m.attachments.map((a) => a.sma).join(", "));
+      console.log("  Registered on:", m.attachments.map((a) => a.sma).join(", "));
     }
   }
 }

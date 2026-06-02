@@ -111,11 +111,11 @@ async function runOnboard(
 
   // ── Step 1: Ensure a manager (agent) key ────────────────────────────────────
   if (!keyExists("manager")) {
-    throw new Error('No manager key found. Run "sailor keys generate" and choose "manager" first.');
+    throw new Error('No agent wallet found. Run "sailor keys generate" and choose "agent wallet" first.');
   }
   const agentSigner = await loadManagerSigner();
   const agentAddress = agentSigner.address;
-  say(() => console.log("✓", `Agent (manager) wallet: ${agentAddress}`));
+  say(() => console.log("✓", `Agent wallet: ${agentAddress}`));
 
   // ── Step 2: Resolve SMA address ─────────────────────────────────────────────
   const chain = getChainById(project.chainId);
@@ -156,7 +156,7 @@ async function runOnboard(
   );
   if (!isRegistered) {
     throw new Error(
-      `Safe ${smaAddress} is not registered with SailKernel. Only Safes created via kernel.createAccount can be registered — run with --new-sma to create one.`,
+      `SMA ${smaAddress} is not registered with SailKernel. Only SMAs created via kernel.createAccount can be registered — run with --new-sma to create one.`,
     );
   }
 
@@ -170,14 +170,14 @@ async function runOnboard(
 
   say(() => {
     console.log("✓", "SMA registered with SailKernel");
-    console.log("  Permission signer:", permissionSigner);
-    console.log("  Manager:          ", onChainManager);
+    console.log("  Mandate signer:", permissionSigner);
+    console.log("  Agent wallet:  ", onChainManager);
     if (onChainManager.toLowerCase() !== agentAddress.toLowerCase()) {
       console.log(
-        `\n⚠  On-chain manager (${onChainManager}) differs from your agent (${agentAddress}).\n   Manager rotation is not handled here — update it manually.`,
+        `\n⚠  On-chain agent wallet (${onChainManager}) differs from your local agent wallet (${agentAddress}).\n   Agent-wallet rotation is not handled here — update it manually.`,
       );
     } else {
-      console.log("✓", "Agent is set as manager");
+      console.log("✓", "Agent wallet is authorized for this SMA");
     }
   });
 
@@ -203,7 +203,7 @@ async function runOnboard(
   })) as Address[];
 
   if (currentPermissions.length > 0) {
-    say(() => console.log("✓", `${currentPermissions.length} mandate(s) already attached`));
+    say(() => console.log("✓", `${currentPermissions.length} permission(s) already registered`));
     return {
       sma: smaAddress,
       agent: agentAddress,
@@ -228,10 +228,10 @@ async function runOnboard(
     isConjunctive = caps.dispatchModel === "conjunctive";
     if (isConjunctive) {
       console.log(
-        "\n⚠  Conjunctive kernel detected. Every registered permission evaluates every dispatch.\n" +
-          "   The shared templates (SharedBoundedSwapPermission, SharedTransferTargetPermission)\n" +
+        "\n⚠  This kernel evaluates every registered permission on every dispatch.\n" +
+          "   The shared permission contracts (SharedBoundedSwapPermission, SharedTransferTargetPermission)\n" +
           "   are NOT pass-through — they will block any dispatch they do not recognise.\n" +
-          "   Use pass-through clone templates (sailor mandate templates) for conjunctive kernels.\n",
+          "   Use pass-through permission contracts for this kernel.\n",
       );
     }
   } catch {
@@ -263,10 +263,10 @@ async function runOnboard(
     const hasTransferRestriction = existing.some((p) => TRANSFER_RESTRICTION_KINDS.has(p));
     if (!hasTransferRestriction) {
       console.log(
-        "\n⚠  SECURITY: You are attaching a LiFi permission without a transfer-restriction companion.\n" +
+        "\n⚠  SECURITY: You are registering a LiFi permission without a transfer-restriction companion.\n" +
           "   LiFi clone permissions pass through all calls whose target is not the LiFi Diamond.\n" +
-          "   This means the manager key can call ERC-20 transfer() to any address from the Safe.\n" +
-          "   Before managing real funds, also attach SharedTransferTargetPermission to restrict\n" +
+          "   This means the agent wallet can call ERC-20 transfer() to any address from the SMA.\n" +
+          "   Before managing real funds, also register SharedTransferTargetPermission to restrict\n" +
           "   token transfers to approved recipients only.\n",
       );
     }
@@ -313,11 +313,11 @@ async function resolveSmaChoice(options: OnboardOptions, json: boolean): Promise
   }
 
   const choice = await prompt(
-    "Create a new Safe? (y = new, or paste an existing Safe address)",
+    "Create a new SMA? (y = new, or paste an existing SMA address)",
     "y",
   );
   if (choice.toLowerCase() === "y" || choice.toLowerCase() === "yes") return { kind: "new" };
-  if (!isAddress(choice, { strict: false })) throw new Error(`Invalid Safe address: ${choice}`);
+  if (!isAddress(choice, { strict: false })) throw new Error(`Invalid SMA address: ${choice}`);
   return { kind: "address", address: choice as Address };
 }
 
@@ -353,14 +353,14 @@ async function resolveTemplate(
 
   if (json) return null;
   if (templates.length === 0) {
-    console.log("\nNo known templates for this chain. Skipping the mandate step.");
+    console.log("\nNo known permission contracts for this chain. Skipping the permission step.");
     console.log('Author and deploy your own with "sailor mandate deploy".');
     return null;
   }
 
-  console.log("\nAvailable templates:");
+  console.log("\nAvailable permission contracts:");
   templates.forEach((t, i) => console.log(`  ${i + 1}. ${t.label} (${t.address})`));
-  const pick = await prompt("Attach which template? (number, or blank to skip)", "");
+  const pick = await prompt("Register which permission? (number, or blank to skip)", "");
   if (!pick) return null;
   const idx = Number(pick) - 1;
   const chosen = templates[idx];
@@ -430,22 +430,22 @@ async function createSma(
   const response = await channel.requestSignature({
     type: "transaction",
     kind: "create-sma",
-    title: "Create & Register Safe",
+    title: "Create & Register SMA",
     description:
-      "Deploy a new 1-of-1 Safe and register it with SailKernel. The agent wallet will be set as manager.",
+      "Deploy and register a new 1-of-1 SMA with SailKernel. The agent wallet will be authorized to dispatch.",
     chainId: project.chainId,
     to: project.contracts.kernel,
     data: createAccountData,
     details: [
       { label: "Owner (you)", value: ownerAddress },
-      { label: "Agent (manager)", value: agentAddress },
+      { label: "Agent wallet", value: agentAddress },
       { label: "Fee policy", value: project.contracts.standardFeePolicy },
       { label: "Safe factory", value: SAFE_V141.proxyFactory },
     ],
   });
 
   if (response.status === "rejected") {
-    throw new Error(`User rejected Safe creation: ${response.reason ?? "no reason given"}`);
+    throw new Error(`User rejected SMA creation: ${response.reason ?? "no reason given"}`);
   }
   if (response.status !== "signed") {
     throw new Error("Unexpected response from signing UI");
@@ -464,7 +464,7 @@ async function createSma(
   }
 
   const safeAddress = registered.args.account;
-  say(() => console.log("✓", `Safe created at ${safeAddress}`));
+  say(() => console.log("✓", `SMA created at ${safeAddress}`));
   appendActivity({
     ts: nowIso(),
     actor: "owner",
@@ -515,18 +515,18 @@ export async function attachMandate(
     nonce,
   });
 
-  say(() => console.log(`\nPushing signing request for "${template.label}" mandate…`));
+  say(() => console.log(`\nPushing signing request for "${template.label}" permission…`));
   const response = await channel.requestSignature({
     type: "typed-data",
     kind: "register-permission",
     title: `Authorize "${template.label}"`,
-    description: `Sign to authorize the ${template.label} mandate on your Safe. The agent will submit the registration transaction.`,
+    description: `Sign to authorize the ${template.label} permission on your SMA. The agent will submit the registration transaction.`,
     chainId: project.chainId,
     details: [
-      { label: "Safe", value: smaAddress },
-      { label: "Template", value: templateAddress },
-      { label: "Mandate", value: template.label },
-      { label: "Signer", value: permissionSigner },
+      { label: "SMA", value: smaAddress },
+      { label: "Permission contract", value: templateAddress },
+      { label: "Permission", value: template.label },
+      { label: "Mandate signer", value: permissionSigner },
     ],
     typedData,
   });
@@ -573,7 +573,7 @@ export async function attachMandate(
     throw new Error(`registerPermission reverted (tx ${txHash})`);
   }
 
-  say(() => console.log("✓", `Mandate "${template.label}" registered`));
+  say(() => console.log("✓", `Permission "${template.label}" registered`));
   // The agent (manager) submits and pays for this on-chain registration; the
   // owner's off-chain authorization signature was logged separately by the
   // signing server (register-permission → owner_signed).
@@ -624,13 +624,13 @@ async function persistAccount(
 function printSummary(smaAddress: Address, agentAddress: Address, permissions: Address[]): void {
   console.log(`\n${"─".repeat(56)}`);
   console.log("✓ Setup complete!");
-  console.log(`  Safe:       ${smaAddress}`);
-  console.log(`  Agent:      ${agentAddress}`);
+  console.log(`  SMA:         ${smaAddress}`);
+  console.log(`  Agent:       ${agentAddress}`);
   if (permissions.length > 0) {
-    console.log(`  Mandates:   ${permissions.length}`);
+    console.log(`  Permissions: ${permissions.length}`);
     for (const p of permissions) console.log("    -", p);
   } else {
-    console.log("  Mandates:   none — attach one later with sailor mandate attach");
+    console.log("  Permissions: none — register one later with sailor mandate attach");
   }
   console.log("─".repeat(56));
 }

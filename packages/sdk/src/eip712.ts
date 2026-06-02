@@ -11,12 +11,13 @@ export function sailKernelDomain(args: { chainId: number; kernel: Address }): Ty
   };
 }
 
-/** EIP-712 type definition for a single-permission registration. */
+/** EIP-712 type definition for a single-permission registration (selective kernel, withDeadline). */
 export const REGISTER_PERMISSION_TYPES = {
   RegisterPermission: [
     { name: "account", type: "address" },
     { name: "permission", type: "address" },
     { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
   ],
 } as const;
 
@@ -31,7 +32,10 @@ export function buildRegisterPermissionTypedData(args: {
   account: Address;
   permission: Address;
   nonce: bigint;
+  /** Signature deadline (unix seconds). Defaults to 5 minutes from now. */
+  deadline?: bigint;
 }): SerializedTypedData {
+  const deadline = args.deadline ?? BigInt(Math.floor(Date.now() / 1000) + 300);
   return {
     domain: {
       name: "SailKernel",
@@ -45,6 +49,7 @@ export function buildRegisterPermissionTypedData(args: {
       account: args.account,
       permission: args.permission,
       nonce: args.nonce.toString(),
+      deadline: deadline.toString(),
     },
   };
 }
@@ -61,7 +66,10 @@ export async function signRegisterPermission(args: {
   account: Address;
   permission: Address;
   nonce: bigint;
+  /** Signature deadline (unix seconds). Defaults to 5 minutes from now. */
+  deadline?: bigint;
 }): Promise<Hex> {
+  const deadline = args.deadline ?? BigInt(Math.floor(Date.now() / 1000) + 300);
   return args.walletClient.signTypedData({
     domain: sailKernelDomain({ chainId: args.chainId, kernel: args.kernel }),
     types: REGISTER_PERMISSION_TYPES,
@@ -70,6 +78,7 @@ export async function signRegisterPermission(args: {
       account: args.account,
       permission: args.permission,
       nonce: args.nonce,
+      deadline,
     },
   });
 }

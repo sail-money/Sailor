@@ -35,7 +35,7 @@ function resolveChain(chainId: number): ChainConfig {
 export async function accountCreate(): Promise<void> {
   if (!keyExists("manager")) {
     throw new Error(
-      'No manager key found.\nRun "sailor keys generate" and choose "manager" first.',
+      'No agent wallet found.\nRun "sailor keys generate" and choose "agent wallet" first.',
     );
   }
 
@@ -66,16 +66,16 @@ export async function accountCreate(): Promise<void> {
   const safeFactory = await promptAddress("Safe factory address");
   const safeSingleton = await promptAddress("Safe singleton address");
   const owner = await promptAddress("Owner (EOA) address", managerAddr);
-  const permissionSigner = await promptAddress("Permission signer address", managerAddr);
+  const permissionSigner = await promptAddress("Mandate signer address", managerAddr);
   const feePolicy = await prompt("Fee policy", "none");
 
   console.log("\nCreating SMA with:");
-  console.log(`  Owner:             ${owner}`);
-  console.log(`  Manager:           ${managerAddr}`);
-  console.log(`  Permission signer: ${permissionSigner}`);
-  console.log(`  Safe factory:      ${safeFactory}`);
-  console.log(`  Safe singleton:    ${safeSingleton}`);
-  console.log(`  Fee policy:        ${feePolicy}`);
+  console.log(`  Owner:           ${owner}`);
+  console.log(`  Agent wallet:    ${managerAddr}`);
+  console.log(`  Mandate signer:  ${permissionSigner}`);
+  console.log(`  Safe factory:    ${safeFactory}`);
+  console.log(`  Safe singleton:  ${safeSingleton}`);
+  console.log(`  Fee policy:      ${feePolicy}`);
 
   const client = makeClient(chainId);
   try {
@@ -95,7 +95,7 @@ export async function accountCreate(): Promise<void> {
     };
     upsertAccountInList(stored);
     writeJsonFile(sailPath("account.json"), stored);
-    console.log(`\nSMA created. Safe address: ${stored.safe}`);
+    console.log(`\nSMA created. Address: ${stored.safe}`);
     console.log("Saved to .sail/account.json");
   } catch (err) {
     if ((err as Error).message === "not implemented") {

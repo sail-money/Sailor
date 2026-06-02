@@ -4,14 +4,21 @@
  * AUTO-GENERATED from the OpenAPI spec at build time.
  * Do not edit manually — run `pnpm build` to regenerate.
  *
- * Spec version : 1.0.0
- * Generated at : 2026-06-02T10:45:46.699Z
+ * Spec version : 1.2.0
+ * Generated at : 2026-06-02T22:47:51.041Z
  */
 
 export const SAIL_INTELLIGENCE_BASE_URL = "https://api.sail.money";
 export const SAIL_INTELLIGENCE_DOCS_URL = "https://api.sail.money/docs";
 
 // ── Types (generated from spec schemas) ───────────────────────────────────────
+
+export interface ActionDetail {
+  action_type: string;
+  protocol: string;
+  amount: string;
+  underlying_amount?: string | null;
+}
 
 export interface AffectedPosition {
   vault_address: string;
@@ -81,6 +88,15 @@ export interface BenchmarkResponse {
   checked_at: string;
 }
 
+export interface CalldataInfo {
+  contract_address: string;
+  function_name: string;
+  parameters: string[];
+  value: string;
+  protocol: string;
+  description: string;
+}
+
 export interface CollateralTree {
   /** Vault deposit token used as the root of the collateral dependency tree. */
   deposit_token: string;
@@ -131,6 +147,28 @@ export interface CompareResponse {
   checked_at: string;
 }
 
+export interface Constraint {
+  kind: string;
+  params?: Record<string, unknown>;
+}
+
+export interface CostBreakdown {
+  /** Cumulative gas costs across all rebalancing events. */
+  gas_total_usd: number;
+  /** Estimated slippage on cross-token swaps. */
+  slippage_total_usd: number;
+  /** Bridge protocol fees for cross-chain moves. */
+  bridge_fees_total_usd: number;
+  /** Sum of all cost components. */
+  total_cost_usd: number;
+  /** Total number of periods the engine ran (checked and potentially rebalanced). */
+  rebalance_events: number;
+  /** Actual position changes executed (subset of rebalance_events that passed the profitability gate). */
+  trades_executed: number;
+  /** Average cost per executed trade. */
+  avg_cost_per_trade_usd: number;
+}
+
 export interface DepeggedTokens {
   /** Total number of currently flagged depegged tokens. */
   count: number;
@@ -163,6 +201,25 @@ export interface DisabledVaults {
   addresses: string[];
   /** Disabled vault addresses grouped by Sonar source. */
   by_source: Record<string, string[]>;
+}
+
+export interface ExecuteRequest {
+  chain_id: number;
+  total_capital: string;
+  token_address: string;
+  current_allocations?: Record<string, string>;
+  protocols?: string[];
+  constraints?: Constraint[];
+  receiver?: string | null;
+  include_forecast?: boolean;
+}
+
+export interface ExecuteResponse {
+  optimization_result: OptimizationResult;
+  action_plan: ActionDetail[];
+  calldata: CalldataInfo[];
+  swap_required?: SwapRequired[];
+  forecast_unavailable?: boolean | null;
 }
 
 export interface ExplainRequest {
@@ -239,6 +296,31 @@ export interface OpportunitiesResponse {
   checked_at: string;
 }
 
+export interface OptimizationResult {
+  allocations: ProtocolAllocation[];
+  total_costs: number;
+  weighted_apr_initial: number;
+  weighted_apr_final: number;
+  apr_improvement: number;
+  unallocated_amount?: string;
+}
+
+export interface PeriodSnapshot {
+  period_index: number;
+  date_offset_days: number;
+  p10_value_usd: number;
+  p50_value_usd: number;
+  p90_value_usd: number;
+  /** Weighted average APY applied in this period. */
+  avg_apy_applied: number;
+  /** Costs deducted during this rebalancing event (P50 path). */
+  costs_incurred_usd: number;
+  /** Number of position changes executed in this period. */
+  trades_executed?: number;
+  /** Vault addresses active in this period. */
+  active_vaults: string[];
+}
+
 export interface PortfolioCheckResponse {
   summary: PortfolioSummary;
   safe: string[];
@@ -246,10 +328,30 @@ export interface PortfolioCheckResponse {
   checked_at: string;
 }
 
+export interface PortfolioPosition {
+  /** Chain name (e.g. 'base', 'arbitrum', 'ethereum'). */
+  chain: string;
+  /** Token symbol (e.g. 'usdc', 'usdt', 'eurc'). */
+  token: string;
+  /** USD value allocated to this chain/token. */
+  amount_usd: number;
+}
+
 export interface PortfolioSummary {
   total: number;
   safe: number;
   affected: number;
+}
+
+export interface PortfolioValueCurve {
+  /** 10th-percentile portfolio value at each period. */
+  p10: number[];
+  /** Median (50th-percentile) portfolio value. */
+  p50: number[];
+  /** 90th-percentile portfolio value at each period. */
+  p90: number[];
+  /** Day offsets from simulation start (period boundaries). */
+  dates_days_offset: number[];
 }
 
 export interface PositionIssue {
@@ -265,6 +367,15 @@ export interface PositionIssue {
   disabled_at: string;
   /** Optional additional context for the issue. */
   detail?: string | null;
+}
+
+export interface ProtocolAllocation {
+  protocol: string;
+  allocation: string;
+  apr: number;
+  risk_score?: number | null;
+  forecast_apr?: number[] | null;
+  forecast_apr_sigma?: number[] | null;
 }
 
 /** CompareResponse without risk-delta fields — used by Engine Raw tier. */
@@ -408,6 +519,86 @@ export interface ScreenSummary {
   clear: number;
 }
 
+export interface SimulationCreateResponse {
+  job_id: string;
+  status: string;
+  message: string;
+  poll_url: string;
+}
+
+export interface SimulationPollResponse {
+  job_id: string;
+  status: string;
+  result?: SimulationResult | null;
+  error?: string | null;
+  checked_at: string;
+}
+
+export interface SimulationRequest {
+  /** Total initial portfolio size in USD. Use this for a simple single-amount simulation. Mutually exclusive with `portfolio`. */
+  initial_amount?: number | null;
+  /** Per-chain/token allocation. E.g. [{chain:'base',token:'usdc',amount_usd:50000}, {chain:'arbitrum',token:'usdc',amount_usd:30000}]. Overrides `initial_amount` and `chains`/`tokens` filters — the simulation starts from these exact positions. */
+  portfolio?: PortfolioPosition[] | null;
+  /** Forecast horizon in months. */
+  horizon_months: number;
+  /** conservative → low-risk tier (no bridges, ≤2 positions); balanced → mid tier (swaps + bridges, ≤4 positions); aggressive → max tier (full features, ≤5 positions). */
+  strategy?: string;
+  /** Token list to include (e.g. ['usdc', 'usdt']). */
+  tokens?: string[];
+  /** Chain filter (e.g. ['base', 'arbitrum']). Null = all chains. */
+  chains?: string[] | null;
+  /** Allow cross-token swaps during rebalancing. */
+  allow_swaps?: boolean;
+  /** Allow cross-chain bridges during rebalancing. */
+  allow_bridges?: boolean;
+  /** How often the simulator rebalances the portfolio. */
+  rebalance_frequency?: string;
+  /** Restrict simulation to a specific vault allowlist (by vault address). */
+  custom_vaults?: string[] | null;
+  /** Return P10/P90 uncertainty bands alongside the P50 median curve. */
+  confidence_intervals?: boolean;
+  /** Number of Monte Carlo scenarios to run. */
+  monte_carlo_scenarios?: number;
+  /** Override the maximum number of concurrent vault positions. Defaults to the strategy tier value (conservative=2, balanced=4, aggressive=5). Higher values increase diversification but may dilute yield per position. */
+  max_positions?: number | null;
+  /** Override the minimum profit margin required before executing a rebalance move. 0.0 = move whenever there's any gain; 0.2 = require 20%% cost buffer. Defaults to strategy tier value (conservative=0, balanced=0.2, aggressive=0.1). */
+  min_profit_margin?: number | null;
+}
+
+export interface SimulationResult {
+  job_id: string;
+  status: string;
+  initial_amount: number;
+  horizon_months: number;
+  strategy: string;
+  final_p10_usd: number;
+  final_p50_usd: number;
+  final_p90_usd: number;
+  portfolio_value_curve: PortfolioValueCurve;
+  cost_breakdown: CostBreakdown;
+  /** Annualized return on the P50 path (e.g. 0.087 = 8.7%). */
+  annualized_return_p50: number;
+  scenarios_run: number;
+  created_at: string;
+  completed_at: string;
+  /** Per-period snapshots (P10/P50/P90, APY, costs, active vaults). Included in poll responses. */
+  periods?: PeriodSnapshot[] | null;
+}
+
+export interface SimulationTimelineResponse {
+  job_id: string;
+  periods: PeriodSnapshot[];
+  checked_at: string;
+}
+
+export interface SwapRequired {
+  from_chain: number;
+  from_token: string;
+  to_chain: number;
+  to_token: string;
+  amount: string;
+}
+
 export interface ValidateRequest {
   vault_address: string;
   /** Chain name (e.g. 'base'). */
@@ -549,6 +740,15 @@ export interface YieldSourcesResponse {
   sources: YieldSourceItem[];
   /** UTC timestamp when the response was generated. */
   checked_at: string;
+}
+
+export interface _NonceReq {
+  address: string;
+}
+
+export interface _VerifyReq {
+  message: string;
+  signature: string;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
@@ -715,6 +915,22 @@ export class SailIntelligence {
   }
 
   /**
+   * Allocation with execution-ready calldata
+   * Runs the institutional optimisation **and** returns the on-chain transaction batch (withdraws → approvals → deposits) needed to reach the target portfolio. Calldata is rendered from the live vault catalog — no per-protocol code paths. Designed for partners running automated DeFi treasury workflows (Ampli, etc.).
+   */
+  engineExecute(body: ExecuteRequest): Promise<ExecuteResponse> {
+    return this._post(`/v1/engine/execute`, body);
+  }
+
+  /**
+   * Live protocol catalog (APY + TVL) for a chain × token
+   * Returns every active vault we monitor for this chain + token with its current APY, TVL, and (when available) numeric risk score. Shaped to match the discovery feed in Ampli §5.3 — partners can consume it directly without an adapter.
+   */
+  engineProtocols(chainId: string, tokenAddress: string): Promise<unknown> {
+    return this._get(`/v1/engine/protocols/${chainId}/${tokenAddress}`);
+  }
+
+  /**
    * Yield opportunities (custom risk)
    * All available institutional yield sources for a given market sorted by APY. No Sonar risk filtering is applied, so all vaults are included regardless of risk status. Sonar signals are not exposed; clients apply their own risk logic.
    */
@@ -782,5 +998,165 @@ export class SailIntelligence {
    */
   sonarValidate(body: ValidateRequest): Promise<ValidateResponse> {
     return this._post(`/v1/sonar/validate`, body);
+  }
+
+  /**
+   * TCN model info
+   * Returns metadata about the currently loaded APY predictor: whether it is a trained neural model or the heuristic fallback, training timestamp, vault count, and validation loss.
+   */
+  simulationModelInfo(): Promise<unknown> {
+    return this._get(`/v1/simulation/model/info`);
+  }
+
+  /**
+   * Available chain/token combinations
+   * Returns live chain→token mapping derived from vault data in apy_data.
+   */
+  simulationChains(): Promise<unknown> {
+    return this._get(`/v1/simulation/chains`);
+  }
+
+  /**
+   * Create portfolio simulation
+   * Queues a simulation of portfolio performance over the specified horizon. Uses TCN-predicted APY distributions and models gas, slippage, and bridge costs at every rebalancing event. Poll the returned `poll_url` for results.
+   */
+  simulation(body: SimulationRequest): Promise<unknown> {
+    return this._post(`/v1/simulation`, body);
+  }
+
+  /**
+   * List simulations
+   * Returns recent simulation jobs for the authenticated client, newest first.
+   */
+  simulations(query?: { limit?: string }): Promise<[]> {
+    const _p: Record<string, string> = {};
+    if (query)
+      Object.entries(query).forEach(([k, v]) => {
+        if (v != null) _p[k] = v;
+      });
+    return this._get(`/v1/simulations`, _p);
+  }
+
+  /**
+   * Poll simulation result
+   * Returns the current status of a simulation job. When `status` is `complete`, the `result` field contains the full P10/P50/P90 portfolio value curves and cost breakdown. Typical completion time: 5–15 seconds.
+   */
+  getSimulation(jobId: string): Promise<SimulationPollResponse> {
+    return this._get(`/v1/simulation/${jobId}`);
+  }
+
+  /**
+   * Delete simulation
+   * Permanently deletes a simulation job and its results.
+   */
+  deleteSimulation(jobId: string): Promise<unknown> {
+    return this._post(`/v1/simulation/${jobId}`, {});
+  }
+
+  /**
+   * Period-by-period simulation breakdown
+   * Returns a snapshot for every rebalancing period: P10/P50/P90 values, APY applied, costs incurred, and active vaults.
+   */
+  simulationTimeline(jobId: string): Promise<SimulationTimelineResponse> {
+    return this._get(`/v1/simulation/${jobId}/timeline`);
+  }
+
+  /**
+   * Get Pricing
+   * Public pricing manifest — backs `/pricing` UI + `/docs` price badges.
+   */
+  pricing(): Promise<unknown> {
+    return this._get(`/v1/pricing`);
+  }
+
+  /**
+   * Get Pricing Quote
+   * Pre-flight price + accepts entries — lets clients dry-run x402 flows.
+   */
+  pricingQuote(query?: {
+    route?: string;
+    horizon_months?: string;
+    positions?: string;
+    addresses?: string;
+  }): Promise<unknown> {
+    const _p: Record<string, string> = {};
+    if (query)
+      Object.entries(query).forEach(([k, v]) => {
+        if (v != null) _p[k] = v;
+      });
+    return this._get(`/v1/pricing/quote`, _p);
+  }
+
+  /**
+   * Siwe Nonce
+   */
+  billingSiweNonce(body: _NonceReq): Promise<unknown> {
+    return this._post(`/v1/billing/siwe/nonce`, body);
+  }
+
+  /**
+   * Siwe Verify
+   */
+  billingSiweVerify(body: _VerifyReq): Promise<unknown> {
+    return this._post(`/v1/billing/siwe/verify`, body);
+  }
+
+  /**
+   * Logout
+   */
+  billingLogout(): Promise<unknown> {
+    return this._post(`/v1/billing/logout`, {});
+  }
+
+  /**
+   * Billing Me
+   */
+  billingMe(): Promise<unknown> {
+    return this._get(`/v1/billing/me`);
+  }
+
+  /**
+   * Billing Keys
+   */
+  billingKeys(): Promise<unknown> {
+    return this._get(`/v1/billing/keys`);
+  }
+
+  /**
+   * Billing Payments
+   */
+  billingPayments(query?: {
+    from?: string;
+    to?: string;
+    limit?: string;
+    offset?: string;
+  }): Promise<unknown> {
+    const _p: Record<string, string> = {};
+    if (query)
+      Object.entries(query).forEach(([k, v]) => {
+        if (v != null) _p[k] = v;
+      });
+    return this._get(`/v1/billing/payments`, _p);
+  }
+
+  /**
+   * Facilitator Verify
+   */
+  facilitatorVerify(): Promise<unknown> {
+    return this._post(`/v1/facilitator/verify`, {});
+  }
+
+  /**
+   * Facilitator Settle
+   */
+  facilitatorSettle(): Promise<unknown> {
+    return this._post(`/v1/facilitator/settle`, {});
+  }
+
+  /**
+   * Facilitator Supported
+   */
+  facilitatorSupported(): Promise<unknown> {
+    return this._get(`/v1/facilitator/supported`);
   }
 }

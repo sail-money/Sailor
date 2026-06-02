@@ -4,14 +4,32 @@ import { fileExists, promptHidden, readJsonFile, sailPath } from "./io.js";
 export const ROLES = ["manager", "permissionSigner"] as const;
 export type Role = (typeof ROLES)[number];
 
-/** Maps loose user input ("signer", "permission-signer", "MGR") to a canonical role. */
+/**
+ * Maps loose user input to a canonical role. Accepts both the user-facing names
+ * ("agent wallet", "mandate signer") and the legacy/internal tokens ("manager",
+ * "permissionSigner") so scripts and prompts keep working.
+ */
 export function normalizeRole(input: string): Role | null {
   const n = input.trim().toLowerCase().replace(/[-_\s]/g, "");
-  if (n === "manager" || n === "mgr" || n === "m") return "manager";
-  if (n === "permissionsigner" || n === "signer" || n === "ps" || n === "permission") {
+  if (n === "manager" || n === "mgr" || n === "m" || n === "agent" || n === "agentwallet") {
+    return "manager";
+  }
+  if (
+    n === "permissionsigner" ||
+    n === "signer" ||
+    n === "ps" ||
+    n === "permission" ||
+    n === "mandatesigner" ||
+    n === "mandate"
+  ) {
     return "permissionSigner";
   }
   return null;
+}
+
+/** User-facing label for a role. Internal key files stay <role>.json. */
+export function roleLabel(role: Role): string {
+  return role === "manager" ? "agent wallet" : "mandate signer";
 }
 
 export function keyPath(role: Role, safe?: string): string {
@@ -52,10 +70,10 @@ export async function loadKeyring(role: Role, safe?: string): Promise<LocalKeyri
   const keystore = readJsonFile<EncryptedKeystore>(resolveKeyPath(role, safe));
   if (!keystore) {
     throw new Error(
-      `No ${role} key found.\nRun "sailor keys generate" and choose "${role}" first.`,
+      `No ${roleLabel(role)} found.\nRun "sailor keys generate" and choose "${roleLabel(role)}" first.`,
     );
   }
-  const password = await promptHidden(`Password for ${role} key`);
+  const password = await promptHidden(`Password for ${roleLabel(role)} key`);
   try {
     return await LocalKeyring.fromKeystore(keystore, password);
   } catch {
@@ -74,7 +92,9 @@ export async function loadManagerSigner(safe?: string): Promise<LocalKeyring> {
   if (passphrase) {
     const keystore = readJsonFile<EncryptedKeystore>(resolveKeyPath("manager", safe));
     if (!keystore) {
-      throw new Error('No manager key found.\nRun "sailor keys generate" and choose "manager".');
+      throw new Error(
+        'No agent wallet found.\nRun "sailor keys generate" and choose "agent wallet".',
+      );
     }
     return LocalKeyring.fromKeystore(keystore, passphrase);
   }

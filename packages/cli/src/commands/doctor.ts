@@ -161,7 +161,7 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
   console.log(`\nRegistered permissions (${permissions.length}):`);
   if (caps.dispatchModel === "selective") {
     permissions.forEach((p, i) => console.log(`  ${i + 1}. ${p}`));
-    console.log("\nSelective kernel — each dispatch names one permission, so pass-through is not required.");
+    console.log("\nEach dispatch names one permission, so pass-through is not required.");
     return;
   }
 
@@ -174,7 +174,7 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
 
   if (bricking.length > 0) {
     console.log(
-      `\n✗ ${bricking.length} permission(s) return false for unrelated calls. On this conjunctive ` +
+      `\n✗ ${bricking.length} permission(s) return false for unrelated calls. On this ` +
         "kernel EVERY registered permission must approve EVERY call, so these BRICK all dispatches " +
         "(they surface as PermissionDenied). Revoke or replace them with pass-through versions:",
     );

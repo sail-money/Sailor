@@ -6,11 +6,11 @@ Open this folder in **Claude Code**, **Cursor**, or **Codex** (or any LLM-powere
 
 > start
 
-The setup guide in `sail/WIZARD.md` will guide you through every step — from RPC setup to first
-on-chain tick. No manual config needed; just follow the prompts.
+Your AI coding assistant will walk you through every step — from network and wallet setup to your
+first on-chain tick. See `AGENTS.md` for the details; no manual config needed.
 
 ## Project layout
 
 - `.sail/config.json` is the local project manifest.
-- `.sail/keys/` stores encrypted manager and permission-signer keys when local signing is used.
+- `.sail/keys/` stores the encrypted agent wallet and mandate signer keys when local signing is used.
 - `.sail/state/` is for persistent agent state, audit logs, and tx history.

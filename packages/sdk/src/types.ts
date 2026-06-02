@@ -472,4 +472,5 @@ export type ChainConfig = {
   mandateFactory: Address;
   governance: Address;
   protocols: Record<string, Address>;
+  dispatchModel?: "conjunctive" | "selective";
 };
