@@ -3,7 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import cors from 'cors'
 import express from 'express'
-import WebSocket from 'ws'
+import { WebSocket, WebSocketServer } from 'ws'
 import { LocalKeyring, SailKernelAbi, getSailDeployment } from '@sail/sdk'
 import { createPublicClient, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
@@ -856,7 +856,6 @@ export function startServer(sailDir) {
   // socket through this server: it discovers the daemon, holds the secret
   // server-side, and pipes frames both ways. The browser only ever talks to its
   // own same-origin endpoint.
-  const WebSocketServer = WebSocket.Server
   const wss = new WebSocketServer({ noServer: true })
 
   httpServer.on('upgrade', (req, socket, head) => {
