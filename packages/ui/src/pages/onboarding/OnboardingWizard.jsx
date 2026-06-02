@@ -67,12 +67,15 @@ export default function OnboardingWizard({ onboardState, onComplete }) {
   const [managerAddress, setManagerAddress] = useState(onboardState?.managerAddress ?? null)
   const [safeAddress, setSafeAddress] = useState(null)
 
-  // Resume from the right step when the page refreshes with wallet still connected.
+  // Resume mid-wizard on page refresh: only skip steps if the user already
+  // passed the welcome screen (i.e. step !== 'welcome'). Never auto-advance
+  // from welcome — the wallet may stay connected across sessions, but the
+  // user should always see the overview and click "Start setup" deliberately.
   useEffect(() => {
-    if (!isConnected) return
+    if (!isConnected || step === 'welcome' || step === 'network') return
     if (onboardState?.hasManagerKey) setStep('create-sma')
     else setStep('keygen')
-  }, [isConnected, onboardState?.hasManagerKey])
+  }, [isConnected, step, onboardState?.hasManagerKey])
 
   const progressIndex = PROGRESS_STEPS.indexOf(step)
 
