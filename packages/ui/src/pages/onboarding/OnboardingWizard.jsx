@@ -70,12 +70,6 @@ export default function OnboardingWizard({ onboardState, onComplete }) {
   // Fixed salt so the same Safe address is produced on every chain via CREATE2
   const [saltNonce] = useState(() => String(Date.now()))
 
-  // Resume mid-wizard on page refresh only after the user passed welcome.
-  useEffect(() => {
-    if (!isConnected || step === 'welcome' || step === 'network') return
-    if (onboardState?.hasManagerKey) setStep('create-sma')
-    else setStep('keygen')
-  }, [isConnected, step, onboardState?.hasManagerKey])
 
   function toggleChain(chainId) {
     setSelectedChainIds(prev =>
