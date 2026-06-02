@@ -56,20 +56,66 @@ Install or update the CLI from the SailFramework checkout:
 cd ~/SailFramework && git pull && ./install-sail
 ```
 
-## Status
+## Packages
 
-Implemented as a pnpm monorepo:
+- `packages/sdk` (`@sail/sdk`) — `SailorClient` (account/mandate/dispatch/session/fees/principal), `LocalKeyring`, kernel + governance ABIs, permission templates, and the onboarding primitives: signing-handoff types, the bundled deployment registry (`getSailDeployment` for Base / Base Sepolia / Arbitrum / Unichain), Safe setup initializer, `RegisterPermission` EIP-712 builder, and `estimatePermissionFee`.
+- `packages/cli` (`sailor`) — commands: `init [dir] [--template]`, `keys`, `account`, `mandate (prepare|sign|deploy|attach|templates|list)`, `onboard`, `station (start|status|stop)`, `owner (connect|show)`, `scan`, `run`, `session`, `status`, `ui (start|stop|status)`. The `signing/` module is a local HTTP + WebSocket daemon bridging the agent and the browser wallet.
+- `packages/ui` (`sailor-ui`) — React dashboard + browser-driven onboarding wizard + the signing station at `#/station`.
+- `packages/chains` (`@sail/chains`) — per-chain registry.
 
-- `packages/sdk` (`@sail/sdk`) — `SailorClient` (account/mandate/dispatch/session/fees/principal), `LocalKeyring`, kernel + governance ABIs, permission templates, and the onboarding primitives: signing-handoff types, the bundled deployment registry (`getSailDeployment` for Base / Base Sepolia / Arbitrum), Safe setup initializer, `RegisterPermission` EIP-712 builder, and `estimatePermissionFee` (legacy `baseFee + byteLength*complexityRate` model, capped, with a flat-fee fallback).
-- `packages/cli` (`sailor`) — commands: `init`, `keys`, `account`, `mandate (prepare|sign|deploy|attach|templates|list)`, `onboard`, `station (start|status|stop)`, `owner (connect|show)`, `scan`, `run`, `session`, `status`, `ui`. The `signing/` module is a local HTTP + WebSocket daemon bridging the agent and the browser wallet.
-- `packages/ui` (`sailor-ui`) — React dashboard + the signing station at `#/station` (auto-shown when served by the daemon on ports 3141–3150).
-- `packages/chains` (`@sail/chains`) — per-chain registry, empty until mainnet launch.
+## User onboarding flow
 
-### Agent onboarding & custom mandates
+When a user installs sailor (`npm install sailor`) and opens their project, the full setup journey is **8 steps**:
+
+### Steps 1–4 — handled by the browser wizard (`sailor ui start` → `#/signing`)
+
+1. **Choose network** — Base, Arbitrum One, Ethereum, Unichain (+ their Sepolia testnets)
+2. **Connect wallet** — owner wallet via RainbowKit; this wallet owns the Safe and signs mandates
+3. **Create agent key** — generates an encrypted keystore at `.sail/keys/manager.json`; passphrase becomes `SAIL_PASSPHRASE`
+4. **Deploy Safe** — calls `SailKernel.createAccount` via wagmi; writes `.sail/account.json`
+
+The Done screen generates a copy-ready AI prompt covering steps 5–8, which the user pastes into their AI chat to continue.
+
+### Steps 5–8 — terminal, with AI help
+
+5. **Configure RPC & API keys** — add to `.sail/.env.local`:
+   ```
+   RPC_URL=https://...          # RPC endpoint for chosen chain
+   SAIL_API_KEY=...             # from api.sail.money
+   SAIL_PASSPHRASE=...          # set during step 3
+   ```
+6. **Fund agent key** — send ETH to the manager address (shown on dashboard) for gas
+7. **Set permissions (mandate)** — `sailor mandate prepare` → opens browser signing page → sign EIP-712
+8. **Start agent** — `sailor run`
+
+## UI server
+
+`sailor ui start` starts a detached Express server on port 3333. It reads project state from the `.sail/` directory and serves:
+
+- `GET /api/overview` — SMA + mandate + signer balances (on-chain read, snapshot-cached)
+- `GET /api/activity` — decision journal from `activity.jsonl`
+- `GET /api/positions` — latest vault positions from `state/positions-<chainId>.json`
+- `GET /api/agent-status` — PID check + `activity.jsonl` recency (detects remote/CI agents)
+- `GET|POST /api/onboard/state|generate-key|build-create-tx|complete|save-config` — wizard endpoints
+- `GET /api/station/pending` — proxy to signing daemon (authenticated via `x-sailor-secret`)
+- `WS /api/station/ws` — WebSocket proxy relay to daemon (holds secret server-side)
+
+The server is started with `SERVE_DIST=1` to serve the built UI at `/`. PID tracked at `.sail/runtime/ui.json`.
+
+## Testing
+
+```bash
+pnpm test          # vitest API tests (29 tests, ~1.3s, no blockchain needed)
+pnpm test:ui       # Playwright UI smoke tests (11 tests, needs pnpm build first)
+```
+
+Tests use isolated fixture directories (`packages/ui/test/fixtures/`) with pre-canned `.sail/` state. The `onboarded/` fixture includes a pre-built overview snapshot so no RPC is needed.
+
+## Agent onboarding & custom mandates
 
 The agent never holds the owner key. For owner-authorized actions it pushes a signing request to the signing station (`sailor station start`, or an ephemeral per-command server) and the owner approves it in the browser:
 
-- **create-sma / deploy-mandate** — transaction requests submitted by the owner's wallet. A `deploy-mandate` request has no `to`: it is a contract-creation tx whose `data` is the compiled mandate's creation bytecode; the deployed address comes from `receipt.contractAddress` and is tracked in `.sail/state/mandates.json`.
-- **register-permission** — a `RegisterPermission` EIP-712 message the owner signs off-chain; the agent (manager key) then submits `kernel.registerPermission(account, permission, sig)` with the exact fee from `estimatePermissionFee`.
+- **create-sma** — transaction submitted by the owner's wallet via the wizard or `sailor onboard`
+- **register-permission** — a `RegisterPermission` EIP-712 message the owner signs off-chain; the agent (manager key) then submits `kernel.registerPermission(account, permission, sig)` with the exact fee from `estimatePermissionFee`
 
-Mandates are authored as Foundry contracts under `mandates/` (scaffolded by `sailor init`) and must be fully configured by their constructor, so one deploy tx + one attach signature completes setup. Every command supports `--json`; `SAIL_PASSPHRASE` unlocks the manager key headlessly.
+Mandates are authored as Foundry contracts under `mandates/` (scaffolded by `sailor init`) and must be fully configured by their constructor. Every command supports `--json`; `SAIL_PASSPHRASE` unlocks the manager key headlessly.
