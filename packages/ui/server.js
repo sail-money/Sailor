@@ -724,7 +724,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
   // without importing the SDK. chainId in the body overrides config.json.
   app.post('/api/onboard/build-create-tx', (req, res) => {
     try {
-      const { owner, manager, chainId: reqChainId } = req.body ?? {}
+      const { owner, manager, chainId: reqChainId, saltNonce: reqSaltNonce } = req.body ?? {}
       if (!isAddress(owner) || !isAddress(manager)) {
         return res.status(400).json({ error: 'owner and manager must be valid addresses' })
       }
@@ -742,7 +742,9 @@ export function startServer(sailDir, { port = PORT } = {}) {
         kernel,
         safeModuleEnabler,
       })
-      const saltNonce = BigInt(Date.now())
+      // If a saltNonce is provided (multi-chain deployment), reuse it so all
+      // chains produce the same Safe address via CREATE2.
+      const saltNonce = reqSaltNonce != null ? BigInt(reqSaltNonce) : BigInt(Date.now())
       const data = encodeFunctionData({
         abi: SailKernelAbi,
         functionName: 'createAccount',
@@ -756,7 +758,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
           standardFeePolicy,
         ],
       })
-      res.json({ to: kernel, data, chainId })
+      res.json({ to: kernel, data, chainId, saltNonce: saltNonce.toString() })
     } catch (err) {
       res.status(500).json({ error: String(err) })
     }

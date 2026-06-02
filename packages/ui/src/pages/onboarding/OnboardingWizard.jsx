@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { getAddress } from 'viem'
-import { useAccount, useSendTransaction, useWaitForTransactionReceipt } from 'wagmi'
+import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi'
 import { FluidBackground, GlassCard, Sai, SailButton } from '../shared'
 import shared from '../shared/shared.module.css'
 import styles from './OnboardingWizard.module.css'
@@ -63,19 +63,27 @@ const PROGRESS_STEPS = ['network', 'connect', 'keygen', 'create-sma']
 export default function OnboardingWizard({ onboardState, onComplete }) {
   const { isConnected, address } = useAccount()
   const [step, setStep] = useState('welcome')
-  const [selectedChainId, setSelectedChainId] = useState(onboardState?.chainId ?? 8453)
+  // Multi-chain: user selects one or more chains; default to Base
+  const [selectedChainIds, setSelectedChainIds] = useState([onboardState?.chainId ?? 8453])
   const [managerAddress, setManagerAddress] = useState(onboardState?.managerAddress ?? null)
-  const [safeAddress, setSafeAddress] = useState(null)
+  const [deployedSafes, setDeployedSafes] = useState([]) // [{ chainId, safe }]
+  // Fixed salt so the same Safe address is produced on every chain via CREATE2
+  const [saltNonce] = useState(() => String(Date.now()))
 
-  // Resume mid-wizard on page refresh: only skip steps if the user already
-  // passed the welcome screen (i.e. step !== 'welcome'). Never auto-advance
-  // from welcome — the wallet may stay connected across sessions, but the
-  // user should always see the overview and click "Start setup" deliberately.
+  // Resume mid-wizard on page refresh only after the user passed welcome.
   useEffect(() => {
     if (!isConnected || step === 'welcome' || step === 'network') return
     if (onboardState?.hasManagerKey) setStep('create-sma')
     else setStep('keygen')
   }, [isConnected, step, onboardState?.hasManagerKey])
+
+  function toggleChain(chainId) {
+    setSelectedChainIds(prev =>
+      prev.includes(chainId)
+        ? prev.filter(id => id !== chainId)
+        : [...prev, chainId]
+    )
+  }
 
   const progressIndex = PROGRESS_STEPS.indexOf(step)
 
@@ -89,8 +97,8 @@ export default function OnboardingWizard({ onboardState, onComplete }) {
           )}
           {step === 'network' && (
             <NetworkStep
-              selected={selectedChainId}
-              onSelect={setSelectedChainId}
+              selected={selectedChainIds}
+              onToggle={toggleChain}
               onBack={() => setStep('welcome')}
               onDone={() => setStep('connect')}
               progressIndex={progressIndex}
@@ -117,14 +125,15 @@ export default function OnboardingWizard({ onboardState, onComplete }) {
             <CreateSmaStep
               owner={address}
               managerAddress={managerAddress ?? onboardState?.managerAddress}
-              chainId={selectedChainId}
-              onDone={(safe) => { setSafeAddress(safe); setStep('done') }}
+              chainIds={selectedChainIds}
+              saltNonce={saltNonce}
+              onDone={(safes) => { setDeployedSafes(safes); setStep('done') }}
               progressIndex={progressIndex}
               progressTotal={PROGRESS_STEPS.length}
             />
           )}
           {step === 'done' && (
-            <DoneStep safeAddress={safeAddress} chainId={selectedChainId} onComplete={onComplete} />
+            <DoneStep deployedSafes={deployedSafes} onComplete={onComplete} />
           )}
         </div>
       </main>
@@ -185,55 +194,62 @@ function WelcomeState({ onStart }) {
   )
 }
 
-/* ── Step 1: Network selection ── */
-function NetworkStep({ selected, onSelect, onBack, onDone, progressIndex, progressTotal }) {
+/* ── Step 1: Network selection (multi-select) ── */
+function NetworkStep({ selected, onToggle, onBack, onDone, progressIndex, progressTotal }) {
   const mainnets = SUPPORTED_NETWORKS.filter(n => n.group === 'mainnet')
   const testnets = SUPPORTED_NETWORKS.filter(n => n.group === 'testnet')
-  const selectedNet = SUPPORTED_NETWORKS.find(n => n.chainId === selected)
+  const names = selected.map(id => SUPPORTED_NETWORKS.find(n => n.chainId === id)?.name).filter(Boolean)
 
   return (
     <GlassCard className={styles.authCard}>
       <ProgressDots current={progressIndex} total={progressTotal} />
       <CardHeader
         kicker="STEP 1 OF 4"
-        title="Choose your network"
-        sub="Your agent will operate on this chain. You can add more chains later."
+        title="Choose your networks"
+        sub="Same Safe address on every chain — deployed via CREATE2 with the same salt."
         onBack={onBack}
       />
       <div className={styles.networkSection}>
         <span className={styles.networkGroupLabel}>Mainnet</span>
         <div className={styles.networkGrid}>
           {mainnets.map(net => (
-            <NetworkCard key={net.chainId} net={net} selected={selected === net.chainId} onSelect={onSelect} />
+            <NetworkCard key={net.chainId} net={net} selected={selected.includes(net.chainId)} onToggle={onToggle} />
           ))}
         </div>
         <span className={styles.networkGroupLabel}>Testnet</span>
         <div className={styles.networkGrid}>
           {testnets.map(net => (
-            <NetworkCard key={net.chainId} net={net} selected={selected === net.chainId} onSelect={onSelect} />
+            <NetworkCard key={net.chainId} net={net} selected={selected.includes(net.chainId)} onToggle={onToggle} />
           ))}
         </div>
       </div>
-      <SailButton fullWidth onClick={onDone} disabled={!selected}>
-        Continue with {selectedNet?.name ?? '…'} →
+      <SailButton fullWidth onClick={onDone} disabled={selected.length === 0}>
+        {selected.length === 0
+          ? 'Select at least one network'
+          : `Continue with ${names.join(' + ')} →`}
       </SailButton>
     </GlassCard>
   )
 }
 
-function NetworkCard({ net, selected, onSelect }) {
+function NetworkCard({ net, selected, onToggle }) {
   const live = LIVE_CHAIN_IDS.has(net.chainId)
   return (
     <button
       type="button"
       className={`${styles.networkCard} ${selected ? styles.networkCardSelected : ''} ${!live ? styles.networkCardSoon : ''}`}
-      onClick={() => live && onSelect(net.chainId)}
+      onClick={() => live && onToggle(net.chainId)}
       style={{ '--net-color': live ? net.color : 'rgba(255,255,255,0.18)' }}
       title={live ? undefined : 'Sail kernel coming soon'}
     >
       <span className={styles.networkDot} />
       <span className={styles.networkName}>{net.name}</span>
       <span className={styles.networkDesc}>{live ? net.description : 'Coming soon'}</span>
+      {live && (
+        <span className={`${styles.networkCheck} ${selected ? styles.networkCheckOn : ''}`}>
+          {selected ? '✓' : ''}
+        </span>
+      )}
     </button>
   )
 }
@@ -360,77 +376,154 @@ function KeygenStep({ existingAddress, onDone, progressIndex, progressTotal }) {
   )
 }
 
-/* ── Step 4: Create SMA on-chain ── */
-function CreateSmaStep({ owner, managerAddress, chainId, onDone, progressIndex, progressTotal }) {
-  const [phase, setPhase] = useState('idle')
-  const [error, setError] = useState('')
-  const [txHash, setTxHash] = useState(undefined)
+/* ── Step 4: Deploy Safes — one per selected chain ── */
+function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onDone, progressIndex, progressTotal }) {
   const { sendTransactionAsync } = useSendTransaction()
-  const { data: receipt } = useWaitForTransactionReceipt({ hash: txHash, confirmations: 1 })
-  const network = SUPPORTED_NETWORKS.find(n => n.chainId === chainId)
+  const { switchChainAsync } = useSwitchChain()
 
-  useEffect(() => {
-    if (!receipt) return
-    const log = receipt.logs?.find((l) => l.topics?.[0] === ACCOUNT_REGISTERED_TOPIC)
-    if (!log) { setError('AccountRegistered event not found — tx may have failed'); setPhase('error'); return }
-    const safe = getAddress(`0x${log.topics[1].slice(26)}`)
-    fetch('/api/onboard/complete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ safe, owner, manager: managerAddress, txHash: receipt.transactionHash, chainId }),
-    })
-      .then(() => onDone(safe))
-      .catch((err) => { setError(err.message); setPhase('error') })
-  }, [receipt, owner, managerAddress, chainId, onDone])
+  // Per-chain status: 'pending' | 'switching' | 'building' | 'wallet' | 'confirming' | 'done' | 'error'
+  const [statuses, setStatuses] = useState(() =>
+    Object.fromEntries(chainIds.map(id => [id, 'pending']))
+  )
+  const [errors, setErrors] = useState({})
+  const [running, setRunning] = useState(false)
+  const [deployed, setDeployed] = useState([]) // [{ chainId, safe }]
 
-  async function create() {
-    setPhase('building')
-    setError('')
-    try {
-      const buildRes = await fetch('/api/onboard/build-create-tx', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ owner, manager: managerAddress, chainId }),
-      })
-      const { to, data } = await buildRes.json()
-      if (!buildRes.ok) throw new Error(data?.error ?? 'Build failed')
-      setPhase('wallet')
-      const hash = await sendTransactionAsync({ to, data })
-      setTxHash(hash)
-      setPhase('confirming')
-    } catch (err) {
-      setError(err?.shortMessage || err?.message || 'Transaction failed')
-      setPhase('error')
-    }
+  function setStatus(chainId, status) {
+    setStatuses(prev => ({ ...prev, [chainId]: status }))
+  }
+  function setError(chainId, msg) {
+    setErrors(prev => ({ ...prev, [chainId]: msg }))
   }
 
-  const phaseLabel = {
-    idle: 'Deploy Safe', building: 'Building transaction…',
-    wallet: 'Confirm in wallet…', confirming: 'Waiting for confirmation…', error: 'Retry',
-  }[phase] ?? 'Deploy Safe'
+  async function deployChain(chainId) {
+    setStatus(chainId, 'switching')
+    try { await switchChainAsync({ chainId }) } catch { /* user may already be on this chain */ }
+
+    setStatus(chainId, 'building')
+    const buildRes = await fetch('/api/onboard/build-create-tx', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ owner, manager: managerAddress, chainId, saltNonce }),
+    })
+    const body = await buildRes.json()
+    if (!buildRes.ok) throw new Error(body?.error ?? 'Build failed')
+
+    setStatus(chainId, 'wallet')
+    const hash = await sendTransactionAsync({ to: body.to, data: body.data, chainId })
+
+    setStatus(chainId, 'confirming')
+    // Poll for receipt
+    const receipt = await waitForReceipt(hash, chainId)
+    const log = receipt?.logs?.find(l => l.topics?.[0] === ACCOUNT_REGISTERED_TOPIC)
+    if (!log) throw new Error('AccountRegistered event not found')
+    const safe = getAddress(`0x${log.topics[1].slice(26)}`)
+
+    await fetch('/api/onboard/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ safe, owner, manager: managerAddress, txHash: hash, chainId }),
+    })
+    setStatus(chainId, 'done')
+    return { chainId, safe }
+  }
+
+  async function deployAll() {
+    setRunning(true)
+    const results = []
+    for (const chainId of chainIds) {
+      if (statuses[chainId] === 'done') continue
+      try {
+        const result = await deployChain(chainId)
+        results.push(result)
+        setDeployed(prev => [...prev, result])
+      } catch (err) {
+        setError(chainId, err?.shortMessage || err?.message || 'Failed')
+        setStatus(chainId, 'error')
+        setRunning(false)
+        return // stop on first error — user retries that chain
+      }
+    }
+    setRunning(false)
+    const allDone = [...deployed, ...results]
+    if (allDone.length === chainIds.length) onDone(allDone)
+  }
+
+  const allDone = chainIds.every(id => statuses[id] === 'done')
+  const hasError = chainIds.some(id => statuses[id] === 'error')
 
   return (
     <GlassCard className={styles.authCard}>
       <ProgressDots current={progressIndex} total={progressTotal} />
       <CardHeader
         kicker="STEP 4 OF 4"
-        title="Deploy your Safe"
-        sub="A 1-of-1 Safe registered with SailKernel. Your wallet pays the deployment gas."
+        title="Deploy your Safes"
+        sub="Same Safe address on every chain. Your wallet will switch networks and sign each deployment."
       />
-      <div className={styles.smaDetails}>
-        <Detail label="Network" value={network?.name ?? `Chain ${chainId}`} mono={false} />
-        <Detail label="Owner" value={owner} />
-        <Detail label="Agent key" value={managerAddress} />
+      <div className={styles.chainDeployList}>
+        {chainIds.map(chainId => {
+          const net = SUPPORTED_NETWORKS.find(n => n.chainId === chainId)
+          const status = statuses[chainId]
+          const err = errors[chainId]
+          return (
+            <div key={chainId} className={styles.chainDeployRow}>
+              <span className={styles.chainDeployDot} style={{ '--net-color': net?.color }} />
+              <span className={styles.chainDeployName}>{net?.name ?? `Chain ${chainId}`}</span>
+              <span className={`${styles.chainDeployStatus} ${styles[`chainStatus_${status}`]}`}>
+                {status === 'pending' && '—'}
+                {status === 'switching' && 'Switching…'}
+                {status === 'building' && 'Building…'}
+                {status === 'wallet' && 'Confirm in wallet'}
+                {status === 'confirming' && 'Confirming…'}
+                {status === 'done' && '✓ Deployed'}
+                {status === 'error' && `✗ ${err ?? 'Error'}`}
+              </span>
+            </div>
+          )
+        })}
       </div>
-      {error && <p style={{ color: '#ff6b6b', fontSize: 13, margin: '8px 0' }}>{error}</p>}
-      <SailButton fullWidth onClick={create} disabled={phase !== 'idle' && phase !== 'error'}>
-        {phaseLabel}
-      </SailButton>
+      <Detail label="Owner" value={owner} />
+      <Detail label="Agent key" value={managerAddress} />
+      {!allDone && (
+        <SailButton fullWidth onClick={deployAll} disabled={running} style={{ marginTop: 14 }}>
+          {running ? 'Deploying…' : hasError ? 'Retry failed chains' : 'Deploy all Safes'}
+        </SailButton>
+      )}
+      {allDone && (
+        <SailButton fullWidth onClick={() => onDone(deployed)} style={{ marginTop: 14 }}>
+          Continue →
+        </SailButton>
+      )}
       <p className={styles.fineprint}>
-        One transaction — deploys a Safe and registers it with SailKernel.
+        Same address on all chains — deterministic CREATE2 deployment with a fixed salt.
       </p>
     </GlassCard>
   )
+}
+
+// Poll for a transaction receipt (public client not available as hook here).
+async function waitForReceipt(hash, chainId) {
+  const rpcMap = {
+    8453: 'https://mainnet.base.org',
+    84532: 'https://sepolia.base.org',
+    42161: 'https://arb1.arbitrum.io/rpc',
+    421614: 'https://sepolia-rollup.arbitrum.io/rpc',
+  }
+  const rpc = rpcMap[chainId]
+  if (!rpc) throw new Error(`No public RPC for chain ${chainId}`)
+  for (let i = 0; i < 60; i++) {
+    await new Promise(r => setTimeout(r, 2000))
+    try {
+      const res = await fetch(rpc, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getTransactionReceipt', params: [hash] }),
+      })
+      const { result } = await res.json()
+      if (result) return result
+    } catch { /* retry */ }
+  }
+  throw new Error('Receipt timeout')
 }
 
 function Detail({ label, value, mono = true }) {
@@ -446,14 +539,16 @@ function Detail({ label, value, mono = true }) {
 }
 
 /* ── Step 5: Done ── */
-function DoneStep({ safeAddress, chainId, onComplete }) {
+function DoneStep({ deployedSafes, onComplete }) {
   const [copied, setCopied] = useState(false)
-  const network = SUPPORTED_NETWORKS.find(n => n.chainId === chainId)
-  const safeShort = safeAddress ? `${safeAddress.slice(0, 10)}…${safeAddress.slice(-6)}` : null
+  const chainSummary = deployedSafes.map(({ chainId, safe }) => {
+    const net = SUPPORTED_NETWORKS.find(n => n.chainId === chainId)
+    return `${net?.name ?? `Chain ${chainId}`}: ${safe}`
+  }).join('\n')
 
   const aiPrompt = [
-    `My Sail SMA is deployed on ${network?.name ?? `chain ${chainId}`}.`,
-    safeAddress ? `Safe address: ${safeAddress}` : null,
+    `My Sail SMAs are deployed:`,
+    chainSummary,
     '',
     'Please help me finish the setup — steps 5–8 from the Sail onboarding.',
     'The Sailor UI is running at http://localhost:3333 — keep it open,',
@@ -490,10 +585,10 @@ function DoneStep({ safeAddress, chainId, onComplete }) {
       <header className={styles.cardHeader}>
         <span className={styles.kicker}>STEPS 1–4 COMPLETE</span>
         <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
-          Safe deployed.
+          {deployedSafes.length === 1 ? 'Safe deployed.' : `${deployedSafes.length} Safes deployed.`}
         </h1>
         <p className={`${shared.italicMannerism} ${styles.cardTagline}`}>
-          {safeShort && <><code style={{ fontSize: 12 }}>{safeShort}</code>{' '}on {network?.name ?? `chain ${chainId}`}. </>}
+          {deployedSafes.map(({ chainId }) => SUPPORTED_NETWORKS.find(n => n.chainId === chainId)?.name).join(' + ')}.
           Continue in your terminal with AI.
         </p>
       </header>
