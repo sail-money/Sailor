@@ -10,7 +10,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    uses: SailAgent/devops-templates/.github/workflows/publish-pnpm.yaml@SAIL-131-publishing-fw
+    uses: SailAgent/devops-templates/.github/workflows/publish-pnpm.yaml@main
     with:
       package_dir: .
       package_version: ${{ github.ref_name }}
