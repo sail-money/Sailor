@@ -478,9 +478,6 @@ function MandateSigningFlow({ draft }) {
       if (!res.ok) throw new Error(`Submit failed (${res.status})`)
 
       setPhase('done')
-      setTimeout(() => {
-        window.location.hash = '#/dashboard'
-      }, 2200)
     } catch (err) {
       setErrorMsg(err?.shortMessage || err?.message || 'Signing failed')
       setPhase('review')
@@ -495,7 +492,7 @@ function MandateSigningFlow({ draft }) {
       <main className={styles.stage}>
         <div className={styles.stageInner}>
           {phase === 'done' ? (
-            <ConfirmState progress="confirmed" />
+            <MandateSignedCard draft={draft} />
           ) : (
             <GlassCard className={styles.authCard}>
               <CardHeader
@@ -717,6 +714,51 @@ function ArrowRight() {
     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M5 12h14M13 6l6 6-6 6" />
     </svg>
+  )
+}
+
+/* ── Mandate signed: contextual done state ── */
+function MandateSignedCard({ draft }) {
+  const [copied, setCopied] = useState(false)
+  const permCount = (draft?.items ?? []).length
+  const safeShort = draft?.account ? `${draft.account.slice(0, 10)}…${draft.account.slice(-6)}` : null
+  const prompt = `My mandate is signed on Safe ${draft?.account ?? 'my Safe'}. ${permCount} permission${permCount === 1 ? '' : 's'} registered. Now deploy and start the agent — use SAIL_PASSPHRASE from my config and run sailor run.`
+
+  function copy() {
+    navigator?.clipboard?.writeText(prompt)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  return (
+    <GlassCard className={styles.welcomeCard}>
+      <div className={styles.cardSai} aria-hidden>
+        <Sai size={64} animate />
+      </div>
+      <header className={styles.cardHeader}>
+        <span className={styles.kicker}>MANDATE SIGNED</span>
+        <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
+          Permissions registered.
+        </h1>
+        <p className={`${shared.italicMannerism} ${styles.cardTagline}`}>
+          {permCount} permission{permCount === 1 ? '' : 's'} authorized
+          {safeShort ? ` on ${safeShort}` : ''}.
+          Tell your AI to start the agent.
+        </p>
+      </header>
+      <div className={styles.mandateSignedPrompt}>
+        <span className={styles.mandateSignedPromptLabel}>Copy prompt for your AI</span>
+        <p className={styles.mandateSignedPromptText}>"{prompt}"</p>
+        <button type="button" className={styles.mandateSignedCopyBtn} onClick={copy}>
+          {copied ? '✓ Copied' : 'Copy'}
+        </button>
+      </div>
+      <div className={styles.welcomeCta}>
+        <SailButton fullWidth onClick={() => { window.location.hash = '#/dashboard' }}>
+          Go to dashboard
+        </SailButton>
+      </div>
+    </GlassCard>
   )
 }
 
