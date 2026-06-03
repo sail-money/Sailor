@@ -203,16 +203,29 @@ function Orchestrator({ requests, chains, phase, setPhase, send }) {
     send({ type: 'rejected', requestId: id })
   }, [setPhase, send])
 
+  // Only one signing operation can be active at a time — if any card is
+  // submitting/done, disable the sign button on all others to prevent
+  // simultaneous wallet prompts.
+  const signingInProgress = phase.phase === 'submitting' || phase.phase === 'done'
+
   return (
     <>
       {requests.map((req) => (
-        <OperationCard key={req.id} request={req} chains={chains} phase={phase} onSign={handleSign} onReject={handleReject} />
+        <OperationCard
+          key={req.id}
+          request={req}
+          chains={chains}
+          phase={phase}
+          onSign={handleSign}
+          onReject={handleReject}
+          otherActive={signingInProgress && phase.requestId !== req.id}
+        />
       ))}
     </>
   )
 }
 
-function OperationCard({ request, chains, phase, onSign, onReject }) {
+function OperationCard({ request, chains, phase, onSign, onReject, otherActive }) {
   const { isConnected, chainId: walletChain } = useAccount()
   const { switchChain } = useSwitchChain()
 
@@ -249,12 +262,12 @@ function OperationCard({ request, chains, phase, onSign, onReject }) {
       )}
 
       <div className={styles.actions}>
-        <button type="button" className={styles.reject} disabled={submitting || done} onClick={() => onReject(request.id)}>Reject</button>
+        <button type="button" className={styles.reject} disabled={submitting || done || otherActive} onClick={() => onReject(request.id)}>Reject</button>
         {!isConnected ? (
           <span className={styles.connectHint}>Connect wallet to sign</span>
         ) : (
-          <button type="button" className={styles.primary} disabled={submitting || done || wrongChain} onClick={() => onSign(request)}>
-            {submitting ? (request.type === 'typed-data' ? 'Signing…' : 'Submitting…') : done ? 'Signed ✓' : request.type === 'typed-data' ? 'Sign Message' : 'Sign & Submit'}
+          <button type="button" className={styles.primary} disabled={submitting || done || wrongChain || otherActive} onClick={() => onSign(request)}>
+            {otherActive ? 'Waiting…' : submitting ? (request.type === 'typed-data' ? 'Signing…' : 'Submitting…') : done ? 'Signed ✓' : request.type === 'typed-data' ? 'Sign Message' : 'Sign & Submit'}
           </button>
         )}
       </div>
