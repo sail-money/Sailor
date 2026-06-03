@@ -33,7 +33,7 @@ const SETUP_STAGES = [
     items: [
       { n: 1, name: 'Choose your network',  detail: 'Base, Arbitrum, Ethereum, Unichain…' },
       { n: 2, name: 'Connect your wallet',  detail: 'Becomes the owner of your SMA' },
-      { n: 3, name: 'Create agent wallet',     detail: 'Signs transactions on your behalf' },
+      { n: 3, name: 'Create agent key',     detail: 'Signs transactions on your behalf' },
       { n: 4, name: 'Deploy your SMA',      detail: 'One-time gas payment, permanent account' },
     ],
   },
@@ -42,7 +42,7 @@ const SETUP_STAGES = [
     color: 'rgba(255,255,255,0.35)',
     items: [
       { n: 5, name: 'Configure RPC & API keys', detail: 'Add to .sail/.env.local' },
-      { n: 6, name: 'Fund agent wallet',           detail: 'Small ETH for gas' },
+      { n: 6, name: 'Fund agent key',           detail: 'Small ETH for gas' },
       { n: 7, name: 'Set permissions',           detail: 'sailor mandate prepare → sign here' },
       { n: 8, name: 'Start agent',               detail: 'sailor run' },
     ],
@@ -300,7 +300,7 @@ function ConnectStep({ onBack, onDone, progressIndex, progressTotal }) {
   )
 }
 
-/* ── Create agent wallet ── */
+/* ── Step 3: Generate delegated signer key ── */
 function KeygenStep({ existingAddress, onDone, progressIndex, progressTotal }) {
   const [passphrase, setPassphrase] = useState('')
   const [loading, setLoading] = useState(false)
@@ -338,7 +338,7 @@ function KeygenStep({ existingAddress, onDone, progressIndex, progressTotal }) {
       <ProgressDots current={progressIndex} total={progressTotal} />
       <CardHeader
         kicker="STEP 3 OF 4"
-        title="Create agent wallet"
+        title="Create agent key"
         sub="A signing key your agent uses to execute trades. It never holds custody."
       />
       {!generated ? (
@@ -377,14 +377,6 @@ function KeygenStep({ existingAddress, onDone, progressIndex, progressTotal }) {
               <code>{generated}</code>
               <span className={styles.copyHint}>{copied ? '✓' : 'copy'}</span>
             </button>
-          </div>
-          <div className={styles.gasWarning}>
-            <p className={styles.gasWarningTitle}>⚠ Fund your agent wallet before running the agent</p>
-            <p className={styles.gasWarningBody}>
-              It pays gas for permission registrations.
-              A small amount is enough — ~0.001 ETH (~$3 on Base).
-              Send it to the agent address above on the network you chose.
-            </p>
           </div>
           {passphrase && (
             <div className={styles.passphraseReminder}>
@@ -594,7 +586,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onDone, pro
         })}
       </div>
       <Detail label="Owner" value={owner} />
-      <Detail label="Agent wallet" value={managerAddress} />
+      <Detail label="Agent key" value={managerAddress} />
       {!allSettled && (
         <SailButton fullWidth onClick={deployAll} disabled={running} style={{ marginTop: 14 }}>
           {running ? 'Deploying…' : 'Deploy SMAs'}
@@ -681,7 +673,7 @@ function DoneStep({ deployedSafes, onComplete }) {
     '     RPC_URL=<your RPC endpoint for ' + (network?.name ?? 'the network') + '>',
     '     SAIL_API_KEY=<your key from api.sail.money>',
     '',
-    '6. Fund agent wallet',
+    '6. Fund agent key',
     '   - The agent address is shown on the dashboard (http://localhost:3333)',
     '   - Send a small amount of ETH to it for gas',
     '',

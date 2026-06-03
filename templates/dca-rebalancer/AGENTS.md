@@ -76,7 +76,7 @@ Instruct the user to:
 sailor ui start
 ```
 
-Then open http://localhost:3333 and:
+Then open http://localhost:<port printed by sailor ui start> and:
 1. Connect their owner wallet and choose a network
 2. Deploy their SMA — this costs gas; they must have funds on the chosen network
 3. Create their agent wallet — generated in the browser; the passphrase becomes `SAIL_PASSPHRASE`
@@ -243,7 +243,7 @@ The workflow uses these secrets to unlock the agent wallet headlessly on each sc
 
 ### Stage 7 — Monitor
 
-The dashboard at http://localhost:3333 shows live SMA state, mandate health, agent wallet balance,
+The dashboard at http://localhost:<port printed by sailor ui start> shows live SMA state, mandate health, agent wallet balance,
 and the activity log:
 
 ```bash

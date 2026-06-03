@@ -25,13 +25,24 @@ function isAlive(pid: number): boolean {
  *   packages/cli/dist/server.cjs  ← bundled UI server
  *   packages/ui/dist/             ← pre-built static UI assets
  */
+/**
+ * Derives a stable UI port for this project from its directory path.
+ * Each project gets a deterministic port in the range 3333–3999 so
+ * multiple projects can run their dashboards simultaneously without
+ * port conflicts — the port never changes for a given project path.
+ */
+function projectPort(projectRoot: string): number {
+  const hash = [...projectRoot].reduce((h, c) => (((h << 5) - h) + c.charCodeAt(0)) >>> 0, 0);
+  return 3333 + (hash % 667); // 3333–3999
+}
+
 export async function uiCommand(): Promise<void> {
   const distDir = cliDistDir();
   const uiDistDir = path.join(packageRoot(), "packages", "ui", "dist");
   const serverBundle = path.resolve(distDir, "server.cjs");
   const projectRoot = process.cwd();
   const sailDir = path.join(projectRoot, ".sail");
-  const port = 3333;
+  const port = projectPort(projectRoot);
 
   if (!fs.existsSync(serverBundle)) {
     throw new Error(`Server bundle not found at ${serverBundle}. Re-run the sailor build.`);
