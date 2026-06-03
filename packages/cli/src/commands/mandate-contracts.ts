@@ -607,7 +607,7 @@ export function mandateTemplates(options: { json?: boolean }): void {
     options.json,
     () => {
       console.log("Author your own permission contract (recommended):");
-      console.log("  1. Copy templates/custom-mandate/mandates/AllowlistTargetMandate.sol as a starting point");
+      console.log("  1. Start from BoundedCallPermission.sol in mandates/ (targets + selectors + max ETH value)");
       console.log("  2. Implement IPermission.evaluate(txData, ctx) with your policy logic");
       console.log("  3. forge build");
       console.log("  4. sailor mandate deploy --contract <Name> --attach --sma <yourSMA>");

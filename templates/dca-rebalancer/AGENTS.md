@@ -62,36 +62,77 @@ RPC_URL=https://your-rpc-endpoint
 SAIL_PASSPHRASE=<passphrase chosen in the browser>
 ```
 
-### Stage 2 — Strategy
+### Stage 2 — Understand the strategy and the protocol
 
-Accept a plain-English description of the user's strategy. The default scaffold is a DCA
-rebalancer (`src/agent.ts`). If the user wants different behavior, edit `src/agent.ts` directly.
+1. Ask what the user wants the agent to do, in plain English.
+2. Identify the target protocol(s) and the specific contract(s) and function(s) involved.
+3. Confirm which chain (Base / Arbitrum / Base Sepolia).
+4. Ask for the bounds the user wants enforced. Bounds depend on the action type:
 
-If the strategy requires on-chain policy enforcement — restricting which targets the agent calls,
-which tokens it spends, which selectors it invokes — the user needs a permission contract. Author
-it in `mandates/`, starting from `AllowlistTargetMandate.sol`:
+| Action | Bounds to establish |
+|---|---|
+| Swap | input token, output token(s), max amount per swap, max slippage |
+| Lend / borrow | asset, max borrow amount, max LTV |
+| Transfer | recipient allowlist, token, max amount |
+| LP provision | pool, max amount per side, allowed price range |
+| Perpetuals | market, max position size, max leverage, long/short |
+| Prediction market | market, max stake, allowed outcomes |
 
-- Implement `IPermission.evaluate(txData, ctx)` — return `true` to allow, `false` to block
-- Keep all policy parameters constructor-configured so each deployed instance is a complete,
-  reviewable policy before it is attached to the SMA
-- Compile with `forge build`
+These are guidance for common cases, not limits. If the user's action is not listed, ask what
+bounds make sense for it.
+
+### Stage 3 — Author the permission contract (three-tier approach)
+
+Determine which tier applies:
+
+**Tier 1** — An example exists in `examples/permissions/` for the user's exact protocol and chain.
+Adapt it with the user's parameters. Light verification required.
+
+**Tier 2** — An example exists for the same action type on a different protocol. Use it as a
+pattern, but re-derive the calldata decode for the user's actual protocol: read the protocol's ABI
+and function signature to get the correct selector and parameter layout. Full verification required.
+
+**Tier 3** — No example exists. Author a fully custom `IPermission` from the interface, starting
+from `BoundedCallPermission.sol` in `mandates/`. Full verification required; explicitly flag to
+the user that this permission is novel and should be reviewed carefully before attaching.
+
+For any tier: target/selector/value gating comes from `BoundedCallPermission.sol`. For
+calldata-parameter bounds, decode `txData` using the target protocol's ABI and add the bounds
+logic inline in `evaluate()`. All policy parameters must be constructor-configured so each deployed
+instance is a complete, reviewable policy before it is attached to the SMA.
 
 Sailor does not ship permission contracts. The user authors, reviews, and takes responsibility for
 their own.
 
-### Stage 3 — Mandate
+### Stage 4 — Mandatory verification gate + deploy
 
-Deploy and register the user's permission contract(s). Before the user signs anything, decode
-what each permission allows in plain English — tell them exactly what the agent can and cannot do
-under this mandate.
+**Before any deploy or signature**, decode a real sample call and show the user in plain English
+exactly what the permission permits and blocks. Required format:
 
-```bash
-sailor mandate deploy --contract <Name> --attach --sma <SMA-address>
+```
+Here's what this permission enforces, proven against sample calls:
+  ✓ PASSES: [decoded sample call within bounds] — because [reason]
+  ✗ REVERTS: [sample call exceeding the cap] — because [reason]
+  ✗ REVERTS: [call to a different contract] — because [reason]
+  ✗ REVERTS: [call with wrong token/recipient] — because [reason]
+Does this match what you intended? (yes/no)
 ```
 
-This opens the browser signing station. The user signs the `RegisterPermission` EIP-712 message;
-the agent wallet submits the on-chain transaction. Confirm the deployed permission address and SMA
-address are correct before the user signs.
+Only after explicit user confirmation, state the on-chain vs agent-code boundary before the user
+signs anything:
+
+> "On-chain (enforced by the kernel, cannot be bypassed): [list the on-chain bounds].
+> In agent code (not on-chain, can be changed without a new signature): cadence/frequency,
+> route selection, price quotes.
+> The on-chain bounds are permanent for this permission — changing them requires deploying a
+> new contract and re-registering."
+
+Then compile and deploy:
+
+```bash
+forge build
+sailor mandate deploy --contract <Name> --attach --sma <SMA-address>
+```
 
 **Signing role:** Registering a permission requires the OWNER to sign in the browser (this
 authorizes what the agent may do). The agent wallet never signs registrations — it only signs the
@@ -104,19 +145,22 @@ sailor mandate deploy --contract <Name>
 sailor mandate attach --address <deployed-address> --sma <SMA-address>
 ```
 
-### Stage 4 — Dry run
+### Stage 5 — Dry run
 
-Preview the agent's first tick against the registered mandate before spending gas on a live run:
+Preview the agent's first tick against the registered mandate before spending gas on a live run.
+Note: preview via `previewBatch` is only available on selective kernels (Arbitrum 42161). On
+conjunctive kernels (Base 8453, Base Sepolia 84532), validate the call off-chain by simulating
+`evaluate()` directly against the deployed permission contract, or proceed to a real tick with a
+minimal amount and verify the result.
 
-```typescript
-await client.dispatch.preview(smaAddress, permissionAddress, calls)
+```bash
+sailor run --once
 ```
 
-The kernel's `previewBatch` returns whether the call passes the mandate. Report the result: approved
-or denied, and if denied, which permission blocked it. Do not proceed to automation without a
-passing preview.
+Confirm the agent loads, reads balances, and either executes within the mandate bounds or skips
+cleanly. Do not proceed to automation without a confirmed first tick.
 
-### Stage 5 — Automate
+### Stage 6 — Automate
 
 Two options:
 
@@ -133,7 +177,7 @@ sailor run
 
 The workflow uses these secrets to unlock the agent wallet headlessly on each scheduled run.
 
-### Stage 6 — Monitor
+### Stage 7 — Monitor
 
 The dashboard at http://localhost:3333 shows live SMA state, mandate health, agent wallet balance,
 and the activity log:

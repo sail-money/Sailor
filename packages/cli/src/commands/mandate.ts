@@ -51,7 +51,7 @@ function trackedPermissionsFor(account: StoredAccount): TrackedPermission[] {
 function printNoPermissionsGuidance(): void {
   console.log(
     "\nNo permissions registered yet.\n" +
-      "  1. Write your permission contract in mandates/ (start from AllowlistTargetMandate.sol)\n" +
+      "  1. Write your permission contract in mandates/ (start from BoundedCallPermission.sol)\n" +
       "  2. forge build\n" +
       "  3. sailor mandate deploy --contract <Name> --attach --sma <yourSMA>",
   );

@@ -260,7 +260,7 @@ function printWelcome(dest: string, name: string, inPlace: boolean, hasRpc: bool
     );
     console.log("Next:");
     console.log(
-      "  Write your permission contract in mandates/ (start from AllowlistTargetMandate.sol)",
+      "  Write your permission contract in mandates/ (start from BoundedCallPermission.sol)",
     );
     console.log("  forge build");
     console.log(`  sailor mandate deploy --contract <Name> --attach --sma ${state.sma}\n`);

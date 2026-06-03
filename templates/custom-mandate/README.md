@@ -1,5 +1,13 @@
 # Write Your Own Permission — Sail Protocol
 
+Sail Protocol accepts ANY contract implementing `IPermission`. There is no fixed set of
+permission types. `BoundedCallPermission` here is a general primitive; `examples/permissions/`
+shows protocol-specific patterns. Every financial bound your mandate enforces should live in
+Solidity — the kernel checks `evaluate()` on every dispatch. The agent's TypeScript can be changed
+without your signature; the permission contract cannot. You own what you deploy.
+
+---
+
 Sailor does not ship a blessed library of financial permission contracts. You author, review, and
 deploy your own `IPermission` contract, and Sailor makes deploying and registering it easy.
 
@@ -41,7 +49,7 @@ policy before it is attached to the SMA.
 ## Workflow
 
 ```bash
-# 1. Write your contract in mandates/ (start from AllowlistTargetMandate.sol)
+# 1. Write your contract in mandates/ (start from BoundedCallPermission.sol)
 # 2. Compile
 forge build
 
@@ -74,4 +82,4 @@ Both attach paths open the browser signing station so the owner authorizes the r
 
 - `foundry.toml` — Foundry config with `@sail/` remapping to `.sail/contracts/`
 - `.sail/contracts/interfaces/IPermission.sol` — interface copy (matches SailProtocol)
-- `mandates/AllowlistTargetMandate.sol` — example: restrict calls to an allowlisted set of targets
+- `mandates/BoundedCallPermission.sol` — general primitive: allowlisted targets, optional selector filter, max ETH value
