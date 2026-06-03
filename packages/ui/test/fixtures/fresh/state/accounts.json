@@ -1,0 +1,12 @@
+[
+  {
+    "safe": "0xC11031684925d53cEe57F5e67095c11e84fe8eB4",
+    "owner": "0x17D29A89684bF9cdA7ad978C7cEbD5a09031Efc6",
+    "permissionSigner": "0x17D29A89684bF9cdA7ad978C7cEbD5a09031Efc6",
+    "manager": "0x17D29A89684bF9cdA7ad978C7cEbD5a09031Efc6",
+    "chainId": 8453,
+    "createdAtBlock": "46814433",
+    "name": "SMA 1",
+    "addedAt": "2026-06-02T16:36:53.398Z"
+  }
+]

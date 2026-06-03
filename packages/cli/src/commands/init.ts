@@ -113,7 +113,11 @@ export async function initCommand(
   options: InitOptions = {},
 ): Promise<void> {
   const inPlace = !dir || dir === ".";
-  const dest = inPlace ? process.cwd() : path.join(process.cwd(), dir);
+  // Use resolve (not join) so an absolute path or one with `..` resolves to its
+  // true location — the containment check below then rejects anything outside the
+  // cwd with a clear error, instead of join() silently nesting an absolute path
+  // into `<cwd>/<abs path>` and reporting "Done!".
+  const dest = inPlace ? process.cwd() : path.resolve(process.cwd(), dir);
   const name = path.basename(dest);
 
   const templatesDir = path.join(packageRoot(), "templates");
@@ -133,7 +137,15 @@ export async function initCommand(
       : "none";
 
   if (!fs.existsSync(templateSrc) || !fs.existsSync(path.join(templateSrc, "package.json"))) {
-    throw new Error(`Template "${templateName}" not found. Available: ${availableTemplates()}`);
+    const available = availableTemplates();
+    const hint =
+      available === "none"
+        ? `\nNo templates found under ${templatesDir}.\n` +
+          "If you're running the in-tree CLI bundle from a monorepo checkout, the scaffolder\n" +
+          "couldn't locate the repo's templates/ directory. Install the published package, or\n" +
+          "run from the repo root."
+        : ` Available: ${available}`;
+    throw new Error(`Template "${templateName}" not found.${hint}`);
   }
 
   const cwd = process.cwd();
@@ -296,6 +308,8 @@ function printWelcome(dest: string, name: string, inPlace: boolean, hasRpc: bool
   console.log("Next:");
   if (!inPlace) console.log(`  cd ${name}`);
   if (!hasRpc) console.log("  cp .env.example .sail/.env.local");
+  console.log("  sailor capabilities    # what you can build here — read-only, no gas, no wallet");
+  console.log("  sailor doctor          # kernel model + RPC + gas balances — read-only, no gas");
   console.log("  Open this folder in your AI coding assistant (Claude Code, Cursor, Codex, …)");
   console.log('  Say: "start"');
 }

@@ -362,7 +362,8 @@ function SignerCard({ signer, network, onAddSigner }) {
   const bal = signer.role === 'sma' || unconfigured || isLocal
     ? null
     : (BALANCE_STATUS[signer.status] ?? BALANCE_STATUS.ok)
-  const needsTopUp = signer.status === 'low' || signer.status === 'critical'
+  const localBal = isLocal && signer.balanceEth != null ? Number(signer.balanceEth) : null
+  const needsTopUp = signer.status === 'low' || signer.status === 'critical' || (isLocal && (localBal === null || localBal < 0.002))
 
   function copy() {
     if (navigator?.clipboard?.writeText) navigator.clipboard.writeText(signer.address)
