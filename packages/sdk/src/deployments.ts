@@ -113,97 +113,38 @@ export const sailDeployments: Record<SailChainId, SailDeployment> = {
     chainId: 8453,
     blockNumber: 46074750,
     deployer: "0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6",
-    governance: "0x255147f05C1CB0bA33d0bA6025Ea6E55598CF985",
-    timelock: "0xdC061104D4C2F4aD735964395D4D6cEfe8dD0348",
-    kernel: "0xbEd6F78c6d89547Fb9B43d599621dd80ce57F154",
-    permissionFactory: "0xc3FFb7128bc95B5e3a3268f6E168c331FF13fE07",
-    standardFeePolicy: "0xadf7f1574128C59FAC13e0207030Bb361D82adFa",
-    safeModuleEnabler: "0x8508B2EFA351F6FEe4F7938aDbF36294a4c18F63",
+    // Bootstrap redeploy (2026-06-03) — fixed kernel, allowlists bootstrapped at genesis, zero fees.
+    // Only core was redeployed; templates not yet deployed against this kernel.
+    governance: "0x690e7Ab3CEB5e3E1c3aC05f79a025429B589F6Cc",
+    timelock: "0xcDe8680561B4A96f632622a10E6A4EF5Bac7a516",
+    kernel: "0x20eff0DbE752e22655A6dAA5A94521FA06CDdE06",
+    permissionFactory: "0x3992106495818E4037e698B8Eb09B452cEfE87F2",
+    standardFeePolicy: "0x72c992B1b60cAbec333F745DfF7dbfF575Fe2845",
+    safeModuleEnabler: "0xcd4f22edbDc54Ba5612492583C6F498320ee2B84",
     treasury: "0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6",
-    maxPermissionFeeWei: 10_000_000_000_000_000n,
+    maxPermissionFeeWei: 1_000_000_000_000_000n,
     initialBaseFee: 0n,
     initialComplexityRate: 0n,
-    // PENDING post-Octane redeploy — do NOT activate until timelock allowlists are set
-    // kernel 0x852553c5ceb0B2c4c429F355fFBB719ECeF6d0d4 | mandateFactory 0x0402b812cCD90608Ca91AdE265082aCa0b8780C8 | governance 0xe88668dEd183ef283A606b0D7f6Dbcc4D3f4639B
-    dispatchModel: "conjunctive", // conjunctive: verified on-chain DISPATCH_TYPEHASH 0x7510c80e081cb7da97f59eadd13c9941a013c4a37d514f597bd209c0c746599a
-    knownTemplates: [
-      {
-        address: "0xe5DE579F8D8C99F83C0b979a85049c7D68b381c6",
-        kind: "SharedBoundedSwapPermission",
-        chainId: 8453,
-        label: "Shared Uniswap V3 Swap",
-        description:
-          "Bounded swap via Uniswap V3 — enforces allowed tokens, max trade size, and slippage.",
-      },
-      {
-        address: "0x8901e20089F2b9E0473EDA96b3FB9376dDb2160F",
-        kind: "SharedTransferTargetPermission",
-        chainId: 8453,
-        label: "Shared Transfer Target",
-        description: "Allows transfers only to a pre-approved target address.",
-      },
-    ],
-    standaloneTemplates: {
-      // EIP-1167 clone LOGIC for LiFi DCA on Base mainnet — pass-through,
-      // initialize()-configured, registered per account via deployAndAttach.
-      // boundedLiFi: LifiDiamondSwapPermissionCloneable (swap bounded to the LiFi
-      //   diamond + selector allowlist + receiver==account + minAmount cap).
-      // boundedApprove: LifiBoundedApprovePermissionCloneable (approve only the LiFi
-      //   diamond, PER-TOKEN caps so mixed-decimal tokens like DAI/USDC are bounded).
-      boundedLiFi: "0xF1abcF774250fD1A8147B56DA07Bf9021064650A",
-      boundedApprove: "0x9c0b86daf9e75d759a5D165aD7366e52b3353fD8",
-    },
-    cloneTemplates: [
-      {
-        key: "boundedLiFi",
-        address: "0xF1abcF774250fD1A8147B56DA07Bf9021064650A",
-        kind: "LifiDiamondSwapPermissionCloneable",
-        label: "LiFi Swap (bounded)",
-        description:
-          "Restricts manager swaps to the official LiFi Diamond — selector allowlist, " +
-          "receiver must equal the account, and a cap on the minAmount field. Passes " +
-          "through non-LiFi calls (conjunctive model).",
-        initParams: [
-          { name: "allowedSelectors", type: "bytes4[]", description: "LiFi Diamond selectors to allowlist (e.g. 0x5fd9ae2e)." },
-          { name: "maxMinAmountPerTx", type: "uint256", description: "Cap on the minAmount field; type(uint256).max = uncapped." },
-          { name: "permissionSigner", type: "address", description: "Owner wallet; sole authority for post-init updates." },
-        ],
-        sourceRef: "templates/lifi-permissions/LifiDiamondSwapPermissionCloneable.sol",
-      },
-      {
-        key: "boundedApprove",
-        address: "0x9c0b86daf9e75d759a5D165aD7366e52b3353fD8",
-        kind: "LifiBoundedApprovePermissionCloneable",
-        label: "LiFi Approve (per-token cap)",
-        description:
-          "Approve only the LiFi Diamond, only on tokens with a configured cap, up to " +
-          "that cap. Per-token caps because token value/decimals differ (1 DAI = 1e18 vs " +
-          "1 USDC = 1e6). Passes through non-approve calls (conjunctive model).",
-        initParams: [
-          { name: "tokens", type: "address[]", description: "Tokens the manager may approve to the LiFi Diamond." },
-          { name: "caps", type: "uint256[]", description: "Per-token cap in base units; index-aligned with tokens." },
-          { name: "permissionSigner", type: "address", description: "Owner wallet; sole authority for post-init updates." },
-        ],
-        sourceRef: "templates/lifi-permissions/LifiBoundedApprovePermissionCloneable.sol",
-      },
-    ],
+    dispatchModel: "selective", // selective: verified on-chain DISPATCH_TYPEHASH 0xbe50c5391dcf9e08d11d2c30dbee822c14ad07af2ceb503c778d265801fb0e5c
+    knownTemplates: [],
+    standaloneTemplates: {},
   },
   42161: {
     chainId: 42161,
     blockNumber: 25136878,
     deployer: "0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6",
-    governance: "0xAb5C90ECfF2763f6f20f8E553E3b8778dD9C349A",
-    timelock: "0xd44FbBB37f01e235E0EE5386948F216d36D0CEf2",
-    kernel: "0xD985029960a9B7C2E7E38e102C448b8b8539B156",
-    permissionFactory: "0x8edDb62Aa49CeB837abf2653be2d93Ad9Fe6777D",
-    standardFeePolicy: "0x7bBA8BE3c01c972757aA4a230A00D58aB600A1F1",
-    safeModuleEnabler: "0xFE9227A9F2baf704060c604466df354a5A137b9B",
+    // Bootstrap redeploy (2026-06-03) — fixed kernel, allowlists bootstrapped at genesis, zero fees.
+    // Only core was redeployed; templates not yet deployed against this kernel.
+    governance: "0xb37a203CfdF8CA5e904f3637ef6258aaDA291091",
+    timelock: "0xF244bcf4BdAaa2494F919d8DFEFad7129a67caAC",
+    kernel: "0x9AF32E0C395fb31f5cA28994351F8fAE3003e125",
+    permissionFactory: "0x0E8138dA9175B02Db15cb221497A663BA0807553",
+    standardFeePolicy: "0x7711687948F6d4bB6262a72149CD7977981B7e1E",
+    safeModuleEnabler: "0x8f1Ac6cbBb321De315d2Bf58973A13d111BF7269",
     treasury: "0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6",
     maxPermissionFeeWei: 1_000_000_000_000_000n,
     initialBaseFee: 0n,
     initialComplexityRate: 0n,
-    // PENDING post-Octane redeploy — do NOT activate until timelock allowlists are set
-    // kernel 0x7542c3BCEd0014C14d79dA9A98Ec043F1ceC63E2 | mandateFactory 0x19BD2629790e602aF22840b37208e44e4F9B0aaE | governance 0xA3ee24e4fB7800c4f4c1481Bd920A4034Dfc34cf
     dispatchModel: "selective", // selective: verified on-chain DISPATCH_TYPEHASH 0xbe50c5391dcf9e08d11d2c30dbee822c14ad07af2ceb503c778d265801fb0e5c
     knownTemplates: [],
   },
