@@ -9,7 +9,11 @@ import path from "node:path";
  * regardless of how it was invoked (node, npx, pnpm exec, global bin).
  */
 export function cliDistDir(): string {
-  return path.dirname(path.resolve(process.argv[1]));
+  let p = process.argv[1];
+  try {
+    p = fs.realpathSync(p);
+  } catch {}
+  return path.dirname(path.resolve(p));
 }
 
 /**

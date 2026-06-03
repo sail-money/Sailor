@@ -156,7 +156,14 @@ for (const [path, pathItem] of Object.entries(spec.paths)) {
     // Derive method name from path segments.
     const seg = path.replace("/v1/", "").replace(/{[^}]+}/g, "").replace(/\/+$/, "");
     const parts = seg.split("/").filter(Boolean);
-    const methodName = parts.map((p, i) => (i === 0 ? p : p[0].toUpperCase() + p.slice(1))).join("");
+    let methodName = parts.map((p, i) => (i === 0 ? p : p[0].toUpperCase() + p.slice(1))).join("");
+    // Disambiguate colliding names from path-only derivation (e.g. POST /simulation, GET /simulation/{id}, DELETE /simulation/{id} all -> "simulation")
+    const _pathParamsForName = (op.parameters ?? []).filter((p) => p.in === "path");
+    if (methodName === "simulation") {
+      if (httpMethod === "post" && _pathParamsForName.length === 0) methodName = "createSimulation";
+      else if (httpMethod === "delete") methodName = "deleteSimulation";
+      // GET /simulation/{id} keeps "simulation" (the primary poll/getter); list is "simulations"
+    }
 
     const summary = op.summary ?? "";
     const desc = op.description ?? "";
