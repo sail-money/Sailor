@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAccount, useChains, useDisconnect, useSendTransaction, useSignTypedData, useSwitchChain } from 'wagmi'
 import { FluidBackground, GlassCard, Sai, SailButton } from '../shared'
 import PageHeader from '../shared/PageHeader'
@@ -80,18 +80,33 @@ export default function SigningStation() {
   const { disconnect } = useDisconnect()
   const { account: realAccount } = useSailorAccount()
 
+  // Mirror of requests in a ref so handleMessage can read the current length
+  // inside setPhase's updater without a stale closure.
+  const requestsRef = useRef([])
+
   const handleMessage = useCallback((msg) => {
-    if (msg.type === 'pending') setRequests(msg.requests)
-    else if (msg.type === 'request') setRequests((prev) => prev.find((r) => r.id === msg.request.id) ? prev : [...prev, msg.request])
-    else if (msg.type === 'request-resolved') {
-      // Track last completed request kind to show a success confirmation screen
+    if (msg.type === 'pending') {
+      requestsRef.current = msg.requests
+      setRequests(msg.requests)
+    } else if (msg.type === 'request') {
+      if (!requestsRef.current.find((r) => r.id === msg.request.id)) {
+        requestsRef.current = [...requestsRef.current, msg.request]
+      }
+      setRequests(requestsRef.current)
+    } else if (msg.type === 'request-resolved') {
+      const remaining = requestsRef.current.filter((r) => r.id !== msg.requestId)
+      requestsRef.current = remaining
+      setRequests(remaining)
+      // Only show the full SuccessScreen when this was the last request.
+      // When more requests remain, go idle so the next card shows immediately
+      // instead of closing the station and sending the user to the dashboard.
       setPhase((p) => {
-        if (p.requestId === msg.requestId && p.phase === 'done') {
+        if (p.requestId !== msg.requestId) return p
+        if (p.phase === 'done' && remaining.length === 0) {
           return { phase: 'success', requestId: msg.requestId, kind: p.kind }
         }
-        return p.requestId === msg.requestId ? { phase: 'idle' } : p
+        return { phase: 'idle' }
       })
-      setRequests((prev) => prev.filter((r) => r.id !== msg.requestId))
     }
   }, [])
 
