@@ -165,6 +165,7 @@ export default function CreateSMAModal({ open, onClose, onComplete }) {
           ownerAddress, // permissionSigner
           ownerAddress, // manager
           deployment.standardFeePolicy,
+          zeroAddress, // feeAsset (native)
         ],
       })
     } else {

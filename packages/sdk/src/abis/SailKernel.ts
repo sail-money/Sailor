@@ -19,6 +19,7 @@ export const SailKernelAbi = [
       { name: "permissionSigner", type: "address" },
       { name: "manager", type: "address" },
       { name: "feePolicy", type: "address" },
+      { name: "feeAsset", type: "address" },
     ],
     outputs: [{ name: "account", type: "address" }],
   },

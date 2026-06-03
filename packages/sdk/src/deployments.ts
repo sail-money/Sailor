@@ -86,37 +86,28 @@ const zero = "0x0000000000000000000000000000000000000000" as Address;
 
 export const sailDeployments: Record<SailChainId, SailDeployment> = {
   84532: {
+    // Post-Octane redeploy: genesis allowlist bootstrap + createAccount fix (2026-06-03,
+    // gitCommit e6a9adb-dirty). The kernel now predicts the proxy CREATE2 address locally via
+    // SafeProxyFactory.proxyCreationCode() (Safe 1.4.1 has no view predictor) — createAccount
+    // verified working on-chain. allowlistBootstrapped=true; onboarding live, no 48h wait.
+    // Only `core` was redeployed; shared/standalone permission templates are NOT yet deployed
+    // against this kernel (run the templates targets + refill the template maps before clones).
     chainId: 84532,
-    blockNumber: 41583106,
+    blockNumber: 42369715,
     deployer: "0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6",
-    governance: "0xd289CcbA0302fB819F68056526e2B495b033895d",
-    timelock: "0x957E2460C3D46f5A2dBAF2d6B5C4Ff86CD1338cA",
-    kernel: "0x7d3BDAAB150af93f057C38e9baef88061B17dE1D",
-    permissionFactory: "0x14D35766C6d8f8F21e86d122d788d0218026f93f",
-    standardFeePolicy: "0xA799f142469D8eF17fDb3AAe5710e6b44c9E5518",
-    safeModuleEnabler: "0x4C1DEb53666490ca462F31ede4047aa02ad5a97e",
+    governance: "0xE69D24766Be634f890F4fE5DF9DdDcdc0EE48112",
+    timelock: "0x1a09A075B2782EA77Db1A09e26351864a398437E",
+    kernel: "0xcC50009115DAaBCB40513e03a1a0Cc2Fdf6Be558",
+    permissionFactory: "0x862224538a85E4D90835A7082C01f1ec0CdD10cC",
+    standardFeePolicy: "0x19Ee573C83FC457037bfae647fD73f02ae0D65a2",
+    safeModuleEnabler: "0x23AE40439D94dDD5253Fc6d9ef2391BA8cC2362C",
     treasury: "0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6",
-    maxPermissionFeeWei: 10_000_000_000_000_000n,
-    initialBaseFee: 100_000_000_000_000n,
-    initialComplexityRate: 100n,
-    // PENDING post-Octane redeploy — do NOT activate until timelock allowlists are set
-    // kernel 0x2e22Cc96F5C069C9eC8B9310E1BbF08C41Ae613E | mandateFactory 0x19650F55577242953Cea668D59F5049a6faf3480 | governance 0x2287e52c7fDb5748bB05a857c026D732D1634707
-    dispatchModel: "conjunctive", // conjunctive: verified on-chain DISPATCH_TYPEHASH 0x7510c80e081cb7da97f59eadd13c9941a013c4a37d514f597bd209c0c746599a
+    maxPermissionFeeWei: 1_000_000_000_000_000n,
+    initialBaseFee: 0n,
+    initialComplexityRate: 0n,
+    dispatchModel: "selective", // selective: verified on-chain DISPATCH_TYPEHASH 0xbe50c5391dcf9e08d11d2c30dbee822c14ad07af2ceb503c778d265801fb0e5c
     knownTemplates: [],
-    standaloneTemplates: {
-      azuroPrediction: "0x10f98807E7DBBAed599b8246167660e0660C490b",
-      boundedApprove: "0x6F8845bbf837E18821e93b08F6F052200D618593",
-      boundedBorrow: "0xFcDb4B3856DC25D0e81019B73407edd2585f550F",
-      boundedDeposit: "0x18EA6F93C74A997093273EC8b5490bD5570eaD9A",
-      boundedLiFi: "0x52Fe34Cc86A93c4FD46A49A30e90Da396A531AA1",
-      boundedSwap: "0x40F1b6c0c30Cb9672026297AE145855226532781",
-      boundedWithdraw: "0x4D86241D4E0DB6D2DD996C9C92B50E84e38442b3",
-      gmxPerp: "0x03A0e0973874DD788eD0a519Ab612b4F722d1176",
-      gainsNetworkPerp: "0x1A1aeDe8021690A3536e7dB4Fb83008f3B9b0062",
-      limitlessPrediction: "0x46f045AD9B6a4b568F7651B11686b5268BCeE403",
-      synthetixPerp: "0xd38566B009025F04A2959E9195Fc590C1F061f33",
-      transferTarget: "0x807dA7B33218301f7349159EB224711F2cdA766A",
-    },
+    standaloneTemplates: {},
   },
   8453: {
     chainId: 8453,

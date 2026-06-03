@@ -13,12 +13,13 @@ export const chains: Record<number, ChainConfig> = {
   84532: {
     chainId: 84532,
     name: "Base Sepolia",
-    kernel: "0x7d3BDAAB150af93f057C38e9baef88061B17dE1D",
-    mandateFactory: "0x14D35766C6d8f8F21e86d122d788d0218026f93f",
-    governance: "0xd289CcbA0302fB819F68056526e2B495b033895d",
-    // PENDING post-Octane redeploy — do NOT activate until timelock allowlists are set
-    // kernel 0x2e22Cc96F5C069C9eC8B9310E1BbF08C41Ae613E | mandateFactory 0x19650F55577242953Cea668D59F5049a6faf3480 | governance 0x2287e52c7fDb5748bB05a857c026D732D1634707
-    dispatchModel: "conjunctive", // conjunctive: verified on-chain DISPATCH_TYPEHASH 0x7510c80e081cb7da97f59eadd13c9941a013c4a37d514f597bd209c0c746599a
+    // Post-Octane redeploy w/ genesis allowlist bootstrap + createAccount fix (deployed 2026-06-03).
+    // Kernel computes the proxy CREATE2 address locally (Safe 1.4.1 has no view predictor).
+    // allowlistBootstrapped=true; createAccount verified working on-chain — onboarding is live.
+    kernel: "0xcC50009115DAaBCB40513e03a1a0Cc2Fdf6Be558",
+    mandateFactory: "0x862224538a85E4D90835A7082C01f1ec0CdD10cC",
+    governance: "0xE69D24766Be634f890F4fE5DF9DdDcdc0EE48112",
+    dispatchModel: "selective", // selective: verified on-chain DISPATCH_TYPEHASH 0xbe50c5391dcf9e08d11d2c30dbee822c14ad07af2ceb503c778d265801fb0e5c
     protocols: {},
   },
   // Base mainnet

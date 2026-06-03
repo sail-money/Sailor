@@ -39,6 +39,7 @@ import {
   parseEventLogs,
   publicActions,
   recoverTypedDataAddress,
+  zeroAddress,
 } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { appendActivity, checksum, nowIso, prompt, sailPath, writeJsonFile } from "../lib/io.js";
@@ -427,6 +428,7 @@ async function createSma(
       ownerAddress, // permissionSigner = user's wallet
       agentAddress, // manager = agent's wallet
       project.contracts.standardFeePolicy,
+      zeroAddress, // feeAsset (native)
     ],
   });
 
