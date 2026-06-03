@@ -15,9 +15,8 @@ jobs:
     uses: SailAgent/devops-templates/.github/workflows/publish-pnpm.yaml@main
     with:
       package_dir: .
-      package_name: '@sailagent/sailor'
-      is_dev_version: true
-      dist_tag: ${{ github.event_name == 'workflow_dispatch' && 'dev' || 'main' }}
+      package_name: ${{ github.ref_name == 'main' && '@sailagent/sailor' || '@sailagent/sailor-dev' }}
+      dist_tag: ${{ github.ref_name == 'main' && 'latest' || 'dev' }}
       use_github_registry: true
       pnpm-version: '11'
     secrets: inherit
