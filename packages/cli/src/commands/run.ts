@@ -373,6 +373,11 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
           if (isConjunctive && result.txHash) {
             try {
               await publicClient.waitForTransactionReceipt({ hash: result.txHash, timeout: 30_000 });
+              // Brief pause for RPC nonce propagation on load-balanced endpoints.
+              // Even with receipt confirmation, Alchemy-style pools can serve a stale
+              // managerNonces value to the node that signs the next dispatch, causing
+              // "replacement transaction underpriced" on the 3rd+ sequential tx.
+              await new Promise((resolve) => setTimeout(resolve, 500));
             } catch {
               // receipt already confirmed by dispatch.single — this is belt-and-suspenders
             }
