@@ -212,8 +212,7 @@ signature. The bug was factory-revert detection and wrong args — not a topic0 
 
 ## Known issues — deferred to next round
 
-- `npx create-sailor-agent` returns 404 — package not yet published to npm.
-  Workaround: `npm install -g sailor && sailor init my-agent`.
+- `packages/create-app` (`create-sailor-agent`) has been removed — use `npx sailor init my-agent` or `npm install -g sailor && sailor init my-agent` instead.
 - Aave V3 borrow selector (0xa415bcad) in `BoundedBorrow_AaveV3_Arbitrum.sol` —
   flagged for independent verification via `keccak256("borrow(address,uint256,uint256,uint16,address)")`.
 - Limitless exchange function in `BoundedBet_Limitless_Base.sol` — ABI not independently
