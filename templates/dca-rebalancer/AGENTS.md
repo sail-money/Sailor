@@ -87,6 +87,13 @@ Determine which tier applies:
 
 **Tier 1** — An example exists in `examples/permissions/` for the user's exact protocol and chain.
 Adapt it with the user's parameters. Light verification required.
+Available examples (Sailor recommendations — NOT audited by Sail, NOT a supported menu):
+- `BoundedSwap_UniswapV3_Base.sol` — Uniswap V3 swap on Base
+- `BoundedSwap_UniswapV4_Unichain.sol` — Uniswap V4 swap on Unichain
+- `BoundedBorrow_AaveV3_Arbitrum.sol` — Aave V3 borrow on Arbitrum
+- `BoundedTransfer_ERC20_Ethereum.sol` — ERC-20 transfer (any EVM chain)
+- `BoundedPerp_GMXv2_Arbitrum.sol` — GMX V2 perpetuals on Arbitrum (partial decode)
+- `BoundedBet_Limitless_Base.sol` — Limitless prediction market on Base (⚠ ABI unverified)
 
 **Tier 2** — An example exists for the same action type on a different protocol. Use it as a
 pattern, but re-derive the calldata decode for the user's actual protocol: read the protocol's ABI
@@ -95,6 +102,11 @@ and function signature to get the correct selector and parameter layout. Full ve
 **Tier 3** — No example exists. Author a fully custom `IPermission` from the interface, starting
 from `BoundedCallPermission.sol` in `mandates/`. Full verification required; explicitly flag to
 the user that this permission is novel and should be reviewed carefully before attaching.
+
+**On venue selection:** Permissions can only bound what the kernel sees on-chain. For venues with
+off-chain order matching (Polymarket CLOB, Hyperliquid order book), a permission can constrain
+deposits/withdrawals but NOT the orders your agent signs off-chain. Prefer fully on-chain venues
+(Uniswap, Aave, GMX, Limitless) where every action passes through the kernel.
 
 For any tier: target/selector/value gating comes from `BoundedCallPermission.sol`. For
 calldata-parameter bounds, decode `txData` using the target protocol's ABI and add the bounds
