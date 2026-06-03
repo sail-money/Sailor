@@ -14,7 +14,6 @@ Sailor is the operator layer for [Sail Protocol](../SailProtocol): the tooling a
 | `packages/cli` | `sailor` | CLI for account setup, mandate signing, and agent execution |
 | `packages/chains` | `@sail/chains` | Per-chain address registry (EVM-compatible) |
 | `packages/ui` | `sailor-ui` | Local dashboard running on localhost:3333 |
-| `packages/create-app` | `create-sailor-agent` | `npx` scaffolder for new agent projects |
 | `templates/dca-rebalancer` | — | Starter template: DCA portfolio rebalancer (default for `sailor init`) |
 | `templates/custom-mandate` | — | Solidity reference: allowlist mandate contracts (not a project template) |
 | `templates/lifi-permissions` | — | Solidity reference: LiFi clone permission contracts (not a project template) |
@@ -54,7 +53,7 @@ Sailor operates the three roles Sail Protocol separates:
 Open your AI coding assistant and run in its terminal:
 
 ```sh
-npx create-sailor-agent my-agent
+npx sailor init my-agent
 ```
 
 Then say **"start"** — your assistant takes it from there.

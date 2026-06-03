@@ -1,7 +1,7 @@
 # sailor
 
-The recommended entry point is `npx create-sailor-agent` from inside your AI coding
-assistant. The global CLI is for direct command use and CI/CD.
+Start a new agent project with `npx sailor init <name>` from inside your AI coding
+assistant, or install globally for direct command use and CI/CD.
 
 CLI operator toolkit for Sail Protocol. Run `sailor --help` to see all commands.
 

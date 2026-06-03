@@ -311,5 +311,9 @@ function printWelcome(dest: string, name: string, inPlace: boolean, hasRpc: bool
   console.log("  sailor capabilities    # what you can build here — read-only, no gas, no wallet");
   console.log("  sailor doctor          # kernel model + RPC + gas balances — read-only, no gas");
   console.log("  Open this folder in your AI coding assistant (Claude Code, Cursor, Codex, …)");
+  console.log("\n─────────────────────────────────────────────");
+  console.log("  Project ready. You're already in the right place.");
+  console.log("");
   console.log('  Say: "start"');
+  console.log("─────────────────────────────────────────────");
 }
