@@ -1146,10 +1146,13 @@ export function startServer(sailDir, { port = PORT } = {}) {
     return result
   }
 
-  // When SERVE_DIST=1 (set by `sailor ui`), also serve the built UI so a
-  // single process handles everything — no Vite dev server needed.
-  if (process.env.SERVE_DIST === '1') {
-    const distDir = process.env.SAILOR_UI_DIST ?? path.join(path.dirname(_thisFile), 'dist')
+  // Serve the built UI if available. SERVE_DIST=1 is the explicit flag set by
+  // `sailor ui start`, but we also auto-detect: if index.html exists next to
+  // this server file (or at SAILOR_UI_DIST), serve it without the flag so that
+  // direct invocations (`node server.js`) don't silently 404 on the root.
+  const distDir = process.env.SAILOR_UI_DIST ?? path.join(path.dirname(_thisFile), 'dist')
+  const hasUiDist = fs.existsSync(path.join(distDir, 'index.html'))
+  if (process.env.SERVE_DIST === '1' || hasUiDist) {
     app.use(express.static(distDir))
     app.get('*', (_req, res) => res.sendFile(path.join(distDir, 'index.html')))
   }
