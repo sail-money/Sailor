@@ -306,3 +306,7 @@ nonces."
 **Agent wallet:** `0x3dcAFBD5C040CC943eca42016749A35f94223bec`
 **SMA:** `0x9D634330D5bb3858e1DB8f5a1154b808BAd92af1`
 **Permission contract:** `0xcb484e304fbcaabce6eae43de9eeed4a3150121e`
+
+## SAIL-185 Attribution
+
+Capabilities command, doctor gas preflight, eval harness, and CI workflow authored by @dreski3.
