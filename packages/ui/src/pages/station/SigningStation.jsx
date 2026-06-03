@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAccount, useChains, useDisconnect, useSendTransaction, useSignTypedData, useSwitchChain } from 'wagmi'
 import { FluidBackground, GlassCard, Sai, SailButton } from '../shared'
 import PageHeader from '../shared/PageHeader'
@@ -80,18 +80,33 @@ export default function SigningStation() {
   const { disconnect } = useDisconnect()
   const { account: realAccount } = useSailorAccount()
 
+  // Mirror of requests in a ref so handleMessage can read the current length
+  // inside setPhase's updater without a stale closure.
+  const requestsRef = useRef([])
+
   const handleMessage = useCallback((msg) => {
-    if (msg.type === 'pending') setRequests(msg.requests)
-    else if (msg.type === 'request') setRequests((prev) => prev.find((r) => r.id === msg.request.id) ? prev : [...prev, msg.request])
-    else if (msg.type === 'request-resolved') {
-      // Track last completed request kind to show a success confirmation screen
+    if (msg.type === 'pending') {
+      requestsRef.current = msg.requests
+      setRequests(msg.requests)
+    } else if (msg.type === 'request') {
+      if (!requestsRef.current.find((r) => r.id === msg.request.id)) {
+        requestsRef.current = [...requestsRef.current, msg.request]
+      }
+      setRequests(requestsRef.current)
+    } else if (msg.type === 'request-resolved') {
+      const remaining = requestsRef.current.filter((r) => r.id !== msg.requestId)
+      requestsRef.current = remaining
+      setRequests(remaining)
+      // Only show the full SuccessScreen when this was the last request.
+      // When more requests remain, go idle so the next card shows immediately
+      // instead of closing the station and sending the user to the dashboard.
       setPhase((p) => {
-        if (p.requestId === msg.requestId && p.phase === 'done') {
+        if (p.requestId !== msg.requestId) return p
+        if (p.phase === 'done' && remaining.length === 0) {
           return { phase: 'success', requestId: msg.requestId, kind: p.kind }
         }
-        return p.requestId === msg.requestId ? { phase: 'idle' } : p
+        return { phase: 'idle' }
       })
-      setRequests((prev) => prev.filter((r) => r.id !== msg.requestId))
     }
   }, [])
 
@@ -188,16 +203,29 @@ function Orchestrator({ requests, chains, phase, setPhase, send }) {
     send({ type: 'rejected', requestId: id })
   }, [setPhase, send])
 
+  // Only one signing operation can be active at a time — if any card is
+  // submitting/done, disable the sign button on all others to prevent
+  // simultaneous wallet prompts.
+  const signingInProgress = phase.phase === 'submitting' || phase.phase === 'done'
+
   return (
     <>
       {requests.map((req) => (
-        <OperationCard key={req.id} request={req} chains={chains} phase={phase} onSign={handleSign} onReject={handleReject} />
+        <OperationCard
+          key={req.id}
+          request={req}
+          chains={chains}
+          phase={phase}
+          onSign={handleSign}
+          onReject={handleReject}
+          otherActive={signingInProgress && phase.requestId !== req.id}
+        />
       ))}
     </>
   )
 }
 
-function OperationCard({ request, chains, phase, onSign, onReject }) {
+function OperationCard({ request, chains, phase, onSign, onReject, otherActive }) {
   const { isConnected, chainId: walletChain } = useAccount()
   const { switchChain } = useSwitchChain()
 
@@ -234,12 +262,12 @@ function OperationCard({ request, chains, phase, onSign, onReject }) {
       )}
 
       <div className={styles.actions}>
-        <button type="button" className={styles.reject} disabled={submitting || done} onClick={() => onReject(request.id)}>Reject</button>
+        <button type="button" className={styles.reject} disabled={submitting || done || otherActive} onClick={() => onReject(request.id)}>Reject</button>
         {!isConnected ? (
           <span className={styles.connectHint}>Connect wallet to sign</span>
         ) : (
-          <button type="button" className={styles.primary} disabled={submitting || done || wrongChain} onClick={() => onSign(request)}>
-            {submitting ? (request.type === 'typed-data' ? 'Signing…' : 'Submitting…') : done ? 'Signed ✓' : request.type === 'typed-data' ? 'Sign Message' : 'Sign & Submit'}
+          <button type="button" className={styles.primary} disabled={submitting || done || wrongChain || otherActive} onClick={() => onSign(request)}>
+            {otherActive ? 'Waiting…' : submitting ? (request.type === 'typed-data' ? 'Signing…' : 'Submitting…') : done ? 'Signed ✓' : request.type === 'typed-data' ? 'Sign Message' : 'Sign & Submit'}
           </button>
         )}
       </div>
