@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { cliDistDir, packageRoot } from "../lib/packagePaths.js";
+import { cliDistDir, packageRoot, projectPort } from "../lib/packagePaths.js";
 
 const UI_STATE_FILE = path.join(".sail", "runtime", "ui.json");
 
@@ -25,16 +25,6 @@ function isAlive(pid: number): boolean {
  *   packages/cli/dist/server.cjs  ← bundled UI server
  *   packages/ui/dist/             ← pre-built static UI assets
  */
-/**
- * Derives a stable UI port for this project from its directory path.
- * Each project gets a deterministic port in the range 3333–3999 so
- * multiple projects can run their dashboards simultaneously without
- * port conflicts — the port never changes for a given project path.
- */
-function projectPort(projectRoot: string): number {
-  const hash = [...projectRoot].reduce((h, c) => (((h << 5) - h) + c.charCodeAt(0)) >>> 0, 0);
-  return 3333 + (hash % 667); // 3333–3999
-}
 
 export async function uiCommand(): Promise<void> {
   const distDir = cliDistDir();
