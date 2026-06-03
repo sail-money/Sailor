@@ -56,3 +56,13 @@ export function packageRoot(): string {
   }
   return firstBinMatch ?? path.resolve(cliDistDir(), "../../..");
 }
+
+/**
+ * Derives a stable UI port for this project from its directory path.
+ * Each project gets a deterministic port in the range 3333–3999 so
+ * multiple projects can run dashboards simultaneously without conflicts.
+ */
+export function projectPort(projectRoot: string): number {
+  const hash = [...projectRoot].reduce((h, c) => (((h << 5) - h) + c.charCodeAt(0)) >>> 0, 0);
+  return 3333 + (hash % 667);
+}

@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
-import { cliDistDir, packageRoot } from "../lib/packagePaths.js";
+import { cliDistDir, packageRoot, projectPort } from "../lib/packagePaths.js";
 
 const UI_STATE_FILE = path.join(".sail", "runtime", "ui.json");
 

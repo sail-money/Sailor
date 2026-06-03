@@ -15,6 +15,7 @@
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { emit } from "../lib/output.js";
+import { projectPort } from "../lib/packagePaths.js";
 import { ProjectContext } from "../lib/project.js";
 import { discoverDaemon } from "../signing/client.js";
 import { SigningServer } from "../signing/server.js";
@@ -51,7 +52,7 @@ export async function stationStart(options: { json?: boolean }): Promise<void> {
       options.json,
       () => {
         console.log("A signing station is already running for this project.");
-        console.log(`  ${existing.url}`);
+        console.log(`  http://localhost:${projectPort(projectRoot)}/#/station`);
       },
       { status: "already-running", url: existing.url, ...state },
     );
@@ -64,10 +65,11 @@ export async function stationStart(options: { json?: boolean }): Promise<void> {
   emit(
     options.json,
     () => {
+      const dashboardUrl = `http://localhost:${projectPort(projectRoot)}/#/station`;
       console.log("✓ Signing station started");
-      console.log("→ Open in your browser and connect your wallet:");
-      console.log(`  ${server.url}`);
-      console.log("\nLeave this running. Other `sailor` commands will use it.");
+      console.log("→ Open the signing station in your browser:");
+      console.log(`  ${dashboardUrl}`);
+      console.log("\nLeave this running. Other `sailor` commands will push signing requests here.");
       console.log("Stop it with: sailor station stop");
     },
     { status: "running", url: server.url, pid: process.pid },
