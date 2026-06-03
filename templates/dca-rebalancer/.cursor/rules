@@ -2,72 +2,24 @@
 
 You are an AI assistant helping the user set up and operate a Sail Protocol SMA (Separately Managed Account) using the Sailor toolkit.
 
-Two phases, each with a source-of-truth doc:
-- **Set up** the account → `sail/WIZARD.md`
-- **Operate** the agent → `AGENT_PLAYBOOK.md` + `docs/PERMISSION_MODEL.md` (read the permission model once before any dispatch — conjunctive vs selective changes how every dispatch is signed)
+**Read `AGENTS.md` first.** It is the canonical guide — voice, stage-by-stage workflow, permission authoring, deployment, and automation.
 
-## First time here? Start with the browser UI
-
-The setup wizard lives in the browser — not the terminal. Before anything else:
-
-```
-sailor ui start
-```
-
-Then open **http://localhost:3333** and follow the 8-step onboarding wizard (network, wallet, agent key, deploy SMA — then terminal steps guided from there).
-
-## The 8-step onboarding
-
-### In the browser (steps 1–4)
-1. **Choose your networks** — pick which chains your SMA will operate on
-2. **Connect your wallet** — becomes the owner of your SMA
-3. **Create agent key** — a signing key the agent uses to execute trades
-4. **Deploy your SMA** — registers your account on-chain
-
-When step 4 is done, the wizard shows a copy-ready prompt for steps 5–8. **Copy it and paste it here** to continue setup.
-
-### In this terminal (steps 5–8)
-5. **Configure RPC & API keys** — add to `.sail/.env.local`:
-   ```
-   RPC_URL=https://...           # RPC for your chosen chain
-   SAIL_API_KEY=...              # from api.sail.money
-   SAIL_PASSPHRASE=...           # set during step 3
-   ```
-6. **Fund agent key** — send ETH to the agent address shown on the dashboard
-7. **Set permissions** — run `sailor mandate prepare`, then sign in the UI at localhost:3333
-8. **Start the agent** — run `sailor run`
-
-## Know your state — which command shows what
-
-| Question | Command |
-|----------|---------|
-| Local setup progress (keys, account, mandate, run state) | `sailor status` |
-| Who is the owner (user's wallet) | `sailor owner show` |
-| Agent (manager) key address | `sailor keys show` |
-| Owner's Safes + which are Sail SMAs | `sailor scan` |
-| Kernel model + permission health + RPC + owner/manager gas balances (read-only, no gas) | `sailor doctor` |
-| What's buildable on this chain (templates, primitives) | `sailor capabilities` |
-
-`sailor doctor` reports owner/manager ETH balances and flags an unfunded/low manager. Confirm the manager is funded before `sailor run` — it pays for every dispatch.
-
-## Operating
-
-Once set up, `AGENT_PLAYBOOK.md` is the source of truth: detect capabilities first (`sailor doctor` / `client.capabilities()`), then the decision tree, swap/approval guidance, and the revert failure-mode catalog. To judge whether a user's request is buildable, run `sailor capabilities` — it lists the supported chains, mandate templates, and strategy primitives. Match requests to those (strategy.swap, permitted dispatches, clone templates, authored mandates); never invent capabilities; say so plainly when a request is out of scope.
-
-## Key files
+## Quick reference
 
 | File | Purpose |
 |------|---------|
+| `AGENTS.md` | Full operator guide — start here |
 | `.sail/config.json` | Project config (chain, contracts) |
 | `.sail/account.json` | Active SMA address |
-| `.sail/.env.local` | RPC URL, API keys, passphrase |
+| `.sail/.env.local` | RPC URL and passphrase — never commit |
 | `.sail/keys/manager.json` | Encrypted agent key |
-| `.sail/state/context.json` | Last `sailor scan` snapshot |
 | `.sail/activity.jsonl` | Agent decision journal |
+| `mandates/` | Solidity permission contracts |
+| `examples/permissions/` | Protocol-specific permission patterns |
+| `docs/PERMISSION_MODEL.md` | Conjunctive vs selective kernel deep-dive |
 
 ## Rules
-- Never skip steps — each builds on the previous
+- Work through AGENTS.md stages in order — never skip
 - Always ask before any action that costs gas or moves funds
-- Detect the kernel model (`sailor doctor`) before any dispatch
-- The UI at localhost:3333 must be running for mandate signing and monitoring
+- The browser UI at localhost:3333 is required for mandate signing and monitoring
 - `SAIL_PASSPHRASE` unlocks the manager key headlessly for `sailor run`
