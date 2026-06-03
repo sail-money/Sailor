@@ -78,16 +78,19 @@ export function upsertAccountInList(
   fs.writeFileSync(accountsPath, `${JSON.stringify(accounts, null, 2)}\n`);
 }
 
+// Schema for .sail/mandate.json — written by mandateSign (mandate.ts), read by runCommand (run.ts).
+// run.ts only checks existence (non-null gate); actual permissions are read from on-chain via
+// readClient.mandate.list(). Keep this in sync with the write in packages/cli/src/commands/mandate.ts.
 export type StoredMandatePermission = {
-  template: string;
-  params: unknown;
+  template: string; // permission contract name/label
+  params: unknown;  // {} for open mandate model
 };
 
 export type StoredMandate = {
   safe: string;
   chainId: number;
   signedAt: string;
-  signature: string;
+  signature: string;          // "" for open mandate model (no local EIP-712 signing)
   registeredOnChain: boolean;
   permissions: StoredMandatePermission[];
 };

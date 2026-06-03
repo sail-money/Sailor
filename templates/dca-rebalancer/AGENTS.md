@@ -38,6 +38,28 @@ Greet the user in the Sailor voice. Read `.sail/config.json` and confirm the pro
 network (chainId map: 8453→Base, 42161→Arbitrum, 84532→Base Sepolia). If no config exists,
 the project needs `sailor init .` first.
 
+**Network confirmation (required before Stage 1):** After reporting the configured chain, ask
+explicitly:
+> "Your project is configured for [chain name] (chainId [id]). Is that the network you want to
+> use, or would you like to switch to a different one (e.g. Arbitrum 42161)?"
+
+Do not proceed to Stage 1 until the user confirms or changes the network. If they want a
+different chain, update `.sail/config.json` (`chainId` field) before continuing.
+
+**RPC check:** Also read `.sail/.env.local`. If `RPC_URL` is absent or the file doesn't exist,
+explain it before Stage 1:
+> "To read balances and submit transactions, your agent needs an RPC endpoint — a URL that
+> connects it to the blockchain. Get one free from:
+> - Alchemy: https://alchemy.com (recommended)
+> - Infura: https://infura.io
+> - Or use the public Base endpoint for testing: https://mainnet.base.org
+>   (less reliable, not recommended for automation)
+>
+> Add it to `.sail/.env.local`:
+> ```
+> RPC_URL=https://your-endpoint-here
+> ```"
+
 ### Stage 1 — Browser setup
 
 All of the following happen in the browser. Do not ask the user to use the terminal for any of
@@ -64,10 +86,35 @@ SAIL_PASSPHRASE=<passphrase chosen in the browser>
 
 ### Stage 2 — Understand the strategy and the protocol
 
-1. Ask what the user wants the agent to do, in plain English.
-2. Identify the target protocol(s) and the specific contract(s) and function(s) involved.
-3. Confirm which chain (Base / Arbitrum / Base Sepolia).
-4. Ask for the bounds the user wants enforced. Bounds depend on the action type:
+**Before writing any code, ask and confirm ALL of the following.** Show a plain-English summary
+and get explicit "yes" confirmation before proceeding to permission authoring.
+
+Required questions (ask in order, wait for each answer):
+
+1. "What token are you depositing from? (e.g. USDC, ETH)"
+2. "What tokens do you want to buy? List them."
+3. "What is your total weekly budget? (e.g. $100 USDC)"
+4. "How do you want to split that across the tokens? (e.g. equal split, or custom %)"
+5. "What is your maximum slippage tolerance? (default: 1%)"
+6. "What minimum balance do you want to keep liquid in your SMA? (e.g. keep $500 USDC idle)"
+
+After collecting answers, show a summary in plain English:
+> "Here's what I understood:
+> - Deposit token: [answer 1]
+> - Buying: [answer 2]
+> - Weekly budget: [answer 3], split [answer 4]
+> - Max slippage: [answer 5]
+> - Minimum idle balance: [answer 6]
+>
+> Confirm these parameters before I build the permission contract? (yes/no)"
+
+Only proceed to Stage 3 after explicit confirmation.
+
+Then, to determine the protocol and bounds:
+
+1. Identify the target protocol(s) and the specific contract(s) and function(s) involved.
+2. Confirm which chain (already confirmed in Stage 0 — verify it hasn't changed).
+3. Establish the on-chain bounds based on the action type:
 
 | Action | Bounds to establish |
 |---|---|

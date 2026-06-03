@@ -138,7 +138,24 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
     return;
   }
 
-  console.log("Sailor doctor");
+  // ── Plain-English summary (printed first, before technical details) ──────────
+  // Only warn about bricking when multiple permissions are registered: a SINGLE
+  // non-pass-through permission on a conjunctive kernel is expected behavior —
+  // it restricts the SMA to exactly the calls it was designed for.
+  const multiBricking = bricking.length > 0 && permissions.length > 1;
+
+  if (!safe) {
+    console.log("✗ Setup incomplete — no SMA found. Run \"sailor onboard --new-sma\" to deploy one.");
+  } else if (permissions.length === 0) {
+    console.log("✗ Setup incomplete — no permissions registered. Your agent cannot dispatch until at least one permission is attached.");
+  } else if (multiBricking) {
+    console.log(`✗ Setup issue — ${bricking.length} of ${permissions.length} permissions block unrelated calls (see below).`);
+  } else {
+    console.log(
+      "✓ Everything looks good — your SMA is deployed, your permission is registered,\n" +
+        "  and your agent is authorized to dispatch.",
+    );
+  }
   console.log("────────────────────────────────────────");
   console.log(`Chain:   ${chainId}`);
   console.log(`Kernel:  ${kernel}`);
@@ -146,7 +163,7 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
   console.log(`  DISPATCH_TYPEHASH: ${caps.dispatchTypehash}`);
 
   if (!safe) {
-    console.log("\nAccount: none found. Run \"sailor account create\", or pass --account <addr>.");
+    console.log("\nAccount: none found. Run \"sailor onboard --new-sma\", or pass --account <addr>.");
     console.log("Skipping permission checks.");
     return;
   }
@@ -172,15 +189,18 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
     console.log(`  ${i + 1}. ${c.permission}  ${mark}${c.note ? `  (${c.note})` : ""}`);
   }
 
-  if (bricking.length > 0) {
+  if (multiBricking) {
+    // Only warn when multiple permissions are present. A single non-pass-through
+    // permission is correct — it restricts the SMA to its designed calls only.
     console.log(
       `\n✗ ${bricking.length} permission(s) return false for unrelated calls. On this ` +
         "kernel EVERY registered permission must approve EVERY call, so these BRICK all dispatches " +
         "(they surface as PermissionDenied). Revoke or replace them with pass-through versions:",
     );
     bricking.forEach((c) => console.log(`    ${c.permission}`));
-  } else {
-    console.log("\n✓ All permissions pass through unrelated calls — dispatch will not be bricked by a non-pass-through permission.");
+  } else if (permissions.length > 1) {
+    console.log("\n✓ All permissions pass through unrelated calls — dispatch will not be bricked.");
   }
+  // Single permission: no pass-through note needed (correct by design)
   console.log(`\nProbe is heuristic: an unknown selector (${PROBE_SELECTOR}) to a neutral target (${PROBE_TARGET}).`);
 }

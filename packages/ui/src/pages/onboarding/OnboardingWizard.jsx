@@ -378,6 +378,14 @@ function KeygenStep({ existingAddress, onDone, progressIndex, progressTotal }) {
               <span className={styles.copyHint}>{copied ? '✓' : 'copy'}</span>
             </button>
           </div>
+          <div className={styles.gasWarning}>
+            <p className={styles.gasWarningTitle}>⚠ Fund your agent wallet before running the agent</p>
+            <p className={styles.gasWarningBody}>
+              It pays gas for permission registrations.
+              A small amount is enough — ~0.001 ETH (~$3 on Base).
+              Send it to the agent address above on the network you chose.
+            </p>
+          </div>
           {passphrase && (
             <div className={styles.passphraseReminder}>
               <span style={{ opacity: 0.6, fontSize: 12 }}>Remember:</span>{' '}

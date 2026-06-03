@@ -5,7 +5,7 @@ import {
   getSailDeployment,
 } from "@sail/sdk";
 import { type Address, getAddress } from "viem";
-import { fileExists, readJsonFile, sailPath, writeJsonFile } from "./io.js";
+import { fileExists, parseEnvFile, readJsonFile, sailPath, writeJsonFile } from "./io.js";
 import { keyPath, loadKeyring } from "./keys.js";
 
 type ProjectConfigFile = {
@@ -113,10 +113,23 @@ export class ProjectContext {
  * Load the agent's manager signer (the EOA that submits dispatches and the
  * permission-registration transaction, paying gas + the registration fee).
  *
- * Uses `SAIL_PASSPHRASE` when set so agents can run headless; otherwise prompts
- * for the keystore password interactively.
+ * Uses `SAIL_PASSPHRASE` when set so agents can run headless. Reads from
+ * `.sail/.env.local` if not already in the process environment — this lets
+ * `sailor mandate attach` / `mandate deploy` / `mandate revoke` run without
+ * an interactive prompt when the passphrase is configured in `.env.local`,
+ * matching the behaviour of `sailor run`.
  */
 export async function loadManagerSigner(): Promise<LocalKeyring> {
+  // Populate SAIL_PASSPHRASE from .env.local if the caller (e.g. a mandate
+  // command) hasn't already loaded it into the process environment.
+  if (!process.env.SAIL_PASSPHRASE) {
+    try {
+      const env = parseEnvFile(sailPath(".env.local"));
+      if (env.SAIL_PASSPHRASE) process.env.SAIL_PASSPHRASE = env.SAIL_PASSPHRASE;
+    } catch {
+      // .env.local absent or unreadable — proceed; passphrase prompt follows
+    }
+  }
   const passphrase = process.env.SAIL_PASSPHRASE;
   if (passphrase) {
     const keystore = readJsonFile<EncryptedKeystore>(keyPath("manager"));
