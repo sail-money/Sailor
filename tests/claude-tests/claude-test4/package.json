@@ -1,0 +1,16 @@
+{
+  "name": "claude-test4",
+  "version": "0.1.0",
+  "description": "Dollar-cost-average rebalancer — starter Sail Protocol agent",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@sail/sdk": "file:/Users/andressarria/Desktop/SailAgent/SailAccountContainer/SailingChart/sailor/packages/sdk"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  }
+}

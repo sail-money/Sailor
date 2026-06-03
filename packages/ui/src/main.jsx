@@ -36,10 +36,14 @@ function Router() {
   const [route, setRoute] = useState(readRoute)
 
   // Default landing for the local UI is the dashboard. The marketing
-  // landing page remains accessible at #/landing.
+  // landing page remains accessible at #/landing. But when this SPA is served
+  // by the signing daemon (ports 3141–3150 — the URL `sailor owner connect` /
+  // mandate signing print), land on the signing station so wallet-connect and
+  // approvals are front-and-centre and the connected wallet is relayed back to
+  // the CLI (the dashboard has no such relay once a project is onboarded).
   useEffect(() => {
     if (route === '/' || route === '') {
-      window.location.replace('#/dashboard')
+      window.location.replace(servedBySigningDaemon() ? '#/station' : '#/dashboard')
     }
   }, [route])
 
