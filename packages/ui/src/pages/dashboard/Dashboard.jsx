@@ -38,7 +38,7 @@ import {
  * Dashboard — SMA-centric main view.
  *
  * Mental model: one SMA holds one mandate (a bundle of permissions);
- * multiple delegated signers run under that one mandate; activity is
+ * multiple agent wallets run under that one mandate; activity is
  * a single decision journal across all of them.
  *
  * Layout (top to bottom, matching the framework spec):
@@ -46,11 +46,11 @@ import {
  *   2. SMA title block — name, address pill, created date, Stop-all
  *   3. Quick links — View Portfolio (DeBank) + Manage SMA (Safe)
  *   4. Your mandate — permissions list (✓ allowed / ✗ disallowed)
- *   5. Your agents — delegated signers (each with ERC-8004 identity)
+ *   5. Your agents — agent wallets (each with ERC-8004 identity)
  *   6. Recent activity — Agent Decision Journal
  *
  * The previous All-Agents grid is retired; users navigate by SMA, not
- * by mandate. Drill-down to a single delegated signer still lives at
+ * by mandate. Drill-down to a single agent wallet still lives at
  * /agent/:id.
  */
 
@@ -159,7 +159,7 @@ const SIGNING_CHAIN_NAMES = {
 }
 
 const ACTIVITY_LABELS = {
-  // Delegated signer (agent) — from `sailor run`
+  // Agent wallet (agent) — from `sailor run`
   dispatch_executed: 'executed dispatch',
   dispatch_approved: 'approved dispatch',
   dispatch_denied: 'denied dispatch',
@@ -245,7 +245,7 @@ const BALANCE_STATUS = {
 }
 
 const SIGNER_ROLE = {
-  manager: { label: 'Delegated signer', sub: 'Pays gas for every dispatch — keep it funded.' },
+  manager: { label: 'Agent wallet', sub: 'Pays gas for every dispatch — keep it funded.' },
   owner: { label: 'Owner', sub: 'Holds the Safe and signs mandates.' },
   permissionSigner: { label: 'Permission signer', sub: 'Authorizes which mandates apply.' },
 }
@@ -312,18 +312,18 @@ function SignersPanel({ overview, sma, onAddSigner }) {
     return (
       <div className={styles.signersOffline}>
         <p className={styles.signersOfflineMsg}>
-          {overview?.onchainError
-            ? `Balances unavailable — ${overview.onchainError}`
-            : overview?.rpcConfigured === false
-              ? 'Add RPC_URL to .sail/.env.local to read signer balances.'
+          {overview?.rpcConfigured === false
+            ? 'Add RPC_URL to .sail/.env.local to see balances.'
+            : overview?.onchainError
+              ? 'Add RPC_URL to .sail/.env.local to see balances.'
               : 'Reading balances…'}
         </p>
-        {/* The agent needs a delegated signer to dispatch; offer to create or
+        {/* The agent needs a agent wallet to dispatch; offer to create or
             import one even before the on-chain read lands, as long as an SMA
             exists for the key to attach to. */}
         {sma && (
           <SailButton variant="secondary" onClick={onAddSigner}>
-            Add delegated signer
+            Add agent wallet
           </SailButton>
         )}
       </div>
@@ -355,7 +355,7 @@ function SignerCard({ signer, network, onAddSigner }) {
   const [funding, setFunding] = useState(false)
   const { sendTransactionAsync } = useSendTransaction()
   const role = signer.role === 'sma'
-    ? { label: 'SMA (Safe)', sub: 'Holds your funds. Native ETH shown; tokens not counted.' }
+    ? { label: 'SMA', sub: 'Holds your funds. Native ETH shown; tokens not counted.' }
     : (SIGNER_ROLE[signer.role] ?? { label: signer.role, sub: '' })
   const unconfigured = signer.status === 'unconfigured'
   const isLocal = signer.status === 'local'
@@ -404,7 +404,7 @@ function SignerCard({ signer, network, onAddSigner }) {
       </div>
       <p className={styles.signerSub}>
         {unconfigured
-          ? 'No delegated signer assigned yet — create or import one to let your agent sign.'
+          ? 'No agent wallet assigned yet — create or import one to let your agent sign.'
           : isLocal
             ? 'Created locally — not yet delegated on-chain.'
             : role.sub}
@@ -412,7 +412,7 @@ function SignerCard({ signer, network, onAddSigner }) {
 
       {unconfigured && (
         <SailButton fullWidth variant="secondary" onClick={onAddSigner}>
-          Add delegated signer
+          Add agent wallet
         </SailButton>
       )}
 
@@ -1114,9 +1114,14 @@ function DashboardContent({ onReset }) {
                     <span className={styles.smaBadge}>{overview.network}</span>
                   )}
                   {!overview.onchain && (
-                    <span className={`${styles.smaBadge} ${styles.smaBadgeWarn}`}>
-                      on-chain read unavailable
-                    </span>
+                    <button
+                      type="button"
+                      className={`${styles.smaBadge} ${styles.smaBadgeWarn} ${styles.smaBadgeBtn}`}
+                      title="Add RPC_URL=https://your-endpoint to .sail/.env.local&#10;Get a free endpoint at alchemy.com"
+                      onClick={() => alert('Add RPC_URL=https://your-endpoint to .sail/.env.local\nGet a free endpoint at alchemy.com')}
+                    >
+                      Add RPC URL to enable balance tracking
+                    </button>
                   )}
                 </div>
               )}
@@ -1158,18 +1163,18 @@ function DashboardContent({ onReset }) {
               </a>
             </section>
 
-            {/* ── Your mandates ───────────────────────────────────
+            {/* ── Your permissions ───────────────────────────────────
                 Each mandate is its own signed contract with its own
                 permission set and its own delegated-signer roster.
                 We show only the ✓ permissions here — anything not
                 listed is forbidden by the contract by default. Full
                 contract receipt, hashes, selectors, and the Revoke
                 action live one click in at /mandate/:id. */}
-            <section className={styles.mandatesSection} aria-label="Your mandates">
+            <section className={styles.mandatesSection} aria-label="Your permissions">
               <header className={styles.mandatesSectionHead}>
                 <h2 className={styles.mandatesSectionTitle}>
                   <DocGlyph />
-                  Your mandates
+                  Your permissions
                 </h2>
                 <span className={styles.mandatesSectionMeta}>
                   {overviewMandates.length > 0
@@ -1180,7 +1185,7 @@ function DashboardContent({ onReset }) {
                       ? `${(liveMandate.permissions ?? []).length} permission${
                           (liveMandate.permissions ?? []).length === 1 ? '' : 's'
                         } · live`
-                      : 'No mandate yet'}
+                      : 'No permissions registered yet'}
                 </span>
               </header>
 
@@ -1200,29 +1205,29 @@ function DashboardContent({ onReset }) {
               </div>
             </section>
 
-            {/* ── Delegated signers — gas balances ────────────────────
-                The manager (delegated signer) pays gas for every dispatch;
+            {/* ── Agent wallets — gas balances ────────────────────
+                The manager (agent wallet) pays gas for every dispatch;
                 if it runs dry the agent stalls. This section surfaces each
                 signer's live native balance with a top-up status so you can
                 refill before that happens. Read-only: Sail never holds keys,
                 so "top up" means sending ETH to the shown address yourself. */}
-            <section className={styles.signersSection} aria-label="Delegated signers">
+            <section className={styles.signersSection} aria-label="Agent wallets">
               <header className={styles.mandatesSectionHead}>
                 <h2 className={styles.mandatesSectionTitle}>
                   <KeyGlyph />
-                  Delegated signers
+                  Agent wallets
                 </h2>
                 <span className={styles.mandatesSectionMeta}>
                   {overview?.onchain
                     ? 'live balances · refill when low'
-                    : 'balances unavailable'}
+                    : 'Add RPC URL to enable balance tracking'}
                 </span>
               </header>
               <SignersPanel overview={overview} sma={sma} onAddSigner={() => setAddSignerOpen(true)} />
             </section>
 
             {/* ── Your agents — restored card grid ─────────────────
-                Each card is one delegated signer (one mandate in the
+                Each card is one agent wallet (one mandate in the
                 old data model). Mascot animates in the middle while
                 the agent is active. Clicking View drops into the rich
                 AgentPage detail (mandate fingerprint, permission
@@ -1237,7 +1242,7 @@ function DashboardContent({ onReset }) {
                     Your agents
                   </h2>
                   <p className={agentStyles.cardSub}>
-                    Delegated signers running under this mandate. Click View to inspect the agent in detail.
+                    Agent wallets running under this mandate. Click View to inspect the agent in detail.
                   </p>
                 </div>
                 <div className={styles.agentsHeadRight} />
@@ -1601,7 +1606,7 @@ function NewMandateTile({ onClick }) {
     <button type="button" className={styles.newMandateTile} onClick={onClick}>
       <span className={styles.newMandateTilePlus} aria-hidden>+</span>
       <span className={styles.newMandateTileText}>
-        <span className={styles.newMandateTileLabel}>Create new mandate</span>
+        <span className={styles.newMandateTileLabel}>Register a permission</span>
         <span className={styles.newMandateTileHint}>
           Draft one with your AI — sign each permission individually.
         </span>

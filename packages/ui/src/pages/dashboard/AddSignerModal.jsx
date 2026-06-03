@@ -97,7 +97,7 @@ export default function AddSignerModal({ open, safe, onClose, onCreated }) {
       className={styles.overlay}
       role="dialog"
       aria-modal="true"
-      aria-label="Add delegated signer"
+      aria-label="Add agent wallet"
       onClick={busy ? undefined : onClose}
     >
       <GlassCard className={styles.card} onClick={(e) => e.stopPropagation()}>
@@ -110,7 +110,7 @@ export default function AddSignerModal({ open, safe, onClose, onCreated }) {
         {result ? (
           <section className={styles.body}>
             <span className={styles.kicker}>SIGNER READY</span>
-            <h2 className={`${shared.displayHeadline} ${styles.headline}`}>Delegated signer created.</h2>
+            <h2 className={`${shared.displayHeadline} ${styles.headline}`}>Agent wallet created.</h2>
             <p className={styles.sub}>
               Encrypted on disk for {short(safe)}. It still needs to be delegated on-chain before the agent
               can sign with it.
@@ -142,7 +142,7 @@ export default function AddSignerModal({ open, safe, onClose, onCreated }) {
         ) : (
           <section className={styles.body}>
             <span className={styles.kicker}>DELEGATED SIGNER</span>
-            <h2 className={`${shared.displayHeadline} ${styles.headline}`}>Add a delegated signer.</h2>
+            <h2 className={`${shared.displayHeadline} ${styles.headline}`}>Add an agent wallet.</h2>
             <p className={styles.sub}>
               A hot key the agent uses to sign dispatches for {short(safe)}. It&rsquo;s encrypted on disk and
               never leaves this machine.

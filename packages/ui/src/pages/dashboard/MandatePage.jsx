@@ -26,7 +26,7 @@ import AIHandoffModal from './AIHandoffModal'
 
 /**
  * Mandate detail page — the canonical home for everything contract-
- * shaped. One signed mandate per SMA; many agents (delegated signers)
+ * shaped. One signed mandate per SMA; many agents (agent wallets)
  * run under it.
  *
  * Hierarchy:
@@ -138,7 +138,7 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
           <p className={styles.titleMeta}>
             Signed for <strong>{sma.name}</strong> · {mandate.signedAt}
             <span className={styles.titleMetaSep} aria-hidden>·</span>
-            {agents.length} delegated signer{agents.length === 1 ? '' : 's'} running under it
+            {agents.length} agent wallet{agents.length === 1 ? '' : 's'} running under it
           </p>
         </section>
 
@@ -510,7 +510,7 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
                 Agents running under this mandate
               </h2>
               <p className={styles.cardSub}>
-                Delegated signers operating within the permissions above. Each can be stopped individually without revoking the mandate.
+                Agent wallets operating within the permissions above. Each can be stopped individually without revoking the mandate.
               </p>
             </div>
             <span className={styles.cardHeadMeta}>

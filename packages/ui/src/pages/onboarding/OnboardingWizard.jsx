@@ -33,7 +33,7 @@ const SETUP_STAGES = [
     items: [
       { n: 1, name: 'Choose your network',  detail: 'Base, Arbitrum, Ethereum, Unichain…' },
       { n: 2, name: 'Connect your wallet',  detail: 'Becomes the owner of your SMA' },
-      { n: 3, name: 'Create agent key',     detail: 'Signs transactions on your behalf' },
+      { n: 3, name: 'Create agent wallet',     detail: 'Signs transactions on your behalf' },
       { n: 4, name: 'Deploy your SMA',      detail: 'One-time gas payment, permanent account' },
     ],
   },
@@ -42,7 +42,7 @@ const SETUP_STAGES = [
     color: 'rgba(255,255,255,0.35)',
     items: [
       { n: 5, name: 'Configure RPC & API keys', detail: 'Add to .sail/.env.local' },
-      { n: 6, name: 'Fund agent key',           detail: 'Small ETH for gas' },
+      { n: 6, name: 'Fund agent wallet',           detail: 'Small ETH for gas' },
       { n: 7, name: 'Set permissions',           detail: 'sailor mandate prepare → sign here' },
       { n: 8, name: 'Start agent',               detail: 'sailor run' },
     ],
@@ -300,7 +300,7 @@ function ConnectStep({ onBack, onDone, progressIndex, progressTotal }) {
   )
 }
 
-/* ── Step 3: Generate delegated signer key ── */
+/* ── Create agent wallet ── */
 function KeygenStep({ existingAddress, onDone, progressIndex, progressTotal }) {
   const [passphrase, setPassphrase] = useState('')
   const [loading, setLoading] = useState(false)
@@ -338,7 +338,7 @@ function KeygenStep({ existingAddress, onDone, progressIndex, progressTotal }) {
       <ProgressDots current={progressIndex} total={progressTotal} />
       <CardHeader
         kicker="STEP 3 OF 4"
-        title="Create agent key"
+        title="Create agent wallet"
         sub="A signing key your agent uses to execute trades. It never holds custody."
       />
       {!generated ? (
@@ -432,7 +432,10 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onDone, pro
     const body = await buildRes.json()
     if (!buildRes.ok) throw new Error(body?.error ?? 'Build failed')
 
-    // Simulate before sending — detect UntrustedFactory without spending gas
+    // Simulate before sending. Any revert (not just UntrustedFactory) means the
+    // kernel.createAccount path won't work → fall back to the two-step register path.
+    // This handles both "factory not trusted" (UntrustedFactory error) and any other
+    // revert the selective kernel might produce with this factory on this chain.
     const rpc = PUBLIC_RPC[chainId]
     let useRegisterPath = false
     if (rpc) {
@@ -442,17 +445,20 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onDone, pro
         body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ from: owner, to: body.to, data: body.data }, 'latest'] }),
       }).then(r => r.json()).catch(() => null)
 
-      const revertData = sim?.error?.data ?? ''
-      const revertMsg = sim?.error?.message ?? ''
-      // UntrustedFactory(address) selector = 0xe6c4247b
-      if (revertData.startsWith('0xe6c4247b') || revertMsg.includes('UntrustedFactory')) {
+      // Fall back to register path for ANY simulation revert — not just UntrustedFactory.
+      // On Arbitrum (selective kernel), the factory may be untrusted with a different
+      // error encoding than Base, or createAccount may have a different failure mode.
+      if (sim?.error) {
         useRegisterPath = true
       }
     }
 
     if (useRegisterPath) {
       // Two-step path: deploy Safe directly via factory, then registerAccount on kernel.
-      // Server builds the deploy tx; wizard parses Safe address from receipt (no RPC needed).
+      // The registerAccount function takes (permissionSigner, manager, feePolicy):
+      //   permissionSigner = owner (user's wallet — signs mandates)
+      //   manager = managerAddress (agent wallet — signs dispatches)
+      //   feePolicy = address(0) (no fee policy)
       setStatus(chainId, 'building')
       const pathRes = await fetch('/api/onboard/build-register-path', {
         method: 'POST',
@@ -476,16 +482,20 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onDone, pro
       if (!proxyLog) throw new Error('ProxyCreation event not found in deploy receipt')
       const safe = getAddress(`0x${proxyLog.topics[1].slice(26)}`)
 
-      // Step 2: register with kernel (build registerAccount calldata client-side)
+      // Step 2: register with kernel.
+      // registerAccount(address permissionSigner, address manager, address feePolicy)
+      // permissionSigner = owner (NOT the safe address)
+      const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
       const registerData = encodeFunctionData({
         abi: [{ name: 'registerAccount', type: 'function', inputs: [{ type: 'address' }, { type: 'address' }, { type: 'address' }], outputs: [] }],
         functionName: 'registerAccount',
-        args: [safe, owner, managerAddress],
+        args: [owner, managerAddress, ZERO_ADDRESS],  // (permissionSigner, manager, feePolicy)
       })
       setStatus(chainId, 'wallet')
       const registerHash = await sendTransactionAsync({ to: path.kernel, data: registerData, chainId })
       setStatus(chainId, 'confirming')
-      await waitForReceipt(registerHash, chainId)
+      const registerReceipt = await waitForReceipt(registerHash, chainId)
+      if (registerReceipt?.status === '0x0') throw new Error('registerAccount reverted — check the kernel address and try again.')
 
       await fetch('/api/onboard/complete', {
         method: 'POST',
@@ -496,14 +506,18 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onDone, pro
       return { chainId, safe }
     }
 
-    // Direct path: kernel.createAccount
+    // Direct path: kernel.createAccount (conjunctive kernels / chains where factory is trusted)
     setStatus(chainId, 'wallet')
     const hash = await sendTransactionAsync({ to: body.to, data: body.data, chainId })
 
     setStatus(chainId, 'confirming')
     const receipt = await waitForReceipt(hash, chainId)
+    // Check tx status before looking for the event — a reverted tx has no logs.
+    if (receipt?.status === '0x0') {
+      throw new Error('createAccount transaction reverted. The Safe factory may not be supported on this chain — try again and the wizard will use the register path.')
+    }
     const log = receipt?.logs?.find(l => l.topics?.[0] === ACCOUNT_REGISTERED_TOPIC)
-    if (!log) throw new Error('AccountRegistered event not found')
+    if (!log) throw new Error('AccountRegistered event not found in receipt. This may be a kernel version mismatch — please report this.')
     const safe = getAddress(`0x${log.topics[1].slice(26)}`)
 
     await fetch('/api/onboard/complete', {
@@ -580,7 +594,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onDone, pro
         })}
       </div>
       <Detail label="Owner" value={owner} />
-      <Detail label="Agent key" value={managerAddress} />
+      <Detail label="Agent wallet" value={managerAddress} />
       {!allSettled && (
         <SailButton fullWidth onClick={deployAll} disabled={running} style={{ marginTop: 14 }}>
           {running ? 'Deploying…' : 'Deploy SMAs'}
@@ -667,7 +681,7 @@ function DoneStep({ deployedSafes, onComplete }) {
     '     RPC_URL=<your RPC endpoint for ' + (network?.name ?? 'the network') + '>',
     '     SAIL_API_KEY=<your key from api.sail.money>',
     '',
-    '6. Fund agent key',
+    '6. Fund agent wallet',
     '   - The agent address is shown on the dashboard (http://localhost:3333)',
     '   - Send a small amount of ETH to it for gas',
     '',

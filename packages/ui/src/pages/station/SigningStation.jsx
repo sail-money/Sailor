@@ -84,8 +84,14 @@ export default function SigningStation() {
     if (msg.type === 'pending') setRequests(msg.requests)
     else if (msg.type === 'request') setRequests((prev) => prev.find((r) => r.id === msg.request.id) ? prev : [...prev, msg.request])
     else if (msg.type === 'request-resolved') {
+      // Track last completed request kind to show a success confirmation screen
+      setPhase((p) => {
+        if (p.requestId === msg.requestId && p.phase === 'done') {
+          return { phase: 'success', requestId: msg.requestId, kind: p.kind }
+        }
+        return p.requestId === msg.requestId ? { phase: 'idle' } : p
+      })
       setRequests((prev) => prev.filter((r) => r.id !== msg.requestId))
-      setPhase((p) => (p.requestId === msg.requestId ? { phase: 'idle' } : p))
     }
   }, [])
 
@@ -116,6 +122,8 @@ export default function SigningStation() {
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, padding: '40px 0' }}>
             <NotConnectedCard eyebrow="SIGNING STATION" title="Connect to approve requests." sub="Connect the owner wallet to review and sign pending agent requests." />
           </div>
+        ) : phase.phase === 'success' ? (
+          <SuccessScreen kind={phase.kind} onDone={() => { setPhase({ phase: 'idle' }); window.location.hash = '#/dashboard' }} />
         ) : requests.length === 0 ? (
           <EmptyQueue daemonConnected={daemonStatus === 'connected'} onAsk={() => setAiOpen(true)} />
         ) : (
@@ -151,7 +159,7 @@ function Orchestrator({ requests, chains, phase, setPhase, send }) {
   const { signTypedDataAsync } = useSignTypedData()
 
   const handleSign = useCallback(async (req) => {
-    setPhase({ phase: 'submitting', requestId: req.id })
+    setPhase({ phase: 'submitting', requestId: req.id, kind: req.kind })
     try {
       if (req.type === 'transaction') {
         const hash = await sendTransactionAsync({
@@ -160,18 +168,18 @@ function Orchestrator({ requests, chains, phase, setPhase, send }) {
           value: req.value ? BigInt(req.value) : 0n,
           chainId: req.chainId,
         })
-        setPhase({ phase: 'done', requestId: req.id, txHash: hash })
+        setPhase({ phase: 'done', requestId: req.id, kind: req.kind, txHash: hash })
         send({ type: 'signed', requestId: req.id, txHash: hash })
       } else {
         const message = Object.fromEntries(
           Object.entries(req.typedData.message).map(([k, v]) => [k, typeof v === 'string' && /^\d+$/.test(v) ? BigInt(v) : v])
         )
         const sig = await signTypedDataAsync({ domain: req.typedData.domain, types: req.typedData.types, primaryType: req.typedData.primaryType, message })
-        setPhase({ phase: 'done', requestId: req.id, txHash: sig })
+        setPhase({ phase: 'done', requestId: req.id, kind: req.kind, txHash: sig })
         send({ type: 'signature', requestId: req.id, signature: sig })
       }
     } catch (err) {
-      setPhase({ phase: 'error', requestId: req.id, message: err instanceof Error ? err.message : String(err) })
+      setPhase({ phase: 'error', requestId: req.id, kind: req.kind, message: err instanceof Error ? err.message : String(err) })
     }
   }, [sendTransactionAsync, signTypedDataAsync, setPhase, send])
 
@@ -245,6 +253,33 @@ function DetailRow({ label, value, mono = true }) {
       <span className={styles.detailLabel}>{label}</span>
       {mono ? <code className={styles.detailValue}>{value}</code> : <span className={styles.detailValue}>{value}</span>}
     </div>
+  )
+}
+
+function SuccessScreen({ kind, onDone }) {
+  const isPermission = kind === 'register-permission' || kind === 'attach-mandate'
+  return (
+    <GlassCard className={styles.emptyCard}>
+      <div className={styles.emptyCardSai} aria-hidden>
+        <Sai size={64} animate />
+      </div>
+      <header className={styles.emptyCardHeader}>
+        <span className={styles.emptyKicker}>SIGNED</span>
+        <h1 className={`${shared.displayHeadline} ${styles.emptyHeadline}`} style={{ color: 'var(--accent-green, #4ade80)' }}>
+          ✓ {isPermission ? 'Permission registered.' : 'Done.'}
+        </h1>
+        <p className={`${shared.italicMannerism} ${styles.emptyTagline}`}>
+          {isPermission
+            ? 'Your agent is authorized to dispatch within this permission.'
+            : 'The request was signed and submitted.'}
+        </p>
+      </header>
+      <div className={styles.emptyCta}>
+        <SailButton fullWidth onClick={onDone}>
+          Back to dashboard →
+        </SailButton>
+      </div>
+    </GlassCard>
   )
 }
 
