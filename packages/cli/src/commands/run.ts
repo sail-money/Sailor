@@ -363,6 +363,20 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
                   firstCall as NonNullable<typeof firstCall>,
                   manager,
                 );
+          // On conjunctive kernels each dispatch is a separate on-chain tx and
+          // nonces are consumed sequentially. dispatch.single already awaits the
+          // receipt internally and bumps its nonce cache, but on a load-balanced
+          // RPC the nonce view can lag. Waiting here guarantees the on-chain nonce
+          // is definitively consumed before the next dispatch is signed, preventing
+          // "replacement transaction underpriced" errors between sequential intents.
+          // Selective kernels use dispatchBatch (handled above) so this is skipped.
+          if (isConjunctive && result.txHash) {
+            try {
+              await publicClient.waitForTransactionReceipt({ hash: result.txHash, timeout: 30_000 });
+            } catch {
+              // receipt already confirmed by dispatch.single — this is belt-and-suspenders
+            }
+          }
           appendActivity({
             ts: nowIso(),
             actor: "agent",
