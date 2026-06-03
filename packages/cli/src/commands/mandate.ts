@@ -1,6 +1,6 @@
 import { confirm, readJsonFile, sailPath, writeJsonFile } from "../lib/io.js";
 import { MandateStore } from "../lib/mandates.js";
-import type { StoredAccount } from "../lib/state.js";
+import type { StoredAccount, StoredMandate } from "../lib/state.js";
 import { mandateAttach } from "./mandate-contracts.js";
 
 /**
@@ -135,13 +135,28 @@ export async function mandateSign(): Promise<void> {
   const unregistered = permissions.filter((p) => !p.registeredOnSma);
   if (unregistered.length === 0) {
     console.log(`\n✓ Confirmed ${permissions.length} permission(s) for ${account.safe}.`);
-    return;
+  } else {
+    console.log(
+      `\n${unregistered.length} permission(s) are not yet registered on this SMA. Initiating registration…`,
+    );
+    for (const p of unregistered) {
+      await mandateAttach({ address: p.address, sma: account.safe, label: p.label });
+    }
   }
 
-  console.log(
-    `\n${unregistered.length} permission(s) are not yet registered on this SMA. Initiating registration…`,
-  );
-  for (const p of unregistered) {
-    await mandateAttach({ address: p.address, sma: account.safe, label: p.label });
-  }
+  // Write .sail/mandate.json so `sailor run` can proceed.
+  // Schema: StoredMandate — runner only gate-checks existence; actual permissions
+  // are read from on-chain via readClient.mandate.list().
+  // signature is empty here because registration is done via mandateAttach, not
+  // a single EIP-712 signing step.
+  const storedMandate: StoredMandate = {
+    safe: account.safe,
+    chainId: account.chainId,
+    signedAt: new Date().toISOString(),
+    signature: "",
+    registeredOnChain: true,
+    permissions: permissions.map((p) => ({ template: p.label, params: {} })),
+  };
+  writeJsonFile(sailPath("mandate.json"), storedMandate);
+  console.log(`\n✓ Saved to .sail/mandate.json — agent is ready to run.`);
 }

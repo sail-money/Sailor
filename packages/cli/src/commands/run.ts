@@ -49,16 +49,30 @@ function loadAgentData(filePath: string | undefined): Record<string, unknown> {
   }
 }
 
-/** Dynamically imports the agent from the current project (tsx/ts-node for .ts, or a built .js). */
+/**
+ * Dynamically imports the agent from the current project.
+ *
+ * For .ts files: uses tsx's tsImport() which handles the .js→.ts resolution that
+ * Node's native TypeScript support doesn't do. tsx must be installed in the
+ * project or the CLI's node_modules.
+ * For .js files: plain dynamic import().
+ */
 async function loadAgent(): Promise<Agent> {
   const candidates = ["src/agent.ts", "src/agent.js", "dist/agent.js", "dist/src/agent.js"];
   for (const rel of candidates) {
     const abs = path.join(process.cwd(), rel);
     if (!fs.existsSync(abs)) continue;
-    const mod = (await import(pathToFileURL(abs).href)) as {
-      agent?: Agent;
-      default?: Agent;
-    };
+
+    let mod: { agent?: Agent; default?: Agent };
+    if (abs.endsWith(".ts")) {
+      // tsx resolves .js import specifiers to .ts source files — required for
+      // TypeScript agents that use the standard .js extension convention.
+      const { tsImport } = await import("tsx/esm/api");
+      mod = (await tsImport(abs, pathToFileURL(abs).href)) as typeof mod;
+    } else {
+      mod = (await import(pathToFileURL(abs).href)) as typeof mod;
+    }
+
     const agent = mod.agent ?? mod.default;
     if (!agent || typeof agent.tick !== "function") {
       throw new Error(`${rel} does not export an \`agent\` with a tick() function.`);
@@ -66,7 +80,8 @@ async function loadAgent(): Promise<Agent> {
     return agent;
   }
   throw new Error(
-    "No agent found. Expected src/agent.ts (run under tsx) or a built dist/agent.js.",
+    "No agent found. Expected src/agent.ts (loaded via tsx) or a built dist/agent.js.\n" +
+      "If src/agent.ts exists, ensure tsx is installed: pnpm add tsx",
   );
 }
 
@@ -184,6 +199,16 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
 
   const agent = await loadAgent();
 
+  // Detect the kernel's dispatch model once at startup. Conjunctive kernels have
+  // no previewBatch, so the runner skips the preview step for them.
+  let isConjunctive = false;
+  try {
+    const caps = await readClient.capabilities();
+    isConjunctive = caps.dispatchModel === "conjunctive";
+  } catch {
+    // advisory — default to attempting preview (will throw and be caught per-dispatch)
+  }
+
   const intervalSec = (() => {
     const raw = env.SAILOR_INTERVAL ?? process.env.SAILOR_INTERVAL;
     const n = raw === undefined ? DEFAULT_INTERVAL_SEC : Number(raw);
@@ -197,7 +222,12 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
 
   // Open data slot — seeded once from SAILOR_DATA (JSON file) if set, else {}.
   // The same object is passed every tick so agents can cache across ticks.
-  const agentData = loadAgentData(env.SAILOR_DATA ?? process.env.SAILOR_DATA);
+  // _publicClient is injected so agents can make arbitrary on-chain reads
+  // (e.g. QuoterV2 calls) without needing a separate RPC connection.
+  const agentData: Record<string, unknown> = {
+    ...loadAgentData(env.SAILOR_DATA ?? process.env.SAILOR_DATA),
+    _publicClient: publicClient,
+  };
 
   // SMA balance reader: native ETH via getBalance, ERC-20 via balanceOf.
   const readBalance = async (token: Address | "native"): Promise<bigint> => {
@@ -294,23 +324,27 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
             continue;
           }
 
-          const preview = await execClient.dispatch.preview(
-            accountAddr,
-            permission,
-            dispatch.calls,
-          );
-          if (!preview.approved) {
-            const reason = preview.reason ?? "denied";
-            appendActivity({
-              ts: nowIso(),
-              actor: "agent",
-              type: "dispatch_denied",
+          // Conjunctive kernels have no previewBatch — skip preview and submit
+          // directly. Selective kernels: preview before executing.
+          if (!isConjunctive) {
+            const preview = await execClient.dispatch.preview(
+              accountAddr,
               permission,
-              target,
-              reason,
-            });
-            console.log(`denied: ${reason}`);
-            continue;
+              dispatch.calls,
+            );
+            if (!preview.approved) {
+              const reason = preview.reason ?? "denied";
+              appendActivity({
+                ts: nowIso(),
+                actor: "agent",
+                type: "dispatch_denied",
+                permission,
+                target,
+                reason,
+              });
+              console.log(`denied: ${reason}`);
+              continue;
+            }
           }
 
           appendActivity({
