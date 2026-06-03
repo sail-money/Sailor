@@ -9,7 +9,13 @@ import path from "node:path";
  * regardless of how it was invoked (node, npx, pnpm exec, global bin).
  */
 export function cliDistDir(): string {
-  return path.dirname(path.resolve(process.argv[1]));
+  try {
+    // Resolve symlinks (e.g. global npm bin → node_modules/sailor/packages/cli/dist/)
+    // so the packageRoot walk-up starts from the real file location.
+    return path.dirname(fs.realpathSync(process.argv[1]));
+  } catch {
+    return path.dirname(path.resolve(process.argv[1]));
+  }
 }
 
 /**

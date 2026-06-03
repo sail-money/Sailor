@@ -44,7 +44,8 @@ This folder is the local workspace for one Sailor agent deployment.
 - \`keys/\` stores encrypted local signing keys. Never commit these files.
 - \`runtime/\` is for local UI and signing handoff state.
 - \`state/\` is for persistent agent state, audit logs, and tx history.
-AI coding agents should read this file, \`config.json\`, and \`../sail/WIZARD.md\`
+
+AI coding agents should read the project's \`AGENTS.md\` and this folder's \`config.json\`
 before changing strategy code or running commands that touch funds.
 `;
 
@@ -148,7 +149,6 @@ export async function initCommand(
     throw new Error(`Already initialized — .sail/config.json exists`);
   }
 
-  console.log(inPlace ? "Scaffolding into current directory…" : `Scaffolding ${name}/ from ${templateName} template…`);
   copyDirSync(templateSrc, dest);
 
   // Patch package.json: set name and resolve @sail/sdk.
@@ -181,11 +181,121 @@ export async function initCommand(
   scaffoldProjectWorkspace(dest, name, options);
   scaffoldFoundryWorkspace(dest);
 
-  console.log("\nDone! Your agent is ready.\n");
-  console.log("Next steps:");
+  printWelcome(dest, name, inPlace, !!options.rpcUrl, /* freshInit */ true);
+}
+
+function chainLabel(chainId: number): string {
+  const labels: Record<number, string> = {
+    8453: "Base",
+    42161: "Arbitrum",
+    84532: "Base Sepolia",
+  };
+  return labels[chainId] ?? `Chain ${chainId}`;
+}
+
+type ProjectState =
+  | { kind: "A" }
+  | { kind: "B"; projectName: string; chain: string }
+  | { kind: "C"; projectName: string; chain: string; sma: string }
+  | { kind: "D"; projectName: string; chain: string; sma: string; permissionCount: number };
+
+function detectState(dest: string): ProjectState {
+  try {
+    const configRaw = fs.readFileSync(path.join(dest, ".sail", "config.json"), "utf-8");
+    const config = JSON.parse(configRaw) as { name?: string; chainId?: number };
+    const projectName = config.name ?? path.basename(dest);
+
+    const accountPath = path.join(dest, ".sail", "account.json");
+    if (!fs.existsSync(accountPath)) {
+      return { kind: "B", projectName, chain: chainLabel(config.chainId ?? 0) };
+    }
+
+    const accountRaw = fs.readFileSync(accountPath, "utf-8");
+    const account = JSON.parse(accountRaw) as { safe?: string; chainId?: number };
+    const sma = account.safe ?? "";
+    const chain = chainLabel(account.chainId ?? config.chainId ?? 0);
+
+    let permissionCount = 0;
+    try {
+      const mandatesRaw = fs.readFileSync(
+        path.join(dest, ".sail", "state", "mandates.json"),
+        "utf-8",
+      );
+      const mandates = JSON.parse(mandatesRaw) as { mandates?: unknown[] };
+      permissionCount = Array.isArray(mandates.mandates) ? mandates.mandates.length : 0;
+    } catch {
+      // no mandates file or unparseable — treat as 0
+    }
+
+    if (permissionCount > 0) {
+      return { kind: "D", projectName, chain, sma, permissionCount };
+    }
+    return { kind: "C", projectName, chain, sma };
+  } catch {
+    return { kind: "A" };
+  }
+}
+
+function printWelcome(dest: string, name: string, inPlace: boolean, hasRpc: boolean, freshInit = false): void {
+  // A fresh sailor init always shows STATE A — the project was just created.
+  const state = freshInit ? { kind: "A" as const } : detectState(dest);
+
+  if (state.kind === "B") {
+    console.log("\nWelcome back.\n");
+    console.log(`Project: ${state.projectName} | Network: ${state.chain}`);
+    console.log("Status: SMA not yet deployed.\n");
+    console.log("Next:");
+    console.log("  sailor ui start");
+    console.log("  Connect your wallet and deploy your SMA in the browser.\n");
+    console.log('Or open this folder in your AI coding assistant and say: "continue"');
+    return;
+  }
+
+  if (state.kind === "C") {
+    console.log("\nWelcome back.\n");
+    console.log(`Project: ${state.projectName}`);
+    console.log(`SMA: ${state.sma} on ${state.chain}`);
+    console.log(
+      "Permissions: none registered yet — your agent has no mandate to execute against.\n",
+    );
+    console.log("Next:");
+    console.log(
+      "  Write your permission contract in mandates/ (start from BoundedCallPermission.sol)",
+    );
+    console.log("  forge build");
+    console.log(`  sailor mandate deploy --contract <Name> --attach --sma ${state.sma}\n`);
+    console.log('Or open this folder in your AI coding assistant and say: "continue"');
+    return;
+  }
+
+  if (state.kind === "D") {
+    console.log("\nWelcome back.\n");
+    console.log(`Project: ${state.projectName}`);
+    console.log(`SMA: ${state.sma} on ${state.chain}`);
+    console.log(`Permissions: ${state.permissionCount} registered\n`);
+    console.log('Open this folder in your AI coding assistant and say: "continue"');
+    return;
+  }
+
+  // STATE A — fresh project
+  console.log(
+    "\nI'm Sailor, the operator toolkit for Sail Protocol — onchain SMAs where your agent",
+  );
+  console.log(
+    "executes within a mandate it can never exceed, enforced on every transaction.\n",
+  );
+  console.log("Your capital stays in your SMA. You can revoke the agent in one block.\n");
+  console.log("You'll set up your SMA in 5 steps:\n");
+  console.log("  In your browser:");
+  console.log("    1. Connect your wallet and choose a network");
+  console.log("    2. Deploy your SMA  (costs gas — fund the wallet on that network)");
+  console.log("    3. Create your agent wallet\n");
+  console.log("  With your AI coding assistant:");
+  console.log("    4. Describe your strategy — your assistant builds and signs the mandate");
+  console.log("    5. Set up automation (local schedule or GitHub Actions)\n");
+  console.log("Next:");
   if (!inPlace) console.log(`  cd ${name}`);
-  if (!options.rpcUrl) console.log("  cp .env.example .sail/.env.local");
-  console.log("  Open this folder in Claude Code, Cursor, or Codex");
-  console.log('  Say: "start"\n');
-  console.log("The setup guide in sail/WIZARD.md will walk you through everything.");
+  if (!hasRpc) console.log("  cp .env.example .sail/.env.local");
+  console.log("  Open this folder in your AI coding assistant (Claude Code, Cursor, Codex, …)");
+  console.log('  Say: "start"');
 }

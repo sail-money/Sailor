@@ -18,9 +18,9 @@ export async function status(): Promise<void> {
   console.log("────────────────────────────────────────");
 
   console.log("Keys:");
-  console.log(`  manager           ${hasManager ? "✓" : '✗  run "sailor keys generate"'}`);
+  console.log(`  agent wallet      ${hasManager ? "✓" : '✗  run "sailor keys generate"'}`);
   console.log(
-    `  permissionSigner  ${hasPermissionSigner ? "✓" : '✗  run "sailor keys generate"'}`,
+    `  mandate signer    ${hasPermissionSigner ? "✓" : '✗  run "sailor keys generate"'}`,
   );
 
   console.log("Account:");

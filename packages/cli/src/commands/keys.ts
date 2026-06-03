@@ -1,21 +1,21 @@
 import { LocalKeyring } from "@sail/sdk";
 import { checksum, confirm, fileExists, prompt, promptHidden, writeJsonFile } from "../lib/io.js";
-import { keyExists, keyPath, loadKeyring, normalizeRole, ROLES } from "../lib/keys.js";
+import { keyExists, keyPath, loadKeyring, normalizeRole, roleLabel, ROLES } from "../lib/keys.js";
 
 /**
  * `sailor keys generate` — creates a random key for a role and stores it
  * encrypted at .sail/keys/<role>.json. The private key is never printed.
  */
 export async function keysGenerate(): Promise<void> {
-  const roleInput = await prompt("Which key? (manager / permissionSigner)", "manager");
+  const roleInput = await prompt("Which key? (agent wallet / mandate signer)", "agent wallet");
   const role = normalizeRole(roleInput);
   if (!role) {
-    throw new Error(`Unknown key role: "${roleInput}". Choose "manager" or "permissionSigner".`);
+    throw new Error(`Unknown key role: "${roleInput}". Choose "agent wallet" or "mandate signer".`);
   }
 
   if (fileExists(keyPath(role))) {
     const overwrite = await confirm(
-      `A ${role} key already exists at .sail/keys/${role}.json. Overwrite it?`,
+      `A ${roleLabel(role)} key already exists at .sail/keys/${role}.json. Overwrite it?`,
     );
     if (!overwrite) {
       console.log("Aborted — existing key left untouched.");
@@ -36,7 +36,7 @@ export async function keysGenerate(): Promise<void> {
   const keystore = await keyring.exportKeystore(password);
   writeJsonFile(keyPath(role), keystore);
 
-  const label = role === "manager" ? "Manager" : "Permission signer";
+  const label = role === "manager" ? "Agent wallet" : "Mandate signer";
   console.log(`\n${label} key saved. Address: ${checksum(keyring.address)}`);
   console.log(`Encrypted keystore written to .sail/keys/${role}.json`);
 }
@@ -57,7 +57,7 @@ export async function keysShow(): Promise<void> {
   for (const role of present) {
     try {
       const keyring = await loadKeyring(role);
-      console.log(`  ${role}: ${checksum(keyring.address)}`);
+      console.log(`  ${roleLabel(role)}: ${checksum(keyring.address)}`);
     } catch (err) {
       console.log(`  ${role}: ${(err as Error).message}`);
     }

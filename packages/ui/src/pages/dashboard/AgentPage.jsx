@@ -17,7 +17,7 @@ import ContractModal from './ContractModal'
  *
  * Layout: title block on top, then a two-column body. The sidebar carries
  * everything that defines *who* this agent is — current health, account
- * chain (EOA → SMA → Delegated signer), schedule, networks, identity, gas,
+ * chain (EOA → SMA → Agent wallet), schedule, networks, identity, gas,
  * and the action stack (Edit / Pause / Revoke). The main column carries
  * *what* this agent does — the mandate explainer + fingerprint,
  * permissions, activity, runs, custom pages, and the original
@@ -215,7 +215,7 @@ export default function AgentPage({ agentId, onBack, onEdit, onRevoke }) {
                   </span>
                 </SubSection>
 
-                <SubSection title="Gas balance" kicker="Delegated signer">
+                <SubSection title="Gas balance" kicker="Agent wallet">
                   <div className={styles.gasRow}>
                     <span className={styles.gasChain}><NetIcon /> Arbitrum</span>
                     <span className={styles.gasValue}>{view.mpcWallet.gas} ETH</span>
@@ -363,7 +363,7 @@ export default function AgentPage({ agentId, onBack, onEdit, onRevoke }) {
                         {mandate.role ?? mandate.title}
                       </span>
                       <span className={styles.permRelationBody}>
-                        Operates as a delegated signer under{' '}
+                        Operates as an agent wallet under{' '}
                         <strong>{parentMandate.title}</strong>. The mandate above
                         defines the full permission set; this agent uses the
                         <strong> {usedPermissionIds.size}</strong> highlighted below.
@@ -465,7 +465,7 @@ export default function AgentPage({ agentId, onBack, onEdit, onRevoke }) {
                     <div className={styles.pageNewBody}>
                       <span className={styles.pageNewTitle}>Ask your AI to build a page</span>
                       <span className={styles.pageNewSub}>
-                        Try: “Sail, build me a yield-history page for this agent.”
+                        Try: “Sailor, build me a yield-history page for this agent.”
                       </span>
                     </div>
                   </li>
@@ -589,7 +589,7 @@ function TierCard({ tier, depth = 0, label, primary, summary, defaultOpen, child
     >
       {/* L-curve connector — same SVG language as the Ownership
           chain in the sidebar, so the page's two hierarchies
-          (Agent → Mandate → Permissions and EOA → SMA → Delegated signer)
+          (Agent → Mandate → Permissions and EOA → SMA → Agent wallet)
           read in the same visual grammar. */}
       {depth > 0 && (
         <span className={styles.tierCardConnector} aria-hidden>
@@ -796,7 +796,7 @@ function HierarchyHeader({ mandate, view }) {
         tone="identity"
         label="Agent"
         primary={view.erc8004.handle}
-        secondary="ERC-8004 onchain identity. The delegated signer your AI acts through."
+        secondary="ERC-8004 onchain identity. The agent wallet your AI acts through."
         addressLabel="Address"
         address={view.mpcWallet.address}
         active

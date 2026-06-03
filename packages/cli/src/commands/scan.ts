@@ -166,7 +166,7 @@ export async function scan(options: { owner?: string; json?: boolean }): Promise
       console.log(`Saved context → ${contextPath}`);
       if (safes.length === 0 && !discoveryError) {
         console.log(
-          "\nOwner has no Safes yet. Next: decide a strategy, then create an SMA + attach a mandate.",
+          "\nOwner has no SMAs yet. Next: decide a strategy, then create an SMA and register a permission.",
         );
       }
     },

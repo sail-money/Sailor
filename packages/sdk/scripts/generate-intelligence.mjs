@@ -148,6 +148,7 @@ for (const name of allRefNames) {
 // ── Generate client methods ───────────────────────────────────────────────────
 
 const methods = [];
+const usedMethodNames = new Set();
 
 for (const [path, pathItem] of Object.entries(spec.paths)) {
   for (const [httpMethod, op] of Object.entries(pathItem)) {
@@ -156,7 +157,12 @@ for (const [path, pathItem] of Object.entries(spec.paths)) {
     // Derive method name from path segments.
     const seg = path.replace("/v1/", "").replace(/{[^}]+}/g, "").replace(/\/+$/, "");
     const parts = seg.split("/").filter(Boolean);
-    const methodName = parts.map((p, i) => (i === 0 ? p : p[0].toUpperCase() + p.slice(1))).join("");
+    const baseName = parts.map((p, i) => (i === 0 ? p : p[0].toUpperCase() + p.slice(1))).join("");
+    // Disambiguate collisions by prefixing the HTTP verb.
+    const methodName = usedMethodNames.has(baseName)
+      ? httpMethod + baseName[0].toUpperCase() + baseName.slice(1)
+      : baseName;
+    usedMethodNames.add(methodName);
 
     const summary = op.summary ?? "";
     const desc = op.description ?? "";

@@ -83,7 +83,7 @@ ui.action(action(uiCommand));
 const keys = program.command("keys").description("Manage local signing keys");
 keys
   .command("generate")
-  .description("Generate and encrypt a manager or permissionSigner key")
+  .description("Generate and encrypt an agent wallet or mandate signer key")
   .action(action(keysGenerate));
 keys.command("show").description("Show the address of each stored key").action(action(keysShow));
 
@@ -100,32 +100,32 @@ mandate
   .action(action(mandatePrepare));
 mandate
   .command("sign")
-  .description("Review and sign the agent's mandate with a local key (advanced)")
+  .description("Review and confirm the permissions authorized for your SMA")
   .action(action(mandateSign));
 mandate
   .command("deploy")
-  .description("Deploy a Foundry-compiled mandate contract via the browser signing UI")
+  .description("Deploy a Foundry-compiled permission contract via the browser signing UI")
   .option("--artifact <path>", "Path to the Foundry artifact JSON (out/<Name>.sol/<Name>.json)")
   .option("--contract <name>", "Contract name; resolves to <out>/<name>.sol/<name>.json")
   .option("--out <dir>", "Foundry output directory", "out")
-  .option("--name <label>", "Label to track this mandate under (defaults to contract name)")
+  .option("--name <label>", "Label to track this permission under (defaults to contract name)")
   .option("--args <json>", 'Constructor args as a JSON array, e.g. \'[["0x.."],"1000"]\'')
   .option("--build", "Run `forge build` before deploying")
-  .option("--attach", "After deploy, attach the mandate to --sma")
-  .option("--sma <address>", "Safe to attach to (required with --attach)")
+  .option("--attach", "After deploy, register the permission on --sma")
+  .option("--sma <address>", "SMA to register on (required with --attach)")
   .option("--json", "Emit machine-readable JSON")
   .action(actionWith<DeployOptions>(mandateDeploy));
 mandate
   .command("attach")
-  .description("Attach an already-deployed mandate to a Safe (EIP-712 RegisterPermission)")
-  .requiredOption("--address <mandateOrName>", "Mandate address, or a name tracked locally")
-  .requiredOption("--sma <address>", "Safe (SMA) to attach the mandate to")
+  .description("Register an already-deployed permission on an SMA (EIP-712 RegisterPermission)")
+  .requiredOption("--address <mandateOrName>", "Permission address, or a name tracked locally")
+  .requiredOption("--sma <address>", "SMA to register the permission on")
   .option("--label <label>", "Human-readable label shown in the signing UI")
   .option("--json", "Emit machine-readable JSON")
   .action(actionWith<AttachOptions>(mandateAttach));
 mandate
   .command("revoke")
-  .description("Revoke permission(s) from a Safe (EIP-712 RevokePermissions, owner-authorized)")
+  .description("Revoke permission(s) from an SMA (EIP-712 RevokePermissions, owner-authorized)")
   .option("--address <permissionOrName>", "Permission address, or a name tracked locally")
   .requiredOption("--sma <address>", "Safe (SMA) to revoke the permission(s) from")
   .option("--all", "Revoke every permission currently registered on the SMA")
@@ -133,21 +133,21 @@ mandate
   .action(actionWith<RevokeOptions>(mandateRevoke));
 mandate
   .command("templates")
-  .description("List pre-deployed mandate templates available on this chain")
+  .description("Show how to author your own permission contract (and any community-deployed addresses)")
   .option("--json", "Emit machine-readable JSON")
   .action(actionWith<{ json?: boolean }>(mandateTemplates));
 mandate
   .command("list")
-  .description("List mandates deployed from this project")
+  .description("List permission contracts deployed from this project")
   .action(action(async () => mandateContractsList()));
 
 program
   .command("onboard")
-  .description("Set up an SMA, attach a mandate, confirm the agent is operational")
-  .option("--sma <address>", "Use a specific Safe address instead of prompting")
-  .option("--new-sma", "Create a new Safe via SailKernel")
-  .option("--template <kindOrAddress>", "Attach this mandate template (kind, label, or address)")
-  .option("--skip-mandate", "Skip the mandate attachment step")
+  .description("Set up an SMA, register a permission, confirm the agent is operational")
+  .option("--sma <address>", "Use a specific SMA address instead of prompting")
+  .option("--new-sma", "Create a new SMA via SailKernel")
+  .option("--template <kindOrAddress>", "Register this permission contract (kind, label, or address)")
+  .option("--skip-mandate", "Skip the permission registration step")
   .option("--json", "Emit machine-readable JSON (implies non-interactive)")
   .action(actionWith<OnboardOptions>(onboard));
 
@@ -187,14 +187,14 @@ owner
 
 program
   .command("scan")
-  .description("Discover the owner's Safes, their mandates, and local keys; save to context.json")
+  .description("Discover the owner's SMAs, their permissions, and local keys; save to context.json")
   .option("--owner <address>", "Owner address to scan (defaults to the saved project owner)")
   .option("--json", "Emit machine-readable JSON")
   .action(actionWith<{ owner?: string; json?: boolean }>(scan));
 
 program
   .command("status")
-  .description("Show current account, mandate, and session status")
+  .description("Show current account, permission, and session status")
   .action(action(status));
 
 program
@@ -212,10 +212,10 @@ program
     closePrompts();
   });
 
-const session = program.command("session").description("Control the manager session");
+const session = program.command("session").description("Control the agent session");
 session
   .command("pause")
-  .description("Pause the manager session (revoke dispatch rights)")
+  .description("Pause the agent session (revoke dispatch rights)")
   .action(action(sessionPause));
 session.command("resume").description("Resume a paused session").action(action(sessionResume));
 

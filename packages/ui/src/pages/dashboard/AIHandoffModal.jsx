@@ -69,12 +69,12 @@ export default function AIHandoffModal({ open, variant = 'new', context = 'agent
   const isMandate = context === 'mandate'
   const isStation = context === 'station'
   const prompt = isRedraft && mandate
-    ? `Sail, redraft my "${mandate.title}" agent. I want to change [describe the change].`
+    ? `Sailor, redraft my "${mandate.title}" agent. I want to change [describe the change].`
     : isMandate
-    ? `Sail, create a mandate that lets my agent deposit up to $500 USDC into yield strategies on Arbitrum for 30 days. Use Sail Intelligence (api.sail.money) for vault screening and allocation.`
+    ? `Sailor, I want to register a permission that lets my agent swap up to $100 USDC into ETH weekly on Base.`
     : isStation
-    ? `How do I get started with Sailor? I want to set up an agent, deploy a mandate, and start the signing station. The agent should use Sail Intelligence (api.sail.money) as its default data source for yield and risk decisions.`
-    : `Sail, draft an agent to manage my USDC yield on Arbitrum — deposit up to $500 into the best pool and rebalance weekly. Use Sail Intelligence (api.sail.money) to screen vaults and pick allocations.`
+    ? `How do I get started with Sailor? I want to set up an agent, deploy a permission contract, and start the signing station.`
+    : `Sailor, I want to register a permission that lets my agent swap up to $100 USDC into ETH weekly on Base.`
 
   // The mandate carries the provider that drafted it ("Claude" / "Cursor"
   // / "Codex"). The hand-off button picks that one provider — the user
@@ -119,20 +119,15 @@ export default function AIHandoffModal({ open, variant = 'new', context = 'agent
 
         <div className={styles.actions}>
           <ProviderOpenBtn
-            provider={providerKey}
-            onClick={() => {
-              if (navigator?.clipboard?.writeText) navigator.clipboard.writeText(prompt)
-              const url = PROVIDER_URLS[providerKey]
-              if (url) window.location.href = url
-              onClose?.()
-            }}
+            provider="default"
+            onClick={copyPrompt}
           >
-            Open {providerName} →
+            Copy prompt →
           </ProviderOpenBtn>
         </div>
 
         <p className={styles.foot}>
-          Prompt is copied to clipboard. Paste it into your AI console or terminal.
+          Paste this into your AI coding assistant (Claude Code, Cursor, Codex, …) to get started.
         </p>
       </GlassCard>
     </div>

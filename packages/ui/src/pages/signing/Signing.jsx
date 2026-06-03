@@ -322,7 +322,7 @@ function ConnectStep({ onBack, onDone, progressIndex, progressTotal }) {
   )
 }
 
-/* ── Step 3: Generate delegated signer key ── */
+/* ── Step 3: Create agent wallet ── */
 function KeygenStep({ existingAddress, onDone, progressIndex, progressTotal }) {
   const [passphrase, setPassphrase] = useState('')
   const [loading, setLoading] = useState(false)
@@ -477,7 +477,7 @@ function CreateSmaStep({ owner, managerAddress, chainId, onDone, progressIndex, 
       <div className={styles.smaDetails}>
         <Detail label="Network" value={network?.name ?? `Chain ${chainId}`} mono={false} />
         <Detail label="Owner" value={owner} />
-        <Detail label="Agent key" value={managerAddress} />
+        <Detail label="Agent wallet" value={managerAddress} />
       </div>
       {error && <p style={{ color: '#ff6b6b', fontSize: 13, margin: '8px 0' }}>{error}</p>}
       <SailButton

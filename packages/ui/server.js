@@ -726,7 +726,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
     try {
       const { owner, manager, chainId: reqChainId, saltNonce: reqSaltNonce } = req.body ?? {}
       if (!isAddress(owner) || !isAddress(manager)) {
-        return res.status(400).json({ error: 'owner and manager must be valid addresses' })
+        return res.status(400).json({ error: 'owner and agent wallet must be valid addresses' })
       }
       const config = (() => { try { return JSON.parse(fs.readFileSync(at('config.json'), 'utf-8')) } catch { return {} } })()
       const chainId = reqChainId ?? config?.chainId ?? 8453
@@ -772,7 +772,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
     try {
       const { owner, manager, chainId: reqChainId, saltNonce: reqSaltNonce } = req.body ?? {}
       if (!isAddress(owner) || !isAddress(manager)) {
-        return res.status(400).json({ error: 'owner and manager must be valid addresses' })
+        return res.status(400).json({ error: 'owner and agent wallet must be valid addresses' })
       }
       const config = (() => { try { return JSON.parse(fs.readFileSync(at('config.json'), 'utf-8')) } catch { return {} } })()
       const chainId = reqChainId ?? config?.chainId ?? 8453

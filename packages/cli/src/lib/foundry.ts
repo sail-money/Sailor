@@ -57,64 +57,74 @@ interface IPermission {
 `;
 
 /**
- * Example mandate: gates dispatch to an allowlist of call targets. Fully
- * configured by its constructor (per the Sail deploy flow), so a single deploy
- * transaction + a single attach signature is all that is needed.
+ * General-purpose bounded-call permission: gates dispatch by allowed targets,
+ * optional selector allowlist, and max ETH value. For calldata-parameter bounds
+ * (amount caps, slippage floors, recipient checks), extend this pattern with
+ * ABI-decoding of txData specific to the target protocol.
  */
 const EXAMPLE_MANDATE_SOL = `// SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
 import {IPermission, Context} from "@sail/interfaces/IPermission.sol";
 
-/// @title  AllowlistTargetMandate
-/// @notice Example mandate — permits dispatch only to allowlisted target
-///         addresses. Configured entirely via the constructor.
-contract AllowlistTargetMandate is IPermission {
-    address public immutable permissionSigner;
+/// @title  BoundedCallPermission
+/// @notice General-purpose IPermission primitive. Bounds the universal properties of any call:
+///         allowed targets, allowed selectors, and max ETH value. Protocol-agnostic.
+///         For calldata-parameter bounds (amount caps, recipient checks, slippage), write a
+///         protocol-specific permission — see examples/permissions/ for the pattern per protocol.
+/// @dev Deploy one instance per SMA with constructor-configured parameters.
+contract BoundedCallPermission is IPermission {
+    bytes32 private constant DISCRIMINATOR = keccak256("BoundedCallPermission");
+
     mapping(address => bool) public isAllowedTarget;
+    mapping(bytes4 => bool) public isAllowedSelector;
+    bool public immutable SELECTOR_FILTERING;
+    uint256 public immutable MAX_VALUE;
 
-    /// @param _permissionSigner The Safe's permission signer (metadata / future use).
-    /// @param allowedTargets    Call targets this mandate permits.
-    constructor(address _permissionSigner, address[] memory allowedTargets) {
-        permissionSigner = _permissionSigner;
-        for (uint256 i = 0; i < allowedTargets.length; i++) {
-            isAllowedTarget[allowedTargets[i]] = true;
-        }
+    constructor(address[] memory allowedTargets, bytes4[] memory allowedSelectors, uint256 maxValue) {
+        for (uint256 i = 0; i < allowedTargets.length; i++) isAllowedTarget[allowedTargets[i]] = true;
+        SELECTOR_FILTERING = allowedSelectors.length > 0;
+        for (uint256 i = 0; i < allowedSelectors.length; i++) isAllowedSelector[allowedSelectors[i]] = true;
+        MAX_VALUE = maxValue;
     }
 
-    /// @inheritdoc IPermission
     function evaluate(bytes calldata, Context calldata ctx) external view returns (bool) {
-        return isAllowedTarget[ctx.target];
+        if (!isAllowedTarget[ctx.target]) return false;
+        if (SELECTOR_FILTERING && !isAllowedSelector[ctx.selector]) return false;
+        if (ctx.value > MAX_VALUE) return false;
+        return true;
     }
 
-    /// @inheritdoc IPermission
-    function discriminator() external pure returns (bytes32) {
-        return keccak256("AllowlistTargetMandate");
-    }
+    function discriminator() external pure returns (bytes32) { return DISCRIMINATOR; }
 }
 `;
 
 const MANDATES_README = `# Mandates
 
-Solidity mandate (permission) contracts for this Sailor project live here.
+Solidity permission contracts for this Sailor project live here.
 
-A mandate implements \`@sail/interfaces/IPermission.sol\` — \`evaluate(txData, ctx)\`
+A permission implements \`@sail/interfaces/IPermission.sol\` — \`evaluate(txData, ctx)\`
 returns \`true\` to permit a manager-submitted dispatch, \`false\` to block it.
 
 ## Authoring + deploying
 
-1. Write your contract in this folder (see \`AllowlistTargetMandate.sol\`).
+1. Start from \`BoundedCallPermission.sol\` for target/selector/value gating.
+   For calldata-parameter bounds (amount caps, slippage, recipient checks),
+   decode \`txData\` with the target protocol's ABI and add bounds to \`evaluate()\`.
    Configure all parameters in the **constructor** — the deploy flow expects a
-   single creation transaction to fully set up the mandate.
+   single creation transaction to fully set up the permission.
 2. Compile:
    \`\`\`bash
    forge build
    \`\`\`
 3. Deploy it (the owner signs the creation tx in the browser signing UI):
    \`\`\`bash
-   sailor mandate deploy --contract AllowlistTargetMandate \\
-     --args '["0xPermissionSigner", ["0xTarget1", "0xTarget2"]]'
+   sailor mandate deploy --contract BoundedCallPermission \\
+     --args '[["0xTarget1", "0xTarget2"], [], 0]'
    \`\`\`
+   Args: (allowedTargets[], allowedSelectors[], maxValue).
+   Pass an empty selector array [] to skip selector filtering.
+   Pass 0 for maxValue to block all ETH transfers.
 4. Attach it to a Safe:
    \`\`\`bash
    sailor mandate attach --address 0xDeployed --sma 0xSafe
@@ -140,7 +150,7 @@ export function scaffoldFoundryWorkspace(root: string): void {
     join(root, ".sail", "contracts", "interfaces", "IPermission.sol"),
     IPERMISSION_SOL,
   );
-  writeIfMissing(join(root, "mandates", "AllowlistTargetMandate.sol"), EXAMPLE_MANDATE_SOL);
+  writeIfMissing(join(root, "mandates", "BoundedCallPermission.sol"), EXAMPLE_MANDATE_SOL);
   writeIfMissing(join(root, "mandates", "README.md"), MANDATES_README);
 }
 

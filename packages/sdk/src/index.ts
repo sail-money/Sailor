@@ -55,6 +55,7 @@ export {
 } from "./errors.js";
 export {
   REGISTER_PERMISSION_TYPES,
+  REGISTER_PERMISSION_TYPES_NO_DEADLINE,
   buildRegisterPermissionTypedData,
   sailKernelDomain,
   signRegisterPermission,

@@ -30,7 +30,7 @@ export async function sessionPause(): Promise<void> {
     updatedAt: new Date().toISOString(),
   };
   writeJsonFile(sailPath("session.json"), session);
-  console.log("Session paused — manager dispatch rights revoked.");
+  console.log("Session paused — agent dispatch rights revoked.");
 }
 
 /** `sailor session resume` — re-enables the manager's dispatch rights. */
@@ -51,5 +51,5 @@ export async function sessionResume(): Promise<void> {
     updatedAt: new Date().toISOString(),
   };
   writeJsonFile(sailPath("session.json"), session);
-  console.log("Session resumed — manager dispatch rights restored.");
+  console.log("Session resumed — agent dispatch rights restored.");
 }
