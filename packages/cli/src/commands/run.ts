@@ -107,6 +107,16 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
   }
 
   const env = parseEnvFile(sailPath(".env.local"));
+
+  // Inject .env.local values into process.env for anything not already set
+  // by the shell. This lets operators store SAIL_PASSPHRASE in .env.local for
+  // non-interactive use (CI, launchd, systemd) without having to export it in
+  // the shell — useful since the file is already gitignored and keys-protected.
+  // Values already set in the environment (e.g. CI secrets) take precedence.
+  for (const [k, v] of Object.entries(env)) {
+    if (v && !process.env[k]) process.env[k] = v;
+  }
+
   const rpcUrl = env.RPC_URL ?? process.env.RPC_URL;
   const chainIdRaw = env.CHAIN_ID ?? process.env.CHAIN_ID;
   if (!rpcUrl || !chainIdRaw) {
