@@ -8,6 +8,9 @@ node_modules/
 !.yarn/sdks/
 !.yarn/versions/
 
+# Generated at build time (prebuild) from api.sail.money/openapi.json — never commit
+packages/sdk/src/intelligence.ts
+
 # Test and build outputs
 *dist*
 coverage/

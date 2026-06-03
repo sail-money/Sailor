@@ -1013,6 +1013,25 @@ export function startServer(sailDir, { port = PORT } = {}) {
       signers: [],
     }
 
+    // Discover local agent keystores for the manager (gas payer) *outside* the on-chain block
+    // so we can surface the address(es) for funding even when RPC is missing or down.
+    const localManagerAddrs = new Set()
+    const perSmaPath = managerKeyPath(account.safe)
+    const flatManagerPath = at('keys/manager.json')
+    for (const p of [perSmaPath, flatManagerPath]) {
+      try {
+        if (fs.existsSync(p)) {
+          const ks = JSON.parse(fs.readFileSync(p, 'utf-8'))
+          if (ks?.address) {
+            localManagerAddrs.add(getAddress(`0x${String(ks.address).replace(/^0x/, '')}`))
+          }
+        }
+      } catch {
+        /* ignore bad/missing keystore */
+      }
+    }
+    const localSigner = localManagerAddrs.size > 0 ? [...localManagerAddrs][0] : null
+
     if (kernel && isAddress(kernel) && account.safe && isAddress(account.safe)) {
       try {
         const client = createPublicClient({ transport: http(rpcUrl) })
@@ -1031,24 +1050,15 @@ export function startServer(sailDir, { port = PORT } = {}) {
         // address' balance, which is both meaningless and confusing.
         const managerSet = Boolean(manager) && getAddress(manager) !== zeroAddress
 
-        // A delegated-signer key created locally (via the dashboard's "add
-        // signer" flow or the CLI) for this SMA — surfaced even before it has
-        // been delegated on-chain, so the user sees the key they just made.
-        let localSigner = null
-        try {
-          const ks = JSON.parse(fs.readFileSync(managerKeyPath(safe), 'utf-8'))
-          if (ks?.address) localSigner = getAddress(`0x${String(ks.address).replace(/^0x/, '')}`)
-        } catch {
-          /* no local signer key for this SMA */
-        }
-
+        // Use the local manager addrs discovered earlier (outside the RPC block).
         // Address to display as the manager: the on-chain delegate if set,
         // otherwise the locally-created key (pending on-chain delegation).
         const managerAddr = managerSet ? getAddress(manager) : localSigner
 
-        // Balances for every distinct *real* signer address in one parallel batch.
+        // Balances for every distinct *real* signer address (on-chain manager/owner + any local agent keys that
+        // will actually sign the gas txs).
         const signerAddrs = [
-          ...new Set([managerAddr, account.owner ? getAddress(account.owner) : null].filter(Boolean)),
+          ...new Set([managerAddr, account.owner ? getAddress(account.owner) : null, ...localManagerAddrs].filter(Boolean)),
         ]
         const balances = await Promise.all(signerAddrs.map((a) => client.getBalance({ address: a })))
         const balanceByAddr = new Map(signerAddrs.map((a, i) => [a.toLowerCase(), balances[i]]))
@@ -1080,8 +1090,18 @@ export function startServer(sailDir, { port = PORT } = {}) {
           managerEntry = { role: 'manager', address: null, balanceWei: null, balanceEth: null, status: 'unconfigured' }
         }
 
+        const signers = [managerEntry]
+        // Always expose any local manager keystore addresses (the actual keys the agent/run will load and use
+        // to sign+pay gas). If they differ from the on-chain registered manager (e.g. on-chain set to owner EOA,
+        // or stale per-SMA key), still list them with "Local" so the user can copy the address and fund it.
+        for (const la of localManagerAddrs) {
+          if (getAddress(la) !== (managerAddr ? getAddress(managerAddr) : null)) {
+            signers.push({ ...signerEntry('manager', la, balanceByAddr), status: 'local' })
+          }
+        }
+
         result.signers = [
-          managerEntry,
+          ...signers,
           // Owner is the permission signer here; only list it once.
           ...(account.owner && (!managerAddr || getAddress(account.owner) !== managerAddr)
             ? [signerEntry('owner', getAddress(account.owner), balanceByAddr)]
@@ -1107,6 +1127,20 @@ export function startServer(sailDir, { port = PORT } = {}) {
       }
     } else {
       result.onchainError = 'No kernel/RPC configured for on-chain reads'
+    }
+
+    // If we have local manager keys but no signers were populated (e.g. no RPC, onchain error path,
+    // or on-chain manager not set), still expose the local keystore address(es). This is the address
+    // the agent will load (via sailor run / loadManagerSigner) and use to pay gas — the whole point
+    // of showing it in the UI for easy funding from the owner's connected wallet.
+    if (result.signers.length === 0 && localManagerAddrs.size > 0) {
+      result.signers = [...localManagerAddrs].map((la) => ({
+        role: 'manager',
+        address: la,
+        balanceWei: null,
+        balanceEth: null,
+        status: 'local',
+      }))
     }
 
     return result
