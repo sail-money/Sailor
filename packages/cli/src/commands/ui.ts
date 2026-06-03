@@ -28,6 +28,17 @@ function findFreePort(from: number): Promise<number> {
 }
 
 /**
+ * Derives a stable preferred UI port for this project from its directory path.
+ * Each project gets a deterministic port in the range 3333–3999 so multiple
+ * projects can run dashboards simultaneously. findFreePort() falls back to the
+ * next available port if the preferred one is already in use.
+ */
+function projectPort(projectRoot: string): number {
+  const hash = [...projectRoot].reduce((h, c) => (((h << 5) - h) + c.charCodeAt(0)) >>> 0, 0);
+  return 3333 + (hash % 667); // 3333–3999
+}
+
+/**
  * `sailor ui` / `sailor ui start` — serves the UI via the bundled Express server.
  *
  * Path layout (works in both the monorepo and an installed npm package):
@@ -41,7 +52,7 @@ export async function uiCommand(): Promise<void> {
   const serverBundle = path.resolve(distDir, "server.cjs");
   const projectRoot = process.cwd();
   const sailDir = path.join(projectRoot, ".sail");
-  const port = await findFreePort(3333);
+  const port = await findFreePort(projectPort(projectRoot));
 
   if (!fs.existsSync(serverBundle)) {
     throw new Error(`Server bundle not found at ${serverBundle}. Re-run the sailor build.`);
@@ -56,7 +67,7 @@ export async function uiCommand(): Promise<void> {
     return;
   }
 
-  const child = spawn("node", [serverBundle], {
+  const child = spawn(process.execPath, [serverBundle], {
     detached: true,
     stdio: "ignore",
     env: { ...process.env, SAIL_DIR: sailDir, SERVE_DIST: "1", PORT: String(port), SAILOR_UI_DIST: uiDistDir },
