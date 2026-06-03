@@ -16,6 +16,8 @@
 
 import {
   type LocalKeyring,
+  REGISTER_PERMISSION_TYPES,
+  REGISTER_PERMISSION_TYPES_NO_DEADLINE,
   SAFE_V141,
   SailKernelAbi,
   buildRegisterPermissionTypedData,
@@ -23,6 +25,7 @@ import {
   detectKernelCapabilities,
   estimatePermissionFee,
   getSailDeployment,
+  sailKernelDomain,
 } from "@sail/sdk";
 import {
   http,
@@ -35,6 +38,7 @@ import {
   isAddress,
   parseEventLogs,
   publicActions,
+  recoverTypedDataAddress,
 } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { appendActivity, checksum, nowIso, prompt, sailPath, writeJsonFile } from "../lib/io.js";
@@ -520,6 +524,13 @@ export async function attachMandate(
     // advisory — proceed with noDeadline fallback
   }
 
+  // Capture an explicit deadline so we can reconstruct the exact message for
+  // signature verification after the browser returns. Without this, recomputing
+  // Date.now() a few seconds later would produce a different value.
+  const registrationDeadline = registerPermissionHasDeadline
+    ? BigInt(Math.floor(Date.now() / 1000) + 300)
+    : undefined;
+
   const typedData = buildRegisterPermissionTypedData({
     chainId: project.chainId,
     kernel: project.contracts.kernel,
@@ -527,9 +538,15 @@ export async function attachMandate(
     permission: templateAddress,
     nonce,
     hasDeadline: registerPermissionHasDeadline,
+    deadline: registrationDeadline,
   });
 
   say(() => console.log(`\nPushing signing request for "${template.label}" permission…`));
+  say(() =>
+    console.log(
+      `  The mandate signer (${permissionSigner}) must sign in the browser — not the agent wallet.`,
+    ),
+  );
   const response = await channel.requestSignature({
     type: "typed-data",
     kind: "register-permission",
@@ -552,6 +569,34 @@ export async function attachMandate(
     throw new Error(`Expected EIP-712 signature response, got: ${response.status}`);
   }
   const signature = response.signature;
+
+  // Security guard: verify the browser signature was made by the on-chain mandate
+  // signer — NOT by the agent wallet. If the wrong wallet was connected in the
+  // browser UI, ecrecover returns a different address and the on-chain call would
+  // revert with InvalidManagerSignature anyway, but we surface it here with a clear
+  // error before wasting gas.
+  try {
+    const recoveredSigner = await recoverTypedDataAddress({
+      domain: sailKernelDomain({ chainId: project.chainId, kernel: project.contracts.kernel }),
+      types: registerPermissionHasDeadline
+        ? REGISTER_PERMISSION_TYPES
+        : REGISTER_PERMISSION_TYPES_NO_DEADLINE,
+      primaryType: "RegisterPermission",
+      message: registerPermissionHasDeadline
+        ? { account: smaAddress, permission: templateAddress, nonce, deadline: registrationDeadline! }
+        : { account: smaAddress, permission: templateAddress, nonce },
+      signature,
+    });
+    if (recoveredSigner.toLowerCase() !== permissionSigner.toLowerCase()) {
+      throw new Error(
+        `Security: RegisterPermission was signed by ${recoveredSigner} but the on-chain mandate signer is ${permissionSigner}.\n` +
+          "Connect the owner wallet (mandate signer) in the browser — the agent wallet must never sign permission registrations.",
+      );
+    }
+  } catch (err) {
+    // Re-throw security errors; ignore recovery failures (e.g. unsupported sig format).
+    if ((err as Error).message.startsWith("Security:")) throw err;
+  }
 
   say(() => console.log("Estimating permission fee…"));
   const fee = await estimatePermissionFee(

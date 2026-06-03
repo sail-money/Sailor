@@ -93,6 +93,11 @@ This opens the browser signing station. The user signs the `RegisterPermission` 
 the agent wallet submits the on-chain transaction. Confirm the deployed permission address and SMA
 address are correct before the user signs.
 
+**Signing role:** Registering a permission requires the OWNER to sign in the browser (this
+authorizes what the agent may do). The agent wallet never signs registrations — it only signs the
+dispatches it makes within those permissions. If the wrong wallet is connected in the browser,
+the CLI will detect the mismatch and reject the signature before submitting on-chain.
+
 To deploy and attach separately:
 ```bash
 sailor mandate deploy --contract <Name>

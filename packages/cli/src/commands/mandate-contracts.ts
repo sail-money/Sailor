@@ -30,6 +30,7 @@ import {
   encodeFunctionData,
   isAddress,
   publicActions,
+  recoverTypedDataAddress,
 } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { appendActivity, nowIso } from "../lib/io.js";
@@ -425,6 +426,36 @@ async function runRevoke(
   }
   if (response.status !== "signature") {
     throw new Error(`Expected EIP-712 signature response, got: ${response.status}`);
+  }
+
+  // Security guard: verify the browser signature was made by the on-chain mandate
+  // signer — NOT by the agent wallet. Read permissionSigner from kernel.configs().
+  try {
+    const kCfg = (await publicClient.readContract({
+      address: kernel,
+      abi: SailKernelAbi,
+      functionName: "configs",
+      args: [sma],
+    })) as [Address, Address, Address, boolean];
+    const expectedPermissionSigner = kCfg[0];
+
+    const recoveredSigner = await recoverTypedDataAddress({
+      domain: { name: "SailKernel", version: "1", chainId: project.chainId, verifyingContract: kernel },
+      types: REVOKE_PERMISSIONS_TYPES,
+      primaryType: "RevokePermissions",
+      message: { account: sma, permissions: targets, nonce, deadline },
+      signature: response.signature,
+    });
+
+    if (recoveredSigner.toLowerCase() !== expectedPermissionSigner.toLowerCase()) {
+      throw new Error(
+        `Security: RevokePermissions was signed by ${recoveredSigner} but the on-chain mandate signer is ${expectedPermissionSigner}.\n` +
+          "Connect the owner wallet (mandate signer) in the browser — the agent wallet must never sign permission revocations.",
+      );
+    }
+  } catch (err) {
+    // Re-throw security errors; ignore recovery failures (e.g. unsupported sig format).
+    if ((err as Error).message.startsWith("Security:")) throw err;
   }
 
   const agentSigner = await loadManagerSigner();
