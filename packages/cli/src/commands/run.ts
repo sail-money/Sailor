@@ -335,8 +335,13 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
           }
 
           // Conjunctive kernels have no previewBatch — skip preview and submit
-          // directly. Selective kernels: preview before executing.
-          if (!isConjunctive) {
+          // directly. Selective kernels: preview before executing, but ONLY for
+          // real batches. previewBatch requires the permission to implement
+          // IBatchPermission; a single-call dispatch is executed via dispatch.single
+          // and gated on-chain by the single-call IPermission.evaluate, so previewing
+          // it via previewBatch would spuriously deny valid single-IPermission
+          // contracts (PermissionNotBatchAware). Mirror the execute branch below.
+          if (!isConjunctive && dispatch.calls.length > 1) {
             const preview = await execClient.dispatch.preview(
               accountAddr,
               permission,

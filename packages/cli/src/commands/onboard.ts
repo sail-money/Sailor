@@ -614,11 +614,35 @@ export async function attachMandate(
     transport: http(getRpcUrl(project.chainId)),
   });
 
-  const registerData = encodeFunctionData({
-    abi: SailKernelAbi,
-    functionName: "registerPermission",
-    args: [smaAddress, templateAddress, signature],
-  });
+  // The kernel has two registerPermission shapes: selective kernels take a
+  // deadline (registerPermission(account, permission, deadline, sig)), conjunctive
+  // kernels do not (registerPermission(account, permission, sig)). The owner's
+  // signature was built over the matching typehash above; the on-chain call must
+  // use the matching arity or it hits a nonexistent selector and reverts empty.
+  const registerData = registerPermissionHasDeadline
+    ? encodeFunctionData({
+        abi: [
+          {
+            type: "function",
+            name: "registerPermission",
+            stateMutability: "payable",
+            inputs: [
+              { name: "account", type: "address" },
+              { name: "permission", type: "address" },
+              { name: "deadline", type: "uint256" },
+              { name: "sig", type: "bytes" },
+            ],
+            outputs: [],
+          },
+        ] as const,
+        functionName: "registerPermission",
+        args: [smaAddress, templateAddress, registrationDeadline!, signature],
+      })
+    : encodeFunctionData({
+        abi: SailKernelAbi,
+        functionName: "registerPermission",
+        args: [smaAddress, templateAddress, signature],
+      });
 
   const txHash = await walletClient.sendTransaction({
     to: project.contracts.kernel,
