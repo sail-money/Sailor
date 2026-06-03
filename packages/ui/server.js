@@ -756,6 +756,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
           owner,       // permissionSigner = owner's wallet
           manager,     // manager = agent key
           standardFeePolicy,
+          zeroAddress, // feeAsset (native)
         ],
       })
       res.json({ to: kernel, data, chainId, saltNonce: saltNonce.toString() })
