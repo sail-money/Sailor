@@ -163,6 +163,21 @@ export async function initCommand(
 
   copyDirSync(templateSrc, dest);
 
+  // Copy shared reference assets from the package into the project so the agent
+  // can read them locally regardless of where Sailor is installed.
+  const pkgRoot = packageRoot();
+
+  const examplesPermSrc = path.join(pkgRoot, "examples", "permissions");
+  if (fs.existsSync(examplesPermSrc)) {
+    copyDirSync(examplesPermSrc, path.join(dest, "examples", "permissions"));
+  }
+
+  const permModelSrc = path.join(pkgRoot, "docs", "PERMISSION_MODEL.md");
+  if (fs.existsSync(permModelSrc)) {
+    fs.mkdirSync(path.join(dest, "docs"), { recursive: true });
+    writeIfMissing(path.join(dest, "docs", "PERMISSION_MODEL.md"), fs.readFileSync(permModelSrc, "utf-8"));
+  }
+
   // Patch package.json: set name and resolve @sail/sdk.
   // The template uses `workspace:*` (pnpm monorepo protocol) which is invalid
   // outside the Sailor monorepo. When installed as an npm package, resolve it to
@@ -180,7 +195,7 @@ export async function initCommand(
       // packageRoot() = …/node_modules/@sailagent/sailor → SDK is at packages/sdk
       // relative to the monorepo root, but when distributed only packages/cli/dist
       // and packages/ui/dist are shipped. Point at the dist that IS present.
-      const sdkPath = path.join(packageRoot(), "packages", "sdk");
+      const sdkPath = path.join(pkgRoot, "packages", "sdk");
       deps["@sail/sdk"] = fs.existsSync(sdkPath)
         ? `file:${sdkPath}`
         : // Fallback: SDK not bundled — user must install it manually.
