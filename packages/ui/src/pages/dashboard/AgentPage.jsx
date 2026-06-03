@@ -363,7 +363,7 @@ export default function AgentPage({ agentId, onBack, onEdit, onRevoke }) {
                         {mandate.role ?? mandate.title}
                       </span>
                       <span className={styles.permRelationBody}>
-                        Operates as a agent wallet under{' '}
+                        Operates as an agent wallet under{' '}
                         <strong>{parentMandate.title}</strong>. The mandate above
                         defines the full permission set; this agent uses the
                         <strong> {usedPermissionIds.size}</strong> highlighted below.
