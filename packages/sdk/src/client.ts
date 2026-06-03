@@ -234,6 +234,7 @@ class AccountNamespace extends KernelNamespace implements IAccountNamespace {
         params.permissionSigner,
         params.manager,
         params.feePolicy ?? zeroAddress,
+        params.feeAsset ?? zeroAddress,
       ],
     });
 

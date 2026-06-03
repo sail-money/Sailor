@@ -225,6 +225,8 @@ export type CreateAccountParams = {
   saltNonce?: bigint;
   /** Fee policy contract; address(0)/undefined means no fee policy. */
   feePolicy?: Address;
+  /** Asset the fee policy denominates fees in; address(0)/undefined = native. */
+  feeAsset?: Address;
 };
 
 export type RegisterAccountParams = {
