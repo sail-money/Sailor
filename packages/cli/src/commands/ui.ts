@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
+import net from "node:net";
 import path from "node:path";
 import { cliDistDir, packageRoot } from "../lib/packagePaths.js";
 
@@ -17,6 +18,15 @@ function isAlive(pid: number): boolean {
   try { process.kill(pid, 0); return true; } catch { return false; }
 }
 
+function findFreePort(from: number): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.unref();
+    server.on("error", () => findFreePort(from + 1).then(resolve, reject));
+    server.listen(from, "127.0.0.1", () => server.close(() => resolve(from)));
+  });
+}
+
 /**
  * `sailor ui` / `sailor ui start` — serves the UI via the bundled Express server.
  *
@@ -31,7 +41,7 @@ export async function uiCommand(): Promise<void> {
   const serverBundle = path.resolve(distDir, "server.cjs");
   const projectRoot = process.cwd();
   const sailDir = path.join(projectRoot, ".sail");
-  const port = 3333;
+  const port = await findFreePort(3333);
 
   if (!fs.existsSync(serverBundle)) {
     throw new Error(`Server bundle not found at ${serverBundle}. Re-run the sailor build.`);
@@ -53,6 +63,12 @@ export async function uiCommand(): Promise<void> {
   });
 
   child.unref();
+
+  // Give the process ~300 ms to bind and stabilise before reporting success.
+  await new Promise((r) => setTimeout(r, 300));
+  if (!isAlive(child.pid!)) {
+    throw new Error(`Sailor UI process exited immediately. Check that the server bundle is intact.`);
+  }
 
   fs.mkdirSync(path.join(projectRoot, ".sail", "runtime"), { recursive: true });
   fs.writeFileSync(

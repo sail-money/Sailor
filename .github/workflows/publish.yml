@@ -16,6 +16,7 @@ jobs:
     with:
       package_dir: .
       package_name: ${{ github.ref_name == 'main' && '@sailagent/sailor' || '@sailagent/sailor-dev' }}
+      is_dev_version: ${{ github.ref_name != 'main' }}
       dist_tag: ${{ github.ref_name == 'main' && 'latest' || 'dev' }}
       use_github_registry: true
       pnpm-version: '11'
