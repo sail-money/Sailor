@@ -179,7 +179,7 @@ async function runOnboard(
     console.log("  Agent wallet:  ", onChainManager);
     if (onChainManager.toLowerCase() !== agentAddress.toLowerCase()) {
       console.log(
-        `\n⚠  On-chain agent wallet (${onChainManager}) differs from your local agent wallet (${agentAddress}).\n   Agent-wallet rotation is not handled here — update it manually.`,
+        `\n⚠  On-chain agent wallet (${onChainManager}) differs from your local agent wallet (${agentAddress}).\n   To make this SMA delegate to a new agent wallet, run "sailor account rotate-signer".`,
       );
     } else {
       console.log("✓", "Agent wallet is authorized for this SMA");

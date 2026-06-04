@@ -19,6 +19,7 @@ import NotConnectedCard from '../shared/NotConnectedCard'
 import CreateSMAModal from './CreateSMAModal'
 import RevokeMandateModal from './RevokeMandateModal'
 import AddSignerModal from './AddSignerModal'
+import RotateSignerModal from './RotateSignerModal'
 import {
   useSailorAccount,
   useSailorAccounts,
@@ -306,7 +307,7 @@ function MandateRow({ mandate, network, onRevoke }) {
 }
 
 /** Delegated-signer balances with top-up status. */
-function SignersPanel({ overview, sma, onAddSigner }) {
+function SignersPanel({ overview, sma, onAddSigner, onRotateSigner }) {
   const signers = overview?.signers ?? []
   if (signers.length === 0) {
     return (
@@ -332,7 +333,13 @@ function SignersPanel({ overview, sma, onAddSigner }) {
   return (
     <div className={styles.signerGrid}>
       {signers.map((s) => (
-        <SignerCard key={s.role} signer={s} network={overview.network} onAddSigner={onAddSigner} />
+        <SignerCard
+          key={s.role}
+          signer={s}
+          network={overview.network}
+          onAddSigner={onAddSigner}
+          onRotateSigner={onRotateSigner}
+        />
       ))}
       {sma && overview?.sma?.balanceEth != null && (
         <SignerCard
@@ -350,7 +357,7 @@ function SignersPanel({ overview, sma, onAddSigner }) {
   )
 }
 
-function SignerCard({ signer, network, onAddSigner }) {
+function SignerCard({ signer, network, onAddSigner, onRotateSigner }) {
   const [copied, setCopied] = useState(false)
   const [funding, setFunding] = useState(false)
   const { sendTransactionAsync } = useSendTransaction()
@@ -441,6 +448,15 @@ function SignerCard({ signer, network, onAddSigner }) {
             <ArrowOutIcon />
           </a>
         </footer>
+      )}
+
+      {/* Rotation applies to the on-chain delegated signer (the agent wallet) —
+          offer it whenever a manager is delegated, as the recovery path for a
+          lost/compromised agent key. */}
+      {signer.role === 'manager' && !unconfigured && !isLocal && onRotateSigner && (
+        <button type="button" className={styles.signerRotateBtn} onClick={onRotateSigner}>
+          Rotate agent wallet
+        </button>
       )}
 
       {needsTopUp && (
@@ -842,6 +858,7 @@ function DashboardContent({ onReset }) {
   // cached snapshot instantly, so the switch feels immediate.
   const [refreshTick, setRefreshTick] = useState(0)
   const [addSignerOpen, setAddSignerOpen] = useState(false)
+  const [rotateOpen, setRotateOpen] = useState(false)
   const { account: realAccount, loading: accountLoading } = useSailorAccount(refreshTick)
   const { accounts: allAccounts } = useSailorAccounts(refreshTick)
   const { overview } = useSailorOverview(refreshTick)
@@ -1224,7 +1241,12 @@ function DashboardContent({ onReset }) {
                     : 'Add RPC URL to enable balance tracking'}
                 </span>
               </header>
-              <SignersPanel overview={overview} sma={sma} onAddSigner={() => setAddSignerOpen(true)} />
+              <SignersPanel
+                overview={overview}
+                sma={sma}
+                onAddSigner={() => setAddSignerOpen(true)}
+                onRotateSigner={overview?.kernel && overview?.sma?.address ? () => setRotateOpen(true) : undefined}
+              />
             </section>
 
             {/* ── Your agents — restored card grid ─────────────────
@@ -1338,6 +1360,18 @@ function DashboardContent({ onReset }) {
         safe={overview?.sma?.address}
         onClose={() => setAddSignerOpen(false)}
         onCreated={() => { setAddSignerOpen(false); setRefreshTick((t) => t + 1) }}
+      />
+
+      <RotateSignerModal
+        open={rotateOpen}
+        sma={overview?.sma?.address}
+        kernel={overview?.kernel}
+        chainId={overview?.chainId}
+        owner={overview?.sma?.owner}
+        currentManager={overview?.sma?.manager}
+        mandates={overview?.mandates ?? []}
+        onClose={() => setRotateOpen(false)}
+        onRotated={() => setRefreshTick((t) => t + 1)}
       />
 
       <CreateSMAModal

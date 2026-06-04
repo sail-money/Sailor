@@ -38,6 +38,8 @@ export const KERNEL_ERROR_SIGNATURES = [
   "error InvalidManagerSignature()",
   "error InvalidSignerSignature()",
   "error KernelSelfTarget(uint256 index)",
+  // SAIL-405: setManager rejects a no-op rotation (newManager == current).
+  "error ManagerUnchanged()",
   "error ModuleNotEnabled()",
   // Present in the deployed conjunctive kernel; dropped in the latest source.
   "error NoPermissionsRegistered(address account)",

@@ -4804,3 +4804,18 @@
 }
 .signerFundBtn:hover:not(:disabled) { background: rgba(251,191,36,0.14); border-color: rgba(251,191,36,0.5); }
 .signerFundBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.signerRotateBtn {
+  margin-top: 8px;
+  width: 100%;
+  padding: 8px 0;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.12));
+  background: transparent;
+  color: var(--text-secondary, rgba(255,255,255,0.7));
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms, border-color 150ms, color 150ms;
+}
+.signerRotateBtn:hover { background: rgba(255,255,255,0.06); color: var(--text-primary, #fff); }

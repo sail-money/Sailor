@@ -13,12 +13,13 @@ export const chains: Record<number, ChainConfig> = {
   84532: {
     chainId: 84532,
     name: "Base Sepolia",
-    // Post-Octane redeploy w/ genesis allowlist bootstrap + createAccount fix (deployed 2026-06-03).
-    // Kernel computes the proxy CREATE2 address locally (Safe 1.4.1 has no view predictor).
-    // allowlistBootstrapped=true; createAccount verified working on-chain — onboarding is live.
-    kernel: "0xcC50009115DAaBCB40513e03a1a0Cc2Fdf6Be558",
-    mandateFactory: "0x862224538a85E4D90835A7082C01f1ec0CdD10cC",
-    governance: "0xE69D24766Be634f890F4fE5DF9DdDcdc0EE48112",
+    // SAIL-405 redeploy (2026-06-04, gitCommit 6d872e6) — adds owner-gated
+    // setManager(newManager) to rotate the delegated signer. Genesis allowlist
+    // bootstrap + createAccount fix carried over; allowlistBootstrapped=true,
+    // zero fees. Supersedes 0xcC50009115DAaBCB40513e03a1a0Cc2Fdf6Be558.
+    kernel: "0xf1D0F4C9893612627409948BAa9d82a01a373799",
+    mandateFactory: "0xdfF6a2272F667cDf78Af4681b9c88A219998db95",
+    governance: "0xEaD44bC6999E7b00b9b2E11c1660248DC2a30993",
     dispatchModel: "selective", // selective: verified on-chain DISPATCH_TYPEHASH 0xbe50c5391dcf9e08d11d2c30dbee822c14ad07af2ceb503c778d265801fb0e5c
     protocols: {},
   },

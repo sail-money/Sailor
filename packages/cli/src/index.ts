@@ -17,6 +17,7 @@ import {
 } from "./commands/mandate-contracts.js";
 import { mandatePrepare, mandateSign } from "./commands/mandate.js";
 import { type OnboardOptions, onboard } from "./commands/onboard.js";
+import { type RotateSignerOptions, rotateSigner } from "./commands/rotate-signer.js";
 import { ownerConnect, ownerShow } from "./commands/owner.js";
 import { runCommand } from "./commands/run.js";
 import { scan } from "./commands/scan.js";
@@ -104,6 +105,16 @@ account
   .command("create")
   .description("Create a new Sail SMA on-chain")
   .action(action(accountCreate));
+account
+  .command("rotate-signer")
+  .description("Rotate the SMA's delegated signer (agent wallet) and re-approve its mandates")
+  .option("--sma <address>", "SMA to rotate (defaults to the active account)")
+  .option("--to <address>", "Rotate to an existing agent-wallet address instead of generating one")
+  .option("--generate", "Generate a fresh local agent wallet (default when --to is omitted)")
+  .option("--skip-reattach", "Do not re-approve the previously-attached mandates")
+  .option("--reattach-only", "Skip rotation; only re-approve mandates (resume after funding)")
+  .option("--json", "Machine-readable output")
+  .action(actionWith<RotateSignerOptions>(rotateSigner));
 
 const mandate = program.command("mandate").description("Manage mandates");
 mandate

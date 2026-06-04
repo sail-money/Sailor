@@ -1,4 +1,41 @@
-import { type Address, type Hex, encodeFunctionData, zeroAddress } from "viem";
+import { type Address, type Hex, encodeFunctionData, encodePacked, pad, zeroAddress } from "viem";
+
+/** Minimal SailKernel ABI fragment for the manager-rotation call. */
+const setManagerAbi = [
+  {
+    type: "function",
+    name: "setManager",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "newManager", type: "address" }],
+    outputs: [],
+  },
+] as const;
+
+/**
+ * Safe v1.4.1 `execTransaction` — the entry point through which the Safe calls
+ * another contract *as itself* (msg.sender == Safe). Full ABI:
+ * https://github.com/safe-global/safe-deployments/tree/main/src/assets/v1.4.1
+ */
+export const gnosisSafeExecAbi = [
+  {
+    type: "function",
+    name: "execTransaction",
+    stateMutability: "payable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "value", type: "uint256" },
+      { name: "data", type: "bytes" },
+      { name: "operation", type: "uint8" },
+      { name: "safeTxGas", type: "uint256" },
+      { name: "baseGas", type: "uint256" },
+      { name: "gasPrice", type: "uint256" },
+      { name: "gasToken", type: "address" },
+      { name: "refundReceiver", type: "address" },
+      { name: "signatures", type: "bytes" },
+    ],
+    outputs: [{ name: "success", type: "bool" }],
+  },
+] as const;
 
 /**
  * Minimal Safe contract ABI — only what's needed to encode the setup
@@ -83,4 +120,71 @@ export function buildSafeSetupInitializer(params: {
       zeroAddress, // paymentReceiver
     ],
   });
+}
+
+/**
+ * Build a Safe "pre-validated" (approved-hash) signature for `owner`.
+ *
+ * Safe's `checkNSignatures` treats a signature with `v == 1` as pre-validated:
+ * it passes when the recovered owner address (`r`, left-padded to 32 bytes) is
+ * either the `msg.sender` or has previously called `approveHash`. So when the
+ * sole owner of a 1-of-1 Safe submits `execTransaction` themselves, this 65-byte
+ * blob authorises the call with NO off-chain Safe-tx EIP-712 signature and no
+ * dependency on the Safe nonce. Layout: r = owner(32) ‖ s = 0(32) ‖ v = 1(1).
+ */
+export function buildApprovedHashSignature(owner: Address): Hex {
+  return encodePacked(
+    ["bytes32", "bytes32", "uint8"],
+    [pad(owner, { size: 32 }), pad("0x", { size: 32 }), 1],
+  );
+}
+
+/** ABI-encode the kernel's `setManager(newManager)` call. */
+export function encodeSetManager(newManager: Address): Hex {
+  return encodeFunctionData({
+    abi: setManagerAbi,
+    functionName: "setManager",
+    args: [newManager],
+  });
+}
+
+/**
+ * Build the `Safe.execTransaction` calldata that rotates an SMA's delegated
+ * signer by calling `kernel.setManager(newManager)` *as the Safe*.
+ *
+ * `setManager` is gated by `msg.sender == account`, so it cannot be sent
+ * straight from the owner's EOA (as createAccount/dispatch are) — it must be
+ * wrapped in a Safe transaction. For the 1-of-1 Safes Sailor creates, the owner
+ * submits this tx from their own wallet and authorises it with a pre-validated
+ * signature (see `buildApprovedHashSignature`); no separate Safe-tx signing
+ * round-trip is needed. Returns the tx the owner sends: `{ to: safe, data }`.
+ */
+export function buildSetManagerExecTransaction(params: {
+  /** The SMA (Safe) whose manager is being rotated; also the tx `to`. */
+  safe: Address;
+  /** The SailKernel the Safe will call. */
+  kernel: Address;
+  /** The new delegated signer (manager) address. */
+  newManager: Address;
+  /** The sole Safe owner who will submit this tx. */
+  owner: Address;
+}): { to: Address; data: Hex } {
+  const innerData = encodeSetManager(params.newManager);
+  const data = encodeFunctionData({
+    abi: gnosisSafeExecAbi,
+    functionName: "execTransaction",
+    args: [
+      params.kernel, // to
+      0n, // value
+      innerData, // data: setManager(newManager)
+      0, // operation: Call
+      0n, // safeTxGas
+      0n, // baseGas
+      0n, // gasPrice
+      zeroAddress, // gasToken
+      zeroAddress, // refundReceiver
+      buildApprovedHashSignature(params.owner),
+    ],
+  });
+  return { to: params.safe, data };
 }

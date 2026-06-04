@@ -86,21 +86,23 @@ const zero = "0x0000000000000000000000000000000000000000" as Address;
 
 export const sailDeployments: Record<SailChainId, SailDeployment> = {
   84532: {
-    // Post-Octane redeploy: genesis allowlist bootstrap + createAccount fix (2026-06-03,
-    // gitCommit e6a9adb-dirty). The kernel now predicts the proxy CREATE2 address locally via
-    // SafeProxyFactory.proxyCreationCode() (Safe 1.4.1 has no view predictor) — createAccount
-    // verified working on-chain. allowlistBootstrapped=true; onboarding live, no 48h wait.
-    // Only `core` was redeployed; shared/standalone permission templates are NOT yet deployed
-    // against this kernel (run the templates targets + refill the template maps before clones).
+    // SAIL-405 redeploy (2026-06-04, gitCommit 6d872e6): adds owner-gated
+    // setManager(newManager) to rotate the SMA's delegated signer (clears the
+    // permission set + bumps the nonce epoch). Genesis allowlist bootstrap +
+    // local CREATE2 proxy prediction carried over; allowlistBootstrapped=true,
+    // createAccount verified working, zero fees, onboarding live. Supersedes
+    // 0xcC50009115DAaBCB40513e03a1a0Cc2Fdf6Be558. Only `core` was redeployed;
+    // shared/standalone permission templates are NOT yet deployed against this
+    // kernel (run the templates targets + refill the template maps before clones).
     chainId: 84532,
-    blockNumber: 42369715,
+    blockNumber: 42400417,
     deployer: "0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6",
-    governance: "0xE69D24766Be634f890F4fE5DF9DdDcdc0EE48112",
-    timelock: "0x1a09A075B2782EA77Db1A09e26351864a398437E",
-    kernel: "0xcC50009115DAaBCB40513e03a1a0Cc2Fdf6Be558",
-    permissionFactory: "0x862224538a85E4D90835A7082C01f1ec0CdD10cC",
-    standardFeePolicy: "0x19Ee573C83FC457037bfae647fD73f02ae0D65a2",
-    safeModuleEnabler: "0x23AE40439D94dDD5253Fc6d9ef2391BA8cC2362C",
+    governance: "0xEaD44bC6999E7b00b9b2E11c1660248DC2a30993",
+    timelock: "0x97B863e392C9859336788D5Ec454527d33C95B74",
+    kernel: "0xf1D0F4C9893612627409948BAa9d82a01a373799",
+    permissionFactory: "0xdfF6a2272F667cDf78Af4681b9c88A219998db95",
+    standardFeePolicy: "0x05570F7973b46Eb9Ed4518422891EFC26BD58b97",
+    safeModuleEnabler: "0xB2C2B52d94412e3472C9fb2B52186eA12a935869",
     treasury: "0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6",
     maxPermissionFeeWei: 1_000_000_000_000_000n,
     initialBaseFee: 0n,

@@ -98,6 +98,54 @@ export function buildRegisterPermissionTypedData(args: {
 }
 
 /**
+ * EIP-712 types for RegisterPermissions (batch) — selective kernel. Mirrors the
+ * shape SailorClient.mandate.attachBatch signs and the on-chain
+ * registerPermissions(account, permissions[], deadline, sig) entry point.
+ */
+export const REGISTER_PERMISSIONS_BATCH_TYPES = {
+  RegisterPermissions: [
+    { name: "account", type: "address" },
+    { name: "permissions", type: "address[]" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
+
+/**
+ * Build a JSON-serializable RegisterPermissions (batch) typed-data payload for
+ * the browser signing station — the re-approval step after a manager rotation,
+ * which rebinds every previously-attached mandate to the new delegated signer in
+ * a single owner signature + tx. Bigints are stringified for transport.
+ */
+export function buildRegisterPermissionsBatchTypedData(args: {
+  chainId: number;
+  kernel: Address;
+  account: Address;
+  permissions: Address[];
+  nonce: bigint;
+  /** Signature deadline (unix seconds). Defaults to 10 minutes from now. */
+  deadline?: bigint;
+}): SerializedTypedData {
+  const deadline = args.deadline ?? BigInt(Math.floor(Date.now() / 1000) + 600);
+  return {
+    domain: {
+      name: "SailKernel",
+      version: "1",
+      chainId: args.chainId,
+      verifyingContract: args.kernel,
+    },
+    types: REGISTER_PERMISSIONS_BATCH_TYPES as unknown as SerializedTypedData["types"],
+    primaryType: "RegisterPermissions",
+    message: {
+      account: args.account,
+      permissions: args.permissions,
+      nonce: args.nonce.toString(),
+      deadline: deadline.toString(),
+    },
+  };
+}
+
+/**
  * Sign a RegisterPermission message directly with a wallet client. Used by
  * headless flows (tests / scripts) where the owner's key is local rather than
  * in a browser. The browser path uses buildRegisterPermissionTypedData instead.

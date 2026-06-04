@@ -408,6 +408,56 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
   })
 
+  // POST /api/manager/complete { newManager, txHash } — called by the dashboard
+  // after the owner's on-chain rotation (Safe.execTransaction → setManager)
+  // confirms. Persists the new delegated signer into account.json + the
+  // multi-SMA list (so `sailor run` / the switcher read it), records the event,
+  // and drops the cached overview so the new signer shows immediately. The
+  // on-chain rotation is the source of truth; this only keeps local state in sync.
+  app.post('/api/manager/complete', (req, res) => {
+    const { newManager, txHash } = req.body ?? {}
+    if (!isAddress(newManager)) {
+      res.status(400).json({ error: 'newManager must be a valid address' })
+      return
+    }
+    const safe = readActiveSafe()
+    if (!safe) {
+      res.status(400).json({ error: 'No active SMA.' })
+      return
+    }
+    try {
+      const manager = getAddress(newManager)
+      // Update the active account.json.
+      try {
+        const account = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
+        if (account?.safe?.toLowerCase() === safe.toLowerCase()) {
+          fs.writeFileSync(at('account.json'), `${JSON.stringify({ ...account, manager }, null, 2)}\n`)
+        }
+      } catch { /* no account.json — nothing to update */ }
+      // Update the matching entry in the multi-SMA list.
+      try {
+        const listPath = at('state/accounts.json')
+        const list = JSON.parse(fs.readFileSync(listPath, 'utf-8'))
+        const idx = list.findIndex((a) => a.safe?.toLowerCase() === safe.toLowerCase())
+        if (idx !== -1) {
+          list[idx] = { ...list[idx], manager }
+          fs.writeFileSync(listPath, `${JSON.stringify(list, null, 2)}\n`)
+        }
+      } catch { /* no list yet */ }
+      // Record the rotation in the activity log.
+      try {
+        const ev = { ts: new Date().toISOString(), actor: 'owner', type: 'signer_rotated', newManager: manager, safe, ...(txHash ? { txHash } : {}) }
+        fs.appendFileSync(at('activity.jsonl'), `${JSON.stringify(ev)}\n`)
+      } catch { /* non-fatal */ }
+      // Invalidate the cached overview so the new signer + cleared mandates show.
+      overviewCacheByAccount.delete(safe.toLowerCase())
+      try { fs.rmSync(overviewSnapshotPath(safe)) } catch { /* none */ }
+      res.json({ ok: true, manager })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  })
+
   // GET /api/mandate — the signed mandate, or null if not signed yet.
   app.get('/api/mandate', (_req, res) => {
     try {
