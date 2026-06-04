@@ -136,6 +136,9 @@ export default function RotateSignerModal({
     .filter(Boolean)
 
   const [step, setStep] = useState('confirm') // confirm | backup | rotating | reattaching | done
+  const [mode, setMode] = useState('create') // 'create' | 'import'
+  const [importKind, setImportKind] = useState('privateKey') // 'privateKey' | 'mnemonic'
+  const [secret, setSecret] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -147,6 +150,9 @@ export default function RotateSignerModal({
   useEffect(() => {
     if (!open) return
     setStep('confirm')
+    setMode('create')
+    setImportKind('privateKey')
+    setSecret('')
     setPassword('')
     setBusy(false)
     setError('')
@@ -172,11 +178,21 @@ export default function RotateSignerModal({
   const ownerMismatch =
     walletAddress && ownerAddr && walletAddress.toLowerCase() !== ownerAddr.toLowerCase()
 
-  // Step 1 — generate the new agent wallet on the local server.
-  async function generateKey() {
+  // Step 1 — provision the new manager on the local server: generate a fresh key,
+  // or import an existing one from a private key / recovery phrase. The local
+  // server (POST /api/signer) derives + encrypts it into a keystore; the secret
+  // never leaves the machine, and only a freshly generated key is revealed once.
+  const method = mode === 'create' ? 'generate' : importKind
+  const needsSecret = mode === 'import'
+
+  async function provisionKey() {
     setError('')
     if (password.length < MIN_PASSWORD) {
       setError(`Password must be at least ${MIN_PASSWORD} characters.`)
+      return
+    }
+    if (needsSecret && !secret.trim()) {
+      setError(importKind === 'privateKey' ? 'Enter a private key.' : 'Enter your recovery phrase.')
       return
     }
     setBusy(true)
@@ -184,15 +200,16 @@ export default function RotateSignerModal({
       const res = await fetch('/api/signer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ method: 'generate', password }),
+        body: JSON.stringify({ method, secret: needsSecret ? secret.trim() : undefined, password }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json?.error || 'Failed to create the new agent wallet.')
+      if (!res.ok) throw new Error(json?.error || 'Failed to prepare the new manager wallet.')
       setCreated(json)
+      setSecret('')
       setPassword('')
       setStep('backup')
     } catch (err) {
-      setError(err?.message || 'Failed to create the new agent wallet.')
+      setError(err?.message || 'Failed to prepare the new manager wallet.')
     } finally {
       setBusy(false)
     }
@@ -322,7 +339,7 @@ export default function RotateSignerModal({
       className={styles.overlay}
       role="dialog"
       aria-modal="true"
-      aria-label="Rotate agent wallet"
+      aria-label="Rotate manager"
       onClick={pending ? undefined : onClose}
     >
       <GlassCard className={styles.card} onClick={(e) => e.stopPropagation()}>
@@ -332,7 +349,7 @@ export default function RotateSignerModal({
 
         {step === 'done' ? (
           <>
-            <h2 className={styles.title}>Agent wallet rotated</h2>
+            <h2 className={styles.title}>Manager rotated</h2>
             <p className={styles.body}>
               <strong>{created?.address}</strong> is now this SMA&rsquo;s delegated signer.
               {mandateAddrs.length > 0
@@ -340,7 +357,7 @@ export default function RotateSignerModal({
                 : ' No mandates were attached, so none needed re-approval.'}
             </p>
             <p className={styles.body}>
-              Fund the new agent wallet so it can pay gas for dispatches, then restart your agent.
+              Fund the new manager wallet so it can pay gas for dispatches, then restart your agent.
             </p>
             <div className={styles.actions}>
               <SailButton onClick={onClose}>Done</SailButton>
@@ -348,13 +365,16 @@ export default function RotateSignerModal({
           </>
         ) : step === 'backup' ? (
           <>
-            <h2 className={styles.title}>Back up the new agent wallet</h2>
+            <h2 className={styles.title}>
+              {created?.revealed ? 'Back up the new manager' : 'New manager ready'}
+            </h2>
             <p className={styles.body}>
-              A fresh agent wallet was created and encrypted on disk. Save its private key now —
-              it&rsquo;s shown only once. Then rotate the SMA to it.
+              {created?.revealed
+                ? 'A fresh manager wallet was created and encrypted on disk. Save its private key now — it’s shown only once. Then rotate the SMA to it.'
+                : 'Your manager wallet was imported and encrypted on disk. Rotate the SMA to it below.'}
             </p>
             <div className={form.addrPanel}>
-              <span className={form.addrLabel}>New signer address</span>
+              <span className={form.addrLabel}>New manager address</span>
               <code className={form.addrValue}>{created?.address}</code>
             </div>
             {created?.revealed && (
@@ -406,17 +426,78 @@ export default function RotateSignerModal({
           </>
         ) : (
           <>
-            <h2 className={styles.title}>Rotate the agent wallet?</h2>
+            <h2 className={styles.title}>Rotate the manager?</h2>
             <p className={styles.body}>
-              This generates a new agent wallet (delegated signer) and rotates the SMA to it — the
-              recovery path when the current agent key is lost or compromised. Set a password to
-              encrypt the new key on disk.
+              Rotate this SMA to a new delegated signer (manager) — the recovery path when the
+              current manager key is lost or compromised. Generate a fresh wallet, or import an
+              existing one by private key or recovery phrase. Set a password to encrypt it on disk.
             </p>
             <dl className={styles.meta}>
               <div><dt>SMA</dt><dd>{sma}</dd></div>
-              {currentManager && <div><dt>Current signer</dt><dd>{currentManager}</dd></div>}
+              {currentManager && <div><dt>Current manager</dt><dd>{currentManager}</dd></div>}
               <div><dt>Attached mandates</dt><dd>{mandateAddrs.length}</dd></div>
             </dl>
+
+            <div className={form.segmented} role="tablist" aria-label="New manager source">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === 'create'}
+                className={`${form.segBtn} ${mode === 'create' ? form.segActive : ''}`}
+                onClick={() => setMode('create')}
+              >
+                Create new
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === 'import'}
+                className={`${form.segBtn} ${mode === 'import' ? form.segActive : ''}`}
+                onClick={() => setMode('import')}
+              >
+                Import
+              </button>
+            </div>
+
+            {mode === 'create' ? (
+              <p className={form.modeNote}>
+                Generates a fresh random key. You&rsquo;ll see the private key once, to back up.
+              </p>
+            ) : (
+              <>
+                <div className={form.segmented2}>
+                  <button
+                    type="button"
+                    className={`${form.segBtn} ${importKind === 'privateKey' ? form.segActive : ''}`}
+                    onClick={() => setImportKind('privateKey')}
+                  >
+                    Private key
+                  </button>
+                  <button
+                    type="button"
+                    className={`${form.segBtn} ${importKind === 'mnemonic' ? form.segActive : ''}`}
+                    onClick={() => setImportKind('mnemonic')}
+                  >
+                    Recovery phrase
+                  </button>
+                </div>
+                <label className={form.field}>
+                  <span className={form.fieldLabel}>
+                    {importKind === 'privateKey' ? 'Private key' : 'Recovery phrase (12 or 24 words)'}
+                  </span>
+                  <textarea
+                    className={form.input}
+                    rows={importKind === 'privateKey' ? 2 : 3}
+                    placeholder={importKind === 'privateKey' ? '0x…' : 'word1 word2 word3 …'}
+                    value={secret}
+                    onChange={(e) => setSecret(e.target.value)}
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </label>
+              </>
+            )}
+
             <label className={form.field}>
               <span className={form.fieldLabel}>Encryption password</span>
               <input
@@ -428,14 +509,14 @@ export default function RotateSignerModal({
                 autoComplete="new-password"
               />
               <span className={form.fieldHint}>
-                Encrypts the new key on disk. You&rsquo;ll enter it to run the agent (or set SAIL_PASSPHRASE).
+                Encrypts the key on disk. You&rsquo;ll enter it to run the agent (or set SAIL_PASSPHRASE).
               </span>
             </label>
             {error && <p className={styles.error}>{error}</p>}
             <div className={styles.actions}>
               <button type="button" className={styles.cancel} onClick={onClose}>Cancel</button>
-              <SailButton onClick={generateKey} disabled={busy}>
-                {busy ? 'Working…' : 'Generate new wallet'}
+              <SailButton onClick={provisionKey} disabled={busy}>
+                {busy ? 'Working…' : mode === 'create' ? 'Generate new wallet' : 'Import wallet'}
               </SailButton>
             </div>
           </>

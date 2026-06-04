@@ -246,7 +246,7 @@ const BALANCE_STATUS = {
 }
 
 const SIGNER_ROLE = {
-  manager: { label: 'Agent wallet', sub: 'Pays gas for every dispatch — keep it funded.' },
+  manager: { label: 'Manager', sub: 'Pays gas for every dispatch — keep it funded.' },
   owner: { label: 'Owner', sub: 'Holds the Safe and signs mandates.' },
   permissionSigner: { label: 'Permission signer', sub: 'Authorizes which mandates apply.' },
 }
@@ -334,7 +334,7 @@ function SignersPanel({ overview, sma, onAddSigner, onRotateSigner }) {
     <div className={styles.signerGrid}>
       {signers.map((s) => (
         <SignerCard
-          key={s.role}
+          key={s.address ? `${s.role}:${s.address}` : s.role}
           signer={s}
           network={overview.network}
           onAddSigner={onAddSigner}
@@ -366,6 +366,10 @@ function SignerCard({ signer, network, onAddSigner, onRotateSigner }) {
     : (SIGNER_ROLE[signer.role] ?? { label: signer.role, sub: '' })
   const unconfigured = signer.status === 'unconfigured'
   const isLocal = signer.status === 'local'
+  // The on-chain delegated signer the kernel actually recognises for this SMA.
+  // Local-only keystores (status 'local') are created but not yet registered, so
+  // only a non-local, configured manager card is the active/registered one.
+  const isActiveManager = signer.role === 'manager' && !isLocal && !unconfigured
   const bal = signer.role === 'sma' || unconfigured || isLocal
     ? null
     : (BALANCE_STATUS[signer.status] ?? BALANCE_STATUS.ok)
@@ -386,6 +390,16 @@ function SignerCard({ signer, network, onAddSigner, onRotateSigner }) {
     >
       <header className={styles.signerCardHead}>
         <span className={styles.signerRole}>{role.label}</span>
+        {isActiveManager && (
+          <span
+            className={styles.balancePill}
+            style={{ color: '#34d399' }}
+            title="Registered as this SMA's delegated signer on-chain"
+          >
+            <span className={styles.balancePillDot} aria-hidden style={{ background: '#34d399' }} />
+            Active
+          </span>
+        )}
         {bal && (
           <span className={`${styles.balancePill} ${styles[`balancePill_${signer.status}`] ?? ''}`}>
             <span className={styles.balancePillDot} aria-hidden />
@@ -395,7 +409,7 @@ function SignerCard({ signer, network, onAddSigner, onRotateSigner }) {
         {isLocal && (
           <span className={styles.balancePill} style={{ color: 'var(--text-secondary)' }}>
             <span className={styles.balancePillDot} aria-hidden style={{ background: 'var(--accent-blue)' }} />
-            Local
+            Not registered
           </span>
         )}
       </header>
@@ -455,7 +469,7 @@ function SignerCard({ signer, network, onAddSigner, onRotateSigner }) {
           lost/compromised agent key. */}
       {signer.role === 'manager' && !unconfigured && !isLocal && onRotateSigner && (
         <button type="button" className={styles.signerRotateBtn} onClick={onRotateSigner}>
-          Rotate agent wallet
+          Rotate manager
         </button>
       )}
 
@@ -1229,11 +1243,11 @@ function DashboardContent({ onReset }) {
                 signer's live native balance with a top-up status so you can
                 refill before that happens. Read-only: Sail never holds keys,
                 so "top up" means sending ETH to the shown address yourself. */}
-            <section className={styles.signersSection} aria-label="Agent wallets">
+            <section className={styles.signersSection} aria-label="Accounts details">
               <header className={styles.mandatesSectionHead}>
                 <h2 className={styles.mandatesSectionTitle}>
                   <KeyGlyph />
-                  Agent wallets
+                  Accounts Details
                 </h2>
                 <span className={styles.mandatesSectionMeta}>
                   {overview?.onchain
