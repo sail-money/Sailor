@@ -4,15 +4,18 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 jobs:
   publish:
     permissions:
       id-token: write
       contents: read
+      packages: write
     uses: SailAgent/devops-templates/.github/workflows/publish-pnpm.yaml@main
     with:
       package_dir: .
+      package_name: "@sail.money/sailor"
       package_version: ${{ github.ref_name }}
       pnpm-version: '11'
     secrets: inherit
