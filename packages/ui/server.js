@@ -334,8 +334,13 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
   })
 
-  // Per-SMA delegated-signer keystore path.
+  // Per-SMA delegated-signer keystore path. Canonical form keeps the `0x`
+  // prefix — manager-0x<address>.json — matching the CLI's keyPath() so both
+  // write/read the same file for a given SMA.
   const managerKeyPath = (safe) => at(`keys/manager-${safe.toLowerCase()}.json`)
+  // Legacy per-SMA filename written by older CLIs (no `0x` prefix). Read as a
+  // fallback so a key created by an older CLI is still discovered.
+  const legacyManagerKeyPath = (safe) => at(`keys/manager-${safe.toLowerCase().replace(/^0x/, '')}.json`)
 
   // POST /api/signer — create or import the delegated-signer (manager) key for
   // the active SMA. Stored as a geth-v3 encrypted keystore (scrypt + aes-128-ctr,
@@ -403,6 +408,154 @@ export function startServer(sailDir, { port = PORT } = {}) {
       try { fs.rmSync(overviewSnapshotPath(safe)) } catch { /* none */ }
 
       res.json({ ok: true, address: keyring.address, revealed })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  })
+
+  // POST /api/manager/complete { newManager, txHash } — called by the dashboard
+  // after the owner's on-chain rotation (Safe.execTransaction → setManager)
+  // confirms. Persists the new delegated signer into account.json + the
+  // multi-SMA list (so `sailor run` / the switcher read it), records the event,
+  // and drops the cached overview so the new signer shows immediately. The
+  // on-chain rotation is the source of truth; this only keeps local state in sync.
+  app.post('/api/manager/complete', (req, res) => {
+    const { newManager, txHash } = req.body ?? {}
+    if (!isAddress(newManager)) {
+      res.status(400).json({ error: 'newManager must be a valid address' })
+      return
+    }
+    const safe = readActiveSafe()
+    if (!safe) {
+      res.status(400).json({ error: 'No active SMA.' })
+      return
+    }
+    try {
+      const manager = getAddress(newManager)
+      // Update the active account.json.
+      try {
+        const account = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
+        if (account?.safe?.toLowerCase() === safe.toLowerCase()) {
+          fs.writeFileSync(at('account.json'), `${JSON.stringify({ ...account, manager }, null, 2)}\n`)
+        }
+      } catch { /* no account.json — nothing to update */ }
+      // Update the matching entry in the multi-SMA list.
+      try {
+        const listPath = at('state/accounts.json')
+        const list = JSON.parse(fs.readFileSync(listPath, 'utf-8'))
+        const idx = list.findIndex((a) => a.safe?.toLowerCase() === safe.toLowerCase())
+        if (idx !== -1) {
+          list[idx] = { ...list[idx], manager }
+          fs.writeFileSync(listPath, `${JSON.stringify(list, null, 2)}\n`)
+        }
+      } catch { /* no list yet */ }
+      // Record the rotation in the activity log.
+      try {
+        const ev = { ts: new Date().toISOString(), actor: 'owner', type: 'signer_rotated', newManager: manager, safe, ...(txHash ? { txHash } : {}) }
+        fs.appendFileSync(at('activity.jsonl'), `${JSON.stringify(ev)}\n`)
+      } catch { /* non-fatal */ }
+      // Invalidate the cached overview so the new signer + cleared mandates show.
+      overviewCacheByAccount.delete(safe.toLowerCase())
+      try { fs.rmSync(overviewSnapshotPath(safe)) } catch { /* none */ }
+      res.json({ ok: true, manager })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  })
+
+  // Is `file` a delegated-signer (manager) keystore? Matches `manager.json` and
+  // the per-SMA `manager-<safe>.json` (written with or without a 0x prefix by
+  // the UI vs the CLI). Backups (manager.json.<ts>.bak, .bak-0x… ) don't end in
+  // `.json`, so they're excluded; so are the permissionSigner keys.
+  const isManagerKeyFile = (file) =>
+    file === 'manager.json' || (file.startsWith('manager-') && file.endsWith('.json'))
+
+  // Read the plaintext `address` field of a geth-v3 keystore (stored without the
+  // 0x prefix). Never decrypts. Returns a checksummed address, or null.
+  const keystoreAddress = (file) => {
+    try {
+      const ks = JSON.parse(fs.readFileSync(at(`keys/${file}`), 'utf-8'))
+      if (!ks?.address) return null
+      return getAddress(String(ks.address).startsWith('0x') ? ks.address : `0x${ks.address}`)
+    } catch {
+      return null
+    }
+  }
+
+  // GET /api/signers — delegated-signer (manager) keystores this project already
+  // holds in .sail/keys/, so the dashboard can rotate to a key it already has
+  // instead of generating or importing a new one. Reads only the plaintext
+  // `address` of each keystore — never decrypts, never returns a secret. The
+  // entry whose address matches the active SMA's current manager is flagged
+  // `active`. De-duplicated by address (the same key can live in several files).
+  app.get('/api/signers', (_req, res) => {
+    try {
+      let files = []
+      try { files = fs.readdirSync(at('keys')) } catch { files = [] }
+      const activeSafe = readActiveSafe()
+      let activeManager = null
+      try { activeManager = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8')).manager ?? null } catch { /* none */ }
+      const activeFile = activeSafe ? `manager-${activeSafe.toLowerCase()}.json` : null
+
+      const byAddress = new Map()
+      for (const file of files) {
+        if (!isManagerKeyFile(file)) continue
+        const address = keystoreAddress(file)
+        if (!address) continue
+        const key = address.toLowerCase()
+        const isActiveFile = activeFile != null && file.toLowerCase() === activeFile
+        // Prefer the per-active-SMA file as the canonical record for an address.
+        if (!byAddress.has(key) || isActiveFile) {
+          byAddress.set(key, {
+            address,
+            file,
+            active: !!activeManager && activeManager.toLowerCase() === key,
+          })
+        }
+      }
+      res.json({ signers: [...byAddress.values()] })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  })
+
+  // POST /api/signer/activate { address } — make a saved manager keystore the
+  // active local signer for the current SMA by copying it to
+  // keys/manager-<safe>.json (the file `sailor run` loads). Used by the
+  // dashboard's "use a saved manager" rotation path once the on-chain
+  // setManager confirms. The on-chain rotation is the source of truth; this only
+  // points the local agent at the matching key it already holds. Never reads or
+  // returns the secret.
+  app.post('/api/signer/activate', (req, res) => {
+    const { address } = req.body ?? {}
+    if (!isAddress(address)) {
+      res.status(400).json({ error: 'address must be a valid address' })
+      return
+    }
+    const safe = readActiveSafe()
+    if (!safe) {
+      res.status(400).json({ error: 'No active SMA.' })
+      return
+    }
+    try {
+      let files = []
+      try { files = fs.readdirSync(at('keys')) } catch { files = [] }
+      const want = getAddress(address).toLowerCase()
+      const match = files.find((file) => isManagerKeyFile(file) && keystoreAddress(file)?.toLowerCase() === want)
+      if (!match) {
+        res.status(404).json({ error: 'No saved keystore matches that address.' })
+        return
+      }
+      const source = at(`keys/${match}`)
+      const target = managerKeyPath(safe)
+      if (path.resolve(source) !== path.resolve(target)) {
+        fs.mkdirSync(at('keys'), { recursive: true })
+        fs.copyFileSync(source, target)
+      }
+      // New active signer — drop the cached overview so it shows immediately.
+      overviewCacheByAccount.delete(safe.toLowerCase())
+      try { fs.rmSync(overviewSnapshotPath(safe)) } catch { /* none */ }
+      res.json({ ok: true, address: getAddress(address), file: match })
     } catch (err) {
       res.status(500).json({ error: String(err) })
     }
@@ -1018,8 +1171,9 @@ export function startServer(sailDir, { port = PORT } = {}) {
     // so we can surface the address(es) for funding even when RPC is missing or down.
     const localManagerAddrs = new Set()
     const perSmaPath = managerKeyPath(account.safe)
+    const legacyPerSmaPath = legacyManagerKeyPath(account.safe)
     const flatManagerPath = at('keys/manager.json')
-    for (const p of [perSmaPath, flatManagerPath]) {
+    for (const p of [perSmaPath, legacyPerSmaPath, flatManagerPath]) {
       try {
         if (fs.existsSync(p)) {
           const ks = JSON.parse(fs.readFileSync(p, 'utf-8'))

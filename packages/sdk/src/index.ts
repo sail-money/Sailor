@@ -20,8 +20,12 @@ export type {
 } from "./signing.js";
 export {
   SAFE_V141,
+  buildApprovedHashSignature,
   buildSafeSetupInitializer,
+  buildSetManagerExecTransaction,
+  encodeSetManager,
   gnosisSafeAbi,
+  gnosisSafeExecAbi,
   safeModuleEnablerAbi,
 } from "./safe.js";
 export { discoverSafesForOwner, getSafeTransactionServiceUrl } from "./discovery.js";
@@ -56,7 +60,9 @@ export {
 export {
   REGISTER_PERMISSION_TYPES,
   REGISTER_PERMISSION_TYPES_NO_DEADLINE,
+  REGISTER_PERMISSIONS_BATCH_TYPES,
   buildRegisterPermissionTypedData,
+  buildRegisterPermissionsBatchTypedData,
   sailKernelDomain,
   signRegisterPermission,
 } from "./eip712.js";

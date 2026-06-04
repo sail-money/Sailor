@@ -35,6 +35,26 @@ export const SailKernelAbi = [
     outputs: [],
   },
 
+  // ── Manager rotation ──────────────────────────────────────────────────────
+  // Rotate the SMA's delegated signer. MUST be called by the Safe itself
+  // (msg.sender == account), i.e. wrapped in a Safe.execTransaction — see
+  // buildSetManagerExecTransaction in ./safe.js. Clears every attached mandate
+  // (fail-closed) and bumps the manager/batch nonce epoch.
+  {
+    type: "function",
+    name: "setManager",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "newManager", type: "address" }],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "getManager",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "", type: "address" }],
+  },
+
   // ── Permission registry ───────────────────────────────────────────────────
   // Singular register: the verified onboarding/mandate-attach path. The owner
   // signs a RegisterPermission EIP-712 message; the agent submits this with the
@@ -254,6 +274,15 @@ export const SailKernelAbi = [
     inputs: [
       { name: "account", type: "address", indexed: true },
       { name: "permission", type: "address", indexed: true },
+    ],
+  },
+  {
+    type: "event",
+    name: "ManagerChanged",
+    inputs: [
+      { name: "account", type: "address", indexed: true },
+      { name: "oldManager", type: "address", indexed: true },
+      { name: "newManager", type: "address", indexed: true },
     ],
   },
   {

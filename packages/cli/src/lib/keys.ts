@@ -32,28 +32,50 @@ export function roleLabel(role: Role): string {
   return role === "manager" ? "agent wallet" : "mandate signer";
 }
 
+/** Lowercase the safe address and reduce it to `0x` + hex only. */
+function safeHex(safe: string): string {
+  return safe.toLowerCase().replace(/^0x/, "").replace(/[^0-9a-f]/g, "");
+}
+
+/**
+ * Per-SMA (or shared) keystore path for a role.
+ *
+ * The per-SMA filename keeps the `0x` prefix — `<role>-0x<address>.json` — so
+ * the CLI and the dashboard UI (packages/ui/server.js, which writes the same
+ * name) agree on a single file per SMA. The address is lowercased and stripped
+ * to `0x` + hex as defense-in-depth: a crafted value containing path separators
+ * or ".." can never escape the keys/ directory.
+ */
 export function keyPath(role: Role, safe?: string): string {
   if (safe) {
-    // Validate that the safe address component cannot escape the keys/ directory.
-    // A crafted address containing path separators or ".." would be rejected by
-    // the EVM address regex check at call sites, but guard here as defense-in-depth.
-    const normalised = safe.toLowerCase().replace(/[^0-9a-f]/g, "");
-    return sailPath("keys", `${role}-${normalised}.json`);
+    return sailPath("keys", `${role}-0x${safeHex(safe)}.json`);
   }
   return sailPath("keys", `${role}.json`);
 }
 
 /**
+ * Legacy per-SMA keystore filename written by CLI versions before the `0x`
+ * prefix was unified with the UI (`<role>-<address>.json`, no prefix). Resolved
+ * as a fallback so keys created by an older CLI keep loading.
+ */
+function legacyKeyPath(role: Role, safe: string): string {
+  return sailPath("keys", `${role}-${safeHex(safe)}.json`);
+}
+
+/**
  * Resolves the keystore path for a role, preferring a per-SMA key
- * (`<role>-<safe>.json`, written by the dashboard's "add delegated signer"
- * flow) when present, and falling back to the shared `<role>.json` otherwise.
- * This keeps single-SMA projects working unchanged while letting each SMA hold
- * its own delegated signer.
+ * (`<role>-0x<safe>.json`, written by the dashboard's "add delegated signer"
+ * flow) when present, then a legacy per-SMA file (no `0x`), and finally falling
+ * back to the shared `<role>.json`. This keeps single-SMA projects working
+ * unchanged while letting each SMA hold its own delegated signer — and lets the
+ * CLI load a per-SMA key the dashboard created, regardless of which wrote it.
  */
 export function resolveKeyPath(role: Role, safe?: string): string {
   if (safe) {
     const perSma = keyPath(role, safe);
     if (fileExists(perSma)) return perSma;
+    const legacy = legacyKeyPath(role, safe);
+    if (fileExists(legacy)) return legacy;
   }
   return keyPath(role);
 }

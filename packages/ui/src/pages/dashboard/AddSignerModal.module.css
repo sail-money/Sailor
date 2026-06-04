@@ -206,3 +206,52 @@
   transition: background 160ms ease;
 }
 .copyBtn:hover { background: rgba(255, 255, 255, 0.12); }
+
+/* Saved-manager picker — list of keystores already in .sail/keys/ */
+.savedList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.savedItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  background: rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+.savedItem:hover { border-color: rgba(255, 255, 255, 0.22); }
+.savedItem[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.savedItem[aria-disabled='true']:hover { border-color: var(--glass-border, rgba(255, 255, 255, 0.1)); }
+.savedItemActive {
+  border-color: var(--accent-blue);
+  background: rgba(64, 130, 255, 0.08);
+}
+.savedItem input { accent-color: var(--accent-blue); }
+.savedAddr {
+  flex: 1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+.savedBadge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-tertiary);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
