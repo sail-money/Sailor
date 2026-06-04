@@ -112,17 +112,22 @@ export const sailDeployments: Record<SailChainId, SailDeployment> = {
     standaloneTemplates: {},
   },
   8453: {
+    // SAIL-405 redeploy (2026-06-04, gitCommit 0ed0561): adds owner-gated
+    // setManager(newManager) to rotate the SMA's delegated signer (clears the
+    // permission set + bumps the nonce epoch). Genesis allowlist bootstrap +
+    // local CREATE2 proxy prediction carried over; allowlistBootstrapped=true,
+    // zero fees, onboarding live. Supersedes 0x20eff0DbE752e22655A6dAA5A94521FA06CDdE06.
+    // Only `core` was redeployed; shared/standalone permission templates are NOT yet
+    // deployed against this kernel (run the templates targets + refill the maps first).
     chainId: 8453,
-    blockNumber: 46074750,
+    blockNumber: 46898030,
     deployer: "0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6",
-    // Bootstrap redeploy (2026-06-03) — fixed kernel, allowlists bootstrapped at genesis, zero fees.
-    // Only core was redeployed; templates not yet deployed against this kernel.
-    governance: "0x690e7Ab3CEB5e3E1c3aC05f79a025429B589F6Cc",
-    timelock: "0xcDe8680561B4A96f632622a10E6A4EF5Bac7a516",
-    kernel: "0x20eff0DbE752e22655A6dAA5A94521FA06CDdE06",
-    permissionFactory: "0x3992106495818E4037e698B8Eb09B452cEfE87F2",
-    standardFeePolicy: "0x72c992B1b60cAbec333F745DfF7dbfF575Fe2845",
-    safeModuleEnabler: "0xcd4f22edbDc54Ba5612492583C6F498320ee2B84",
+    governance: "0x7E897D919872b1587577617ffFC42113679d0C50",
+    timelock: "0x8eC3Ca951E193C6E3713A70022454d7A1f083281",
+    kernel: "0x6319d3dfDDe3804ba93D65752b00c52bFb05a1ab",
+    permissionFactory: "0x7724EACd97C8601d5AC244Aadbf76ad87353Ff31",
+    standardFeePolicy: "0x65850a8D5050aeAade68289ff96c4F119a24B82e",
+    safeModuleEnabler: "0xC84EdE78f93291A1fab19F51c4c7e938AB302Edf",
     treasury: "0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6",
     maxPermissionFeeWei: 1_000_000_000_000_000n,
     initialBaseFee: 0n,
@@ -132,23 +137,30 @@ export const sailDeployments: Record<SailChainId, SailDeployment> = {
     standaloneTemplates: {},
   },
   42161: {
+    // SAIL-405 redeploy (2026-06-04, gitCommit 0ed0561): adds owner-gated
+    // setManager(newManager) to rotate the SMA's delegated signer (clears the
+    // permission set + bumps the nonce epoch). Genesis allowlist bootstrap +
+    // local CREATE2 proxy prediction carried over; allowlistBootstrapped=true,
+    // zero fees, onboarding live. Supersedes 0x9AF32E0C395fb31f5cA28994351F8fAE3003e125.
+    // Bootstrap was sent as a standalone tx post-core-deploy; identical end state to Base.
+    // Only `core` was redeployed; shared/standalone permission templates are NOT yet
+    // deployed against this kernel (run the templates targets + refill the maps first).
     chainId: 42161,
-    blockNumber: 25136878,
+    blockNumber: 25244824,
     deployer: "0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6",
-    // Bootstrap redeploy (2026-06-03) — fixed kernel, allowlists bootstrapped at genesis, zero fees.
-    // Only core was redeployed; templates not yet deployed against this kernel.
-    governance: "0xb37a203CfdF8CA5e904f3637ef6258aaDA291091",
-    timelock: "0xF244bcf4BdAaa2494F919d8DFEFad7129a67caAC",
-    kernel: "0x9AF32E0C395fb31f5cA28994351F8fAE3003e125",
-    permissionFactory: "0x0E8138dA9175B02Db15cb221497A663BA0807553",
-    standardFeePolicy: "0x7711687948F6d4bB6262a72149CD7977981B7e1E",
-    safeModuleEnabler: "0x8f1Ac6cbBb321De315d2Bf58973A13d111BF7269",
+    governance: "0xd6AbB7A1036ADc7958Abffec9Da03450c5a2Ec8e",
+    timelock: "0x114CB7110C780f7E3a6093AfE0B52463a569857C",
+    kernel: "0x2716B12832DED0EF5688519c5Fe069EFc0374E02",
+    permissionFactory: "0x23681A8A4C9819D8EaB37E46B858da6F3c85E683",
+    standardFeePolicy: "0xAdfB986D48480bC67a7cF3751d30599161632e0D",
+    safeModuleEnabler: "0xabe2a6D03F592BC602cA1dBDCD885ba2493274f9",
     treasury: "0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6",
     maxPermissionFeeWei: 1_000_000_000_000_000n,
     initialBaseFee: 0n,
     initialComplexityRate: 0n,
     dispatchModel: "selective", // selective: verified on-chain DISPATCH_TYPEHASH 0xbe50c5391dcf9e08d11d2c30dbee822c14ad07af2ceb503c778d265801fb0e5c
     knownTemplates: [],
+    standaloneTemplates: {},
   },
 };
 

@@ -223,6 +223,22 @@ export default function RotateSignerModal({
     }
   }
 
+  // Once a tx is submitted it WILL mine; a flaky receipt read (a lagging
+  // load-balanced RPC node) must not be reported as a failed rotation/re-approval
+  // and must not skip the state-sync. Retry the receipt fetch a few times.
+  async function waitReceipt(hash, tries = 8) {
+    let last
+    for (let i = 0; i < tries; i++) {
+      try {
+        return await publicClient.waitForTransactionReceipt({ hash })
+      } catch (e) {
+        last = e
+        await new Promise((r) => setTimeout(r, 1500))
+      }
+    }
+    throw last
+  }
+
   // Step 2 — owner submits Safe.execTransaction → setManager(new).
   async function rotate() {
     if (!walletAddress) { setError('Connect your owner wallet first.'); return }
@@ -244,7 +260,7 @@ export default function RotateSignerModal({
       })
       const hash = await sendTransactionAsync({ to: sma, data: execData, chainId })
       setRotateTx(hash)
-      await publicClient.waitForTransactionReceipt({ hash })
+      await waitReceipt(hash)
 
       await logActivity({
         type: 'signer_rotated',
@@ -296,7 +312,7 @@ export default function RotateSignerModal({
       })
       const hash = await sendTransactionAsync({ to: kernel, data, chainId })
       setReattachTx(hash)
-      await publicClient.waitForTransactionReceipt({ hash })
+      await waitReceipt(hash)
 
       await logActivity({
         type: 'mandates_reattached',
