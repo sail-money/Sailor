@@ -16,6 +16,5 @@ jobs:
     with:
       package_dir: .
       package_name: "@sail.money/sailor"
-      package_version: ${{ github.ref_name }}
       pnpm-version: '11'
     secrets: inherit
