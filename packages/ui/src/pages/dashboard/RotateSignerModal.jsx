@@ -136,16 +136,19 @@ export default function RotateSignerModal({
     .filter(Boolean)
 
   const [step, setStep] = useState('confirm') // confirm | backup | rotating | reattaching | done
-  const [mode, setMode] = useState('create') // 'create' | 'import'
+  const [mode, setMode] = useState('create') // 'create' | 'import' | 'saved'
   const [importKind, setImportKind] = useState('privateKey') // 'privateKey' | 'mnemonic'
   const [secret, setSecret] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [created, setCreated] = useState(null) // { address, revealed }
+  const [created, setCreated] = useState(null) // { address, revealed, fromSaved }
   const [copied, setCopied] = useState(false)
   const [rotateTx, setRotateTx] = useState(null)
   const [reattachTx, setReattachTx] = useState(null)
+  const [savedSigners, setSavedSigners] = useState(null) // null = not loaded yet
+  const [loadingSaved, setLoadingSaved] = useState(false)
+  const [selectedSaved, setSelectedSaved] = useState('')
 
   useEffect(() => {
     if (!open) return
@@ -160,6 +163,9 @@ export default function RotateSignerModal({
     setCopied(false)
     setRotateTx(null)
     setReattachTx(null)
+    setSavedSigners(null)
+    setLoadingSaved(false)
+    setSelectedSaved('')
     document.body.style.overflow = 'hidden'
     const onKey = (e) => {
       if (e.key === 'Escape' && !busy && step !== 'rotating' && step !== 'reattaching') onClose?.()
@@ -213,6 +219,57 @@ export default function RotateSignerModal({
     } finally {
       setBusy(false)
     }
+  }
+
+  // Lazy-load the saved manager keystores the first time the "Use saved" tab is
+  // opened. Reads only addresses from the local server — no secrets.
+  async function loadSavedSigners() {
+    setLoadingSaved(true)
+    setError('')
+    try {
+      const res = await fetch('/api/signers')
+      // An older UI server predates this route and serves a 404 HTML page;
+      // guard res.ok before parsing so we don't surface a raw JSON error.
+      if (!res.ok) {
+        throw new Error(
+          res.status === 404
+            ? 'Saved-manager listing needs an updated Sailor UI — restart it (sailor ui stop && sailor ui).'
+            : `Could not list saved managers (HTTP ${res.status}).`,
+        )
+      }
+      const json = await res.json().catch(() => null)
+      setSavedSigners(Array.isArray(json?.signers) ? json.signers : [])
+    } catch (err) {
+      setSavedSigners([])
+      setError(err?.message || 'Could not list saved managers.')
+    } finally {
+      setLoadingSaved(false)
+    }
+  }
+
+  function selectMode(next) {
+    setMode(next)
+    setError('')
+    if (next === 'saved' && savedSigners === null && !loadingSaved) loadSavedSigners()
+  }
+
+  // Saved managers eligible to rotate to: everything except the SMA's current
+  // signer (rotating to the same address reverts ManagerUnchanged on-chain).
+  const selectableSaved = (savedSigners ?? []).filter(
+    (s) => !currentManager || s.address.toLowerCase() !== currentManager.toLowerCase(),
+  )
+
+  // "Use saved" path — no key provisioning needed; the keystore already exists.
+  // Carry the chosen address into the same confirm/rotate flow as create/import.
+  function useSavedManager() {
+    setError('')
+    const chosen = selectableSaved.find((s) => s.address.toLowerCase() === selectedSaved.toLowerCase())
+    if (!chosen) {
+      setError('Select a saved manager to rotate to.')
+      return
+    }
+    setCreated({ address: chosen.address, revealed: null, fromSaved: true })
+    setStep('backup')
   }
 
   function copyRevealed() {
@@ -333,9 +390,18 @@ export default function RotateSignerModal({
     }
   }
 
-  // Step 4 — persist the new manager into account.json + finish.
+  // Step 4 — persist the new manager into account.json + finish. For a saved
+  // manager, first point this SMA's local keystore at the chosen key so the
+  // agent signs with it (manager-<safe>.json is what `sailor run` loads).
   async function complete(txHash) {
     try {
+      if (created?.fromSaved) {
+        await fetch('/api/signer/activate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address: created.address }),
+        })
+      }
       await fetch('/api/manager/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -387,7 +453,9 @@ export default function RotateSignerModal({
             <p className={styles.body}>
               {created?.revealed
                 ? 'A fresh manager wallet was created and encrypted on disk. Save its private key now — it’s shown only once. Then rotate the SMA to it.'
-                : 'Your manager wallet was imported and encrypted on disk. Rotate the SMA to it below.'}
+                : created?.fromSaved
+                  ? 'This manager is already saved in this project. Rotate the SMA to it below — its keystore becomes this SMA’s active signer.'
+                  : 'Your manager wallet was imported and encrypted on disk. Rotate the SMA to it below.'}
             </p>
             <div className={form.addrPanel}>
               <span className={form.addrLabel}>New manager address</span>
@@ -460,7 +528,7 @@ export default function RotateSignerModal({
                 role="tab"
                 aria-selected={mode === 'create'}
                 className={`${form.segBtn} ${mode === 'create' ? form.segActive : ''}`}
-                onClick={() => setMode('create')}
+                onClick={() => selectMode('create')}
               >
                 Create new
               </button>
@@ -469,9 +537,18 @@ export default function RotateSignerModal({
                 role="tab"
                 aria-selected={mode === 'import'}
                 className={`${form.segBtn} ${mode === 'import' ? form.segActive : ''}`}
-                onClick={() => setMode('import')}
+                onClick={() => selectMode('import')}
               >
                 Import
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === 'saved'}
+                className={`${form.segBtn} ${mode === 'saved' ? form.segActive : ''}`}
+                onClick={() => selectMode('saved')}
+              >
+                Use saved
               </button>
             </div>
 
@@ -479,6 +556,42 @@ export default function RotateSignerModal({
               <p className={form.modeNote}>
                 Generates a fresh random key. You&rsquo;ll see the private key once, to back up.
               </p>
+            ) : mode === 'saved' ? (
+              <div className={form.savedList} role="radiogroup" aria-label="Saved managers">
+                {loadingSaved ? (
+                  <p className={form.modeNote}>Loading saved managers…</p>
+                ) : (savedSigners ?? []).length === 0 ? (
+                  <p className={form.modeNote}>
+                    No saved managers in this project. Create a new wallet or import one.
+                  </p>
+                ) : (
+                  <>
+                    {selectableSaved.length === 0 && (
+                      <p className={form.modeNote}>
+                        The only saved manager is this SMA&rsquo;s current one. Create a new wallet or import one.
+                      </p>
+                    )}
+                    {(savedSigners ?? []).map((s) => (
+                      <label
+                        key={s.address}
+                        className={`${form.savedItem} ${selectedSaved.toLowerCase() === s.address.toLowerCase() ? form.savedItemActive : ''}`}
+                        aria-disabled={s.active}
+                      >
+                        <input
+                          type="radio"
+                          name="saved-manager"
+                          value={s.address}
+                          disabled={s.active}
+                          checked={selectedSaved.toLowerCase() === s.address.toLowerCase()}
+                          onChange={() => setSelectedSaved(s.address)}
+                        />
+                        <code className={form.savedAddr}>{s.address}</code>
+                        {s.active && <span className={form.savedBadge}>current</span>}
+                      </label>
+                    ))}
+                  </>
+                )}
+              </div>
             ) : (
               <>
                 <div className={form.segmented2}>
@@ -514,26 +627,34 @@ export default function RotateSignerModal({
               </>
             )}
 
-            <label className={form.field}>
-              <span className={form.fieldLabel}>Encryption password</span>
-              <input
-                className={form.input}
-                type="password"
-                placeholder="At least 8 characters"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="new-password"
-              />
-              <span className={form.fieldHint}>
-                Encrypts the key on disk. You&rsquo;ll enter it to run the agent (or set SAIL_PASSPHRASE).
-              </span>
-            </label>
+            {mode !== 'saved' && (
+              <label className={form.field}>
+                <span className={form.fieldLabel}>Encryption password</span>
+                <input
+                  className={form.input}
+                  type="password"
+                  placeholder="At least 8 characters"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+                <span className={form.fieldHint}>
+                  Encrypts the key on disk. You&rsquo;ll enter it to run the agent (or set SAIL_PASSPHRASE).
+                </span>
+              </label>
+            )}
             {error && <p className={styles.error}>{error}</p>}
             <div className={styles.actions}>
               <button type="button" className={styles.cancel} onClick={onClose}>Cancel</button>
-              <SailButton onClick={provisionKey} disabled={busy}>
-                {busy ? 'Working…' : mode === 'create' ? 'Generate new wallet' : 'Import wallet'}
-              </SailButton>
+              {mode === 'saved' ? (
+                <SailButton onClick={useSavedManager} disabled={busy || !selectedSaved}>
+                  Use this manager
+                </SailButton>
+              ) : (
+                <SailButton onClick={provisionKey} disabled={busy}>
+                  {busy ? 'Working…' : mode === 'create' ? 'Generate new wallet' : 'Import wallet'}
+                </SailButton>
+              )}
             </div>
           </>
         )}
