@@ -58,9 +58,11 @@ export {
   explainKernelRevert,
 } from "./errors.js";
 export {
+  DISPATCH_EIP712_FIELDS,
   REGISTER_PERMISSION_TYPES,
   REGISTER_PERMISSION_TYPES_NO_DEADLINE,
   REGISTER_PERMISSIONS_BATCH_TYPES,
+  buildDispatchSignature,
   buildRegisterPermissionTypedData,
   buildRegisterPermissionsBatchTypedData,
   sailKernelDomain,

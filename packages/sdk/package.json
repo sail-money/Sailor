@@ -1,7 +1,7 @@
 {
   "name": "@sail/sdk",
-  "version": "0.1.0",
-  "description": "TypeScript SDK for Sailor — the Sail Protocol operator toolkit",
+  "version": "0.0.1",
+  "description": "TypeScript SDK for Sail Protocol — SailorClient, dispatch signing, EIP-712 helpers, deployment registry. Pre-1.0/unstable.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -26,6 +26,14 @@
       "import": "./dist/abis/index.js",
       "types": "./dist/abis/index.d.ts"
     }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "name": "@sail.money/sdk",
+    "access": "public"
   },
   "scripts": {
     "prebuild": "node scripts/generate-intelligence.mjs",
