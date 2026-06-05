@@ -1,0 +1,13 @@
+# Sailor project — never commit these
+.sail/.env.local
+.sail/keys/
+.sail/state/
+.sail/runtime/
+
+# Dependencies
+node_modules/
+
+# Foundry build outputs
+out/
+cache/
+broadcast/

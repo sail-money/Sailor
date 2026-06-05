@@ -8,6 +8,8 @@
   },
   "files": [
     "packages/cli/dist",
+    "packages/sdk/dist",
+    "packages/sdk/package.json",
     "packages/ui/dist",
     "templates",
     "examples",

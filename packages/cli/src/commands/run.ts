@@ -118,11 +118,16 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
   }
 
   const rpcUrl = env.RPC_URL ?? process.env.RPC_URL;
-  const chainIdRaw = env.CHAIN_ID ?? process.env.CHAIN_ID;
+  // CHAIN_ID resolution order: .env.local > shell env > config.json chainId.
+  // config.json is always present after `sailor init` and holds the chain the
+  // user selected, so we can fall back to it silently instead of hard-failing.
+  const configChainId = readJsonFile<{ chainId?: number }>(sailPath("config.json"))?.chainId;
+  const chainIdRaw =
+    env.CHAIN_ID ?? process.env.CHAIN_ID ?? (configChainId != null ? String(configChainId) : undefined);
   if (!rpcUrl || !chainIdRaw) {
     throw new Error(
-      "RPC_URL and CHAIN_ID must be set in .sail/.env.local.\n" +
-        "  RPC_URL=https://your-rpc-endpoint\n  CHAIN_ID=8453",
+      "RPC_URL must be set in .sail/.env.local.\n" +
+        "  RPC_URL=https://your-rpc-endpoint\n  CHAIN_ID=8453   (or omit if set in .sail/config.json)",
     );
   }
   const chainId = Number(chainIdRaw);
