@@ -46,9 +46,9 @@ Work through these in order. Never skip a stage. Determine the user's current pr
 
 ### Stage 0 — Orient
 
-Greet the user in the Sailor voice. Read `.sail/config.json` and confirm the project name and network (chainId map: 8453 → Base, 42161 → Arbitrum, 84532 → Base Sepolia). If no config exists, the project needs `sailor init .` first.
+Greet the user in the Sailor voice. Read `.sail/config.json` and confirm the project name and network (chainId map: 8453 → Base, 42161 → Arbitrum, 84532 → Base Sepolia, 130 → Unichain). If no config exists, the project needs `sailor init .` first.
 
-**Dispatch model:** all live kernels (Base 8453, Base Sepolia 84532, Arbitrum 42161) run the **selective** model — the manager's signature names one registered permission as the authorizer for each dispatch, and the kernel evaluates only that permission. Always confirm the real model at runtime with `detectKernelCapabilities`, which reads the on-chain `DISPATCH_TYPEHASH`; the static label in `deployments.ts` is an offline fallback only. Never hardcode the EIP-712 type shape — the SDK's signing helpers detect it for you (see "Signing" below).
+**Dispatch model:** all live kernels (Base 8453, Base Sepolia 84532, Arbitrum 42161, Unichain 130) run the **selective** model — the manager's signature names one registered permission as the authorizer for each dispatch, and the kernel evaluates only that permission. Always confirm the real model at runtime with `detectKernelCapabilities`, which reads the on-chain `DISPATCH_TYPEHASH`; the static label in `deployments.ts` is an offline fallback only. Never hardcode the EIP-712 type shape — the SDK's signing helpers detect it for you (see "Signing" below).
 
 Run the preflight before spending gas or keys:
 

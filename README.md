@@ -74,7 +74,7 @@ Prerequisites:
 - Node.js 18+ (the CLI runs on 18; `pnpm install` needs Node 22+)
 - A wallet (MetaMask or Rabby)
 - An RPC URL (e.g. Alchemy free tier)
-- A supported chain: **Base, Base Sepolia, or Arbitrum** — these use the verified deployments bundled in `@sail/sdk`, so no `@sail/chains` entry is needed. Other chains require kernel + mandateFactory addresses in `@sail/chains` (see [State of the project](#state-of-the-project)).
+- A supported chain: **Base, Base Sepolia, Arbitrum, or Unichain** — these use the verified deployments bundled in `@sail/sdk`, so no `@sail/chains` entry is needed. Other chains require kernel + mandateFactory addresses in `@sail/chains` (see [State of the project](#state-of-the-project)).
 
 ```bash
 npx sailor init my-agent && cd my-agent
@@ -182,7 +182,7 @@ sailor ui stop
 
 ## Agent-driven onboarding & custom mandates
 
-For chains with a bundled Sail deployment (Base, Base Sepolia, Arbitrum — shipped
+For chains with a bundled Sail deployment (Base, Base Sepolia, Arbitrum, Unichain — shipped
 in `@sail/sdk`, no `@sail/chains` entry required), an agent can drive the whole
 setup through a browser **signing station**. The station is a local HTTP +
 WebSocket daemon that bridges the CLI and the owner's wallet: the agent never
@@ -262,13 +262,13 @@ The CLI and SDK sit between the operator and SailKernel: they build the EIP-712 
 
 Sailor is functional and published as [`@sail.money/sailor`](https://www.npmjs.com/package/@sail.money/sailor) on npm (v0.0.1). The SDK, CLI, keystore, mandate flows, agent runner, and dashboard are implemented and have been exercised end to end against Base Sepolia.
 
-The Sail Protocol trusted core is deployed on Base, Base Sepolia, and Arbitrum as staging deployments for testing ahead of a formal launch. All three run the selective dispatch model, with verified deployments bundled in `@sail/sdk`. These deployments are under an ongoing external audit by [Octane Security](https://octane.security) and are not final — do not use them with funds you are not prepared to lose. Permission templates are not yet deployed against these kernels; `@sail/chains` and the template registries will be populated as templates are deployed and at mainnet launch.
+The Sail Protocol trusted core is deployed on Base, Base Sepolia, Arbitrum, and Unichain as staging deployments for testing ahead of a formal launch. All four run the selective dispatch model, with verified deployments bundled in `@sail/sdk`. These deployments are under an ongoing external audit by [Octane Security](https://octane.security) and are not final — do not use them with funds you are not prepared to lose. Permission templates are not yet deployed against the Base, Arbitrum, and Base Sepolia kernels; **Unichain** ships the full template suite (7 shared + 12 standalone, source-verified) and its template registries in `@sail/sdk` are populated. `@sail/chains` and the remaining template registries will be filled in as templates are deployed on the other chains and at mainnet launch.
 
 ---
 
 ## Deployments
 
-The Sail Protocol trusted core is live on the following chains as **staging deployments** ahead of a formal launch, bundled in `@sail/sdk`. All run the selective dispatch model with zero fees. Permission templates are not yet deployed against these kernels.
+The Sail Protocol trusted core is live on the following chains as **staging deployments** ahead of a formal launch, bundled in `@sail/sdk`. All run the selective dispatch model with zero fees. Permission templates are not yet deployed against the Base, Arbitrum, and Base Sepolia kernels; **Unichain** ships the full template suite (7 shared + 12 standalone, source-verified on uniscan.xyz) and has its onboarding allowlists seeded at genesis.
 
 ### Base (8453)
 
@@ -305,6 +305,22 @@ The Sail Protocol trusted core is live on the following chains as **staging depl
 | StandardFeePolicy | `0x05570F7973b46Eb9Ed4518422891EFC26BD58b97` |
 | SafeModuleEnabler | `0xB2C2B52d94412e3472C9fb2B52186eA12a935869` |
 | Treasury | `0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6` |
+
+### Unichain (130)
+
+First chain to ship the full permission-template suite (7 shared + 12 standalone, source-verified on [uniscan.xyz](https://uniscan.xyz)). Genesis allowlist bootstrap — onboarding usable without the 48h timelock.
+
+| Contract | Address |
+|---|---|
+| SailKernel | `0xD985029960a9B7C2E7E38e102C448b8b8539B156` |
+| SailGovernance | `0xAb5C90ECfF2763f6f20f8E553E3b8778dD9C349A` |
+| Timelock | `0xd44FbBB37f01e235E0EE5386948F216d36D0CEf2` |
+| PermissionFactory | `0x8edDb62Aa49CeB837abf2653be2d93Ad9Fe6777D` |
+| StandardFeePolicy | `0x7bBA8BE3c01c972757aA4a230A00D58aB600A1F1` |
+| SafeModuleEnabler | `0xFE9227A9F2baf704060c604466df354a5A137b9B` |
+| Treasury | `0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6` |
+
+The 19 template addresses are in `@sail/sdk` (`knownTemplates` + `standaloneTemplates` for chain 130).
 
 Addresses are sourced from `@sail/sdk` (`packages/sdk/src/deployments.ts`), the canonical registry.
 
