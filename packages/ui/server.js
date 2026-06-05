@@ -44,6 +44,7 @@ const CHAIN_NAMES = {
   8453: 'base',
   42161: 'arbitrum',
   84532: 'base-sepolia',
+  130: 'unichain',
 }
 
 /**

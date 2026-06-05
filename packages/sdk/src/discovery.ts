@@ -12,6 +12,7 @@ const SAFE_TX_SERVICE_SLUGS: Record<number, string> = {
   42161: "arb1",
   8453: "base",
   84532: "basesep",
+  130: "unichain",
 };
 
 function safeTxServiceBase(chainId: number): string | undefined {

@@ -52,6 +52,20 @@ export const chains: Record<number, ChainConfig> = {
     dispatchModel: "selective", // selective: verified on-chain DISPATCH_TYPEHASH 0xbe50c5391dcf9e08d11d2c30dbee822c14ad07af2ceb503c778d265801fb0e5c
     protocols: {},
   },
+  // Unichain mainnet
+  130: {
+    chainId: 130,
+    name: "Unichain",
+    // SAIL-406 deploy (2026-06-05, gitCommit 2c9e325) — full protocol deploy:
+    // core + the complete template suite (7 shared + 12 standalone), all
+    // source-verified on uniscan.xyz. Genesis allowlist bootstrap
+    // (allowlistBootstrapped=true), zero fees, onboarding live.
+    kernel: "0xD985029960a9B7C2E7E38e102C448b8b8539B156",
+    mandateFactory: "0x8edDb62Aa49CeB837abf2653be2d93Ad9Fe6777D",
+    governance: "0xAb5C90ECfF2763f6f20f8E553E3b8778dD9C349A",
+    dispatchModel: "selective", // selective: verified on-chain DISPATCH_TYPEHASH 0xbe50c5391dcf9e08d11d2c30dbee822c14ad07af2ceb503c778d265801fb0e5c
+    protocols: {},
+  },
 };
 
 /** Returns the ChainConfig for a given chainId, or throws if unsupported. */

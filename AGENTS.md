@@ -36,8 +36,9 @@ Active kernels vary by chain — verified on-chain via `DISPATCH_TYPEHASH()`:
 | Base 8453 | `0x6319d3dfDDe3804ba93D65752b00c52bFb05a1ab` | **selective** | `0xbe50c539...` |
 | Base Sepolia 84532 | `0xf1D0F4C9893612627409948BAa9d82a01a373799` | **selective** | `0xbe50c539...` |
 | Arbitrum 42161 | `0x2716B12832DED0EF5688519c5Fe069EFc0374E02` | **selective** | `0xbe50c539...` |
+| Unichain 130 | `0xD985029960a9B7C2E7E38e102C448b8b8539B156` | **selective** | `0xbe50c539...` |
 
-All three kernels are live and bootstrapped (genesis allowlist set, `createAccount` verified working, zero fees). `packages/sdk/src/deployments.ts` is the canonical source of truth for kernel addresses and metadata.
+All four kernels are live and bootstrapped (genesis allowlist set, `createAccount` verified working, zero fees). Unichain (130) additionally has the full permission-template suite deployed and source-verified (7 shared + 12 standalone) — it is the only chain with templates so far; the other three have core only. `packages/sdk/src/deployments.ts` is the canonical source of truth for kernel addresses, templates, and metadata.
 
 **Always use `detectKernelCapabilities` for the real model** — it reads the on-chain typehash and
 overrides the static label in `deployments.ts`. The static label is a fallback for offline use only.
@@ -56,7 +57,7 @@ Pass the detected value — never hardcode the type shape.
 
 ## Active addresses
 
-All three chain records in `packages/sdk/src/deployments.ts` are live — no commented-out or pending
+All four chain records in `packages/sdk/src/deployments.ts` are live — no commented-out or pending
 addresses remain. This file is the source of truth this guide mirrors.
 
 - `packages/sdk/src/deployments.ts` — `SailDeployment` records; canonical source of truth

@@ -229,6 +229,7 @@ function chainLabel(chainId: number): string {
     8453: "Base",
     42161: "Arbitrum",
     84532: "Base Sepolia",
+    130: "Unichain",
   };
   return labels[chainId] ?? `Chain ${chainId}`;
 }
