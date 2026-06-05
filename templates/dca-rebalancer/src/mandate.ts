@@ -64,4 +64,4 @@ export const SWAP_ROUTER: Address = "0x2626664c2603336E57B271c5C0b26F421741e481"
  * For defense-in-depth, add an on-chain minimum check in your permission
  * contract so the kernel also validates the minimum out requirement.
  */
-export const QUOTER_V2: Address = "0x3d4e44Eb1374240CE5F1B136d42dD7A91Dc8b85a";
+export const QUOTER_V2: Address = "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a";

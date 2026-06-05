@@ -102,7 +102,7 @@ export async function mandatePrepare(): Promise<void> {
  * for any tracked permission not yet registered on this SMA, this re-uses that
  * same RegisterPermission signing flow (see mandate-contracts.ts / onboard.ts).
  */
-export async function mandateSign(): Promise<void> {
+export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
   const account = readJsonFile<StoredAccount>(sailPath("account.json"));
   if (!account) {
     throw new Error('No account found at .sail/account.json.\nRun "sailor account create" first.');
@@ -124,7 +124,7 @@ export async function mandateSign(): Promise<void> {
       "On-chain registration happens via `sailor mandate attach` (or `sailor mandate deploy --attach`).",
   );
 
-  const proceed = await confirm(
+  const proceed = opts.yes || await confirm(
     `Confirm these ${permissions.length} permission(s) are authorized for your SMA?`,
   );
   if (!proceed) {

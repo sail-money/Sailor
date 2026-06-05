@@ -124,7 +124,8 @@ mandate
 mandate
   .command("sign")
   .description("Review and confirm the permissions authorized for your SMA")
-  .action(action(mandateSign));
+  .option("--yes", "Skip the confirmation prompt (for non-interactive / CI use)")
+  .action(actionWith<{ yes?: boolean }>(mandateSign));
 mandate
   .command("deploy")
   .description("Deploy a Foundry-compiled permission contract via the browser signing UI")

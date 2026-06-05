@@ -17,7 +17,11 @@ function copyDirSync(src: string, dest: string): void {
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
     if (TEMPLATE_COPY_EXCLUDES.has(entry.name)) continue;
     const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
+    // _gitignore → .gitignore: npm strips .gitignore from package tarballs even
+    // when the file is inside a `files`-listed directory. Template ships it as
+    // `_gitignore`; we restore the real name at scaffold time.
+    const destName = entry.name === "_gitignore" ? ".gitignore" : entry.name;
+    const destPath = path.join(dest, destName);
     if (entry.isDirectory()) {
       copyDirSync(srcPath, destPath);
     } else {
@@ -98,14 +102,23 @@ CHAIN_ID=${chainId}
     "utf-8",
   );
 
-  if (options.rpcUrl) {
-    writeIfMissing(
-      path.join(sailDir, ".env.local"),
-      `RPC_URL=${options.rpcUrl}
+  // Always write .env.local so the runner can find CHAIN_ID immediately.
+  // If --rpc-url was provided, fill it in; otherwise leave a placeholder so
+  // the user only has to supply the URL (CHAIN_ID is already correct).
+  writeIfMissing(
+    path.join(sailDir, ".env.local"),
+    options.rpcUrl
+      ? `RPC_URL=${options.rpcUrl}
 CHAIN_ID=${chainId}
+`
+      : `# Paste your RPC endpoint here (Alchemy, Infura, or any HTTPS endpoint)
+# RPC_URL=https://your-rpc-endpoint
+CHAIN_ID=${chainId}
+
+# Optional for non-interactive runs (CI, GitHub Actions, launchd, systemd)
+# SAIL_PASSPHRASE=change-me-to-a-strong-passphrase
 `,
-    );
-  }
+  );
 }
 
 export async function initCommand(
