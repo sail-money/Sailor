@@ -37,6 +37,11 @@ on:
         type: string
         required: false
         default: '0'
+      dist-tag:
+        description: 'npm dist-tag to publish under. Use "dev" for prerelease builds, "latest" for releases.'
+        type: string
+        required: false
+        default: 'latest'
 permissions:
   id-token: write  # Required for OIDC
   contents: read
@@ -92,4 +97,4 @@ jobs:
           BASE=$(node -p "require('./package.json').version")
           npm pkg set version="${BASE}-${{ inputs.run-number }}"
 
-      - run: npm publish --access public
+      - run: npm publish --access public --tag ${{ inputs.dist-tag }}
