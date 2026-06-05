@@ -32,6 +32,11 @@ on:
         type: boolean
         required: false
         default: false
+      run-number:
+        description: 'Run number to append to the version. Pass 0 (default) to skip stamping and publish the exact version.'
+        type: number
+        required: false
+        default: 0
 permissions:
   id-token: write  # Required for OIDC
   contents: read
@@ -80,5 +85,11 @@ jobs:
         run: |
           VERSION="${{ inputs.package-version }}"
           npm pkg set version="${VERSION#v}"
+
+      - name: Stamp run number
+        if: inputs.run-number != 0
+        run: |
+          BASE=$(node -p "require('./package.json').version")
+          npm pkg set version="${BASE}-${{ inputs.run-number }}"
 
       - run: npm publish --access public
