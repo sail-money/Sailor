@@ -11,6 +11,7 @@ import {
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { readJsonFile, sailPath } from "../lib/io.js";
 import { resolveKeyPath } from "../lib/keys.js";
+import { IPERMISSION_ABI } from "../lib/permission-resolver.js";
 import { ProjectContext } from "../lib/project.js";
 import type { StoredAccount } from "../lib/state.js";
 
@@ -35,36 +36,6 @@ function keystoreAddress(role: "manager" | "permissionSigner", safe?: string): A
   const ks = readJsonFile<EncryptedKeystore>(resolveKeyPath(role, safe));
   return ks?.address ? getAddress(`0x${ks.address.replace(/^0x/, "")}`) : null;
 }
-
-/**
- * Minimal IPermission ABI for the read-only pass-through probe. The Context tuple
- * mirrors SailProtocol's `Context` struct field order exactly.
- */
-const IPERMISSION_ABI = [
-  {
-    type: "function",
-    name: "evaluate",
-    stateMutability: "view",
-    inputs: [
-      { name: "txData", type: "bytes" },
-      {
-        name: "ctx",
-        type: "tuple",
-        components: [
-          { name: "account", type: "address" },
-          { name: "manager", type: "address" },
-          { name: "submitter", type: "address" },
-          { name: "target", type: "address" },
-          { name: "selector", type: "bytes4" },
-          { name: "value", type: "uint256" },
-          { name: "blockTimestamp", type: "uint256" },
-          { name: "blockNumber", type: "uint256" },
-        ],
-      },
-    ],
-    outputs: [{ type: "bool" }],
-  },
-] as const;
 
 // A deliberately "unrelated" call: an unknown selector to a neutral target. A
 // well-behaved permission must pass through (return true) for calls outside its

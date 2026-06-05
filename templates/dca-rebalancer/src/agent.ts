@@ -17,6 +17,22 @@
  *
  * The agent does NOT call dispatch.single() itself — it returns intent objects
  * ({calls, txHash:'0x', ...}) and the runner submits them.
+ *
+ * PERMISSION ROUTING (default — probe path):
+ * This template returns plain Dispatch objects with no `permission` field. The
+ * runner automatically probes each registered permission via off-chain evaluate()
+ * and routes each call to the first permission that accepts it. This is the
+ * recommended default: zero agent-side knowledge of permission addresses required.
+ *
+ * OPTIONAL OVERRIDE (skip probe for a known permission):
+ * If the agent knows exactly which permission governs a call, it can set the
+ * optional `permission` field on the returned Dispatch to skip the probe:
+ *
+ *   import type { Address } from "viem";
+ *   const MY_SWAP_PERMISSION = "0x..." as Address;
+ *   return [{ ...dispatch, permission: MY_SWAP_PERMISSION }];
+ *
+ * This is an optimisation only — the probe path is equally correct.
  */
 
 import type { Agent, AgentContext, Call, Dispatch } from "@sail/sdk";
