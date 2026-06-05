@@ -20,12 +20,35 @@ import {
   sailPath,
 } from "../lib/io.js";
 import { keyExists, loadManagerSigner } from "../lib/keys.js";
+import {
+  resolvePermissionForBatch,
+  resolvePermissionForCall,
+} from "../lib/permission-resolver.js";
 import { clearAgentPid, writeAgentPid } from "../lib/process.js";
 import type { StoredAccount, StoredMandate } from "../lib/state.js";
 
 const DEFAULT_INTERVAL_SEC = 60;
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Runner-level dispatch annotation.
+ *
+ * Extends the SDK's `Dispatch` type with an optional `permission` override.
+ * The core SDK `Dispatch` type is intentionally kept clean — this is a
+ * runner-internal concern only.
+ *
+ * When an agent sets `permission`, the runner uses it directly and skips the
+ * off-chain evaluate() probe. When absent (the default), the runner probes all
+ * registered permissions automatically and routes to the correct one.
+ *
+ * Backward compatible: existing agents that never set `permission` continue to
+ * work unchanged via the probe path.
+ *
+ * Example of how an agent CAN override (skip probe for a known permission):
+ *   return [{ ...dispatch, permission: KNOWN_PERMISSION_ADDRESS }];
+ */
+type RunnerDispatch = Dispatch & { permission?: Address };
 
 /** Minimal ERC-20 ABI fragment for reading a token balance. */
 const ERC20_BALANCE_ABI = [
@@ -261,12 +284,20 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
   async function runTick(): Promise<void> {
     appendActivity({ ts: nowIso(), actor: "agent", type: "tick_start" });
 
-    let blockNumber = 0n;
+    // Fetch the current block once per tick. Real block number + timestamp are used
+    // in the off-chain evaluate() probe so time- or block-gated permissions get
+    // accurate context and don't produce false negatives.
+    let blockInfo = { number: 0n, timestamp: 0n };
     try {
-      blockNumber = await publicClient.getBlockNumber();
+      const block = await publicClient.getBlock();
+      blockInfo = {
+        number:    block.number    ?? 0n,
+        timestamp: block.timestamp ?? 0n,
+      };
     } catch {
-      // RPC unavailable — proceed with blockNumber 0; per-dispatch calls will surface the error
+      // RPC unavailable — proceed with zeros; per-dispatch calls will surface the error
     }
+    const blockNumber = blockInfo.number;
 
     const ctx: AgentContext = {
       safe: accountAddr,
@@ -302,121 +333,180 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
       return;
     }
 
-    if (dispatches.length > 0) {
-      // Dispatch carries no permission, so resolve it from the account's
-      // on-chain registered permissions (first registered permission).
-      let permission: Address | undefined;
+    // ── Per-tick setup for permission resolution ────────────────────────────────
+    // Fetch registered permissions once per tick (one eth_call). Registration
+    // order is preserved — first-by-registration-order wins when two permissions
+    // both accept a call (intentional, deterministic behaviour).
+    let registeredPermissions: Address[] = [];
+    try {
+      const perms = await readClient.mandate.list(accountAddr);
+      registeredPermissions = perms.map((m) => m.permission);
+    } catch (err) {
+      console.error(`could not read registered permissions: ${(err as Error).message}`);
+    }
+
+    // ── Dispatch loop ───────────────────────────────────────────────────────────
+    let tickDispatched = 0;
+    let tickSkipped    = 0;
+
+    for (const rawDispatch of dispatches) {
+      // Cast to RunnerDispatch so agents can optionally annotate with a
+      // `permission` override without the core SDK type needing to change.
+      const dispatch = rawDispatch as RunnerDispatch;
+      const [firstCall] = dispatch.calls;
+      const target = firstCall?.target ?? ("0x" as Address);
+
       try {
-        const perms = await readClient.mandate.list(accountAddr);
-        permission = perms[0]?.permission;
-      } catch (err) {
-        console.error(`could not read registered permissions: ${(err as Error).message}`);
-      }
-
-      for (const dispatch of dispatches) {
-        const [firstCall] = dispatch.calls;
-        const target = firstCall?.target ?? "0x";
-        try {
-          if (dispatch.calls.length === 0) {
-            appendActivity({
-              ts: nowIso(),
-              actor: "agent",
-              type: "dispatch_denied",
-              target,
-              reason: "no calls",
-            });
-            continue;
-          }
-          if (!permission) {
-            appendActivity({
-              ts: nowIso(),
-              actor: "agent",
-              type: "dispatch_denied",
-              target,
-              reason: "no registered permission",
-            });
-            console.log("denied: no registered permission");
-            continue;
-          }
-
-          // Conjunctive kernels have no previewBatch — skip preview and submit
-          // directly. Selective kernels: preview before executing, but ONLY for
-          // real batches. previewBatch requires the permission to implement
-          // IBatchPermission; a single-call dispatch is executed via dispatch.single
-          // and gated on-chain by the single-call IPermission.evaluate, so previewing
-          // it via previewBatch would spuriously deny valid single-IPermission
-          // contracts (PermissionNotBatchAware). Mirror the execute branch below.
-          if (!isConjunctive && dispatch.calls.length > 1) {
-            const preview = await execClient.dispatch.preview(
-              accountAddr,
-              permission,
-              dispatch.calls,
-            );
-            if (!preview.approved) {
-              const reason = preview.reason ?? "denied";
-              appendActivity({
-                ts: nowIso(),
-                actor: "agent",
-                type: "dispatch_denied",
-                permission,
-                target,
-                reason,
-              });
-              console.log(`denied: ${reason}`);
-              continue;
-            }
-          }
-
-          appendActivity({
-            ts: nowIso(),
-            actor: "agent",
-            type: "dispatch_approved",
-            permission,
-            target,
-          });
-          const result =
-            dispatch.calls.length > 1
-              ? await execClient.dispatch.batch(accountAddr, permission, dispatch.calls, manager)
-              : await execClient.dispatch.single(
-                  accountAddr,
-                  permission,
-                  firstCall as NonNullable<typeof firstCall>,
-                  manager,
-                );
-          // On conjunctive kernels each dispatch is a separate on-chain tx and
-          // nonces are consumed sequentially. dispatch.single already awaits the
-          // receipt internally and bumps its nonce cache, but on a load-balanced
-          // RPC the nonce view can lag. Waiting here guarantees the on-chain nonce
-          // is definitively consumed before the next dispatch is signed, preventing
-          // "replacement transaction underpriced" errors between sequential intents.
-          // Selective kernels use dispatchBatch (handled above) so this is skipped.
-          if (isConjunctive && result.txHash) {
-            try {
-              await publicClient.waitForTransactionReceipt({ hash: result.txHash, timeout: 30_000 });
-              // Brief pause for RPC nonce propagation on load-balanced endpoints.
-              // Even with receipt confirmation, Alchemy-style pools can serve a stale
-              // managerNonces value to the node that signs the next dispatch, causing
-              // "replacement transaction underpriced" on the 3rd+ sequential tx.
-              await new Promise((resolve) => setTimeout(resolve, 500));
-            } catch {
-              // receipt already confirmed by dispatch.single — this is belt-and-suspenders
-            }
-          }
-          appendActivity({
-            ts: nowIso(),
-            actor: "agent",
-            type: "dispatch_executed",
-            permission,
-            target,
-            txHash: result.txHash,
-          });
-          console.log(`executed: ${result.txHash}`);
-        } catch (err) {
-          // One failed dispatch must not stop the loop.
-          const reason = (err as Error).message;
-          console.error(`dispatch error: ${reason}`);
-          appendActivity({ ts: nowIso(), actor: "agent", type: "error", permission, target, reason });
+        if (dispatch.calls.length === 0) {
+          appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_denied", target, reason: "no calls" });
+          tickSkipped++;
+          continue;
         }
+
+        if (registeredPermissions.length === 0) {
+          appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_denied", target, reason: "no_registered_permissions" });
+          console.log("skipped: no permissions registered on this SMA — run `sailor mandate sign` first");
+          tickSkipped++;
+          continue;
+        }
+
+        // ── Resolve the authorising permission ────────────────────────────────
+        //
+        // PRIMARY PATH — off-chain evaluate() probe: iterate each registered
+        //   permission in registration order, call evaluate(txData, ctx) via
+        //   eth_call, use the first that returns true. Requires zero protocol
+        //   knowledge from the agent; the runner finds the correct permission
+        //   automatically.
+        //
+        // OVERRIDE — if the agent set `dispatch.permission`, use it directly and
+        //   skip the probe. This is an optimisation/escape hatch, not the
+        //   recommended path — probe-primary is the default everyone gets.
+        //
+        // Registration-order first-match for overlapping permissions is
+        // intentional: deterministic, documented, and semantically equivalent
+        // since the kernel's selective model accepts any registered permission
+        // that approves the call.
+        let permission: Address | undefined;
+
+        if (dispatch.permission) {
+          // Agent-supplied explicit override — skip probe.
+          permission = dispatch.permission;
+        } else if (dispatch.calls.length > 1) {
+          // Batch dispatch: find a batch-aware permission that accepts the whole
+          // call sequence. Uses kernel.previewBatch (eth_call) per candidate.
+          permission = await resolvePermissionForBatch({
+            publicClient,
+            kernel: kernel!, // narrowed: runCommand validates kernel before runTick runs
+            account:               accountAddr,
+            calls:                 dispatch.calls,
+            registeredPermissions,
+          });
+        } else {
+          // Single-call dispatch: find a permission whose evaluate() accepts it.
+          permission = await resolvePermissionForCall({
+            publicClient,
+            account:               accountAddr,
+            manager:               agentManager.address,
+            call:                  firstCall as NonNullable<typeof firstCall>,
+            registeredPermissions,
+            blockInfo,
+          });
+        }
+
+        // ── No matching permission → skip, do NOT kill the tick ───────────────
+        if (!permission) {
+          const selector =
+            firstCall?.data && firstCall.data.length >= 10
+              ? firstCall.data.slice(0, 10)
+              : "0x";
+          appendActivity({
+            ts:     nowIso(),
+            actor:  "agent",
+            type:   "dispatch_denied",
+            target,
+            reason: "no_permission_match",
+          });
+          console.log(
+            `skipped: no registered permission authorizes call to ${target} (selector ${selector})`,
+          );
+          // Phase 4 hook: sailor status / dashboard can surface no_permission_match
+          // entries from activity.jsonl to make dropped calls visible in the UI.
+          tickSkipped++;
+          continue;
+        }
+
+        // ── Preview (batch only, selective kernel) ────────────────────────────
+        // Conjunctive kernels have no previewBatch. For batch dispatches on
+        // selective kernels, previewBatch validates the full call sequence before
+        // submitting. Single-call dispatches skip preview — previewBatch would
+        // spuriously deny valid IPermission contracts (PermissionNotBatchAware).
+        if (!isConjunctive && dispatch.calls.length > 1) {
+          const preview = await execClient.dispatch.preview(accountAddr, permission, dispatch.calls);
+          if (!preview.approved) {
+            const reason = preview.reason ?? "denied";
+            appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_denied", permission, target, reason });
+            console.log(`denied: ${reason}`);
+            tickSkipped++;
+            continue;
+          }
+        }
+
+        // ── Execute ───────────────────────────────────────────────────────────
+        appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_approved", permission, target });
+        const result =
+          dispatch.calls.length > 1
+            ? await execClient.dispatch.batch(accountAddr, permission, dispatch.calls, manager)
+            : await execClient.dispatch.single(
+                accountAddr,
+                permission,
+                firstCall as NonNullable<typeof firstCall>,
+                manager,
+              );
+
+        // On conjunctive kernels each dispatch is a separate on-chain tx and
+        // nonces are consumed sequentially. dispatch.single already awaits the
+        // receipt internally and bumps its nonce cache, but on a load-balanced
+        // RPC the nonce view can lag. Waiting here guarantees the on-chain nonce
+        // is definitively consumed before the next dispatch is signed, preventing
+        // "replacement transaction underpriced" errors between sequential intents.
+        // Selective kernels use dispatchBatch (handled above) so this is skipped.
+        if (isConjunctive && result.txHash) {
+          try {
+            await publicClient.waitForTransactionReceipt({ hash: result.txHash, timeout: 30_000 });
+            // Brief pause for RPC nonce propagation on load-balanced endpoints.
+            await new Promise((resolve) => setTimeout(resolve, 500));
+          } catch {
+            // receipt already confirmed by dispatch.single — this is belt-and-suspenders
+          }
+        }
+
+        appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_executed", permission, target, txHash: result.txHash });
+        console.log(`executed: ${result.txHash}`);
+        tickDispatched++;
+
+      } catch (err) {
+        // One failed dispatch must not stop the loop.
+        // enrichKernelRevert (called inside dispatch.single/batch) already decodes
+        // kernel error selectors (InvalidManagerSignature, PermissionDenied, etc.)
+        // into human-readable messages, so err.message surfaces the root cause.
+        const reason = (err as Error).message;
+        console.error(`dispatch error: ${reason}`);
+        appendActivity({ ts: nowIso(), actor: "agent", type: "error", permission: (dispatch as RunnerDispatch).permission, target, reason });
+        tickSkipped++;
+      }
+    }
+
+    // ── Tick summary ──────────────────────────────────────────────────────────
+    if (dispatches.length > 0) {
+      if (tickSkipped > 0) {
+        console.log(
+          `tick complete: ${tickDispatched} dispatched, ${tickSkipped} skipped (no matching permission or denied)`,
+        );
+        // Phase 4: richer `sailor status` output and the dashboard (localhost:3333)
+        // can query activity.jsonl for dispatch_denied/no_permission_match entries
+        // to surface skipped calls per-tick in the UI.
+      } else {
+        console.log(`tick complete: ${tickDispatched} dispatched`);
       }
     }
 
