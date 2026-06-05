@@ -11,10 +11,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
-      packages: write
-    uses: SailAgent/devops-templates/.github/workflows/publish-pnpm.yaml@main
+    uses: ./.github/workflows/publish-npm-public-pkg.yaml
     with:
-      package_dir: .
-      package_name: "@sail.money/sailor"
-      pnpm-version: '11'
+      package-name: ${{ github.event_name == 'workflow_dispatch' && '@dev.sail.money/sailor' || '@sail.money/sailor' }}
     secrets: inherit
