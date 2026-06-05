@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { encodeFunctionData, getAddress } from 'viem'
 import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi'
+import { sailDeployments } from '@sail/sdk/deployments'
 import { FluidBackground, GlassCard, Sai, SailButton } from '../shared'
 import shared from '../shared/shared.module.css'
 import styles from './OnboardingWizard.module.css'
@@ -10,8 +11,9 @@ import { useSigningSocket } from '../../hooks/useSigningSocket'
 // topic0 of AccountRegistered(address indexed account, address indexed permissionSigner, address indexed manager)
 const ACCOUNT_REGISTERED_TOPIC = '0x05f9a81a3b5e45d338f25347928e56b0aaaa0c65d4087a980c4e41370fcccfeb'
 
-// live: chainIds with a deployed SailKernel
-const LIVE_CHAIN_IDS = new Set([8453, 84532, 42161])
+// live: chainIds with a deployed SailKernel — derived from the SDK deployment
+// registry so it can never drift from getSailDeployment / @sail/sdk.
+const LIVE_CHAIN_IDS = new Set(Object.keys(sailDeployments).map(Number))
 
 const SUPPORTED_NETWORKS = [
   // ── Mainnets ──
@@ -117,6 +119,7 @@ export default function OnboardingWizard({ onboardState, onComplete }) {
           {step === 'keygen' && (
             <KeygenStep
               existingAddress={onboardState?.managerAddress}
+              onBack={() => setStep('connect')}
               onDone={(addr) => { setManagerAddress(addr); setStep('create-sma') }}
               progressIndex={progressIndex}
               progressTotal={PROGRESS_STEPS.length}
@@ -128,6 +131,7 @@ export default function OnboardingWizard({ onboardState, onComplete }) {
               managerAddress={managerAddress ?? onboardState?.managerAddress}
               chainIds={selectedChainIds}
               saltNonce={saltNonce}
+              onBack={() => setStep(onboardState?.hasManagerKey ? 'connect' : 'keygen')}
               onDone={(safes) => { setDeployedSafes(safes); setStep('done') }}
               progressIndex={progressIndex}
               progressTotal={PROGRESS_STEPS.length}
@@ -301,7 +305,7 @@ function ConnectStep({ onBack, onDone, progressIndex, progressTotal }) {
 }
 
 /* ── Step 3: Generate delegated signer key ── */
-function KeygenStep({ existingAddress, onDone, progressIndex, progressTotal }) {
+function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTotal }) {
   const [passphrase, setPassphrase] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -340,6 +344,7 @@ function KeygenStep({ existingAddress, onDone, progressIndex, progressTotal }) {
         kicker="STEP 3 OF 4"
         title="Create agent key"
         sub="A signing key your agent uses to execute trades. It never holds custody."
+        onBack={onBack}
       />
       {!generated ? (
         <>
@@ -392,7 +397,7 @@ function KeygenStep({ existingAddress, onDone, progressIndex, progressTotal }) {
 }
 
 /* ── Step 4: Deploy SMAs — one per selected chain ── */
-function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onDone, progressIndex, progressTotal }) {
+function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onDone, progressIndex, progressTotal }) {
   const { sendTransactionAsync } = useSendTransaction()
   const { switchChainAsync } = useSwitchChain()
 
@@ -561,6 +566,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onDone, pro
         kicker="STEP 4 OF 4"
         title="Deploy your SMAs"
         sub="Same SMA address on every chain. Some chains need 2 transactions — your wallet will prompt for each."
+        onBack={running ? undefined : onBack}
       />
       <div className={styles.chainDeployList}>
         {chainIds.map(chainId => {
@@ -614,11 +620,15 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onDone, pro
   )
 }
 
+// Public RPC endpoints for simulation + receipt polling. RPC URLs are not part
+// of the SDK deployment record, so this map must be kept in sync by hand: every
+// chainId in LIVE_CHAIN_IDS (i.e. sailDeployments) needs an entry here.
 const PUBLIC_RPC = {
   8453:   'https://mainnet.base.org',
   84532:  'https://sepolia.base.org',
   42161:  'https://arb1.arbitrum.io/rpc',
   421614: 'https://sepolia-rollup.arbitrum.io/rpc',
+  130:    'https://mainnet.unichain.org',
 }
 
 // Poll for a transaction receipt (public client not available as hook here).
