@@ -9,7 +9,7 @@ tooling to create SMAs, register permission contracts, and run strategy agents.
 | Package / path | Name | Role |
 |---|---|---|
 | `packages/sdk` | `@sail/sdk` | SailorClient, LocalKeyring, kernel ABIs, EIP-712 builders, deployment registry |
-| `packages/cli` | `sailor` | CLI: init, keys, account, mandate, onboard, station, ui, run, session, scan, doctor |
+| `packages/cli` | `sailor` | CLI: init, keys, account, mandate, onboard, station, ui, run, session, scan, status, owner, doctor, capabilities |
 | `packages/chains` | `@sail/chains` | Per-chain address registry (kernel, mandateFactory, governance) |
 | `packages/ui` | `sailor-ui` | Local dashboard + browser-driven onboarding wizard at localhost:3333 |
 | `templates/dca-rebalancer` | — | Default project scaffold: DCA rebalancer + Foundry workspace |
@@ -33,12 +33,11 @@ Active kernels vary by chain — verified on-chain via `DISPATCH_TYPEHASH()`:
 
 | Chain | Kernel | Model | DISPATCH_TYPEHASH |
 |---|---|---|---|
-| Base 8453 | `0xbEd6F78c6d89547Fb9B43d599621dd80ce57F154` | **conjunctive** | `0x7510c80e...` |
-| Base Sepolia 84532 | `0x7d3BDAAB150af93f057C38e9baef88061B17dE1D` | **conjunctive** | `0x7510c80e...` |
-| Arbitrum 42161 | `0xD985029960a9B7C2E7E38e102C448b8b8539B156` | **selective** | `0xbe50c539...` |
+| Base 8453 | `0x6319d3dfDDe3804ba93D65752b00c52bFb05a1ab` | **selective** | `0xbe50c539...` |
+| Base Sepolia 84532 | `0xf1D0F4C9893612627409948BAa9d82a01a373799` | **selective** | `0xbe50c539...` |
+| Arbitrum 42161 | `0x2716B12832DED0EF5688519c5Fe069EFc0374E02` | **selective** | `0xbe50c539...` |
 
-The PENDING (post-Octane redeploy) kernels — commented out in `deployments.ts` and `chains/src/index.ts`
-— implement the **selective** model but are NOT usable until timelock allowlists are set.
+All three kernels are live and bootstrapped (genesis allowlist set, `createAccount` verified working, zero fees). `packages/sdk/src/deployments.ts` is the canonical source of truth for kernel addresses and metadata.
 
 **Always use `detectKernelCapabilities` for the real model** — it reads the on-chain typehash and
 overrides the static label in `deployments.ts`. The static label is a fallback for offline use only.
@@ -57,14 +56,11 @@ Pass the detected value — never hardcode the type shape.
 
 ## Active addresses
 
-Canonical addresses are kept in sync across two files:
+All three chain records in `packages/sdk/src/deployments.ts` are live — no commented-out or pending
+addresses remain. This file is the source of truth this guide mirrors.
 
-- `packages/chains/src/index.ts` — `ChainConfig` per chainId
-- `packages/sdk/src/deployments.ts` — `SailDeployment` with full deployment metadata
-
-**PENDING** (post-Octane redeploy) addresses exist as **commented blocks only** in both files.
-Do not activate them. `createAccount()` reverts on PENDING kernels until timelock allowlists are
-populated. Only activate when explicitly instructed and after confirming allowlists are live.
+- `packages/sdk/src/deployments.ts` — `SailDeployment` records; canonical source of truth
+- `packages/chains/src/index.ts` — `ChainConfig` per chainId; kept in sync with deployments
 
 ## Key files
 
@@ -108,7 +104,6 @@ state; no real RPC needed.
 ## What NOT to do
 
 - Do not change active kernel/mandateFactory/governance addresses without confirming on-chain state
-- Do not activate PENDING addresses until timelock allowlists are confirmed live
 - Do not use conjunctive EIP-712 type strings in new code
 - Do not add new root-level markdown files to this repo
 - Always run `pnpm build` before `pnpm test:ui`

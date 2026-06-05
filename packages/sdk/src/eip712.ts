@@ -42,9 +42,9 @@ export const REGISTER_PERMISSION_TYPES_NO_DEADLINE = {
  * the UI re-parses decimal-string fields before signing.
  *
  * Pass `hasDeadline` from KernelCapabilities.registerPermissionHasDeadline.
- * The active Base (8453) and Base Sepolia (84532) kernels are conjunctive and
- * do NOT include deadline; Arbitrum (42161) is selective and DOES include it.
- * detectKernelCapabilities resolves this from the on-chain REGISTER_PERMISSION_TYPEHASH.
+ * All bundled kernels (Base, Base Sepolia, Arbitrum) are now selective and include
+ * the deadline field. This flag exists for older or custom kernels that predate the
+ * selective model. detectKernelCapabilities resolves this from the on-chain REGISTER_PERMISSION_TYPEHASH.
  */
 export function buildRegisterPermissionTypedData(args: {
   chainId: number;

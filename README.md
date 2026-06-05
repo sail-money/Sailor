@@ -61,7 +61,7 @@ Then say **"start"** — your assistant takes it from there.
 ### Global CLI (for direct sailor commands)
 
 ```sh
-npm install -g sailor
+npm install -g @sail.money/sailor
 sailor init my-agent
 ```
 
@@ -260,9 +260,53 @@ The CLI and SDK sit between the operator and SailKernel: they build the EIP-712 
 
 ## State of the project
 
-Sailor is functional but depends on a deployed SailKernel instance. Sail Protocol is currently in audit and is not deployed on mainnet, so `@sail/chains` ships with an empty registry; the `SailorClient`-based paths (`account create`, `mandate sign`, `run`) report a missing chain configuration until kernel and mandateFactory addresses are present there.
+Sailor is functional and published as [`@sail.money/sailor`](https://www.npmjs.com/package/@sail.money/sailor) on npm (v0.0.1). The SDK, CLI, keystore, mandate flows, agent runner, and dashboard are implemented and have been exercised end to end against Base Sepolia.
 
-The agent-driven onboarding, signing-station, and custom-mandate deploy/attach flows do not need `@sail/chains`: they target the verified deployments bundled in `@sail/sdk` (Base, Base Sepolia, Arbitrum), and have been exercised end to end against Base Sepolia. The SDK, CLI, keystore, mandate flows, agent runner, and dashboard are implemented. `@sail/chains` will be updated with mainnet addresses at launch.
+The Sail Protocol trusted core is deployed on Base, Base Sepolia, and Arbitrum as staging deployments for testing ahead of a formal launch. All three run the selective dispatch model, with verified deployments bundled in `@sail/sdk`. These deployments are under an ongoing external audit by [Octane Security](https://octane.security) and are not final — do not use them with funds you are not prepared to lose. Permission templates are not yet deployed against these kernels; `@sail/chains` and the template registries will be populated as templates are deployed and at mainnet launch.
+
+---
+
+## Deployments
+
+The Sail Protocol trusted core is live on the following chains as **staging deployments** ahead of a formal launch, bundled in `@sail/sdk`. All run the selective dispatch model with zero fees. Permission templates are not yet deployed against these kernels.
+
+### Base (8453)
+
+| Contract | Address |
+|---|---|
+| SailKernel | `0x6319d3dfDDe3804ba93D65752b00c52bFb05a1ab` |
+| SailGovernance | `0x7E897D919872b1587577617ffFC42113679d0C50` |
+| Timelock | `0x8eC3Ca951E193C6E3713A70022454d7A1f083281` |
+| PermissionFactory | `0x7724EACd97C8601d5AC244Aadbf76ad87353Ff31` |
+| StandardFeePolicy | `0x65850a8D5050aeAade68289ff96c4F119a24B82e` |
+| SafeModuleEnabler | `0xC84EdE78f93291A1fab19F51c4c7e938AB302Edf` |
+| Treasury | `0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6` |
+
+### Arbitrum (42161)
+
+| Contract | Address |
+|---|---|
+| SailKernel | `0x2716B12832DED0EF5688519c5Fe069EFc0374E02` |
+| SailGovernance | `0xd6AbB7A1036ADc7958Abffec9Da03450c5a2Ec8e` |
+| Timelock | `0x114CB7110C780f7E3a6093AfE0B52463a569857C` |
+| PermissionFactory | `0x23681A8A4C9819D8EaB37E46B858da6F3c85E683` |
+| StandardFeePolicy | `0xAdfB986D48480bC67a7cF3751d30599161632e0D` |
+| SafeModuleEnabler | `0xabe2a6D03F592BC602cA1dBDCD885ba2493274f9` |
+| Treasury | `0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6` |
+
+### Base Sepolia (84532)
+
+| Contract | Address |
+|---|---|
+| SailKernel | `0xf1D0F4C9893612627409948BAa9d82a01a373799` |
+| SailGovernance | `0xEaD44bC6999E7b00b9b2E11c1660248DC2a30993` |
+| Timelock | `0x97B863e392C9859336788D5Ec454527d33C95B74` |
+| PermissionFactory | `0xdfF6a2272F667cDf78Af4681b9c88A219998db95` |
+| StandardFeePolicy | `0x05570F7973b46Eb9Ed4518422891EFC26BD58b97` |
+| SafeModuleEnabler | `0xB2C2B52d94412e3472C9fb2B52186eA12a935869` |
+| Treasury | `0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6` |
+
+Addresses are sourced from `@sail/sdk` (`packages/sdk/src/deployments.ts`), the canonical registry.
 
 ---
 

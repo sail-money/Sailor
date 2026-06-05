@@ -9,7 +9,7 @@ most important thing to understand before operating an SMA.
 
 | | **Conjunctive** (older) | **Selective** (newer) |
 |---|---|---|
-| Chains today | Base (8453), Base Sepolia (84532) | Arbitrum (42161) |
+| Chains today (bundled kernels) | None — all bundled kernels moved to selective | Base (8453), Base Sepolia (84532), Arbitrum (42161) |
 | `dispatch(...)` | `(account, target, value, data, sig, deadline)` — **no `permission`** | `(account, permission, target, value, data, sig, deadline)` |
 | Which permissions are checked | **ALL** registered permissions; **all must return true** | only the **one** permission named in the call |
 | EIP-712 `Dispatch` struct | no `permission` field | includes `permission` |
