@@ -6,7 +6,7 @@
  * Output is formatted with Biome after writing.
  */
 
-import { writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
@@ -29,7 +29,62 @@ try {
   spec = await res.json();
   console.log(`  spec version: ${spec.info?.version ?? "unknown"}`);
 } catch (err) {
-  console.warn(`  Warning: could not fetch spec (${err.message}). Skipping generation.`);
+  console.warn(`  Warning: could not fetch spec (${err.message}).`);
+  if (existsSync(OUT)) {
+    console.warn(`  Using cached ${OUT} from previous build.`);
+    process.exit(0);
+  }
+  // No cached file — write a minimal stub so tsc does not fail.
+  // All type names exported by index.ts are declared as empty interfaces;
+  // the class and constants are real values. A subsequent build with network
+  // access will replace this with the full generated client.
+  console.warn("  Writing minimal stub so the TypeScript build does not fail.");
+  const stub = `\
+/**
+ * Sail Intelligence — STUB generated when api.sail.money was unreachable.
+ * Run \`pnpm build\` with network access to replace this with the full client.
+ */
+export const SAIL_INTELLIGENCE_BASE_URL = "https://api.sail.money";
+export const SAIL_INTELLIGENCE_DOCS_URL = "https://api.sail.money/docs";
+
+export interface SailIntelligenceOptions { apiKey: string; baseUrl?: string; }
+
+// Stub types — empty interfaces satisfy structural typing.
+export interface AllocationItem {}
+export interface AllocationRequest {}
+export interface AllocationResponse {}
+export interface BenchmarkResponse {}
+export interface ComparePosition {}
+export interface CompareRequest {}
+export interface CompareResponse {}
+export interface ExplainRequest {}
+export interface ExplainResponse {}
+export interface InstitutionalRequest {}
+export interface InstitutionalResponse {}
+export interface OpportunitiesResponse {}
+export interface PortfolioCheckResponse {}
+export interface RebalanceRequest {}
+export interface RebalanceResponse {}
+export interface RisksSummaryResponse {}
+export interface SafeCheckResponse {}
+export interface ScreenRequest {}
+export interface ScreenResponse {}
+export interface ValidateRequest {}
+export interface ValidateResponse {}
+export interface VaultRiskResponse {}
+export interface VaultScreenResult {}
+export interface YieldOpportunity {}
+export interface YieldSourceItem {}
+export interface YieldSourcesResponse {}
+
+export class SailIntelligence {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  constructor(_opts: SailIntelligenceOptions) {}
+}
+`;
+  mkdirSync(dirname(OUT), { recursive: true });
+  writeFileSync(OUT, stub, "utf-8");
+  console.warn(`  Stub written → ${OUT}`);
   process.exit(0);
 }
 

@@ -20,6 +20,11 @@ import {
 import { sailDeployments } from "./deployments.js";
 import { explainKernelRevert } from "./errors.js";
 import {
+  DISPATCH_EIP712_FIELDS,
+  buildDispatchSignature,
+  sailKernelDomain,
+} from "./eip712.js";
+import {
   DEFAULT_SLIPPAGE,
   ERC20_ALLOWANCE_ABI,
   encodeApprove,
@@ -81,11 +86,6 @@ function buildPublicClient(config: SailorClientConfig): PublicClient {
   return createPublicClient({ chain, transport: http(config.rpcUrl) });
 }
 
-/** EIP-712 domain for all SailKernel signatures. */
-function kernelDomain(kernel: Address, chainId: number) {
-  return { name: "SailKernel", version: "1", chainId, verifyingContract: kernel };
-}
-
 /** Default signature deadline: 5 minutes from now (unix seconds). */
 function defaultDeadline(): bigint {
   return BigInt(Math.floor(Date.now() / 1000) + 300);
@@ -134,26 +134,7 @@ const CONJUNCTIVE_DISPATCH_ABI = [
   },
 ] as const;
 
-/** EIP-712 Dispatch struct fields, per dispatch model. */
-const DISPATCH_EIP712_FIELDS = {
-  selective: [
-    { name: "account", type: "address" },
-    { name: "permission", type: "address" },
-    { name: "target", type: "address" },
-    { name: "value", type: "uint256" },
-    { name: "dataHash", type: "bytes32" },
-    { name: "nonce", type: "uint256" },
-    { name: "deadline", type: "uint256" },
-  ],
-  conjunctive: [
-    { name: "account", type: "address" },
-    { name: "target", type: "address" },
-    { name: "value", type: "uint256" },
-    { name: "dataHash", type: "bytes32" },
-    { name: "nonce", type: "uint256" },
-    { name: "deadline", type: "uint256" },
-  ],
-} as const;
+// DISPATCH_EIP712_FIELDS imported from ./eip712.js — single canonical definition.
 
 /**
  * Wrap a thrown dispatch error with a decoded kernel diagnosis, when one can be
@@ -295,7 +276,7 @@ class MandateNamespace extends KernelNamespace implements IMandateNamespace {
     });
 
     const sig = await signer.signTyped(
-      kernelDomain(kernel, this.config.chainId),
+      sailKernelDomain({ chainId: this.config.chainId, kernel }),
       {
         primaryType: "RegisterPermissions",
         types: {
@@ -505,29 +486,27 @@ class DispatchNamespace extends KernelNamespace implements IDispatchNamespace {
   ): Promise<Dispatch> {
     const kernel = this.requireKernel();
     const wallet = this.requireSigner();
+    // Resolve deadline and nonce before delegating to buildDispatchSignature.
+    // resolveNonce handles SDK-internal concerns (nonce polling, load-balanced
+    // RPC lag, cached next-nonce from a prior dispatch) that are not exposed in
+    // the public helper API. buildDispatchSignature then uses the pre-resolved
+    // values, so the two paths share one signing implementation but the advanced
+    // nonce-tracking logic stays encapsulated here.
     const deadline = options?.deadline ?? defaultDeadline();
-    const caps = await this.capabilities();
-    const selective = caps.dispatchModel === "selective";
-
     const nonce = await this.resolveNonce(kernel, safe, options);
 
-    const dataHash = keccak256(call.data);
-
-    // Sign the Dispatch struct matching the deployed kernel's model. Signing the
-    // wrong shape (e.g. a permission field the kernel doesn't expect) recovers a
-    // different address and reverts with InvalidManagerSignature.
-    const message: Record<string, unknown> = selective
-      ? { account: safe, permission, target: call.target, value: call.value, dataHash, nonce, deadline }
-      : { account: safe, target: call.target, value: call.value, dataHash, nonce, deadline };
-
-    const managerSig = await manager.signTyped(
-      kernelDomain(kernel, this.config.chainId),
-      {
-        primaryType: "Dispatch",
-        types: { Dispatch: DISPATCH_EIP712_FIELDS[caps.dispatchModel] as unknown as { name: string; type: string }[] },
-      },
-      message,
-    );
+    const { signature: managerSig, dispatchModel } = await buildDispatchSignature({
+      publicClient: this.publicClient,
+      kernel,
+      chainId: this.config.chainId,
+      account: safe,
+      permission,
+      call,
+      manager,
+      deadline,
+      nonce, // already resolved — skip the on-chain read inside buildDispatchSignature
+    });
+    const selective = dispatchModel === "selective";
 
     // Pass an explicit gas limit so viem skips eth_estimateGas (see
     // DEFAULT_DISPATCH_GAS). Conjunctive kernels take no `permission` arg and use
@@ -604,7 +583,7 @@ class DispatchNamespace extends KernelNamespace implements IDispatchNamespace {
     );
 
     const managerSig = await manager.signTyped(
-      kernelDomain(kernel, this.config.chainId),
+      sailKernelDomain({ chainId: this.config.chainId, kernel }),
       {
         primaryType: "DispatchBatch",
         types: {
