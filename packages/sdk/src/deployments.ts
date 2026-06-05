@@ -1,8 +1,8 @@
 import type { Address } from "viem";
 import type { DispatchModel } from "./capabilities.js";
 
-/** Chains with a bundled Sail Protocol deployment: Base, Base Sepolia, Arbitrum. */
-export type SailChainId = 8453 | 84532 | 42161;
+/** Chains with a bundled Sail Protocol deployment: Base, Base Sepolia, Arbitrum, Unichain. */
+export type SailChainId = 8453 | 84532 | 42161 | 130;
 
 /** A pre-audited mandate template available on a chain. */
 export type KnownTemplate = {
@@ -161,6 +161,100 @@ export const sailDeployments: Record<SailChainId, SailDeployment> = {
     dispatchModel: "selective", // selective: verified on-chain DISPATCH_TYPEHASH 0xbe50c5391dcf9e08d11d2c30dbee822c14ad07af2ceb503c778d265801fb0e5c
     knownTemplates: [],
     standaloneTemplates: {},
+  },
+  130: {
+    // SAIL-406 deploy (2026-06-05, gitCommit 2c9e325): full protocol deploy on
+    // Unichain mainnet — core + the complete template suite (7 shared + 12
+    // standalone), all source-verified on uniscan.xyz. Genesis allowlist
+    // bootstrap (allowlistBootstrapped=true: Safe v1.4.1 factory, both
+    // singletons, SafeModuleEnabler, StandardFeePolicy, SafeProxy codehash
+    // 0xd7d408eb…fb4c), zero fees, onboarding live without the 48h timelock.
+    // First chain to ship permission templates against the kernel.
+    chainId: 130,
+    blockNumber: 49897206,
+    deployer: "0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6",
+    governance: "0xAb5C90ECfF2763f6f20f8E553E3b8778dD9C349A",
+    timelock: "0xd44FbBB37f01e235E0EE5386948F216d36D0CEf2",
+    kernel: "0xD985029960a9B7C2E7E38e102C448b8b8539B156",
+    permissionFactory: "0x8edDb62Aa49CeB837abf2653be2d93Ad9Fe6777D",
+    standardFeePolicy: "0x7bBA8BE3c01c972757aA4a230A00D58aB600A1F1",
+    safeModuleEnabler: "0xFE9227A9F2baf704060c604466df354a5A137b9B",
+    treasury: "0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6",
+    maxPermissionFeeWei: 1_000_000_000_000_000n,
+    initialBaseFee: 0n,
+    initialComplexityRate: 0n,
+    dispatchModel: "selective", // selective: verified on-chain DISPATCH_TYPEHASH 0xbe50c5391dcf9e08d11d2c30dbee822c14ad07af2ceb503c778d265801fb0e5c
+    knownTemplates: [
+      {
+        address: "0xbD624eC67e2685872A60c0aF8F020727e20D096e",
+        kind: "SharedAMMLiquidityPermission",
+        chainId: 130,
+        label: "Shared AMM Liquidity",
+        description:
+          "Bounded AMM liquidity provision/removal — enforces allowed pools and bounds.",
+      },
+      {
+        address: "0x9d386605518FA81ff536b351ff055d26203229A9",
+        kind: "SharedApproveAndCallBatchPermission",
+        chainId: 130,
+        label: "Shared Approve-and-Call Batch",
+        description:
+          "Bounded approve-then-call batch — enforces token, spender, and selector allowlists.",
+      },
+      {
+        address: "0x948a9F9a6f2828E50f7e71bd569ba75A69da2BEb",
+        kind: "SharedBoundedBorrowPermission",
+        chainId: 130,
+        label: "Shared Bounded Borrow",
+        description: "Bounded borrow — enforces allowed markets and max borrow size.",
+      },
+      {
+        address: "0xfD19fad56Ca3d6FaCd4279a2F84f09bef8967f6a",
+        kind: "SharedBoundedSwapPermission",
+        chainId: 130,
+        label: "Shared Uniswap V3 Swap",
+        description:
+          "Bounded swap via Uniswap V3 — enforces allowed tokens, max trade size, and slippage.",
+      },
+      {
+        address: "0x900cd03ee15e629bC4e94F6344d5529F4862071c",
+        kind: "SharedDeFiBundlePermission",
+        chainId: 130,
+        label: "Shared DeFi Bundle",
+        description: "Bounded multi-step DeFi bundle within a single permission.",
+      },
+      {
+        address: "0x1dF90a2484bCF3c6Da2FB035aa0C9f523e77Cd62",
+        kind: "SharedPendlePermission",
+        chainId: 130,
+        label: "Shared Pendle",
+        description: "Bounded Pendle interactions — enforces allowed markets and bounds.",
+      },
+      {
+        address: "0x851Ad196b7DC6c05eaf0B9420f2a72dc336D7739",
+        kind: "SharedTransferTargetPermission",
+        chainId: 130,
+        label: "Shared Transfer Target",
+        description: "Allows transfers only to a pre-approved target address.",
+      },
+    ],
+    standaloneTemplates: {
+      // EIP-1167 clone LOGIC addresses — the `impl` argument to
+      // PermissionFactory.deployAndAttach(account, impl, salt, initData). A clone
+      // is created and configured per account via its initialize(...).
+      azuroPrediction: "0xd48cdBB25bF0A214dEffECac3c9431650834b046",
+      boundedApprove: "0xbF7089A905081054c9dA628707f2e1EF70A7F300",
+      boundedBorrow: "0x17D466309C7E0237960f68126Cc4A109D194ac28",
+      boundedDeposit: "0xf49E304EDf806AF46E8f17740e56C1CBFad5d264",
+      boundedLiFi: "0x6a0171013FeD6B2Eda16A4dd4DB33Fa34b7F3e3f",
+      boundedSwap: "0x06696F9dd4bD0994f55b075600627Dc6E54635c9",
+      boundedWithdraw: "0xE207CfC8c2204b15ee5fD22B79472929706c7E4b",
+      gmxPerp: "0xB1bb967aC11D61C0599c8458D9B950461db5D4E9",
+      gainsNetworkPerp: "0x1297673f71A9be02bc876Dbd0ceaB3c96D268bE3",
+      limitlessPrediction: "0x2bE4280d8816626e1dea4E94A83d9334A971AF90",
+      synthetixPerp: "0x711a70B16D013a9B96Bd6733F4b3097e5787f860",
+      transferTarget: "0x8428155b6b9eea4E78b9a52c2312752eD04Baf16",
+    },
   },
 };
 

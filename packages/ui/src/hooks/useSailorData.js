@@ -130,6 +130,7 @@ const SAFE_TX_SERVICE = {
   100:    'https://safe-transaction-gnosis-chain.safe.global',
   137:    'https://safe-transaction-polygon.safe.global',
   8453:   'https://safe-transaction-base.safe.global',
+  130:    'https://safe-transaction-unichain.safe.global',
   42161:  'https://safe-transaction-arbitrum.safe.global',
   43114:  'https://safe-transaction-avalanche.safe.global',
   59144:  'https://safe-transaction-linea.safe.global',

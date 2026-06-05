@@ -1,11 +1,12 @@
 import type { Chain } from "viem";
-import { arbitrum, base, baseSepolia } from "viem/chains";
+import { arbitrum, base, baseSepolia, unichain } from "viem/chains";
 import { parseEnvFile, sailPath } from "./io.js";
 
 const CHAINS: Record<number, Chain> = {
   8453: base,
   84532: baseSepolia,
   42161: arbitrum,
+  130: unichain,
 };
 
 /** Resolve a viem Chain for a supported Sail chain id. */
@@ -13,7 +14,7 @@ export function getChainById(chainId: number): Chain {
   const chain = CHAINS[chainId];
   if (!chain) {
     throw new Error(
-      `Unsupported chainId: ${chainId}. Supported: 8453 (Base), 84532 (Base Sepolia), 42161 (Arbitrum)`,
+      `Unsupported chainId: ${chainId}. Supported: 8453 (Base), 84532 (Base Sepolia), 42161 (Arbitrum), 130 (Unichain)`,
     );
   }
   return chain;
@@ -23,6 +24,7 @@ const RPC_ENV_VARS: Record<number, string> = {
   8453: "BASE_RPC_URL",
   84532: "BASE_SEPOLIA_RPC_URL",
   42161: "ARBITRUM_RPC_URL",
+  130: "UNICHAIN_RPC_URL",
 };
 
 /**
