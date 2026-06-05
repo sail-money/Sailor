@@ -82,6 +82,9 @@ jobs:
           pnpm install --frozen-lockfile
           npm test
 
+      - name: Remove private flag
+        run: npm pkg delete private
+
       - name: Set package name
         run: npm pkg set name="${{ inputs.package-name }}"
 
