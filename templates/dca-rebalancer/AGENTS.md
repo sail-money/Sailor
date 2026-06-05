@@ -38,10 +38,7 @@ Greet the user in the Sailor voice. Read `.sail/config.json` and confirm the pro
 network (chainId map: 8453→Base, 42161→Arbitrum, 84532→Base Sepolia). If no config exists,
 the project needs `sailor init .` first.
 
-**Kernel model note:** Base (8453) and Base Sepolia (84532) run the conjunctive kernel. On
-conjunctive kernels, the runner waits for each transaction receipt before submitting the next.
-This is automatic — your agent does not need to manage nonces or add receipt-waiting between
-dispatches. Arbitrum (42161) runs the selective kernel and uses dispatchBatch for atomicity.
+**Kernel model note:** All three bundled chains (Base 8453, Base Sepolia 84532, Arbitrum 42161) now run the selective kernel and support `dispatchBatch`. The runner detects the kernel model at startup and uses batch dispatch on selective kernels for atomicity.
 
 **Network confirmation (required before Stage 1):** After reporting the configured chain, ask
 explicitly:

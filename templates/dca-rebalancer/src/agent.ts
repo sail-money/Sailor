@@ -1,5 +1,5 @@
 /**
- * DCA-rebalancer agent — Base mainnet, conjunctive SailKernel.
+ * DCA-rebalancer agent — Base mainnet, selective SailKernel.
  *
  * Strategy: on each tick, if the SMA holds enough USDC, swap a fixed amount
  * into WETH via Uniswap V3 SwapRouter02.
@@ -9,9 +9,8 @@
  * If QuoterV2 is unavailable or returns 0, the agent skips the tick entirely
  * (fail closed — never submits with amountOutMinimum = 0).
  *
- * Conjunctive kernel (Base 8453): dispatches are single EVM calls. The runner
- * executes each Dispatch in the returned array sequentially. The agent returns
- * at most ONE dispatch per tick:
+ * Selective kernel: the runner supports dispatchBatch, but this agent returns at
+ * most ONE dispatch per tick for simplicity:
  *   - An approve, if the router allowance is insufficient.
  *   - A swap, if allowance is sufficient and a valid quote is available.
  * Next tick handles the other step.

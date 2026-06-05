@@ -62,8 +62,8 @@ export type SailDeployment = {
    * Dispatch model this kernel implements, as a static hint. Verified on-chain
    * against each kernel's DISPATCH_TYPEHASH. The SDK still prefers live detection
    * (detectKernelCapabilities) and uses this only as a fallback when the on-chain
-   * read is unavailable. Active models differ per chain: both Base chains run the
-   * "conjunctive" model; Arbitrum runs "selective" — do NOT assume one globally.
+   * read is unavailable. All three bundled chains (Base, Base Sepolia, Arbitrum)
+   * run the "selective" model, verified on-chain against each kernel's DISPATCH_TYPEHASH.
    */
   dispatchModel?: DispatchModel;
   /** Pre-audited shared mandate templates available on this chain. */
