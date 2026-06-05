@@ -42,6 +42,10 @@ on:
         type: string
         required: false
         default: 'latest'
+    secrets:
+      NPM_TOKEN:
+        description: 'npm publish token. When provided, used for authentication instead of OIDC.'
+        required: false
 permissions:
   id-token: write  # Required for OIDC
   contents: read
@@ -101,3 +105,5 @@ jobs:
           npm pkg set version="${BASE}-${{ inputs.run-number }}"
 
       - run: npm publish --access public --tag ${{ inputs.dist-tag }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
