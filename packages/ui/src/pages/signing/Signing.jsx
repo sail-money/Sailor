@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { getChain } from '@sail/chains'
+import { sailDeployments } from '@sail/sdk/deployments'
 import { zeroAddress } from 'viem'
 import { useAccount, usePublicClient, useSignTypedData } from 'wagmi'
 import { FluidBackground, GlassCard, Sai, RevealCalldata, SailButton } from '../shared'
@@ -72,8 +73,9 @@ function NoPendingFlow() {
 // topic0 of AccountRegistered(address indexed account, address indexed permissionSigner, address indexed manager)
 const ACCOUNT_REGISTERED_TOPIC = '0x05f9a81a3b5e45d338f25347928e56b0aaaa0c65d4087a980c4e41370fcccfeb'
 
-// live: chainIds with a deployed SailKernel (getSailDeployment returns a result)
-const LIVE_CHAIN_IDS = new Set([8453, 84532, 42161])
+// live: chainIds with a deployed SailKernel (getSailDeployment returns a result).
+// Derived from the SDK deployment registry so it can never drift from @sail/sdk.
+const LIVE_CHAIN_IDS = new Set(Object.keys(sailDeployments).map(Number))
 
 const SUPPORTED_NETWORKS = [
   // ── Mainnets ──
