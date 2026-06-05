@@ -1,0 +1,109 @@
+name: Publish Package
+
+on:
+  workflow_call:
+    inputs:
+      package-name:
+        description: 'npm package name to publish as (e.g. @scope/pkg). Required.'
+        type: string
+        required: true
+      package-version:
+        description: 'Override the package version before publishing. Defaults to the version in package.json.'
+        type: string
+        required: false
+        default: ''
+      artifact-name:
+        description: 'Name of the uploaded artifact to download before publishing. Leave empty to build from source.'
+        type: string
+        required: false
+        default: ''
+      artifact-path:
+        description: 'Local path where the artifact should be extracted. Defaults to repo root.'
+        type: string
+        required: false
+        default: '.'
+      node-version:
+        description: 'Node.js version to use.'
+        type: string
+        required: false
+        default: '24'
+      run-tests:
+        description: 'Run tests even when publishing from a pre-built artifact.'
+        type: boolean
+        required: false
+        default: false
+      run-number:
+        description: 'Run number to append to the version. Pass 0 or empty (default) to skip stamping and publish the exact version.'
+        type: string
+        required: false
+        default: '0'
+      dist-tag:
+        description: 'npm dist-tag to publish under. Use "dev" for prerelease builds, "latest" for releases.'
+        type: string
+        required: false
+        default: 'latest'
+    secrets:
+      NPM_TOKEN:
+        description: 'npm publish token. When provided, used for authentication instead of OIDC.'
+        required: false
+permissions:
+  id-token: write  # Required for OIDC
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '11'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false  # never use caching in release builds
+
+      - name: Download artifact
+        if: inputs.artifact-name != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.artifact-path }}
+
+      - name: Install, build and test
+        if: inputs.artifact-name == ''
+        run: |
+          pnpm install --frozen-lockfile
+          npm run build --if-present
+          npm test
+
+      - name: Test (artifact path)
+        if: inputs.artifact-name != '' && inputs.run-tests == true
+        run: |
+          pnpm install --frozen-lockfile
+          npm test
+
+      - name: Remove private flag
+        run: npm pkg delete private
+
+      - name: Set package name
+        run: npm pkg set name="${{ inputs.package-name }}"
+
+      - name: Override package version
+        if: inputs.package-version != ''
+        run: |
+          VERSION="${{ inputs.package-version }}"
+          npm pkg set version="${VERSION#v}"
+
+      - name: Stamp run number
+        if: inputs.run-number != '0'
+        run: |
+          BASE=$(node -p "require('./package.json').version")
+          npm pkg set version="${BASE}-${{ inputs.run-number }}"
+
+      - run: npm publish --access public --tag ${{ inputs.dist-tag }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
