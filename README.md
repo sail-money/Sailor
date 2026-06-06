@@ -14,23 +14,23 @@ Sailor is the operator layer for [Sail Protocol](../SailProtocol): the tooling a
 | `packages/cli` | `sailor` | CLI for account setup, mandate signing, and agent execution |
 | `packages/chains` | `@sail/chains` | Per-chain address registry (EVM-compatible) |
 | `packages/ui` | `sailor-ui` | Local dashboard running on localhost:3333 |
-| `templates/dca-rebalancer` | — | Starter template: DCA portfolio rebalancer (default for `sailor init`) |
-| `templates/custom-mandate` | — | Solidity reference: allowlist mandate contracts (not a project template) |
+| `templates/default` | — | Default agent starter (neutral; what `sailor init` scaffolds) |
+| `templates/custom-mandate` | — | Solidity reference: IPermission scaffold (not a project template) |
 | `templates/lifi-permissions` | — | Solidity reference: LiFi clone permission contracts (not a project template) |
 
 ---
 
 ## How it works
 
-The path from nothing to a running agent is seven steps:
+The path from nothing to a running agent is five stages, guided by your AI coding assistant through the scaffolded `AGENTS.md`:
 
-1. **Generate keys** — a manager key (the agent's dispatch signer) and a permissionSigner key, both generated and encrypted on disk.
-2. **Deploy SMA** — a Safe registered with SailKernel, with the manager and permissionSigner addresses set at registration.
-3. **Write a strategy** — an async `tick` function that receives a context and returns a list of intended dispatches.
-4. **Sign a mandate** — a set of registered permissions that bound what the agent can do, authorized via EIP-712 by the permission signer through MetaMask or a local key.
-5. **Dry-run** — the kernel's `previewBatch` confirms the named permission passes before anything executes on-chain.
-6. **Run the agent** — locally on a cron schedule, or via GitHub Actions on a timer.
-7. **Monitor** — the local dashboard on localhost:3333 reflects live mandate state, agent status, and activity.
+1. **Deploy your SMA and create your agent wallet** — done in the browser. Your owner wallet never leaves it.
+2. **Define your strategy** — describe what you want your agent to do. The assistant asks the right questions to establish on-chain bounds (tokens, amounts, venues), then helps design the permission contracts.
+3. **Build, test, and sign your mandate** — the assistant authors the permission contracts, proves in plain English what each one permits and blocks, deploys them, and walks you through signing to authorize.
+4. **Run** — `sailor run` executes your agent locally on a schedule, or via the GitHub Actions workflow the scaffold provides.
+5. **Extend** *(optional)* — the assistant can wire notifications (Telegram, email) and build a custom dashboard tailored to your strategy.
+
+Run `npx sailor init my-agent`, open the scaffolded folder in Claude Code, Cursor, Codex, or any AI coding assistant, and say **"start"**. The `AGENTS.md` in the project drives the assistant through all five stages.
 
 ---
 
@@ -74,27 +74,28 @@ Prerequisites:
 - Node.js 18+ (the CLI runs on 18; `pnpm install` needs Node 22+)
 - A wallet (MetaMask or Rabby)
 - An RPC URL (e.g. Alchemy free tier)
-- A supported chain: **Base, Base Sepolia, Arbitrum, or Unichain** — these use the verified deployments bundled in `@sail/sdk`, so no `@sail/chains` entry is needed. Other chains require kernel + mandateFactory addresses in `@sail/chains` (see [State of the project](#state-of-the-project)).
+- A supported chain: **Base, Base Sepolia, Arbitrum, or Unichain** — verified deployments are bundled in `@sail/sdk`, no `@sail/chains` entry needed. Other chains require addresses in `@sail/chains`.
+
+### Recommended — assistant-driven
 
 ```bash
 npx sailor init my-agent && cd my-agent
-npm install                    # or `pnpm install` (needs Node 22+)
-
-# 1. Ground yourself — read-only, no gas, no wallet:
-sailor capabilities            # what you can build on this chain
-sailor doctor                  # kernel model + RPC reachability + gas balances
-
-# 2. Set up the account in the browser wizard (choose chain, connect wallet,
-#    generate the agent key, deploy your SMA):
-sailor ui start                # open http://localhost:3333 and follow steps 1–4
-
-# 3. Back in the terminal: configure .sail/.env.local, fund the agent key for gas,
-sailor mandate prepare         # draft permissions → approve in the browser
-sailor run                     # start the agent (use --once for a single tick)
+npm install
 ```
 
-The SMA is deployed through the browser wizard (it submits from your wallet), not a
-terminal command — see the scaffolded project's `AGENTS.md` for the full 8-step flow.
+Open this folder in Claude Code, Cursor, Codex, or any AI coding assistant and say **"start"**. The scaffolded `AGENTS.md` guides the assistant through all five stages — SMA deployment, strategy definition, mandate authoring, running, and automation. No manual steps required.
+
+### Direct CLI reference (advanced)
+
+For users who prefer the terminal:
+
+```bash
+sailor capabilities    # what you can build on this chain — read-only, no gas
+sailor doctor          # kernel model + RPC reachability + gas balances
+sailor ui start        # open http://localhost:3333 to deploy SMA + create agent wallet
+sailor run --once      # single tick — confirm it works before automating
+sailor run             # start the agent (continuous)
+```
 
 ---
 
@@ -106,7 +107,7 @@ writes into the **current directory**; pass a name to create a subdirectory.
 ```bash
 sailor init                              # scaffold into cwd
 sailor init my-agent                     # create ./my-agent/ and scaffold there
-sailor init --template dca-rebalancer    # explicit (same as default)
+sailor init --template default           # explicit (same as default)
 sailor init my-agent --template <name>   # named subdirectory + specific template
 ```
 
@@ -114,7 +115,7 @@ sailor init my-agent --template <name>   # named subdirectory + specific templat
 
 | Template | Description |
 |---|---|
-| `dca-rebalancer` | Dollar-cost-averaging portfolio rebalancer. Includes a full agent loop, Foundry workspace for permission contracts, GitHub Actions cron job, and the operator guide (`AGENTS.md`). **Default.** |
+| `default` | Neutral agent starter. Includes a blank agent loop, Foundry workspace for permission contracts, GitHub Actions cron job, and the operator guide (`AGENTS.md`). For a complete worked example see `examples/dca/`. **Default.** |
 
 ### What makes a valid template
 

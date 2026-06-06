@@ -19,7 +19,7 @@
  * without a key doesn't fail) — pass --require-key to make a missing key an error.
  *
  * Tests the REAL docs: the system prompt is built from
- * templates/dca-rebalancer/{AGENTS.md, AGENT_PLAYBOOK.md, docs/PERMISSION_MODEL.md}.
+ * templates/default/{AGENTS.md, AGENT_PLAYBOOK.md, docs/PERMISSION_MODEL.md}.
  * Edit those to change agent behaviour; edit scenarios.json to change what's measured.
  */
 
@@ -29,7 +29,7 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
-const TEMPLATE = join(ROOT, "templates/dca-rebalancer");
+const TEMPLATE = join(ROOT, "templates/default");
 const MODEL = process.env.SAIL_EVAL_MODEL ?? "claude-sonnet-4-6";
 const API_URL = "https://api.anthropic.com/v1/messages";
 

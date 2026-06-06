@@ -140,7 +140,7 @@ export async function initCommand(
   const name = path.basename(dest);
 
   const templatesDir = path.join(packageRoot(), "templates");
-  const templateName = options.template ?? "dca-rebalancer";
+  const templateName = options.template ?? "default";
 
   if (/[/\\.]/.test(templateName) || templateName.includes("..")) {
     throw new Error(`Invalid template name: "${templateName}"`);
