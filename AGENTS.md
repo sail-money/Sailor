@@ -109,3 +109,18 @@ state; no real RPC needed.
 - Do not add new root-level markdown files to this repo
 - Always run `pnpm build` before `pnpm test:ui`
 - Do not commit `SAIL_PASSPHRASE` or private keys
+
+## Safe experimentation with Shipyard (local forks)
+
+When the sailor project has the shipyard extension attached (`SHIPYARD.md` exists at the project root), you (the AI) have a powerful "paper trading" simulation lab:
+
+- `shipyard doctor`
+- `shipyard sim start base-sepolia` (or other supported chain)
+- `shipyard ui` — launches the *real* sailor UI + station against the local anvil fork(s). Instruct the human to point their wallet RPC at the printed anvil URL (e.g. http://127.0.0.1:18545, chainId 84532).
+- `shipyard snapshot save "before-this-experiment"` before trying a new mandate variant or strategy change.
+- `shipyard snapshot rewind "before-this-experiment"` (or `shipyard sim resume` after a stop) to go back in time.
+- Normal `sailor doctor`, `sailor run --once`, `sailor mandate ...`, etc. now execute against the realistic fork.
+
+This lets you test every combination of permissions and agent logic safely, while the human still uses the exact browser flows they will use in production. Stop with `shipyard sim stop`; resume later with `shipyard sim resume` and the entire fork world (SMAs, mandates, balances) is restored.
+
+See the project-local `SHIPYARD.md` for the full mental model and command list. Use this liberally — it is the recommended way to gain confidence before any real-chain work.
