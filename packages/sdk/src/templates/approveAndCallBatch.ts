@@ -1,24 +1,42 @@
 import { decodeAbiParameters, encodeAbiParameters } from "viem";
 import type { Address, Hex, MandateExplanation, PermissionTemplate } from "../types.js";
 
-/** Params for SharedApproveAndCallBatchPermission. */
+/**
+ * Params for SharedApproveAndCallBatchPermission.
+ *
+ * Matches the on-chain `_applyConfig` decode exactly:
+ *   abi.decode(params, (Config))
+ * where Config is the tuple
+ *   (address[] tokens, address[] spenders, address[] consumingTargets,
+ *    bytes4[] consumingSelectors, uint256[] maxApprovalAmounts, bool requireAmountMatch)
+ *
+ * Note: the contract encodes a SINGLE struct, so the blob is one top-level tuple.
+ */
 export type ApproveAndCallBatchParams = {
-  /** Spender addresses that may receive ERC-20 approvals. */
-  allowedSpenders: Address[];
-  /** Token addresses for which approvals may be granted. */
-  allowedTokens: Address[];
-  /** Maximum total approval value per batch in USD-equivalent (18-decimal WAD). */
-  maxApprovalValueUsd: number;
-  /** Whether infinite (max-uint) approvals are permitted. */
-  allowInfiniteApprovals: boolean;
+  /** Allowlisted ERC-20 tokens that may be approved. Index-parallel with `maxApprovalAmounts`. */
+  tokens: Address[];
+  /** Allowlisted spenders that may receive the allowance. */
+  spenders: Address[];
+  /** Allowlisted consuming-call targets (often the same as spenders). */
+  consumingTargets: Address[];
+  /** Allowlisted selectors for the consuming call (4-byte hex, e.g. "0x095ea7b3"). */
+  consumingSelectors: Hex[];
+  /** Max approve amount per token, index-parallel with `tokens`. */
+  maxApprovalAmounts: bigint[];
+  /** When true, the consuming call's leading uint256 arg must equal the approved amount. */
+  requireAmountMatch: boolean;
 };
 
-const ABI = [
-  { name: "allowedSpenders", type: "address[]" },
-  { name: "allowedTokens", type: "address[]" },
-  { name: "maxApprovalValueUsd", type: "uint256" },
-  { name: "allowInfiniteApprovals", type: "bool" },
+const CONFIG_COMPONENTS = [
+  { name: "tokens", type: "address[]" },
+  { name: "spenders", type: "address[]" },
+  { name: "consumingTargets", type: "address[]" },
+  { name: "consumingSelectors", type: "bytes4[]" },
+  { name: "maxApprovalAmounts", type: "uint256[]" },
+  { name: "requireAmountMatch", type: "bool" },
 ] as const;
+
+const ABI = [{ name: "config", type: "tuple", components: CONFIG_COMPONENTS }] as const;
 
 export const approveAndCallBatchTemplate: PermissionTemplate<ApproveAndCallBatchParams> = {
   name: "SharedApproveAndCallBatchPermission",
@@ -27,19 +45,25 @@ export const approveAndCallBatchTemplate: PermissionTemplate<ApproveAndCallBatch
   encoder: {
     encode(params: ApproveAndCallBatchParams): Hex {
       return encodeAbiParameters(ABI, [
-        params.allowedSpenders,
-        params.allowedTokens,
-        BigInt(Math.round(params.maxApprovalValueUsd)),
-        params.allowInfiniteApprovals,
+        {
+          tokens: params.tokens,
+          spenders: params.spenders,
+          consumingTargets: params.consumingTargets,
+          consumingSelectors: params.consumingSelectors,
+          maxApprovalAmounts: params.maxApprovalAmounts,
+          requireAmountMatch: params.requireAmountMatch,
+        },
       ]);
     },
     decode(data: Hex): ApproveAndCallBatchParams {
-      const decoded = decodeAbiParameters(ABI, data);
+      const [config] = decodeAbiParameters(ABI, data);
       return {
-        allowedSpenders: [...decoded[0]],
-        allowedTokens: [...decoded[1]],
-        maxApprovalValueUsd: Number(decoded[2]),
-        allowInfiniteApprovals: decoded[3],
+        tokens: [...config.tokens],
+        spenders: [...config.spenders],
+        consumingTargets: [...config.consumingTargets],
+        consumingSelectors: [...config.consumingSelectors],
+        maxApprovalAmounts: [...config.maxApprovalAmounts],
+        requireAmountMatch: config.requireAmountMatch,
       };
     },
   },
@@ -47,22 +71,28 @@ export const approveAndCallBatchTemplate: PermissionTemplate<ApproveAndCallBatch
   explainer: {
     explain(params: ApproveAndCallBatchParams): MandateExplanation {
       const warnings: string[] = [];
-      if (params.allowInfiniteApprovals) {
+      if (params.tokens.length !== params.maxApprovalAmounts.length) {
         warnings.push(
-          "Infinite approvals enabled — spenders may pull tokens beyond the per-batch cap",
+          "tokens and maxApprovalAmounts length mismatch — configuration will revert on-chain",
         );
       }
-      if (params.allowedSpenders.length === 0) {
-        warnings.push("No spenders specified — all approvals will be blocked");
+      if (params.spenders.length === 0 || params.tokens.length === 0) {
+        warnings.push("Empty token or spender allowlist — configuration will revert on-chain");
+      }
+      if (!params.requireAmountMatch) {
+        warnings.push(
+          "Amount-match disabled — the consuming call may move less than the approved amount",
+        );
       }
       return {
         templateName: "SharedApproveAndCallBatchPermission",
         humanReadable: [
-          `ERC-20 approvals restricted to ${params.allowedSpenders.length} approved spender(s)`,
-          `Allowed tokens: ${params.allowedTokens.join(", ")}`,
-          `Maximum approval value per batch: $${params.maxApprovalValueUsd.toLocaleString()} USD`,
-          `Infinite approvals: ${params.allowInfiniteApprovals ? "allowed" : "not allowed"}`,
-          `Approved spenders: ${params.allowedSpenders.join(", ")}`,
+          `Approvable tokens (${params.tokens.length}): ${params.tokens.join(", ")}`,
+          `Approved spenders: ${params.spenders.join(", ")}`,
+          `Consuming targets: ${params.consumingTargets.join(", ")}`,
+          `Consuming selectors: ${params.consumingSelectors.join(", ")}`,
+          `Per-token approval caps: ${params.maxApprovalAmounts.map((a) => a.toString()).join(", ")}`,
+          `Require amount match: ${params.requireAmountMatch ? "yes" : "no"}`,
         ],
         warnings,
       };

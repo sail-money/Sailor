@@ -16,7 +16,16 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { SailKernelAbi, getSailDeployment } from "@sail/sdk";
+import {
+  REGISTER_PERMISSION_TYPES,
+  REGISTER_PERMISSION_TYPES_NO_DEADLINE,
+  SailKernelAbi,
+  buildRegisterPermissionTypedData,
+  detectKernelCapabilities,
+  estimatePermissionFee,
+  getSailDeployment,
+  sailKernelDomain,
+} from "@sail/sdk";
 import {
   http,
   type Abi,
@@ -24,11 +33,16 @@ import {
   type Address,
   type Hex,
   type PublicClient,
+  concatHex,
   createPublicClient,
   createWalletClient,
+  encodeAbiParameters,
   encodeDeployData,
   encodeFunctionData,
+  getCreate2Address,
   isAddress,
+  keccak256,
+  maxUint256,
   publicActions,
   recoverTypedDataAddress,
 } from "viem";
@@ -63,6 +77,16 @@ export interface RevokeOptions {
   address?: string;
   sma: string;
   all?: boolean;
+  json?: boolean;
+}
+
+export interface DeployCloneOptions {
+  template: string;
+  sma: string;
+  tokens?: string;
+  spenders?: string;
+  max?: string;
+  label?: string;
   json?: boolean;
 }
 
@@ -257,6 +281,373 @@ async function runDeploy(
     status: "ok",
     mandate: { name: record.name, address: deployed, txHash: response.txHash, chainId },
     attached: options.attach ? { sma: options.sma, txHash: attachTxHash } : null,
+  });
+}
+
+// ── deploy-clone ─────────────────────────────────────────────────────────────
+//
+// Standalone (single-account) templates — boundedApprove, boundedSwap, etc. —
+// are EIP-1167 clones of a published logic contract. Each account gets its own
+// clone, deployed and registered in ONE transaction via
+// PermissionFactory.deployAndAttach(account, impl, salt, initData, deadline, sig).
+//
+// Authorization mirrors `attachMandate`: the owner (mandate signer) signs the
+// kernel RegisterPermission EIP-712 in the browser signing station — for the
+// clone's *predicted* address, since the clone does not exist until the tx
+// lands — and the agent submits deployAndAttach (paying gas). No new dashboard
+// signing event is needed: the owner only ever signs the existing
+// `register-permission` request.
+
+const CLONE_INIT_PREFIX = "0x3d602d80600a3d3981f3363d3d373d3d3d363d73" as const;
+const CLONE_INIT_SUFFIX = "0x5af43d82803e903d91602b57fd5bf3" as const;
+
+const PERMISSION_FACTORY_ABI = [
+  {
+    type: "function",
+    name: "deployAndAttach",
+    stateMutability: "payable",
+    inputs: [
+      { name: "account", type: "address" },
+      { name: "impl", type: "address" },
+      { name: "salt", type: "bytes32" },
+      { name: "initData", type: "bytes" },
+      { name: "kernelDeadline", type: "uint256" },
+      { name: "kernelSig", type: "bytes" },
+    ],
+    outputs: [{ name: "clone", type: "address" }],
+  },
+] as const;
+
+/**
+ * Per-template `initialize(...)` descriptor. `buildInitData` ABI-encodes the
+ * initialize call the factory invokes on the fresh clone; `describe` renders the
+ * human-readable bounds shown in the signing UI. Add an entry here to support a
+ * new standalone clone template.
+ */
+type CloneInitParams = {
+  permissionSigner: Address;
+  tokens: Address[];
+  spenders: Address[];
+  max: bigint;
+};
+type CloneTemplateSpec = {
+  label: string;
+  buildInitData: (p: CloneInitParams) => Hex;
+  describe: (p: CloneInitParams) => Array<{ label: string; value: string }>;
+};
+
+const CLONE_TEMPLATES: Record<string, CloneTemplateSpec> = {
+  boundedApprove: {
+    label: "Bounded Approve",
+    buildInitData: (p) =>
+      encodeFunctionData({
+        abi: [
+          {
+            type: "function",
+            name: "initialize",
+            stateMutability: "nonpayable",
+            inputs: [
+              { name: "allowedTokens", type: "address[]" },
+              { name: "allowedSpenders", type: "address[]" },
+              { name: "_maxAmountPerTx", type: "uint256" },
+              { name: "_permissionSigner", type: "address" },
+            ],
+            outputs: [],
+          },
+        ] as const,
+        functionName: "initialize",
+        args: [p.tokens, p.spenders, p.max, p.permissionSigner],
+      }),
+    describe: (p) => [
+      { label: "Allowed tokens", value: p.tokens.join(", ") },
+      { label: "Allowed spenders", value: p.spenders.join(", ") },
+      {
+        label: "Max approval / tx",
+        value: p.max === maxUint256 ? "unlimited (uint256 max)" : p.max.toString(),
+      },
+    ],
+  },
+};
+
+/**
+ * Compute an EIP-1167 clone's CREATE2 address off-chain, matching
+ * MandateFactory: the raw salt is namespaced by the submitter (msg.sender of
+ * deployAndAttach) as keccak256(abi.encode(submitter, salt)).
+ */
+function predictCloneAddress(
+  impl: Address,
+  factory: Address,
+  submitter: Address,
+  salt: Hex,
+): Address {
+  const namespacedSalt = keccak256(
+    encodeAbiParameters([{ type: "address" }, { type: "bytes32" }], [submitter, salt]),
+  );
+  const initCode = concatHex([CLONE_INIT_PREFIX, impl, CLONE_INIT_SUFFIX]);
+  return getCreate2Address({
+    from: factory,
+    salt: namespacedSalt,
+    bytecodeHash: keccak256(initCode),
+  });
+}
+
+function parseAddressList(csv: string | undefined, flag: string): Address[] {
+  if (!csv) throw new Error(`${flag} is required (comma-separated address list)`);
+  const list = csv
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (list.length === 0) throw new Error(`${flag} is empty`);
+  for (const a of list) {
+    if (!isAddress(a)) throw new Error(`${flag} contains an invalid address: ${a}`);
+  }
+  return list as Address[];
+}
+
+export async function mandateDeployClone(options: DeployCloneOptions): Promise<void> {
+  const project = requireProject();
+  const channel = await createSigningChannel(process.cwd());
+  try {
+    await channel.start();
+    await runDeployClone(project, channel, options);
+  } catch (err) {
+    fail(err, options.json);
+  } finally {
+    channel.stop();
+  }
+}
+
+async function runDeployClone(
+  project: ProjectContext,
+  channel: SigningChannel,
+  options: DeployCloneOptions,
+): Promise<void> {
+  const json = !!options.json;
+  const say = (fn: () => void) => {
+    if (!json) fn();
+  };
+
+  if (!isAddress(options.sma)) throw new Error(`Invalid --sma address: ${options.sma}`);
+  const sma = options.sma as Address;
+
+  const spec = CLONE_TEMPLATES[options.template];
+  if (!spec) {
+    throw new Error(
+      `Unsupported clone template "${options.template}". Supported: ${Object.keys(CLONE_TEMPLATES).join(", ")}`,
+    );
+  }
+
+  const impl = project.deployment.standaloneTemplates?.[options.template] as Address | undefined;
+  if (!impl || !isAddress(impl)) {
+    throw new Error(
+      `No "${options.template}" standalone template is bundled for chain ${project.chainId}.`,
+    );
+  }
+
+  const chain = getChainById(project.chainId);
+  const publicClient = publicClientFor(project);
+  const agentSigner = await loadManagerSigner();
+
+  // SMA must be registered; read the on-chain mandate signer (the owner that
+  // must sign in the browser, and the permissionSigner baked into the clone).
+  const registered = await publicClient.readContract({
+    address: project.contracts.kernel,
+    abi: SailKernelAbi,
+    functionName: "registered",
+    args: [sma],
+  });
+  if (!registered) {
+    throw new Error(`SMA ${sma} is not registered with SailKernel; cannot register a permission.`);
+  }
+  const kernelConfig = (await publicClient.readContract({
+    address: project.contracts.kernel,
+    abi: SailKernelAbi,
+    functionName: "configs",
+    args: [sma],
+  })) as [Address, Address, Address, boolean];
+  const permissionSigner = kernelConfig[0];
+
+  const initParams: CloneInitParams = {
+    permissionSigner,
+    tokens: parseAddressList(options.tokens, "--tokens"),
+    spenders: parseAddressList(options.spenders, "--spenders"),
+    max: options.max ? BigInt(options.max) : maxUint256,
+  };
+  const initData = spec.buildInitData(initParams);
+
+  // Deterministic-but-unique salt per (account, impl): namespaced by the
+  // submitter inside the factory. The agent submits, so predict with the agent
+  // address as msg.sender.
+  const submitter = agentSigner.address as Address;
+  const salt = keccak256(
+    encodeAbiParameters(
+      [{ type: "address" }, { type: "address" }, { type: "uint256" }],
+      [sma, impl, BigInt(Math.floor(Date.now() / 1000))],
+    ),
+  );
+  const clone = predictCloneAddress(impl, project.contracts.permissionFactory, submitter, salt);
+
+  say(() => {
+    console.log(`\n${spec.label} clone (${options.template})`);
+    console.log(`  logic impl:      ${impl}`);
+    console.log(`  predicted clone: ${clone}`);
+    console.log(`  SMA:             ${sma}`);
+    for (const d of spec.describe(initParams)) console.log(`  ${d.label}: ${d.value}`);
+    console.log(`\n→ Signing station:\n  Open ${channel.url} and connect your Owner wallet\n`);
+  });
+
+  // Owner signs RegisterPermission for the PREDICTED clone address.
+  const nonce = (await publicClient.readContract({
+    address: project.contracts.kernel,
+    abi: SailKernelAbi,
+    functionName: "signerNonces",
+    args: [sma],
+  })) as bigint;
+
+  let registerPermissionHasDeadline = false;
+  try {
+    const caps = await detectKernelCapabilities(publicClient, project.contracts.kernel, {
+      chainId: project.chainId,
+    });
+    registerPermissionHasDeadline = caps.registerPermissionHasDeadline;
+  } catch {
+    // advisory — proceed with noDeadline fallback
+  }
+  const deadline = registerPermissionHasDeadline
+    ? BigInt(Math.floor(Date.now() / 1000) + 300)
+    : undefined;
+
+  const typedData = buildRegisterPermissionTypedData({
+    chainId: project.chainId,
+    kernel: project.contracts.kernel,
+    account: sma,
+    permission: clone,
+    nonce,
+    hasDeadline: registerPermissionHasDeadline,
+    deadline,
+  });
+
+  const label = options.label ?? `${spec.label} (${options.template})`;
+  say(() =>
+    console.log(
+      `Pushing signing request — the mandate signer (${permissionSigner}) must sign in the browser.`,
+    ),
+  );
+  const response = await channel.requestSignature({
+    type: "typed-data",
+    kind: "register-permission",
+    title: `Authorize "${label}"`,
+    description: `Sign to authorize a new ${spec.label} permission on your SMA. The agent deploys and registers it in one transaction.`,
+    chainId: project.chainId,
+    details: [
+      { label: "SMA", value: sma },
+      { label: "Permission (predicted)", value: clone },
+      { label: "Template", value: options.template },
+      { label: "Mandate signer", value: permissionSigner },
+      ...spec.describe(initParams),
+    ],
+    typedData,
+  });
+
+  if (response.status === "rejected") {
+    throw new Error(`User rejected authorization: ${response.reason ?? "no reason given"}`);
+  }
+  if (response.status !== "signature") {
+    throw new Error(`Expected EIP-712 signature response, got: ${response.status}`);
+  }
+  const signature = response.signature;
+
+  // Security guard: the signature must come from the on-chain mandate signer.
+  try {
+    const recoveredSigner = await recoverTypedDataAddress({
+      domain: sailKernelDomain({ chainId: project.chainId, kernel: project.contracts.kernel }),
+      types: registerPermissionHasDeadline
+        ? REGISTER_PERMISSION_TYPES
+        : REGISTER_PERMISSION_TYPES_NO_DEADLINE,
+      primaryType: "RegisterPermission",
+      message: registerPermissionHasDeadline
+        ? { account: sma, permission: clone, nonce, deadline: deadline! }
+        : { account: sma, permission: clone, nonce },
+      signature,
+    });
+    if (recoveredSigner.toLowerCase() !== permissionSigner.toLowerCase()) {
+      throw new Error(
+        `Security: RegisterPermission was signed by ${recoveredSigner} but the on-chain mandate signer is ${permissionSigner}.\n` +
+          "Connect the owner wallet (mandate signer) in the browser — the agent wallet must never sign permission registrations.",
+      );
+    }
+  } catch (err) {
+    if ((err as Error).message.startsWith("Security:")) throw err;
+  }
+
+  // Fee charged by the kernel on registration (0 on zero-fee chains like Unichain).
+  const fee = await estimatePermissionFee(publicClient, project.contracts.governance, clone);
+
+  // The selective kernel's registerPermission takes a deadline; deployAndAttach
+  // forwards whatever deadline the owner signed over. Conjunctive kernels (no
+  // deadline) are not supported via deployAndAttach here.
+  if (!registerPermissionHasDeadline || deadline === undefined) {
+    throw new Error(
+      "deploy-clone requires a selective kernel (RegisterPermission with deadline). This chain's kernel does not match.",
+    );
+  }
+
+  say(() => console.log(`Submitting deployAndAttach (agent pays gas; fee ${fee} wei)…`));
+  const walletClient = createWalletClient({
+    account: agentSigner.viemAccount,
+    chain,
+    transport: http(getRpcUrl(project.chainId)),
+  });
+  const data = encodeFunctionData({
+    abi: PERMISSION_FACTORY_ABI,
+    functionName: "deployAndAttach",
+    args: [sma, impl, salt, initData, deadline, signature],
+  });
+  const txHash = await walletClient.sendTransaction({
+    to: project.contracts.permissionFactory,
+    data,
+    value: fee,
+    account: agentSigner.viemAccount,
+    chain,
+  });
+
+  say(() => console.log("Waiting for confirmation…"));
+  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+  if (receipt.status !== "success") {
+    throw new Error(`deployAndAttach reverted (tx ${txHash})`);
+  }
+
+  const attached = await pollForPermission(publicClient, project.contracts.kernel, sma, clone);
+  if (!attached) {
+    throw new Error(
+      `Tx ${txHash} mined, but clone ${clone} is not in getPermissions(${sma}). Verify on-chain.`,
+    );
+  }
+  say(() => console.log("✓", `Deployed + registered ${spec.label} at ${clone}`));
+
+  const store = new MandateStore();
+  store.add({
+    name: label,
+    address: clone,
+    txHash,
+    chainId: project.chainId,
+    deployedAt: new Date().toISOString(),
+  });
+  store.recordAttachment(clone, { sma, txHash });
+  appendActivity({
+    ts: nowIso(),
+    actor: "agent",
+    type: "permission_registered",
+    permission: clone,
+    name: label,
+    sma,
+    txHash,
+    chainId: project.chainId,
+  });
+
+  emit(json, () => {}, {
+    status: "ok",
+    clone: { template: options.template, address: clone, impl, txHash, sma, chainId: project.chainId },
   });
 }
 

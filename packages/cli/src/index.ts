@@ -7,11 +7,13 @@ import { initCommand } from "./commands/init.js";
 import { keysGenerate, keysShow } from "./commands/keys.js";
 import {
   type AttachOptions,
+  type DeployCloneOptions,
   type DeployOptions,
   type RevokeOptions,
   mandateAttach,
   mandateContractsList,
   mandateDeploy,
+  mandateDeployClone,
   mandateRevoke,
   mandateTemplates,
 } from "./commands/mandate-contracts.js";
@@ -147,6 +149,17 @@ mandate
   .option("--label <label>", "Human-readable label shown in the signing UI")
   .option("--json", "Emit machine-readable JSON")
   .action(actionWith<AttachOptions>(mandateAttach));
+mandate
+  .command("deploy-clone")
+  .description("Deploy + register a standalone clone permission (e.g. boundedApprove) via the signing UI")
+  .requiredOption("--template <key>", "Standalone clone template key (e.g. boundedApprove)")
+  .requiredOption("--sma <address>", "SMA to deploy the clone for and register it on")
+  .option("--tokens <csv>", "Comma-separated allowed token addresses")
+  .option("--spenders <csv>", "Comma-separated allowed spender addresses")
+  .option("--max <amount>", "Max amount per tx in base units (default: uint256 max)")
+  .option("--label <label>", "Human-readable label to track this permission under")
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<DeployCloneOptions>(mandateDeployClone));
 mandate
   .command("revoke")
   .description("Revoke permission(s) from an SMA (EIP-712 RevokePermissions, owner-authorized)")

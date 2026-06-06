@@ -1,27 +1,41 @@
 import { decodeAbiParameters, encodeAbiParameters } from "viem";
 import type { Address, Hex, MandateExplanation, PermissionTemplate } from "../types.js";
 
-/** Params for SharedBoundedSwapPermission. */
+/**
+ * Params for SharedBoundedSwapPermission.
+ *
+ * Matches the on-chain `_applyConfig` decode exactly:
+ *   abi.decode(params, (address[], address[], uint256, uint256, address, uint256))
+ *     → routers, tokensIn, tokensOut, maxAmountPerTx, maxSlippageBps, priceOracle, maxPriceAgeSec
+ */
 export type BoundedSwapParams = {
-  /** Maximum value of a single swap in USD-equivalent (18-decimal WAD). */
-  maxSwapValueUsd: number;
+  /** Router/aggregator addresses the agent may call (e.g. Uniswap V3 SwapRouter). */
+  routers: Address[];
+  /** Token addresses allowed as swap input. */
+  tokensIn: Address[];
+  /** Token addresses allowed as swap output. */
+  tokensOut: Address[];
+  /** Maximum input amount of a single swap, in the input token's base units. */
+  maxAmountPerTx: bigint;
   /** Maximum allowed slippage in basis points (e.g. 50 = 0.5%). */
   maxSlippageBps: number;
-  /** Token addresses allowed as swap input. */
-  allowedInputTokens: Address[];
-  /** Token addresses allowed as swap output. */
-  allowedOutputTokens: Address[];
-  /** Protocol identifiers allowed (e.g. ["uniswapV3", "curve"]). */
-  allowedProtocols: string[];
+  /** Price oracle used for the slippage check; `address(0)` disables it. */
+  priceOracle: Address;
+  /** Maximum oracle price age in seconds. Must be > 0 when `priceOracle` is set. */
+  maxPriceAgeSec: number;
 };
 
 const ABI = [
-  { name: "maxSwapValueUsd", type: "uint256" },
+  { name: "routers", type: "address[]" },
+  { name: "tokensIn", type: "address[]" },
+  { name: "tokensOut", type: "address[]" },
+  { name: "maxAmountPerTx", type: "uint256" },
   { name: "maxSlippageBps", type: "uint256" },
-  { name: "allowedInputTokens", type: "address[]" },
-  { name: "allowedOutputTokens", type: "address[]" },
-  { name: "allowedProtocols", type: "string[]" },
+  { name: "priceOracle", type: "address" },
+  { name: "maxPriceAgeSec", type: "uint256" },
 ] as const;
+
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 export const boundedSwapTemplate: PermissionTemplate<BoundedSwapParams> = {
   name: "SharedBoundedSwapPermission",
@@ -30,21 +44,25 @@ export const boundedSwapTemplate: PermissionTemplate<BoundedSwapParams> = {
   encoder: {
     encode(params: BoundedSwapParams): Hex {
       return encodeAbiParameters(ABI, [
-        BigInt(Math.round(params.maxSwapValueUsd)),
+        params.routers,
+        params.tokensIn,
+        params.tokensOut,
+        params.maxAmountPerTx,
         BigInt(params.maxSlippageBps),
-        params.allowedInputTokens,
-        params.allowedOutputTokens,
-        params.allowedProtocols,
+        params.priceOracle,
+        BigInt(params.maxPriceAgeSec),
       ]);
     },
     decode(data: Hex): BoundedSwapParams {
       const decoded = decodeAbiParameters(ABI, data);
       return {
-        maxSwapValueUsd: Number(decoded[0]),
-        maxSlippageBps: Number(decoded[1]),
-        allowedInputTokens: [...decoded[2]],
-        allowedOutputTokens: [...decoded[3]],
-        allowedProtocols: [...decoded[4]],
+        routers: [...decoded[0]],
+        tokensIn: [...decoded[1]],
+        tokensOut: [...decoded[2]],
+        maxAmountPerTx: decoded[3],
+        maxSlippageBps: Number(decoded[4]),
+        priceOracle: decoded[5],
+        maxPriceAgeSec: Number(decoded[6]),
       };
     },
   },
@@ -52,20 +70,23 @@ export const boundedSwapTemplate: PermissionTemplate<BoundedSwapParams> = {
   explainer: {
     explain(params: BoundedSwapParams): MandateExplanation {
       const warnings: string[] = [];
-      if (params.maxSwapValueUsd > 10_000) {
-        warnings.push(`High per-swap limit: $${params.maxSwapValueUsd.toLocaleString()}`);
-      }
       if (params.maxSlippageBps > 100) {
         warnings.push(`High slippage tolerance: ${params.maxSlippageBps / 100}%`);
+      }
+      if (params.priceOracle === ZERO_ADDRESS) {
+        warnings.push("No price oracle configured — swaps are not checked against a reference price");
       }
       return {
         templateName: "SharedBoundedSwapPermission",
         humanReadable: [
-          `Maximum swap size: $${params.maxSwapValueUsd.toLocaleString()} USD per transaction`,
+          `Maximum input per swap: ${params.maxAmountPerTx.toString()} (input-token base units)`,
           `Maximum slippage: ${params.maxSlippageBps / 100}%`,
-          `Allowed input tokens: ${params.allowedInputTokens.join(", ")}`,
-          `Allowed output tokens: ${params.allowedOutputTokens.join(", ")}`,
-          `Allowed protocols: ${params.allowedProtocols.join(", ")}`,
+          `Allowed routers: ${params.routers.join(", ")}`,
+          `Allowed input tokens: ${params.tokensIn.join(", ")}`,
+          `Allowed output tokens: ${params.tokensOut.join(", ")}`,
+          params.priceOracle === ZERO_ADDRESS
+            ? "Price oracle: none"
+            : `Price oracle: ${params.priceOracle} (max age ${params.maxPriceAgeSec}s)`,
         ],
         warnings,
       };
