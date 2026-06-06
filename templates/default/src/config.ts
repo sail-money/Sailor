@@ -1,5 +1,3 @@
-import { SailorClient } from "@sail/sdk";
-
 /** Reads RPC_URL and CHAIN_ID from environment (set via .sail/.env.local or GitHub Secrets). */
 export function getEnvConfig(): { rpcUrl: string; chainId: number } {
   const rpcUrl = process.env["RPC_URL"];
@@ -24,11 +22,4 @@ export function getEnvConfig(): { rpcUrl: string; chainId: number } {
   }
 
   return { rpcUrl, chainId };
-}
-
-/** Builds a SailorClient from environment config. */
-export function createClient(): SailorClient {
-  const { rpcUrl, chainId } = getEnvConfig();
-  // SailorClient constructor is not implemented yet — this is illustrative.
-  return new SailorClient({ rpcUrl, chainId });
 }
