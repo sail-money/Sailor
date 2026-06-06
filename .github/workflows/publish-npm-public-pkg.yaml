@@ -12,6 +12,21 @@ on:
         type: string
         required: false
         default: ''
+      dist-tag:
+        description: 'npm dist-tag to publish under (e.g. latest, dev, next).'
+        type: string
+        required: false
+        default: 'latest'
+      make-latest:
+        description: 'When true, also tags the published version as latest after publishing.'
+        type: boolean
+        required: false
+        default: false
+      build-number:
+        description: 'Number to append to the version as a prerelease suffix. Pass 0 (default) to skip.'
+        type: string
+        required: false
+        default: '0'
       artifact-name:
         description: 'Name of the uploaded artifact to download before publishing. Leave empty to build from source.'
         type: string
@@ -32,16 +47,6 @@ on:
         type: boolean
         required: false
         default: false
-      run-number:
-        description: 'Run number to append to the version. Pass 0 or empty (default) to skip stamping and publish the exact version.'
-        type: string
-        required: false
-        default: '0'
-      dist-tag:
-        description: 'npm dist-tag to publish under. Use "dev" for prerelease builds, "latest" for releases.'
-        type: string
-        required: false
-        default: 'latest'
     secrets:
       NPM_TOKEN:
         description: 'npm publish token. When provided, used for authentication instead of OIDC.'
@@ -99,11 +104,20 @@ jobs:
           npm pkg set version="${VERSION#v}"
 
       - name: Stamp run number
-        if: inputs.run-number != '0'
+        if: inputs.build-number != '0'
         run: |
           BASE=$(node -p "require('./package.json').version")
-          npm pkg set version="${BASE}-${{ inputs.run-number }}"
+          npm pkg set version="${BASE}-${{ inputs.build-number }}"
 
-      - run: npm publish --access public --tag ${{ inputs.dist-tag }}
+      - name: Publish
+        run: npm publish --access public --tag ${{ inputs.dist-tag }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Tag as latest
+        if: inputs.make-latest == true
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          npm dist-tag add ${{ inputs.package-name }}@${VERSION} latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
