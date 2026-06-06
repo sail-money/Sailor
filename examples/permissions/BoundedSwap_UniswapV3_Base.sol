@@ -90,9 +90,10 @@ contract BoundedSwap_UniswapV3_Base is IPermission {
             if (p.tokenIn != FIXED_TOKEN_IN)         return false;
             if (!isAllowedTokenOut[p.tokenOut])      return false;
             if (p.amountIn > MAX_AMOUNT_IN)          return false;
-            // Slippage floor: require amountOutMinimum ≥ amountIn * MIN_BPS / 10 000.
-            // This is not a USD check — it's a ratio check in tokenIn units.
-            // For a USDC→WETH swap, set MIN_BPS conservatively (e.g. 9 900 for 1% slippage).
+            // Slippage floor: amountOutMinimum ≥ amountIn × MIN_BPS / 10 000.
+            // WARNING: compares tokenOut against tokenIn base units. For same-price/same-decimal
+            // pairs this maps to a slippage %. For cross-price pairs (e.g. USDC→WETH) it is
+            // trivially satisfied — real slippage is enforced by the agent off-chain, not here.
             if (p.amountOutMinimum < (p.amountIn * MIN_BPS) / 10_000) return false;
             return true;
         }
