@@ -1,51 +1,72 @@
 import { decodeAbiParameters, encodeAbiParameters } from "viem";
 import type { Address, Hex, MandateExplanation, PermissionTemplate } from "../types.js";
 
-/** Params for SharedAmmLiquidityPermission. */
+/**
+ * Params for SharedAMMLiquidityPermission.
+ *
+ * Matches the on-chain `_applyConfig` decode exactly:
+ *   abi.decode(params, (address[], address[], uint128, bool, bool, bool, bool, bool))
+ *     → allowedTargets, allowedTokens, maxAmountPerTokenPerTx,
+ *       allowMint, allowIncrease, allowDecrease, allowCollect, allowBurn
+ */
 export type AmmLiquidityParams = {
-  /** Maximum total liquidity value in USD-equivalent (18-decimal WAD). */
-  maxLiquidityValueUsd: number;
-  /** Pool addresses the agent may LP into. */
-  allowedPools: Address[];
-  /** Protocol identifiers allowed (e.g. ["uniswapV3", "curveV2", "balancer"]). */
-  allowedProtocols: string[];
-  /** Whether single-sided deposits are permitted. */
-  allowSingleSided: boolean;
-  /** Maximum price range width in basis points (Uni V3 only). */
-  maxRangeBps?: number;
+  /** Position-manager / router addresses the agent may call (UniV3 NPM, Aerodrome, …). */
+  allowedTargets: Address[];
+  /** Token addresses the agent may provide as liquidity. */
+  allowedTokens: Address[];
+  /** Maximum amount of any single token per tx, in that token's base units (uint128). */
+  maxAmountPerTokenPerTx: bigint;
+  /** Allow mint / open-position (and Aerodrome add-liquidity). */
+  allowMint: boolean;
+  /** Allow increaseLiquidity. */
+  allowIncrease: boolean;
+  /** Allow decreaseLiquidity (and Aerodrome remove-liquidity). */
+  allowDecrease: boolean;
+  /** Allow collect (fee withdrawal). */
+  allowCollect: boolean;
+  /** Allow burn (close position NFT). */
+  allowBurn: boolean;
 };
 
 const ABI = [
-  { name: "maxLiquidityValueUsd", type: "uint256" },
-  { name: "allowedPools", type: "address[]" },
-  { name: "allowedProtocols", type: "string[]" },
-  { name: "allowSingleSided", type: "bool" },
-  { name: "maxRangeBps", type: "uint256" },
+  { name: "allowedTargets", type: "address[]" },
+  { name: "allowedTokens", type: "address[]" },
+  { name: "maxAmountPerTokenPerTx", type: "uint128" },
+  { name: "allowMint", type: "bool" },
+  { name: "allowIncrease", type: "bool" },
+  { name: "allowDecrease", type: "bool" },
+  { name: "allowCollect", type: "bool" },
+  { name: "allowBurn", type: "bool" },
 ] as const;
 
 export const ammLiquidityTemplate: PermissionTemplate<AmmLiquidityParams> = {
-  name: "SharedAmmLiquidityPermission",
+  name: "SharedAMMLiquidityPermission",
   address: "0x0000000000000000000000000000000000000000",
 
   encoder: {
     encode(params: AmmLiquidityParams): Hex {
       return encodeAbiParameters(ABI, [
-        BigInt(Math.round(params.maxLiquidityValueUsd)),
-        params.allowedPools,
-        params.allowedProtocols,
-        params.allowSingleSided,
-        BigInt(params.maxRangeBps ?? 0),
+        params.allowedTargets,
+        params.allowedTokens,
+        params.maxAmountPerTokenPerTx,
+        params.allowMint,
+        params.allowIncrease,
+        params.allowDecrease,
+        params.allowCollect,
+        params.allowBurn,
       ]);
     },
     decode(data: Hex): AmmLiquidityParams {
       const decoded = decodeAbiParameters(ABI, data);
-      const maxRangeBps = Number(decoded[4]);
       return {
-        maxLiquidityValueUsd: Number(decoded[0]),
-        allowedPools: [...decoded[1]],
-        allowedProtocols: [...decoded[2]],
-        allowSingleSided: decoded[3],
-        ...(maxRangeBps > 0 ? { maxRangeBps } : {}),
+        allowedTargets: [...decoded[0]],
+        allowedTokens: [...decoded[1]],
+        maxAmountPerTokenPerTx: decoded[2],
+        allowMint: decoded[3],
+        allowIncrease: decoded[4],
+        allowDecrease: decoded[5],
+        allowCollect: decoded[6],
+        allowBurn: decoded[7],
       };
     },
   },
@@ -53,26 +74,23 @@ export const ammLiquidityTemplate: PermissionTemplate<AmmLiquidityParams> = {
   explainer: {
     explain(params: AmmLiquidityParams): MandateExplanation {
       const warnings: string[] = [];
-      if (params.allowSingleSided) {
-        warnings.push(
-          "Single-sided deposits permitted — may result in immediate impermanent loss",
-        );
+      if (params.allowedTargets.length === 0) {
+        warnings.push("No targets specified — all liquidity operations will be blocked");
       }
-      if (params.maxRangeBps !== undefined && params.maxRangeBps > 5000) {
-        warnings.push(`Wide price range allowed: ±${params.maxRangeBps / 100}%`);
-      }
-      const rangeNote =
-        params.maxRangeBps !== undefined
-          ? `Maximum price range (Uni V3): ±${params.maxRangeBps / 100}%`
-          : null;
+      const ops = [
+        params.allowMint && "mint",
+        params.allowIncrease && "increase",
+        params.allowDecrease && "decrease",
+        params.allowCollect && "collect",
+        params.allowBurn && "burn",
+      ].filter(Boolean);
       return {
-        templateName: "SharedAmmLiquidityPermission",
+        templateName: "SharedAMMLiquidityPermission",
         humanReadable: [
-          `Maximum liquidity value: $${params.maxLiquidityValueUsd.toLocaleString()} USD`,
-          `Allowed protocols: ${params.allowedProtocols.join(", ")}`,
-          `Allowed pools (${params.allowedPools.length}): ${params.allowedPools.join(", ")}`,
-          `Single-sided deposits: ${params.allowSingleSided ? "allowed" : "not allowed"}`,
-          ...(rangeNote ? [rangeNote] : []),
+          `Maximum amount per token per tx: ${params.maxAmountPerTokenPerTx.toString()} (base units)`,
+          `Allowed targets (${params.allowedTargets.length}): ${params.allowedTargets.join(", ")}`,
+          `Allowed tokens: ${params.allowedTokens.join(", ")}`,
+          `Enabled operations: ${ops.length ? ops.join(", ") : "none"}`,
         ],
         warnings,
       };

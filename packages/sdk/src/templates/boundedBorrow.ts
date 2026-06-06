@@ -1,27 +1,41 @@
 import { decodeAbiParameters, encodeAbiParameters } from "viem";
 import type { Address, Hex, MandateExplanation, PermissionTemplate } from "../types.js";
 
-/** Params for SharedBoundedBorrowPermission. */
+/**
+ * Params for SharedBoundedBorrowPermission.
+ *
+ * Matches the on-chain `_applyConfig` decode exactly:
+ *   abi.decode(params, (address[], address[], uint256, uint256, address, address, uint256))
+ *     → protocols, assets, maxAmountPerTx, maxLtvBps, collateralOracle, borrowOracle, maxPriceAgeSec
+ */
 export type BoundedBorrowParams = {
-  /** Maximum borrow amount in USD-equivalent (18-decimal WAD). */
-  maxBorrowValueUsd: number;
+  /** Lending-protocol contract addresses the agent may call (Aave V3 / Morpho / Compound). */
+  protocols: Address[];
+  /** Allowed borrow asset addresses. */
+  assets: Address[];
+  /** Maximum borrow amount of a single tx, in the asset's base units. */
+  maxAmountPerTx: bigint;
   /** Maximum resulting LTV in basis points (e.g. 7500 = 75%). */
   maxLtvBps: number;
-  /** Allowed collateral token addresses. */
-  allowedCollateralTokens: Address[];
-  /** Allowed debt token addresses. */
-  allowedDebtTokens: Address[];
-  /** Protocol identifiers allowed (e.g. ["aaveV3", "morpho"]). */
-  allowedProtocols: string[];
+  /** Oracle pricing the collateral asset; `address(0)` disables the LTV check. */
+  collateralOracle: Address;
+  /** Oracle pricing the borrow asset; `address(0)` disables the LTV check. */
+  borrowOracle: Address;
+  /** Maximum oracle price age in seconds. Must be > 0 when both oracles are set. */
+  maxPriceAgeSec: number;
 };
 
 const ABI = [
-  { name: "maxBorrowValueUsd", type: "uint256" },
+  { name: "protocols", type: "address[]" },
+  { name: "assets", type: "address[]" },
+  { name: "maxAmountPerTx", type: "uint256" },
   { name: "maxLtvBps", type: "uint256" },
-  { name: "allowedCollateralTokens", type: "address[]" },
-  { name: "allowedDebtTokens", type: "address[]" },
-  { name: "allowedProtocols", type: "string[]" },
+  { name: "collateralOracle", type: "address" },
+  { name: "borrowOracle", type: "address" },
+  { name: "maxPriceAgeSec", type: "uint256" },
 ] as const;
+
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 export const boundedBorrowTemplate: PermissionTemplate<BoundedBorrowParams> = {
   name: "SharedBoundedBorrowPermission",
@@ -30,21 +44,25 @@ export const boundedBorrowTemplate: PermissionTemplate<BoundedBorrowParams> = {
   encoder: {
     encode(params: BoundedBorrowParams): Hex {
       return encodeAbiParameters(ABI, [
-        BigInt(Math.round(params.maxBorrowValueUsd)),
+        params.protocols,
+        params.assets,
+        params.maxAmountPerTx,
         BigInt(params.maxLtvBps),
-        params.allowedCollateralTokens,
-        params.allowedDebtTokens,
-        params.allowedProtocols,
+        params.collateralOracle,
+        params.borrowOracle,
+        BigInt(params.maxPriceAgeSec),
       ]);
     },
     decode(data: Hex): BoundedBorrowParams {
       const decoded = decodeAbiParameters(ABI, data);
       return {
-        maxBorrowValueUsd: Number(decoded[0]),
-        maxLtvBps: Number(decoded[1]),
-        allowedCollateralTokens: [...decoded[2]],
-        allowedDebtTokens: [...decoded[3]],
-        allowedProtocols: [...decoded[4]],
+        protocols: [...decoded[0]],
+        assets: [...decoded[1]],
+        maxAmountPerTx: decoded[2],
+        maxLtvBps: Number(decoded[3]),
+        collateralOracle: decoded[4],
+        borrowOracle: decoded[5],
+        maxPriceAgeSec: Number(decoded[6]),
       };
     },
   },
@@ -55,17 +73,19 @@ export const boundedBorrowTemplate: PermissionTemplate<BoundedBorrowParams> = {
       if (params.maxLtvBps > 8000) {
         warnings.push(`High LTV cap: ${params.maxLtvBps / 100}% — liquidation risk is elevated`);
       }
-      if (params.maxBorrowValueUsd > 50_000) {
-        warnings.push(`High borrow limit: $${params.maxBorrowValueUsd.toLocaleString()}`);
+      if (params.collateralOracle === ZERO_ADDRESS || params.borrowOracle === ZERO_ADDRESS) {
+        warnings.push("LTV not enforced — both collateral and borrow oracles must be set");
       }
       return {
         templateName: "SharedBoundedBorrowPermission",
         humanReadable: [
-          `Maximum borrow size: $${params.maxBorrowValueUsd.toLocaleString()} USD`,
+          `Maximum borrow per tx: ${params.maxAmountPerTx.toString()} (asset base units)`,
           `Maximum LTV: ${params.maxLtvBps / 100}%`,
-          `Allowed collateral tokens: ${params.allowedCollateralTokens.join(", ")}`,
-          `Allowed debt tokens: ${params.allowedDebtTokens.join(", ")}`,
-          `Allowed protocols: ${params.allowedProtocols.join(", ")}`,
+          `Allowed protocols: ${params.protocols.join(", ")}`,
+          `Allowed assets: ${params.assets.join(", ")}`,
+          `Collateral oracle: ${params.collateralOracle}`,
+          `Borrow oracle: ${params.borrowOracle}`,
+          `Max oracle price age: ${params.maxPriceAgeSec}s`,
         ],
         warnings,
       };
