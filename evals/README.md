@@ -10,7 +10,7 @@ of users this tool serves.
 
 Each scenario in [`scenarios.json`](scenarios.json) sends one user prompt to an agent
 whose system prompt is built from the **actually shipped** template docs
-(`templates/default/{AGENTS.md, AGENT_PLAYBOOK.md, docs/PERMISSION_MODEL.md}`)
+(`templates/default/{AGENTS.md, docs/PERMISSION_MODEL.md}`)
 plus a tool set mirroring the `sailor` CLI. The agent's first-turn tool calls and text
 are graded against the scenario's `expect` block.
 

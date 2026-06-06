@@ -137,7 +137,6 @@ function buildSystemPrompt() {
   const read = (p) => readFileSync(join(TEMPLATE, p), "utf-8");
   const docs = [
     ["AGENTS.md", read("AGENTS.md")],
-    ["AGENT_PLAYBOOK.md", read("AGENT_PLAYBOOK.md")],
     ["docs/PERMISSION_MODEL.md", read("docs/PERMISSION_MODEL.md")],
   ];
   return [
