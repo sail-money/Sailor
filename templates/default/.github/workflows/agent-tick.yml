@@ -12,21 +12,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: "pnpm"
+          cache: "npm"
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
+
+      - name: Copy keystore to expected path
+        run: |
+          mkdir -p .sail/keys
+          cp ci-keystore.json .sail/keys/manager.json
 
       - name: Run agent tick
         env:
           RPC_URL: ${{ secrets.RPC_URL }}
-          MANAGER_KEY: ${{ secrets.MANAGER_KEY }}
+          SAIL_PASSPHRASE: ${{ secrets.SAIL_PASSPHRASE }}
           CHAIN_ID: ${{ vars.CHAIN_ID || '8453' }}
         run: npx sailor run --once
