@@ -1,16 +1,16 @@
-# DCA Rebalancer — Sail Protocol Agent
+# Sail Protocol Agent
 
-This folder is your Sail agent. It DCA-rebalances a token basket on a schedule.
-
-Open this folder in **Claude Code**, **Cursor**, or **Codex** (or any LLM-powered IDE) and say:
+A blank Sail Protocol agent project. Open this folder in your AI coding assistant and say:
 
 > start
 
-Your AI coding assistant will walk you through every step — from network and wallet setup to your
-first on-chain tick. See `AGENTS.md` for the details; no manual config needed.
+Your assistant will walk you through every step — chain selection, SMA deployment, strategy design, mandate authoring, and automation.
 
 ## Project layout
 
-- `.sail/config.json` is the local project manifest.
-- `.sail/keys/` stores the encrypted agent wallet and mandate signer keys when local signing is used.
-- `.sail/state/` is for persistent agent state, audit logs, and tx history.
+- `src/agent.ts` — your agent's tick loop (implement your strategy here)
+- `src/mandate.ts` — your strategy parameters and contract addresses
+- `mandates/` — Foundry workspace for your IPermission contracts
+- `examples/dca/` — worked reference: DCA (USDC→WETH) on Base via Uniswap V3
+- `examples/permissions/` — protocol-specific permission examples
+- `.sail/` — local project state (keys, account, activity log)

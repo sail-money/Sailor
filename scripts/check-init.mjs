@@ -53,9 +53,8 @@ try {
     fail(`\`sailor init ${PROJECT}\` exited non-zero.\n  ${out || err.message}`);
   }
 
-  // A successful fresh init prints the welcome + next steps, ending with the
-  // `Say: "start"` call-to-action. (Older builds printed "Done!".)
-  if (!/Say: "start"/.test(stdout)) {
+  // A successful fresh init prints the single-line handoff to the AI assistant.
+  if (!/say start/i.test(stdout)) {
     fail(`init did not report success.\n  stdout: ${stdout.trim()}`);
   }
 

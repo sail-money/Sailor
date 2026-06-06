@@ -36,7 +36,8 @@ type InitOptions = {
   template?: string;
 };
 
-const DEFAULT_CHAIN_ID = 8453;
+// No default chain — Stage 1 of onboarding asks the user which chain they want.
+// Scaffolded projects start with chainId: null in config.json.
 
 const SAIL_WORKSPACE_README = `# Sailor Project Workspace
 
@@ -58,10 +59,16 @@ function writeIfMissing(file: string, content: string): void {
 }
 
 function scaffoldProjectWorkspace(dest: string, name: string, options: InitOptions): void {
-  const chainId = Number(options.chain ?? DEFAULT_CHAIN_ID);
-  if (!Number.isInteger(chainId) || chainId <= 0) {
-    throw new Error(`Invalid chain id: "${options.chain}"`);
-  }
+  // chainId is null when no --chain flag is provided. Stage 1 of AGENTS.md handles
+  // chain selection conversationally — the assistant asks the user which chain to use
+  // and writes it into config.json before proceeding. This keeps init frictionless.
+  const chainId: number | null = options.chain
+    ? (() => {
+        const n = Number(options.chain);
+        if (!Number.isInteger(n) || n <= 0) throw new Error(`Invalid chain id: "${options.chain}"`);
+        return n;
+      })()
+    : null;
 
   const sailDir = path.join(dest, ".sail");
   fs.mkdirSync(path.join(sailDir, "keys"), { recursive: true });
@@ -74,7 +81,7 @@ function scaffoldProjectWorkspace(dest: string, name: string, options: InitOptio
       {
         version: 1,
         name,
-        chainId,
+        chainId,   // null = chain not yet chosen; Stage 1 will set this
         stateDir: ".sail/state",
         createdAt: new Date().toISOString(),
         contracts: {
@@ -90,30 +97,29 @@ function scaffoldProjectWorkspace(dest: string, name: string, options: InitOptio
 
   writeIfMissing(path.join(sailDir, "README.md"), SAIL_WORKSPACE_README);
 
+  // .env.example — omit CHAIN_ID when no chain was specified; AGENTS.md Stage 1
+  // will prompt the user to choose a chain and update config.json.
+  const chainIdLine = chainId != null ? `CHAIN_ID=${chainId}\n` : `# CHAIN_ID=8453   # set after choosing your chain in Stage 1\n`;
   fs.writeFileSync(
     path.join(dest, ".env.example"),
     `# Sailor agent environment
 RPC_URL=https://your-rpc-endpoint
-CHAIN_ID=${chainId}
-
+${chainIdLine}
 # Optional for non-interactive runs
 # SAIL_PASSPHRASE=change-me-to-a-strong-passphrase
 `,
     "utf-8",
   );
 
-  // Always write .env.local so the runner can find CHAIN_ID immediately.
-  // If --rpc-url was provided, fill it in; otherwise leave a placeholder so
-  // the user only has to supply the URL (CHAIN_ID is already correct).
+  // Always write .env.local with RPC_URL (filled in if --rpc-url was given, placeholder otherwise).
+  // CHAIN_ID is only written if the chain was explicitly passed; otherwise Stage 1 sets it.
+  const rpcLine = options.rpcUrl
+    ? `RPC_URL=${options.rpcUrl}`
+    : `# Paste your RPC endpoint here (Alchemy, Infura, or any HTTPS endpoint)\n# RPC_URL=https://your-rpc-endpoint`;
+  const chainLine = chainId != null ? `\nCHAIN_ID=${chainId}` : ``;
   writeIfMissing(
     path.join(sailDir, ".env.local"),
-    options.rpcUrl
-      ? `RPC_URL=${options.rpcUrl}
-CHAIN_ID=${chainId}
-`
-      : `# Paste your RPC endpoint here (Alchemy, Infura, or any HTTPS endpoint)
-# RPC_URL=https://your-rpc-endpoint
-CHAIN_ID=${chainId}
+    `${rpcLine}${chainLine}
 
 # Optional for non-interactive runs (CI, GitHub Actions, launchd, systemd)
 # SAIL_PASSPHRASE=change-me-to-a-strong-passphrase
@@ -318,31 +324,9 @@ function printWelcome(dest: string, name: string, inPlace: boolean, hasRpc: bool
     return;
   }
 
-  // STATE A — fresh project
-  console.log(
-    "\nI'm Sailor, the operator toolkit for Sail Protocol — onchain SMAs where your agent",
-  );
-  console.log(
-    "executes within a mandate it can never exceed, enforced on every transaction.\n",
-  );
-  console.log("Your capital stays in your SMA. You can revoke the agent in one block.\n");
-  console.log("You'll set up your SMA in 5 steps:\n");
-  console.log("  In your browser:");
-  console.log("    1. Connect your wallet and choose a network");
-  console.log("    2. Deploy your SMA  (costs gas — fund the wallet on that network)");
-  console.log("    3. Create your agent wallet\n");
-  console.log("  With your AI coding assistant:");
-  console.log("    4. Describe your strategy — your assistant builds and signs the mandate");
-  console.log("    5. Set up automation (local schedule or GitHub Actions)\n");
-  console.log("Next:");
-  if (!inPlace) console.log(`  cd ${name}`);
-  if (!hasRpc) console.log("  cp .env.example .sail/.env.local");
-  console.log("  sailor capabilities    # what you can build here — read-only, no gas, no wallet");
-  console.log("  sailor doctor          # kernel model + RPC + gas balances — read-only, no gas");
-  console.log("  Open this folder in your AI coding assistant (Claude Code, Cursor, Codex, …)");
-  console.log("\n─────────────────────────────────────────────");
-  console.log("  Project ready. You're already in the right place.");
-  console.log("");
-  console.log('  Say: "start"');
-  console.log("─────────────────────────────────────────────");
+  // STATE A — fresh project.
+  // Full welcome is in AGENTS.md — the assistant presents it when the user says start.
+  // The terminal just directs traffic; the chat owns the welcome entirely.
+  if (!inPlace) console.log(`\nCreated ${name}/`);
+  console.log("\nYour Sail agent project is ready. Open your AI coding assistant in this folder and say start.");
 }
