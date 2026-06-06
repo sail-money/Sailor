@@ -35,6 +35,7 @@ import {
   createPublicClient,
   createWalletClient,
   encodeFunctionData,
+  getAddress,
   isAddress,
   parseEventLogs,
   publicActions,
@@ -310,7 +311,7 @@ async function resolveSmaChoice(options: OnboardOptions, json: boolean): Promise
     if (!isAddress(options.sma, { strict: false })) {
       throw new Error(`Invalid --sma address: ${options.sma}`);
     }
-    return { kind: "address", address: options.sma as Address };
+    return { kind: "address", address: getAddress(options.sma) };
   }
   if (options.newSma) return { kind: "new" };
   if (json) {
@@ -323,7 +324,7 @@ async function resolveSmaChoice(options: OnboardOptions, json: boolean): Promise
   );
   if (choice.toLowerCase() === "y" || choice.toLowerCase() === "yes") return { kind: "new" };
   if (!isAddress(choice, { strict: false })) throw new Error(`Invalid SMA address: ${choice}`);
-  return { kind: "address", address: choice as Address };
+  return { kind: "address", address: getAddress(choice) };
 }
 
 async function resolveTemplate(
@@ -349,7 +350,7 @@ async function resolveTemplate(
     );
     if (match) return { address: match.address as Address, label: match.label };
     if (isAddress(options.template, { strict: false })) {
-      return { address: options.template as Address, label: options.template };
+      return { address: getAddress(options.template), label: options.template };
     }
     throw new Error(
       `Unknown mandate template "${options.template}". Run "sailor mandate templates".`,

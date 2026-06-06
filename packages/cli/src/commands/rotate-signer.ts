@@ -489,13 +489,14 @@ async function resolveNewManager(
     if (!isAddress(options.to, { strict: false })) {
       throw new Error(`Invalid --to address: ${options.to}`);
     }
+    const to = getAddress(options.to);
     say(() =>
       console.log(
-        `\nRotating to existing address ${options.to}. The local agent keystore is left unchanged —\n` +
+        `\nRotating to existing address ${to}. The local agent keystore is left unchanged —\n` +
           "ensure the agent that signs dispatches holds this key.",
       ),
     );
-    return options.to as Address;
+    return to;
   }
 
   // Generate a fresh agent wallet and replace the local keystore. Back up any
