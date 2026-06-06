@@ -22,8 +22,8 @@ on:
         type: boolean
         required: false
         default: false
-      run-number:
-        description: 'Run number to append to the version as a prerelease suffix. Pass 0 (default) to skip.'
+      build-number:
+        description: 'Number to append to the version as a prerelease suffix. Pass 0 (default) to skip.'
         type: string
         required: false
         default: '0'
@@ -104,10 +104,10 @@ jobs:
           npm pkg set version="${VERSION#v}"
 
       - name: Stamp run number
-        if: inputs.run-number != '0'
+        if: inputs.build-number != '0'
         run: |
           BASE=$(node -p "require('./package.json').version")
-          npm pkg set version="${BASE}-${{ inputs.run-number }}"
+          npm pkg set version="${BASE}-${{ inputs.build-number }}"
 
       - name: Publish
         run: npm publish --access public --tag ${{ inputs.dist-tag }}
