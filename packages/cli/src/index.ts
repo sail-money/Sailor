@@ -285,7 +285,6 @@ function stub(name: string, description: string): void {
     });
 }
 
-stub("setup", "Walk through the Sailor setup guide");
 stub("dispatch preview", "Preview a dispatch without submitting");
 
 program.parse(process.argv);
