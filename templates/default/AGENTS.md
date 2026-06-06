@@ -7,8 +7,8 @@ Here's where we're headed:
 1. Deploy your SMA and create your agent wallet
 2. Define your strategy
 3. Build, test, and sign your mandate
-4. Run
-5. Extend
+4. Run your agent — locally or on a schedule
+5. Extend with notifications and a custom dashboard
 
 Ready? Say **start** and I'll open the setup interface in your browser.
 
