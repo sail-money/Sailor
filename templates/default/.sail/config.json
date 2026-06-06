@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "name": "dca-rebalancer",
-  "chainId": 8453,
+  "name": "sail-agent",
+  "chainId": null,
   "stateDir": ".sail/state",
   "contracts": {
     "kernel": "",

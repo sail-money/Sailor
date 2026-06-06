@@ -1,5 +1,5 @@
 {
-  "$comment": "Scenario evals for the Sailor onboarding agent. Each scenario feeds a user prompt to an agent primed ONLY with the shipped template docs (templates/dca-rebalancer/{AGENTS.md,AGENT_PLAYBOOK.md,docs/PERMISSION_MODEL.md}) and a tool set mirroring the sailor CLI. The agent's first-turn tool calls + text are scored against `expect`. North-star metric = fraction of scenarios that fully pass. See README.md.",
+  "$comment": "Scenario evals for the Sailor onboarding agent. Each scenario feeds a user prompt to an agent primed ONLY with the shipped template docs (templates/default/{AGENTS.md,docs/PERMISSION_MODEL.md}) and a tool set mirroring the sailor CLI. The agent's first-turn tool calls + text are scored against `expect`. North-star metric = fraction of scenarios that fully pass. See README.md.",
   "scenarios": [
     {
       "id": "expert-dca-base",

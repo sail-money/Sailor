@@ -1,7 +1,7 @@
 {
-  "name": "dca-rebalancer",
+  "name": "sail-agent",
   "version": "0.1.0",
-  "description": "Dollar-cost-average rebalancer — starter Sail Protocol agent",
+  "description": "Sail Protocol agent starter",
   "type": "module",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit"

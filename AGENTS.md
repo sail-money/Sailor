@@ -12,7 +12,7 @@ tooling to create SMAs, register permission contracts, and run strategy agents.
 | `packages/cli` | `sailor` | CLI: init, keys, account, mandate, onboard, station, ui, run, session, scan, status, owner, doctor, capabilities |
 | `packages/chains` | `@sail/chains` | Per-chain address registry (kernel, mandateFactory, governance) |
 | `packages/ui` | `sailor-ui` | Local dashboard + browser-driven onboarding wizard at localhost:3333 |
-| `templates/dca-rebalancer` | — | Default project scaffold: DCA rebalancer + Foundry workspace |
+| `templates/default` | — | Default agent starter: neutral blank scaffold + Foundry workspace + onboarding guide (AGENTS.md) |
 | `templates/custom-mandate` | — | Solidity reference: IPermission scaffold (not a project template) |
 
 ## Protocol roles
