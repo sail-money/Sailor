@@ -104,9 +104,6 @@ export default function IntelligencePage({ onBack }) {
                   strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
-            <a className={styles.ctaGhost} href="https://api.sail.money/docs" target="_blank" rel="noopener noreferrer">
-              API reference
-            </a>
             <a className={styles.ctaGhost} href="https://docs.sail.money" target="_blank" rel="noopener noreferrer">
               View docs
             </a>

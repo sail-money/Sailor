@@ -1,3 +1,5 @@
+'use client'
+
 import { useEffect, useMemo } from 'react'
 import {
   BrandMark,
@@ -7,7 +9,7 @@ import {
 } from '../shared'
 import shared from '../shared/shared.module.css'
 import styles from './JournalPage.module.css'
-import { useSailorActivity, useSailorMandate } from '../../hooks/useSailorData'
+import { mockDashboardJournal, mockMandates } from './mockData'
 
 /**
  * JournalPage — full-page detail for a single Decision Journal entry.
@@ -27,28 +29,28 @@ import { useSailorActivity, useSailorMandate } from '../../hooks/useSailorData'
  *   - Prev / next navigation between adjacent entries
  */
 export default function JournalPage({ entryId, onBack }) {
-  const { events } = useSailorActivity()
-  const { mandate } = useSailorMandate()
-
   const entry = useMemo(
-    () => events.find((e) => e.id === entryId) ?? events.find((_, i) => String(i) === entryId),
-    [events, entryId],
+    () => mockDashboardJournal.find((e) => e.id === entryId),
+    [entryId],
   )
 
+  // Resolve sibling entries so the user can step backward / forward
+  // without bouncing back to the dashboard for every detail.
   const { prev, next } = useMemo(() => {
     if (!entry) return { prev: null, next: null }
-    const idx = events.indexOf(entry)
+    const idx = mockDashboardJournal.findIndex((e) => e.id === entry.id)
     return {
-      prev: idx > 0 ? events[idx - 1] : null,
-      next: idx < events.length - 1 ? events[idx + 1] : null,
+      prev: idx > 0 ? mockDashboardJournal[idx - 1] : null,
+      next: idx < mockDashboardJournal.length - 1 ? mockDashboardJournal[idx + 1] : null,
     }
-  }, [entry, events])
+  }, [entry])
 
+  // Pull the agent that owns this entry, if any — used for the actor
+  // brand badge + a link back to the agent page.
   const agent = useMemo(() => {
-    if (!entry || !mandate) return null
-    const perms = mandate.permissions ?? []
-    return perms.find((m) => (m.role ?? m.template) === entry.actor) ?? null
-  }, [entry, mandate])
+    if (!entry) return null
+    return mockMandates.find((m) => (m.role ?? m.title) === entry.actor)
+  }, [entry])
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' })

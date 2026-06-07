@@ -16,6 +16,7 @@ export default function FluidBackground() {
         <div className={styles.blob5} />
       </div>
       <div className={styles.fluidFrost} aria-hidden="true" />
+      <div className={styles.fluidGrid} aria-hidden="true" />
     </>
   )
 }

@@ -1209,3 +1209,298 @@
   .docRevoking > section:not(:nth-last-child(2)) { transition: opacity 200ms ease-out; }
   .revokingPulse, .revokedBlock, .revokedMark, .revokedMark svg path { animation: none; }
 }
+
+/* ──────────────────────────────────────────────────────────────
+   Design-direction overrides — sharpen the contract surface so
+   it reads as the formal blueprint document the brief calls for.
+   The legal-document treatment above (centered serif title, ALL
+   CAPS roman-numeral sections) stays untouched; we just retune
+   the geometry + chrome.
+   ────────────────────────────────────────────────────────────── */
+.card {
+  border-radius: var(--r-4, 3px);
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10));
+  background:
+    linear-gradient(180deg, rgba(25, 144, 255, 0.04) 0%, rgba(25, 144, 255, 0) 24%),
+    var(--surface-850, #161719);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 32px 100px -32px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(25, 144, 255, 0.05);
+}
+.doc {
+  border-radius: var(--r-4, 3px);
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.08));
+}
+/* Section eyebrow: ROMAN numeral acts as the blueprint index, the
+   section title is the mono uppercase name (matches the dashboard's
+   "01 / OPERATOR WALLETS" rhythm). The Sui mega-menu uses the same
+   eyebrow construction. */
+.sectionRoman {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace !important;
+  color: var(--accent-blue, #1990FF) !important;
+  letter-spacing: 0.10em !important;
+}
+.sectionRoman::after {
+  content: ' /';
+  color: var(--text-quaternary);
+  font-weight: 400;
+}
+.sectionTitle {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase !important;
+}
+.sectionKicker {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+}
+/* The divider between articles becomes a dotted hairline — matches
+   the Sui mega-menu vertical dotted rules and the journal-row
+   dotted between-rows treatment used elsewhere on the dashboard. */
+.divider {
+  background: none !important;
+  border: none !important;
+  height: 1px !important;
+  border-top: 1px dashed var(--hairline, rgba(255, 255, 255, 0.10)) !important;
+}
+/* Generic radius taming — anything not an avatar or status dot drops
+   from 14px / 999px to the sharp 2-3px family. We do this with broad
+   selectors rather than touching every rule so future content stays
+   on-direction by default. */
+.docMetaCell,
+.recital,
+.scopeRow,
+.limitRow,
+.actionLine,
+.signatureRow,
+.signatureSlot {
+  border-radius: var(--r-3, 2px);
+}
+
+/* ── SIGNATURE BLOCK SWEEP ──
+   Kill the per-provider hue leak (Claude amber, Cursor white,
+   Codex green). The brief is explicit: monochrome partner marks,
+   single accent blue. Counter-signer + owner both render in the
+   neutral surface family, with a faint blue accent on the signed
+   side so the eye still parses "this side is signed". */
+.sigBlock {
+  border-radius: var(--r-3, 2px);
+  background:
+    linear-gradient(180deg, rgba(25, 144, 255, 0.04) 0%, rgba(25, 144, 255, 0) 30%),
+    var(--surface-800, #1E1F24);
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10));
+}
+.sigTitle {
+  font-family: 'Instrument Sans', 'DM Sans', sans-serif !important;
+}
+.sigCard {
+  border-radius: var(--r-3, 2px) !important;
+  background: rgba(255, 255, 255, 0.025) !important;
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10)) !important;
+}
+.sigCard_signed {
+  background: linear-gradient(180deg, rgba(25, 144, 255, 0.08) 0%, rgba(25, 144, 255, 0.02) 100%) !important;
+  border-color: rgba(25, 144, 255, 0.36) !important;
+}
+.sigCard_signing {
+  border-color: rgba(25, 144, 255, 0.32) !important;
+}
+/* Kill the provider hues entirely — all signed cards normalize to
+   blue. The brand mark + the role label already carry identity. */
+.sigCardProvider_claude.sigCard_signed,
+.sigCardProvider_cursor.sigCard_signed,
+.sigCardProvider_codex.sigCard_signed {
+  background: linear-gradient(180deg, rgba(25, 144, 255, 0.08) 0%, rgba(25, 144, 255, 0.02) 100%) !important;
+  border-color: rgba(25, 144, 255, 0.36) !important;
+}
+/* "Signed" is carried by the card tint + the blue signature line +
+   the blue X. The role label (DRAFTED BY / OWNER) stays field-tier
+   grey so it doesn't compete — deference. */
+.sigCardProvider_claude.sigCard_signed .sigCardRole,
+.sigCardProvider_cursor.sigCard_signed .sigCardRole,
+.sigCardProvider_codex.sigCard_signed .sigCardRole {
+  color: var(--text-tertiary) !important;
+}
+.sigCardProvider_claude.sigCard_signed .sigLine,
+.sigCardProvider_cursor.sigCard_signed .sigLine,
+.sigCardProvider_codex.sigCard_signed .sigLine {
+  border-bottom-color: rgba(25, 144, 255, 0.45) !important;
+}
+.sigCardProvider_claude.sigCard_signed .sigX,
+.sigCardProvider_cursor.sigCard_signed .sigX,
+.sigCardProvider_codex.sigCard_signed .sigX {
+  color: var(--accent-blue-bright, #4DABFF) !important;
+}
+.sigCardRole {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace !important;
+  font-size: var(--t-micro, 10.5px) !important;
+  font-weight: 600 !important;
+  letter-spacing: var(--label-field-tracking, 0.16em) !important;
+  color: var(--text-tertiary) !important;
+}
+.sigCardAddrLabel {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace !important;
+  letter-spacing: var(--label-field-tracking, 0.16em) !important;
+  color: var(--text-quaternary) !important;
+}
+.sigCardAddrValue {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace !important;
+}
+
+/* Modal footer action row — kill any leftover pills. */
+.actionsRow,
+.footerActions,
+.footerBar,
+.footerCta {
+  border-radius: var(--r-2, 2px);
+}
+.cta,
+.ctaSecondary,
+.ctaTertiary,
+.ctaDestructive {
+  border-radius: var(--r-2, 2px) !important;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.10em !important;
+  text-transform: uppercase !important;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   MANDATE SIGNING — simplified surface (essential content only)
+   ══════════════════════════════════════════════════════════════ */
+/* Requester line — who is asking, with their mark. Replaces the old
+   four-cell metadata grid. */
+.docRequester {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2, 8px);
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: var(--t-mono, 11.5px);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+/* The recital — full hairline + tint, no banned side-stripe. */
+.recital {
+  border-left: 1px solid rgba(25, 144, 255, 0.20) !important;
+  border-radius: var(--r-3, 2px) !important;
+  padding: var(--s5, 20px) var(--s5, 20px) var(--s4, 16px) !important;
+}
+
+/* Protections — one tight row of trust chips. */
+.protections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2, 8px);
+  justify-content: center;
+}
+.protectionChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2, 8px);
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: var(--t-micro, 10.5px);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  background: rgba(25, 144, 255, 0.06);
+  border: 1px solid rgba(25, 144, 255, 0.20);
+  border-radius: var(--r-2, 2px);
+  padding: 8px 12px;
+}
+.protectionChip svg { color: var(--accent-blue-bright, #4DABFF); flex-shrink: 0; }
+
+/* ── Final sharp-corner sweep — kill every remaining soft radius
+   and pill on this surface (overrides win by cascade order). ── */
+.card { border-radius: var(--r-4, 3px) !important; }
+.doc { border-radius: var(--r-4, 3px) !important; }
+.close { border-radius: var(--r-2, 2px) !important; }
+.scopePill,
+.actionChip,
+.limitCell,
+.limitCellEmphasis,
+.party,
+.partyAvatar,
+.sigCard,
+.authorizeBtn,
+.rejectBtn,
+.successDone,
+.readOnlyClose,
+.docFooter,
+.successBlock,
+.revokedBlock,
+.revokingBlock {
+  border-radius: var(--r-2, 2px) !important;
+}
+/* status dots + brand avatars stay round (they read as glyphs, not
+   containers) — scope the sweep so it doesn't touch them. */
+
+/* ── Onchain references — verify the deployed code before signing.
+   Clean rows, no heavy rectangles: a mono label, the address, and a
+   blue explorer link per reference. ── */
+.onchain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3, 12px);
+}
+.onchainKicker {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: var(--t-micro, 10.5px);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.onchainList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.onchainRow {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: var(--s4, 16px);
+  padding: 11px 0;
+  border-top: 1px dotted var(--hairline, rgba(255, 255, 255, 0.12));
+}
+.onchainRow:first-child { border-top: none; }
+.onchainLabel {
+  font-family: 'DM Sans', sans-serif;
+  font-size: var(--t-sm, 13.5px);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.onchainAddr {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: var(--t-xs, 12.5px);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+.onchainLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: var(--t-micro, 10.5px);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-blue-bright, #4DABFF);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 180ms var(--ease-apple);
+}
+.onchainLink svg { transition: transform 180ms var(--ease-apple); }
+.onchainLink:hover { color: #fff; }
+.onchainLink:hover svg { transform: translate(1.5px, -1.5px); }
+@media (max-width: 560px) {
+  .onchainRow { grid-template-columns: 1fr auto; }
+  .onchainAddr { display: none; }
+}

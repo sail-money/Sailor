@@ -1,62 +1,8 @@
 import { useEffect, useState } from 'react'
-import { useAccount, useSendTransaction, useSwitchChain, useWaitForTransactionReceipt } from 'wagmi'
-import { encodeFunctionData, parseEventLogs, zeroAddress } from 'viem'
-import { SAFE_V141, buildSafeSetupInitializer, gnosisSafeAbi } from '@sail/sdk/safe'
-import { getSailDeployment } from '@sail/sdk/deployments'
-import { SailKernelAbi } from '@sail/sdk/abis'
 import { GlassCard, Sai, SailButton, RevealCalldata } from '../shared'
 import shared from '../shared/shared.module.css'
 import styles from './CreateSMAModal.module.css'
-
-const PROXY_FACTORY_ABI = [
-  {
-    type: 'function',
-    name: 'createProxyWithNonce',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'singleton', type: 'address' },
-      { name: 'initializer', type: 'bytes' },
-      { name: 'saltNonce', type: 'uint256' },
-    ],
-    outputs: [{ name: 'proxy', type: 'address' }],
-  },
-]
-
-const PROXY_CREATION_TOPIC = '0x4f51faf6c4561ff95f067657e43439f0f856d97c04d9ec9070a6199ad418e235'
-
-/**
- * Recover the deployed Safe address from a receipt, regardless of which path
- * created it.
- *
- * Sail-managed SMAs are deployed via SailKernel.createAccount, which derives
- * the proxy salt from msg.sender — so the address must be read from the
- * kernel's AccountRegistered event, NOT the proxy factory's ProxyCreation log.
- * Plain Safes (chains without a Sail deployment) still emit only ProxyCreation.
- */
-function getSafeAddressFromReceipt(receipt) {
-  if (!receipt?.logs) return null
-  const [registered] = parseEventLogs({
-    abi: SailKernelAbi,
-    eventName: 'AccountRegistered',
-    logs: receipt.logs,
-  })
-  if (registered?.args?.account) return registered.args.account
-  const log = receipt.logs.find((l) => l.topics?.[0] === PROXY_CREATION_TOPIC)
-  if (!log) return null
-  return `0x${log.topics[1]?.slice(26)}`
-}
-
-async function saveAccount(account) {
-  try {
-    await fetch('/api/account', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(account),
-    })
-  } catch {
-    // best-effort — the user can also run `sailor account create`
-  }
-}
+import { mockDeploy } from '../signing/mockData'
 
 /**
  * The bundled "create your first mandate" experience.
@@ -75,45 +21,17 @@ async function saveAccount(account) {
  */
 export default function CreateSMAModal({ open, onClose, onComplete }) {
   const [step, setStep] = useState('intro')
+  const [progress, setProgress] = useState('idle')
+  // Multi-network deploy — the SMA is created counterfactually on every
+  // selected chain at the same address. Default to the user's "home"
+  // chain, but they can fan it out to as many as they want.
   const [networks, setNetworks] = useState([DEFAULT_NETWORK_ID])
-  const [txError, setTxError] = useState('')
-  const [deployedSafe, setDeployedSafe] = useState(null)
-  const [createdAccount, setCreatedAccount] = useState(null)
 
-  const { address: ownerAddress, chainId: walletChainId } = useAccount()
-  const { sendTransactionAsync } = useSendTransaction()
-  const { switchChainAsync } = useSwitchChain()
-  const [txHash, setTxHash] = useState(null)
-  const { data: receipt, isSuccess: txConfirmed } = useWaitForTransactionReceipt({ hash: txHash })
-
-  // When the receipt lands, extract the Safe address and persist it.
-  useEffect(() => {
-    if (!txConfirmed || !receipt) return
-    const safe = getSafeAddressFromReceipt(receipt)
-    setDeployedSafe(safe)
-    const account = safe && ownerAddress && walletChainId
-      ? {
-          safe,
-          owner: ownerAddress,
-          permissionSigner: ownerAddress,
-          manager: ownerAddress,
-          chainId: walletChainId,
-          createdAtBlock: receipt.blockNumber?.toString() ?? '0',
-        }
-      : null
-    if (account) saveAccount(account)
-    setCreatedAccount(account)
-    setStep('ready')
-  }, [txConfirmed, receipt, ownerAddress, walletChainId])
-
-  // Reset when the modal opens.
+  // Reset when the modal opens so a re-open always starts at step 1.
   useEffect(() => {
     if (!open) return
     setStep('intro')
-    setTxError('')
-    setTxHash(null)
-    setDeployedSafe(null)
-    setCreatedAccount(null)
+    setProgress('idle')
     document.body.style.overflow = 'hidden'
     const onKey = (e) => { if (e.key === 'Escape' && step !== 'confirm') onClose?.() }
     window.addEventListener('keydown', onKey)
@@ -124,82 +42,14 @@ export default function CreateSMAModal({ open, onClose, onComplete }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
-  async function handleSign() {
-    if (!ownerAddress) { setTxError('No wallet connected.'); return }
-    const selectedNet = ALL_NETWORKS.find((n) => networks.includes(n.id))
-    if (!selectedNet) { setTxError('Select a network.'); return }
-
-    // Resolve the Sail deployment for the target chain. When present we deploy
-    // AND register the Safe atomically through SailKernel.createAccount — a
-    // plain createProxyWithNonce leaves the Safe unregistered, so it can never
-    // have mandates attached or dispatch (the kernel's `registered[account]`
-    // mapping is only set by createAccount / registerAccount). Chains without a
-    // Sail deployment fall back to a plain, clearly-unmanaged Safe.
-    let deployment = null
-    try { deployment = getSailDeployment(selectedNet.chainId) } catch { /* not yet deployed */ }
-
-    const saltNonce = BigInt(Date.now())
-    let to
-    let data
-
-    if (deployment) {
-      // The kernel needs its module enabled during Safe setup, or createAccount
-      // reverts with ModuleNotEnabled().
-      const safeInitializer = buildSafeSetupInitializer({
-        owners: [ownerAddress],
-        threshold: 1n,
-        kernel: deployment.kernel,
-        safeModuleEnabler: deployment.safeModuleEnabler,
-      })
-      // No agent exists yet at SMA creation, so the owner is both permission
-      // signer and manager; the manager is reassigned when an agent is bound.
-      to = deployment.kernel
-      data = encodeFunctionData({
-        abi: SailKernelAbi,
-        functionName: 'createAccount',
-        args: [
-          SAFE_V141.proxyFactory,
-          SAFE_V141.singletonL2,
-          safeInitializer,
-          saltNonce,
-          ownerAddress, // permissionSigner
-          ownerAddress, // manager
-          deployment.standardFeePolicy,
-          zeroAddress, // feeAsset (native)
-        ],
-      })
-    } else {
-      const initializer = encodeFunctionData({
-        abi: gnosisSafeAbi,
-        functionName: 'setup',
-        args: [[ownerAddress], 1n, zeroAddress, '0x', SAFE_V141.fallbackHandler, zeroAddress, 0n, zeroAddress],
-      })
-      to = SAFE_V141.proxyFactory
-      data = encodeFunctionData({
-        abi: PROXY_FACTORY_ABI,
-        functionName: 'createProxyWithNonce',
-        args: [SAFE_V141.singletonL2, initializer, saltNonce],
-      })
-    }
-
-    setStep('confirm')
-    setTxError('')
-    try {
-      // Switch wallet to the target chain if needed.
-      if (walletChainId !== selectedNet.chainId) {
-        await switchChainAsync({ chainId: selectedNet.chainId })
-      }
-      const hash = await sendTransactionAsync({
-        to,
-        data,
-        chainId: selectedNet.chainId,
-      })
-      setTxHash(hash)
-    } catch (err) {
-      setTxError(err?.shortMessage || err?.message || 'Transaction rejected.')
-      setStep('review')
-    }
-  }
+  // Drive the confirm → ready transition on a timer (mock chain settle).
+  useEffect(() => {
+    if (step !== 'confirm') return
+    setProgress('waiting')
+    const t1 = setTimeout(() => setProgress('confirmed'), 1700)
+    const t2 = setTimeout(() => setStep('ready'), 3000)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
+  }, [step])
 
   if (!open) return null
 
@@ -234,15 +84,13 @@ export default function CreateSMAModal({ open, onClose, onComplete }) {
         {step === 'review'  && (
           <ReviewStep
             onBack={() => setStep('intro')}
-            onSign={handleSign}
+            onSign={() => setStep('confirm')}
             networks={networks}
             onNetworksChange={setNetworks}
-            error={txError}
-            ownerAddress={ownerAddress}
           />
         )}
-        {step === 'confirm' && <ConfirmStep confirmed={txConfirmed} networks={networks} />}
-        {step === 'ready'   && <ReadyStep safeAddress={deployedSafe} onContinue={() => { onClose?.(); onComplete?.(createdAccount) }} />}
+        {step === 'confirm' && <ConfirmStep progress={progress} networks={networks} />}
+        {step === 'ready'   && <ReadyStep onContinue={() => { onClose?.(); onComplete?.() }} />}
       </GlassCard>
     </div>
   )
@@ -330,27 +178,10 @@ function IntroStep({ onContinue }) {
 }
 
 /* ─────────── Step 2 · Review ─────────── */
-function ReviewStep({ onBack, onSign, networks, onNetworksChange, error, ownerAddress }) {
-  const selectedNets = ALL_NETWORKS.filter((n) => networks.includes(n.id))
+function ReviewStep({ onBack, onSign, networks, onNetworksChange }) {
+  const selectedNets = EVM_NETWORKS.filter((n) => networks.includes(n.id))
   const totalGasUsd = selectedNets.reduce((sum, n) => sum + parseGasUsd(n.gas), 0)
   const gasLabel = formatGasUsd(totalGasUsd)
-  const [signing, setSigning] = useState(false)
-
-  // The deploy target chain is the first selected (handleSign deploys to one).
-  // When that chain has a Sail deployment the tx is a kernel createAccount —
-  // deploy + register in one — otherwise a plain, unmanaged Safe proxy.
-  const targetNet = selectedNets[0]
-  let deployment = null
-  if (targetNet) {
-    try { deployment = getSailDeployment(targetNet.chainId) } catch { /* not yet deployed */ }
-  }
-  const managed = Boolean(deployment)
-
-  async function handleSign() {
-    setSigning(true)
-    try { await onSign() } finally { setSigning(false) }
-  }
-
   return (
     <section className={styles.body}>
       <header className={styles.headerCentered}>
@@ -367,30 +198,37 @@ function ReviewStep({ onBack, onSign, networks, onNetworksChange, error, ownerAd
       <div className={styles.txPanel}>
         <header className={styles.txPanelHeader}>
           <span className={styles.txPanelKicker}>What you are signing</span>
-          <NetworkMultiSelect value={networks} onChange={onNetworksChange} />
+          <NetworkMultiSelect
+            value={networks}
+            onChange={onNetworksChange}
+          />
         </header>
         <dl className={styles.txDetails}>
-          <TxRow k="Transaction" v={managed ? 'Deploy & register SMA' : 'Safe proxy deployment'} />
+          <TxRow k="Transaction" v={mockDeploy.type} />
           <TxRow
             k={`Network${selectedNets.length === 1 ? '' : 's'}`}
             v={<NetworkSummary nets={selectedNets} />}
           />
-          {managed
-            ? <TxRow k="SailKernel" v={`${deployment.kernel.slice(0, 10)}…`} />
-            : <TxRow k="Factory" v={`${SAFE_V141.proxyFactory.slice(0, 10)}…`} />}
           <TxRow
             k={selectedNets.length === 1 ? 'Gas estimate' : `Gas estimate · ${selectedNets.length} chains`}
             v={gasLabel}
             accent
           />
         </dl>
+        <div className={styles.txPanelFooter}>
+          <RevealCalldata
+            calldata={mockDeploy.calldata}
+            label="View calldata"
+            caption="The exact deployment payload."
+          />
+        </div>
       </div>
 
-      {error && <p style={{ color: '#ff6b6b', fontSize: 13, margin: '8px 0 0', textAlign: 'center' }}>{error}</p>}
-
       <div className={styles.actions}>
-        <SailButton fullWidth onClick={handleSign} disabled={selectedNets.length === 0 || signing}>
-          {signing ? 'Check your wallet…' : 'Sign & deploy'}
+        <SailButton fullWidth onClick={onSign} disabled={selectedNets.length === 0}>
+          {selectedNets.length <= 1
+            ? 'Sign & deploy'
+            : `Sign & deploy on ${selectedNets.length} chains`}
         </SailButton>
         <button type="button" className={styles.linkBtn} onClick={onBack}>
           Back
@@ -449,24 +287,38 @@ function formatGasUsd(n) {
 }
 
 /* ─────────── Step 3 · Confirm ─────────── */
-function ConfirmStep({ confirmed }) {
+function ConfirmStep({ progress, networks }) {
+  const done = progress === 'confirmed'
+  const selectedNets = EVM_NETWORKS.filter((n) => (networks ?? []).includes(n.id))
+  const liveLabel = selectedNets.length === 0
+    ? 'Your SMA is live.'
+    : selectedNets.length === 1
+      ? `Your SMA is live on ${selectedNets[0].name}.`
+      : `Your SMA is live on ${formatList(selectedNets.map((n) => n.name))}.`
   return (
     <section className={`${styles.body} ${styles.bodyCentered}`}>
-      <div className={`${styles.confirmIndicator} ${confirmed ? styles.confirmDone : ''}`}>
-        {confirmed ? (
+      <div className={`${styles.confirmIndicator} ${done ? styles.confirmDone : ''}`}>
+        {done ? (
           <svg viewBox="0 0 32 32" width="48" height="48" aria-hidden>
             <circle cx="16" cy="16" r="14" fill="none" stroke="var(--accent-blue)" strokeWidth="2" />
-            <path d="M9 16.5l4.5 4.5L23 11" fill="none" stroke="var(--accent-blue)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+            <path
+              d="M9 16.5l4.5 4.5L23 11"
+              fill="none"
+              stroke="var(--accent-blue)"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         ) : (
           <span className={styles.pulse} />
         )}
       </div>
       <h2 className={`${shared.displayHeadline} ${styles.confirmHeadline}`}>
-        {confirmed ? 'Transaction confirmed.' : 'Waiting for confirmation…'}
+        {done ? 'Account deployed.' : 'Waiting for your signature…'}
       </h2>
       <p className={styles.confirmSub}>
-        {confirmed ? 'Your SMA is live.' : 'Approve the deployment in your wallet, then wait for the block.'}
+        {done ? liveLabel : 'Approve the deployment in your wallet to continue.'}
       </p>
     </section>
   )
@@ -482,7 +334,7 @@ function formatList(items) {
 }
 
 /* ─────────── Step 4 · Ready ─────────── */
-function ReadyStep({ onContinue, safeAddress }) {
+function ReadyStep({ onContinue }) {
   return (
     <section className={`${styles.body} ${styles.bodyCentered}`}>
       <span className={styles.successHalo} aria-hidden>
@@ -493,11 +345,6 @@ function ReadyStep({ onContinue, safeAddress }) {
         <h2 className={`${shared.displayHeadline} ${styles.headline}`}>
           Your account is ready.
         </h2>
-        {safeAddress && (
-          <p className={styles.sub} style={{ fontFamily: 'monospace', fontSize: 12, wordBreak: 'break-all' }}>
-            {safeAddress}
-          </p>
-        )}
         <p className={styles.sub}>
           Open a chat with your AI and ask it to draft your first agent.<br />
           When it&rsquo;s ready you&rsquo;ll see it here, waiting for your signature.
@@ -514,19 +361,36 @@ function ReadyStep({ onContinue, safeAddress }) {
   )
 }
 
-const ALL_NETWORKS = [
-  // ── Mainnets ─────────────────────────────────────────────────────────
-  { id: 'base',             name: 'Base',             chainId: 8453,   color: '#0052FF', gas: '$0.18',  tier: 'L2',      sail: true },
-  { id: 'arbitrum',         name: 'Arbitrum One',     chainId: 42161,  color: '#28A0F0', gas: '$0.42',  tier: 'L2',      sail: true },
-  { id: 'ethereum',         name: 'Ethereum',         chainId: 1,      color: '#627EEA', gas: '$24.80', tier: 'L1',      sail: true },
-  { id: 'unichain',         name: 'Unichain',         chainId: 130,    color: '#FF007A', gas: '$0.10',  tier: 'L2',      sail: true },
-  // ── Testnets ─────────────────────────────────────────────────────────
-  { id: 'sepolia',          name: 'Ethereum Sepolia', chainId: 11155111, color: '#627EEA', gas: '$0.01', tier: 'Testnet', sail: true },
-  { id: 'baseSepolia',      name: 'Base Sepolia',     chainId: 84532,    color: '#3c6ef5', gas: '$0.01', tier: 'Testnet', sail: true },
-  { id: 'arbitrumSepolia',  name: 'Arbitrum Sepolia', chainId: 421614,   color: '#28A0F0', gas: '$0.01', tier: 'Testnet', sail: true },
-  { id: 'unichainSepolia',  name: 'Unichain Sepolia', chainId: 1301,     color: '#FF007A', gas: '$0.01', tier: 'Testnet', sail: true },
+/* ─────────── EVM network catalog ───────────
+   Every chain Sail's Safe singleton is (or could be) deployed on.
+   Each entry carries a brand-tinted dot colour, the chainId, and a
+   plausible gas estimate so the review row updates as the user picks. */
+const EVM_NETWORKS = [
+  // Mainnets
+  { id: 'arbitrum',     name: 'Arbitrum One',   chainId: 42161,  color: '#28A0F0', gas: '$0.42', tier: 'L2' },
+  { id: 'base',         name: 'Base',           chainId: 8453,   color: '#0052FF', gas: '$0.18', tier: 'L2' },
+  { id: 'optimism',     name: 'Optimism',       chainId: 10,     color: '#FF0420', gas: '$0.24', tier: 'L2' },
+  { id: 'ethereum',     name: 'Ethereum',       chainId: 1,      color: '#627EEA', gas: '$24.80', tier: 'L1' },
+  { id: 'polygon',      name: 'Polygon PoS',    chainId: 137,    color: '#8247E5', gas: '$0.06', tier: 'Sidechain' },
+  { id: 'bnb',          name: 'BNB Chain',      chainId: 56,     color: '#F3BA2F', gas: '$0.12', tier: 'L1' },
+  { id: 'avalanche',    name: 'Avalanche',      chainId: 43114,  color: '#E84142', gas: '$0.34', tier: 'L1' },
+  { id: 'linea',        name: 'Linea',          chainId: 59144,  color: '#61DFFF', gas: '$0.20', tier: 'L2 zk' },
+  { id: 'zksync',       name: 'zkSync Era',     chainId: 324,    color: '#8C8DFC', gas: '$0.22', tier: 'L2 zk' },
+  { id: 'scroll',       name: 'Scroll',         chainId: 534352, color: '#FFEEDA', gas: '$0.32', tier: 'L2 zk' },
+  { id: 'mantle',       name: 'Mantle',         chainId: 5000,   color: '#000000', gas: '$0.14', tier: 'L2' },
+  { id: 'blast',        name: 'Blast',          chainId: 81457,  color: '#FCFC03', gas: '$0.18', tier: 'L2' },
+  { id: 'mode',         name: 'Mode',           chainId: 34443,  color: '#DFFE00', gas: '$0.16', tier: 'L2' },
+  { id: 'manta',        name: 'Manta Pacific',  chainId: 169,    color: '#23AAF2', gas: '$0.20', tier: 'L2' },
+  { id: 'polygonzkevm', name: 'Polygon zkEVM',  chainId: 1101,   color: '#9F71E8', gas: '$0.26', tier: 'L2 zk' },
+  { id: 'celo',         name: 'Celo',           chainId: 42220,  color: '#FCFF52', gas: '$0.08', tier: 'L1' },
+  { id: 'gnosis',       name: 'Gnosis Chain',   chainId: 100,    color: '#04795B', gas: '$0.04', tier: 'L1' },
+  { id: 'fantom',       name: 'Fantom',         chainId: 250,    color: '#1969FF', gas: '$0.10', tier: 'L1' },
+  { id: 'metis',        name: 'Metis',          chainId: 1088,   color: '#00DACC', gas: '$0.18', tier: 'L2' },
+  { id: 'cronos',       name: 'Cronos',         chainId: 25,     color: '#002D74', gas: '$0.14', tier: 'L1' },
+  { id: 'moonbeam',     name: 'Moonbeam',       chainId: 1284,   color: '#53CBC8', gas: '$0.12', tier: 'L1' },
+  { id: 'fraxtal',      name: 'Fraxtal',        chainId: 252,    color: '#F3C26C', gas: '$0.20', tier: 'L2' },
 ]
-const DEFAULT_NETWORK_ID = 'base'
+const DEFAULT_NETWORK_ID = 'arbitrum'
 
 /* Selectable network pill — multi-select. Click → drops down a list
    with brand colour-coded dots; tapping each option toggles it without
@@ -535,7 +399,7 @@ const DEFAULT_NETWORK_ID = 'base'
    plus a stack of dots once more than one is selected. */
 function NetworkMultiSelect({ value, onChange }) {
   const [open, setOpen] = useState(false)
-  const selected = ALL_NETWORKS.filter((n) => value.includes(n.id))
+  const selected = EVM_NETWORKS.filter((n) => value.includes(n.id))
   const single = selected.length === 1 ? selected[0] : null
 
   useEffect(() => {
@@ -629,7 +493,7 @@ function NetworkMultiSelect({ value, onChange }) {
             </button>
           </header>
           <ul className={styles.netSelectMenuList}>
-            {ALL_NETWORKS.map((n) => {
+            {EVM_NETWORKS.map((n) => {
               const checked = value.includes(n.id)
               return (
                 <li key={n.id}>
@@ -646,11 +510,8 @@ function NetworkMultiSelect({ value, onChange }) {
                       aria-hidden
                     />
                     <span className={styles.netSelectOptionBody}>
-                      <span className={styles.netSelectOptionName}>
-                        {n.name}
-                        {n.sail && <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--accent-blue)', opacity: 0.9 }}>● Sail</span>}
-                      </span>
-                      <span className={styles.netSelectOptionMeta}>{n.tier} · chain {n.chainId}</span>
+                      <span className={styles.netSelectOptionName}>{n.name}</span>
+                      <span className={styles.netSelectOptionMeta}>{n.tier} · chainId {n.chainId}</span>
                     </span>
                     <span
                       className={`${styles.netSelectCheckbox} ${checked ? styles.netSelectCheckboxOn : ''}`}

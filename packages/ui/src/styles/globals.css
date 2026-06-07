@@ -48,48 +48,103 @@
 }
 
 :root {
-    /* ── Text ── */
+    /* ── Text ──
+       Four-step ink ramp. Tertiary/quaternary were nudged up
+       (0.48→0.56, 0.30→0.40) so meta labels that carry real
+       information clear the WCAG-AA-large floor on raised surfaces
+       instead of dissolving into the panel. */
     --text-primary:   #FFFFFF;
     --text-secondary: rgba(255, 255, 255, 0.72);
-    --text-tertiary:  rgba(255, 255, 255, 0.48);
-    --text-quaternary: rgba(255, 255, 255, 0.30);
+    --text-tertiary:  rgba(255, 255, 255, 0.56);
+    --text-quaternary: rgba(255, 255, 255, 0.40);
 
-    /* ── Brand ── single accent + supporting blues only */
-    --accent-blue:        #1990FF;
-    --accent-blue-strong: #0F7AE0;
+    /* ── Brand ── Sail electric system.
+       Sail blue #1990FF is the bold hero — every CTA, link, brand
+       node, and the announcement bar. State is carried by a vibrant,
+       intentional family that feels ALIVE: electric mint for
+       healthy/funded/active (it breathes), amber for needs-attention,
+       red for destructive. True-black canvas, white, grays underneath. */
+    --accent-blue:        #1990FF;   /* Sail blue — the bold hero */
+    --accent-blue-bright: #4DABFF;   /* hover / glow lift */
+    --accent-blue-strong: #0E78EA;
     --accent-blue-muted:  rgba(25, 144, 255, 0.92);
-    --ocean-deep:         #040608;
-    --ocean-dark:         #030507;
-    --ocean-midnight:     #080f28;
+    --accent-glow:        rgba(25, 144, 255, 0.55);
+    --aqua:               #1990FF;
+    --aqua-soft:          rgba(25, 144, 255, 0.14);
+    --cyan:               #4DABFF;   /* lighter blue highlight */
+    --cyan-soft:          rgba(77, 171, 255, 0.12);
+
+    /* Color architecture — ONE hue + neutrals + a destructive red.
+       The Sail blue does double duty: it is the brand AND the signal
+       for "alive / healthy / active". Hierarchy is built from the
+       blue's treatment (filled vs hollow), brightness, and MOTION
+       (steady glow = healthy, pulse = needs attention) — never from
+       extra hues. Quiet / inactive states fall back to grayscale. */
+    --positive:           #1990FF;   /* alive / funded / active = the blue */
+    --positive-bright:    #4DABFF;
+    --positive-soft:      rgba(25, 144, 255, 0.12);
+    --positive-border:    rgba(25, 144, 255, 0.42);
+    --positive-glow:      rgba(25, 144, 255, 0.65);
+
+    /* Needs-attention / paused = neutral; urgency is carried by the
+       blue action + motion, not a warm hue. */
+    --warn:               rgba(255, 255, 255, 0.62);
+    --warn-soft:          rgba(255, 255, 255, 0.06);
+    --warn-border:        rgba(255, 255, 255, 0.16);
+
+    /* Red — destructive / revoked only. The single non-blue hue. */
+    --danger:             #FF5C6C;
+    --danger-soft:        rgba(255, 92, 108, 0.12);
+    --danger-border:      rgba(255, 92, 108, 0.42);
+    --ocean-deep:         #000000;
+    --ocean-dark:         #000000;   /* true-black canvas */
+    --ocean-trench:       #000000;
+    --ocean-midnight:     #0a0a0c;
     --ocean-light:        #6ba3ff;
     --ocean-pale:         #bdd3fe;
     --ocean-foam:         #eef4ff;
+
+    /* Sui surface ladder — flat raised cards, not frosted glass. */
+    --surface-900:        #111215;   /* nav capsule, dropdown panels */
+    --surface-800:        #1E1F24;   /* raised cards */
+    --surface-850:        #161719;   /* section panels (between the two) */
+    --off-white:          #F3F2F5;   /* light "breather" canvas */
+
+    /* Hairline used for the blueprint grid + panel rules (gray). */
+    --grid-line:          rgba(255, 255, 255, 0.035);
+    --hairline:           rgba(255, 255, 255, 0.09);
+    --hairline-strong:    rgba(255, 255, 255, 0.14);
 
     /* ── Semantic status palette (new) ──
        Active uses the brand. Expired is neutral. Revoked is a calibrated
        red — saturated enough to read as destructive, restrained enough
        not to feel alarming on every glance. */
-    --status-active:        #1990FF;
-    --status-active-bg:     rgba(25, 144, 255, 0.12);
-    --status-active-border: rgba(25, 144, 255, 0.32);
+    /* Status = the living state palette. Active / funded / success
+       read electric mint (and breathe); paused / low read amber;
+       revoked reads red; expired is the only quiet neutral. */
+    --status-active:        var(--positive);
+    --status-active-bg:     var(--positive-soft);
+    --status-active-border: var(--positive-border);
 
-    --status-expired:        rgba(255, 255, 255, 0.45);
+    --status-expired:        rgba(255, 255, 255, 0.42);
     --status-expired-bg:     rgba(255, 255, 255, 0.04);
     --status-expired-border: rgba(255, 255, 255, 0.10);
 
-    --status-revoked:        #E5484D;
-    --status-revoked-bg:     rgba(229, 72, 77, 0.10);
-    --status-revoked-border: rgba(229, 72, 77, 0.30);
+    --status-revoked:        var(--danger);
+    --status-revoked-bg:     var(--danger-soft);
+    --status-revoked-border: var(--danger-border);
 
-    --status-warn:        #F5A524;
-    --status-warn-bg:     rgba(245, 165, 36, 0.10);
-    --status-warn-border: rgba(245, 165, 36, 0.32);
+    --status-warn:        var(--warn);
+    --status-warn-bg:     var(--warn-soft);
+    --status-warn-border: var(--warn-border);
 
-    --status-success:        #22C55E;
-    --status-success-bg:     rgba(34, 197, 94, 0.10);
-    --status-success-border: rgba(34, 197, 94, 0.32);
+    --status-success:        var(--positive);
+    --status-success-bg:     var(--positive-soft);
+    --status-success-border: var(--positive-border);
 
-    /* Spacing — Apple step scale */
+    /* Spacing — 8pt step scale (4px half-step for fine work).
+       Every gap, pad, and inset should resolve to one of these so
+       the whole product snaps to a single rhythm. */
     --s1:  4px;
     --s2:  8px;
     --s3: 12px;
@@ -103,6 +158,44 @@
     --s11: 80px;
     --space-section: 56px;
 
+    /* ── Type scale (product) ──
+       Fixed rem ladder, ~1.2 ratio. Product UI views at consistent
+       DPI, so headings don't fluid-scale. Mono labels live on the
+       low end; the SMA balance + page titles on the high end. */
+    --t-micro:  10.5px;  /* mono field labels, status chips */
+    --t-mono:   11.5px;  /* mono section eyebrows, addresses */
+    --t-xs:     12.5px;  /* meta, captions */
+    --t-sm:     13.5px;  /* secondary body */
+    --t-base:   15px;    /* body */
+    --t-md:     18px;    /* card titles */
+    --t-lg:     22px;    /* sub-headers, modal titles */
+    --t-xl:     28px;    /* section / page titles */
+    --t-2xl:    40px;    /* hero title */
+    --t-balance: 46px;   /* the SMA console readout — the hero number */
+
+    /* ── Label tiers ──
+       The discipline that gives the blueprint its depth:
+       • TIER 1 (section): blue index + grey name. Reserved for the
+         numbered 01/02/03 dashboard sections + ARTICLE headers.
+       • TIER 2 (field): grey mono micro-label. ADDRESS, NETWORKS,
+         RECITAL, ONCHAIN — the chrome that frames a value.
+       Blue never appears at tier 2; that keeps blue meaningful. */
+    --label-field-color: var(--text-tertiary);
+    --label-field-size: var(--t-micro);
+    --label-field-tracking: 0.16em;
+    --label-section-tracking: 0.18em;
+
+    /* ── Z-index ladder (semantic, no magic numbers) ── */
+    --z-base: 0;
+    --z-raised: 10;
+    --z-sticky: 100;
+    --z-dropdown: 200;
+    --z-header: 300;
+    --z-scrim: 900;
+    --z-modal: 1000;
+    --z-toast: 1100;
+    --z-tooltip: 1200;
+
     /* Legacy aliases (don't break older rules) */
     --space-4: var(--s4);
     --space-5: var(--s6);
@@ -112,13 +205,22 @@
     --space-9: 96px;
     --section-padding: clamp(80px, 12vh, 160px);
 
-    /* Radius scale */
-    --r-sm: 8px;
-    --r-md: 12px;
-    --r-lg: 16px;
-    --r-xl: 22px;
-    --r-2xl: 28px;
-    --r-pill: 999px;
+    /* Radius scale — Sui blueprint: SHARP. Minimal rounding only.
+       Everything is a crisp hairline-bordered rectangle. Status
+       glyphs are tiny squares (2px), not dots. No pills anywhere. */
+    --r-1: 0px;    /* tags, inner chips — fully square */
+    --r-2: 2px;    /* buttons, chips, icon tiles */
+    --r-3: 2px;    /* cards, panels, list rows */
+    --r-4: 3px;    /* hero, modals */
+    --r-dot: 2px;  /* square status glyphs */
+    --r-pill: 2px; /* pills retired → sharp */
+
+    /* Legacy aliases remapped onto the sharp ladder. */
+    --r-sm: 2px;
+    --r-md: 2px;
+    --r-lg: 2px;
+    --r-xl: 3px;
+    --r-2xl: 3px;
 
     /* Glass tokens — single source of truth (previously declared twice)
        Surface-bg uses the LCH-perceptual midnight + a tiny white veil for
@@ -166,11 +268,19 @@
     --gradient-deep: linear-gradient(135deg, #07080c 0%, #082d60 50%, #0060b0 100%);
 }
 
+/* Sui renders all partner / provider logos in monochrome white. We
+   grayscale every brand glyph so the page holds its single-accent
+   discipline (no provider orange/coral/green leaking in). */
+img[src*="/brands/"],
+img[src*="/protocol_logos/"] {
+    filter: grayscale(1) brightness(1.7) contrast(0.82);
+}
+
 body {
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     background:
-        radial-gradient(ellipse 80% 50% at 50% 100%, rgba(25,100,220,0.07) 0%, transparent 70%),
-        #030507;
+        radial-gradient(ellipse 92% 55% at 50% 108%, rgba(25, 144, 255, 0.16) 0%, transparent 66%),
+        #000000;
     color: var(--text-primary);
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
@@ -293,4 +403,24 @@ a:focus-visible {
 @keyframes scale-in {
     0% { opacity: 0; transform: scale(0.95); }
     100% { opacity: 1; transform: scale(1); }
+}
+
+/* ── Living-state animations ──
+   Positive / live indicators breathe so an active account feels alive
+   rather than static. All gated behind prefers-reduced-motion. */
+@keyframes liveBreathe {
+    0%, 100% { opacity: 1;   box-shadow: 0 0 6px 0 var(--positive-glow, rgba(31,227,160,0.6)); }
+    50%      { opacity: 0.7; box-shadow: 0 0 13px 1px var(--positive-glow, rgba(31,227,160,0.6)); }
+}
+@keyframes liveRing {
+    0%   { transform: scale(0.7); opacity: 0.85; }
+    70%  { transform: scale(2.1); opacity: 0; }
+    100% { transform: scale(2.1); opacity: 0; }
+}
+@keyframes ctaSheen {
+    0%   { transform: translateX(-120%); }
+    60%, 100% { transform: translateX(220%); }
+}
+@media (prefers-reduced-motion: reduce) {
+    [data-live]::after { animation: none !important; }
 }

@@ -497,3 +497,181 @@
   .card { padding: 24px 22px 18px; }
   .headline { font-size: 22px; }
 }
+
+/* ──────────────────────────────────────────────────────────────
+   ELECTRIC-BLUEPRINT OVERRIDES — PendingModal
+   Sweep the legacy soft-glass language up to the dashboard's
+   sharp-corner, mono-eyebrow, single-hue-blue direction. The
+   per-provider tints (Claude amber / Cursor white / Codex green)
+   are killed in favour of a uniform blueprint card — provider
+   identity is carried by the brand mark + text, not by colour.
+   ────────────────────────────────────────────────────────────── */
+
+.card {
+  border-radius: var(--r-4, 3px) !important;
+  background:
+    linear-gradient(180deg, rgba(25, 144, 255, 0.05) 0%, rgba(25, 144, 255, 0) 24%),
+    var(--surface-850, #161719) !important;
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10)) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 32px 100px -32px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(25, 144, 255, 0.05) !important;
+}
+
+/* Close button — square hairline chip, not a circle. */
+.close {
+  border-radius: var(--r-2, 2px) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10)) !important;
+}
+
+/* Kicker — mono uppercase "X PENDING /" eyebrow. */
+.kicker {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace !important;
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.20em !important;
+  color: var(--accent-blue-bright, #4DABFF) !important;
+}
+.kicker::after {
+  content: ' /';
+  color: var(--text-quaternary);
+  font-weight: 400;
+}
+/* The kicker dot stays round — it's an icon, breathing already. */
+
+/* Pending item — sharp blueprint tile with hover bloom. Provider
+   tints removed; every item carries the same neutral surface. */
+.item {
+  border-radius: var(--r-3, 2px) !important;
+  background: var(--surface-800, #1E1F24) !important;
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10)) !important;
+  transition:
+    border-color 240ms var(--ease-apple),
+    background 240ms var(--ease-apple),
+    box-shadow 240ms var(--ease-apple),
+    transform 240ms var(--ease-apple) !important;
+}
+.item:hover {
+  border-color: rgba(25, 144, 255, 0.42) !important;
+  background:
+    linear-gradient(180deg, rgba(25, 144, 255, 0.06) 0%, rgba(25, 144, 255, 0.01) 100%),
+    var(--surface-800, #1E1F24) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 22px 60px -28px rgba(25, 144, 255, 0.55) !important;
+  transform: translateY(-1px) !important;
+}
+/* Disable the per-provider hover variants entirely — they all
+   come back to the same blue blueprint hover. */
+.item_claude,
+.item_cursor,
+.item_openai {
+  background: var(--surface-800, #1E1F24) !important;
+  border-color: var(--hairline, rgba(255, 255, 255, 0.10)) !important;
+}
+.item_claude:hover,
+.item_cursor:hover,
+.item_openai:hover {
+  border-color: rgba(25, 144, 255, 0.42) !important;
+  background:
+    linear-gradient(180deg, rgba(25, 144, 255, 0.06) 0%, rgba(25, 144, 255, 0.01) 100%),
+    var(--surface-800, #1E1F24) !important;
+}
+
+/* Provider line — mono eyebrow weight. */
+.itemAi {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace !important;
+  font-size: 11px !important;
+  letter-spacing: 0.10em !important;
+  text-transform: uppercase !important;
+  color: var(--text-tertiary) !important;
+}
+.itemAi strong,
+.itemAiText {
+  color: var(--text-secondary) !important;
+}
+.itemAgo {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace !important;
+  font-size: 10.5px !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  color: var(--text-quaternary) !important;
+}
+
+/* Item title — serif display headline, kept calm. */
+.itemTitle {
+  font-family: 'Instrument Sans', 'DM Sans', sans-serif !important;
+  letter-spacing: -0.015em !important;
+}
+
+/* Review mandate CTA — filled blueprint primary with sheen
+   sweep on hover, matching VIEW CONTRACT + FUND ETH grammar. */
+.reviewBtn {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-2, 2px) !important;
+  background: var(--accent-blue, #1990FF) !important;
+  border: 1px solid var(--accent-blue, #1990FF) !important;
+  color: #fff !important;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.10em !important;
+  text-transform: uppercase !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 8px 22px -8px rgba(25, 144, 255, 0.55) !important;
+}
+.reviewBtn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 25%,
+    rgba(255, 255, 255, 0.30) 50%,
+    transparent 75%
+  );
+  transform: translateX(-120%);
+  pointer-events: none;
+}
+.reviewBtn:hover {
+  background: var(--accent-blue-bright, #4DABFF) !important;
+  border-color: var(--accent-blue-bright, #4DABFF) !important;
+  transform: translateY(-1px) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 14px 32px -8px rgba(25, 144, 255, 0.78) !important;
+}
+.reviewBtn:hover::after {
+  animation: ctaSheen 1100ms var(--ease-out-expo);
+}
+
+/* "Review later" footer — sharp ghost chip, mono. */
+.later {
+  border-radius: var(--r-2, 2px) !important;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase !important;
+  background: transparent !important;
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10)) !important;
+  color: var(--text-tertiary) !important;
+}
+.later:hover {
+  color: var(--text-primary) !important;
+  border-color: rgba(255, 255, 255, 0.24) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+/* Item summary — calm body copy in the secondary text color. */
+.itemSummary {
+  font-family: 'DM Sans', sans-serif !important;
+  color: var(--text-secondary) !important;
+  font-style: normal !important;
+}

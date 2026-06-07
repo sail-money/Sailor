@@ -48,8 +48,10 @@ export default function ProfileModal({
   currentSafeId,
   hasSMA = true,
   onClose,
-  onDisconnect,
   onCreateSMA,
+  onOpenSMA,
+  onDeposit,
+  onWithdraw,
   onRenameSafe,
   onSelectSafe,
 }) {
@@ -125,7 +127,7 @@ export default function ProfileModal({
           <button
             type="button"
             className={styles.disconnectPill}
-            onClick={onDisconnect ?? handleClose}
+            onClick={handleClose}
           >
             Disconnect
           </button>
@@ -145,7 +147,7 @@ export default function ProfileModal({
           {visibleSafes.length > 0 ? (
             <ul className={styles.smaList}>
               {visibleSafes.map((sma) => {
-                const isCurrent = sma.id?.toLowerCase() === currentSafeId?.toLowerCase()
+                const isCurrent = sma.id === currentSafeId
                 const isEditing = sma.id === editingId
                 return (
                 <li key={sma.id} className={`${styles.smaCard} ${isCurrent ? styles.smaCardPrimary : ''}`}>

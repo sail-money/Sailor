@@ -122,3 +122,10 @@
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.22);
 }
+
+/* ── Sharp-corner sweep — match the blueprint system. ── */
+.card { border-radius: var(--r-4, 3px) !important; }
+.iconWrap { border-radius: var(--r-2, 2px) !important; }
+.btn,
+.btnDanger,
+.btnGhost { border-radius: var(--r-2, 2px) !important; }

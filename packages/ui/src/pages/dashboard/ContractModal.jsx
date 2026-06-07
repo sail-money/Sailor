@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { GlassCard, BrandMark, ConfirmDestructiveModal } from '../shared'
 import shared from '../shared/shared.module.css'
 import styles from './ContractModal.module.css'
-import { useAccount } from 'wagmi'
-import { useSailorAccount } from '../../hooks/useSailorData'
+import { mockWallet, mockSafes, mockSafe } from './mockData'
 import {
   getNetwork,
   getToken,
@@ -56,11 +55,6 @@ export default function ContractModal({
   // preview → signing → signed (sign mode)
   // preview → revoking → revoked (revoke mode)
   // signed (view mode, immediate)
-  const { address: mockWallet } = useAccount()
-  const { account } = useSailorAccount()
-  const mockSafe = account?.safe ?? null
-  const mockSafes = account ? [{ name: 'My SMA', address: account.safe }] : []
-
   const [phase, setPhase] = useState('preview')
   const [signedAt, setSignedAt] = useState(null)
   const [rejectOpen, setRejectOpen] = useState(false)
@@ -186,46 +180,28 @@ export default function ContractModal({
           ref={docRef}
           className={`${styles.doc} ${phase === 'revoking' || phase === 'revoked' ? styles.docRevoking : ''}`}
         >
-          {/* ── Document header ── */}
+          {/* ── Document header ──
+              Just the essentials: who is asking, and what for. The AI's
+              mark + a single "requesting · acting inside" line replaces
+              the old four-cell metadata grid. */}
           <header className={styles.docHead}>
-            <span className={styles.docKicker}>Mandate</span>
+            <span className={styles.docRequester}>
+              <BrandMark name={mandate.aiName} size={20} />
+              <span>{mandate.aiName} is requesting your signature</span>
+            </span>
             <h1 className={styles.docTitle}>{mandate.title}</h1>
             <p className={styles.docLede}>
-              A bounded delegation between <strong>{truncate(mockWallet)}</strong> and the agent operating inside <strong>{sma.name}</strong>.
+              A bounded delegation to act inside <strong>{sma.name}</strong>, only within the scope and limits below.
             </p>
-            <dl className={styles.docMeta}>
-              <span className={styles.docMetaCell}>
-                <dt>Drafted by</dt>
-                <dd className={styles.docMetaWithMark}>
-                  <BrandMark name={mandate.aiName} size={14} /> {mandate.aiName}
-                </dd>
-              </span>
-              <span className={styles.docMetaCell}>
-                <dt>Requested</dt>
-                <dd>{mandate.requestedAgo ?? 'just now'}</dd>
-              </span>
-              <span className={styles.docMetaCell}>
-                <dt>Effective</dt>
-                <dd>upon signature</dd>
-              </span>
-              <span className={styles.docMetaCell}>
-                <dt>Date</dt>
-                <dd>{formatLongDate(today)}</dd>
-              </span>
-            </dl>
           </header>
 
           <Divider />
 
-          {/* ── Recitals / Summary ── */}
-          <Section roman="" title="Summary" kicker="Plain-language recital">
-            <p className={styles.docBody}>
-              The undersigned wallet (the <em>Owner</em>) hereby grants the agent identified herein a
-              <em> bounded delegation</em> to act on its behalf inside the Separately Managed
-              Account named <strong>{sma.name}</strong>, strictly within the scope, limits, and
-              permitted actions defined by this mandate.
-            </p>
-            {mandate.summary && (
+          {/* ── The ask — the plain-language recital ──
+              The single most important thing on this surface: what, in
+              the AI's own words, you are authorizing. */}
+          {mandate.summary && (
+            <Section roman="" title="What you're authorizing" kicker="In plain language">
               <blockquote className={styles.recital}>
                 <span className={styles.recitalMark} aria-hidden>“</span>
                 <p>{mandate.summary}</p>
@@ -234,34 +210,11 @@ export default function ContractModal({
                   <span>Drafted by {mandate.aiName}</span>
                 </footer>
               </blockquote>
-            )}
-          </Section>
+            </Section>
+          )}
 
-          {/* ── Article I — Parties ── */}
-          <Section roman="I" title="Parties">
-            <ul className={styles.parties}>
-              <Party
-                role="Owner"
-                desc="Externally Owned Account — sole signer"
-                address={mockWallet}
-              />
-              <Party
-                role="Safe Account"
-                desc={`Separately Managed Account · ${capitalize(sma.network)}`}
-                name={sma.name}
-                address={mockSafe}
-              />
-              <Party
-                role="Agent"
-                desc={`Delegated EOA · operated by ${mandate.aiName}`}
-                address={deriveAgentAddress(mandate)}
-                active
-              />
-            </ul>
-          </Section>
-
-          {/* ── Article II — Scope ── */}
-          <Section roman="II" title="Scope">
+          {/* ── Scope — what it can touch ── */}
+          <Section roman="" title="Scope" kicker="What it can touch">
             <div className={styles.scopeGrid}>
               <ScopeBlock label="Networks" count={mandate.networks?.length ?? 0}>
                 {(mandate.networks ?? []).map((id) => {
@@ -314,8 +267,9 @@ export default function ContractModal({
             </div>
           </Section>
 
-          {/* ── Article III — Limits ── */}
-          <Section roman="III" title="Limits">
+          {/* ── Limits — only shown when the mandate actually sets them ── */}
+          {(mandate.caps?.length > 0 || mandate.duration) && (
+          <Section roman="" title="Limits" kicker="Hard caps">
             <div className={styles.limitsGrid}>
               <LimitCell label="Spending cap" emphasis>
                 {mandate.caps?.length > 0 ? (
@@ -328,12 +282,12 @@ export default function ContractModal({
                     </span>
                   ))
                 ) : (
-                  <span className={styles.limitVal}>—</span>
+                  <span className={styles.limitVal}>No cap set</span>
                 )}
               </LimitCell>
               <LimitCell label="Time limit" emphasis>
                 <span className={styles.limitVal}>
-                  {mandate.duration ?? '—'}
+                  {mandate.duration ?? 'Until revoked'}
                   {mandate.endsAt && (
                     <span className={styles.limitSub}>ends · {formatLongDate(new Date(mandate.endsAt * 1000))}</span>
                   )}
@@ -341,9 +295,11 @@ export default function ContractModal({
               </LimitCell>
             </div>
           </Section>
+          )}
 
-          {/* ── Article IV — Permitted actions ── */}
-          <Section roman="IV" title="Permitted actions" kicker={`${mandate.actions?.length ?? mandate.allowed?.length ?? 0} authorised`}>
+          {/* ── Permitted actions — only when there are concrete ones ── */}
+          {mandate.actions?.length > 0 && (
+          <Section roman="" title="Permitted actions" kicker={`${mandate.actions.length} authorised`}>
             {mandate.actions?.length > 0 ? (
               <ol className={styles.actionList}>
                 {mandate.actions.map((a, i) => {
@@ -368,39 +324,87 @@ export default function ContractModal({
                   )
                 })}
               </ol>
-            ) : (
-              <ol className={styles.actionList}>
-                {(mandate.allowed ?? []).map((label, i) => (
-                  <li key={i} className={styles.actionItem}>
-                    <span className={styles.actionIndex}>{romanize(i + 1).toLowerCase()}</span>
-                    <div className={styles.actionBody}>
-                      <span className={styles.actionLabel}>{label}</span>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            )}
+            ) : null}
           </Section>
+          )}
 
-          {/* ── Article V — Reservation of rights ── */}
-          <Section roman="V" title="Reservation of rights">
-            <ul className={styles.rights}>
-              <li>The Owner may <strong>pause</strong> the agent at any time, halting future executions without revoking the mandate.</li>
-              <li>The Owner may <strong>revoke</strong> the mandate at any time. Revocation is permanent and immediate onchain.</li>
-              <li>The Owner retains <strong>self-custody</strong> of the Separately Managed Account at all times. Sail never holds the keys.</li>
-              <li>Any action taken outside the scope, limits, or permitted actions of this mandate is <strong>rejected onchain</strong> by Template Logic.</li>
-            </ul>
-          </Section>
+          {/* ── Protections — the four legal bullets condensed to one
+              row of trust chips. Everything an owner needs to feel safe:
+              revocable, self-custody, enforced onchain. ── */}
+          <div className={styles.protections}>
+            <span className={styles.protectionChip}>
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M13 8a5 5 0 11-1.5-3.6" /><path d="M13 3v2.4h-2.4" />
+              </svg>
+              Revocable anytime
+            </span>
+            <span className={styles.protectionChip}>
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <circle cx="6" cy="9.5" r="3" /><path d="M8 8l5.5-5.5-1.2 2.4 1.6 1L11 8" />
+              </svg>
+              You keep custody
+            </span>
+            <span className={styles.protectionChip}>
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <rect x="3.5" y="7" width="9" height="6" rx="1" /><path d="M5.5 7V5.2a2.5 2.5 0 015 0V7" />
+              </svg>
+              Bounded onchain
+            </span>
+          </div>
+
+          {/* ── Onchain — inspect the deployed code before you sign ──
+              The whole point of bounded delegation: the rules are
+              enforced by a contract you can read. We surface the
+              permission contract + the Safe so a careful signer can
+              verify the bytecode on the explorer first. ── */}
+          {(mandate.address || mandate.smaAddress) && (
+            <section className={styles.onchain} aria-label="Onchain references">
+              <span className={styles.onchainKicker}>Onchain · verify before you sign</span>
+              <ul className={styles.onchainList}>
+                {mandate.address && (
+                  <li className={styles.onchainRow}>
+                    <span className={styles.onchainLabel}>Permission contract</span>
+                    <span className={styles.onchainAddr}>{truncate(mandate.address)}</span>
+                    <a
+                      className={styles.onchainLink}
+                      href={addrExplorer(mandate.chain, mandate.address)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Read code <ArrowOutMini />
+                    </a>
+                  </li>
+                )}
+                {mandate.smaAddress && (
+                  <li className={styles.onchainRow}>
+                    <span className={styles.onchainLabel}>Safe account · SMA</span>
+                    <span className={styles.onchainAddr}>{truncate(mandate.smaAddress)}</span>
+                    <a
+                      className={styles.onchainLink}
+                      href={addrExplorer(mandate.chain, mandate.smaAddress)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      View <ArrowOutMini />
+                    </a>
+                  </li>
+                )}
+              </ul>
+            </section>
+          )}
 
           <Divider />
 
-          {/* ── Signature block ── */}
-          <section ref={sigBlockRef} className={styles.sigBlock} aria-label="Signatures">
+          {/* ── Signature block — simplified to the one signature that
+              matters: yours. The AI counter-signature stays as quiet
+              provenance. ── */}
+          <section ref={sigBlockRef} className={styles.sigBlock} aria-label="Signature">
             <header className={styles.sigHead}>
-              <span className={styles.docKicker}>Signatures</span>
-              <h2 className={styles.sigTitle}>In witness whereof</h2>
+              <span className={styles.docKicker}>Signature</span>
               <p className={styles.sigSub}>
-                Signed on {formatLongDate(today)}{phase === 'signed' && signedAt && ` at ${formatTime(signedAt)} UTC`}.
+                {phase === 'signed' && signedAt
+                  ? `Signed ${formatLongDate(today)} at ${formatTime(signedAt)} UTC.`
+                  : 'Your wallet signs this onchain. Sail never sees your keys.'}
               </p>
             </header>
 
@@ -762,4 +766,27 @@ function formatLongDate(d) {
 }
 function formatTime(d) {
   return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+}
+
+/* Block-explorer address link. Accepts the mandate's chain object
+   ({id,name,short}); falls back to Arbiscan when chain is unknown
+   (e.g. pending items that don't carry a chain). */
+function addrExplorer(chain, address) {
+  const base = {
+    42161: 'https://arbiscan.io/address/',
+    1: 'https://etherscan.io/address/',
+    8453: 'https://basescan.org/address/',
+    130: 'https://uniscan.xyz/address/',
+    84532: 'https://sepolia.basescan.org/address/',
+    10: 'https://optimistic.etherscan.io/address/',
+  }
+  return (base[chain?.id] ?? base[42161]) + address
+}
+
+function ArrowOutMini() {
+  return (
+    <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5 9 L9 5" /><path d="M5.4 5 H9 V8.6" />
+    </svg>
+  )
 }

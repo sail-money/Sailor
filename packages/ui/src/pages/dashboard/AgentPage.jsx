@@ -1,3 +1,5 @@
+'use client'
+
 import { useEffect, useMemo, useState } from 'react'
 import {
   BrandMark,
@@ -8,8 +10,16 @@ import {
 } from '../shared'
 import shared from '../shared/shared.module.css'
 import styles from './AgentPage.module.css'
-import { useSailorAccount, useSailorMandate } from '../../hooks/useSailorData'
-import { useAccount } from 'wagmi'
+import {
+  mockMandates,
+  mockSafe,
+  mockSafes,
+  mockWallet,
+  mockManagerEndpoint,
+  getParentMandate,
+  getAgentPermissionIds,
+  getAgentSchedules,
+} from './mockData'
 import ContractModal from './ContractModal'
 
 /**
@@ -17,23 +27,46 @@ import ContractModal from './ContractModal'
  *
  * Layout: title block on top, then a two-column body. The sidebar carries
  * everything that defines *who* this agent is — current health, account
- * chain (EOA → SMA → Agent wallet), schedule, networks, identity, gas,
+ * chain (EOA → SMA → Delegated signer), schedule, networks, identity, gas,
  * and the action stack (Edit / Pause / Revoke). The main column carries
  * *what* this agent does — the mandate explainer + fingerprint,
  * permissions, activity, runs, custom pages, and the original
  * recommendation.
  */
 export default function AgentPage({ agentId, onBack, onEdit, onRevoke }) {
-  const { mandate: liveMandate } = useSailorMandate()
-  const { account } = useSailorAccount()
-  const { address: mockWallet } = useAccount()
-  const mockSafe = account?.safe ?? null
-  const mockSafes = account ? [{ name: 'My SMA', address: account.safe }] : []
-
-  const mandate = liveMandate ?? null
+  const mandate = useMemo(
+    () => mockMandates.find((m) => m.id === agentId),
+    [agentId],
+  )
   const view = useMemo(() => buildAgentView(mandate), [mandate])
-  const agentPermissions = (liveMandate?.permissions ?? []).map((p) => ({ ...p, usedByThisAgent: true }))
-  const [schedules, setSchedules] = useState([])
+  // The SMA mandate this agent operates under, and the specific
+  // permissions inside it that this agent uses. The agent inherits
+  // *all* of the parent mandate's permissions, but we highlight the
+  // subset it actively exercises so the relationship is unambiguous.
+  const parentMandate = useMemo(
+    () => (mandate ? getParentMandate(mandate.id) : null),
+    [mandate],
+  )
+  const usedPermissionIds = useMemo(
+    () => (mandate ? new Set(getAgentPermissionIds(mandate.id)) : new Set()),
+    [mandate],
+  )
+  const agentPermissions = useMemo(
+    () => (parentMandate?.permissionsAllowed ?? []).map((p) => ({
+      ...p,
+      usedByThisAgent: usedPermissionIds.has(p.id),
+    })),
+    [parentMandate, usedPermissionIds],
+  )
+  // Cron schedules driving this agent's runner. Per the framework,
+  // schedules are local — flipping `enabled` doesn't touch onchain
+  // state, only the runner's firing loop.
+  const initialSchedules = useMemo(
+    () => (mandate ? getAgentSchedules(mandate.id) : []),
+    [mandate],
+  )
+  const [schedules, setSchedules] = useState(initialSchedules)
+  useEffect(() => { setSchedules(initialSchedules) }, [initialSchedules])
 
   function toggleSchedule(scheduleId) {
     setSchedules((arr) =>
@@ -215,7 +248,7 @@ export default function AgentPage({ agentId, onBack, onEdit, onRevoke }) {
                   </span>
                 </SubSection>
 
-                <SubSection title="Gas balance" kicker="Agent wallet">
+                <SubSection title="Gas balance" kicker="Delegated signer">
                   <div className={styles.gasRow}>
                     <span className={styles.gasChain}><NetIcon /> Arbitrum</span>
                     <span className={styles.gasValue}>{view.mpcWallet.gas} ETH</span>
@@ -363,7 +396,7 @@ export default function AgentPage({ agentId, onBack, onEdit, onRevoke }) {
                         {mandate.role ?? mandate.title}
                       </span>
                       <span className={styles.permRelationBody}>
-                        Operates as an agent wallet under{' '}
+                        Operates as a delegated signer under{' '}
                         <strong>{parentMandate.title}</strong>. The mandate above
                         defines the full permission set; this agent uses the
                         <strong> {usedPermissionIds.size}</strong> highlighted below.
@@ -465,7 +498,7 @@ export default function AgentPage({ agentId, onBack, onEdit, onRevoke }) {
                     <div className={styles.pageNewBody}>
                       <span className={styles.pageNewTitle}>Ask your AI to build a page</span>
                       <span className={styles.pageNewSub}>
-                        Try: “Sailor, build me a yield-history page for this agent.”
+                        Try: “Sail, build me a yield-history page for this agent.”
                       </span>
                     </div>
                   </li>
@@ -589,7 +622,7 @@ function TierCard({ tier, depth = 0, label, primary, summary, defaultOpen, child
     >
       {/* L-curve connector — same SVG language as the Ownership
           chain in the sidebar, so the page's two hierarchies
-          (Agent → Mandate → Permissions and EOA → SMA → Agent wallet)
+          (Agent → Mandate → Permissions and EOA → SMA → Delegated signer)
           read in the same visual grammar. */}
       {depth > 0 && (
         <span className={styles.tierCardConnector} aria-hidden>
@@ -796,7 +829,7 @@ function HierarchyHeader({ mandate, view }) {
         tone="identity"
         label="Agent"
         primary={view.erc8004.handle}
-        secondary="ERC-8004 onchain identity. The agent wallet your AI acts through."
+        secondary="ERC-8004 onchain identity. The delegated signer your AI acts through."
         addressLabel="Address"
         address={view.mpcWallet.address}
         active

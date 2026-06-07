@@ -15,13 +15,10 @@ const PROVIDER_OPEN_TINTS = {
   default: { bg: 'linear-gradient(180deg, #2F9CFF 0%, #1378E8 100%)', border: '#2D8EE8', text: '#FFFFFF', shadow: 'rgba(25, 144, 255, 0.5)' },
 }
 
-const PROVIDER_URLS = {
-  claude:  'claude://',
-  cursor:  'cursor://',
-  codex:   'chatgpt://',
-  default: 'claude://',
-}
-
+/* Map a mandate's `aiName` field to a provider key in the tints map.
+   Accepts the common variants ("Claude" / "Anthropic", "Cursor",
+   "Codex" / "ChatGPT" / "OpenAI"). Falls back to "default" so the
+   button still renders cleanly for unknown providers. */
 function resolveProvider(aiName) {
   const n = (aiName ?? '').toLowerCase()
   if (n === 'claude' || n === 'anthropic') return 'claude'
@@ -49,7 +46,7 @@ function ProviderOpenBtn({ provider, onClick, children }) {
   )
 }
 
-export default function AIHandoffModal({ open, variant = 'new', context = 'agent', mandate = null, onClose }) {
+export default function AIHandoffModal({ open, variant = 'new', mandate = null, onClose }) {
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
@@ -66,15 +63,9 @@ export default function AIHandoffModal({ open, variant = 'new', context = 'agent
   if (!open) return null
 
   const isRedraft = variant === 'redraft'
-  const isMandate = context === 'mandate'
-  const isStation = context === 'station'
   const prompt = isRedraft && mandate
-    ? `Sailor, redraft my "${mandate.title}" agent. I want to change [describe the change].`
-    : isMandate
-    ? `Sailor, I want to register a permission that lets my agent swap up to $100 USDC into ETH weekly on Base.`
-    : isStation
-    ? `How do I get started with Sailor? I want to set up an agent, deploy a permission contract, and start the signing station.`
-    : `Sailor, I want to register a permission that lets my agent swap up to $100 USDC into ETH weekly on Base.`
+    ? `Sail, redraft my "${mandate.title}" agent. I want to change [describe the change].`
+    : `Sail, draft an agent to deposit up to $500 of my USDC into yield strategies on Arbitrum for 30 days.`
 
   // The mandate carries the provider that drafted it ("Claude" / "Cursor"
   // / "Codex"). The hand-off button picks that one provider — the user
@@ -96,17 +87,13 @@ export default function AIHandoffModal({ open, variant = 'new', context = 'agent
         <button type="button" className={styles.close} onClick={onClose} aria-label="Close">×</button>
 
         <h2 className={`${shared.displayHeadline} ${styles.headline}`}>
-          {isRedraft ? 'Send this back to your AI.' : isMandate ? 'Mandates start with your AI.' : isStation ? 'Get started with your AI.' : 'Agents start with your AI.'}
+          {isRedraft ? 'Send this back to your AI.' : 'Agents start with your AI.'}
         </h2>
 
         <p className={`${shared.italicMannerism} ${styles.lede}`}>
           {isRedraft
             ? 'Tell your AI what to change. It will redraft the agent and a new signature request will appear here.'
-            : isMandate
-            ? 'A mandate defines the permissions your agents operate under. Your AI drafts it — you sign each permission onchain.'
-            : isStation
-            ? 'Ask your AI to walk you through setting up Sailor — from keys and mandates to running your first agent.'
-            : 'Your AI drafts the agent strategy. You review and authorize it here before it touches your funds.'}
+            : 'Sail signs what your AI drafts. Tell it what you want, and a request will appear here.'}
         </p>
 
         <div className={styles.promptBlock}>
@@ -118,16 +105,13 @@ export default function AIHandoffModal({ open, variant = 'new', context = 'agent
         </div>
 
         <div className={styles.actions}>
-          <ProviderOpenBtn
-            provider="default"
-            onClick={copyPrompt}
-          >
-            Copy prompt →
+          <ProviderOpenBtn provider={providerKey} onClick={onClose}>
+            Open in {providerName} →
           </ProviderOpenBtn>
         </div>
 
         <p className={styles.foot}>
-          Paste this into your AI coding assistant (Claude Code, Cursor, Codex, …) to get started.
+          Or run <code className={styles.kbd}>/sail</code> in any Sail-enabled AI client.
         </p>
       </GlassCard>
     </div>

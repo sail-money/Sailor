@@ -1,739 +1,172 @@
-import { useState } from 'react'
-import { ConnectButton } from '@rainbow-me/rainbowkit'
-import { getChain } from '@sail/chains'
-import { sailDeployments } from '@sail/sdk/deployments'
-import { zeroAddress } from 'viem'
-import { useAccount, usePublicClient, useSignTypedData } from 'wagmi'
-import { FluidBackground, GlassCard, Sai, RevealCalldata, SailButton } from '../shared'
-import PageHeader from '../shared/PageHeader'
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import {
+  FluidBackground,
+  GlassCard,
+  Sai,
+  RevealCalldata,
+  SailButton,
+} from '../shared'
 import shared from '../shared/shared.module.css'
 import styles from './Signing.module.css'
-import { useSailorMandateDraft } from '../../hooks/useSailorData'
+import { mockDeploy } from './mockData'
+import { useDemoState } from '../../demo/useDemoState'
+
+// Legacy login/signup URLs route to the unified 'connect' state so old
+// demo-console links keep working.
+const STATE_ALIASES = { login: 'connect', signup: 'connect' }
+const VALID_DEMO_STATES = new Set([
+  'welcome', 'connect', 'network', 'rpc', 'password', 'deploy', 'confirming',
+])
+
+/* ── Setup data (from the Sailor framework) ──
+   Supported chains are the verified SailKernel deployments bundled in
+   @sail/sdk: Base, Arbitrum, Unichain (mainnet) + Base Sepolia (testnet). */
+const NETWORKS = [
+  { id: 'base',         name: 'Base',         chainId: 8453,  kind: 'mainnet', recommended: true,
+    desc: 'Low fees, deep liquidity. The default home for a Sail SMA.' },
+  { id: 'arbitrum',     name: 'Arbitrum',     chainId: 42161, kind: 'mainnet',
+    desc: 'Mature DeFi venues, the broadest yield surface.' },
+  { id: 'unichain',     name: 'Unichain',     chainId: 130,   kind: 'mainnet',
+    desc: 'Uniswap-native L2 tuned for low-latency swaps.' },
+  { id: 'base-sepolia', name: 'Base Sepolia', chainId: 84532, kind: 'testnet',
+    desc: 'Free testnet. Rehearse the full flow with no real funds.' },
+]
+
+/* RPC providers. A keyed provider (Alchemy / Infura) builds the RPC_URL
+   from the API key; the public endpoint needs no key but is rate-limited
+   and not meant for unattended automation. */
+const RPC_PROVIDERS = [
+  { id: 'alchemy', name: 'Alchemy', tag: 'Recommended', needsKey: true,
+    desc: 'Free tier, reliable for automation. The Sailor default.',
+    keyHint: 'Paste your Alchemy API key', keyLen: 20,
+    url: 'https://dashboard.alchemy.com/apps', urlLabel: 'Open Alchemy dashboard',
+    steps: [
+      'Create a free account at alchemy.com.',
+      'Click "Create new app" and pick a network you selected (Base, Arbitrum…).',
+      'Open the app and copy the API key from the top of the page.',
+      'Paste it above. One key works across every network you chose.',
+    ] },
+  { id: 'infura',  name: 'Infura',  needsKey: true,
+    desc: 'Free tier. A solid alternative to Alchemy.',
+    keyHint: 'Paste your Infura project key', keyLen: 20,
+    url: 'https://app.infura.io/dashboard', urlLabel: 'Open Infura dashboard',
+    steps: [
+      'Sign up free at infura.io.',
+      'Open "API Keys" and click "Create new API key".',
+      'Under Endpoints, enable the networks you selected (Base, Arbitrum…).',
+      'Copy the key and paste it above.',
+    ] },
+  { id: 'public',  name: 'Public RPC', needsKey: false,
+    desc: 'No key needed. Rate-limited, not for unattended runs.' },
+]
 
 /**
- * Sign-in & onboarding flow.
+ * Sign-in & account-setup flow.
  *
- * welcome → connect → dashboard
+ *   welcome → connect → network → rpc → password → deploy → confirming → dashboard
  *
- * The SMA is no longer created in this flow. The wallet is the
- * identity; landing on the dashboard with no SMA is a first-class
- * state, and SMA creation happens later — bundled into the
- * "create your first mandate" moment, where the user can see the
- * value of the SMA before paying gas to deploy it.
- *
- * The legacy `deploy` and `confirming` states are retained so demo
- * console preset URLs keep working, but they are no longer reached
- * by the normal sign-in flow.
- */
-/**
- * Top-level router for the signing page. When a mandate draft is present
- * (written by `sailor mandate prepare`), the page becomes the mandate review +
- * MetaMask signing flow. Otherwise it shows the wallet-connect onboarding.
- * Each branch is its own component so hook order stays stable.
+ * Mirrors the Sailor setup wizard: choose the chain, point at an RPC,
+ * set a password that encrypts the agent's signing key on this device,
+ * then sign the deployment. The wallet is the identity; Sail never sees
+ * the keys.
  */
 export default function Signing() {
-  const { draft } = useSailorMandateDraft()
+  const router = useRouter()
+  const demo = useDemoState()
+  const aliased = STATE_ALIASES[demo.demo] ?? demo.demo
+  const initialState = VALID_DEMO_STATES.has(aliased) ? aliased : 'welcome'
+  const [state, setState] = useState(initialState)
+  const [progress, setProgress] = useState('idle')
 
-  if (draft) return <MandateSigningFlow draft={draft} />
-  return <NoPendingFlow />
-}
+  // Setup selections carried across steps. Networks is multi-select —
+  // Sail deploys one SMA per chain, so an operator can stand several up
+  // in a single pass.
+  const [networks, setNetworks] = useState(['base'])
+  const [provider, setProvider] = useState('alchemy')
+  const [apiKey, setApiKey] = useState('')
 
-function NoPendingFlow() {
-  return (
-    <div className={styles.shell}>
-      <FluidBackground />
-      <HeaderBar state="welcome" />
-      <main className={styles.stage}>
-        <div className={styles.stageInner}>
-          <GlassCard className={styles.welcomeCard}>
-            <div className={styles.cardSai} aria-hidden>
-              <Sai size={64} animate />
-            </div>
-            <header className={styles.cardHeader}>
-              <span className={styles.kicker}>SIGNING STATION</span>
-              <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
-                No pending signatures.
-              </h1>
-              <p className={`${shared.italicMannerism} ${styles.cardTagline}`}>
-                Run <code style={{ fontSize: 13, opacity: 0.8 }}>sailor mandate prepare</code> to queue a mandate for signing.
-              </p>
-            </header>
-            <div className={styles.welcomeCta}>
-              <SailButton fullWidth onClick={() => { window.location.hash = '#/dashboard' }}>
-                Go to dashboard
-              </SailButton>
-            </div>
-          </GlassCard>
-        </div>
-      </main>
-    </div>
-  )
-}
-
-// topic0 of AccountRegistered(address indexed account, address indexed permissionSigner, address indexed manager)
-const ACCOUNT_REGISTERED_TOPIC = '0x05f9a81a3b5e45d338f25347928e56b0aaaa0c65d4087a980c4e41370fcccfeb'
-
-// live: chainIds with a deployed SailKernel (getSailDeployment returns a result).
-// Derived from the SDK deployment registry so it can never drift from @sail/sdk.
-const LIVE_CHAIN_IDS = new Set(Object.keys(sailDeployments).map(Number))
-
-const SUPPORTED_NETWORKS = [
-  // ── Mainnets ──
-  { chainId: 8453,   name: 'Base',           group: 'mainnet', description: 'Fast, cheap Coinbase L2.', color: '#0052ff' },
-  { chainId: 42161,  name: 'Arbitrum One',   group: 'mainnet', description: 'Low-fee Ethereum L2.', color: '#28a0f0' },
-  { chainId: 1,      name: 'Ethereum',       group: 'mainnet', description: 'The original chain.', color: '#627eea' },
-  { chainId: 130,    name: 'Unichain',       group: 'mainnet', description: 'Uniswap-native L2.', color: '#ff007a' },
-  // ── Testnets ──
-  { chainId: 84532,    name: 'Base Sepolia',     group: 'testnet', description: 'Free to experiment.', color: '#0052ff' },
-  { chainId: 421614,   name: 'Arbitrum Sepolia', group: 'testnet', description: 'Arbitrum test network.', color: '#28a0f0' },
-  { chainId: 11155111, name: 'Ethereum Sepolia', group: 'testnet', description: 'Ethereum test network.', color: '#627eea' },
-  { chainId: 1301,     name: 'Unichain Sepolia', group: 'testnet', description: 'Unichain test network.', color: '#ff007a' },
-]
-
-// Steps that show progress dots (excludes welcome + done).
-const PROGRESS_STEPS = ['network', 'connect', 'keygen', 'create-sma']
-
-function OnboardingFlow({ onboardState, addingNetwork }) {
-  const { isConnected, address } = useAccount()
-  const [step, setStep] = useState(addingNetwork ? 'network' : 'welcome')
-  const [selectedChainId, setSelectedChainId] = useState(onboardState?.chainId ?? 8453)
-  const [managerAddress, setManagerAddress] = useState(onboardState?.managerAddress ?? null)
-  const [safeAddress, setSafeAddress] = useState(null)
-
-  // Resume from the right step when page refreshes with wallet still connected (first-time flow only).
-  useEffect(() => {
-    if (addingNetwork || !isConnected) return
-    if (onboardState?.hasManagerKey) setStep('create-sma')
-    else setStep('keygen')
-  }, [addingNetwork, isConnected, onboardState?.hasManagerKey])
-
-  const progressIndex = PROGRESS_STEPS.indexOf(step)
-
-  return (
-    <div className={styles.shell}>
-      <FluidBackground />
-      <HeaderBar state="welcome" />
-      <main className={styles.stage}>
-        <div key={step} className={styles.stageInner}>
-          {step === 'welcome' && (
-            <WelcomeState onStart={() => setStep('network')} />
-          )}
-          {step === 'network' && (
-            <NetworkStep
-              selected={selectedChainId}
-              onSelect={setSelectedChainId}
-              onBack={addingNetwork ? null : () => setStep('welcome')}
-              onDone={() => setStep(addingNetwork ? 'create-sma' : 'connect')}
-              progressIndex={progressIndex}
-              progressTotal={PROGRESS_STEPS.length}
-            />
-          )}
-          {step === 'connect' && (
-            <ConnectStep
-              onBack={() => setStep('network')}
-              onDone={() => setStep(onboardState?.hasManagerKey ? 'create-sma' : 'keygen')}
-              progressIndex={progressIndex}
-              progressTotal={PROGRESS_STEPS.length}
-            />
-          )}
-          {step === 'keygen' && (
-            <KeygenStep
-              existingAddress={onboardState?.managerAddress}
-              onDone={(addr) => { setManagerAddress(addr); setStep('create-sma') }}
-              progressIndex={progressIndex}
-              progressTotal={PROGRESS_STEPS.length}
-            />
-          )}
-          {step === 'create-sma' && (
-            <CreateSmaStep
-              owner={address}
-              managerAddress={managerAddress ?? onboardState?.managerAddress}
-              chainId={selectedChainId}
-              onDone={(safe) => { setSafeAddress(safe); setStep('done') }}
-              progressIndex={progressIndex}
-              progressTotal={PROGRESS_STEPS.length}
-            />
-          )}
-          {step === 'done' && (
-            <DoneStep safeAddress={safeAddress} chainId={selectedChainId} />
-          )}
-        </div>
-      </main>
-    </div>
-  )
-}
-
-/* ── Progress dots ── */
-function ProgressDots({ current, total }) {
-  return (
-    <div className={styles.progressDots}>
-      {Array.from({ length: total }, (_, i) => (
-        <span
-          key={i}
-          className={`${styles.progressDot} ${i < current ? styles.progressDotDone : i === current ? styles.progressDotActive : ''}`}
-        />
-      ))}
-    </div>
-  )
-}
-
-/* ── Network selection step ── */
-function NetworkStep({ selected, onSelect, onBack, onDone, progressIndex, progressTotal }) {
-  const mainnets = SUPPORTED_NETWORKS.filter(n => n.group === 'mainnet')
-  const testnets = SUPPORTED_NETWORKS.filter(n => n.group === 'testnet')
-  const selectedNet = SUPPORTED_NETWORKS.find(n => n.chainId === selected)
-
-  return (
-    <GlassCard className={styles.authCard}>
-      <ProgressDots current={progressIndex} total={progressTotal} />
-      <CardHeader
-        kicker="STEP 1 OF 4"
-        title="Choose your network"
-        sub="Your agent will operate on this chain. You can add more chains later."
-        onBack={onBack}
-      />
-      <div className={styles.networkSection}>
-        <span className={styles.networkGroupLabel}>Mainnet</span>
-        <div className={styles.networkGrid}>
-          {mainnets.map(net => (
-            <NetworkCard key={net.chainId} net={net} selected={selected === net.chainId} onSelect={onSelect} />
-          ))}
-        </div>
-        <span className={styles.networkGroupLabel}>Testnet</span>
-        <div className={styles.networkGrid}>
-          {testnets.map(net => (
-            <NetworkCard key={net.chainId} net={net} selected={selected === net.chainId} onSelect={onSelect} />
-          ))}
-        </div>
-      </div>
-      <SailButton fullWidth onClick={onDone} disabled={!selected}>
-        Continue with {selectedNet?.name ?? '…'} →
-      </SailButton>
-    </GlassCard>
-  )
-}
-
-function NetworkCard({ net, selected, onSelect }) {
-  const live = LIVE_CHAIN_IDS.has(net.chainId)
-  return (
-    <button
-      type="button"
-      className={`${styles.networkCard} ${selected ? styles.networkCardSelected : ''} ${!live ? styles.networkCardSoon : ''}`}
-      onClick={() => live && onSelect(net.chainId)}
-      style={{ '--net-color': live ? net.color : 'rgba(255,255,255,0.18)' }}
-      title={live ? undefined : 'Sail kernel coming soon'}
-    >
-      <span className={styles.networkDot} />
-      <span className={styles.networkName}>{net.name}</span>
-      <span className={styles.networkDesc}>{live ? net.description : 'Coming soon'}</span>
-    </button>
-  )
-}
-
-const SETUP_STAGES = [
-  {
-    group: 'In this app',
-    color: 'rgba(255,255,255,0.75)',
-    items: [
-      { n: 1, name: 'Choose your network',  detail: 'Base, Arbitrum, Ethereum, Unichain…' },
-      { n: 2, name: 'Connect your wallet',  detail: 'Becomes the owner of your Safe' },
-      { n: 3, name: 'Create agent key',     detail: 'Signs transactions on your behalf' },
-      { n: 4, name: 'Deploy your Safe',     detail: 'One-time gas payment, permanent account' },
-    ],
-  },
-  {
-    group: 'In your terminal (with AI)',
-    color: 'rgba(255,255,255,0.35)',
-    items: [
-      { n: 5, name: 'Configure RPC & API keys', detail: 'Add to .sail/.env.local' },
-      { n: 6, name: 'Fund agent key',           detail: 'Small ETH for gas' },
-      { n: 7, name: 'Set permissions',           detail: 'sailor mandate prepare → sign here' },
-      { n: 8, name: 'Start agent',               detail: 'sailor run' },
-    ],
-  },
-]
-
-/* ── Step 0: Welcome / setup overview ── */
-function WelcomeState({ onStart }) {
-  return (
-    <GlassCard className={styles.welcomeCard}>
-      <div className={styles.cardSai} aria-hidden>
-        <Sai size={64} animate />
-      </div>
-      <header className={styles.cardHeader}>
-        <span className={styles.kicker}>WELCOME TO SAIL</span>
-        <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
-          Your AI agent, on-chain.
-        </h1>
-      </header>
-
-      <div className={styles.stageList}>
-        {SETUP_STAGES.map((group) => (
-          <div key={group.group} className={styles.stageGroup}>
-            <span className={styles.stageGroupLabel}>{group.group}</span>
-            {group.items.map((item) => (
-              <div key={item.n} className={styles.stageRow}>
-                <span className={styles.stageNum} style={{ color: group.color }}>{item.n}</span>
-                <span className={styles.stageBody}>
-                  <span className={styles.stageName} style={{ color: group.color }}>{item.name}</span>
-                  <span className={styles.stageDetail}>{item.detail}</span>
-                </span>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-
-      <div className={styles.welcomeCta}>
-        <SailButton fullWidth onClick={onStart}>Start setup →</SailButton>
-      </div>
-      <p className={styles.fineprint}>Self-custody. Sail never holds your keys.</p>
-    </GlassCard>
-  )
-}
-
-/* ── Step 2: Connect wallet ── */
-function ConnectStep({ onBack, onDone, progressIndex, progressTotal }) {
-  const { isConnected, address } = useAccount()
-  const { status, send } = useSigningSocket()
+  function toggleNetwork(id) {
+    setNetworks((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    )
+  }
 
   useEffect(() => {
-    if (!isConnected || !address) return
-    if (status === 'connected') {
-      send({ type: 'wallet-connected', address })
-      onDone?.()
-    } else if (status === 'disconnected') {
-      onDone?.()
+    if (state !== 'confirming') return
+    setProgress('waiting')
+    // Success state dwells for ~2.4s after it lands — long enough for
+    // the user to read "Account deployed." and feel the moment.
+    const t1 = setTimeout(() => setProgress('confirmed'), 1700)
+    const t2 = setTimeout(() => {
+      router.push('/dashboard')
+    }, 4100)
+    return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
     }
-    // status === 'checking': wait for socket to resolve, re-runs on status change
-  }, [isConnected, address, status, send, onDone])
+  }, [state, router])
 
-  return (
-    <GlassCard className={styles.authCard}>
-      <ProgressDots current={progressIndex} total={progressTotal} />
-      <CardHeader
-        kicker="STEP 2 OF 4"
-        title="Connect your wallet"
-        sub="This wallet owns your Safe and signs mandates. It never executes trades."
-        onBack={onBack}
-      />
-      <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 8 }}>
-        <ConnectButton showBalance={false} />
-      </div>
-    </GlassCard>
-  )
-}
-
-/* ── Step 3: Create agent wallet ── */
-function KeygenStep({ existingAddress, onDone, progressIndex, progressTotal }) {
-  const [passphrase, setPassphrase] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [generated, setGenerated] = useState(existingAddress ?? null)
-  const [copied, setCopied] = useState(false)
-
-  async function generate() {
-    setLoading(true)
-    setError('')
-    try {
-      const res = await fetch('/api/onboard/generate-key', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ passphrase }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      setGenerated(data.address)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
+  function go(next) {
+    setState(next)
   }
 
-  function copy(text) {
-    navigator?.clipboard?.writeText(text)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
+  const selectedNetworks = NETWORKS.filter((n) => networks.includes(n.id))
 
   return (
-    <GlassCard className={styles.authCard}>
-      <ProgressDots current={progressIndex} total={progressTotal} />
-      <CardHeader
-        kicker="STEP 3 OF 4"
-        title="Create agent key"
-        sub="A signing key your agent uses to execute trades. It never holds custody."
-      />
-      {!generated ? (
-        <>
-          <div className={styles.passphraseRow}>
-            <label className={styles.passphraseLabel}>
-              Passphrase <span style={{ opacity: 0.5 }}>(optional)</span>
-            </label>
-            <input
-              type="password"
-              className={styles.passphraseInput}
-              placeholder="Encrypts the key on disk"
-              value={passphrase}
-              onChange={(e) => setPassphrase(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') generate() }}
-            />
-          </div>
-          {error && <p style={{ color: '#ff6b6b', fontSize: 13, margin: '8px 0' }}>{error}</p>}
-          <SailButton fullWidth onClick={generate} disabled={loading}>
-            {loading ? 'Generating…' : 'Generate key'}
-          </SailButton>
-          <p className={styles.fineprint}>
-            If set, save this passphrase — your agent needs it as <code>SAIL_PASSPHRASE</code>.
-          </p>
-        </>
-      ) : (
-        <>
-          <div className={styles.generatedKey}>
-            <span className={styles.generatedKeyLabel}>Agent address</span>
-            <button
-              type="button"
-              className={styles.generatedKeyAddr}
-              onClick={() => copy(generated)}
-              title="Copy address"
-            >
-              <code>{generated}</code>
-              <span className={styles.copyHint}>{copied ? '✓' : 'copy'}</span>
-            </button>
-          </div>
-          {passphrase && (
-            <div className={styles.passphraseReminder}>
-              <span style={{ opacity: 0.6, fontSize: 12 }}>Remember:</span>{' '}
-              <code style={{ fontSize: 12 }}>SAIL_PASSPHRASE=&quot;{passphrase}&quot;</code>
-            </div>
-          )}
-          <SailButton fullWidth onClick={() => onDone(generated)}>Continue →</SailButton>
-        </>
-      )}
-    </GlassCard>
-  )
-}
-
-/* ── Step 4: Create SMA on-chain ── */
-function CreateSmaStep({ owner, managerAddress, chainId, onDone, progressIndex, progressTotal }) {
-  const [phase, setPhase] = useState('idle') // idle | building | wallet | confirming | error
-  const [error, setError] = useState('')
-  const [txHash, setTxHash] = useState(undefined)
-  const { sendTransactionAsync } = useSendTransaction()
-  const { data: receipt } = useWaitForTransactionReceipt({ hash: txHash, confirmations: 1 })
-
-  const network = SUPPORTED_NETWORKS.find(n => n.chainId === chainId)
-
-  useEffect(() => {
-    if (!receipt) return
-    const log = receipt.logs?.find((l) => l.topics?.[0] === ACCOUNT_REGISTERED_TOPIC)
-    if (!log) { setError('AccountRegistered event not found — tx may have failed'); setPhase('error'); return }
-    const safe = getAddress(`0x${log.topics[1].slice(26)}`)
-    fetch('/api/onboard/complete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ safe, owner, manager: managerAddress, txHash: receipt.transactionHash, chainId }),
-    })
-      .then(() => onDone(safe))
-      .catch((err) => { setError(err.message); setPhase('error') })
-  }, [receipt, owner, managerAddress, chainId, onDone])
-
-  async function create() {
-    setPhase('building')
-    setError('')
-    try {
-      const buildRes = await fetch('/api/onboard/build-create-tx', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ owner, manager: managerAddress, chainId }),
-      })
-      const { to, data } = await buildRes.json()
-      if (!buildRes.ok) throw new Error(data?.error ?? 'Build failed')
-      setPhase('wallet')
-      const hash = await sendTransactionAsync({ to, data })
-      setTxHash(hash)
-      setPhase('confirming')
-    } catch (err) {
-      setError(err?.shortMessage || err?.message || 'Transaction failed')
-      setPhase('error')
-    }
-  }
-
-  const phaseLabel = {
-    idle:       'Deploy Safe',
-    building:   'Building transaction…',
-    wallet:     'Confirm in wallet…',
-    confirming: 'Waiting for confirmation…',
-    error:      'Retry',
-  }[phase] ?? 'Deploy Safe'
-
-  return (
-    <GlassCard className={styles.authCard}>
-      <ProgressDots current={progressIndex} total={progressTotal} />
-      <CardHeader
-        kicker="STEP 4 OF 4"
-        title="Deploy your Safe"
-        sub="A 1-of-1 Safe registered with SailKernel. Your wallet pays the deployment gas."
-      />
-      <div className={styles.smaDetails}>
-        <Detail label="Network" value={network?.name ?? `Chain ${chainId}`} mono={false} />
-        <Detail label="Owner" value={owner} />
-        <Detail label="Agent wallet" value={managerAddress} />
-      </div>
-      {error && <p style={{ color: '#ff6b6b', fontSize: 13, margin: '8px 0' }}>{error}</p>}
-      <SailButton
-        fullWidth
-        onClick={create}
-        disabled={phase !== 'idle' && phase !== 'error'}
-      >
-        {phaseLabel}
-      </SailButton>
-      <p className={styles.fineprint}>
-        One transaction — deploys a Safe and registers it with SailKernel. No custody transfer.
-      </p>
-    </GlassCard>
-  )
-}
-
-function Detail({ label, value, mono = true }) {
-  const display = mono && value && value.length > 20 ? `${value.slice(0, 10)}…${value.slice(-6)}` : (value || '—')
-  return (
-    <div className={styles.detailRow}>
-      <span className={styles.detailLabel}>{label}</span>
-      {mono
-        ? <code className={styles.detailValue}>{display}</code>
-        : <span className={styles.detailValue}>{display}</span>}
-    </div>
-  )
-}
-
-/* ── Step 5: Done ── */
-function DoneStep({ safeAddress, chainId }) {
-  const [copied, setCopied] = useState(false)
-  const network = SUPPORTED_NETWORKS.find(n => n.chainId === chainId)
-  const safeShort = safeAddress ? `${safeAddress.slice(0, 10)}…${safeAddress.slice(-6)}` : null
-
-  const aiPrompt = [
-    `My Sail SMA is deployed on ${network?.name ?? `chain ${chainId}`}.`,
-    safeAddress ? `Safe address: ${safeAddress}` : null,
-    '',
-    'Please help me finish the setup — steps 5–8 from the Sail onboarding:',
-    '',
-    '5. Configure RPC & API keys',
-    '   - Add RPC_URL for the network to .sail/.env.local',
-    '   - Add SAIL_API_KEY=<your key from api.sail.money>',
-    '',
-    '6. Fund agent key',
-    '   - Send a small amount of ETH to the agent address shown on the dashboard',
-    '',
-    '7. Set permissions (mandate)',
-    '   - Run: sailor mandate prepare',
-    '   - Then sign it at the Sail UI signing page',
-    '',
-    '8. Start the agent',
-    '   - Run: sailor run',
-  ].filter(l => l !== null).join('\n')
-
-  function copy() {
-    navigator?.clipboard?.writeText(aiPrompt)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1800)
-  }
-
-  return (
-    <GlassCard className={styles.welcomeCard}>
-      <div className={styles.cardSai} aria-hidden>
-        <Sai size={64} animate />
-      </div>
-      <header className={styles.cardHeader}>
-        <span className={styles.kicker}>STEPS 1–4 COMPLETE</span>
-        <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
-          Safe deployed.
-        </h1>
-        <p className={`${shared.italicMannerism} ${styles.cardTagline}`}>
-          {safeShort && <><code style={{ fontSize: 12 }}>{safeShort}</code>{' '}on {network?.name ?? `chain ${chainId}`}. </>}
-          Now continue in your terminal with AI.
-        </p>
-      </header>
-
-      <div className={styles.doneNextSteps}>
-        <span className={styles.doneNextLabel}>Remaining steps (5–8) — copy to your AI</span>
-        <pre className={styles.donePromptText}>{aiPrompt}</pre>
-        <button type="button" className={styles.doneCopyBtn} onClick={copy}>
-          {copied ? '✓ Copied' : 'Copy prompt'}
-        </button>
-      </div>
-
-      <div className={styles.welcomeCta}>
-        <SailButton fullWidth onClick={() => { window.location.hash = '#/dashboard' }}>
-          Go to dashboard
-        </SailButton>
-      </div>
-    </GlassCard>
-  )
-}
-
-/* ─────────── Mandate signing (MetaMask) ───────────
-   Driven by a .sail/mandate-draft.json written by `sailor mandate prepare`.
-   Flow: connect wallet → review permissions → sign the EIP-712
-   RegisterPermissions message with the connected wallet → POST the signature
-   to /api/mandate-submit → confirmation. No local key is ever created. */
-const SIGNER_NONCES_ABI = [
-  {
-    type: 'function',
-    name: 'signerNonces',
-    stateMutability: 'view',
-    inputs: [{ name: 'account', type: 'address' }],
-    outputs: [{ name: '', type: 'uint256' }],
-  },
-]
-
-export function MandateSigningFlow({ draft }) {
-  const { isConnected } = useAccount()
-  const { signTypedDataAsync } = useSignTypedData()
-  const publicClient = usePublicClient()
-  const [phase, setPhase] = useState('review') // review | signing | done
-  const [errorMsg, setErrorMsg] = useState('')
-
-  // The kernel address (EIP-712 verifyingContract) comes from the draft's
-  // chainId via @sail/chains. Falls back to the zero address when the chain
-  // is not yet configured, so the flow stays demoable.
-  const kernel = (() => {
-    try {
-      return getChain(draft.chainId).kernel
-    } catch {
-      return zeroAddress
-    }
-  })()
-
-  async function onSign() {
-    if (phase === 'signing') return
-    setErrorMsg('')
-    setPhase('signing')
-    try {
-      const permissions = (draft.items ?? []).map((it) => it.template)
-
-      // Read the current signer nonce from the kernel; default to 0 if the
-      // kernel is unreachable or not yet deployed.
-      let nonce = 0n
-      try {
-        if (publicClient && kernel !== zeroAddress) {
-          nonce = await publicClient.readContract({
-            address: kernel,
-            abi: SIGNER_NONCES_ABI,
-            functionName: 'signerNonces',
-            args: [draft.account],
-          })
-        }
-      } catch {
-        nonce = 0n
-      }
-
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600)
-      const signature = await signTypedDataAsync({
-        domain: {
-          name: 'SailKernel',
-          version: '1',
-          chainId: draft.chainId,
-          verifyingContract: kernel,
-        },
-        types: {
-          RegisterPermissions: [
-            { name: 'account', type: 'address' },
-            { name: 'permissions', type: 'address[]' },
-            { name: 'nonce', type: 'uint256' },
-            { name: 'deadline', type: 'uint256' },
-          ],
-        },
-        primaryType: 'RegisterPermissions',
-        message: { account: draft.account, permissions, nonce, deadline },
-      })
-
-      const res = await fetch('/api/mandate-submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signature, signedAt: new Date().toISOString() }),
-      })
-      if (!res.ok) throw new Error(`Submit failed (${res.status})`)
-
-      setPhase('done')
-    } catch (err) {
-      setErrorMsg(err?.shortMessage || err?.message || 'Signing failed')
-      setPhase('review')
-    }
-  }
-
-  return (
-    <div className={styles.shell}>
+    <div className={`${shared.pageShell} ${styles.shell}`}>
       <FluidBackground />
-      <HeaderBar state={phase === 'done' ? 'confirming' : 'review'} />
+
+      <HeaderBar onLogo={() => go('welcome')} state={state} />
 
       <main className={styles.stage}>
-        <div className={styles.stageInner}>
-          {phase === 'done' ? (
-            <MandateSignedCard draft={draft} />
-          ) : (
-            <GlassCard className={styles.authCard}>
-              <CardHeader
-                kicker="REVIEW MANDATE"
-                title="Authorize your agent"
-                sub="Sign with your wallet — Sail never holds your keys."
-              />
+        <Stepper state={state} />
 
-              {!isConnected ? (
-                <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 8 }}>
-                  <ConnectButton showBalance={false} />
-                </div>
-              ) : (
-                <>
-                  <ul
-                    style={{
-                      listStyle: 'none',
-                      padding: 0,
-                      margin: '12px 0',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 10,
-                    }}
-                  >
-                    {(draft.items ?? []).map((it, i) => (
-                      <li
-                        key={i}
-                        style={{
-                          padding: '10px 12px',
-                          borderRadius: 10,
-                          background: 'var(--glass-bg)',
-                          border: '1px solid var(--glass-border)',
-                        }}
-                      >
-                        <span
-                          style={{
-                            color: 'var(--text-secondary)',
-                            fontSize: 14,
-                            lineHeight: 1.5,
-                          }}
-                        >
-                          {it.explanation}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  {errorMsg && (
-                    <p style={{ color: '#ff6b6b', fontSize: 13, margin: '8px 0' }}>{errorMsg}</p>
-                  )}
-
-                  <SailButton fullWidth onClick={onSign} disabled={phase === 'signing'}>
-                    {phase === 'signing' ? 'Waiting for wallet…' : 'Sign mandate'}
-                  </SailButton>
-                  <p className={styles.fineprint}>
-                    Revocable on-chain at any time from your dashboard.
-                  </p>
-                </>
-              )}
-            </GlassCard>
+        <div key={state} className={styles.stageInner}>
+          {state === 'welcome' && (
+            <WelcomeState onConnect={() => go('connect')} />
           )}
+          {state === 'connect' && (
+            <ConnectState
+              onBack={() => go('welcome')}
+              onAuthed={() => go('network')}
+            />
+          )}
+          {state === 'network' && (
+            <NetworkState
+              selected={networks}
+              onToggle={toggleNetwork}
+              onBack={() => go('connect')}
+              onNext={() => go('rpc')}
+            />
+          )}
+          {state === 'rpc' && (
+            <RpcState
+              networks={selectedNetworks}
+              provider={provider}
+              apiKey={apiKey}
+              onSelectProvider={setProvider}
+              onApiKey={setApiKey}
+              onBack={() => go('network')}
+              onNext={() => go('password')}
+            />
+          )}
+          {state === 'password' && (
+            <PasswordState
+              onBack={() => go('rpc')}
+              onNext={() => go('deploy')}
+            />
+          )}
+          {state === 'deploy' && (
+            <DeployState
+              networks={selectedNetworks}
+              onBack={() => go('password')}
+              onSign={() => go('confirming')}
+            />
+          )}
+          {state === 'confirming' && <ConfirmState progress={progress} />}
         </div>
       </main>
     </div>
@@ -741,16 +174,691 @@ export function MandateSigningFlow({ draft }) {
 }
 
 /* ─────────── Header bar ─────────── */
-function HeaderBar({ state }) {
+function HeaderBar({ onLogo, state }) {
   return (
-    <PageHeader
-      eyebrow="Signing"
-      title={state === 'confirming' ? 'Signed' : 'Sail never sees your keys'}
-      backTo="#/dashboard"
-    />
+    <header className={styles.headerBar}>
+      <button
+        type="button"
+        className={styles.logoBtn}
+        onClick={onLogo}
+        aria-label="Sail home"
+      >
+        <Sai size={56} animate />
+      </button>
+      {state !== 'confirming' && (
+        <span className={styles.headerHint}>
+          Sail never sees your keys
+        </span>
+      )}
+    </header>
   )
 }
 
+/* ─────────── Stepper — the five setup phases ─────────── */
+const SIGNING_STEPS = [
+  { id: 'connect',  label: 'Connect' },
+  { id: 'network',  label: 'Network' },
+  { id: 'rpc',      label: 'RPC' },
+  { id: 'password', label: 'Secure' },
+  { id: 'deploy',   label: 'Deploy' },
+]
+
+const STEP_INDEX = {
+  connect: 0, network: 1, rpc: 2, password: 3, deploy: 4, confirming: 4,
+}
+
+function Stepper({ state }) {
+  const currentIdx = STEP_INDEX[state] ?? -1
+  if (currentIdx < 0) return null
+  const allDone = state === 'confirming'
+
+  return (
+    <nav className={styles.stepper} aria-label="Setup progress">
+      {SIGNING_STEPS.map((s, i) => {
+        const status =
+          allDone || i < currentIdx ? 'done' :
+          i === currentIdx ? 'current' : 'upcoming'
+        return (
+          <span key={s.id} className={styles.stepGroup}>
+            <span className={`${styles.step} ${styles[`step_${status}`]}`}>
+              <span className={styles.stepCircle} aria-hidden>
+                {status === 'done' ? (
+                  <svg viewBox="0 0 14 14" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 7.5l2.6 2.6L11 4" />
+                  </svg>
+                ) : (
+                  String(i + 1).padStart(2, '0')
+                )}
+              </span>
+              <span className={styles.stepLabel}>{s.label}</span>
+            </span>
+            {i < SIGNING_STEPS.length - 1 && (
+              <span
+                className={`${styles.stepLine} ${(allDone || i < currentIdx) ? styles.stepLineDone : ''}`}
+                aria-hidden
+              />
+            )}
+          </span>
+        )
+      })}
+    </nav>
+  )
+}
+
+/* ─────────── Welcome — single Connect CTA ─────────── */
+function WelcomeState({ onConnect }) {
+  return (
+    <GlassCard className={styles.welcomeCard}>
+      <div className={styles.cardSai} aria-hidden>
+        <Sai size={64} animate />
+      </div>
+
+      <header className={styles.cardHeader}>
+        <span className={styles.kicker}>WELCOME TO SAIL</span>
+        <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
+          Separately Managed Accounts.
+        </h1>
+        <p className={`${shared.italicMannerism} ${styles.cardTagline}`}>
+          Enforced by code, run by agents.
+        </p>
+      </header>
+
+      <div className={styles.welcomeCta}>
+        <SailButton fullWidth onClick={onConnect}>
+          Connect wallet
+        </SailButton>
+      </div>
+
+      <p className={styles.fineprint}>
+        Wallet connection by RainbowKit. Sail never holds your keys.
+      </p>
+    </GlassCard>
+  )
+}
+
+/* ─────────── Connect wallet — RainbowKit-style picker ───────────
+   No separate paths for new vs returning users: the wallet itself is
+   the identity. Connection is handled by RainbowKit; this is the
+   in-brand wallet picker that fronts it. */
+function ConnectState({ onBack, onAuthed }) {
+  return (
+    <GlassCard className={styles.authCard}>
+      <CardHeader
+        kicker="CONNECT A WALLET"
+        title="Choose a wallet"
+        sub="Sail is self-custody. Connect the wallet that will own your SMA."
+        onBack={onBack}
+      />
+      <WalletGrid onPick={onAuthed} />
+      <a
+        className={styles.walletHelp}
+        href="https://learn.rainbow.me/understanding-web3"
+        target="_blank"
+        rel="noreferrer"
+      >
+        <span className={styles.walletHelpIcon} aria-hidden><InfoDot /></span>
+        New to wallets? Learn what a wallet is
+        <span className={styles.walletHelpArrow} aria-hidden><ArrowRight /></span>
+      </a>
+    </GlassCard>
+  )
+}
+
+/* ─────────── Wallet grid (EOA only) ─────────── */
+const WALLETS = [
+  { id: 'metamask',      label: 'MetaMask',      tone: 'orange' },
+  { id: 'rabby',         label: 'Rabby',         tone: 'blue' },
+  { id: 'phantom',       label: 'Phantom',       tone: 'purple' },
+  { id: 'coinbase',      label: 'Coinbase',      tone: 'blue' },
+  { id: 'rainbow',       label: 'Rainbow',       tone: 'rainbow' },
+  { id: 'ledger',        label: 'Ledger',        tone: 'mono' },
+  { id: 'trust',         label: 'Trust',         tone: 'blue' },
+  { id: 'walletconnect', label: 'WalletConnect', tone: 'blue' },
+]
+
+function WalletGrid({ onPick }) {
+  return (
+    <div className={styles.walletGrid}>
+      {WALLETS.map((w) => (
+        <button
+          key={w.id}
+          type="button"
+          className={styles.walletTile}
+          onClick={() => onPick?.(w.id)}
+        >
+          <span className={`${styles.walletIcon} ${styles[`walletIcon_${w.tone}`]}`} aria-hidden>
+            <WalletGlyph id={w.id} />
+          </span>
+          <span className={styles.walletLabel}>{w.label}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * Tiny brand-evocative SVG glyphs. Wallet brand logos are tradmarked;
+ * these are abstract marks tinted in each wallet's signature color.
+ */
+function WalletGlyph({ id }) {
+  const common = { width: 22, height: 22, fill: 'none', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round' }
+  switch (id) {
+    case 'metamask':
+      return (
+        <svg viewBox="0 0 24 24" {...common}>
+          <path d="M3 5l6 5-2 4 5 1 5-1-2-4 6-5-5 1-4-2-4 2-5-1z" />
+          <circle cx="9" cy="13" r=".8" fill="currentColor" stroke="none" />
+          <circle cx="15" cy="13" r=".8" fill="currentColor" stroke="none" />
+        </svg>
+      )
+    case 'rabby':
+      return (
+        <svg viewBox="0 0 24 24" {...common}>
+          <path d="M5 13c0-4 3-7 7-7s7 3 7 7v3c0 1.1-.9 2-2 2H7a2 2 0 01-2-2v-3z" />
+          <circle cx="9.5" cy="13" r=".9" fill="currentColor" stroke="none" />
+          <circle cx="14.5" cy="13" r=".9" fill="currentColor" stroke="none" />
+          <path d="M11 17h2" />
+        </svg>
+      )
+    case 'phantom':
+      return (
+        <svg viewBox="0 0 24 24" {...common}>
+          <path d="M5 11a7 7 0 0114 0v7l-3-2-3 2-3-2-3 2-2-1.5V11z" />
+          <circle cx="10" cy="11" r=".9" fill="currentColor" stroke="none" />
+          <circle cx="15" cy="11" r=".9" fill="currentColor" stroke="none" />
+        </svg>
+      )
+    case 'coinbase':
+      return (
+        <svg viewBox="0 0 24 24" {...common}>
+          <circle cx="12" cy="12" r="8" />
+          <rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" stroke="none" />
+        </svg>
+      )
+    case 'rainbow':
+      return (
+        <svg viewBox="0 0 24 24" {...common}>
+          <path d="M3 18a9 9 0 0118 0" />
+          <path d="M6 18a6 6 0 0112 0" />
+          <path d="M9 18a3 3 0 016 0" />
+          <circle cx="12" cy="18" r=".9" fill="currentColor" stroke="none" />
+        </svg>
+      )
+    case 'ledger':
+      return (
+        <svg viewBox="0 0 24 24" {...common}>
+          <rect x="4" y="5" width="16" height="14" rx="2" />
+          <path d="M9 10v5M15 10v5M12 9v7" />
+        </svg>
+      )
+    case 'trust':
+      return (
+        <svg viewBox="0 0 24 24" {...common}>
+          <path d="M12 4l7 3v6c0 4-3 6-7 7-4-1-7-3-7-7V7l7-3z" />
+          <path d="M9 12l2 2 4-4" />
+        </svg>
+      )
+    case 'walletconnect':
+      return (
+        <svg viewBox="0 0 24 24" {...common}>
+          <path d="M5 11a9 9 0 0114 0" />
+          <path d="M8 14a5 5 0 018 0" />
+          <circle cx="12" cy="17" r=".9" fill="currentColor" stroke="none" />
+        </svg>
+      )
+    default:
+      return <svg viewBox="0 0 24 24" {...common}><circle cx="12" cy="12" r="6" /></svg>
+  }
+}
+
+/* ═══════════ Setup wizard atoms ═══════════ */
+function SetupHeader({ index, kicker, title, sub }) {
+  return (
+    <header className={styles.setupHeader}>
+      <span className={styles.setupKicker}>
+        {index && <span className={styles.setupKickerIndex}>{index}</span>}
+        {kicker}
+      </span>
+      <h1 className={`${shared.displayHeadline} ${styles.setupTitle}`}>{title}</h1>
+      {sub && <p className={styles.setupSub}>{sub}</p>}
+    </header>
+  )
+}
+
+function BackFloat({ onBack }) {
+  return (
+    <button type="button" className={styles.backBtnFloat} onClick={onBack} aria-label="Back">
+      <ChevronLeft />
+    </button>
+  )
+}
+
+function SetupFooter({ onNext, nextLabel = 'Continue', disabled, hint }) {
+  return (
+    <div className={styles.setupFooter}>
+      {hint && <p className={styles.setupHint}>{hint}</p>}
+      <SailButton fullWidth onClick={onNext} disabled={disabled}>
+        {nextLabel}
+        <ArrowRight />
+      </SailButton>
+    </div>
+  )
+}
+
+/* ─────────── Step 2 · Choose networks (multi-select) ─────────── */
+function NetworkState({ selected, onToggle, onBack, onNext }) {
+  const count = selected.length
+  return (
+    <GlassCard className={styles.setupCard}>
+      <BackFloat onBack={onBack} />
+      <SetupHeader
+        index="02 /"
+        kicker="SELECT NETWORKS"
+        title="Where will your SMAs live?"
+        sub="Sail deploys an account on every network you select. Pick one or more, and add chains later too."
+      />
+
+      <div className={styles.listLabelRow}>
+        <span className={styles.listLabel}>Commonly used</span>
+        <span className={styles.listCount}>
+          {count} selected
+        </span>
+      </div>
+      <ul className={styles.optionList}>
+        {NETWORKS.map((n) => {
+          const active = selected.includes(n.id)
+          return (
+            <li key={n.id}>
+              <button
+                type="button"
+                className={`${styles.optionRow} ${active ? styles.optionRowActive : ''}`}
+                onClick={() => onToggle(n.id)}
+                aria-pressed={active}
+              >
+                <span className={styles.optionTile} aria-hidden>
+                  <ChainGlyph id={n.id} />
+                </span>
+                <span className={styles.optionBody}>
+                  <span className={styles.optionNameRow}>
+                    <span className={styles.optionName}>{n.name}</span>
+                    {n.recommended && <span className={styles.optionTag}>Recommended</span>}
+                    {n.kind === 'testnet' && <span className={styles.optionTagMuted}>Testnet</span>}
+                  </span>
+                  <span className={styles.optionSub}>{n.desc}</span>
+                </span>
+                <span className={styles.optionMeta}>chain {n.chainId}</span>
+                <span className={styles.optionCheck} aria-hidden>
+                  <MiniCheck />
+                </span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+
+      <SetupFooter
+        onNext={onNext}
+        nextLabel={count > 1 ? `Continue with ${count} networks` : 'Continue'}
+        disabled={count === 0}
+      />
+    </GlassCard>
+  )
+}
+
+/* ─────────── Step 3 · RPC endpoint + API key ─────────── */
+function RpcState({ networks, provider, apiKey, onSelectProvider, onApiKey, onBack, onNext }) {
+  const sel = RPC_PROVIDERS.find((p) => p.id === provider)
+  const needsKey = !!sel?.needsKey
+  const keyValid = !needsKey || apiKey.trim().length >= 12
+  const netList = formatNetworkList(networks)
+  const multi = networks.length > 1
+  // The "where do I find my key" guide opens by default for keyed
+  // providers so the steps are right there, and the user can collapse
+  // it. The content swaps to whichever provider is selected.
+  const [howOpen, setHowOpen] = useState(true)
+  return (
+    <GlassCard className={styles.setupCard}>
+      <BackFloat onBack={onBack} />
+      <SetupHeader
+        index="03 /"
+        kicker="RPC ENDPOINT"
+        title="Connect to the chain"
+        sub={`Your agent reads balances and submits transactions on ${netList} through an RPC endpoint. Pick a provider and paste its key${multi ? ' — one key covers every network you chose.' : '.'}`}
+      />
+
+      <span className={styles.listLabel}>Commonly used</span>
+      <ul className={styles.optionList}>
+        {RPC_PROVIDERS.map((p) => {
+          const active = provider === p.id
+          return (
+            <li key={p.id}>
+              <button
+                type="button"
+                className={`${styles.optionRow} ${active ? styles.optionRowActive : ''}`}
+                onClick={() => onSelectProvider(p.id)}
+                aria-pressed={active}
+              >
+                <span className={styles.optionTile} aria-hidden>
+                  <RpcGlyph id={p.id} />
+                </span>
+                <span className={styles.optionBody}>
+                  <span className={styles.optionNameRow}>
+                    <span className={styles.optionName}>{p.name}</span>
+                    {p.tag && <span className={styles.optionTag}>{p.tag}</span>}
+                    {!p.needsKey && <span className={styles.optionTagMuted}>No key</span>}
+                  </span>
+                  <span className={styles.optionSub}>{p.desc}</span>
+                </span>
+                <span className={styles.optionRadio} aria-hidden />
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+
+      {needsKey && (
+        <>
+          <div className={styles.fieldBlock}>
+            <label className={styles.fieldLabel} htmlFor="rpc-key">
+              {sel.name} API key
+            </label>
+            <div className={styles.field}>
+              <span className={styles.fieldIcon} aria-hidden><KeyIcon /></span>
+              <input
+                id="rpc-key"
+                type="text"
+                className={styles.fieldInput}
+                placeholder={sel.keyHint}
+                value={apiKey}
+                spellCheck={false}
+                autoComplete="off"
+                onChange={(e) => onApiKey(e.target.value)}
+              />
+              {keyValid && apiKey && (
+                <span className={styles.fieldOk} aria-hidden><MiniCheck /></span>
+              )}
+            </div>
+            <p className={styles.fieldNote}>
+              Stored locally in <code>.sail/.env.local</code> as <code>RPC_URL</code>. Never sent to Sail.
+            </p>
+          </div>
+
+          {/* Provider-specific "how to get your key" guide. Opens by
+              default; collapsible. Swaps content per selected provider. */}
+          <div className={styles.howBlock}>
+            <button
+              type="button"
+              className={styles.howTrigger}
+              onClick={() => setHowOpen((v) => !v)}
+              aria-expanded={howOpen}
+            >
+              <span className={styles.howTriggerIcon} aria-hidden><InfoDot /></span>
+              <span className={styles.howTriggerText}>
+                Where do I find my {sel.name} key?
+              </span>
+              <span className={`${styles.howChevron} ${howOpen ? styles.howChevronOpen : ''}`} aria-hidden>
+                <ChevronDown />
+              </span>
+            </button>
+            <div className={`${styles.howPanel} ${howOpen ? styles.howPanelOpen : ''}`} aria-hidden={!howOpen}>
+              <div className={styles.howPanelInner}>
+                <ol className={styles.howSteps}>
+                  {sel.steps.map((s, i) => (
+                    <li key={i}>
+                      <span className={styles.howStepNum}>{String(i + 1).padStart(2, '0')}</span>
+                      <span className={styles.howStepText}>{s}</span>
+                    </li>
+                  ))}
+                </ol>
+                <a
+                  className={styles.howLink}
+                  href={sel.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {sel.urlLabel}
+                  <ArrowUpRight />
+                </a>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      <SetupFooter
+        onNext={onNext}
+        disabled={!keyValid}
+        hint={needsKey ? undefined : 'Public endpoints are rate-limited. Fine to start, swap in a keyed provider before automating.'}
+      />
+    </GlassCard>
+  )
+}
+
+/* ─────────── Step 4 · Set password (double-entry) ─────────── */
+function PasswordState({ onBack, onNext }) {
+  const [pw, setPw] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [show, setShow] = useState(false)
+
+  const strength = scorePassword(pw)
+  const longEnough = pw.length >= 8
+  const matches = confirm.length > 0 && pw === confirm
+  const mismatch = confirm.length > 0 && pw !== confirm
+  const valid = longEnough && matches
+
+  return (
+    <GlassCard className={styles.setupCard}>
+      <BackFloat onBack={onBack} />
+      <SetupHeader
+        index="04 /"
+        kicker="SECURE YOUR AGENT KEY"
+        title="Set a password"
+        sub="Sail generates your agent's signing key and encrypts it on this device. This password unlocks it for every run. Sail never sees it."
+      />
+
+      <div className={styles.fieldBlock}>
+        <label className={styles.fieldLabel} htmlFor="pw">Password</label>
+        <div className={styles.field}>
+          <span className={styles.fieldIcon} aria-hidden><LockIcon /></span>
+          <input
+            id="pw"
+            type={show ? 'text' : 'password'}
+            className={styles.fieldInput}
+            placeholder="At least 8 characters"
+            value={pw}
+            autoComplete="new-password"
+            onChange={(e) => setPw(e.target.value)}
+          />
+          <button
+            type="button"
+            className={styles.fieldToggle}
+            onClick={() => setShow((v) => !v)}
+            aria-label={show ? 'Hide password' : 'Show password'}
+          >
+            {show ? <EyeOff /> : <Eye />}
+          </button>
+        </div>
+
+        {pw.length > 0 && (
+          <div className={styles.strengthRow} aria-hidden>
+            <span className={styles.strengthTrack}>
+              <span
+                className={`${styles.strengthFill} ${styles[`strength_${strength.level}`]}`}
+                style={{ width: `${strength.pct}%` }}
+              />
+            </span>
+            <span className={`${styles.strengthLabel} ${styles[`strengthText_${strength.level}`]}`}>
+              {strength.label}
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div className={styles.fieldBlock}>
+        <label className={styles.fieldLabel} htmlFor="pw-confirm">Confirm password</label>
+        <div className={`${styles.field} ${mismatch ? styles.fieldError : matches ? styles.fieldValid : ''}`}>
+          <span className={styles.fieldIcon} aria-hidden><LockIcon /></span>
+          <input
+            id="pw-confirm"
+            type={show ? 'text' : 'password'}
+            className={styles.fieldInput}
+            placeholder="Re-enter your password"
+            value={confirm}
+            autoComplete="new-password"
+            onChange={(e) => setConfirm(e.target.value)}
+          />
+          {matches && <span className={styles.fieldOk} aria-hidden><MiniCheck /></span>}
+        </div>
+        {mismatch && (
+          <p className={styles.fieldErrorNote}>Passwords don&rsquo;t match yet.</p>
+        )}
+      </div>
+
+      <ul className={styles.pwHints}>
+        <li className={longEnough ? styles.pwHintOk : ''}>
+          <MiniCheck /> 8 characters or more
+        </li>
+        <li className={matches ? styles.pwHintOk : ''}>
+          <MiniCheck /> Both entries match
+        </li>
+        <li>
+          <InfoDot /> No recovery. Store it in your password manager
+        </li>
+      </ul>
+
+      <SetupFooter onNext={onNext} nextLabel="Encrypt &amp; continue" disabled={!valid} />
+    </GlassCard>
+  )
+}
+
+/* "Base", "Base and Arbitrum", "Base, Arbitrum, and Unichain" */
+function formatNetworkList(nets) {
+  const names = nets.map((n) => n.name)
+  if (names.length === 0) return 'your network'
+  if (names.length === 1) return names[0]
+  if (names.length === 2) return `${names[0]} and ${names[1]}`
+  return `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`
+}
+
+function scorePassword(pw) {
+  if (!pw) return { level: 'weak', pct: 0, label: '' }
+  let score = 0
+  if (pw.length >= 8) score++
+  if (pw.length >= 12) score++
+  if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++
+  if (/\d/.test(pw)) score++
+  if (/[^A-Za-z0-9]/.test(pw)) score++
+  if (score <= 1) return { level: 'weak', pct: 28, label: 'Weak' }
+  if (score <= 3) return { level: 'fair', pct: 64, label: 'Fair' }
+  return { level: 'strong', pct: 100, label: 'Strong' }
+}
+
+/* ─────────── Deploy review ─────────── */
+function DeployState({ onSign, onBack, networks }) {
+  const nets = networks?.length ? networks : [{ id: 'base', name: mockDeploy.network }]
+  const multi = nets.length > 1
+  return (
+    <GlassCard className={styles.deployCard}>
+      <button
+        type="button"
+        className={styles.backBtnFloat}
+        onClick={onBack}
+        aria-label="Back"
+      >
+        <ChevronLeft />
+      </button>
+
+      <div className={styles.deploySai} aria-hidden>
+        <span className={styles.deploySaiHalo} />
+        <Sai size={52} animate />
+      </div>
+
+      <header className={styles.deployHeader}>
+        <span className={styles.kicker}>{multi ? 'DEPLOY YOUR ACCOUNTS' : 'DEPLOY YOUR ACCOUNT'}</span>
+        <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
+          {multi ? `Sign to create ${nets.length} SMAs` : 'Sign to create your SMA'}
+        </h1>
+        <p className={styles.cardSub}>
+          {multi
+            ? <>One signature per network creates your self-custody accounts.<br />No AI has access yet.</>
+            : <>One signature creates a self-custody smart account.<br />No AI has access yet.</>}
+        </p>
+      </header>
+
+      <span className={styles.softDivider} aria-hidden />
+
+      <ul className={styles.deployPoints}>
+        <li style={{ '--i': 0 }}>
+          <Check />
+          <div>
+            <span className={styles.pointTitle}>You own this account</span>
+            <span className={styles.pointSub}>Not Sail. Not the AI. Only you.</span>
+          </div>
+        </li>
+        <li style={{ '--i': 1 }}>
+          <Check />
+          <div>
+            <span className={styles.pointTitle}>Bounded delegation</span>
+            <span className={styles.pointSub}>You set every constraint onchain.</span>
+          </div>
+        </li>
+        <li style={{ '--i': 2 }}>
+          <Check />
+          <div>
+            <span className={styles.pointTitle}>Revoke instantly</span>
+            <span className={styles.pointSub}>One-tap revocation, always.</span>
+          </div>
+        </li>
+      </ul>
+
+      <div className={styles.txPanel}>
+        <header className={styles.txPanelHeader}>
+          <span className={styles.txPanelKicker}>What you are signing</span>
+          <span className={styles.txPanelBadge}>
+            {multi ? `${nets.length} networks` : nets[0].name}
+          </span>
+        </header>
+        <dl className={styles.txDetails}>
+          <Row k="Transaction" v={multi ? `Safe deployment ×${nets.length}` : mockDeploy.type} />
+          <div className={styles.txRow}>
+            <dt>{multi ? 'Networks' : 'Network'}</dt>
+            <dd>
+              <span className={styles.txNetChips}>
+                {nets.map((n) => (
+                  <span key={n.id} className={styles.txNetChip}>{n.name}</span>
+                ))}
+              </span>
+            </dd>
+          </div>
+          <Row k="Gas estimate" v={mockDeploy.gasEstimate} accent />
+        </dl>
+        <div className={styles.txPanelFooter}>
+          <RevealCalldata
+            calldata={mockDeploy.calldata}
+            label="View calldata"
+            caption="The exact deployment payload."
+          />
+        </div>
+      </div>
+
+      <SailButton fullWidth onClick={onSign}>
+        Sign &amp; deploy
+      </SailButton>
+      <p className={styles.fineprint}>
+        Gas is paid from your connected wallet. You can revoke this account at any time.
+      </p>
+    </GlassCard>
+  )
+}
+
+function Row({ k, v, accent }) {
+  return (
+    <div className={styles.txRow}>
+      <dt>{k}</dt>
+      <dd className={accent ? styles.gas : ''}>{v}</dd>
+    </div>
+  )
+}
 
 /* ─────────── Confirming ─────────── */
 function ConfirmState({ progress }) {
@@ -881,6 +989,102 @@ function KeyIcon() {
   )
 }
 
+/* Monoline chain marks — abstract, brand-evocative, rendered white on
+   the blueprint tile (no provider colours leak in). */
+function ChainGlyph({ id }) {
+  const c = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true }
+  switch (id) {
+    case 'base':
+      return <svg {...c}><circle cx="12" cy="12" r="8.2" /><path d="M12 6.5a5.5 5.5 0 100 11" /></svg>
+    case 'arbitrum':
+      return <svg {...c}><path d="M12 3.4l7.4 4.3v8.6L12 20.6l-7.4-4.3V7.7z" /><path d="M9 16l3-7 3 7M10 13.4h4" /></svg>
+    case 'unichain':
+      return <svg {...c}><circle cx="12" cy="12" r="8.2" /><path d="M12 5.5v8a3 3 0 003 3M12 18.5v-8a3 3 0 00-3-3" /></svg>
+    case 'base-sepolia':
+      return <svg {...c}><circle cx="12" cy="12" r="8.2" strokeDasharray="2.6 2.6" /><path d="M9 12l2 2 4-4.5" /></svg>
+    default:
+      return <svg {...c}><circle cx="12" cy="12" r="8" /></svg>
+  }
+}
+
+/* Monoline RPC-provider marks. */
+function RpcGlyph({ id }) {
+  const c = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true }
+  switch (id) {
+    case 'alchemy':
+      return <svg {...c}><path d="M12 3.5l7 4v9l-7 4-7-4v-9z" /><path d="M12 8.5l3.4 2v3l-3.4 2-3.4-2v-3z" /></svg>
+    case 'infura':
+      return <svg {...c}><circle cx="12" cy="6.5" r="2" /><circle cx="6.5" cy="16" r="2" /><circle cx="17.5" cy="16" r="2" /><path d="M11 8.2l-3.6 6M13 8.2l3.6 6M8.5 16h7" /></svg>
+    case 'public':
+      return <svg {...c}><circle cx="12" cy="12" r="8.2" /><path d="M3.8 12h16.4M12 3.8c2.4 2.2 3.6 5 3.6 8.2s-1.2 6-3.6 8.2c-2.4-2.2-3.6-5-3.6-8.2S9.6 6 12 3.8z" /></svg>
+    default:
+      return <svg {...c}><circle cx="12" cy="12" r="8" /></svg>
+  }
+}
+
+function LockIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="5" y="11" width="14" height="9" rx="2" />
+      <path d="M8 11V8a4 4 0 018 0v3" />
+      <circle cx="12" cy="15.5" r="1.1" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+function Eye() {
+  return (
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+      <circle cx="12" cy="12" r="2.6" />
+    </svg>
+  )
+}
+
+function EyeOff() {
+  return (
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M4 4l16 16" />
+      <path d="M9.8 5.8A9.3 9.3 0 0112 5.5c6 0 9.5 6.5 9.5 6.5a16 16 0 01-2.6 3.3M6.6 7.6A16 16 0 002.5 12S6 18.5 12 18.5a9 9 0 003.2-.6" />
+      <path d="M9.9 9.9a2.6 2.6 0 003.6 3.6" />
+    </svg>
+  )
+}
+
+function MiniCheck() {
+  return (
+    <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 7.5l2.6 2.6L11 4" />
+    </svg>
+  )
+}
+
+function InfoDot() {
+  return (
+    <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="7" cy="7" r="5.4" />
+      <path d="M7 6.4v3.2M7 4.5v.1" />
+    </svg>
+  )
+}
+
+function ChevronDown() {
+  return (
+    <svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3.5 5l3.5 3.5L10.5 5" />
+    </svg>
+  )
+}
+
+function ArrowUpRight() {
+  return (
+    <svg viewBox="0 0 14 14" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5 9 L9 5" />
+      <path d="M5.4 5 H9 V8.6" />
+    </svg>
+  )
+}
+
 function SparkleIcon() {
   return (
     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -894,51 +1098,6 @@ function ArrowRight() {
     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M5 12h14M13 6l6 6-6 6" />
     </svg>
-  )
-}
-
-/* ── Mandate signed: contextual done state ── */
-function MandateSignedCard({ draft }) {
-  const [copied, setCopied] = useState(false)
-  const permCount = (draft?.items ?? []).length
-  const safeShort = draft?.account ? `${draft.account.slice(0, 10)}…${draft.account.slice(-6)}` : null
-  const prompt = `My mandate is signed on Safe ${draft?.account ?? 'my Safe'}. ${permCount} permission${permCount === 1 ? '' : 's'} registered. Now deploy and start the agent — use SAIL_PASSPHRASE from my config and run sailor run.`
-
-  function copy() {
-    navigator?.clipboard?.writeText(prompt)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
-
-  return (
-    <GlassCard className={styles.welcomeCard}>
-      <div className={styles.cardSai} aria-hidden>
-        <Sai size={64} animate />
-      </div>
-      <header className={styles.cardHeader}>
-        <span className={styles.kicker}>MANDATE SIGNED</span>
-        <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
-          Permissions registered.
-        </h1>
-        <p className={`${shared.italicMannerism} ${styles.cardTagline}`}>
-          {permCount} permission{permCount === 1 ? '' : 's'} authorized
-          {safeShort ? ` on ${safeShort}` : ''}.
-          Tell your AI to start the agent.
-        </p>
-      </header>
-      <div className={styles.mandateSignedPrompt}>
-        <span className={styles.mandateSignedPromptLabel}>Copy prompt for your AI</span>
-        <p className={styles.mandateSignedPromptText}>"{prompt}"</p>
-        <button type="button" className={styles.mandateSignedCopyBtn} onClick={copy}>
-          {copied ? '✓ Copied' : 'Copy'}
-        </button>
-      </div>
-      <div className={styles.welcomeCta}>
-        <SailButton fullWidth onClick={() => { window.location.hash = '#/dashboard' }}>
-          Go to dashboard
-        </SailButton>
-      </div>
-    </GlassCard>
   )
 }
 

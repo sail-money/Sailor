@@ -4,13 +4,11 @@
 
 .shell {
   position: relative;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  align-items: center;
+  justify-content: flex-start;
   padding: 0;
-  background: var(--ocean-dark);
-  color: var(--text-primary);
+  background: transparent;
+  min-height: 100vh;
   overflow: hidden;
 }
 
@@ -84,12 +82,13 @@
 .stepper {
   display: inline-flex;
   align-items: center;
-  padding: 8px 16px;
-  background: rgba(8, 14, 28, 0.60);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 999px;
-  backdrop-filter: blur(22px) saturate(140%);
-  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  padding: 9px 16px;
+  background: var(--surface-850, #161719);
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10));
+  border-radius: var(--r-3, 2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 18px 50px -28px rgba(0, 0, 0, 0.7);
   flex-shrink: 0;
 }
 
@@ -101,19 +100,20 @@
 .step {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
+  gap: var(--s2, 8px);
 }
 
+/* Square blueprint marker — mono index, not a round bubble. */
 .stepCircle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 12px;
-  font-weight: 600;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-2, 2px);
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 700;
   letter-spacing: 0;
   transition: background 240ms var(--ease-out-expo),
               color 240ms var(--ease-out-expo),
@@ -122,9 +122,9 @@
 }
 
 .step_upcoming .stepCircle {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-quaternary, rgba(255, 255, 255, 0.4));
   background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.12));
 }
 
 .step_current .stepCircle {
@@ -132,36 +132,43 @@
   background: var(--accent-blue);
   border: 1px solid var(--accent-blue);
   box-shadow:
-    0 0 0 3px rgba(25, 144, 255, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 0 0 3px rgba(25, 144, 255, 0.14),
     0 0 14px rgba(25, 144, 255, 0.5);
 }
 
+/* Done stays in the blue family (single-hue rule) — a filled blue
+   square with a check, no green. */
 .step_done .stepCircle {
   color: #fff;
-  background: #22c55e;
-  border: 1px solid #22c55e;
+  background: rgba(25, 144, 255, 0.22);
+  border: 1px solid rgba(25, 144, 255, 0.5);
 }
 
 .stepLabel {
-  font-family: 'DM Sans', sans-serif;
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: -0.005em;
-  color: #fff;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
   white-space: nowrap;
-  padding-right: 4px;
+  padding-right: var(--s1, 4px);
+  transition: color 240ms var(--ease-out-expo);
 }
+.step_current .stepLabel { color: #fff; }
+.step_done .stepLabel { color: var(--text-secondary); }
 
 .stepLine {
   display: inline-block;
-  width: 28px;
-  height: 1.5px;
+  width: 24px;
+  height: 1px;
   background: rgba(255, 255, 255, 0.10);
-  margin: 0 8px;
+  margin: 0 var(--s2, 8px);
   transition: background 240ms;
 }
 .stepLineDone {
-  background: rgba(34, 197, 94, 0.55);
+  background: rgba(25, 144, 255, 0.5);
 }
 
 /* ──────────────────────────────────────────
@@ -865,332 +872,702 @@
   .pulse, .cardSaiHalo, .stageInner { animation: none; }
 }
 
-/* ── Station-style header ── */
-.header {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 32px;
-  border-bottom: 1px solid var(--glass-border);
-  background: rgba(3, 5, 10, 0.5);
-  backdrop-filter: blur(32px) saturate(160%);
-  -webkit-backdrop-filter: blur(32px) saturate(160%);
+/* ──────────────────────────────────────────────────────────────
+   ELECTRIC-BLUEPRINT OVERRIDES — Signing
+   The welcome surface must be the calmest screen in the product
+   (the user is authorizing AI to manage money), but it should
+   carry the same single-hue blueprint language as the dashboard:
+   sharp corners, blueprint corner brackets, mono kicker,
+   no soft pills.
+   ────────────────────────────────────────────────────────────── */
+.welcomeCard,
+.authCard,
+.deployCard,
+.confirmCard {
+  border-radius: var(--r-4, 3px) !important;
+  background:
+    linear-gradient(180deg, rgba(25, 144, 255, 0.045) 0%, rgba(25, 144, 255, 0) 30%),
+    var(--surface-850, #161719) !important;
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10)) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 32px 100px -32px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(25, 144, 255, 0.04) !important;
 }
-@media (max-width: 720px) { .header { padding: 12px 16px; } }
+/* Blueprint corner brackets, same signature as the dashboard SMA hero. */
+.welcomeCard,
+.deployCard,
+.confirmCard {
+  position: relative;
+}
+.welcomeCard::before,
+.deployCard::before,
+.confirmCard::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 18px;
+  height: 18px;
+  border-top: 1.5px solid var(--accent-blue, #1990FF);
+  border-left: 1.5px solid var(--accent-blue, #1990FF);
+  pointer-events: none;
+}
+.welcomeCard::after,
+.deployCard::after,
+.confirmCard::after {
+  content: '';
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  width: 18px;
+  height: 18px;
+  border-bottom: 1.5px solid var(--accent-blue, #1990FF);
+  border-right: 1.5px solid var(--accent-blue, #1990FF);
+  pointer-events: none;
+}
 
-.headerLeft {
+/* Mono kicker — same WELCOME TO SAIL / treatment as the dashboard. */
+.kicker {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.24em !important;
+  color: var(--accent-blue-bright, #4DABFF) !important;
+}
+
+/* Any pill button (border-radius: 999) in the signing surface
+   becomes a sharp blueprint button. CSS Modules requires every
+   selector to carry a local class, so we list them explicitly. */
+.primaryBtn,
+.connectBtn,
+.secondaryBtn,
+.backBtn,
+.cardCta,
+.ctaButton {
+  border-radius: var(--r-2, 2px) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   SETUP WIZARD — network · rpc · password
+   Electric-blueprint surfaces: sharp corners, corner brackets,
+   mono field labels, "commonly used" list rows modelled on the
+   Sui mega-menu, single Sail-blue accent on the selected option.
+   ══════════════════════════════════════════════════════════════ */
+.setupCard {
+  position: relative;
   display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 540px;
+  padding: var(--s8, 40px) var(--s8, 40px) var(--s6, 24px);
+  border-radius: var(--r-4, 3px);
+  background:
+    linear-gradient(180deg, rgba(25, 144, 255, 0.05) 0%, rgba(25, 144, 255, 0) 26%),
+    var(--surface-850, #161719);
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 32px 100px -32px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(25, 144, 255, 0.04);
+}
+/* Blueprint corner brackets — the spec-sheet frame signature. */
+.setupCard::before,
+.setupCard::after {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+}
+.setupCard::before {
+  top: 12px; left: 12px;
+  border-top: 1.5px solid var(--accent-blue, #1990FF);
+  border-left: 1.5px solid var(--accent-blue, #1990FF);
+}
+.setupCard::after {
+  bottom: 12px; right: 12px;
+  border-bottom: 1.5px solid var(--accent-blue, #1990FF);
+  border-right: 1.5px solid var(--accent-blue, #1990FF);
+}
+@media (max-width: 560px) {
+  .setupCard { padding: var(--s7, 32px) var(--s5, 20px) var(--s5, 20px); }
+}
+
+/* ── Header ── */
+.setupHeader {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2, 8px);
+  margin-bottom: var(--s6, 24px);
+}
+.setupKicker {
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--s2, 8px);
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: var(--t-micro, 10.5px);
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.setupKickerIndex {
+  color: var(--accent-blue, #1990FF);
+  font-weight: 700;
+}
+.setupTitle {
+  margin: 0;
+  font-family: 'Instrument Sans', 'DM Sans', sans-serif;
+  font-size: var(--t-xl, 28px);
+  font-weight: 600;
+  letter-spacing: -0.028em;
+  line-height: 1.06;
+  color: var(--text-primary);
+  text-wrap: balance;
+}
+.setupSub {
+  margin: var(--s1, 4px) 0 0;
+  font-family: 'DM Sans', sans-serif;
+  font-size: var(--t-sm, 13.5px);
+  line-height: 1.55;
+  color: var(--text-secondary);
+  max-width: 46ch;
+  text-wrap: pretty;
+}
+
+/* ── "Commonly used" list label ── */
+.listLabel {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: var(--t-micro, 10.5px);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  padding-bottom: var(--s3, 12px);
+  border-bottom: 1px dotted rgba(255, 255, 255, 0.16);
+}
+/* Label row with selected-count (multi-select networks). */
+.listLabelRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s2, 8px);
+  padding-bottom: var(--s3, 12px);
+  border-bottom: 1px dotted rgba(255, 255, 255, 0.16);
+}
+.listLabelRow .listLabel {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+.listCount {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: var(--t-micro, 10.5px);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-blue-bright, #4DABFF);
+}
+
+/* ── Option list (networks, providers) ── */
+.optionList {
+  list-style: none;
+  margin: 0 0 var(--s5, 20px);
+  padding: var(--s2, 8px) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2, 8px);
+}
+.optionRow {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: var(--s3, 12px);
+  width: 100%;
+  padding: var(--s3, 12px) var(--s4, 16px);
+  text-align: left;
+  cursor: pointer;
+  background: var(--surface-800, #1E1F24);
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10));
+  border-radius: var(--r-3, 2px);
+  transition:
+    border-color 200ms var(--ease-apple),
+    background 200ms var(--ease-apple),
+    transform 200ms var(--ease-apple),
+    box-shadow 200ms var(--ease-apple);
+}
+.optionRow:hover {
+  border-color: rgba(25, 144, 255, 0.34);
+  transform: translateY(-1px);
+}
+.optionRowActive,
+.optionRowActive:hover {
+  border-color: rgba(25, 144, 255, 0.55);
+  background:
+    linear-gradient(180deg, rgba(25, 144, 255, 0.08) 0%, rgba(25, 144, 255, 0.02) 100%),
+    var(--surface-800, #1E1F24);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 18px 48px -28px rgba(25, 144, 255, 0.55);
+}
+/* Icon tile — sharp blue blueprint square, monoline glyph. */
+.optionTile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10));
+  border-radius: var(--r-2, 2px);
+  transition: color 200ms var(--ease-apple), background 200ms var(--ease-apple), border-color 200ms var(--ease-apple);
+}
+.optionRowActive .optionTile {
+  color: #fff;
+  background: var(--accent-blue, #1990FF);
+  border-color: rgba(25, 144, 255, 0.5);
+}
+.optionBody {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   min-width: 0;
 }
-
-.brand {
-  flex-shrink: 0;
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  opacity: 0.9;
-  transition: opacity 200ms;
-}
-.brand:hover { opacity: 1; }
-
-.headerTitle {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.topActionsPill {
-  position: relative;
-  z-index: 1;
+.optionNameRow {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 10px 6px 6px;
-  border-radius: 999px;
-  background:
-    radial-gradient(ellipse 90% 120% at 50% -20%, rgba(255,255,255,0.07) 0%, transparent 60%),
-    linear-gradient(165deg, rgba(255,255,255,0.045) 0%, rgba(255,255,255,0.018) 100%);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  box-shadow:
-    inset 0 0 0 1px rgba(255,255,255,0.06),
-    inset 0 1px 0 rgba(255,255,255,0.10),
-    0 2px 10px rgba(0,0,0,0.16);
+  gap: var(--s2, 8px);
+  flex-wrap: wrap;
 }
-
-.backBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  color: rgba(255,255,255,0.5);
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 50%;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: color 200ms, background 200ms, transform 200ms;
-}
-.backBtn:hover { color: #fff; background: rgba(255,255,255,0.08); transform: translateY(-1px); }
-
-/* ── Welcome stage list ──────────────────────────────────────────────────── */
-.stageList { display: flex; flex-direction: column; gap: 14px; margin: 12px 0 18px; }
-.stageGroup { display: flex; flex-direction: column; gap: 6px; }
-.stageGroupLabel {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.28);
-  padding-bottom: 2px;
-}
-.stageRow { display: flex; align-items: flex-start; gap: 10px; }
-.stageNum {
-  font-size: 11px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  width: 16px;
-  flex-shrink: 0;
-  padding-top: 1px;
-  text-align: right;
-}
-.stageBody { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
-.stageName { font-size: 13px; font-weight: 500; line-height: 1.3; }
-.stageDetail { font-size: 11px; color: rgba(255,255,255,0.3); line-height: 1.4; }
-
-/* ── Done step — AI prompt ───────────────────────────────────────────────── */
-.doneNextSteps {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.07);
-  margin-bottom: 14px;
-}
-.doneNextLabel {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.10em;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.3);
-}
-.donePromptText {
-  font-size: 11px;
-  color: rgba(255,255,255,0.55);
-  line-height: 1.6;
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-family: 'SF Mono', 'Fira Code', monospace;
-  max-height: 180px;
-  overflow-y: auto;
-}
-.doneCopyBtn {
-  align-self: flex-start;
-  font-size: 11px;
+.optionName {
+  font-family: 'DM Sans', sans-serif;
+  font-size: var(--t-base, 15px);
   font-weight: 600;
-  color: rgba(255,255,255,0.45);
-  background: none;
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 5px;
-  padding: 3px 10px;
-  cursor: pointer;
-  transition: color 150ms, border-color 150ms;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
 }
-.doneCopyBtn:hover { color: rgba(255,255,255,0.75); border-color: rgba(255,255,255,0.22); }
-
-/* ── Add network button ──────────────────────────────────────────────────── */
-.addNetworkBtn {
-  width: 100%;
-  margin-top: 8px;
-  padding: 8px;
-  border: none;
-  background: none;
-  color: rgba(255,255,255,0.35);
-  font-size: 13px;
-  cursor: pointer;
-  transition: color 150ms;
-}
-.addNetworkBtn:hover { color: rgba(255,255,255,0.65); }
-
-/* ── Progress dots ───────────────────────────────────────────────────────── */
-.progressDots {
-  display: flex;
-  gap: 6px;
-  justify-content: center;
-  margin-bottom: 18px;
-}
-.progressDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.12);
-  transition: background 300ms, transform 200ms;
-}
-.progressDotDone { background: rgba(255,255,255,0.35); }
-.progressDotActive { background: rgba(255,255,255,0.75); transform: scale(1.3); }
-
-/* ── Network selection ───────────────────────────────────────────────────── */
-.networkSection { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
-.networkGroupLabel {
-  font-size: 10px;
+.optionTag {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.3);
-  padding: 4px 2px 2px;
-}
-.networkGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-.networkCard {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.03);
-  border: 1.5px solid rgba(255,255,255,0.07);
-  cursor: pointer;
-  text-align: left;
-  transition: border-color 150ms, background 150ms;
-}
-.networkCard:hover:not(.networkCardSoon) { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.14); }
-.networkCardSelected { background: rgba(255,255,255,0.06); border-color: var(--net-color, rgba(255,255,255,0.4)); }
-.networkCardSoon { opacity: 0.4; cursor: not-allowed; }
-.networkDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--net-color, rgba(255,255,255,0.4));
-  flex-shrink: 0;
-  margin-bottom: 2px;
-}
-.networkName { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.85); line-height: 1.3; }
-.networkDesc { font-size: 11px; color: rgba(255,255,255,0.35); line-height: 1.4; }
-
-/* ── Onboarding wizard ───────────────────────────────────────────────────── */
-.passphraseRow { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-.passphraseLabel { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; color: rgba(255,255,255,0.5); }
-.passphraseInput {
-  width: 100%;
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.10);
   color: #fff;
-  font-size: 14px;
-  outline: none;
-  box-sizing: border-box;
-  transition: border-color 150ms;
+  background: var(--accent-blue, #1990FF);
+  border-radius: var(--r-1, 0);
+  padding: 2px 6px;
 }
-.passphraseInput:focus { border-color: rgba(255,255,255,0.25); }
-.passphraseInput::placeholder { color: rgba(255,255,255,0.25); }
+.optionTagMuted {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-1, 0);
+  padding: 1px 5px;
+}
+.optionSub {
+  font-family: 'DM Sans', sans-serif;
+  font-size: var(--t-xs, 12.5px);
+  line-height: 1.45;
+  color: var(--text-tertiary);
+}
+.optionMeta {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: var(--t-micro, 10.5px);
+  letter-spacing: 0.04em;
+  color: var(--text-quaternary);
+  white-space: nowrap;
+}
+/* Square radio — the selection target, fills blue with a dot when on. */
+.optionRadio {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--r-2, 2px);
+  transition: border-color 200ms var(--ease-apple), background 200ms var(--ease-apple);
+}
+.optionRowActive .optionRadio {
+  border-color: var(--accent-blue, #1990FF);
+  background: var(--accent-blue, #1990FF);
+}
+.optionRowActive .optionRadio::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  background: #fff;
+  border-radius: 1px;
+}
+/* Square checkbox — the multi-select target. Empty until selected,
+   then fills blue with a check. Distinct affordance from the radio
+   so "pick several" reads correctly. */
+.optionCheck {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: #fff;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--r-2, 2px);
+  transition: border-color 200ms var(--ease-apple), background 200ms var(--ease-apple);
+}
+.optionCheck svg {
+  opacity: 0;
+  transition: opacity 160ms var(--ease-apple);
+}
+.optionRow:hover .optionCheck { border-color: rgba(25, 144, 255, 0.5); }
+.optionRowActive .optionCheck {
+  background: var(--accent-blue, #1990FF);
+  border-color: var(--accent-blue, #1990FF);
+}
+.optionRowActive .optionCheck svg { opacity: 1; }
+@media (max-width: 560px) {
+  .optionRow { grid-template-columns: auto 1fr auto; }
+  .optionMeta { display: none; }
+}
 
-.generatedKey {
+/* ── Field block (API key, password) ── */
+.fieldBlock {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.10);
-  margin-bottom: 14px;
+  gap: var(--s2, 8px);
+  margin-bottom: var(--s4, 16px);
 }
-.generatedKeyLabel { font-size: 11px; letter-spacing: 0.10em; text-transform: uppercase; color: rgba(255,255,255,0.4); }
-.generatedKeyAddr {
+.fieldLabel {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: var(--t-micro, 10.5px);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.field {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: var(--s2, 8px);
+  height: 48px;
+  padding: 0 var(--s3, 12px);
+  background: var(--surface-800, #1E1F24);
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.12));
+  border-radius: var(--r-3, 2px);
+  transition: border-color 180ms var(--ease-apple), box-shadow 180ms var(--ease-apple);
+}
+.field:focus-within {
+  border-color: rgba(25, 144, 255, 0.6);
+  box-shadow: 0 0 0 3px rgba(25, 144, 255, 0.12);
+}
+.fieldValid { border-color: rgba(25, 144, 255, 0.42); }
+.fieldError,
+.fieldError:focus-within {
+  border-color: rgba(255, 92, 108, 0.55);
+  box-shadow: 0 0 0 3px rgba(255, 92, 108, 0.10);
+}
+.fieldIcon {
+  display: inline-flex;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+.fieldInput {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
   background: none;
   border: none;
-  color: rgba(255,255,255,0.85);
+  outline: none;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: var(--t-sm, 13.5px);
+  letter-spacing: 0;
+  color: var(--text-primary);
+}
+.fieldInput::placeholder { color: var(--text-quaternary); letter-spacing: 0; }
+.fieldToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  color: var(--text-tertiary);
+  background: none;
+  border: none;
+  border-radius: var(--r-2, 2px);
   cursor: pointer;
+  flex-shrink: 0;
+  transition: color 180ms var(--ease-apple), background 180ms var(--ease-apple);
+}
+.fieldToggle:hover { color: var(--text-primary); background: rgba(255, 255, 255, 0.06); }
+.fieldOk {
+  display: inline-flex;
+  color: var(--accent-blue-bright, #4DABFF);
+  flex-shrink: 0;
+}
+.fieldNote {
+  font-family: 'DM Sans', sans-serif;
+  font-size: var(--t-xs, 12.5px);
+  line-height: 1.4;
+  color: var(--text-tertiary);
+}
+.fieldNote code {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1px 5px;
+  border-radius: var(--r-1, 0);
+}
+.fieldErrorNote {
+  font-family: 'DM Sans', sans-serif;
+  font-size: var(--t-xs, 12.5px);
+  color: var(--danger, #FF5C6C);
+}
+
+/* ── Password strength ── */
+.strengthRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s3, 12px);
+  margin-top: var(--s1, 4px);
+}
+.strengthTrack {
+  position: relative;
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: var(--r-1, 0);
+  overflow: hidden;
+}
+.strengthFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: var(--r-1, 0);
+  transition: width 280ms var(--ease-out-expo), background 280ms var(--ease-out-expo);
+}
+.strength_weak   { background: var(--danger, #FF5C6C); }
+.strength_fair   { background: var(--accent-blue, #1990FF); }
+.strength_strong { background: var(--accent-blue-bright, #4DABFF); }
+.strengthLabel {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: var(--t-micro, 10.5px);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.strengthText_weak   { color: var(--danger, #FF5C6C); }
+.strengthText_fair   { color: var(--accent-blue-bright, #4DABFF); }
+.strengthText_strong { color: var(--accent-blue-bright, #4DABFF); }
+
+/* ── Password requirement hints ── */
+.pwHints {
+  list-style: none;
+  margin: var(--s1, 4px) 0 var(--s5, 20px);
   padding: 0;
-  text-align: left;
-  font-size: 13px;
-  word-break: break-all;
-}
-.copyHint { font-size: 11px; color: rgba(255,255,255,0.35); flex-shrink: 0; }
-
-.passphraseReminder {
-  padding: 8px 12px;
-  border-radius: 8px;
-  background: rgba(251, 191, 36, 0.07);
-  border: 1px solid rgba(251, 191, 36, 0.18);
-  font-size: 12px;
-  color: rgba(255,255,255,0.7);
-  margin-bottom: 14px;
-  line-height: 1.5;
-}
-
-.smaDetails {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 14px;
+  gap: var(--s2, 8px);
 }
-.detailRow {
-  display: flex;
-  justify-content: space-between;
+.pwHints li {
+  display: inline-flex;
   align-items: center;
-  padding: 8px 12px;
-  border-radius: 8px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.06);
+  gap: var(--s2, 8px);
+  font-family: 'DM Sans', sans-serif;
+  font-size: var(--t-xs, 12.5px);
+  color: var(--text-tertiary);
 }
-.detailLabel { font-size: 12px; color: rgba(255,255,255,0.4); letter-spacing: 0.04em; }
-.detailValue { font-size: 12px; color: rgba(255,255,255,0.75); }
+.pwHints li svg { color: var(--text-quaternary); flex-shrink: 0; transition: color 200ms var(--ease-apple); }
+.pwHintOk { color: var(--text-secondary); }
+.pwHintOk svg { color: var(--accent-blue-bright, #4DABFF); }
 
-/* ── Mandate signed contextual card ─────────────────────────────────────── */
-.mandateSignedPrompt {
-  position: relative;
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.08);
-  margin-bottom: 14px;
+/* ── Footer ── */
+.setupFooter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3, 12px);
+  margin-top: var(--s2, 8px);
 }
-.mandateSignedPromptLabel {
-  font-size: 10px;
-  letter-spacing: 0.10em;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.35);
-  display: block;
-  margin-bottom: 6px;
+.setupHint {
+  font-family: 'DM Sans', sans-serif;
+  font-size: var(--t-xs, 12.5px);
+  line-height: 1.45;
+  color: var(--text-tertiary);
+  text-align: center;
 }
-.mandateSignedPromptText {
-  font-size: 13px;
-  color: rgba(255,255,255,0.65);
-  line-height: 1.5;
-  margin: 0 0 10px;
-  font-style: italic;
+
+/* ── Deploy review — network chips (multi-select) ── */
+.txNetChips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
 }
-.mandateSignedCopyBtn {
+.txNetChip {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
   font-size: 11px;
   font-weight: 600;
-  color: rgba(255,255,255,0.4);
-  background: none;
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 5px;
-  padding: 3px 10px;
-  cursor: pointer;
-  transition: color 150ms, border-color 150ms;
+  letter-spacing: 0.02em;
+  color: var(--accent-blue-bright, #4DABFF);
+  background: rgba(25, 144, 255, 0.10);
+  border: 1px solid rgba(25, 144, 255, 0.32);
+  border-radius: var(--r-2, 2px);
+  padding: 2px 8px;
 }
-.mandateSignedCopyBtn:hover { color: rgba(255,255,255,0.7); border-color: rgba(255,255,255,0.2); }
+
+/* ── "New to wallets?" RainbowKit-style helper link ── */
+.walletHelp {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2, 8px);
+  align-self: center;
+  margin-top: var(--s2, 8px);
+  padding: var(--s2, 8px) var(--s3, 12px);
+  font-family: 'DM Sans', sans-serif;
+  font-size: var(--t-xs, 12.5px);
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-decoration: none;
+  border: 1px solid transparent;
+  border-radius: var(--r-2, 2px);
+  transition: color 200ms var(--ease-apple), background 200ms var(--ease-apple), border-color 200ms var(--ease-apple);
+}
+.walletHelp:hover {
+  color: var(--text-primary);
+  background: rgba(25, 144, 255, 0.06);
+  border-color: rgba(25, 144, 255, 0.28);
+}
+.walletHelpIcon { display: inline-flex; color: var(--accent-blue-bright, #4DABFF); }
+.walletHelpArrow {
+  display: inline-flex;
+  color: var(--text-quaternary);
+  transition: transform 200ms var(--ease-apple), color 200ms var(--ease-apple);
+}
+.walletHelp:hover .walletHelpArrow { transform: translateX(3px); color: var(--text-secondary); }
+
+/* ── "Where do I find my key" expandable (Alchemy / Infura) ── */
+.howBlock {
+  margin: calc(var(--s2, 8px) * -1) 0 var(--s5, 20px);
+}
+.howTrigger {
+  display: flex;
+  align-items: center;
+  gap: var(--s2, 8px);
+  width: 100%;
+  padding: var(--s3, 12px) var(--s4, 16px);
+  text-align: left;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10));
+  border-radius: var(--r-3, 2px);
+  transition: border-color 200ms var(--ease-apple), background 200ms var(--ease-apple);
+}
+.howTrigger:hover {
+  border-color: rgba(25, 144, 255, 0.34);
+  background: rgba(25, 144, 255, 0.04);
+}
+.howTriggerIcon {
+  display: inline-flex;
+  color: var(--accent-blue-bright, #4DABFF);
+  flex-shrink: 0;
+}
+.howTriggerText {
+  flex: 1;
+  font-family: 'DM Sans', sans-serif;
+  font-size: var(--t-sm, 13.5px);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--text-secondary);
+}
+.howTrigger:hover .howTriggerText { color: var(--text-primary); }
+.howChevron {
+  display: inline-flex;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  transition: transform 280ms var(--ease-out-expo), color 200ms var(--ease-apple);
+}
+.howChevronOpen { transform: rotate(180deg); color: var(--accent-blue-bright, #4DABFF); }
+
+/* Smooth height via the grid-rows 0fr→1fr trick. */
+.howPanel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 320ms var(--ease-out-expo);
+}
+.howPanelOpen { grid-template-rows: 1fr; }
+.howPanelInner {
+  overflow: hidden;
+  min-height: 0;
+}
+.howPanelOpen .howPanelInner {
+  padding: var(--s4, 16px) var(--s4, 16px) var(--s3, 12px);
+  margin-top: var(--s1, 4px);
+  background: rgba(25, 144, 255, 0.035);
+  border: 1px solid rgba(25, 144, 255, 0.16);
+  border-radius: var(--r-3, 2px);
+}
+.howSteps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3, 12px);
+}
+.howSteps li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: var(--s3, 12px);
+}
+.howStepNum {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: var(--t-micro, 10.5px);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--accent-blue-bright, #4DABFF);
+  padding-top: 2px;
+}
+.howStepText {
+  font-family: 'DM Sans', sans-serif;
+  font-size: var(--t-sm, 13.5px);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.howLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--s4, 16px);
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: var(--t-micro, 10.5px);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-blue-bright, #4DABFF);
+  text-decoration: none;
+  transition: color 200ms var(--ease-apple);
+}
+.howLink svg { transition: transform 200ms var(--ease-apple); }
+.howLink:hover { color: #fff; }
+.howLink:hover svg { transform: translate(2px, -2px); }
+
+/* ── Final sharp-corner sweep — commit fully to the blueprint.
+   Containers and buttons square to 2px; only true glyphs (the
+   Sai mascot frame, status dots) keep their shape. ── */
+.walletTile,
+.walletIcon,
+.pathOption,
+.authBtn,
+.backBtn,
+.backBtnFloat {
+  border-radius: var(--r-2, 2px) !important;
+}
