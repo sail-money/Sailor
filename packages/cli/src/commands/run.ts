@@ -346,8 +346,9 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
     }
 
     // ── Dispatch loop ───────────────────────────────────────────────────────────
-    let tickDispatched = 0;
-    let tickSkipped    = 0;
+    let tickExecuted = 0;
+    let tickReverted = 0;
+    let tickSkipped  = 0;
 
     for (const rawDispatch of dispatches) {
       // Cast to RunnerDispatch so agents can optionally annotate with a
@@ -480,9 +481,15 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
           }
         }
 
-        appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_executed", permission, target, txHash: result.txHash });
-        console.log(`executed: ${result.txHash}`);
-        tickDispatched++;
+        if (!result.success) {
+          appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_reverted", permission, target, txHash: result.txHash, gasUsed: String(result.gasUsed) });
+          console.error(`reverted: ${result.txHash}  (gas used: ${result.gasUsed})`);
+          tickReverted++;
+        } else {
+          appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_executed", permission, target, txHash: result.txHash });
+          console.log(`executed: ${result.txHash}`);
+          tickExecuted++;
+        }
 
       } catch (err) {
         // One failed dispatch must not stop the loop.
@@ -498,16 +505,10 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
 
     // ── Tick summary ──────────────────────────────────────────────────────────
     if (dispatches.length > 0) {
-      if (tickSkipped > 0) {
-        console.log(
-          `tick complete: ${tickDispatched} dispatched, ${tickSkipped} skipped (no matching permission or denied)`,
-        );
-        // Phase 4: richer `sailor status` output and the dashboard (localhost:3333)
-        // can query activity.jsonl for dispatch_denied/no_permission_match entries
-        // to surface skipped calls per-tick in the UI.
-      } else {
-        console.log(`tick complete: ${tickDispatched} dispatched`);
-      }
+      const parts = [`${tickExecuted} executed`];
+      if (tickReverted > 0) parts.push(`${tickReverted} reverted`);
+      if (tickSkipped > 0) parts.push(`${tickSkipped} skipped`);
+      console.log(`tick complete: ${parts.join(", ")}`);
     }
 
     appendActivity({ ts: nowIso(), actor: "agent", type: "tick_end" });

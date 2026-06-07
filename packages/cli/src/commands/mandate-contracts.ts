@@ -39,6 +39,7 @@ import {
   encodeAbiParameters,
   encodeDeployData,
   encodeFunctionData,
+  getAddress,
   getCreate2Address,
   isAddress,
   keccak256,
@@ -175,7 +176,7 @@ async function runDeploy(
   };
 
   if (options.attach && !options.sma) throw new Error("--attach requires --sma <address>");
-  if (options.sma && !isAddress(options.sma)) {
+  if (options.sma && !isAddress(options.sma, { strict: false })) {
     throw new Error(`Invalid --sma address: ${options.sma}`);
   }
 
@@ -259,16 +260,17 @@ async function runDeploy(
 
   let attachTxHash: Hex | undefined;
   if (options.attach && options.sma) {
+    const sma = getAddress(options.sma);
     attachTxHash = await attachToSma(
       project,
       channel,
       publicClient,
-      options.sma as Address,
+      sma,
       deployed,
       record.name,
       json,
     );
-    store.recordAttachment(deployed, { sma: options.sma as Address, txHash: attachTxHash });
+    store.recordAttachment(deployed, { sma, txHash: attachTxHash });
   } else {
     say(() =>
       console.log(
@@ -280,7 +282,7 @@ async function runDeploy(
   emit(json, () => {}, {
     status: "ok",
     mandate: { name: record.name, address: deployed, txHash: response.txHash, chainId },
-    attached: options.attach ? { sma: options.sma, txHash: attachTxHash } : null,
+    attached: options.attach ? { sma: getAddress(options.sma!), txHash: attachTxHash } : null,
   });
 }
 
@@ -399,9 +401,9 @@ function parseAddressList(csv: string | undefined, flag: string): Address[] {
     .filter(Boolean);
   if (list.length === 0) throw new Error(`${flag} is empty`);
   for (const a of list) {
-    if (!isAddress(a)) throw new Error(`${flag} contains an invalid address: ${a}`);
+    if (!isAddress(a, { strict: false })) throw new Error(`${flag} contains an invalid address: ${a}`);
   }
-  return list as Address[];
+  return list.map((a) => getAddress(a));
 }
 
 export async function mandateDeployClone(options: DeployCloneOptions): Promise<void> {
@@ -427,8 +429,8 @@ async function runDeployClone(
     if (!json) fn();
   };
 
-  if (!isAddress(options.sma)) throw new Error(`Invalid --sma address: ${options.sma}`);
-  const sma = options.sma as Address;
+  if (!isAddress(options.sma, { strict: false })) throw new Error(`Invalid --sma address: ${options.sma}`);
+  const sma = getAddress(options.sma);
 
   const spec = CLONE_TEMPLATES[options.template];
   if (!spec) {
@@ -438,7 +440,7 @@ async function runDeployClone(
   }
 
   const impl = project.deployment.standaloneTemplates?.[options.template] as Address | undefined;
-  if (!impl || !isAddress(impl)) {
+  if (!impl || !isAddress(impl, { strict: false })) {
     throw new Error(
       `No "${options.template}" standalone template is bundled for chain ${project.chainId}.`,
     );
@@ -672,16 +674,18 @@ async function runAttach(
   options: AttachOptions,
 ): Promise<void> {
   const json = !!options.json;
-  if (!isAddress(options.sma)) throw new Error(`Invalid --sma address: ${options.sma}`);
+  if (!isAddress(options.sma, { strict: false })) throw new Error(`Invalid --sma address: ${options.sma}`);
+  const sma = getAddress(options.sma);
 
   const store = new MandateStore();
   const tracked = store.find(options.address);
-  const mandateAddress = tracked?.address ?? (options.address as Address);
-  if (!isAddress(mandateAddress)) {
+  const rawAddress = tracked?.address ?? options.address;
+  if (!isAddress(rawAddress, { strict: false })) {
     throw new Error(
       `--address must be a deployed mandate address or a tracked name: ${options.address}`,
     );
   }
+  const mandateAddress = getAddress(rawAddress);
   const label = options.label ?? tracked?.name ?? "mandate";
 
   const publicClient = publicClientFor(project);
@@ -696,16 +700,16 @@ async function runAttach(
     project,
     channel,
     publicClient,
-    options.sma as Address,
+    sma,
     mandateAddress,
     label,
     json,
   );
-  if (tracked) store.recordAttachment(mandateAddress, { sma: options.sma as Address, txHash });
+  if (tracked) store.recordAttachment(mandateAddress, { sma, txHash });
 
   emit(json, () => {}, {
     status: "ok",
-    attached: { sma: options.sma, mandate: mandateAddress, txHash },
+    attached: { sma, mandate: mandateAddress, txHash },
   });
 }
 
@@ -739,12 +743,12 @@ async function runRevoke(
   const say = (fn: () => void) => {
     if (!json) fn();
   };
-  if (!isAddress(options.sma)) throw new Error(`Invalid --sma address: ${options.sma}`);
+  if (!isAddress(options.sma, { strict: false })) throw new Error(`Invalid --sma address: ${options.sma}`);
   if (!options.all && !options.address) {
     throw new Error("Provide --address <permission> (or a tracked name), or --all");
   }
 
-  const sma = options.sma as Address;
+  const sma = getAddress(options.sma);
   const kernel = project.contracts.kernel;
   const publicClient = publicClientFor(project);
 
@@ -763,10 +767,11 @@ async function runRevoke(
     targets = onchain;
   } else {
     const tracked = store.find(options.address as string);
-    const wanted = (tracked?.address ?? options.address) as string;
-    if (!isAddress(wanted)) {
+    const rawWanted = (tracked?.address ?? options.address) as string;
+    if (!isAddress(rawWanted, { strict: false })) {
       throw new Error(`--address must be a permission address or a tracked name: ${options.address}`);
     }
+    const wanted = getAddress(rawWanted);
     const match = onchain.find((p) => p.toLowerCase() === wanted.toLowerCase());
     if (!match) {
       throw new Error(`${wanted} is not in the SMA's current permission set; nothing to revoke.`);

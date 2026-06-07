@@ -71,7 +71,7 @@ sailor init my-agent
 
 Prerequisites:
 
-- Node.js 18+ (the CLI runs on 18; `pnpm install` needs Node 22+)
+- Node.js 18+
 - A wallet (MetaMask or Rabby)
 - An RPC URL (e.g. Alchemy free tier)
 - A supported chain: **Base, Base Sepolia, Arbitrum, or Unichain** — verified deployments are bundled in `@sail/sdk`, no `@sail/chains` entry needed. Other chains require addresses in `@sail/chains`.
@@ -95,7 +95,11 @@ sailor doctor          # kernel model + RPC reachability + gas balances
 sailor ui start        # open http://localhost:3333 to deploy SMA + create agent wallet
 sailor run --once      # single tick — confirm it works before automating
 sailor run             # start the agent (continuous)
+sailor keys export-ci  # copy the encrypted agent wallet to ci-keystore.json for CI commits
+sailor mandate sign    # sign a mandate — reconciles against live on-chain permissions first
 ```
+
+`sailor run` writes reverted transactions to stderr as `reverted: <txHash> (gas used: N)`; successful dispatches are appended to `.sail/activity.jsonl`.
 
 ---
 
@@ -218,6 +222,28 @@ a `RegisterPermission` EIP-712 message, then the agent submits
 `--json` for headless agent use; set `SAIL_PASSPHRASE` to unlock the manager key
 non-interactively.
 
+`sailor mandate sign` reconciles against the live on-chain `getPermissions()` call
+before building the mandate payload — permissions revoked on-chain are excluded even
+if they remain in the local `.sail/state/mandates.json` (which is an append-only
+historical record and is never modified by the reconciliation).
+
+### GitHub Actions CI
+
+The scaffolded `.github/workflows/agent-tick.yml` runs `sailor run --once` on a
+cron schedule using `npm ci` (no pnpm required). Setup:
+
+1. `sailor keys export-ci` — copies the encrypted agent wallet to `ci-keystore.json`
+   in the project root and allowlists it in `.gitignore`. The geth v3 keystore is
+   safe to commit; the raw private key is never exposed.
+2. Commit `ci-keystore.json`, `.sail/account.json`, and `.sail/mandate.json`.
+3. Add two repository secrets (Settings → Secrets → Actions):
+   - `SAIL_PASSPHRASE` — the passphrase that encrypts the agent wallet
+   - `RPC_URL` — your RPC endpoint
+
+The workflow copies `ci-keystore.json` to `.sail/keys/manager.json`, then calls
+`npx sailor run --once` with `SAIL_PASSPHRASE` set so the key is unlocked
+non-interactively. No private key ever appears in the workflow file or in secrets.
+
 ---
 
 ## Architecture
@@ -256,6 +282,7 @@ The CLI and SDK sit between the operator and SailKernel: they build the EIP-712 
 - The Owner key controls the Safe and is never read by Sailor. Mandate signing requires a deliberate action by the permission signer.
 - The manager key is encrypted on disk using geth keystore v3 (scrypt + aes-128-ctr) and is never transmitted.
 - The session can be paused instantly via `sailor session pause` or the dashboard stop button; this does not affect Safe custody.
+- All addresses passed to the CLI are normalized with `getAddress()` (EIP-55 checksum). Mixed-case or lowercase inputs are accepted and canonicalized before any on-chain call or state write.
 
 ---
 

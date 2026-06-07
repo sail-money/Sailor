@@ -65,8 +65,8 @@ export async function scan(options: { owner?: string; json?: boolean }): Promise
   }
   const project = new ProjectContext();
 
-  const owner = (options.owner ?? project.getOwner() ?? undefined) as Address | undefined;
-  if (!owner || !isAddress(owner, { strict: false })) {
+  const rawOwner = (options.owner ?? project.getOwner() ?? undefined) as string | undefined;
+  if (!rawOwner || !isAddress(rawOwner, { strict: false })) {
     emit(
       options.json,
       () =>
@@ -77,6 +77,7 @@ export async function scan(options: { owner?: string; json?: boolean }): Promise
     );
     process.exit(1);
   }
+  const owner = getAddress(rawOwner);
 
   const chainId = project.chainId;
   const kernel = project.contracts.kernel;

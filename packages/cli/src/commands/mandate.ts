@@ -1,5 +1,9 @@
+import { SailKernelAbi } from "@sail/sdk";
+import { http, type Address, createPublicClient } from "viem";
+import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { confirm, readJsonFile, sailPath, writeJsonFile } from "../lib/io.js";
 import { MandateStore } from "../lib/mandates.js";
+import { ProjectContext } from "../lib/project.js";
 import type { StoredAccount, StoredMandate } from "../lib/state.js";
 import { mandateAttach } from "./mandate-contracts.js";
 
@@ -15,6 +19,12 @@ type TrackedPermission = {
   registeredOnSma: boolean;
   /** ISO timestamp the permission was registered on this SMA, if known. */
   attachedAt?: string;
+  /**
+   * True when the local store records an attachment but the kernel's
+   * getPermissions() no longer lists this address — i.e. it was revoked
+   * on-chain after the local record was written.
+   */
+  revokedOnChain?: boolean;
 };
 
 /** The simple draft the UI reads to display the SMA's permission set. */
@@ -26,12 +36,40 @@ type MandateDraft = {
 };
 
 /**
- * Permissions tracked for the account's chain, annotated with whether the store
- * shows them registered on this specific SMA.
+ * Query the kernel's live permission set for `account.safe`.
+ * Returns a lowercased Set of registered permission addresses, or `null` when
+ * the RPC or project context is unavailable (callers fall back to local state).
  */
-function trackedPermissionsFor(account: StoredAccount): TrackedPermission[] {
+async function fetchOnChainPermissions(account: StoredAccount): Promise<Set<string> | null> {
+  try {
+    const project = new ProjectContext();
+    const rpcUrl =
+      getRpcUrl(project.chainId) ?? getChainById(project.chainId).rpcUrls.default.http[0];
+    const pc = createPublicClient({
+      chain: getChainById(project.chainId),
+      transport: http(rpcUrl),
+    });
+    const onChain = (await pc.readContract({
+      address: project.contracts.kernel,
+      abi: SailKernelAbi,
+      functionName: "getPermissions",
+      args: [account.safe as Address],
+    })) as Address[];
+    return new Set(onChain.map((a) => a.toLowerCase()));
+  } catch {
+    // RPC unavailable or project not initialised — fall back to local state only.
+    return null;
+  }
+}
+
+/**
+ * Permissions tracked for the account's chain, annotated with whether the store
+ * shows them registered on this specific SMA and whether the on-chain kernel
+ * still lists them (reconciliation against live state).
+ */
+async function trackedPermissionsFor(account: StoredAccount): Promise<TrackedPermission[]> {
   const store = new MandateStore();
-  return store
+  const local: TrackedPermission[] = store
     .list()
     .filter((m) => m.chainId === account.chainId)
     .map((m) => {
@@ -45,6 +83,20 @@ function trackedPermissionsFor(account: StoredAccount): TrackedPermission[] {
         attachedAt: attachment?.at,
       };
     });
+
+  // Reconcile with live on-chain state: a locally-attached permission may have
+  // been revoked on-chain (via `sailor mandate revoke` or externally).
+  // mandates.json is kept as a historical record; revokedOnChain flags the delta.
+  const onChain = await fetchOnChainPermissions(account);
+  if (onChain !== null) {
+    for (const p of local) {
+      if (p.registeredOnSma && !onChain.has(p.address.toLowerCase())) {
+        p.revokedOnChain = true;
+      }
+    }
+  }
+
+  return local;
 }
 
 /** Guidance printed when no permissions have been authored/deployed yet. */
@@ -70,7 +122,7 @@ export async function mandatePrepare(): Promise<void> {
     throw new Error('No account found at .sail/account.json.\nRun "sailor account create" first.');
   }
 
-  const permissions = trackedPermissionsFor(account);
+  const permissions = await trackedPermissionsFor(account);
   if (permissions.length === 0) {
     printNoPermissionsGuidance();
     return;
@@ -78,9 +130,11 @@ export async function mandatePrepare(): Promise<void> {
 
   console.log(`\n${permissions.length} permission(s) tracked for SMA ${account.safe}:\n`);
   for (const p of permissions) {
-    const status = p.registeredOnSma
-      ? `registered on this SMA${p.attachedAt ? ` (${p.attachedAt})` : ""}`
-      : "not yet registered on this SMA";
+    const status = p.revokedOnChain
+      ? "revoked on-chain (local record is stale)"
+      : p.registeredOnSma
+        ? `registered on this SMA${p.attachedAt ? ` (${p.attachedAt})` : ""}`
+        : "not yet registered on this SMA";
     console.log(`• ${p.label}`);
     console.log(`    ${p.address}`);
     console.log(`    ${status}`);
@@ -89,7 +143,10 @@ export async function mandatePrepare(): Promise<void> {
   const draft: MandateDraft = {
     account: account.safe,
     chainId: account.chainId,
-    permissions: permissions.map((p) => ({ address: p.address, label: p.label })),
+    // Exclude permissions revoked on-chain — the draft reflects the live set.
+    permissions: permissions
+      .filter((p) => !p.revokedOnChain)
+      .map((p) => ({ address: p.address, label: p.label })),
     createdAt: new Date().toISOString(),
   };
   writeJsonFile(sailPath("mandate-draft.json"), draft);
@@ -108,7 +165,7 @@ export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
     throw new Error('No account found at .sail/account.json.\nRun "sailor account create" first.');
   }
 
-  const permissions = trackedPermissionsFor(account);
+  const permissions = await trackedPermissionsFor(account);
   if (permissions.length === 0) {
     printNoPermissionsGuidance();
     return;
@@ -117,24 +174,35 @@ export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
   console.log(`\nPermissions tracked for SMA ${account.safe}:\n`);
   for (const p of permissions) {
     console.log(`• ${p.label}  (${p.address})`);
-    console.log(`    ${p.registeredOnSma ? "registered on-chain" : "NOT yet registered on this SMA"}`);
+    console.log(
+      `    ${
+        p.revokedOnChain
+          ? "revoked on-chain (local record is stale)"
+          : p.registeredOnSma
+            ? "registered on-chain"
+            : "NOT yet registered on this SMA"
+      }`,
+    );
   }
   console.log(
     "\nNote: `sailor mandate sign` reviews and confirms the permissions attached to your SMA.\n" +
       "On-chain registration happens via `sailor mandate attach` (or `sailor mandate deploy --attach`).",
   );
 
+  // Exclude revoked-on-chain entries from the confirmation: they are no longer
+  // active regardless of what the local store says.
+  const activePermissions = permissions.filter((p) => !p.revokedOnChain);
   const proceed = opts.yes || await confirm(
-    `Confirm these ${permissions.length} permission(s) are authorized for your SMA?`,
+    `Confirm these ${activePermissions.length} permission(s) are authorized for your SMA?`,
   );
   if (!proceed) {
     console.log("No permissions confirmed.");
     return;
   }
 
-  const unregistered = permissions.filter((p) => !p.registeredOnSma);
+  const unregistered = activePermissions.filter((p) => !p.registeredOnSma);
   if (unregistered.length === 0) {
-    console.log(`\n✓ Confirmed ${permissions.length} permission(s) for ${account.safe}.`);
+    console.log(`\n✓ Confirmed ${activePermissions.length} permission(s) for ${account.safe}.`);
   } else {
     console.log(
       `\n${unregistered.length} permission(s) are not yet registered on this SMA. Initiating registration…`,
@@ -155,7 +223,8 @@ export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
     signedAt: new Date().toISOString(),
     signature: "",
     registeredOnChain: true,
-    permissions: permissions.map((p) => ({ template: p.label, params: {} })),
+    // Only include permissions that are currently active on-chain.
+    permissions: activePermissions.map((p) => ({ template: p.label, params: {} })),
   };
   writeJsonFile(sailPath("mandate.json"), storedMandate);
   console.log(`\n✓ Saved to .sail/mandate.json — agent is ready to run.`);

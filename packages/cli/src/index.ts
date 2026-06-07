@@ -4,7 +4,7 @@ import { accountCreate } from "./commands/account.js";
 import { capabilities } from "./commands/capabilities.js";
 import { doctor } from "./commands/doctor.js";
 import { initCommand } from "./commands/init.js";
-import { keysGenerate, keysShow } from "./commands/keys.js";
+import { keysExportCi, keysGenerate, keysShow } from "./commands/keys.js";
 import {
   type AttachOptions,
   type DeployCloneOptions,
@@ -101,6 +101,12 @@ keys
   .description("Generate and encrypt an agent wallet or mandate signer key")
   .action(action(keysGenerate));
 keys.command("show").description("Show the address of each stored key").action(action(keysShow));
+keys
+  .command("export-ci")
+  .description(
+    "Copy the encrypted agent wallet keystore to ci-keystore.json for committing to CI",
+  )
+  .action(action(keysExportCi));
 
 const account = program.command("account").description("Manage the Sail SMA");
 account
@@ -285,7 +291,6 @@ function stub(name: string, description: string): void {
     });
 }
 
-stub("setup", "Walk through the Sailor setup guide");
 stub("dispatch preview", "Preview a dispatch without submitting");
 
 program.parse(process.argv);

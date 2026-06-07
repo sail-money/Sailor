@@ -135,6 +135,10 @@ contract BoundedSwap_UniswapV4_Unichain is IPermission {
         if (tokenIn != FIXED_CURRENCY_IN)            return false;
         if (!isAllowedCurrenciesOut[tokenOut])       return false;
         if (p.amountIn > MAX_AMOUNT_IN)              return false;
+        // Slippage floor: amountOutMinimum ≥ amountIn × MIN_BPS / 10 000.
+        // WARNING: compares tokenOut against tokenIn base units. For same-price/same-decimal
+        // pairs this maps to a slippage %. For cross-price pairs it is trivially satisfied —
+        // real slippage is enforced by the agent off-chain, not by this contract.
         if (p.amountOutMinimum < (uint256(p.amountIn) * MIN_BPS) / 10_000) return false;
 
         return true;

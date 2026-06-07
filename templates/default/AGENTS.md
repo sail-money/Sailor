@@ -68,7 +68,18 @@ sailor run           # local, continuous
 sailor run --once    # single tick — confirm it works before automating
 ```
 
-For GitHub Actions: push repo, add `RPC_URL` and `SAIL_PASSPHRASE` as secrets. The scaffolded workflow at `.github/workflows/agent-tick.yml` runs on a schedule.
+For GitHub Actions:
+
+1. Run `sailor keys export-ci` — copies your encrypted agent wallet to `ci-keystore.json` in the project root and adds it to `.gitignore` as an allowed file. The keystore is geth v3 encrypted; the raw private key is never exposed.
+2. Commit and push `ci-keystore.json`:
+   ```bash
+   git add ci-keystore.json && git commit -m "chore: add CI keystore" && git push
+   ```
+3. Add two secrets in GitHub (Settings → Secrets → Actions):
+   - `SAIL_PASSPHRASE` — the passphrase that encrypts your agent wallet
+   - `RPC_URL` — your RPC endpoint
+
+The scaffolded workflow at `.github/workflows/agent-tick.yml` picks up `ci-keystore.json`, unlocks it with `SAIL_PASSPHRASE`, and runs on the configured schedule. No private key ever appears in the workflow or in secrets.
 
 ## Stage 5 — Extend
 
