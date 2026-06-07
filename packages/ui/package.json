@@ -1,21 +1,29 @@
 {
   "name": "sailor-ui",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.0.0",
+  "type": "module",
   "scripts": {
-    "dev": "next dev --turbopack -p 3553",
-    "build": "next build",
-    "start": "next start -p 3553",
-    "lint": "next lint"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "next": "^15.5.4",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "three": "^0.183.2"
+    "@rainbow-me/rainbowkit": "^2.2.0",
+    "@sail/chains": "workspace:*",
+    "@sail/sdk": "workspace:*",
+    "@tanstack/react-query": "^5.59.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "three": "^0.183.2",
+    "viem": "^2.21.0",
+    "wagmi": "^2.12.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
-    "eslint": "^9",
-    "eslint-config-next": "^15.5.4"
+    "@vitejs/plugin-react": "^4.2.1",
+    "vite": "^5.0.0"
   }
 }

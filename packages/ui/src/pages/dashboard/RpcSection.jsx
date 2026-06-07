@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import styles from './RpcSection.module.css'
+import { InfoTip } from '../shared'
 import { getOnboardState, saveConfig } from '../../data/sailorClient'
+
+const RPC_TIP = "An RPC is the connection your dashboard uses to read the blockchain and broadcast transactions — like a phone line to the network. Sail talks to the chain directly through it; there's no Sail server in between. A free Alchemy/Infura key (or a public endpoint) works."
 
 /**
  * RpcSection — the network/RPC config, living on the SMA hero card (moved out
@@ -171,7 +174,7 @@ export default function RpcSection() {
   return (
     <div className={styles.section}>
       <div className={styles.head}>
-        <span className={styles.eyebrow}>RPC /</span>
+        <span className={styles.eyebrow}>RPC / <InfoTip label="What is an RPC?">{RPC_TIP}</InfoTip></span>
         <span className={`${styles.health} ${rpcReachable && kernelDetected ? styles.healthOk : styles.healthWarn}`}>
           <span className={styles.healthDot} aria-hidden />
           {rpcReachable
@@ -225,7 +228,6 @@ export default function RpcSection() {
                     onClick={() => setProvider(p.id)}
                     aria-pressed={active}
                   >
-                    <span className={styles.optionTile} aria-hidden><RpcGlyph id={p.id} /></span>
                     <span className={styles.optionBody}>
                       <span className={styles.optionNameRow}>
                         <span className={styles.optionName}>{p.name}</span>

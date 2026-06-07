@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { GlassCard, BrandMark, ConfirmDestructiveModal } from '../shared'
 import shared from '../shared/shared.module.css'
 import styles from './ContractModal.module.css'
-import { mockWallet, mockSafes, mockSafe } from './mockData'
+import { useOwnerWallet } from '../../hooks/useOwnerWallet'
+import { useOwnerSafes } from '../../hooks/useOwnerSafes'
 import {
   getNetwork,
   getToken,
@@ -55,6 +56,9 @@ export default function ContractModal({
   // preview → signing → signed (sign mode)
   // preview → revoking → revoked (revoke mode)
   // signed (view mode, immediate)
+  // Wallet seam — owner address + the SMAs this owner controls (was mockWallet / mockSafes).
+  const { address: ownerAddress } = useOwnerWallet()
+  const { primary: primarySafe } = useOwnerSafes()
   const [phase, setPhase] = useState('preview')
   const [signedAt, setSignedAt] = useState(null)
   const [rejectOpen, setRejectOpen] = useState(false)
@@ -153,7 +157,7 @@ export default function ContractModal({
   if (!open || !mandate) return null
 
   const spec = deriveSpec(mandate)
-  const sma = mockSafes[0]
+  const sma = primarySafe
   const today = new Date()
 
   return (
@@ -185,10 +189,12 @@ export default function ContractModal({
               mark + a single "requesting · acting inside" line replaces
               the old four-cell metadata grid. */}
           <header className={styles.docHead}>
-            <span className={styles.docRequester}>
-              <BrandMark name={mandate.aiName} size={20} />
-              <span>{mandate.aiName} is requesting your signature</span>
-            </span>
+            {mandate.aiName ? (
+              <span className={styles.docRequester}>
+                <BrandMark name={mandate.aiName} size={20} />
+                <span>{mandate.aiName} is requesting your signature</span>
+              </span>
+            ) : null}
             <h1 className={styles.docTitle}>{mandate.title}</h1>
             <p className={styles.docLede}>
               A bounded delegation to act inside <strong>{sma.name}</strong>, only within the scope and limits below.
@@ -205,10 +211,12 @@ export default function ContractModal({
               <blockquote className={styles.recital}>
                 <span className={styles.recitalMark} aria-hidden>“</span>
                 <p>{mandate.summary}</p>
-                <footer>
-                  <BrandMark name={mandate.aiName} size={13} />
-                  <span>Drafted by {mandate.aiName}</span>
-                </footer>
+                {mandate.aiName ? (
+                  <footer>
+                    <BrandMark name={mandate.aiName} size={13} />
+                    <span>Drafted by {mandate.aiName}</span>
+                  </footer>
+                ) : null}
               </blockquote>
             </Section>
           )}
@@ -218,30 +226,23 @@ export default function ContractModal({
             <div className={styles.scopeGrid}>
               <ScopeBlock label="Networks" count={mandate.networks?.length ?? 0}>
                 {(mandate.networks ?? []).map((id) => {
-                  const n = getNetwork(id) ?? { label: capitalize(id), color: '#1990FF' }
+                  const n = getNetwork(id)
                   return (
                     <span key={id} className={styles.scopePill}>
-                      <span
-                        className={styles.scopePillDot}
-                        style={{ background: n.color }}
-                        aria-hidden
-                      />
-                      {n.label}
+                      {capitalize(n?.label ?? n?.name ?? id)}
                     </span>
                   )
                 })}
               </ScopeBlock>
               <ScopeBlock label="Assets" count={mandate.assets?.length ?? 0}>
+                {(mandate.assets?.length ?? 0) === 0 && (
+                  <span className={styles.scopeEmpty}>—</span>
+                )}
                 {(mandate.assets ?? []).map((s) => {
-                  const t = getToken(s) ?? { symbol: s, color: '#999', name: s }
+                  const t = getToken(s)
                   return (
                     <span key={s} className={styles.scopePill}>
-                      <span
-                        className={styles.scopePillDot}
-                        style={{ background: t.color }}
-                        aria-hidden
-                      />
-                      {t.symbol}
+                      {t?.symbol ?? t?.name ?? s}
                     </span>
                   )
                 })}
@@ -251,15 +252,10 @@ export default function ContractModal({
                   <span className={styles.scopeEmpty}>Any onchain target permitted under the action whitelist.</span>
                 )}
                 {spec.protocols.map((p) => {
-                  const proto = getProtocol(p) ?? { label: capitalize(p), color: '#FFFFFF' }
+                  const proto = getProtocol(p)
                   return (
                     <span key={p} className={styles.scopePill}>
-                      <span
-                        className={styles.scopePillDot}
-                        style={{ background: proto.color ?? '#FFFFFF' }}
-                        aria-hidden
-                      />
-                      {proto.label}
+                      {capitalize(proto?.label ?? proto?.name ?? p)}
                     </span>
                   )
                 })}
@@ -409,17 +405,19 @@ export default function ContractModal({
             </header>
 
             <div className={styles.sigGrid}>
-              {/* AI counter-signer — always already "drafted" */}
-              <SignatureCard
-                role="Drafted by"
-                name={mandate.aiName}
-                addressKicker="Agent identity"
-                address={`sail-agent#${deriveAgentAddress(mandate).slice(2, 8)}`}
-                state="signed"
-                signatureValue={`/s/ ${mandate.aiName}`}
-                signatureSub="Counter-signed at draft"
-                brand={mandate.aiName}
-              />
+              {/* AI counter-signer — only when an AI drafter is attributed */}
+              {mandate.aiName ? (
+                <SignatureCard
+                  role="Drafted by"
+                  name={mandate.aiName}
+                  addressKicker="Agent identity"
+                  address={`sail-agent#${deriveAgentAddress(mandate).slice(2, 8)}`}
+                  state="signed"
+                  signatureValue={`/s/ ${mandate.aiName}`}
+                  signatureSub="Counter-signed at draft"
+                  brand={mandate.aiName}
+                />
+              ) : null}
 
               {/* User signer — already signed in view/revoke modes;
                   empty (pending) in sign mode until Authorize. */}
@@ -427,7 +425,7 @@ export default function ContractModal({
                 role="Owner"
                 name="Externally Owned Account"
                 addressKicker="EOA address"
-                address={truncate(mockWallet)}
+                address={truncate(ownerAddress)}
                 state={
                   effectiveMode === 'view' || effectiveMode === 'revoke' || phase === 'signed'
                     ? 'signed'
@@ -435,7 +433,7 @@ export default function ContractModal({
                       ? 'signing'
                       : 'pending'
                 }
-                signatureValue={mockWallet}
+                signatureValue={ownerAddress}
                 signatureSub={
                   effectiveMode === 'view' || effectiveMode === 'revoke'
                     ? signedAt
@@ -576,7 +574,7 @@ export default function ContractModal({
                 <div className={styles.successBody}>
                   <span className={styles.successTitle}>Mandate signed</span>
                   <span className={styles.successSub}>
-                    Your agent is operating inside {mockSafes[0].name} now.
+                    Your agent is operating inside {sma?.name} now.
                     {signedAt && ` Signed at ${formatTime(signedAt)} UTC.`}
                   </span>
                 </div>
@@ -599,7 +597,9 @@ export default function ContractModal({
         title="Reject this mandate?"
         body={
           <>
-            <strong style={{ color: 'var(--text-primary)' }}>{mandate.aiName}</strong> will be told the draft was declined.
+            {mandate.aiName ? (
+              <><strong style={{ color: 'var(--text-primary)' }}>{mandate.aiName}</strong> will be told the draft was declined. </>
+            ) : null}
             Nothing is created onchain. You can ask your AI to redraft anytime.
           </>
         }

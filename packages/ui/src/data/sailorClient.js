@@ -23,7 +23,7 @@
 
 // Flip to true once this dashboard is served by the Sailor `/api` server
 // (same origin). Until then, all calls resolve from the mock fixtures below.
-export const USE_LIVE = false
+export const USE_LIVE = true
 
 /* Generic same-origin JSON helper (used only when USE_LIVE). */
 async function api(path, { method = 'GET', body } = {}) {
@@ -157,6 +157,93 @@ const mock = {
 
   // GET /api/mandate-draft → { account, chainId, items[] } | null (server.js ~576)
   mandateDraft: null,
+
+  // GET /api/account → account.json shape (server.js). The active SMA record.
+  // `null` here models the pre-deployment state (server returns 404 → we throw).
+  account: {
+    safe: SMA_ADDRESS,
+    owner: OWNER_ADDRESS,
+    permissionSigner: OWNER_ADDRESS,
+    manager: MANAGER_ADDRESS,
+    chainId: 42161,
+    createdAtBlock: '46757914',
+  },
+
+  // GET /api/accounts → (account + { name, active, addedAt })[]  (server.js)
+  accounts: [
+    {
+      safe: SMA_ADDRESS,
+      owner: OWNER_ADDRESS,
+      permissionSigner: OWNER_ADDRESS,
+      manager: MANAGER_ADDRESS,
+      chainId: 42161,
+      createdAtBlock: '46757914',
+      name: 'DeFi conservative',
+      active: true,
+      addedAt: '2026-05-18T10:00:00.000Z',
+    },
+  ],
+
+  // GET /api/mandate → mandate.json | null (server.js). The live signed
+  // delegation: a set of registered IPermission contracts.
+  mandate: {
+    safe: SMA_ADDRESS,
+    chainId: 42161,
+    signedAt: '2026-05-18T14:32:00.000Z',
+    signature:
+      '0xabc000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001c',
+    registeredOnChain: true,
+    permissions: [
+      {
+        address: '0x8a3D7e9F12bC56a4E8d92cD61f3c7A0B5e8c1234',
+        template: 'sail.permission.swap.v1',
+        params: { maxPerTradeUsd: 500, assets: ['USDC', 'ETH', 'WETH', 'WBTC'] },
+        explanation: 'Spot swaps on whitelisted DEX routers, capped at $500 per trade.',
+      },
+      {
+        address: '0x9b4C8e1A3F76dE2BcA85bD90eC7c4b8A6f9d2345',
+        template: 'sail.permission.pendle-pt.v1',
+        params: { assets: ['USDC', 'WETH'], maxNavShareBps: 5000 },
+        explanation: 'Supply USDC/WETH into Pendle PT markets, up to 50% of NAV.',
+      },
+      {
+        address: '0xc7d8E9F0a1B2c3D4e5F6789012345678ABCDEF34',
+        template: 'sail.permission.rebalance.v1',
+        params: { minDeltaBps: 100, sameAssetOnly: true },
+        explanation: 'Rebalance between Aave and Compound when APY delta ≥ 1%, same asset only.',
+      },
+    ],
+  },
+
+  // GET /api/activity → event[] (server.js, from activity.jsonl). Append-only
+  // log across CLI / agent / owner actors. Newest last on disk.
+  activity: [
+    { ts: '2026-06-07T10:00:00.000Z', type: 'tick_start', actor: 'agent', safe: SMA_ADDRESS },
+    { ts: '2026-06-07T10:00:02.000Z', type: 'log', msg: 'Scanning yield opportunities on Arbitrum…', actor: 'agent', safe: SMA_ADDRESS },
+    { ts: '2026-06-07T10:00:08.000Z', type: 'log', msg: 'USDC/ETH pool: 4.2% APY. Current position: $2,400.', actor: 'agent', safe: SMA_ADDRESS },
+    { ts: '2026-06-07T10:00:12.000Z', type: 'tick_end', actor: 'agent', safe: SMA_ADDRESS },
+    { ts: '2026-06-07T11:00:00.000Z', type: 'tick_start', actor: 'agent', safe: SMA_ADDRESS },
+    { ts: '2026-06-07T11:00:03.000Z', type: 'log', msg: 'No better yield found. Holding position.', actor: 'agent', safe: SMA_ADDRESS },
+    { ts: '2026-06-07T11:00:09.000Z', type: 'tick_end', actor: 'agent', safe: SMA_ADDRESS },
+    { ts: '2026-06-07T12:00:00.000Z', type: 'owner_signed', actor: 'owner', msg: 'Mandate registered on Arbitrum', safe: SMA_ADDRESS },
+  ],
+
+  // GET /api/positions → { positions[], updatedAt } (server.js, state/positions-<chainId>.json).
+  positions: {
+    positions: [
+      { protocol: 'Aave', token: 'USDC', valueUsd: 2400.5, apy: 4.2, chain: 'arbitrum' },
+      { protocol: 'Pendle', token: 'WETH', valueUsd: 850.0, apy: 6.92, chain: 'arbitrum' },
+    ],
+    updatedAt: '2026-06-07T12:00:00.000Z',
+  },
+
+  // GET /api/agent-status → { running, source?, pid?, lastActivityMs?, githubActions } (server.js).
+  agentStatus: {
+    running: true,
+    source: 'remote',
+    lastActivityMs: 120000,
+    githubActions: { configured: true, workflow: '.github/workflows/agent.yml' },
+  },
 }
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -190,6 +277,35 @@ export async function generateKey({ passphrase } = {}) {
   return settle({ address: MANAGER_ADDRESS, existed: false }, 900)
 }
 
+/**
+ * POST /api/onboard/build-create-tx { owner, manager, chainId, saltNonce }
+ *   → { to, data, chainId, saltNonce }
+ * Builds the kernel.createAccount transaction (direct path).
+ */
+export async function buildCreateTx({ owner, manager, chainId, saltNonce } = {}) {
+  if (USE_LIVE) return api('/onboard/build-create-tx', { method: 'POST', body: { owner, manager, chainId, saltNonce } })
+  return settle({ to: mock.onboardState.kernel, data: '0xdeadbeef', chainId, saltNonce })
+}
+
+/**
+ * POST /api/onboard/build-register-path { owner, manager, chainId, saltNonce }
+ *   → { deployTx: { to, data }, kernel }
+ * Builds the two-step fallback (deploy Safe via factory, then registerAccount).
+ */
+export async function buildRegisterPath({ owner, manager, chainId, saltNonce } = {}) {
+  if (USE_LIVE) return api('/onboard/build-register-path', { method: 'POST', body: { owner, manager, chainId, saltNonce } })
+  return settle({ deployTx: { to: mock.onboardState.proxyFactory, data: '0xdeadbeef' }, kernel: mock.onboardState.kernel })
+}
+
+/**
+ * POST /api/onboard/complete { safe, owner, manager, txHash, chainId } → { ok }
+ * Persists the deployed SMA record (account.json) after on-chain creation.
+ */
+export async function onboardComplete({ safe, owner, manager, txHash, chainId } = {}) {
+  if (USE_LIVE) return api('/onboard/complete', { method: 'POST', body: { safe, owner, manager, txHash, chainId } })
+  return settle({ ok: true, safe, chainId })
+}
+
 /* ════════════════════════════════════════════════════════════════════════
    MONITORING
    ════════════════════════════════════════════════════════════════════════ */
@@ -198,6 +314,64 @@ export async function generateKey({ passphrase } = {}) {
 export async function getOverview() {
   if (USE_LIVE) return api('/overview')
   return settle({ ...mock.overview })
+}
+
+/** POST /api/account/rename { safe, name } → { ok }. Renames a known SMA. */
+export async function renameAccount({ safe, name } = {}) {
+  if (USE_LIVE) return api('/account/rename', { method: 'POST', body: { safe, name } })
+  if (mock.account && (!safe || mock.account.safe === safe)) mock.account.name = name
+  const a = mock.accounts?.find((x) => x.safe === safe)
+  if (a) a.name = name
+  return settle({ ok: true })
+}
+
+/**
+ * GET /api/account — the active SMA record (account.json).
+ * Server returns 404 before an SMA exists; we mirror that by throwing so the
+ * caller can fall through to the not-yet-deployed state. Set `mock.account`
+ * to `null` to exercise that path in the mockup.
+ */
+export async function getAccount() {
+  if (USE_LIVE) return api('/account')
+  if (!mock.account) throw new Error('GET /api/account → 404 (no account yet)')
+  return settle({ ...mock.account })
+}
+
+/** GET /api/accounts — every known SMA, each annotated `active`. */
+export async function getAccounts() {
+  if (USE_LIVE) return api('/accounts')
+  return settle(mock.accounts.map((a) => ({ ...a })))
+}
+
+/** GET /api/activity — append-only event log (newest last, as on disk). */
+export async function getActivity() {
+  if (USE_LIVE) return api('/activity')
+  return settle(mock.activity.map((e) => ({ ...e })))
+}
+
+/** GET /api/positions — { positions[], updatedAt } for the active SMA's chain. */
+export async function getPositions() {
+  if (USE_LIVE) return api('/positions')
+  return settle({ ...mock.positions, positions: mock.positions.positions.map((p) => ({ ...p })) })
+}
+
+/** GET /api/mandate — the live signed mandate (mandate.json), or null. */
+export async function getMandate() {
+  if (USE_LIVE) return api('/mandate')
+  if (!mock.mandate) return settle(null)
+  return settle({ ...mock.mandate, permissions: mock.mandate.permissions.map((p) => ({ ...p })) })
+}
+
+/** GET /api/agent-status — is the agent running, and from where. */
+export async function getAgentStatus() {
+  if (USE_LIVE) return api('/agent-status')
+  return settle({ ...mock.agentStatus })
+}
+
+/** POST /api/agent-status { action: 'stop' } — SIGTERM a locally-running agent. */
+export async function stopAgent() {
+  if (USE_LIVE) return api('/agent-status', { method: 'POST', body: { action: 'stop' } })
+  return settle({ ok: true, running: false })
 }
 
 /* ════════════════════════════════════════════════════════════════════════

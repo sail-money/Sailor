@@ -6255,6 +6255,7 @@
   border: 1px solid rgba(25, 144, 255, 0.42);
   border-radius: var(--r-1, 0px);
 }
+/* Low balance — YELLOW, a small square: has gas but is running down. */
 .gasPillLow {
   display: inline-flex;
   align-items: center;
@@ -6265,9 +6266,25 @@
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--accent-blue-bright, #4DABFF);
-  background: rgba(25, 144, 255, 0.12);
-  border: 1px solid rgba(25, 144, 255, 0.42);
+  color: #FFD24D;
+  background: rgba(255, 200, 60, 0.12);
+  border: 1px solid rgba(255, 200, 60, 0.45);
+  border-radius: var(--r-1, 0px);
+}
+/* Not funded — RED, no square: blocked until funded. */
+.gasPillEmpty {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #ff7a7a;
+  background: rgba(255, 80, 80, 0.10);
+  border: 1px solid rgba(255, 80, 80, 0.42);
   border-radius: var(--r-1, 0px);
 }
 .gasPillDot {
@@ -6278,21 +6295,27 @@
   background: var(--accent-blue, #1990FF);
   box-shadow: 0 0 7px var(--accent-glow, rgba(25, 144, 255, 0.55));
 }
-/* Steady living glow on funded. */
+/* Funded — BIG blue square, steady living glow. */
 .gasPillFunded .gasPillDot {
+  width: 9px;
+  height: 9px;
+  background: var(--accent-blue, #1990FF);
+  box-shadow: 0 0 8px var(--accent-glow, rgba(25, 144, 255, 0.6));
   animation: liveBreathe 3.2s ease-in-out infinite;
 }
-/* Pulsing ring on low — reads as "act on me". */
-.gasPillLow .gasPillDot::after {
-  content: '';
-  position: absolute;
-  inset: -3px;
-  background: var(--accent-blue, #1990FF);
-  animation: liveRing 1.8s ease-out infinite;
+/* Low balance — SMALL yellow square. */
+.gasPillLow .gasPillDot {
+  width: 4px;
+  height: 4px;
+  background: #FFC93C;
+  box-shadow: 0 0 7px rgba(255, 201, 60, 0.6);
+}
+/* Not funded — NO square at all. */
+.gasPillEmpty .gasPillDot {
+  display: none;
 }
 @media (prefers-reduced-motion: reduce) {
   .gasPillFunded .gasPillDot { animation: none; }
-  .gasPillLow .gasPillDot::after { animation: none; opacity: 0; }
 }
 
 .gasBalanceRow {
@@ -6829,3 +6852,43 @@
   letter-spacing: 0.04em;
 }
 .actLoadMore:hover .actLoadMoreCount { color: var(--accent-blue-bright, #4DABFF); }
+
+/* ────────── Onboarding gate (no on-chain SMA yet) ──────────
+   A calm explainer behind the CreateSMAModal. Shown when the wallet
+   is connected but no real SMA exists, in place of any mock data. */
+.onboardWait {
+  min-height: 40vh;
+}
+.onboardGate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  max-width: 560px;
+  margin: 12vh auto 0;
+  padding: 0 24px;
+}
+.onboardKicker {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--cyan, #4DABFF);
+}
+.onboardTitle {
+  font-family: 'MD Nichrome', serif;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  font-size: 34px;
+  line-height: 1.1;
+  margin: 0;
+  color: var(--text-primary, #fff);
+}
+.onboardDesc {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-secondary, rgba(255,255,255,0.72));
+}

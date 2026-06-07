@@ -1,55 +1,53 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback } from 'react'
+import { useAccount, useDisconnect } from 'wagmi'
+import { useConnectModal } from '@rainbow-me/rainbowkit'
 
 /**
- * Owner wallet — mock seam mirroring the wagmi surface the live build uses.
+ * Owner wallet — LIVE (wagmi + RainbowKit).
  *
- * The Owner IS the connected wallet (custody anchor + signer of every on-chain
- * action). Today this is a mock with a shared in-module store so connect /
- * disconnect reflect everywhere at once.
+ * The Owner IS the connected wallet: the custody anchor and the only key that
+ * can authorize anything. This hook is the wallet seam — every surface that
+ * needs the owner address or connection state reads it here.
  *
- * LIVE swap: replace this hook's body with wagmi —
- *   const { address, isConnected, chainId } = useAccount()
- *   const { disconnect } = useDisconnect()
- *   const { openConnectModal } = useConnectModal()   // RainbowKit
- * Keep the SAME return shape ({ address, isConnected, chainId, connect,
- * disconnect }) so no caller changes. Wrap the app in WagmiProvider +
- * RainbowKitProvider (see HANDOFF.md) and configure chains/projectId to match
- * Sailor/packages/ui/src/wagmi.js.
+ * Return shape is identical to the prior mock ({ address, isConnected,
+ * chainId, connect, disconnect }) so no caller changed during the live swap.
+ * Providers (WagmiProvider + RainbowKitProvider) are mounted in src/main.jsx.
  */
-
-const MOCK_OWNER = '0x6f2A8b3f9C4d5E1A7B0c2D3E4F5A6B7C8D9E0F12'
-
-// Module-level store so state survives component remounts in the mockup.
-const store = { connected: true, address: MOCK_OWNER, chainId: 42161 }
-const subscribers = new Set()
-function notify() { for (const cb of subscribers) cb() }
-
 export function useOwnerWallet() {
-  const [, force] = useState(0)
-  useEffect(() => {
-    const cb = () => force((n) => n + 1)
-    subscribers.add(cb)
-    return () => subscribers.delete(cb)
-  }, [])
+  const { address, isConnected, chainId, connector } = useAccount()
+  const { disconnect } = useDisconnect()
+  const { openConnectModal } = useConnectModal()
 
-  const connect = useCallback(() => {
-    // LIVE: openConnectModal() — RainbowKit handles wallet selection.
-    store.connected = true
-    notify()
-  }, [])
-
-  const disconnect = useCallback(() => {
-    store.connected = false
-    notify()
-  }, [])
+  // Best-effort "switch account". No dApp API can force Phantom to re-open its
+  // account chooser (it ignores wallet_requestPermissions). The most aggressive
+  // thing we can do is REVOKE the site's eth_accounts permission, then
+  // disconnect and re-open connect — on wallets that honor wallet_revokePermissions
+  // (MetaMask/Rabby) this forces a fresh account selection. Phantom may ignore
+  // the revoke; for Phantom the reliable lever is switching the active account
+  // INSIDE the extension, which wagmi follows automatically via accountsChanged.
+  const switchAccount = useCallback(async () => {
+    try {
+      const provider = await connector?.getProvider?.()
+      await provider?.request?.({
+        method: 'wallet_revokePermissions',
+        params: [{ eth_accounts: {} }],
+      })
+    } catch {
+      // wallet doesn't support revoke (e.g. Phantom) — fall through
+    }
+    disconnect()
+    // Reopen the connect modal so the user can re-select (fresh, if revoke took).
+    setTimeout(() => openConnectModal?.(), 350)
+  }, [connector, disconnect, openConnectModal])
 
   return {
-    address: store.connected ? store.address : null,
-    isConnected: store.connected,
-    chainId: store.chainId,
-    connect,
+    address: address ?? null,
+    isConnected,
+    chainId: chainId ?? null,
+    connect: () => openConnectModal?.(),
     disconnect,
+    switchAccount,
   }
 }

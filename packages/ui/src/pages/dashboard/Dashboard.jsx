@@ -1,37 +1,45 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import {
   BrandMark,
   ConnectGate,
   FluidBackground,
+  InfoTip,
   Sai,
 } from '../shared'
 import shared from '../shared/shared.module.css'
 import styles from './Dashboard.module.css'
 import agentStyles from './SharedLayout.module.css'
 import {
-  owner,
-  sma,
-  mandates,
-  journal,
-  gas,
   explorerUrl,
   txExplorerUrl,
   safeAppUrl,
   debankUrl,
-} from '../../data/mockState'
-import { getPending, getMandateDraft } from '../../data/sailorClient'
+  getOwnerProfile,
+} from '../../data/studioClient'
+import {
+  getPending,
+  getMandateDraft,
+  getOnboardState,
+  getOverview,
+  getAccount,
+  getAccounts,
+  getActivity,
+  renameAccount,
+} from '../../data/sailorClient'
+import { createPublicClient, http } from 'viem'
+import { chains } from '../../wagmi'
 import { useOwnerWallet } from '../../hooks/useOwnerWallet'
 import { useSigningChannel } from '../../hooks/useSigningChannel'
 import ProfileModal from './ProfileModal'
 import ContractModal from './ContractModal'
 import PendingSigningModal from './PendingSigningModal'
 import RpcSection from './RpcSection'
+import AutomationSection from './AutomationSection'
 
 /* ──────────────────────────────────────────────────────────────
-   Data bridges — the local mockState (sail_framework_1.1) shape
+   Data bridges — the studio SMA/mandate shape (sail_framework_1.1)
    differs from the one demo-2's ProfileModal + ContractModal were
    built against. Rather than rewriting either component, we map
    the local shape into their expected shape at the wiring site so
@@ -40,34 +48,43 @@ import RpcSection from './RpcSection'
 
 /** ProfileModal expects an array of `safes` with id/name/address/
  *  network/networks/agentCount/createdAt. We only have one local
- *  SMA, so we synthesize a one-item list. */
-const safesForProfile = [
-  {
-    id: sma.id,
-    name: sma.name,
-    address: sma.address,
-    network: 'arbitrum',
-    networks: ['arbitrum'],
-    agentCount: mandates.filter((m) => m.status === 'active').length,
-    createdAt: sma.createdAt,
-    createdAgo: sma.createdAt,
-  },
-]
+ *  SMA, so we synthesize a one-item list from the loaded studio SMA
+ *  + mandates. */
+function buildSafesForProfile(sma, mandates) {
+  if (!sma) return []
+  // Use the SMA's REAL chain (from live overview), not a hardcoded default.
+  const net = sma.chain?.name || sma.chain?.short || ''
+  const mandateCount = mandates.length
+  return [
+    {
+      id: sma.id,
+      name: sma.name,
+      address: sma.address,
+      network: net,
+      networks: net ? [net] : [],
+      // The UI counts mandates here (we have no separate "agents" concept).
+      mandateCount,
+      agentCount: mandateCount,
+      createdAt: sma.createdAt,
+      createdAgo: sma.createdAt,
+    },
+  ]
+}
 
 /** ContractModal expects a richer mandate shape (title, aiName,
  *  summary, networks, assets, caps, duration, endsAt, actions).
  *  We fill the gaps from the local mandate + SMA so the contract
  *  surface stays informative even without the demo-2 spec. */
-function asContractMandate(m) {
-  if (!m) return null
+function asContractMandate(m, sma) {
+  if (!m || !sma) return null
   return {
     id: m.id,
     title: m.name,
-    aiName: m.drafter,
+    aiName: null,
     requestedAgo: m.signedAt,
     summary: m.brief,
-    networks: [sma.chain.short ?? 'arb1'],
-    assets: ['ETH', 'USDC'],
+    networks: [sma.chain?.name || sma.chain?.short].filter(Boolean),
+    assets: [],
     caps: [],
     duration: null,
     endsAt: null,
@@ -81,22 +98,249 @@ function asContractMandate(m) {
   }
 }
 
+/* ──────────────────────────────────────────────────────────────
+   LIVE adapters — map the real on-chain data (sailorClient:
+   getOverview/getAccount) into the studio-shaped records the
+   render body was built against. Journal/agents/ownerProfile stay
+   on the studio (mock) seam; SMA card, gas balances, and mandate
+   list are now fed from LIVE data here.
+   ────────────────────────────────────────────────────────────── */
+
+const SIGNER_META = {
+  manager: { label: 'Manager', description: 'The dispatcher. Signs and pays gas for every run.' },
+  owner:   { label: 'Owner',   description: 'Holds the Safe and signs mandates.' },
+}
+
+/** Map the SERVER's live balanceStatus to the UI's three funding states.
+ *  The server emits 'ok' | 'low' | 'critical' (server.js balanceStatus):
+ *    eth ≥ 0.002 → 'ok'  ·  0.0005–0.002 → 'low'  ·  < 0.0005 → 'critical'.
+ *  We render: 'funded' | 'low' | 'empty' (empty = critical/zero/unknown). */
+function liveStatus(s, balanceEth) {
+  if (s === 'funded' || s === 'ok') return 'funded'
+  // Anything below the funded threshold but with a visible balance is "low";
+  // genuinely zero is "empty" (Not funded).
+  const zero = !balanceEth || Number(balanceEth) === 0
+  if (zero) return 'empty'
+  return 'low'
+}
+
+/** User-facing label per funding state. */
+const STATUS_LABEL = {
+  funded: 'Funded',
+  low: 'Low balance',
+  empty: 'Not funded',
+}
+function statusLabel(status) { return STATUS_LABEL[status] ?? 'Not funded' }
+
+/** Pill class per funding state. Funded=blue; low=blue (act-on-me);
+ *  empty=coral (zero — needs gas before it can run). */
+function statusPillClass(status) {
+  if (status === 'low') return styles.gasPillLow
+  if (status === 'empty') return styles.gasPillEmpty
+  return styles.gasPillFunded
+}
+
+/** Map an overview.signers entry (role-keyed) to the wallet shape the
+ *  GasCard renders. Falls back to a zero-balance placeholder when the
+ *  signer is missing (edge: overview present but signer absent). */
+function fromSigner(overview, account, role) {
+  const meta = SIGNER_META[role]
+  const s = overview?.signers?.find((x) => x.role === role)
+  const fallbackAddr = role === 'manager' ? account?.manager : account?.owner
+  const status = liveStatus(s?.status, s?.balanceEth)
+  return {
+    address: s?.address ?? fallbackAddr ?? '',
+    balanceEth: s?.balanceEth ?? '0',
+    status,
+    label: meta.label,
+    description: meta.description,
+    // Show a fund CTA whenever the wallet isn't comfortably funded.
+    refillSuggestionEth: status === 'funded' ? null : 0.002,
+    refillHint: fundHint(status),
+  }
+}
+
+/** Resolve the SMA's creation DATE from its `createdAtBlock` (account.json has
+ *  no timestamp — only the block). One light RPC read via the chain's default
+ *  endpoint; returns '' on any failure so the chip just stays empty. */
+async function fetchCreatedDate(chainId, blockNumber) {
+  try {
+    if (!chainId || blockNumber == null) return ''
+    const chain = chains.find((c) => c.id === chainId)
+    if (!chain) return ''
+    const client = createPublicClient({ chain, transport: http() })
+    const block = await client.getBlock({ blockNumber: BigInt(blockNumber) })
+    return new Date(Number(block.timestamp) * 1000)
+      .toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+  } catch {
+    return ''
+  }
+}
+
+/** Capitalize a single word (e.g. live chain name 'base' → 'Base'). */
+function capitalizeWord(s) {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
+}
+
+/** Footer hint copy per funding state. */
+function fundHint(status) {
+  if (status === 'empty') return 'Not funded — top up to run.'
+  if (status === 'low') return 'Low balance — top up to keep running.'
+  return null
+}
+
+/** Build the studio-shaped `sma` record from live overview + account.json.
+ *  When overview.sma is missing while hasAccount is true, fall back to
+ *  account.json fields for address/owner/manager. */
+function buildLiveSma(overview, account) {
+  const oSma = overview?.sma ?? null
+  const chainId = overview?.chainId ?? account?.chainId ?? null
+  const chainName = overview?.network ?? oSma?.network ?? ''
+  return {
+    id: oSma?.address ?? account?.safe ?? 'sma',
+    name: account?.name ?? 'My SMA',
+    address: oSma?.address ?? account?.safe ?? '',
+    chain: { id: chainId, name: chainName, short: chainName },
+    createdAt: account?.createdAt ?? '',
+    config: { sessionActive: Boolean(oSma?.sessionActive) },
+  }
+}
+
+/** Build the studio-shaped `gas` record (sma/agent/owner) from live data. */
+function buildLiveGas(overview, account) {
+  const oSma = overview?.sma ?? null
+  return {
+    sma: {
+      balanceEth: oSma?.balanceEth ?? '0',
+      status: liveStatus(oSma?.balanceStatus, oSma?.balanceEth),
+      description: 'Holds your funds. Native ETH shown; tokens not counted.',
+    },
+    agent: fromSigner(overview, account, 'manager'),
+    owner: fromSigner(overview, account, 'owner'),
+  }
+}
+
+/** Map overview.mandates (thin on-chain stubs) into the studio-shaped
+ *  mandate rows the list renders. The rich brief/permission detail has no
+ *  endpoint, so those fields are thin-but-real placeholders. */
+function buildLiveMandates(overview) {
+  return (overview?.mandates ?? []).map((m) => ({
+    id: m.address,
+    name: m.name,
+    address: m.address,
+    template: m.template,
+    status: 'active',
+    drafter: null,
+    signedAt: '',
+    permissionsCount: 1,
+    brief: '',
+  }))
+}
+
 /**
  * Dashboard — local-UI dashboard for an AI-managed SMA.
  *
  * Anchored on the data the protocol + framework actually expose
- * (mockState.js mirrors `sail_framework_1.1` 1:1). The visual
+ * (the studio seam mirrors `sail_framework_1.1` 1:1). The visual
  * language comes from the sail-local-ui-demo-2 design system:
  * FluidBackground, glass cards, sparing blue accent, MD Nichrome
  * for display, DM Sans for body.
  */
 export default function Dashboard() {
-  const router = useRouter()
 
   // ── Owner wallet (Surface 3) ── the connected wallet IS the Owner: custody
   // anchor + the only key that can authorize anything. Mock today; wagmi later.
   const wallet = useOwnerWallet()
   const { isConnected } = wallet
+
+  // ── Live on-chain load state ──
+  // `onboard` (null until loaded) drives the 3-way gate below: it tells us
+  // whether a REAL SMA exists yet. `overview`/`account` are the live records
+  // (getOverview/getAccount) the dashboard body reads through the adapters.
+  const [onboard, setOnboard] = useState(null)
+  const [overview, setOverview] = useState(null)
+  const [account, setAccount] = useState(null)
+
+  // Recent activity is LIVE (GET /api/activity). Owner profile stays on the
+  // studio (mock) seam — no live endpoint for it.
+  const [journal, setJournal] = useState([])
+  const [ownerProfile, setOwnerProfile] = useState(null)
+  useEffect(() => {
+    let alive = true
+    Promise.all([getActivity().catch(() => []), getOwnerProfile()]).then(([events, o]) => {
+      if (!alive) return
+      setJournal(mapActivityEvents(events))
+      setOwnerProfile(o)
+    })
+    return () => { alive = false }
+  }, [])
+
+  // The live loader. Runs on mount, whenever the wallet connects, and on
+  // New-SMA completion reloads live state. Reads onboard state first; only
+  // when an account exists do we fetch overview + account.json. getOverview /
+  // getAccount are wrapped so a 404 before deploy is treated as "no account".
+  const reloadSeq = useRef(0)
+  const loadLive = useCallback(async () => {
+    const seq = ++reloadSeq.current
+    let ob = null
+    try {
+      ob = await getOnboardState()
+    } catch {
+      // Couldn't reach the server — DON'T assume "no account" (that would bounce
+      // a real user into onboarding). Mark it unknown so the redirect holds off.
+      ob = { hasAccount: false, unknown: true }
+    }
+    if (seq !== reloadSeq.current) return
+    setOnboard(ob)
+    if (!ob?.hasAccount) {
+      setOverview(null)
+      setAccount(null)
+      return
+    }
+    const [ov, acc, accts] = await Promise.all([
+      getOverview().catch(() => null),
+      getAccount().catch(() => null),
+      getAccounts().catch(() => []),
+    ])
+    if (seq !== reloadSeq.current) return
+    // The display name lives in the accounts LIST (account.json itself has no
+    // `name`), so merge it onto the active account record.
+    if (acc?.safe) {
+      const match = (accts ?? []).find((a) => a.safe?.toLowerCase() === acc.safe.toLowerCase())
+      if (match?.name) acc.name = match.name
+    }
+    setOverview(ov)
+    setAccount(acc)
+    // Resolve the creation date from the block (async, best-effort).
+    if (acc?.createdAtBlock != null && (acc?.chainId ?? ov?.chainId)) {
+      fetchCreatedDate(acc.chainId ?? ov?.chainId, acc.createdAtBlock).then((date) => {
+        if (seq === reloadSeq.current && date) {
+          setAccount((prev) => (prev ? { ...prev, createdAt: date } : prev))
+        }
+      })
+    }
+  }, [])
+
+  useEffect(() => { loadLive() }, [loadLive])
+  // Re-run the loader whenever the wallet connects.
+  useEffect(() => { if (isConnected) loadLive() }, [isConnected, loadLive])
+
+  // Derive the studio-shaped records the render body reads from LIVE data.
+  const hasAccount = !!onboard?.hasAccount
+  const sma = hasAccount ? buildLiveSma(overview, account) : null
+  const gas = hasAccount ? buildLiveGas(overview, account) : null
+
+  // First-run routing: connected but no on-chain SMA yet → send the user to
+  // the new design's onboarding wizard (the Signing page). It drives the real
+  // deploy and returns to #/dashboard, where loadLive flips hasAccount true.
+  useEffect(() => {
+    // Only redirect when we DEFINITIVELY know there's no account — never on a
+    // transient load failure (onboard.unknown), which would falsely eject a
+    // real user with an SMA into onboarding.
+    if (isConnected && onboard && !onboard.hasAccount && !onboard.unknown) {
+      window.location.hash = '#/signing'
+    }
+  }, [isConnected, onboard])
 
   // ── Pending signing queue (Surface 4) ── sourced from the seam
   // (GET /api/station/pending), polled ~3s, mirroring Sailor's useSailorPending.
@@ -156,6 +400,7 @@ export default function Dashboard() {
   const [contractFlow, setContractFlow] = useState({ id: null, mode: 'view' })
   // SMA profile menu (reincorporated from demo-2).
   const [profileOpen, setProfileOpen] = useState(false)
+  // In-dashboard "Create new SMA" flow.
   // Pending signatures modal — opened from the announcement bar.
   // Shows the queue of operations the user's AI has drafted and is
   // waiting for the user to sign. Drilling into any item opens the
@@ -164,13 +409,20 @@ export default function Dashboard() {
   // dashboard while triaging the queue.
   const [signingOpen, setSigningOpen] = useState(false)
   // Local copy so we can flip an active mandate to revoked without
-  // reloading. The mock list is the source of truth on first render.
-  const [mandateList, setMandateList] = useState(mandates)
+  // reloading. Seeded from the LIVE overview mandate list whenever it loads.
+  const [mandateList, setMandateList] = useState([])
+  useEffect(() => {
+    if (hasAccount && overview) setMandateList(buildLiveMandates(overview))
+    else setMandateList([])
+  }, [hasAccount, overview])
+
+  // ProfileModal reads the same list (active-mandate count). Keep it aligned.
+  const mandates = mandateList
 
   const contractMandate = mandateList.find((m) => m.id === contractFlow.id) ?? null
   const editingMandate  = mandateList.find((m) => m.id === editMandateId)   ?? null
 
-  const isSessionActive = sma.config.sessionActive
+  const isSessionActive = sma?.config?.sessionActive
 
   function copySma() {
     if (!sma?.address) return
@@ -184,8 +436,13 @@ export default function Dashboard() {
     setSigningOpen(true)
   }
 
-  const safeUrl = safeAppUrl(sma.chain, sma.address)
-  const debank = debankUrl(sma.address)
+  const safeUrl = sma ? safeAppUrl(sma.chain, sma.address) : '#'
+  const debank = sma ? debankUrl(sma.address) : '#'
+
+  // Hold the dashboard body until the live SMA/gas records are derived so
+  // nothing dereferences a null record. The chrome/connect/onboarding gates
+  // still render via the guards below.
+  const dashboardReady = !!(sma && gas)
 
   return (
     <div className={`${shared.pageShell} ${styles.shell}`}>
@@ -199,7 +456,7 @@ export default function Dashboard() {
         <button
           type="button"
           className={styles.brand}
-          onClick={() => { router.push('/dashboard') }}
+          onClick={() => { window.location.hash = '#/dashboard' }}
           aria-label="Sail dashboard"
         >
           <span className={styles.brandWrap}>
@@ -253,8 +510,20 @@ export default function Dashboard() {
 
       <main className={agentStyles.main}>
         {!isConnected ? (
+          // (a) Wallet not connected — the connect gate.
           <ConnectGate onConnect={wallet.connect} />
-        ) : (
+        ) : onboard == null ? (
+          // (b) Connected, but the live onboard state hasn't loaded yet.
+          <div className={styles.onboardWait} aria-busy="true" />
+        ) : !hasAccount ? (
+          // (c) Connected, but NO real on-chain SMA exists yet → onboarding.
+          // The new design's first-run experience is the dedicated Signing
+          // wizard (welcome → connect → network → password → deploy). We route
+          // there (see the redirect effect above); Signing drives the real
+          // deploy and returns to #/dashboard, where loadLive flips hasAccount.
+          null
+        ) : !dashboardReady ? null : (
+        // (d) Connected with a real SMA → the live dashboard.
         <>
         {pendingCount > 0 && (
           <PendingBanner
@@ -273,7 +542,14 @@ export default function Dashboard() {
         <section className={`${agentStyles.titleBlock} ${styles.smaHero}`}>
           <div className={styles.smaHeroTop}>
             <div className={styles.smaHeroLead}>
-              <span className={styles.smaHeroKicker}>Separately Managed Account</span>
+              <span className={styles.smaHeroKicker}>
+                Separately Managed Account
+                <InfoTip label="What is an SMA?" side="bottom">
+                  A Separately Managed Account is a self-custody smart account (a Safe) that
+                  your AI agents operate inside. You own it outright — Sail and the AI only
+                  ever act within the limits you sign. It&rsquo;s deployed once and bound to one chain.
+                </InfoTip>
+              </span>
               <h1 className={`${agentStyles.title} ${styles.smaHeroTitle}`}>{sma.name}</h1>
               <p className={styles.smaHeroDesc}>{gas.sma.description}</p>
             </div>
@@ -281,9 +557,9 @@ export default function Dashboard() {
             <div className={styles.smaHeroBalanceBlock}>
               <div className={styles.smaHeroBalanceTop}>
                 <span className={styles.smaHeroBalanceLabel}>SMA balance</span>
-                <span className={smaBalancePillClass(gas.sma.status)}>
+                <span className={statusPillClass(gas.sma.status)}>
                   <span className={styles.gasPillDot} aria-hidden />
-                  {gas.sma.status === 'low' ? 'Low' : 'Funded'}
+                  {statusLabel(gas.sma.status)}
                 </span>
               </div>
               <div className={styles.smaHeroBalanceRow}>
@@ -322,22 +598,30 @@ export default function Dashboard() {
             <span className={styles.smaHeroSep} aria-hidden>·</span>
 
             <span className={styles.smaHeroChip}>
-              <ChainGlyph />
-              {sma.chain.name}
+              {capitalizeWord(sma.chain.name)}
             </span>
 
-            <span className={styles.smaHeroSep} aria-hidden>·</span>
-
-            <span className={styles.smaHeroChip}>
-              <ClockGlyph />
-              Created {sma.createdAt}
-            </span>
+            {sma.createdAt && (
+              <>
+                <span className={styles.smaHeroSep} aria-hidden>·</span>
+                <span className={styles.smaHeroChip}>
+                  <ClockGlyph />
+                  Created {sma.createdAt}
+                </span>
+              </>
+            )}
 
             <span className={styles.smaHeroSep} aria-hidden>·</span>
 
             <span className={`${styles.smaHeroChip} ${isSessionActive ? styles.smaHeroChipActive : styles.smaHeroChipPaused}`}>
               <span className={styles.gasPillDot} aria-hidden />
               {isSessionActive ? 'Session active' : 'Session paused'}
+              <InfoTip label="What is the session?" side="bottom">
+                The session is the kernel&rsquo;s master switch for this account. When
+                <strong> active</strong>, your agent can execute actions within its mandates;
+                when <strong>paused</strong>, every dispatch is blocked on-chain — a one-flag
+                kill switch. A new SMA starts paused; resume it (you sign) to let the agent run.
+              </InfoTip>
             </span>
           </div>
 
@@ -386,6 +670,7 @@ export default function Dashboard() {
               onboarding-style provider picker. Single source of truth — moved
               out of Settings. Maps to /api/onboard/* via sailorClient. */}
           <RpcSection />
+          <AutomationSection />
         </section>
 
         {/* ── Agent wallets — operational gas balances ──
@@ -400,6 +685,12 @@ export default function Dashboard() {
               <span className={styles.sectionTile} aria-hidden><FuelGlyph /></span>
               <span className={styles.sectionIndex}>01</span>
               <span className={styles.sectionName}>Operator wallets</span>
+              <InfoTip label="What are operator wallets?">
+                The two wallets that run your account. The <strong>Manager</strong> is your
+                agent&rsquo;s wallet — it submits each action and pays gas. The <strong>Owner</strong>
+                is your own wallet — it holds the Safe and signs mandate changes. Keep both
+                funded with a little ETH for gas.
+              </InfoTip>
             </h2>
             <span className={styles.gasSectionMeta}>LIVE BALANCES</span>
           </header>
@@ -423,6 +714,12 @@ export default function Dashboard() {
               <span className={styles.sectionTile} aria-hidden><DocGlyph /></span>
               <span className={styles.sectionIndex}>02</span>
               <span className={styles.sectionName}>Your mandates</span>
+              <InfoTip label="What is a mandate?">
+                A mandate is a permission contract registered on-chain that bounds exactly what
+                your agent may do — which contracts it can call, which functions, and within
+                what limits. Your agent can never act outside its mandates, and you can revoke
+                one at any time.
+              </InfoTip>
             </h2>
             <span className={styles.mandatesSectionMeta}>
               {mandateList.length} mandates · attached on-chain
@@ -471,7 +768,7 @@ export default function Dashboard() {
         mode={contractFlow.mode}
         readOnly={contractFlow.mode === 'view'}
         signedDate={contractMandate?.signedAt}
-        mandate={asContractMandate(contractMandate)}
+        mandate={asContractMandate(contractMandate, sma)}
         onClose={() => setContractFlow({ id: null, mode: 'view' })}
         onAuthorize={() => setContractFlow({ id: null, mode: 'view' })}
         onReject={() => setContractFlow({ id: null, mode: 'view' })}
@@ -507,16 +804,16 @@ export default function Dashboard() {
           deposit, withdraw, rename. Opens from the avatar button. */}
       <ProfileModal
         open={profileOpen}
-        wallet={wallet.address ?? owner.address}
-        safes={safesForProfile}
-        currentSafeId={sma.id}
+        wallet={wallet.address ?? ownerProfile?.address}
+        safes={buildSafesForProfile(sma, mandates)}
+        currentSafeId={sma?.id}
         hasSMA
         onClose={() => setProfileOpen(false)}
-        onCreateSMA={() => setProfileOpen(false)}
+        onCreateSMA={() => { setProfileOpen(false); window.location.hash = '#/signing?new=1' }}
         onOpenSMA={() => setProfileOpen(false)}
         onDeposit={() => setProfileOpen(false)}
         onWithdraw={() => setProfileOpen(false)}
-        onRenameSafe={() => {}}
+        onRenameSafe={(safe, name) => { renameAccount({ safe, name }).then(loadLive).catch(() => {}) }}
         onSelectSafe={() => setProfileOpen(false)}
         onDisconnect={wallet.disconnect}
       />
@@ -526,6 +823,7 @@ export default function Dashboard() {
         mandate={editingMandate}
         onClose={() => setEditMandateId(null)}
       />
+
     </div>
   )
 }
@@ -560,9 +858,11 @@ function MandateRow({ mandate, chain, onView, onRevoke, onEdit }) {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
-        <span className={styles.mandateRowAvatar} aria-hidden>
-          <BrandMark name={mandate.drafter} size={20} />
-        </span>
+        {mandate.drafter ? (
+          <span className={styles.mandateRowAvatar} aria-hidden>
+            <BrandMark name={mandate.drafter} size={20} />
+          </span>
+        ) : null}
 
         <span className={styles.mandateRowBody}>
           <span className={styles.mandateRowNameLine}>
@@ -575,8 +875,12 @@ function MandateRow({ mandate, chain, onView, onRevoke, onEdit }) {
           </span>
           <span className={styles.mandateRowSub}>
             {mandate.permissionsCount} permission{mandate.permissionsCount === 1 ? '' : 's'}
-            <span className={styles.mandateRowSubDot} aria-hidden>·</span>
-            {mandate.signedAt}
+            {mandate.signedAt ? (
+              <>
+                <span className={styles.mandateRowSubDot} aria-hidden>·</span>
+                {mandate.signedAt}
+              </>
+            ) : null}
             <span className={styles.mandateRowSubDot} aria-hidden>·</span>
             <span className={styles.mandateRowSubMono}>{truncateAddr(mandate.address)}</span>
           </span>
@@ -599,20 +903,34 @@ function MandateRow({ mandate, chain, onView, onRevoke, onEdit }) {
         <div className={styles.mandateRowDetailInner}>
           {/* Block 1 — recital + provenance, framed as a quote
               card with a left blue rail. */}
-          <section className={styles.mandateRecitalBlock}>
-            <span className={styles.mandateBlockEyebrow}>BRIEF /</span>
-            <p className={styles.mandateRowBrief}>{mandate.brief}</p>
-            <p className={styles.mandateRowProvenance}>
-              <BrandMark name={mandate.drafter} size={14} />
-              <span>
-                Drafted by <strong>{mandate.drafter}</strong>
-                <span className={styles.mandateRowProvenanceSep} aria-hidden>·</span>
-                first registered {mandate.signedAt}
-              </span>
-            </p>
-          </section>
+          {(mandate.brief || mandate.drafter || mandate.signedAt) ? (
+            <>
+              <section className={styles.mandateRecitalBlock}>
+                <span className={styles.mandateBlockEyebrow}>BRIEF /</span>
+                {mandate.brief ? (
+                  <p className={styles.mandateRowBrief}>{mandate.brief}</p>
+                ) : null}
+                <p className={styles.mandateRowProvenance}>
+                  {mandate.drafter ? <BrandMark name={mandate.drafter} size={14} /> : null}
+                  <span>
+                    {mandate.drafter ? (
+                      <>Drafted by <strong>{mandate.drafter}</strong></>
+                    ) : (
+                      <>On-chain permission</>
+                    )}
+                    {mandate.signedAt ? (
+                      <>
+                        <span className={styles.mandateRowProvenanceSep} aria-hidden>·</span>
+                        first registered {mandate.signedAt}
+                      </>
+                    ) : null}
+                  </span>
+                </p>
+              </section>
 
-          <div className={styles.mandateBlockDivider} aria-hidden />
+              <div className={styles.mandateBlockDivider} aria-hidden />
+            </>
+          ) : null}
 
           {/* Block 2 — onchain meta. Address as a wide blueprint
               chip + status pinned right. Mono throughout. */}
@@ -797,7 +1115,7 @@ function PendingBanner({ count, onReview }) {
    Address row sits on a flex spacer so it floats to the same
    baseline whether the description is one line or two. */
 function GasCard({ wallet, chain, primary }) {
-  const isLow = wallet.status === 'low'
+  const needsGas = wallet.status !== 'funded'
   const [copied, setCopied] = useState(false)
   function copyAddr(e) {
     e.stopPropagation()
@@ -807,14 +1125,21 @@ function GasCard({ wallet, chain, primary }) {
   }
   return (
     <article
-      className={`${styles.gasCard} ${isLow ? styles.gasCardLow : ''} ${styles[`gasCard_${primary}`] ?? ''}`}
+      className={`${styles.gasCard} ${needsGas ? styles.gasCardLow : ''} ${styles[`gasCard_${primary}`] ?? ''}`}
     >
       {/* Top: label + status chip. */}
       <header className={styles.gasCardHead}>
-        <span className={styles.gasCardLabel}>{wallet.label}</span>
-        <span className={isLow ? styles.gasPillLow : styles.gasPillFunded}>
+        <span className={styles.gasCardLabel}>
+          {wallet.label}
+          <InfoTip label={`What is the ${wallet.label}?`}>
+            {primary === 'owner'
+              ? 'Your own wallet — the custody anchor. It owns the Safe and is the only key that can authorize mandates or resume/pause the session. It only needs a little ETH for the occasional signature.'
+              : 'Your agent’s wallet (the dispatcher). It submits every on-chain action your agent takes and pays the gas. Keep it topped up so runs don’t stall.'}
+          </InfoTip>
+        </span>
+        <span className={statusPillClass(wallet.status)}>
           <span className={styles.gasPillDot} aria-hidden />
-          {isLow ? 'Low' : 'Funded'}
+          {statusLabel(wallet.status)}
         </span>
       </header>
 
@@ -858,7 +1183,7 @@ function GasCard({ wallet, chain, primary }) {
           mono line. Both occupy the same vertical footprint so
           the two cards stay coplanar. */}
       <div className={styles.gasFooter}>
-        {isLow && wallet.refillSuggestionEth ? (
+        {needsGas && wallet.refillSuggestionEth ? (
           <>
             <span className={styles.gasFooterHint}>{wallet.refillHint}</span>
             <button
@@ -872,9 +1197,9 @@ function GasCard({ wallet, chain, primary }) {
             </button>
           </>
         ) : (
-          <span className={styles.gasFooterStatus} aria-hidden>
+          <span className={styles.gasFooterStatus}>
             <span className={styles.gasFooterStatusDot} aria-hidden />
-            IN GOOD STANDING
+            SUFFICIENT GAS
           </span>
         )}
       </div>
@@ -891,6 +1216,41 @@ function GasCard({ wallet, chain, primary }) {
 /** Which actor drove this event — the manager (the agent/dispatcher)
  *  or the owner (the EOA that signs). Sail-runtime/system events fall
  *  through to neither and only appear under "All". */
+/** Map raw /api/activity events (append-only jsonl) to the row shape the
+ *  Recent Activity surface renders. Newest first (the log is oldest-first). */
+function mapActivityEvents(events) {
+  if (!Array.isArray(events)) return []
+  return [...events].reverse().map((e, i) => {
+    const isOwner = e.actor === 'owner'
+    const isAgent = e.actor === 'agent'
+    const type = e.type ?? ''
+    const success = /signed|deployed|registered|success|confirmed|attached/i.test(type)
+    const rejected = /reject|block|fail|revert|error/i.test(type)
+    let time = ''
+    try { time = new Date(e.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) } catch { /* keep '' */ }
+    return {
+      id: `${e.ts ?? 'evt'}-${i}`,
+      time,
+      dateLabel: '',
+      actor: isOwner ? 'You' : isAgent ? 'Agent' : 'System',
+      agentId: isAgent ? 'agent' : null,
+      action: e.title || e.name || e.msg || (e.type ? e.type.replace(/_/g, ' ') : 'event'),
+      summary: e.reason || e.type || '',
+      source: e.type ?? '',
+      sourceLabel: isOwner ? 'Owner action' : isAgent ? 'Run' : 'System',
+      status: success ? 'success' : rejected ? 'rejected' : 'info',
+      detail: {
+        reasoning: e.reason || e.msg || '',
+        evidence: [
+          e.address && { k: 'Address', v: e.address },
+          e.name && { k: 'Name', v: e.name },
+        ].filter(Boolean),
+        artifact: e.txHash ? { 'Tx hash': e.txHash } : undefined,
+      },
+    }
+  })
+}
+
 function activityRole(e) {
   if (e.actor === 'You') return 'owner'
   if (e.agentId) return 'manager'
@@ -962,7 +1322,7 @@ function RecentActivity({ journal, chain }) {
 
       {shown.length === 0 ? (
         <div className={styles.actEmpty}>
-          No {filter} activity yet.
+          No {filter === 'all' ? '' : `${filter} `}activity yet. Your agent hasn&rsquo;t run.
         </div>
       ) : (
         <ul className={styles.actList}>

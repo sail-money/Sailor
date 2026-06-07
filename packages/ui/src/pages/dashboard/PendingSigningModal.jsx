@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useSwitchChain } from 'wagmi'
 import { GlassCard, RevealCalldata, Sai } from '../shared'
 import shared from '../shared/shared.module.css'
 import styles from './PendingSigningModal.module.css'
@@ -59,6 +60,16 @@ export default function PendingSigningModal({
 }) {
   const { isConnected, address, chainId: walletChain } = wallet ?? {}
   const { sendTransactionAsync, signTypedDataAsync } = useMockSigner()
+  const { switchChainAsync } = useSwitchChain()
+
+  // Ensure the wallet is on the request's chain before signing — wagmi throws a
+  // ChainMismatch if you send/sign for a chainId the wallet isn't on (e.g. the
+  // request targets Base 8453 but the wallet is on Ethereum).
+  const ensureChain = useCallback(async (chainId) => {
+    if (chainId && walletChain !== chainId) {
+      await switchChainAsync({ chainId })
+    }
+  }, [walletChain, switchChainAsync])
 
   // phase: { phase:'idle'|'submitting'|'done'|'error', requestId, kind, txHash?, message? }
   const [phase, setPhase] = useState({ phase: 'idle' })
@@ -90,6 +101,7 @@ export default function PendingSigningModal({
   const handleSign = useCallback(async (req) => {
     setPhase({ phase: 'submitting', requestId: req.id, kind: req.kind })
     try {
+      await ensureChain(req.chainId)
       if (req.type === 'transaction') {
         const hash = await sendTransactionAsync({
           to: req.to ? req.to : undefined,
@@ -123,7 +135,7 @@ export default function PendingSigningModal({
         message: err instanceof Error ? err.message : String(err),
       })
     }
-  }, [sendTransactionAsync, signTypedDataAsync, send])
+  }, [sendTransactionAsync, signTypedDataAsync, send, ensureChain])
 
   const handleReject = useCallback((id) => {
     setPhase({ phase: 'idle' })
@@ -138,6 +150,7 @@ export default function PendingSigningModal({
     setDraftPhase({ phase: 'submitting' })
     try {
       const td = draft.typedData
+      await ensureChain(td?.domain?.chainId ?? draft.chainId)
       let signature = '0xmock-draft-signature'
       if (td) {
         const message = Object.fromEntries(
@@ -156,7 +169,7 @@ export default function PendingSigningModal({
     } catch (err) {
       setDraftPhase({ phase: 'error', message: err instanceof Error ? err.message : String(err) })
     }
-  }, [draft, signTypedDataAsync, onDraftSubmitted])
+  }, [draft, signTypedDataAsync, onDraftSubmitted, ensureChain])
 
   if (!open) return null
 
@@ -216,6 +229,7 @@ export default function PendingSigningModal({
               otherActive={signingInProgress && phase.requestId !== req.id}
               onSign={handleSign}
               onReject={handleReject}
+              onSwitch={(chainId) => switchChainAsync({ chainId })}
             />
           ))}
         </ul>
@@ -236,7 +250,7 @@ export default function PendingSigningModal({
 }
 
 /* ────────── One signing request, rendered as a reviewable contract ────────── */
-function OperationCard({ request, phase, canSign, walletChain, otherActive, onSign, onReject }) {
+function OperationCard({ request, phase, canSign, walletChain, otherActive, onSign, onReject, onSwitch }) {
   const mine = phase.requestId === request.id
   const submitting = mine && phase.phase === 'submitting'
   const done = mine && phase.phase === 'done'
@@ -306,7 +320,19 @@ function OperationCard({ request, phase, canSign, walletChain, otherActive, onSi
         }
       />
 
-      {done && <div className={`${styles.banner} ${styles.bannerOk}`}>Submitted · {shortHex(phase.txHash)}</div>}
+      {done && (
+        <div className={styles.successAnim}>
+          <svg className={styles.successRing} viewBox="0 0 32 32" aria-hidden>
+            <circle cx="16" cy="16" r="14" fill="none" stroke="var(--accent-blue, #1990FF)" strokeWidth="2" />
+            <path d="M9 16.5l4.5 4.5L23 11" fill="none" stroke="var(--accent-blue, #1990FF)"
+              strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span className={styles.successTitle}>
+            {isTyped ? 'Mandate authorized.' : 'Submitted on-chain.'}
+          </span>
+          <span className={styles.successSub}>{shortHex(phase.txHash)}</span>
+        </div>
+      )}
       {hasError && <div className={`${styles.banner} ${styles.bannerDanger}`}>{phase.message}</div>}
       {wrongChain && (
         <div className={`${styles.banner} ${styles.bannerWarn}`}>
@@ -323,22 +349,33 @@ function OperationCard({ request, phase, canSign, walletChain, otherActive, onSi
         >
           Reject
         </button>
-        <button
-          type="button"
-          className={styles.authorize}
-          disabled={!canSign || submitting || done || wrongChain || otherActive}
-          onClick={() => onSign(request)}
-        >
-          {!canSign
-            ? 'Connect to sign'
-            : otherActive
-              ? 'Waiting…'
-              : submitting
-                ? (isTyped ? 'Signing…' : 'Submitting…')
-                : done
-                  ? 'Signed ✓'
-                  : isTyped ? 'Sign message' : 'Sign & submit'}
-        </button>
+        {canSign && wrongChain && !done ? (
+          <button
+            type="button"
+            className={styles.authorize}
+            disabled={submitting || otherActive}
+            onClick={() => onSwitch?.(request.chainId)}
+          >
+            Switch to {chainName(request.chainId)}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={styles.authorize}
+            disabled={!canSign || submitting || done || otherActive}
+            onClick={() => onSign(request)}
+          >
+            {!canSign
+              ? 'Connect to sign'
+              : otherActive
+                ? 'Waiting…'
+                : submitting
+                  ? (isTyped ? 'Signing…' : 'Submitting…')
+                  : done
+                    ? 'Signed ✓'
+                    : isTyped ? 'Sign message' : 'Sign & submit'}
+          </button>
+        )}
       </div>
     </li>
   )

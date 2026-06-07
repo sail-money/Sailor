@@ -1,18 +1,20 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useState } from 'react'
 import {
   FluidBackground,
   GlassCard,
+  InfoTip,
   Sai,
   RevealCalldata,
   SailButton,
 } from '../shared'
 import shared from '../shared/shared.module.css'
 import styles from './Signing.module.css'
-import { mockDeploy } from './mockData'
+import { useDeploySma } from '../../hooks/useDeploySma'
+import { useOwnerWallet } from '../../hooks/useOwnerWallet'
 import { useDemoState } from '../../demo/useDemoState'
+import { getOnboardState } from '../../data/sailorClient'
 
 // Legacy login/signup URLs route to the unified 'connect' state so old
 // demo-console links keep working.
@@ -46,17 +48,40 @@ const NETWORKS = [
  * the keys.
  */
 export default function Signing() {
-  const router = useRouter()
-  const demo = useDemoState()
-  const aliased = STATE_ALIASES[demo.demo] ?? demo.demo
-  const initialState = VALID_DEMO_STATES.has(aliased) ? aliased : 'welcome'
-  const [state, setState] = useState(initialState)
+  // Live onboarding always starts at 'welcome'. (The demo-console state seeding
+  // is intentionally bypassed here so a stale demo step can't drop a real user
+  // mid-flow — e.g. straight into 'confirming' with no deploy running.)
+  const [state, setState] = useState('welcome')
   const [progress, setProgress] = useState('idle')
+
+  // Guard: if an SMA already exists, this user doesn't belong in onboarding —
+  // send them to the dashboard. EXCEPTION: `#/signing?new=1` is the explicit
+  // "create another SMA" entry from the dashboard, so we honor it even when an
+  // account already exists (a stale hash, by contrast, has no `new=1`).
+  useEffect(() => {
+    const isNew = typeof window !== 'undefined' && window.location.hash.includes('new=1')
+    if (isNew) return undefined
+    let alive = true
+    getOnboardState()
+      .then((s) => { if (alive && s?.hasAccount) window.location.hash = '#/dashboard' })
+      .catch(() => { /* can't confirm — stay in onboarding */ })
+    return () => { alive = false }
+  }, [])
 
   // Setup selections carried across steps. Networks is multi-select —
   // Sail deploys one SMA per chain, so an operator can stand several up
   // in a single pass.
+  // Default to the chain this local project is configured for (.sail/.env.local
+  // → Base mainnet, 8453). The deploy targets the selected network's chain, so
+  // this must match the server's configured kernel/RPC.
   const [networks, setNetworks] = useState(['base'])
+  const [deployError, setDeployError] = useState(null)
+  // The password from the SECURE step — encrypts the agent (manager) signing
+  // key on this device. Threaded into deploy() → generateKey({ passphrase }).
+  const [passphrase, setPassphrase] = useState('')
+
+  const { deploy } = useDeploySma()
+  const { isConnected, connect } = useOwnerWallet()
 
   function toggleNetwork(id) {
     setNetworks((prev) =>
@@ -64,26 +89,32 @@ export default function Signing() {
     )
   }
 
-  useEffect(() => {
-    if (state !== 'confirming') return
-    setProgress('waiting')
-    // Success state dwells for ~2.4s after it lands — long enough for
-    // the user to read "Account deployed." and feel the moment.
-    const t1 = setTimeout(() => setProgress('confirmed'), 1700)
-    const t2 = setTimeout(() => {
-      router.push('/dashboard')
-    }, 4100)
-    return () => {
-      clearTimeout(t1)
-      clearTimeout(t2)
-    }
-  }, [state, router])
-
   function go(next) {
     setState(next)
   }
 
   const selectedNetworks = NETWORKS.filter((n) => networks.includes(n.id))
+
+  // Live "Sign & deploy": prompt connect if needed, else run the real deploy
+  // on the connected wallet's chain (first selected network), advancing the
+  // step machine off the real promise. ConfirmState reads `progress`, which
+  // maps live deploy phases ('wallet' → pulse, 'confirming'/'done' → check).
+  const onSign = useCallback(async () => {
+    if (!isConnected) { connect?.(); return }
+    const chainId = selectedNetworks[0]?.chainId
+    setDeployError(null)
+    setProgress('building')
+    go('confirming')
+    try {
+      await deploy({ chainId, passphrase, onStatus: setProgress })
+      setProgress('confirmed')
+      setTimeout(() => { window.location.hash = '#/dashboard' }, 1400)
+    } catch (err) {
+      setDeployError(err?.shortMessage || err?.message || 'Deployment failed.')
+      setProgress('idle')
+      go('deploy')
+    }
+  }, [isConnected, connect, selectedNetworks, deploy, passphrase])
 
   return (
     <div className={`${shared.pageShell} ${styles.shell}`}>
@@ -115,14 +146,16 @@ export default function Signing() {
           {state === 'password' && (
             <PasswordState
               onBack={() => go('network')}
-              onNext={() => go('deploy')}
+              onNext={(pw) => { setPassphrase(pw); go('deploy') }}
             />
           )}
           {state === 'deploy' && (
             <DeployState
               networks={selectedNetworks}
               onBack={() => go('password')}
-              onSign={() => go('confirming')}
+              onSign={onSign}
+              isConnected={isConnected}
+              error={deployError}
             />
           )}
           {state === 'confirming' && <ConfirmState progress={progress} />}
@@ -239,15 +272,50 @@ function WelcomeState({ onConnect }) {
    the identity. Connection is handled by RainbowKit; this is the
    in-brand wallet picker that fronts it. */
 function ConnectState({ onBack, onAuthed }) {
+  // Live wallet (RainbowKit). Disconnected → open the REAL RainbowKit modal
+  // (which lists the user's actual installed wallets); we auto-open it on
+  // arrival and also expose a button. Connected → show the address and let the
+  // user explicitly Continue or switch. No fake wallet grid, no silent skip.
+  const { isConnected, address, connect, switchAccount } = useOwnerWallet()
+  const short = address ? `${address.slice(0, 6)}…${address.slice(-4)}` : ''
+
+  // Auto-open the RainbowKit modal when the user lands here disconnected (and
+  // reopen it if they later hit "Use a different wallet" → disconnect).
+  useEffect(() => {
+    if (!isConnected) connect?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected])
+
   return (
     <GlassCard className={styles.authCard}>
       <CardHeader
         kicker="CONNECT A WALLET"
-        title="Choose a wallet"
-        sub="Sail is self-custody. Connect the wallet that will own your SMA."
+        title={isConnected ? 'Wallet connected' : 'Connect your wallet'}
+        sub={isConnected
+          ? 'This wallet will own your SMA. Continue, or switch to a different one.'
+          : 'Sail is self-custody. Connect the wallet that will own your SMA.'}
         onBack={onBack}
       />
-      <WalletGrid onPick={onAuthed} />
+      {isConnected ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 8 }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px',
+            borderRadius: 14, background: 'var(--glass-bg)', border: '1px solid var(--glass-border)',
+            fontFamily: 'monospace', fontSize: 15, color: 'var(--text-primary)',
+          }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent-blue)' }} aria-hidden />
+            {short}
+          </div>
+          <SailButton fullWidth onClick={onAuthed}>Continue →</SailButton>
+          <button type="button" className={styles.walletHelp} onClick={() => switchAccount()}>
+            Switch account
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 8 }}>
+          <SailButton fullWidth onClick={() => connect()}>Connect wallet →</SailButton>
+        </div>
+      )}
       <a
         className={styles.walletHelp}
         href="https://learn.rainbow.me/understanding-web3"
@@ -370,14 +438,17 @@ function WalletGlyph({ id }) {
 }
 
 /* ═══════════ Setup wizard atoms ═══════════ */
-function SetupHeader({ index, kicker, title, sub }) {
+function SetupHeader({ index, kicker, title, sub, tip }) {
   return (
     <header className={styles.setupHeader}>
       <span className={styles.setupKicker}>
         {index && <span className={styles.setupKickerIndex}>{index}</span>}
         {kicker}
       </span>
-      <h1 className={`${shared.displayHeadline} ${styles.setupTitle}`}>{title}</h1>
+      <h1 className={`${shared.displayHeadline} ${styles.setupTitle}`}>
+        {title}
+        {tip && <InfoTip label={typeof title === 'string' ? title : 'More info'} side="bottom">{tip}</InfoTip>}
+      </h1>
       {sub && <p className={styles.setupSub}>{sub}</p>}
     </header>
   )
@@ -414,6 +485,7 @@ function NetworkState({ selected, onToggle, onBack, onNext }) {
         kicker="SELECT NETWORKS"
         title="Where will your SMAs live?"
         sub="Sail deploys an account on every network you select. Pick one or more, and add chains later too."
+        tip="Each SMA is bound to a single blockchain — its address, funds, and permissions all live there. Pick the chain where you want this account to operate. Mainnets use real funds; testnets (Base Sepolia) are free for rehearsal."
       />
 
       <div className={styles.listLabelRow}>
@@ -433,9 +505,6 @@ function NetworkState({ selected, onToggle, onBack, onNext }) {
                 onClick={() => onToggle(n.id)}
                 aria-pressed={active}
               >
-                <span className={styles.optionTile} aria-hidden>
-                  <ChainGlyph id={n.id} />
-                </span>
                 <span className={styles.optionBody}>
                   <span className={styles.optionNameRow}>
                     <span className={styles.optionName}>{n.name}</span>
@@ -483,6 +552,7 @@ function PasswordState({ onBack, onNext }) {
         kicker="SECURE YOUR AGENT KEY"
         title="Set a password"
         sub="Sail generates your agent's signing key and encrypts it on this device. This password unlocks it for every run. Sail never sees it."
+        tip="Your agent needs its own wallet to submit actions. Sail creates that key and encrypts it on this machine with this password. It's stored only locally — never uploaded — and you'll enter it when the agent runs. There's no recovery, so save it in a password manager."
       />
 
       <div className={styles.fieldBlock}>
@@ -555,7 +625,7 @@ function PasswordState({ onBack, onNext }) {
         </li>
       </ul>
 
-      <SetupFooter onNext={onNext} nextLabel="Encrypt &amp; continue" disabled={!valid} />
+      <SetupFooter onNext={() => onNext(pw)} nextLabel="Encrypt &amp; continue" disabled={!valid} />
     </GlassCard>
   )
 }
@@ -574,8 +644,9 @@ function scorePassword(pw) {
 }
 
 /* ─────────── Deploy review ─────────── */
-function DeployState({ onSign, onBack, networks }) {
-  const nets = networks?.length ? networks : [{ id: 'base', name: mockDeploy.network }]
+function DeployState({ onSign, onBack, networks, isConnected, error }) {
+  const { preview } = useDeploySma() // deploy seam — tx-preview fields (was mockDeploy)
+  const nets = networks?.length ? networks : [{ id: 'base', name: preview.network }]
   const multi = nets.length > 1
   return (
     <GlassCard className={styles.deployCard}>
@@ -639,7 +710,7 @@ function DeployState({ onSign, onBack, networks }) {
           </span>
         </header>
         <dl className={styles.txDetails}>
-          <Row k="Transaction" v={multi ? `Safe deployment ×${nets.length}` : mockDeploy.type} />
+          <Row k="Transaction" v={multi ? `Safe deployment ×${nets.length}` : preview.type} />
           <div className={styles.txRow}>
             <dt>{multi ? 'Networks' : 'Network'}</dt>
             <dd>
@@ -650,19 +721,26 @@ function DeployState({ onSign, onBack, networks }) {
               </span>
             </dd>
           </div>
-          <Row k="Gas estimate" v={mockDeploy.gasEstimate} accent />
+          <Row k="Gas estimate" v={preview.gasEstimate} accent />
         </dl>
-        <div className={styles.txPanelFooter}>
-          <RevealCalldata
-            calldata={mockDeploy.calldata}
-            label="View calldata"
-            caption="The exact deployment payload."
-          />
-        </div>
+        {preview.calldata ? (
+          <div className={styles.txPanelFooter}>
+            <RevealCalldata
+              calldata={preview.calldata}
+              label="View calldata"
+              caption="The exact deployment payload."
+            />
+          </div>
+        ) : null}
       </div>
 
+      {error && (
+        <p className={styles.fineprint} role="alert" style={{ color: '#ff6b6b' }}>
+          {error}
+        </p>
+      )}
       <SailButton fullWidth onClick={onSign}>
-        Sign &amp; deploy
+        {isConnected ? 'Sign & deploy' : 'Connect wallet'}
       </SailButton>
       <p className={styles.fineprint}>
         Gas is paid from your connected wallet. You can revoke this account at any time.
@@ -682,11 +760,36 @@ function Row({ k, v, accent }) {
 
 /* ─────────── Confirming ─────────── */
 function ConfirmState({ progress }) {
-  const confirmed = progress === 'confirmed'
+  // Live deploy phases from useDeploySma:
+  //   'building' | 'switching' → preparing the transaction
+  //   'wallet'                 → waiting for a wallet signature (may happen
+  //                              TWICE: Base's factory needs the two-step
+  //                              register path — deploy Safe, then registerAccount)
+  //   'confirming'             → tx broadcast, waiting to be mined
+  //   'confirmed' | 'done'     → fully deployed + persisted
+  // ONLY 'confirmed'/'done' is real success — never claim success earlier, or
+  // we hide the second signature the register path still needs.
+  const done = progress === 'confirmed' || progress === 'done'
+  const confirming = progress === 'confirming'
+  const waitingSig = progress === 'wallet'
+
+  let headline = 'Preparing your deployment…'
+  let sub = 'Building the transaction.'
+  if (done) {
+    headline = 'Account deployed.'
+    sub = 'Taking you to your dashboard…'
+  } else if (confirming) {
+    headline = 'Confirming on-chain…'
+    sub = 'Waiting for the transaction to be mined.'
+  } else if (waitingSig) {
+    headline = 'Check your wallet'
+    sub = 'Approve the transaction to continue. Base needs two signatures — a second prompt will follow.'
+  }
+
   return (
     <GlassCard className={styles.confirmCard}>
-      <div className={`${styles.confirmIndicator} ${confirmed ? styles.confirmDone : ''}`}>
-        {confirmed ? (
+      <div className={`${styles.confirmIndicator} ${done ? styles.confirmDone : ''}`}>
+        {done ? (
           <svg viewBox="0 0 32 32" width="48" height="48" aria-hidden>
             <circle cx="16" cy="16" r="14" fill="none" stroke="var(--accent-blue)" strokeWidth="2" />
             <path
@@ -702,20 +805,14 @@ function ConfirmState({ progress }) {
           <span className={styles.pulse} />
         )}
       </div>
-      <h2 className={`${shared.displayHeadline} ${styles.confirmHeadline}`}>
-        {confirmed ? 'Account deployed.' : 'Waiting for your signature…'}
-      </h2>
-      <p className={styles.confirmSub}>
-        {confirmed
-          ? 'Taking you to your dashboard…'
-          : 'Approve the deployment in your wallet to continue.'}
-      </p>
+      <h2 className={`${shared.displayHeadline} ${styles.confirmHeadline}`}>{headline}</h2>
+      <p className={styles.confirmSub}>{sub}</p>
     </GlassCard>
   )
 }
 
 /* ─────────── Shared atoms ─────────── */
-function CardHeader({ kicker, title, sub, onBack }) {
+function CardHeader({ kicker, title, sub, onBack, tip }) {
   return (
     <header className={styles.cardHeader}>
       {onBack && (
@@ -729,7 +826,10 @@ function CardHeader({ kicker, title, sub, onBack }) {
         </button>
       )}
       <span className={styles.kicker}>{kicker}</span>
-      <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>{title}</h1>
+      <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
+        {title}
+        {tip && <InfoTip label={typeof title === 'string' ? title : 'More info'} side="bottom">{tip}</InfoTip>}
+      </h1>
       {sub && <p className={styles.cardSub}>{sub}</p>}
     </header>
   )

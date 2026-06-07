@@ -1,49 +1,107 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { _mockResolvePending } from '../data/sailorClient'
 
 /**
- * Signing channel — mock seam mirroring Sailor's `useSigningSocket`
- * (Sailor/packages/ui/src/hooks/useSigningSocket.js) and the wire protocol in
- * @sail/sdk/signing.ts.
+ * Signing channel — LIVE WebSocket to the signing daemon.
  *
- * This is the bridge between the agent/CLI and the Owner's wallet. The standalone
- * signing-station PAGE is gone; this channel powers the dashboard banner instead.
+ * This is the bridge between the agent/CLI and the Owner's wallet. The CLI
+ * (`sailor mandate deploy`, onboarding, etc.) pushes signing requests to the
+ * daemon; this socket receives them and relays the Owner's signed result back
+ * so the CLI can broadcast/continue.
  *
- * Protocol (must not drift from the SDK):
+ * Wire protocol (must not drift from @sail/sdk/signing.ts):
  *   server → UI : { type:'pending', requests } | { type:'request', request } | { type:'request-resolved', requestId }
  *   UI → server : { type:'signed', requestId, txHash } | { type:'signature', requestId, signature }
  *               | { type:'rejected', requestId, reason? } | { type:'wallet-connected', address } | { type:'wallet-disconnected' }
  *
- * LIVE swap: replace the body with the real `useSigningSocket({ onMessage })`
- * which connects to the same-origin `/api/station/ws` proxy (server.js holds the
- * daemon secret server-side). Keep the SAME return shape ({ status, send }) so
- * PendingModal / banner code is unchanged. NEVER open a raw ws:// — always go
- * through /api/station/ws.
+ * Connection strategy (the daemon gates its socket behind a per-startup secret
+ * and only hands it to same-origin pages):
+ *   • Daemon-served (ports 3141–3150): /config is same-origin and embeds the
+ *     secret → connect directly to the daemon.
+ *   • sailor-ui / dev-served: route through the same-origin /api/station/ws
+ *     proxy (server.js holds the secret server-side).
+ * Never open a raw ws://host socket — the hardened daemon rejects it (1008).
  */
 
-export function useSigningChannel({ onMessage } = {}) {
-  // Mock is always "connected"; live status is 'checking'|'connected'|'disconnected'.
-  const [status] = useState('connected')
+const POLL_INTERVAL_MS = 3_000
+
+const SERVER_OVERRIDE = (() => {
+  if (typeof window === 'undefined') return null
+  const raw = new URLSearchParams(window.location.search).get('server')
+  if (!raw) return null
+  const port = Number(raw)
+  if (!Number.isInteger(port) || port < 1024 || port > 65535) return null
+  return port
+})()
+
+function proxyWsUrl() {
+  if (typeof window === 'undefined') return null
+  const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${scheme}//${window.location.host}/api/station/ws`
+}
+
+async function discoverSigningServer() {
+  if (SERVER_OVERRIDE) {
+    try {
+      const res = await fetch(`http://localhost:${SERVER_OVERRIDE}/config`, { signal: AbortSignal.timeout(1_500) })
+      if (res.ok) {
+        const cfg = await res.json()
+        if (cfg?.wsUrl?.includes('secret=')) return cfg
+      }
+    } catch { /* fall through to proxy */ }
+    const proxy = proxyWsUrl()
+    return proxy ? { wsUrl: proxy } : null
+  }
+
+  // Daemon-served? same-origin /config carrying the secret → talk directly.
+  try {
+    const res = await fetch(`${window.location.origin}/config`, { signal: AbortSignal.timeout(500) })
+    if (res.ok) {
+      const cfg = await res.json()
+      if (cfg?.wsUrl?.includes('secret=')) return cfg
+    }
+  } catch { /* not daemon-served — fall through to the proxy */ }
+
+  const proxy = proxyWsUrl()
+  return proxy ? { wsUrl: proxy } : null
+}
+
+export function useSigningChannel({ onMessage, enabled = true } = {}) {
+  const [status, setStatus] = useState('checking')
+  const wsRef = useRef(null)
+  const sendRef = useRef(null)
   const onMessageRef = useRef(onMessage)
   useEffect(() => { onMessageRef.current = onMessage })
 
-  const send = useCallback((msg) => {
-    // LIVE: ws.send(JSON.stringify(msg)) over /api/station/ws.
-    if (!msg) return
-    if (msg.type === 'wallet-connected' || msg.type === 'wallet-disconnected') {
-      // The daemon needs the Owner's connected address (sailor owner connect).
-      // Mock: nothing to relay; just acknowledge.
-      return
+  const connectWs = useCallback((wsUrl) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) return
+    const ws = new WebSocket(wsUrl)
+    wsRef.current = ws
+    sendRef.current = (msg) => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg)) }
+    ws.onopen = () => setStatus('connected')
+    ws.onmessage = (evt) => {
+      try { onMessageRef.current?.(JSON.parse(evt.data)) } catch { /* ignore malformed */ }
     }
-    if (msg.type === 'signed' || msg.type === 'signature' || msg.type === 'rejected') {
-      // Mock the daemon resolving the request: drop it from the queue and echo
-      // the same `request-resolved` the real daemon broadcasts.
-      _mockResolvePending(msg.requestId)
-      setTimeout(() => onMessageRef.current?.({ type: 'request-resolved', requestId: msg.requestId }), 150)
-    }
+    ws.onclose = () => { setStatus('disconnected'); wsRef.current = null }
+    ws.onerror = () => { setStatus('disconnected'); wsRef.current = null }
   }, [])
 
+  useEffect(() => {
+    if (!enabled) return undefined
+    let cancelled = false
+    const poll = async () => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) return
+      const cfg = await discoverSigningServer()
+      if (cancelled) return
+      if (cfg) connectWs(cfg.wsUrl)
+      else setStatus((s) => (s === 'checking' ? 'disconnected' : s))
+    }
+    poll()
+    const t = setInterval(poll, POLL_INTERVAL_MS)
+    return () => { cancelled = true; clearInterval(t) }
+  }, [enabled, connectWs])
+
+  const send = useCallback((msg) => { sendRef.current?.(msg) }, [])
   return { status, send }
 }
