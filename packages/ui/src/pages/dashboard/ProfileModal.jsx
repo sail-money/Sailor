@@ -54,6 +54,7 @@ export default function ProfileModal({
   onWithdraw,
   onRenameSafe,
   onSelectSafe,
+  onDisconnect,
 }) {
   const [closing, setClosing] = useState(false)
   const [copiedKey, setCopiedKey] = useState(null) // 'eoa' | sma.id | null
@@ -124,13 +125,15 @@ export default function ProfileModal({
               </span>
             </button>
           </div>
-          <button
-            type="button"
-            className={styles.disconnectPill}
-            onClick={handleClose}
-          >
-            Disconnect
-          </button>
+          <div className={styles.identityActions}>
+            <button
+              type="button"
+              className={styles.disconnectPill}
+              onClick={() => { onDisconnect?.(); handleClose() }}
+            >
+              Disconnect
+            </button>
+          </div>
         </div>
 
         <div className={styles.divider} />

@@ -1,5 +1,6 @@
 export { default as Atmosphere } from './Atmosphere'
 export { default as ConfirmDestructiveModal } from './ConfirmDestructiveModal'
+export { default as ConnectGate } from './ConnectGate'
 export { default as BrandMark } from './BrandMark'
 export { default as FluidBackground } from './FluidBackground'
 export { default as GlassCard } from './GlassCard'

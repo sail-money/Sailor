@@ -443,6 +443,55 @@
 .avatarBtnAddr {
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Connect wallet (Surface 3) ── shown in the header when the Owner
+   wallet is not connected. Filled blue primary: connecting is the one
+   action the whole surface depends on, so it carries the brand weight. */
+.connectBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 16px;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--accent-blue, #1990FF);
+  border: 1px solid var(--accent-blue, #1990FF);
+  border-radius: var(--r-2, 2px);
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 8px 22px -10px rgba(25, 144, 255, 0.6);
+  transition:
+    background 200ms var(--ease-apple),
+    border-color 200ms var(--ease-apple),
+    transform 200ms var(--ease-apple),
+    box-shadow 200ms var(--ease-apple);
+}
+.connectBtn:hover {
+  background: var(--accent-blue-bright, #4DABFF);
+  border-color: var(--accent-blue-bright, #4DABFF);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.26),
+    0 14px 30px -10px rgba(25, 144, 255, 0.8);
+}
+.connectBtnDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.9);
+  animation: connectBtnBreathe 2.2s ease-in-out infinite;
+}
+@keyframes connectBtnBreathe {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1; }
+}
 @media (max-width: 720px) {
   .avatarBtnAddr { display: none; }
   .avatarBtn { padding: 0 4px 0 4px; }

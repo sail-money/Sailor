@@ -18,7 +18,7 @@ import { useDemoState } from '../../demo/useDemoState'
 // demo-console links keep working.
 const STATE_ALIASES = { login: 'connect', signup: 'connect' }
 const VALID_DEMO_STATES = new Set([
-  'welcome', 'connect', 'network', 'rpc', 'password', 'deploy', 'confirming',
+  'welcome', 'connect', 'network', 'password', 'deploy', 'confirming',
 ])
 
 /* ── Setup data (from the Sailor framework) ──
@@ -33,34 +33,6 @@ const NETWORKS = [
     desc: 'Uniswap-native L2 tuned for low-latency swaps.' },
   { id: 'base-sepolia', name: 'Base Sepolia', chainId: 84532, kind: 'testnet',
     desc: 'Free testnet. Rehearse the full flow with no real funds.' },
-]
-
-/* RPC providers. A keyed provider (Alchemy / Infura) builds the RPC_URL
-   from the API key; the public endpoint needs no key but is rate-limited
-   and not meant for unattended automation. */
-const RPC_PROVIDERS = [
-  { id: 'alchemy', name: 'Alchemy', tag: 'Recommended', needsKey: true,
-    desc: 'Free tier, reliable for automation. The Sailor default.',
-    keyHint: 'Paste your Alchemy API key', keyLen: 20,
-    url: 'https://dashboard.alchemy.com/apps', urlLabel: 'Open Alchemy dashboard',
-    steps: [
-      'Create a free account at alchemy.com.',
-      'Click "Create new app" and pick a network you selected (Base, Arbitrum…).',
-      'Open the app and copy the API key from the top of the page.',
-      'Paste it above. One key works across every network you chose.',
-    ] },
-  { id: 'infura',  name: 'Infura',  needsKey: true,
-    desc: 'Free tier. A solid alternative to Alchemy.',
-    keyHint: 'Paste your Infura project key', keyLen: 20,
-    url: 'https://app.infura.io/dashboard', urlLabel: 'Open Infura dashboard',
-    steps: [
-      'Sign up free at infura.io.',
-      'Open "API Keys" and click "Create new API key".',
-      'Under Endpoints, enable the networks you selected (Base, Arbitrum…).',
-      'Copy the key and paste it above.',
-    ] },
-  { id: 'public',  name: 'Public RPC', needsKey: false,
-    desc: 'No key needed. Rate-limited, not for unattended runs.' },
 ]
 
 /**
@@ -85,8 +57,6 @@ export default function Signing() {
   // Sail deploys one SMA per chain, so an operator can stand several up
   // in a single pass.
   const [networks, setNetworks] = useState(['base'])
-  const [provider, setProvider] = useState('alchemy')
-  const [apiKey, setApiKey] = useState('')
 
   function toggleNetwork(id) {
     setNetworks((prev) =>
@@ -139,23 +109,12 @@ export default function Signing() {
               selected={networks}
               onToggle={toggleNetwork}
               onBack={() => go('connect')}
-              onNext={() => go('rpc')}
-            />
-          )}
-          {state === 'rpc' && (
-            <RpcState
-              networks={selectedNetworks}
-              provider={provider}
-              apiKey={apiKey}
-              onSelectProvider={setProvider}
-              onApiKey={setApiKey}
-              onBack={() => go('network')}
               onNext={() => go('password')}
             />
           )}
           {state === 'password' && (
             <PasswordState
-              onBack={() => go('rpc')}
+              onBack={() => go('network')}
               onNext={() => go('deploy')}
             />
           )}
@@ -198,13 +157,12 @@ function HeaderBar({ onLogo, state }) {
 const SIGNING_STEPS = [
   { id: 'connect',  label: 'Connect' },
   { id: 'network',  label: 'Network' },
-  { id: 'rpc',      label: 'RPC' },
   { id: 'password', label: 'Secure' },
   { id: 'deploy',   label: 'Deploy' },
 ]
 
 const STEP_INDEX = {
-  connect: 0, network: 1, rpc: 2, password: 3, deploy: 4, confirming: 4,
+  connect: 0, network: 1, password: 2, deploy: 3, confirming: 3,
 }
 
 function Stepper({ state }) {
@@ -505,135 +463,6 @@ function NetworkState({ selected, onToggle, onBack, onNext }) {
   )
 }
 
-/* ─────────── Step 3 · RPC endpoint + API key ─────────── */
-function RpcState({ networks, provider, apiKey, onSelectProvider, onApiKey, onBack, onNext }) {
-  const sel = RPC_PROVIDERS.find((p) => p.id === provider)
-  const needsKey = !!sel?.needsKey
-  const keyValid = !needsKey || apiKey.trim().length >= 12
-  const netList = formatNetworkList(networks)
-  const multi = networks.length > 1
-  // The "where do I find my key" guide opens by default for keyed
-  // providers so the steps are right there, and the user can collapse
-  // it. The content swaps to whichever provider is selected.
-  const [howOpen, setHowOpen] = useState(true)
-  return (
-    <GlassCard className={styles.setupCard}>
-      <BackFloat onBack={onBack} />
-      <SetupHeader
-        index="03 /"
-        kicker="RPC ENDPOINT"
-        title="Connect to the chain"
-        sub={`Your agent reads balances and submits transactions on ${netList} through an RPC endpoint. Pick a provider and paste its key${multi ? ' — one key covers every network you chose.' : '.'}`}
-      />
-
-      <span className={styles.listLabel}>Commonly used</span>
-      <ul className={styles.optionList}>
-        {RPC_PROVIDERS.map((p) => {
-          const active = provider === p.id
-          return (
-            <li key={p.id}>
-              <button
-                type="button"
-                className={`${styles.optionRow} ${active ? styles.optionRowActive : ''}`}
-                onClick={() => onSelectProvider(p.id)}
-                aria-pressed={active}
-              >
-                <span className={styles.optionTile} aria-hidden>
-                  <RpcGlyph id={p.id} />
-                </span>
-                <span className={styles.optionBody}>
-                  <span className={styles.optionNameRow}>
-                    <span className={styles.optionName}>{p.name}</span>
-                    {p.tag && <span className={styles.optionTag}>{p.tag}</span>}
-                    {!p.needsKey && <span className={styles.optionTagMuted}>No key</span>}
-                  </span>
-                  <span className={styles.optionSub}>{p.desc}</span>
-                </span>
-                <span className={styles.optionRadio} aria-hidden />
-              </button>
-            </li>
-          )
-        })}
-      </ul>
-
-      {needsKey && (
-        <>
-          <div className={styles.fieldBlock}>
-            <label className={styles.fieldLabel} htmlFor="rpc-key">
-              {sel.name} API key
-            </label>
-            <div className={styles.field}>
-              <span className={styles.fieldIcon} aria-hidden><KeyIcon /></span>
-              <input
-                id="rpc-key"
-                type="text"
-                className={styles.fieldInput}
-                placeholder={sel.keyHint}
-                value={apiKey}
-                spellCheck={false}
-                autoComplete="off"
-                onChange={(e) => onApiKey(e.target.value)}
-              />
-              {keyValid && apiKey && (
-                <span className={styles.fieldOk} aria-hidden><MiniCheck /></span>
-              )}
-            </div>
-            <p className={styles.fieldNote}>
-              Stored locally in <code>.sail/.env.local</code> as <code>RPC_URL</code>. Never sent to Sail.
-            </p>
-          </div>
-
-          {/* Provider-specific "how to get your key" guide. Opens by
-              default; collapsible. Swaps content per selected provider. */}
-          <div className={styles.howBlock}>
-            <button
-              type="button"
-              className={styles.howTrigger}
-              onClick={() => setHowOpen((v) => !v)}
-              aria-expanded={howOpen}
-            >
-              <span className={styles.howTriggerIcon} aria-hidden><InfoDot /></span>
-              <span className={styles.howTriggerText}>
-                Where do I find my {sel.name} key?
-              </span>
-              <span className={`${styles.howChevron} ${howOpen ? styles.howChevronOpen : ''}`} aria-hidden>
-                <ChevronDown />
-              </span>
-            </button>
-            <div className={`${styles.howPanel} ${howOpen ? styles.howPanelOpen : ''}`} aria-hidden={!howOpen}>
-              <div className={styles.howPanelInner}>
-                <ol className={styles.howSteps}>
-                  {sel.steps.map((s, i) => (
-                    <li key={i}>
-                      <span className={styles.howStepNum}>{String(i + 1).padStart(2, '0')}</span>
-                      <span className={styles.howStepText}>{s}</span>
-                    </li>
-                  ))}
-                </ol>
-                <a
-                  className={styles.howLink}
-                  href={sel.url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {sel.urlLabel}
-                  <ArrowUpRight />
-                </a>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      <SetupFooter
-        onNext={onNext}
-        disabled={!keyValid}
-        hint={needsKey ? undefined : 'Public endpoints are rate-limited. Fine to start, swap in a keyed provider before automating.'}
-      />
-    </GlassCard>
-  )
-}
-
 /* ─────────── Step 4 · Set password (double-entry) ─────────── */
 function PasswordState({ onBack, onNext }) {
   const [pw, setPw] = useState('')
@@ -650,7 +479,7 @@ function PasswordState({ onBack, onNext }) {
     <GlassCard className={styles.setupCard}>
       <BackFloat onBack={onBack} />
       <SetupHeader
-        index="04 /"
+        index="03 /"
         kicker="SECURE YOUR AGENT KEY"
         title="Set a password"
         sub="Sail generates your agent's signing key and encrypts it on this device. This password unlocks it for every run. Sail never sees it."
@@ -729,15 +558,6 @@ function PasswordState({ onBack, onNext }) {
       <SetupFooter onNext={onNext} nextLabel="Encrypt &amp; continue" disabled={!valid} />
     </GlassCard>
   )
-}
-
-/* "Base", "Base and Arbitrum", "Base, Arbitrum, and Unichain" */
-function formatNetworkList(nets) {
-  const names = nets.map((n) => n.name)
-  if (names.length === 0) return 'your network'
-  if (names.length === 1) return names[0]
-  if (names.length === 2) return `${names[0]} and ${names[1]}`
-  return `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`
 }
 
 function scorePassword(pw) {
@@ -1002,21 +822,6 @@ function ChainGlyph({ id }) {
       return <svg {...c}><circle cx="12" cy="12" r="8.2" /><path d="M12 5.5v8a3 3 0 003 3M12 18.5v-8a3 3 0 00-3-3" /></svg>
     case 'base-sepolia':
       return <svg {...c}><circle cx="12" cy="12" r="8.2" strokeDasharray="2.6 2.6" /><path d="M9 12l2 2 4-4.5" /></svg>
-    default:
-      return <svg {...c}><circle cx="12" cy="12" r="8" /></svg>
-  }
-}
-
-/* Monoline RPC-provider marks. */
-function RpcGlyph({ id }) {
-  const c = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true }
-  switch (id) {
-    case 'alchemy':
-      return <svg {...c}><path d="M12 3.5l7 4v9l-7 4-7-4v-9z" /><path d="M12 8.5l3.4 2v3l-3.4 2-3.4-2v-3z" /></svg>
-    case 'infura':
-      return <svg {...c}><circle cx="12" cy="6.5" r="2" /><circle cx="6.5" cy="16" r="2" /><circle cx="17.5" cy="16" r="2" /><path d="M11 8.2l-3.6 6M13 8.2l3.6 6M8.5 16h7" /></svg>
-    case 'public':
-      return <svg {...c}><circle cx="12" cy="12" r="8.2" /><path d="M3.8 12h16.4M12 3.8c2.4 2.2 3.6 5 3.6 8.2s-1.2 6-3.6 8.2c-2.4-2.2-3.6-5-3.6-8.2S9.6 6 12 3.8z" /></svg>
     default:
       return <svg {...c}><circle cx="12" cy="12" r="8" /></svg>
   }

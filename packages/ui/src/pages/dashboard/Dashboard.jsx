@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   BrandMark,
+  ConnectGate,
   FluidBackground,
   Sai,
 } from '../shared'
@@ -15,16 +16,19 @@ import {
   sma,
   mandates,
   journal,
-  pendingOperations,
   gas,
   explorerUrl,
   txExplorerUrl,
   safeAppUrl,
   debankUrl,
 } from '../../data/mockState'
+import { getPending, getMandateDraft } from '../../data/sailorClient'
+import { useOwnerWallet } from '../../hooks/useOwnerWallet'
+import { useSigningChannel } from '../../hooks/useSigningChannel'
 import ProfileModal from './ProfileModal'
 import ContractModal from './ContractModal'
-import PendingModal from './PendingModal'
+import PendingSigningModal from './PendingSigningModal'
+import RpcSection from './RpcSection'
 
 /* ──────────────────────────────────────────────────────────────
    Data bridges — the local mockState (sail_framework_1.1) shape
@@ -77,26 +81,6 @@ function asContractMandate(m) {
   }
 }
 
-/** PendingModal expects a list of items shaped { id, aiName,
- *  requestedAgo, title, summary, allowed, constraints }. Our
- *  local pendingOperations shape has drafter / requestedAt — bridge
- *  here so the modal's PendingItem renders cleanly. */
-function asPendingItem(op) {
-  return {
-    id: op.id,
-    aiName: op.drafter,
-    requestedAgo: op.requestedAt,
-    title: op.title,
-    summary: op.summary,
-    allowed: [],
-    constraints: [],
-    // Carry through for the embedded ContractModal preview the
-    // PendingModal opens when the user picks "Review mandate".
-    networks: [sma.chain.short ?? 'arb1'],
-    assets: ['ETH', 'USDC'],
-  }
-}
-
 /**
  * Dashboard — local-UI dashboard for an AI-managed SMA.
  *
@@ -108,7 +92,62 @@ function asPendingItem(op) {
  */
 export default function Dashboard() {
   const router = useRouter()
-  const [pending] = useState(pendingOperations)
+
+  // ── Owner wallet (Surface 3) ── the connected wallet IS the Owner: custody
+  // anchor + the only key that can authorize anything. Mock today; wagmi later.
+  const wallet = useOwnerWallet()
+  const { isConnected } = wallet
+
+  // ── Pending signing queue (Surface 4) ── sourced from the seam
+  // (GET /api/station/pending), polled ~3s, mirroring Sailor's useSailorPending.
+  // These are SigningRequest[] (@sail/sdk/signing.ts), NOT the old dashboard
+  // mandate shape — the signing surface standardizes on the real protocol type.
+  const [pending, setPending] = useState([])
+  const [mandateDraft, setMandateDraft] = useState(null)
+
+  // The signing channel — bridge between the agent/CLI and the Owner's wallet
+  // (replaces the standalone station page). When the daemon resolves a request
+  // it echoes `request-resolved`; drop it from local state so the banner clears.
+  const handleChannelMessage = useCallback((msg) => {
+    if (msg?.type === 'request-resolved') {
+      setPending((list) => list.filter((r) => r.id !== msg.requestId))
+    } else if (msg?.type === 'pending') {
+      setPending(msg.requests ?? [])
+    } else if (msg?.type === 'request') {
+      setPending((list) =>
+        list.find((r) => r.id === msg.request.id) ? list : [...list, msg.request])
+    }
+  }, [])
+  const { status: channelStatus, send } = useSigningChannel({ onMessage: handleChannelMessage })
+
+  // Poll the pending queue. The mock seam mutates its store on resolve, so the
+  // poll stays consistent with the optimistic local removal above.
+  const pollRef = useRef()
+  useEffect(() => {
+    let alive = true
+    async function tick() {
+      try {
+        const [reqs, draft] = await Promise.all([getPending(), getMandateDraft()])
+        if (!alive) return
+        setPending(reqs)
+        setMandateDraft(draft)
+      } catch { /* transient — keep last known queue */ }
+    }
+    tick()
+    pollRef.current = setInterval(tick, 3000)
+    return () => { alive = false; clearInterval(pollRef.current) }
+  }, [])
+
+  // Relay the Owner's connection state to the daemon (sailor owner connect),
+  // mirroring SigningStation.jsx:115–119.
+  useEffect(() => {
+    if (channelStatus !== 'connected') return
+    if (isConnected && wallet.address) send({ type: 'wallet-connected', address: wallet.address })
+    else send({ type: 'wallet-disconnected' })
+  }, [channelStatus, isConnected, wallet.address, send])
+
+  const pendingCount = pending.length + (mandateDraft ? 1 : 0)
+
   const [copiedAddr, setCopiedAddr] = useState(false)
   const [editMandateId, setEditMandateId] = useState(null)
   // The mandate contract surface (ContractModal) drives both viewing
@@ -123,7 +162,7 @@ export default function Dashboard() {
   // mandate as a contract document. Replaces the previous
   // "router.push('/signing')" jump-out so the user stays on the
   // dashboard while triaging the queue.
-  const [pendingOpen, setPendingOpen] = useState(false)
+  const [signingOpen, setSigningOpen] = useState(false)
   // Local copy so we can flip an active mandate to revoked without
   // reloading. The mock list is the source of truth on first render.
   const [mandateList, setMandateList] = useState(mandates)
@@ -141,8 +180,8 @@ export default function Dashboard() {
   }
 
   function openPending() {
-    if (pending.length === 0) return
-    setPendingOpen(true)
+    if (pendingCount === 0) return
+    setSigningOpen(true)
   }
 
   const safeUrl = safeAppUrl(sma.chain, sma.address)
@@ -176,34 +215,50 @@ export default function Dashboard() {
         <div className={styles.topActionsPill}>
           <button
             type="button"
-            className={`${styles.notifBtn} ${pending.length > 0 ? styles.notifBtnLive : ''}`}
+            className={`${styles.notifBtn} ${pendingCount > 0 ? styles.notifBtnLive : ''}`}
             onClick={openPending}
-            aria-label={pending.length > 0 ? `${pending.length} pending signatures` : 'Notifications'}
+            aria-label={pendingCount > 0 ? `${pendingCount} pending signatures` : 'Notifications'}
           >
             <BellIcon />
-            {pending.length > 0 && (
-              <span className={styles.notifBadge}>{pending.length}</span>
+            {pendingCount > 0 && (
+              <span className={styles.notifBadge}>{pendingCount}</span>
             )}
           </button>
-          <button
-            type="button"
-            className={styles.avatarBtn}
-            onClick={() => setProfileOpen(true)}
-            aria-label={`Profile (${truncateAddr(owner.address)})`}
-            title={truncateAddr(owner.address)}
-          >
-            <span className={styles.avatarBtnMonogram} aria-hidden>
-              {owner.address.slice(2, 4).toUpperCase()}
-            </span>
-            <span className={styles.avatarBtnAddr}>{truncateAddr(owner.address)}</span>
-          </button>
+          {isConnected ? (
+            <button
+              type="button"
+              className={styles.avatarBtn}
+              onClick={() => setProfileOpen(true)}
+              aria-label={`Profile (${truncateAddr(wallet.address)})`}
+              title={truncateAddr(wallet.address)}
+            >
+              <span className={styles.avatarBtnMonogram} aria-hidden>
+                {wallet.address.slice(2, 4).toUpperCase()}
+              </span>
+              <span className={styles.avatarBtnAddr}>{truncateAddr(wallet.address)}</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={styles.connectBtn}
+              onClick={wallet.connect}
+              aria-label="Connect wallet"
+            >
+              <span className={styles.connectBtnDot} aria-hidden />
+              Connect wallet
+            </button>
+          )}
         </div>
       </header>
 
       <main className={agentStyles.main}>
-        {pending.length > 0 && (
+        {!isConnected ? (
+          <ConnectGate onConnect={wallet.connect} />
+        ) : (
+        <>
+        {pendingCount > 0 && (
           <PendingBanner
-            count={pending.length}
+            count={pendingCount}
             onReview={openPending}
           />
         )}
@@ -324,6 +379,13 @@ export default function Dashboard() {
               <span className={styles.smaHeroLinkArrow} aria-hidden><ArrowOutIcon /></span>
             </a>
           </div>
+
+          {/* ── Network / RPC ──
+              The chain connection lives on the account it serves. Compact
+              readout (endpoint + chain + health) by default; Edit expands the
+              onboarding-style provider picker. Single source of truth — moved
+              out of Settings. Maps to /api/onboard/* via sailorClient. */}
+          <RpcSection />
         </section>
 
         {/* ── Agent wallets — operational gas balances ──
@@ -395,6 +457,8 @@ export default function Dashboard() {
           Running locally at <code>localhost:3553</code> · project state lives in
           {' '}<code>.sail/</code>. There is no Sail-hosted backend; your wallet talks to the chain directly.
         </footer>
+        </>
+        )}
       </main>
 
       {/* ── Mandate contract surface ──
@@ -421,18 +485,21 @@ export default function Dashboard() {
         }}
       />
 
-      {/* ── Pending signatures modal ──
-          Opens from the announcement bar. Lists the operations the
-          AI has drafted and is waiting for the user to sign.
-          Tapping any item dives into the mandate as a full contract
-          document. Reincorporated from demo-2 with the local
-          pendingOperations shape bridged at the wiring site. */}
-      <PendingModal
-        open={pendingOpen}
-        pending={pending.map(asPendingItem)}
-        onClose={() => setPendingOpen(false)}
-        onAuthorize={() => setPendingOpen(false)}
-        onReject={() => setPendingOpen(false)}
+      {/* ── Pending signing surface (Surface 4) ──
+          Opens from the announcement bar / bell. Renders each pending
+          SigningRequest (from GET /api/station/pending) as a reviewable
+          contract — kind, summary, details, and a calldata reveal — and
+          wires Authorize/Reject through the signing channel + Owner wallet.
+          Replaces the standalone signing-station PAGE; the daemon bridge
+          (channel) stays. A mandate draft, when present, is surfaced here too. */}
+      <PendingSigningModal
+        open={signingOpen}
+        requests={pending}
+        draft={mandateDraft}
+        wallet={wallet}
+        send={send}
+        onClose={() => setSigningOpen(false)}
+        onDraftSubmitted={() => setMandateDraft(null)}
       />
 
       {/* ── SMA Profile menu ──
@@ -440,7 +507,7 @@ export default function Dashboard() {
           deposit, withdraw, rename. Opens from the avatar button. */}
       <ProfileModal
         open={profileOpen}
-        wallet={owner.address}
+        wallet={wallet.address ?? owner.address}
         safes={safesForProfile}
         currentSafeId={sma.id}
         hasSMA
@@ -451,6 +518,7 @@ export default function Dashboard() {
         onWithdraw={() => setProfileOpen(false)}
         onRenameSafe={() => {}}
         onSelectSafe={() => setProfileOpen(false)}
+        onDisconnect={wallet.disconnect}
       />
 
       <EditMandateModal
