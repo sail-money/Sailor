@@ -15,3 +15,7 @@ dist
 .next
 out
 next-env.d.ts
+
+# Generated artifacts
+test-results/
+skills-lock.json
