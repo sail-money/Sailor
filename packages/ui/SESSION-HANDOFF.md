@@ -42,45 +42,139 @@ Project dir: `../../../test/my-agent` (NOT a git repo; secrets stay local).
 - **Secrets** in `test/my-agent/.sail/.env.local` (gitignored, local only):
   `RPC_URL=https://base-mainnet.g.alchemy.com/v2/…`, `CHAIN_ID=8453`.
 
-## How to run (restart after a fresh session)
-```sh
-# 1. API server (reads the my-agent project's .sail state)
-cd Sailor/packages/ui
-SAIL_DIR=../../../test/my-agent/.sail PORT=3334 node server.js &
+## How to run
 
-# 2. Vite dev (proxies /api → :3334, incl. WebSocket /api/station/ws)
-npx vite --port 3700 &
-# open http://localhost:3700
+### Product path — what a real session uses (PREFER THIS)
+One command serves the new UI (built `packages/ui/dist`) + its API on a single port:
+```sh
+cd test/my-agent          # the project dir (has .sail/)
+sailor ui                 # → http://localhost:33xx  (auto-picks a free port)
+sailor ui status          # show it / sailor ui stop to stop
+# direct (no global bin): node Sailor/packages/cli/dist/index.cjs ui
+```
+`sailor ui` spawns the CLI's **bundled** `packages/cli/dist/server.cjs` (NOT `packages/ui/server.js`
+directly) and serves `packages/ui/dist`. So after editing `server.js` or any UI source, the bundle is
+stale until you rebuild:
+```sh
+cd Sailor/packages/ui  && npx vite build      # refresh packages/ui/dist
+cd Sailor/packages/cli && npm run build        # re-bundle index.cjs + server.cjs  ← easy to forget
+```
+> The "old UI" symptom (new buttons 404, missing features) = a stale `packages/cli/dist/server.cjs`.
+> The fix is always: rebuild both, then `sailor ui stop && sailor ui`.
+
+### Dev path — only while actively editing UI source (HMR)
+```sh
+cd Sailor/packages/ui
+SAIL_DIR=../../../test/my-agent/.sail PORT=3334 node server.js &   # API
+npx vite --port 3700 &                                            # Vite (proxies /api → :3334)
+# open http://localhost:3700 ; restart node server.js after server.js edits (not hot-reloaded)
 ```
 
-## Done this session (highlights)
-- Transplant Next → Vite; live `/api`; RainbowKit wallet; real SMA deploy +
-  mandate register on Base mainnet (full owner-signed flow).
-- Killed mock leaks: live `useOwnerSafes`, honest mandate rows, real chain
-  labels, deploy preview de-Arbitrum'd. Deleted Agent/Mandate/Journal pages.
-- Real 3-state funding pills (Funded / Low balance / Not funded) — big-blue /
-  small-yellow / red-no-dot.
-- Live Recent Activity (real event fields + tx links).
-- Removed all fabricated network/asset/provider logos → names only.
-- Live created-date (block→timestamp). SMA rename wired (`/api/account/rename`).
-- InfoTips on jargon (SMA, session, manager/owner, mandate, RPC, onboarding).
-- **AutomationSection** (new) on the SMA hero: live `/api/agent-status`, 3-state
-  (Running/Scheduled/Configured), schedule parsed from the real workflow cron,
-  run methods (GitHub Actions + setup steps / Local / self-hosted), AI-edit prompt.
+> **Full project audit:** see [AUDIT.md](./AUDIT.md) — design + structure + bug
+> findings, prioritized. Read it before picking up the next phase.
 
-## Pending / next tasks
-1. **Manager-key rotation UI** — real protocol feature: `sailor account
-   rotate-signer` → kernel `setManager(newManager)` (SDK `encodeSetManager` /
-   `buildSetManagerExecTransaction`). ⚠️ **`setManager` CLEARS all attached
-   mandates (fail-closed)** + bumps nonce epoch — owner signs in browser. Add a
-   "Rotate" action on the Manager card with a clear warning + re-register flow.
-2. **Surface protocol multi-agent capability** — the SMA's manager can be a
-   multisig routing to multiple agents. Current runtime runs one `src/agent.ts`;
-   reflect the protocol possibility without faking agents.
-3. **Complex mandate** — fund the SMA + manager, author a richer permission.
-4. More InfoTips (pending-signing modal, funding states) — optional.
-5. **Cleanup:** orphaned `smaBalancePillClass` + unused glyph components
-   (`ChainGlyph`, `RpcGlyph`, `WalletGlyph/WalletGrid`) in Dashboard/Signing.
+## Done (highlights, latest first)
+- **Header "resync" control + real auto-refresh** — added a terminal-styled `resync`
+  button (JetBrains Mono, lowercase, spins while working) in the dashboard top bar that
+  HARD-refreshes (clears Cache API + `location.reload()`). Plus the auto-refresh now
+  actually works: tab refocus / visibility → full `loadLive()` (same as a reconnect),
+  a 15s background overview poll, and `loadLive` reads the overview with `?fresh=1` so
+  every load/reconnect/refocus shows current on-chain state. No more disconnect/reconnect
+  to refresh. (`Dashboard.jsx` header + `hardRefresh` + the auto-refresh effect.)
+- **CAUTION / fixed: corrupted `dist`** — running `vite build` while a dev `vite` is also
+  running (or two builds racing) can leave `dist/index.html` pointing at a bundle hash that
+  isn't in `dist/assets/`. The server then SPA-falls-back to index.html for the `.js`
+  request → MIME mismatch → blank page that looks "stale/broken". Fix: `pkill -f vite`,
+  then ONE clean `rm -rf dist && vite build`, verify index.html's bundle == a file in
+  dist/assets, then `sailor ui stop && sailor ui`. Never build while a dev vite is up.
+- **Live balance auto-refresh** — fixed the "had to disconnect/reconnect to see new
+  funds" bug. `loadLive` only ran on mount/connect, so balances froze. Added: a 15s
+  overview poll + a FRESH on-chain refetch on window focus / tab-visible
+  (`Dashboard.jsx`), and a server `GET /api/overview?fresh=1` that bypasses the 10s
+  stale-while-revalidate cache and recomputes synchronously. Verified: `?fresh=1`
+  returns current on-chain balances live; the built bundle ships the focus/visibility
+  listeners + 15s poll. **Reminder: this is a server.js change — `sailor ui` needs the
+  CLI rebuilt** (done this session).
+- **Mandate-authoring ENGINE (chat-driven, no dashboard button)** — per explicit product
+  direction (2026-06-07): mandates are created through the **AI chat origination flow**, NOT a
+  button/form on the dashboard. The manual "+ New mandate" button + its modal wiring were
+  REMOVED from `Dashboard.jsx`. What remains is the reusable on-chain ENGINE the chat will
+  drive: `useCreateMandate` + `/api/account/build-deploy-mandate` + `/api/mandate-templates` +
+  `/api/account/mandate-complete` (+ the proven `build-reattach`/`-tx` register path). The
+  `CreateMandateModal.jsx`/`.module.css` files remain on disk **unwired**, staged as a possible
+  chat-triggered review/sign surface (delete if the chat goes fully inline). The engine flow:
+  permission contract (`/api/account/build-deploy-mandate` encodes the Foundry artifact
+  from `<project>/out/<Name>.sol`), then signs + submits the registration (reuses the
+  proven batch `build-reattach`/`build-reattach-tx` path). `/api/account/mandate-complete`
+  records it (state/mandates.json + activity). New `useCreateMandate` hook;
+  `GET /api/mandate-templates` discovers compiled `*Permission*` artifacts + their
+  constructor inputs; the form is raw constructor fields (per the chosen UX). On Base only
+  `BoundedCallPermission` is compiled (no on-chain templates/clone impls yet — deployments.ts
+  `knownTemplates: []`), so deploy-a-compiled-artifact is the only real path. Endpoints
+  verified live (templates + valid creation bytecode for the USDC-approve params); the full
+  on-chain deploy+register was NOT run (real gas on mainnet — left for the user to drive).
+  **NEXT: wire this same engine into the chat→dashboard origination layer** (user asked for
+  the button now + chat next).
+- **Pending-signing receipt check** (AUDIT bug #3) — `PendingSigningModal` now awaits the
+  tx receipt (chain-pinned) and throws on `reverted` before signalling `signed`; new
+  `confirming` phase. Also fixed bug #7 (stale error banner reset on re-open).
+- **Real revoke** — "Revoke" is now a real owner-signed `kernel.revokePermissions`,
+  not theater (was AUDIT bug #1). Mirrors rotation: server builds the EIP-712
+  `RevokePermissions` typed-data + calldata (`/api/account/build-revoke`,
+  `/build-revoke-tx`, `/revoke-complete`); owner signs + submits from their wallet;
+  on a confirmed receipt a `permission_revoked` event is logged + the overview
+  cache busted, then `loadLive()` re-reads `getPermissions` so the row flips to
+  Revoked from on-chain truth. New `useRevokePermission` hook; `ContractModal.revoke()`
+  is async — the REVOKED stamp plays only **after** confirmation, with live wallet/tx
+  status + a Try-again error state. Endpoints verified live (typed-data + calldata
+  + selector `0x71859e53` against the Base kernel `0x6319…`); the on-chain tx itself
+  was NOT executed (would irreversibly remove the live demo mandate — left for the
+  user to drive in-browser). Also fixed AUDIT bug #6 (stale Escape `phase` closure).
+- **Manager-key rotation UI** — shipped + verified live on Base mainnet (rotated
+  `0x6AE4…` → `0x3665…`, both txs succeeded, mandate re-bound). Dashboard-native,
+  owner-signed: server builds calldata (`buildSetManagerExecTransaction`,
+  `buildRegisterPermissionsBatchTypedData`), owner submits via wagmi. `RotateSignerModal`
+  + `useRotateSigner` + 6 `/api/account/*` endpoints. Re-attach is owner-submitted
+  (dissolves the unfunded-agent gas gotcha).
+- **Fund (receive-ETH) CTA + modal** — one calm "Fund" link on the SMA hero + both
+  operator wallet cards → `FundModal` (network · full address · copy · warning).
+- **Mandate history ledger** — `buildMandateLedger` (server.js) derives real per-mandate
+  status (active/revoked) + dates from `state/mandates.json` + `activity.jsonl` +
+  on-chain `getPermissions`. Mandate switcher (All/Active/Revoked/Expired). Active
+  mandates fly the animated **Sai** mascot (leading avatar).
+- **Design-direction fixes** — Rotate/Fund modals + `WalletAddress` made sharp/flat/mono
+  (no glass, no amber, no em-dashes). RPC badge de-jargoned → calm "Connected · Base".
+- (Earlier) Next→Vite transplant; live `/api`; RainbowKit; real SMA deploy + mandate
+  register; AutomationSection; honest funding pills; live activity + created-date.
+
+## Next phase — the chat-driven creation UX (primary goal for a fresh chat)
+Build the **full creation experience the framework intends**: create a new SMA → create
+mandates → automate → connect RPC, **driven through the AI chat ↔ dashboard loop**.
+Today (see AUDIT §5) the *reflect* half is done (dashboard live-mirrors daemon-pushed
+signing requests + drafts and signs them); the *origination* half is missing — there's
+**no in-product mandate authoring** and **no embedded AI/chat** (drafts come from the CLI).
+Close that gap: browser mandate authoring + real on-chain registration, and the
+chat→dashboard origination flow.
+
+## Highest-priority fixes before/with that (from AUDIT.md)
+1. **Deferred-reattach mislabeled `revoked`** in the ledger after rotation. (AUDIT bug #4.)
+2. **Design sweep** of the un-converted Tier-1 modals + kill green/amber hue leaks. (AUDIT §3.)
+3. **Hygiene** — delete dead code, decompose `Dashboard.jsx` (1.7k lines), rename
+   `useMockSigner`→`useWalletSigner`, add lint/typecheck. (AUDIT §4.)
+
+Already fixed: in-browser mandate authoring + pending-receipt (bug #3) + stale-error
+(bug #7) + real revoke (bug #1) + Escape `phase` closure (bug #6) this session; the
+mandate-ledger cross-SMA leak (bug #2) earlier.
+
+## Known gotchas
+- **`/api/overview` is cached** at `.sail/state/overview/<safe>.json` (stale-while-revalidate).
+  After a `server.js` change to the overview payload, `rm` it (or fetch twice) to see fresh data.
+- `server.js` is **not** hot-reloaded — restart it after editing.
+- The dashboard's `sma`/`gas` are **null** until a wallet connects (ConnectGate); props rendered
+  outside the gate must optional-chain.
+- **Phantom can't be made to switch accounts from the dApp** — switch inside the extension.
+- Register/re-attach needs the **manager funded** (it submits + pays gas) unless owner-submitted.
+- `repoUrl` in agent-status is null because `test/my-agent` isn't a git repo.
 
 ## Known gotchas
 - **Phantom can't be made to switch accounts from the dApp** (ignores

@@ -4,8 +4,17 @@ import { fileURLToPath } from 'node:url'
 import cors from 'cors'
 import express from 'express'
 import { WebSocket, WebSocketServer } from 'ws'
-import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, getSailDeployment } from '@sail/sdk'
-import { createPublicClient, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
+import {
+  LocalKeyring,
+  SAFE_V141,
+  SailKernelAbi,
+  buildRegisterPermissionsBatchTypedData,
+  buildSafeSetupInitializer,
+  buildSetManagerExecTransaction,
+  estimatePermissionFee,
+  getSailDeployment,
+} from '@sail/sdk'
+import { createPublicClient, encodeDeployData, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
 
 const PORT = Number(process.env.PORT ?? 3334)
@@ -88,6 +97,10 @@ export function startServer(sailDir, { port = PORT } = {}) {
   app.use(express.json())
 
   const at = (name) => path.join(sailDir, name)
+  // The Foundry project root is the parent of .sail/ — compiled permission
+  // artifacts live under <projectRoot>/out/<Name>.sol/<Name>.json.
+  const projectRoot = path.dirname(sailDir)
+  const outAt = (name) => path.join(projectRoot, 'out', name)
 
   // ── Per-SMA overview cache ───────────────────────────────────────────────
   // Switching between SMAs should feel instant. The consolidated overview is
@@ -557,6 +570,598 @@ export function startServer(sailDir, { port = PORT } = {}) {
       overviewCacheByAccount.delete(safe.toLowerCase())
       try { fs.rmSync(overviewSnapshotPath(safe)) } catch { /* none */ }
       res.json({ ok: true, address: getAddress(address), file: match })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  })
+
+  // ── Manager-key rotation ─────────────────────────────────────────────────
+  // Rotate the SMA's delegated signer (the "agent wallet"/manager). The kernel's
+  // setManager(newManager) is gated by msg.sender == account, so it is wrapped in
+  // a Safe.execTransaction the OWNER submits from their browser wallet (1-of-1
+  // Safe → pre-validated approvedHash signature, no Safe-tx round-trip). Rotation
+  // CLEARS every attached mandate on-chain (fail-closed); the cleared mandates are
+  // then re-approved so they re-bind to the new signer. As with onboarding, the
+  // server only *builds* calldata/typed-data — the owner's wallet signs + submits.
+
+  // Resolve the live on-chain context (account + chain + kernel/governance + RPC
+  // client) shared by every rotation endpoint. Returns null when prerequisites
+  // are missing so the handler can 4xx with a clear reason.
+  const rotationContext = () => {
+    let account
+    try {
+      account = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
+    } catch {
+      return { error: 'no-account', message: 'No active SMA. Deploy one first.' }
+    }
+    const env = parseEnvFile(at('.env.local'))
+    const chainId = Number(account.chainId ?? env.CHAIN_ID ?? 0)
+    let kernel = env.KERNEL_ADDRESS
+    let governance
+    try {
+      const deployment = getSailDeployment(chainId)
+      kernel = kernel ?? deployment?.kernel
+      governance = deployment?.governance
+    } catch {
+      /* unknown chain — kernel may still come from env */
+    }
+    const rpcUrl = env.RPC_URL
+    if (!kernel || !isAddress(kernel)) {
+      return { error: 'no-kernel', message: 'No kernel address for this chain.' }
+    }
+    if (!rpcUrl) {
+      return { error: 'no-rpc', message: 'No RPC_URL configured (.sail/.env.local).' }
+    }
+    const client = createPublicClient({ transport: http(rpcUrl) })
+    return { account, env, chainId, kernel: getAddress(kernel), governance, rpcUrl, client }
+  }
+
+  // GET /api/account/rotation-preview — what a rotation would touch: the current
+  // on-chain signer and the mandates that would be cleared + re-attached.
+  app.get('/api/account/rotation-preview', async (_req, res) => {
+    const ctx = rotationContext()
+    if (ctx.error) {
+      res.status(400).json({ error: ctx.error, message: ctx.message })
+      return
+    }
+    try {
+      const safe = getAddress(ctx.account.safe)
+      const [configs, permissions] = await Promise.all([
+        ctx.client.readContract({ address: ctx.kernel, abi: SailKernelAbi, functionName: 'configs', args: [safe] }),
+        ctx.client.readContract({ address: ctx.kernel, abi: SailKernelAbi, functionName: 'getPermissions', args: [safe] }),
+      ])
+      const [permissionSigner, manager] = configs
+      res.json({
+        safe,
+        chainId: ctx.chainId,
+        owner: getAddress(ctx.account.owner),
+        permissionSigner: getAddress(permissionSigner),
+        currentManager: manager && getAddress(manager) !== zeroAddress ? getAddress(manager) : null,
+        permissions: permissions.map((p) => getAddress(p)),
+      })
+    } catch (err) {
+      res.status(502).json({ error: 'rpc', message: String(err) })
+    }
+  })
+
+  // POST /api/account/build-set-manager { newManager } — calldata for the owner
+  // to submit Safe.execTransaction(setManager(newManager)). Also echoes the
+  // current signer + attached mandates (read fresh on-chain) so the caller can
+  // re-attach them after the rotation confirms.
+  app.post('/api/account/build-set-manager', async (req, res) => {
+    const { newManager } = req.body ?? {}
+    if (!isAddress(newManager)) {
+      res.status(400).json({ error: 'newManager must be a valid address' })
+      return
+    }
+    const ctx = rotationContext()
+    if (ctx.error) {
+      res.status(400).json({ error: ctx.error, message: ctx.message })
+      return
+    }
+    try {
+      const safe = getAddress(ctx.account.safe)
+      const owner = getAddress(ctx.account.owner)
+      const configs = await ctx.client.readContract({
+        address: ctx.kernel, abi: SailKernelAbi, functionName: 'configs', args: [safe],
+      })
+      const oldManager = configs[1] && getAddress(configs[1]) !== zeroAddress ? getAddress(configs[1]) : null
+      if (oldManager && oldManager.toLowerCase() === getAddress(newManager).toLowerCase()) {
+        res.status(400).json({ error: 'same-signer', message: 'New signer is the same as the current one.' })
+        return
+      }
+      const permissions = await ctx.client.readContract({
+        address: ctx.kernel, abi: SailKernelAbi, functionName: 'getPermissions', args: [safe],
+      })
+      const { to, data } = buildSetManagerExecTransaction({
+        safe, kernel: ctx.kernel, newManager: getAddress(newManager), owner,
+      })
+      res.json({ to, data, chainId: ctx.chainId, oldManager, permissions: permissions.map((p) => getAddress(p)) })
+    } catch (err) {
+      res.status(502).json({ error: 'rpc', message: String(err) })
+    }
+  })
+
+  // POST /api/account/rotate-generate-key { passphrase? } — generate a FRESH
+  // delegated-signer keystore, backing up the existing one first (the old key may
+  // still be needed for an in-flight tx). Unlike /api/onboard/generate-key this
+  // intentionally overwrites. Targets the flat keys/manager.json the agent loads.
+  app.post('/api/account/rotate-generate-key', async (req, res) => {
+    const target = at('keys/manager.json')
+    try {
+      const passphrase = req.body?.passphrase ?? ''
+      if (fs.existsSync(target)) {
+        const backup = `${target}.${Date.now()}.bak`
+        fs.copyFileSync(target, backup)
+      }
+      const privateKey = generatePrivateKey()
+      const keyring = LocalKeyring.fromPrivateKey(privateKey)
+      const keystore = await keyring.exportKeystore(passphrase)
+      fs.mkdirSync(at('keys'), { recursive: true })
+      fs.writeFileSync(target, `${JSON.stringify(keystore, null, 2)}\n`)
+      res.json({ address: getAddress(keyring.address) })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  })
+
+  // POST /api/account/build-reattach { permissions } — EIP-712 typed data the
+  // owner (permission signer) signs to re-approve the cleared mandates so they
+  // bind to the new signer. Reads the current signer nonce on-chain.
+  app.post('/api/account/build-reattach', async (req, res) => {
+    const permissions = Array.isArray(req.body?.permissions) ? req.body.permissions : []
+    if (permissions.length === 0 || !permissions.every((p) => isAddress(p))) {
+      res.status(400).json({ error: 'permissions must be a non-empty array of addresses' })
+      return
+    }
+    const ctx = rotationContext()
+    if (ctx.error) {
+      res.status(400).json({ error: ctx.error, message: ctx.message })
+      return
+    }
+    try {
+      const safe = getAddress(ctx.account.safe)
+      const nonce = await ctx.client.readContract({
+        address: ctx.kernel, abi: SailKernelAbi, functionName: 'signerNonces', args: [safe],
+      })
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 600)
+      const typedData = buildRegisterPermissionsBatchTypedData({
+        chainId: ctx.chainId,
+        kernel: ctx.kernel,
+        account: safe,
+        permissions: permissions.map((p) => getAddress(p)),
+        nonce,
+        deadline,
+      })
+      res.json({ typedData, deadline: deadline.toString() })
+    } catch (err) {
+      res.status(502).json({ error: 'rpc', message: String(err) })
+    }
+  })
+
+  // POST /api/account/build-reattach-tx { permissions, deadline, signature } —
+  // the kernel.registerPermissions calldata the owner submits to re-bind the
+  // mandates, with the summed registration fee (0 on the zero-fee Base deploys).
+  app.post('/api/account/build-reattach-tx', async (req, res) => {
+    const { permissions, deadline, signature } = req.body ?? {}
+    if (!Array.isArray(permissions) || permissions.length === 0 || !permissions.every((p) => isAddress(p))) {
+      res.status(400).json({ error: 'permissions must be a non-empty array of addresses' })
+      return
+    }
+    if (typeof signature !== 'string' || !signature.startsWith('0x')) {
+      res.status(400).json({ error: 'signature is required' })
+      return
+    }
+    if (deadline == null) {
+      res.status(400).json({ error: 'deadline is required' })
+      return
+    }
+    const ctx = rotationContext()
+    if (ctx.error) {
+      res.status(400).json({ error: ctx.error, message: ctx.message })
+      return
+    }
+    try {
+      const safe = getAddress(ctx.account.safe)
+      const perms = permissions.map((p) => getAddress(p))
+      let fee = 0n
+      if (ctx.governance && isAddress(ctx.governance)) {
+        for (const permission of perms) {
+          fee += await estimatePermissionFee(ctx.client, ctx.governance, permission)
+        }
+      }
+      const data = encodeFunctionData({
+        abi: SailKernelAbi,
+        functionName: 'registerPermissions',
+        args: [safe, perms, BigInt(deadline), signature],
+      })
+      res.json({ to: ctx.kernel, data, value: fee.toString(), chainId: ctx.chainId })
+    } catch (err) {
+      res.status(502).json({ error: 'rpc', message: String(err) })
+    }
+  })
+
+  // ── Mandate revocation ───────────────────────────────────────────────────
+  // Revoke one or more permissions (mandates) from the SMA. The OWNER (the
+  // on-chain permission signer) authorizes the removal with an EIP-712
+  // RevokePermissions signature in the browser, then submits kernel
+  // .revokePermissions(account, permissions[], deadline, sig) from their own
+  // wallet — mirroring the rotation re-attach path, so there is no
+  // unfunded-agent gas gotcha. As elsewhere, the server only *builds*
+  // calldata/typed-data; the owner's wallet signs + submits. The on-chain tx is
+  // the source of truth; revoke-complete only records the event locally.
+  //
+  // revokePermissions + its RevokePermissions typehash aren't in the SDK's
+  // SailKernelAbi (which only carries what the SDK itself calls), so we keep the
+  // minimal fragment + types here, matching contracts/core/SailKernel.sol.
+  const REVOKE_PERMISSIONS_ABI = [
+    {
+      type: 'function',
+      name: 'revokePermissions',
+      stateMutability: 'nonpayable',
+      inputs: [
+        { name: 'account', type: 'address' },
+        { name: 'permissions', type: 'address[]' },
+        { name: 'deadline', type: 'uint256' },
+        { name: 'sig', type: 'bytes' },
+      ],
+      outputs: [],
+    },
+  ]
+  const REVOKE_PERMISSIONS_TYPES = {
+    RevokePermissions: [
+      { name: 'account', type: 'address' },
+      { name: 'permissions', type: 'address[]' },
+      { name: 'nonce', type: 'uint256' },
+      { name: 'deadline', type: 'uint256' },
+    ],
+  }
+
+  // POST /api/account/build-revoke { permissions } — EIP-712 typed data the owner
+  // (permission signer) signs to authorize removing the listed permission(s).
+  // Reads the current signer nonce on-chain. Validates each address is in the
+  // SMA's live permission set so we never sign a no-op revoke.
+  app.post('/api/account/build-revoke', async (req, res) => {
+    const permissions = Array.isArray(req.body?.permissions) ? req.body.permissions : []
+    if (permissions.length === 0 || !permissions.every((p) => isAddress(p))) {
+      res.status(400).json({ error: 'permissions must be a non-empty array of addresses' })
+      return
+    }
+    const ctx = rotationContext()
+    if (ctx.error) {
+      res.status(400).json({ error: ctx.error, message: ctx.message })
+      return
+    }
+    try {
+      const safe = getAddress(ctx.account.safe)
+      const [active, nonce] = await Promise.all([
+        ctx.client.readContract({ address: ctx.kernel, abi: SailKernelAbi, functionName: 'getPermissions', args: [safe] }),
+        ctx.client.readContract({ address: ctx.kernel, abi: SailKernelAbi, functionName: 'signerNonces', args: [safe] }),
+      ])
+      const activeSet = new Set(active.map((p) => getAddress(p).toLowerCase()))
+      const targets = permissions.map((p) => getAddress(p))
+      const missing = targets.filter((p) => !activeSet.has(p.toLowerCase()))
+      if (missing.length > 0) {
+        res.status(409).json({ error: 'not-active', message: `Not in the SMA's active permission set: ${missing.join(', ')}` })
+        return
+      }
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 600)
+      const typedData = {
+        domain: { name: 'SailKernel', version: '1', chainId: ctx.chainId, verifyingContract: ctx.kernel },
+        types: REVOKE_PERMISSIONS_TYPES,
+        primaryType: 'RevokePermissions',
+        message: { account: safe, permissions: targets, nonce: nonce.toString(), deadline: deadline.toString() },
+      }
+      res.json({ typedData, deadline: deadline.toString() })
+    } catch (err) {
+      res.status(502).json({ error: 'rpc', message: String(err) })
+    }
+  })
+
+  // POST /api/account/build-revoke-tx { permissions, deadline, signature } — the
+  // kernel.revokePermissions calldata the owner submits to remove the mandates.
+  // revokePermissions is nonpayable (no fee), so there is no value to attach.
+  app.post('/api/account/build-revoke-tx', async (req, res) => {
+    const { permissions, deadline, signature } = req.body ?? {}
+    if (!Array.isArray(permissions) || permissions.length === 0 || !permissions.every((p) => isAddress(p))) {
+      res.status(400).json({ error: 'permissions must be a non-empty array of addresses' })
+      return
+    }
+    if (typeof signature !== 'string' || !signature.startsWith('0x')) {
+      res.status(400).json({ error: 'signature is required' })
+      return
+    }
+    if (deadline == null) {
+      res.status(400).json({ error: 'deadline is required' })
+      return
+    }
+    const ctx = rotationContext()
+    if (ctx.error) {
+      res.status(400).json({ error: ctx.error, message: ctx.message })
+      return
+    }
+    try {
+      const safe = getAddress(ctx.account.safe)
+      const perms = permissions.map((p) => getAddress(p))
+      const data = encodeFunctionData({
+        abi: REVOKE_PERMISSIONS_ABI,
+        functionName: 'revokePermissions',
+        args: [safe, perms, BigInt(deadline), signature],
+      })
+      res.json({ to: ctx.kernel, data, chainId: ctx.chainId })
+    } catch (err) {
+      res.status(502).json({ error: 'rpc', message: String(err) })
+    }
+  })
+
+  // POST /api/account/revoke-complete { permissions, txHash } — record the
+  // revocation locally once the owner's on-chain tx confirms. Appends one
+  // permission_revoked event per permission (tagged with the SMA + tx) so the
+  // mandate ledger flips to Revoked and Recent Activity reflects it, then drops
+  // the cached overview so getPermissions is re-read. The on-chain tx is the
+  // source of truth; this only keeps local state in sync.
+  app.post('/api/account/revoke-complete', (req, res) => {
+    const { permissions, txHash } = req.body ?? {}
+    if (!Array.isArray(permissions) || permissions.length === 0 || !permissions.every((p) => isAddress(p))) {
+      res.status(400).json({ error: 'permissions must be a non-empty array of addresses' })
+      return
+    }
+    const safe = readActiveSafe()
+    if (!safe) {
+      res.status(400).json({ error: 'No active SMA.' })
+      return
+    }
+    try {
+      // Map known permission names (state/mandates.json) so the activity entry
+      // and ledger row read with a label, not just an address.
+      const nameByAddr = new Map()
+      try {
+        const tracked = JSON.parse(fs.readFileSync(at('state/mandates.json'), 'utf-8'))
+        for (const m of tracked.mandates ?? []) {
+          if (m.address && m.name) nameByAddr.set(m.address.toLowerCase(), m.name)
+        }
+      } catch { /* no tracked ledger */ }
+      const ts = new Date().toISOString()
+      for (const p of permissions) {
+        const permission = getAddress(p)
+        const ev = {
+          ts,
+          actor: 'owner',
+          type: 'permission_revoked',
+          permission,
+          safe,
+          ...(nameByAddr.has(permission.toLowerCase()) ? { name: nameByAddr.get(permission.toLowerCase()) } : {}),
+          ...(txHash ? { txHash } : {}),
+        }
+        fs.appendFileSync(at('activity.jsonl'), `${JSON.stringify(ev)}\n`)
+      }
+      // Invalidate the cached overview so the revoked permission drops out.
+      overviewCacheByAccount.delete(safe.toLowerCase())
+      try { fs.rmSync(overviewSnapshotPath(safe)) } catch { /* none */ }
+      res.json({ ok: true, revoked: permissions.length })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  })
+
+  // ── In-browser mandate authoring ─────────────────────────────────────────
+  // Deploy a NEW permission contract (mandate) from a compiled Foundry artifact,
+  // then register it on the kernel — the same two-step the CLI `sailor mandate
+  // deploy --attach` runs, but driven from the browser with the OWNER signing +
+  // submitting both txs (no unfunded-agent gas gotcha). Registration reuses the
+  // proven batch path (build-reattach / build-reattach-tx). On Base today there
+  // are no on-chain templates/clone impls (deployments.ts: knownTemplates: []),
+  // so deploying a compiled artifact is the only real path — exactly how the
+  // existing BoundedCallPermission mandate was created.
+
+  // A safe artifact name: a Solidity identifier, no path separators. Guards the
+  // out/<name>.sol/<name>.json lookup against traversal.
+  const isSafeArtifactName = (name) => typeof name === 'string' && /^[A-Za-z0-9_]+$/.test(name)
+
+  // Read a compiled artifact (abi + bytecode) for a permission template by name.
+  // Returns null when missing/malformed. Never throws.
+  const readArtifact = (name) => {
+    if (!isSafeArtifactName(name)) return null
+    try {
+      const artifact = JSON.parse(fs.readFileSync(outAt(`${name}.sol/${name}.json`), 'utf-8'))
+      const bytecodeRaw = artifact.bytecode?.object ?? artifact.bytecode
+      if (!artifact.abi || !bytecodeRaw) return null
+      const bytecode = String(bytecodeRaw).startsWith('0x') ? bytecodeRaw : `0x${bytecodeRaw}`
+      // Reject artifacts with no deployable code (interfaces, abstract contracts).
+      if (bytecode.length <= 2) return null
+      return { abi: artifact.abi, bytecode, path: outAt(`${name}.sol/${name}.json`) }
+    } catch {
+      return null
+    }
+  }
+
+  // GET /api/mandate-templates — compiled permission templates the browser can
+  // author + deploy. Discovered by scanning <projectRoot>/out for contracts whose
+  // name contains "Permission" and that carry bytecode + a constructor. Each entry
+  // returns the constructor input spec so the UI can render a form.
+  app.get('/api/mandate-templates', (_req, res) => {
+    const templates = []
+    try {
+      const outDir = path.join(projectRoot, 'out')
+      for (const dir of fs.readdirSync(outDir)) {
+        if (!dir.endsWith('.sol')) continue
+        const name = dir.slice(0, -4)
+        if (!/permission/i.test(name)) continue
+        const art = readArtifact(name)
+        if (!art) continue
+        const ctor = (art.abi ?? []).find((x) => x.type === 'constructor')
+        templates.push({
+          name,
+          inputs: (ctor?.inputs ?? []).map((i) => ({ name: i.name, type: i.type })),
+        })
+      }
+    } catch { /* no out/ dir — empty list */ }
+    res.json({ templates })
+  })
+
+  // Coerce a constructor arg value (as sent by the browser) to what viem's
+  // encodeDeployData expects for the declared Solidity type. Strings are parsed
+  // leniently: address[]/bytes4[] accept a JSON array or a comma/newline list;
+  // uint/int accept a decimal string → BigInt; bool accepts true/1/yes.
+  const coerceArg = (type, value) => {
+    const asList = (v) => {
+      if (Array.isArray(v)) return v
+      const s = String(v ?? '').trim()
+      if (!s) return []
+      if (s.startsWith('[')) return JSON.parse(s)
+      return s.split(/[\n,]+/).map((x) => x.trim()).filter(Boolean)
+    }
+    if (type.endsWith('[]')) {
+      const base = type.slice(0, -2)
+      return asList(value).map((v) => coerceArg(base, v))
+    }
+    if (type.startsWith('uint') || type.startsWith('int')) return BigInt(String(value).trim() || '0')
+    if (type === 'bool') return value === true || /^(true|1|yes)$/i.test(String(value).trim())
+    if (type === 'address') return getAddress(String(value).trim())
+    return String(value).trim() // bytes/bytesN/string pass through (must be 0x-hex for bytes)
+  }
+
+  // POST /api/account/build-deploy-mandate { template, args } — contract-creation
+  // calldata the owner submits to deploy a new permission contract. `args` is an
+  // array aligned to the template constructor's inputs (as returned by
+  // /api/mandate-templates). Returns { data, chainId } — no `to` (deployment).
+  app.post('/api/account/build-deploy-mandate', (req, res) => {
+    const { template, args } = req.body ?? {}
+    const art = readArtifact(template)
+    if (!art) {
+      res.status(404).json({ error: 'no-artifact', message: `No compiled artifact for "${template}". Run \`forge build\` in the project first.` })
+      return
+    }
+    const ctx = rotationContext()
+    if (ctx.error) {
+      res.status(400).json({ error: ctx.error, message: ctx.message })
+      return
+    }
+    try {
+      const ctor = (art.abi ?? []).find((x) => x.type === 'constructor')
+      const inputs = ctor?.inputs ?? []
+      const provided = Array.isArray(args) ? args : []
+      if (provided.length !== inputs.length) {
+        res.status(400).json({ error: 'args', message: `Expected ${inputs.length} constructor arg(s), got ${provided.length}.` })
+        return
+      }
+      const coerced = inputs.map((inp, i) => coerceArg(inp.type, provided[i]))
+      const data = encodeDeployData({ abi: art.abi, bytecode: art.bytecode, args: coerced })
+      res.json({ data, chainId: ctx.chainId, name: template })
+    } catch (err) {
+      res.status(400).json({ error: 'encode', message: String(err) })
+    }
+  })
+
+  // POST /api/account/mandate-complete { name, address, template?, constructorArgs?,
+  // deployTxHash, registerTxHash } — record a freshly deployed + registered mandate
+  // into state/mandates.json (MandateStore shape) + the activity log, and drop the
+  // cached overview so the new permission shows. The on-chain txs are the source of
+  // truth; this only keeps local state in sync (mirrors mandate-contracts.ts CLI).
+  app.post('/api/account/mandate-complete', (req, res) => {
+    const { name, address, template, constructorArgs, deployTxHash, registerTxHash } = req.body ?? {}
+    if (!isAddress(address)) {
+      res.status(400).json({ error: 'address must be a valid address' })
+      return
+    }
+    const safe = readActiveSafe()
+    if (!safe) {
+      res.status(400).json({ error: 'No active SMA.' })
+      return
+    }
+    try {
+      const permission = getAddress(address)
+      const label = name || template || 'Mandate'
+      const account = (() => { try { return JSON.parse(fs.readFileSync(at('account.json'), 'utf-8')) } catch { return {} } })()
+      const chainId = Number(account.chainId ?? 0) || undefined
+      const now = new Date().toISOString()
+
+      // 1. Upsert into state/mandates.json (the MandateStore the CLI + ledger read).
+      const storePath = at('state/mandates.json')
+      let store = { version: 1, mandates: [] }
+      try { store = JSON.parse(fs.readFileSync(storePath, 'utf-8')) } catch { /* fresh */ }
+      if (!Array.isArray(store.mandates)) store.mandates = []
+      const attachment = { sma: safe, txHash: registerTxHash ?? null, at: now }
+      const idx = store.mandates.findIndex((m) => m.address?.toLowerCase() === permission.toLowerCase())
+      if (idx === -1) {
+        store.mandates.push({
+          name: label,
+          address: permission,
+          txHash: deployTxHash ?? null,
+          chainId,
+          ...(template ? { artifactPath: outAt(`${template}.sol/${template}.json`) } : {}),
+          ...(Array.isArray(constructorArgs) ? { constructorArgs } : {}),
+          deployedAt: now,
+          attachments: [attachment],
+        })
+      } else {
+        store.mandates[idx].attachments = [...(store.mandates[idx].attachments ?? []), attachment]
+      }
+      fs.mkdirSync(at('state'), { recursive: true })
+      fs.writeFileSync(storePath, `${JSON.stringify(store, null, 2)}\n`)
+
+      // 2. Activity log: the deploy + the registration, both owner-driven.
+      if (deployTxHash) {
+        fs.appendFileSync(at('activity.jsonl'), `${JSON.stringify({ ts: now, actor: 'owner', type: 'mandate_deployed', name: label, address: permission, safe, txHash: deployTxHash, ...(chainId ? { chainId } : {}) })}\n`)
+      }
+      fs.appendFileSync(at('activity.jsonl'), `${JSON.stringify({ ts: now, actor: 'owner', type: 'permission_registered', permission, name: label, sma: safe, safe, ...(registerTxHash ? { txHash: registerTxHash } : {}), ...(chainId ? { chainId } : {}) })}\n`)
+
+      // 3. Invalidate the cached overview so getPermissions re-reads the new set.
+      overviewCacheByAccount.delete(safe.toLowerCase())
+      try { fs.rmSync(overviewSnapshotPath(safe)) } catch { /* none */ }
+      res.json({ ok: true, address: permission })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  })
+
+  // POST /api/account/rotate-complete { newManager, txHash, reattachTxHash?,
+  // permissions? } — persist the rotated signer into account.json + the multi-SMA
+  // list, log the activity, and drop the cached overview so the new signer shows.
+  app.post('/api/account/rotate-complete', (req, res) => {
+    const { newManager, txHash, reattachTxHash, permissions } = req.body ?? {}
+    if (!isAddress(newManager)) {
+      res.status(400).json({ error: 'newManager must be a valid address' })
+      return
+    }
+    try {
+      const account = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
+      const safe = account.safe
+      const manager = getAddress(newManager)
+      const oldManager = account.manager ? getAddress(account.manager) : null
+
+      // account.json (the active SMA the UI reads).
+      fs.writeFileSync(at('account.json'), `${JSON.stringify({ ...account, manager }, null, 2)}\n`)
+      // Multi-SMA list, if present.
+      try {
+        const listPath = at('state/accounts.json')
+        const list = JSON.parse(fs.readFileSync(listPath, 'utf-8'))
+        const idx = list.findIndex((a) => a.safe.toLowerCase() === safe.toLowerCase())
+        if (idx !== -1) {
+          list[idx] = { ...list[idx], manager }
+          fs.writeFileSync(listPath, `${JSON.stringify(list, null, 2)}\n`)
+        }
+      } catch {
+        /* single-SMA project — no list */
+      }
+
+      // Activity log: the rotation, then the re-attach if it happened.
+      const append = (event) => {
+        try {
+          fs.mkdirSync(sailDir, { recursive: true })
+          fs.appendFileSync(at('activity.jsonl'), `${JSON.stringify({ ts: new Date().toISOString(), safe, ...event })}\n`)
+        } catch { /* best-effort */ }
+      }
+      append({ actor: 'owner', type: 'signer_rotated', oldManager, newManager: manager, txHash, chainId: account.chainId })
+      if (reattachTxHash && Array.isArray(permissions) && permissions.length > 0) {
+        append({ actor: 'owner', type: 'mandates_reattached', permissions, txHash: reattachTxHash, chainId: account.chainId })
+      }
+
+      // Drop the cached overview so the rotated signer shows immediately.
+      overviewCacheByAccount.delete(safe.toLowerCase())
+      try { fs.rmSync(overviewSnapshotPath(safe)) } catch { /* none */ }
+
+      res.json({ ok: true, manager })
     } catch (err) {
       res.status(500).json({ error: String(err) })
     }
@@ -1076,7 +1681,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
   // kernel from .env.local / the SDK deployment registry. If the chain is
   // unreachable we still return the local account + a best-effort mandate list
   // so the UI degrades gracefully instead of going blank.
-  app.get('/api/overview', async (_req, res) => {
+  app.get('/api/overview', async (req, res) => {
     let account = null
     try {
       account = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
@@ -1090,6 +1695,23 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
 
     const key = account.safe.toLowerCase()
+
+    // Explicit refresh (?fresh=1) — bypass the stale-while-revalidate cache and
+    // recompute synchronously so balances/permissions reflect on-chain reality
+    // immediately. The dashboard uses this when it re-focuses (e.g. the user just
+    // funded a wallet in another tab) so they never have to disconnect to refresh.
+    if (req.query?.fresh != null) {
+      try {
+        const data = await computeOverview(account)
+        storeOverview(account.safe, data)
+        res.json(data)
+      } catch {
+        // On RPC failure fall back to the last snapshot rather than going blank.
+        res.json(overviewCacheByAccount.get(key)?.data ?? readOverviewSnapshot(account.safe) ?? null)
+      }
+      return
+    }
+
     const cached = overviewCacheByAccount.get(key)
 
     // Fresh in memory → serve as-is.
@@ -1113,6 +1735,84 @@ export function startServer(sailDir, { port = PORT } = {}) {
     storeOverview(account.safe, data)
     res.json(data)
   })
+
+  // Build the mandate HISTORY ledger for an SMA: every permission ever attached
+  // to it, each with a real status. No fabrication — status is derived from the
+  // on-chain active set + recorded events in activity.jsonl + state/mandates.json:
+  //   active  → currently in getPermissions(safe)
+  //   revoked → has a revoke event, OR was attached and is no longer active
+  //   expired → reserved (needs a deadline source — none tracked yet)
+  const buildMandateLedger = (safe, activeAddrs, nameByAddr, templateByAddr, network) => {
+    const safeLower = safe.toLowerCase()
+
+    // (1) Deploy/attach metadata from the tracked ledger (state/mandates.json).
+    const meta = new Map() // addrLower -> { firstAt, txHash }
+    try {
+      const tracked = JSON.parse(fs.readFileSync(at('state/mandates.json'), 'utf-8'))
+      for (const m of tracked.mandates ?? []) {
+        if (!m.address) continue
+        const mine = (m.attachments ?? []).filter((a) => a.sma?.toLowerCase() === safeLower)
+        if (mine.length === 0) continue
+        const first = mine.reduce((a, b) => (a.at && b.at && a.at < b.at ? a : b))
+        meta.set(m.address.toLowerCase(), { firstAt: first?.at ?? m.deployedAt ?? null, txHash: first?.txHash ?? m.txHash ?? null })
+      }
+    } catch { /* no tracked ledger */ }
+
+    // (2) Register / revoke timestamps from the activity log.
+    const registeredAt = new Map()
+    const revokedAt = new Map()
+    try {
+      for (const line of fs.readFileSync(at('activity.jsonl'), 'utf-8').split('\n')) {
+        if (!line.trim()) continue
+        let e
+        try { e = JSON.parse(line) } catch { continue }
+        // Only this SMA's events. Events are tagged with `safe` on write; legacy
+        // untagged events fall through (best-effort), matching /api/activity.
+        if (e.safe && e.safe.toLowerCase() !== safeLower) continue
+        const addrs = []
+        if (typeof e.permission === 'string') addrs.push(e.permission)
+        if (Array.isArray(e.permissions)) addrs.push(...e.permissions)
+        if (e.type === 'mandate_deployed' && typeof e.address === 'string') addrs.push(e.address)
+        const reg = e.type === 'permission_registered' || e.type === 'mandates_reattached' || e.type === 'mandate_deployed'
+        const rev = e.type === 'permission_revoked' || e.type === 'mandate_revoked' || e.type === 'permission_detached'
+        for (const a of addrs) {
+          const al = a.toLowerCase()
+          if (reg && (!registeredAt.has(al) || e.ts < registeredAt.get(al))) registeredAt.set(al, e.ts)
+          if (rev && (!revokedAt.has(al) || e.ts > revokedAt.get(al))) revokedAt.set(al, e.ts)
+        }
+      }
+    } catch { /* no activity log */ }
+
+    // (3) Union every address we have a signal for, then classify by status.
+    const all = new Set([...activeAddrs, ...meta.keys(), ...registeredAt.keys()])
+    const ledger = []
+    for (const al of all) {
+      const isActive = activeAddrs.has(al)
+      const revoked = revokedAt.get(al)
+      let status
+      if (isActive) status = 'active'
+      else if (revoked) status = 'revoked'
+      else if (meta.has(al) || registeredAt.has(al)) status = 'revoked' // was attached, now detached
+      else continue
+      ledger.push({
+        address: getAddress(`0x${al.replace(/^0x/, '')}`),
+        name: nameByAddr.get(al) ?? null,
+        template: templateByAddr.get(al) ?? null,
+        status,
+        registeredAt: registeredAt.get(al) ?? meta.get(al)?.firstAt ?? null,
+        revokedAt: revoked ?? null,
+        txHash: meta.get(al)?.txHash ?? null,
+        network,
+      })
+    }
+    // Active first, then most-recently-touched.
+    const ts = (m) => m.revokedAt ?? m.registeredAt ?? ''
+    ledger.sort((a, b) => {
+      if ((a.status === 'active') !== (b.status === 'active')) return a.status === 'active' ? -1 : 1
+      return ts(b).localeCompare(ts(a))
+    })
+    return ledger
+  }
 
   // Build the consolidated overview for a local account record by reading the
   // kernel + balances on-chain. Never throws: on RPC failure it returns a
@@ -1234,12 +1934,9 @@ export function startServer(sailDir, { port = PORT } = {}) {
         result.sma.balanceEth = formatEther(safeBal)
         result.sma.balanceStatus = balanceStatus(safeBal)
 
-        result.mandates = perms.map((addr) => ({
-          address: addr,
-          name: nameByAddr.get(addr.toLowerCase()) ?? null,
-          template: templateByAddr.get(addr.toLowerCase()) ?? null,
-          network,
-        }))
+        // Full mandate history (active + revoked), not just the on-chain active set.
+        const activeAddrs = new Set(perms.map((a) => a.toLowerCase()))
+        result.mandates = buildMandateLedger(account.safe, activeAddrs, nameByAddr, templateByAddr, network)
 
         let managerEntry
         if (managerSet) {

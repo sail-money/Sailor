@@ -25,6 +25,7 @@ import {
   getOverview,
   getAccount,
   getAccounts,
+  switchAccount,
   getActivity,
   renameAccount,
 } from '../../data/sailorClient'
@@ -32,11 +33,14 @@ import { createPublicClient, http } from 'viem'
 import { chains } from '../../wagmi'
 import { useOwnerWallet } from '../../hooks/useOwnerWallet'
 import { useSigningChannel } from '../../hooks/useSigningChannel'
+import { useRevokePermission } from '../../hooks/useRevokePermission'
 import ProfileModal from './ProfileModal'
 import ContractModal from './ContractModal'
 import PendingSigningModal from './PendingSigningModal'
 import RpcSection from './RpcSection'
 import AutomationSection from './AutomationSection'
+import RotateSignerModal from './RotateSignerModal'
+import FundModal from './FundModal'
 
 /* ──────────────────────────────────────────────────────────────
    Data bridges — the studio SMA/mandate shape (sail_framework_1.1)
@@ -46,29 +50,37 @@ import AutomationSection from './AutomationSection'
    they can be reincorporated as first-class flows.
    ────────────────────────────────────────────────────────────── */
 
+const CHAIN_NAMES = { 1: 'Ethereum', 130: 'Unichain', 8453: 'Base', 42161: 'Arbitrum', 84532: 'Base Sepolia', 421614: 'Arbitrum Sepolia', 11155111: 'Sepolia' }
+const chainName = (id) => CHAIN_NAMES[Number(id)] ?? (id ? `Chain ${id}` : '')
+
 /** ProfileModal expects an array of `safes` with id/name/address/
- *  network/networks/agentCount/createdAt. We only have one local
- *  SMA, so we synthesize a one-item list from the loaded studio SMA
- *  + mandates. */
-function buildSafesForProfile(sma, mandates) {
-  if (!sma) return []
-  // Use the SMA's REAL chain (from live overview), not a hardcoded default.
-  const net = sma.chain?.name || sma.chain?.short || ''
-  const mandateCount = mandates.length
-  return [
-    {
-      id: sma.id,
-      name: sma.name,
-      address: sma.address,
+ *  network/networks/mandateCount/createdAt. Build it from the FULL accounts
+ *  list (state/accounts.json via /api/accounts) so every SMA the owner has
+ *  shows and is selectable — not just the active one. The active SMA is
+ *  enriched with the live overview's chain + mandate count; the others use
+ *  what's recorded locally (name, chainId). */
+function buildSafesForProfile(accounts, activeSma, mandates) {
+  if (!Array.isArray(accounts) || accounts.length === 0) {
+    // Fall back to the single active SMA if the list isn't loaded yet.
+    if (!activeSma) return []
+    const net = activeSma.chain?.name || activeSma.chain?.short || ''
+    return [{ id: activeSma.id, name: activeSma.name, address: activeSma.address, network: net, networks: net ? [net] : [], mandateCount: mandates.length, agentCount: mandates.length, createdAt: activeSma.createdAt }]
+  }
+  return accounts.map((a) => {
+    const net = a.active ? (activeSma?.chain?.name || chainName(a.chainId)) : chainName(a.chainId)
+    const count = a.active ? mandates.length : (a.mandateCount ?? 0)
+    return {
+      id: a.safe,
+      name: a.name || `SMA ${a.safe.slice(0, 6)}…${a.safe.slice(-4)}`,
+      address: a.safe,
       network: net,
       networks: net ? [net] : [],
-      // The UI counts mandates here (we have no separate "agents" concept).
-      mandateCount,
-      agentCount: mandateCount,
-      createdAt: sma.createdAt,
-      createdAgo: sma.createdAt,
-    },
-  ]
+      mandateCount: count,
+      agentCount: count,
+      createdAt: a.active ? (activeSma?.createdAt ?? a.createdAt) : a.createdAt,
+      active: !!a.active,
+    }
+  })
 }
 
 /** ContractModal expects a richer mandate shape (title, aiName,
@@ -220,22 +232,41 @@ function buildLiveGas(overview, account) {
   }
 }
 
-/** Map overview.mandates (thin on-chain stubs) into the studio-shaped
- *  mandate rows the list renders. The rich brief/permission detail has no
- *  endpoint, so those fields are thin-but-real placeholders. */
+/** Format an ISO timestamp to a short date (e.g. "Jun 7, 2026"); '' on failure. */
+function fmtMandateDate(iso) {
+  if (!iso) return ''
+  try {
+    return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+  } catch {
+    return ''
+  }
+}
+
+/** Map overview.mandates (the server's history ledger) into the studio-shaped
+ *  mandate rows the list renders. `status` (active / revoked) and the dates come
+ *  from real recorded events; the rich brief still has no endpoint. */
 function buildLiveMandates(overview) {
   return (overview?.mandates ?? []).map((m) => ({
     id: m.address,
     name: m.name,
     address: m.address,
     template: m.template,
-    status: 'active',
+    status: m.status ?? 'active',
     drafter: null,
-    signedAt: '',
+    signedAt: fmtMandateDate(m.registeredAt),
+    revokedAt: fmtMandateDate(m.revokedAt),
     permissionsCount: 1,
     brief: '',
   }))
 }
+
+/** Mandate list filters — mirrors the activity actor switcher. */
+const MANDATE_FILTERS = [
+  { id: 'all',     label: 'All' },
+  { id: 'active',  label: 'Active' },
+  { id: 'revoked', label: 'Revoked' },
+  { id: 'expired', label: 'Expired' },
+]
 
 /**
  * Dashboard — local-UI dashboard for an AI-managed SMA.
@@ -252,6 +283,8 @@ export default function Dashboard() {
   // anchor + the only key that can authorize anything. Mock today; wagmi later.
   const wallet = useOwnerWallet()
   const { isConnected } = wallet
+  // Revoke seam — owner-signed, owner-submitted kernel.revokePermissions.
+  const { revoke: revokePermission } = useRevokePermission()
 
   // ── Live on-chain load state ──
   // `onboard` (null until loaded) drives the 3-way gate below: it tells us
@@ -260,6 +293,9 @@ export default function Dashboard() {
   const [onboard, setOnboard] = useState(null)
   const [overview, setOverview] = useState(null)
   const [account, setAccount] = useState(null)
+  // Every SMA the owner has (state/accounts.json), so the profile menu can
+  // list + switch between them — not just the active one.
+  const [accounts, setAccounts] = useState([])
 
   // Recent activity is LIVE (GET /api/activity). Owner profile stays on the
   // studio (mock) seam — no live endpoint for it.
@@ -298,7 +334,9 @@ export default function Dashboard() {
       return
     }
     const [ov, acc, accts] = await Promise.all([
-      getOverview().catch(() => null),
+      // fresh: re-read on-chain (bypass the stale-while-revalidate cache) so a
+      // load/reconnect/refocus always reflects current balances + mandates.
+      getOverview({ fresh: true }).catch(() => null),
       getAccount().catch(() => null),
       getAccounts().catch(() => []),
     ])
@@ -311,6 +349,7 @@ export default function Dashboard() {
     }
     setOverview(ov)
     setAccount(acc)
+    setAccounts(Array.isArray(accts) ? accts : [])
     // Resolve the creation date from the block (async, best-effort).
     if (acc?.createdAtBlock != null && (acc?.chainId ?? ov?.chainId)) {
       fetchCreatedDate(acc.chainId ?? ov?.chainId, acc.createdAtBlock).then((date) => {
@@ -325,10 +364,57 @@ export default function Dashboard() {
   // Re-run the loader whenever the wallet connects.
   useEffect(() => { if (isConnected) loadLive() }, [isConnected, loadLive])
 
+  // Switch the active SMA from the profile menu. Sets the chosen account active
+  // server-side, then reloads everything so the dashboard reflects the new SMA.
+  const handleSelectSafe = useCallback(async (safe) => {
+    const id = safe?.id ?? safe?.address
+    if (!id) { setProfileOpen(false); return }
+    const activeSafe = accounts.find((a) => a.active)?.safe
+    if (activeSafe && id.toLowerCase() === activeSafe.toLowerCase()) { setProfileOpen(false); return }
+    try {
+      await switchAccount({ safe: id })
+      setProfileOpen(false)
+      await loadLive()
+    } catch { /* leave the menu open so the user can retry */ }
+  }, [accounts, loadLive])
+
+  // Light refresh of just the overview (balances + mandate ledger), without the
+  // full loadLive (onboard/account/block-date). `fresh` forces a synchronous
+  // on-chain recompute server-side (bypasses the stale-while-revalidate cache).
+  const refreshOverview = useCallback(async ({ fresh = false } = {}) => {
+    try {
+      const ov = await getOverview({ fresh })
+      if (ov) setOverview(ov)
+    } catch { /* transient — keep the last known overview rather than blanking */ }
+  }, [])
+
   // Derive the studio-shaped records the render body reads from LIVE data.
   const hasAccount = !!onboard?.hasAccount
   const sma = hasAccount ? buildLiveSma(overview, account) : null
   const gas = hasAccount ? buildLiveGas(overview, account) : null
+
+  // Keep balances live without a manual reconnect. loadLive only runs on
+  // mount/connect, so without this the dashboard would freeze its balances until
+  // the user disconnected/reconnected. Poll on a light interval (cached path),
+  // and force a FRESH on-chain read whenever the tab regains focus — e.g. the
+  // user just funded a wallet in another window and switches back.
+  useEffect(() => {
+    if (!hasAccount) return undefined
+    // Passive: a light overview poll every 15s keeps balances trickling in.
+    const id = setInterval(() => refreshOverview({ fresh: false }), 15_000)
+    // Active: when the user returns to the tab (e.g. after funding/signing in
+    // their wallet), do a FULL fresh reload — the exact thing a reconnect does,
+    // so they never have to disconnect/reconnect to see current state.
+    const onFocus = () => loadLive()
+    const onVisible = () => { if (document.visibilityState === 'visible') loadLive() }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(id)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [hasAccount, refreshOverview, loadLive])
 
   // First-run routing: connected but no on-chain SMA yet → send the user to
   // the new design's onboarding wizard (the Signing page). It drives the real
@@ -408,9 +494,30 @@ export default function Dashboard() {
   // "router.push('/signing')" jump-out so the user stays on the
   // dashboard while triaging the queue.
   const [signingOpen, setSigningOpen] = useState(false)
+  // Manager-key rotation surface — opens from the agent (Manager) wallet card.
+  const [rotateOpen, setRotateOpen] = useState(false)
+  // Manual hard-refresh (the header "resync" control). A full page reload is the
+  // nuclear option that guarantees fresh data + latest code — no reconnect dance.
+  const [resyncing, setResyncing] = useState(false)
+  const hardRefresh = useCallback(async () => {
+    setResyncing(true)
+    // Drop any cached assets so a stale bundle can't survive the reload.
+    try {
+      if (typeof caches !== 'undefined' && caches.keys) {
+        const keys = await caches.keys()
+        await Promise.all(keys.map((k) => caches.delete(k)))
+      }
+    } catch { /* no Cache API — fine */ }
+    window.location.reload()
+  }, [])
+  // Fund (receive ETH) surface — opens from the SMA hero + operator wallet cards.
+  // null when closed, else { kind, label, role, address, chain }.
+  const [fundTarget, setFundTarget] = useState(null)
   // Local copy so we can flip an active mandate to revoked without
   // reloading. Seeded from the LIVE overview mandate list whenever it loads.
   const [mandateList, setMandateList] = useState([])
+  // Mandate status filter (All / Active / Revoked / Expired).
+  const [mandateFilter, setMandateFilter] = useState('all')
   useEffect(() => {
     if (hasAccount && overview) setMandateList(buildLiveMandates(overview))
     else setMandateList([])
@@ -470,6 +577,20 @@ export default function Dashboard() {
         </button>
 
         <div className={styles.topActionsPill}>
+          {/* Manual hard-refresh — "resync". Re-pulls on-chain state (and the
+              latest build) with one click, so balances never look stale. */}
+          <button
+            type="button"
+            className={styles.resyncBtn}
+            onClick={hardRefresh}
+            title="$ resync — hard refresh, re-pull on-chain state"
+            aria-label="Resync: hard refresh the dashboard"
+          >
+            <span className={`${styles.resyncGlyph} ${resyncing ? styles.resyncGlyphSpin : ''}`} aria-hidden>
+              <RefreshIcon />
+            </span>
+            <span className={styles.resyncLabel}>{resyncing ? 'resyncing…' : 'resync'}</span>
+          </button>
           <button
             type="button"
             className={`${styles.notifBtn} ${pendingCount > 0 ? styles.notifBtnLive : ''}`}
@@ -567,7 +688,16 @@ export default function Dashboard() {
                 <span className={styles.smaHeroBalance}>{fmtEth(gas.sma.balanceEth)}</span>
                 <span className={styles.smaHeroBalanceUnit}>ETH</span>
               </div>
-              <span className={styles.smaHeroBalanceCaption}>NATIVE ETH ONLY</span>
+              <div className={styles.smaHeroBalanceFoot}>
+                <span className={styles.smaHeroBalanceCaption}>NATIVE ETH ONLY</span>
+                <button
+                  type="button"
+                  className={styles.gasFundQuiet}
+                  onClick={() => setFundTarget({ kind: 'sma', label: 'SMA', role: 'the account that holds your funds', address: sma.address, chain: sma.chain })}
+                >
+                  Fund
+                </button>
+              </div>
             </div>
           </div>
 
@@ -626,11 +756,10 @@ export default function Dashboard() {
           </div>
 
           {/* ── In-hero quick links ── DeBank + Safe.
-              Each pill is brand-tinted: DeBank coral, Safe green.
-              These are the two places users go when they want to look
-              at the account from outside — portfolio view (DeBank) or
-              custody management (Safe). Keeping them inside the hero
-              binds them to the SMA they act on. */}
+              Plain, logo-free links out to the two places users inspect the
+              account from outside: portfolio view (DeBank) and custody
+              management (Safe). No third-party brand marks — just labelled
+              links bound to the SMA they act on. */}
           <div className={styles.smaHeroLinks}>
             <a
               className={`${styles.smaHeroLink} ${styles.smaHeroLinkDebank}`}
@@ -638,9 +767,6 @@ export default function Dashboard() {
               target="_blank"
               rel="noreferrer"
             >
-              <span className={styles.smaHeroLinkIcon} aria-hidden>
-                <DebankLogo />
-              </span>
               <span className={styles.smaHeroLinkText}>
                 <span className={styles.smaHeroLinkTitle}>View portfolio</span>
                 <span className={styles.smaHeroLinkSub}>opens DeBank</span>
@@ -653,9 +779,6 @@ export default function Dashboard() {
               target="_blank"
               rel="noreferrer"
             >
-              <span className={styles.smaHeroLinkIcon} aria-hidden>
-                <SafeLogo />
-              </span>
               <span className={styles.smaHeroLinkText}>
                 <span className={styles.smaHeroLinkTitle}>Manage SMA</span>
                 <span className={styles.smaHeroLinkSub}>opens Safe</span>
@@ -684,8 +807,8 @@ export default function Dashboard() {
             <h2 className={styles.gasSectionTitle}>
               <span className={styles.sectionTile} aria-hidden><FuelGlyph /></span>
               <span className={styles.sectionIndex}>01</span>
-              <span className={styles.sectionName}>Operator wallets</span>
-              <InfoTip label="What are operator wallets?">
+              <span className={styles.sectionName}>Your wallets</span>
+              <InfoTip label="What are your wallets?">
                 The two wallets that run your account. The <strong>Manager</strong> is your
                 agent&rsquo;s wallet — it submits each action and pays gas. The <strong>Owner</strong>
                 is your own wallet — it holds the Safe and signs mandate changes. Keep both
@@ -696,8 +819,19 @@ export default function Dashboard() {
           </header>
 
           <div className={styles.gasGridTwo}>
-            <GasCard wallet={gas.agent} chain={sma.chain} primary="agent" />
-            <GasCard wallet={gas.owner} chain={sma.chain} primary="owner" />
+            <GasCard
+              wallet={gas.agent}
+              chain={sma.chain}
+              primary="agent"
+              onRotate={() => setRotateOpen(true)}
+              onFund={() => setFundTarget({ kind: 'manager', label: 'manager wallet', role: 'gas for every agent run', address: gas.agent.address, chain: sma.chain })}
+            />
+            <GasCard
+              wallet={gas.owner}
+              chain={sma.chain}
+              primary="owner"
+              onFund={() => setFundTarget({ kind: 'owner', label: 'owner wallet', role: 'gas for your signatures', address: gas.owner.address, chain: sma.chain })}
+            />
           </div>
         </section>
 
@@ -721,23 +855,51 @@ export default function Dashboard() {
                 one at any time.
               </InfoTip>
             </h2>
-            <span className={styles.mandatesSectionMeta}>
-              {mandateList.length} mandates · attached on-chain
-            </span>
+            {/* Active / Revoked / Expired / All switcher — mirrors the
+                activity filter. Mandate CREATION is intentionally NOT a button
+                here — new mandates are authored through the AI chat (the
+                origination flow), which drives the deploy+register engine
+                (useCreateMandate). The dashboard only reflects + manages them. */}
+            <div className={styles.actSwitcher} role="tablist" aria-label="Filter mandates by status">
+              {MANDATE_FILTERS.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={mandateFilter === f.id}
+                  className={`${styles.actSwitcherBtn} ${mandateFilter === f.id ? styles.actSwitcherBtnActive : ''}`}
+                  onClick={() => setMandateFilter(f.id)}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </header>
 
           <ul className={styles.mandateList}>
-            {mandateList.map((m) => (
-              <li key={m.id}>
-                <MandateRow
-                  mandate={m}
-                  chain={sma.chain}
-                  onView={() => setContractFlow({ id: m.id, mode: 'view' })}
-                  onRevoke={() => setContractFlow({ id: m.id, mode: 'revoke' })}
-                  onEdit={() => setEditMandateId(m.id)}
-                />
-              </li>
-            ))}
+            {(() => {
+              const visible = mandateFilter === 'all'
+                ? mandateList
+                : mandateList.filter((m) => m.status === mandateFilter)
+              if (visible.length === 0) {
+                return (
+                  <li className={styles.mandateEmpty}>
+                    {mandateFilter === 'all' ? 'No mandates yet.' : `No ${mandateFilter} mandates.`}
+                  </li>
+                )
+              }
+              return visible.map((m) => (
+                <li key={m.id}>
+                  <MandateRow
+                    mandate={m}
+                    chain={sma.chain}
+                    onView={() => setContractFlow({ id: m.id, mode: 'view' })}
+                    onRevoke={() => setContractFlow({ id: m.id, mode: 'revoke' })}
+                    onEdit={() => setEditMandateId(m.id)}
+                  />
+                </li>
+              ))
+            })()}
           </ul>
         </section>
 
@@ -751,7 +913,7 @@ export default function Dashboard() {
 
         <footer className={styles.localFootnote}>
           <span className={styles.localFootnoteDot} aria-hidden />
-          Running locally at <code>localhost:3553</code> · project state lives in
+          Running locally at <code>{typeof window !== 'undefined' ? window.location.host : 'localhost'}</code> · project state lives in
           {' '}<code>.sail/</code>. There is no Sail-hosted backend; your wallet talks to the chain directly.
         </footer>
         </>
@@ -772,13 +934,18 @@ export default function Dashboard() {
         onClose={() => setContractFlow({ id: null, mode: 'view' })}
         onAuthorize={() => setContractFlow({ id: null, mode: 'view' })}
         onReject={() => setContractFlow({ id: null, mode: 'view' })}
-        onRevoke={() => {
-          // Flip the row to a revoked-style status once the
-          // animation completes. Revocation onchain is terminal.
-          setMandateList((arr) =>
-            arr.map((m) => (m.id === contractFlow.id ? { ...m, status: 'expired' } : m)),
-          )
-          setContractFlow({ id: null, mode: 'view' })
+        onRevoke={async (permission, onStatus) => {
+          // REAL revoke: owner signs RevokePermissions + submits
+          // kernel.revokePermissions from their wallet. Resolves only when the
+          // tx confirms — the modal plays its stamp on success and re-throws to
+          // its own error state on failure. We refresh live data so the row
+          // flips to Revoked from on-chain truth (getPermissions), not a guess.
+          await revokePermission({
+            chainId: sma?.chain?.id,
+            permission,
+            onStatus,
+          })
+          await loadLive()
         }}
       />
 
@@ -799,22 +966,44 @@ export default function Dashboard() {
         onDraftSubmitted={() => setMandateDraft(null)}
       />
 
+      {/* ── Manager-key rotation surface ──
+          Rotates the SMA's delegated signer (the agent wallet) via the
+          owner-signed setManager flow. Opens from the Manager wallet card.
+          Refreshes live data on success so the new signer shows. */}
+      <RotateSignerModal
+        open={rotateOpen}
+        chain={sma?.chain}
+        currentManager={gas?.agent?.address}
+        onClose={() => setRotateOpen(false)}
+        onRotated={() => loadLive()}
+      />
+
+
+      {/* ── Fund (receive ETH) surface ──
+          A focused receive screen for a gas wallet: network + address + copy.
+          Opened from the SMA hero and the operator wallet cards. */}
+      <FundModal
+        open={!!fundTarget}
+        target={fundTarget}
+        onClose={() => setFundTarget(null)}
+      />
+
       {/* ── SMA Profile menu ──
           Reincorporated from demo-2. EOA hero + SMAs list with copy,
           deposit, withdraw, rename. Opens from the avatar button. */}
       <ProfileModal
         open={profileOpen}
         wallet={wallet.address ?? ownerProfile?.address}
-        safes={buildSafesForProfile(sma, mandates)}
-        currentSafeId={sma?.id}
+        safes={buildSafesForProfile(accounts, sma, mandates)}
+        currentSafeId={accounts.find((a) => a.active)?.safe ?? sma?.id}
         hasSMA
         onClose={() => setProfileOpen(false)}
         onCreateSMA={() => { setProfileOpen(false); window.location.hash = '#/signing?new=1' }}
-        onOpenSMA={() => setProfileOpen(false)}
+        onOpenSMA={handleSelectSafe}
         onDeposit={() => setProfileOpen(false)}
         onWithdraw={() => setProfileOpen(false)}
         onRenameSafe={(safe, name) => { renameAccount({ safe, name }).then(loadLive).catch(() => {}) }}
-        onSelectSafe={() => setProfileOpen(false)}
+        onSelectSafe={handleSelectSafe}
         onDisconnect={wallet.disconnect}
       />
 
@@ -840,6 +1029,7 @@ function MandateRow({ mandate, chain, onView, onRevoke, onEdit }) {
   const isActive = mandate.status === 'active'
   const isPaused = mandate.status === 'paused'
   const isExpired = mandate.status === 'expired'
+  const isRevoked = mandate.status === 'revoked'
 
   function copyAddr(e) {
     e.stopPropagation()
@@ -848,7 +1038,7 @@ function MandateRow({ mandate, chain, onView, onRevoke, onEdit }) {
     setTimeout(() => setCopied(false), 1200)
   }
 
-  const statusLabel = isPaused ? 'Paused' : isExpired ? 'Expired' : 'Active'
+  const statusLabel = isRevoked ? 'Revoked' : isPaused ? 'Paused' : isExpired ? 'Expired' : 'Active'
 
   return (
     <article className={`${styles.mandateRow} ${open ? styles.mandateRowOpen : ''} ${styles[`mandateRow_${mandate.status}`] ?? ''}`}>
@@ -858,20 +1048,27 @@ function MandateRow({ mandate, chain, onView, onRevoke, onEdit }) {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
+        {/* Leading mascot. A drafted mandate shows its LLM brand mark; an
+            on-chain permission flies Sai — animated when active (alive),
+            static + desaturated when revoked/expired. Vertically centered
+            against the title+subtitle block by the row's align-items. */}
         {mandate.drafter ? (
           <span className={styles.mandateRowAvatar} aria-hidden>
             <BrandMark name={mandate.drafter} size={20} />
           </span>
-        ) : null}
+        ) : (
+          <span
+            className={`${styles.mandateRowSaiAvatar} ${isActive ? '' : styles.mandateRowSaiIdle}`}
+            aria-label={statusLabel}
+            title={statusLabel}
+          >
+            <Sai size={38} animate={isActive} />
+          </span>
+        )}
 
         <span className={styles.mandateRowBody}>
           <span className={styles.mandateRowNameLine}>
             <span className={styles.mandateRowName}>{mandate.name}</span>
-            <span
-              className={`${styles.mandateRowDot} ${styles[`mandateRowDot_${mandate.status}`] ?? ''}`}
-              aria-label={statusLabel}
-              title={statusLabel}
-            />
           </span>
           <span className={styles.mandateRowSub}>
             {mandate.permissionsCount} permission{mandate.permissionsCount === 1 ? '' : 's'}
@@ -1114,7 +1311,7 @@ function PendingBanner({ count, onReview }) {
    mono status line — so the two cards never disagree on height.
    Address row sits on a flex spacer so it floats to the same
    baseline whether the description is one line or two. */
-function GasCard({ wallet, chain, primary }) {
+function GasCard({ wallet, chain, primary, onRotate, onFund }) {
   const needsGas = wallet.status !== 'funded'
   const [copied, setCopied] = useState(false)
   function copyAddr(e) {
@@ -1176,31 +1373,39 @@ function GasCard({ wallet, chain, primary }) {
         >
           <ArrowOutIcon />
         </a>
+        {/* Manager card only: rotate the delegated signer (agent wallet). */}
+        {onRotate && (
+          <button
+            type="button"
+            className={styles.gasRotateBtn}
+            onClick={(e) => { e.stopPropagation(); onRotate() }}
+            title="Rotate the agent wallet (replace this signer)"
+          >
+            <RotateGlyph />
+            Rotate
+          </button>
+        )}
       </div>
 
       {/* Footer slot — always rendered, fixed geometry. Low gets
           the refill CTA; Funded gets a quiet "in good standing"
           mono line. Both occupy the same vertical footprint so
           the two cards stay coplanar. */}
+      {/* One consistent footer in every state: a quiet status readout + a
+          calm Fund link. Urgency is carried by the status pill above, not by
+          a big button — same clean treatment across SMA, Manager, Owner. */}
       <div className={styles.gasFooter}>
-        {needsGas && wallet.refillSuggestionEth ? (
-          <>
-            <span className={styles.gasFooterHint}>{wallet.refillHint}</span>
-            <button
-              type="button"
-              className={styles.gasRefillBtn}
-              onClick={() => {
-                if (navigator?.clipboard?.writeText) navigator.clipboard.writeText(wallet.address)
-              }}
-            >
-              Fund {wallet.refillSuggestionEth} ETH
-            </button>
-          </>
-        ) : (
-          <span className={styles.gasFooterStatus}>
-            <span className={styles.gasFooterStatusDot} aria-hidden />
-            SUFFICIENT GAS
-          </span>
+        <span className={styles.gasFooterStatus}>
+          <span
+            className={`${styles.gasFooterStatusDot} ${needsGas ? styles.gasFooterStatusDotIdle : ''}`}
+            aria-hidden
+          />
+          {wallet.status === 'funded' ? 'SUFFICIENT GAS' : wallet.status === 'low' ? 'LOW BALANCE' : 'NOT FUNDED'}
+        </span>
+        {onFund && (
+          <button type="button" className={styles.gasFundQuiet} onClick={onFund}>
+            Fund
+          </button>
         )}
       </div>
     </article>
@@ -1484,6 +1689,14 @@ function BellIcon() {
     </svg>
   )
 }
+function RefreshIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M13.4 8a5.4 5.4 0 1 1-1.5-3.8" />
+      <path d="M13.6 2.4V5h-2.6" />
+    </svg>
+  )
+}
 function ArrowOutIcon() {
   return (
     <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -1496,6 +1709,15 @@ function ArrowRightSm() {
   return (
     <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M3 7h8M8 4l3 3-3 3" />
+    </svg>
+  )
+}
+/* Circular-arrows glyph for the Rotate-signer action. */
+function RotateGlyph() {
+  return (
+    <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M11.5 6a4.5 4.5 0 1 0-1.2 3.4" />
+      <path d="M11.6 2.8V6H8.4" />
     </svg>
   )
 }
@@ -1602,41 +1824,3 @@ function ChainGlyph() {
   )
 }
 
-/* DeBank mark — the rounded square + lowercase "d" silhouette,
-   tinted in DeBank's coral. Reproduces the icon shape closely
-   enough to read as the brand without redistributing their
-   trademarked asset verbatim. */
-function DebankLogo() {
-  return (
-    <svg viewBox="0 0 28 28" width="22" height="22" aria-hidden>
-      <rect x="0" y="0" width="28" height="28" rx="2" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.18)" />
-      <path
-        d="M16.8 7.2h-5.6v3.4h3.5c1.4 0 2.5 1.2 2.5 2.7v1.4c0 1.5-1.1 2.7-2.5 2.7h-3.5v3.4h5.6c2.8 0 5-2.4 5-5.4v-2.8c0-3-2.2-5.4-5-5.4z"
-        fill="#FFFFFF"
-      />
-      <rect x="6.4" y="7.2" width="3.5" height="3.4" fill="#FFFFFF" />
-      <rect x="6.4" y="12.3" width="3.5" height="3.4" fill="#FFFFFF" />
-      <rect x="6.4" y="17.4" width="3.5" height="3.4" fill="#FFFFFF" />
-    </svg>
-  )
-}
-
-/* Safe mark — the green rounded square + the open-arc "S" curve.
-   Recreated approximately from the public brand mark in Safe's
-   primary green. */
-function SafeLogo() {
-  return (
-    <svg viewBox="0 0 28 28" width="22" height="22" aria-hidden>
-      <rect x="0" y="0" width="28" height="28" rx="2" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.18)" />
-      <path
-        d="M19.6 9.2c-1.4-1.4-3.3-2.2-5.4-2.2-2.6 0-4.9 1.3-6.3 3.4l2.7 1.6c.8-1.2 2.1-2 3.6-2 1.2 0 2.3.5 3.1 1.3l2.3-2.1z"
-        fill="#FFFFFF"
-      />
-      <path
-        d="M8.4 18.8c1.4 1.4 3.3 2.2 5.4 2.2 2.6 0 4.9-1.3 6.3-3.4l-2.7-1.6c-.8 1.2-2.1 2-3.6 2-1.2 0-2.3-.5-3.1-1.3l-2.3 2.1z"
-        fill="#FFFFFF"
-      />
-      <rect x="11.8" y="11.8" width="4.4" height="4.4" fill="#FFFFFF" />
-    </svg>
-  )
-}

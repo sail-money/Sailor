@@ -311,6 +311,39 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
+/* Manual hard-refresh control — terminal-flavored "resync" pill. Mono, lowercase,
+   letter-spaced; the glyph spins while a reload is in flight. */
+.resyncBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 11px;
+  color: rgba(255, 255, 255, 0.52);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--r-2, 6px);
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: lowercase;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 200ms, background 200ms, border-color 200ms, transform 220ms var(--ease-apple);
+}
+.resyncBtn:hover {
+  color: var(--accent-blue, #1990ff);
+  background: rgba(25, 144, 255, 0.08);
+  border-color: rgba(25, 144, 255, 0.35);
+  transform: translateY(-1px);
+}
+.resyncBtn:active { transform: translateY(0); }
+.resyncGlyph { display: inline-flex; }
+.resyncGlyphSpin { animation: resyncSpin 0.8s linear infinite; transform-origin: 50% 50%; }
+.resyncLabel { line-height: 1; }
+@keyframes resyncSpin { to { transform: rotate(360deg); } }
+
 .depositBtn {
   height: 32px;
   padding: 0 22px;
@@ -4887,6 +4920,39 @@
   border-top: 1px solid rgba(255, 255, 255, 0.07);
 }
 
+/* SMA balance foot — caption + Fund CTA on one divided row. */
+.smaHeroBalanceFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: var(--s3, 12px);
+  padding-top: var(--s3, 12px);
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.smaHeroBalanceFoot .smaHeroBalanceCaption {
+  padding-top: 0;
+  border-top: none;
+}
+/* Quiet Fund link — used on the SMA hero foot and every operator wallet footer. */
+.gasFundQuiet {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-blue-bright, #4DABFF);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 180ms var(--ease-apple);
+}
+.gasFundQuiet:hover { color: var(--accent-blue); }
+
 .smaHeroMetaRow {
   display: flex;
   align-items: center;
@@ -4957,7 +5023,7 @@
 }
 .smaHeroLink {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 1fr auto;
   align-items: center;
   gap: var(--s3, 12px);
   padding: var(--s3, 12px) var(--s4, 16px);
@@ -4974,14 +5040,6 @@
 }
 .smaHeroLink:hover {
   transform: translateY(-1px);
-}
-.smaHeroLinkIcon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--r-2, 6px);
 }
 .smaHeroLinkText {
   display: flex;
@@ -5095,10 +5153,9 @@
 }
 
 .mandateRowHead {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+  display: flex;
   align-items: center;
-  column-gap: 18px;
+  gap: 18px;
   width: 100%;
   padding: 22px 26px;
   background: transparent;
@@ -5130,6 +5187,7 @@
 }
 
 .mandateRowBody {
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -5166,6 +5224,37 @@
   background: var(--accent-blue, #1990FF);
   box-shadow: 0 0 8px var(--accent-glow, rgba(25, 144, 255, 0.55));
   animation: liveBreathe 3.2s ease-in-out infinite;
+}
+
+/* Empty state for a mandate filter with no matches. */
+.mandateEmpty {
+  padding: 22px 18px;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+  text-align: center;
+  background: var(--surface-850, #161719);
+  border: 1px dashed var(--hairline, rgba(255, 255, 255, 0.09));
+  border-radius: var(--r-3, 2px);
+}
+
+/* Leading Sai mascot for on-chain mandates. No tile/box — just the boat,
+   vertically centered against the title+subtitle block by the row head's
+   align-items:center. Active = the live blue mascot (blinks on its own);
+   revoked/expired = static + desaturated. */
+.mandateRowSaiAvatar {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  line-height: 0;
+}
+.mandateRowSaiIdle {
+  filter: grayscale(1) brightness(1.3);
+  opacity: 0.4;
 }
 /* Expanding ring around the active dot — "this mandate is live and
    acting onchain". The ring is a square (sharp), scaled outward,
@@ -5215,6 +5304,7 @@
 /* Chevron — pure SF Symbols feel. No tile, no border, just a
    tertiary glyph that rotates on open. */
 .mandateRowChevron {
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -5222,7 +5312,7 @@
   height: 30px;
   color: var(--text-quaternary, rgba(255, 255, 255, 0.32));
   background: transparent;
-  border-radius: var(--r-2, 6px);
+  border-radius: var(--r-2, 2px);
   transition: transform 320ms var(--ease-apple), color 220ms var(--ease-apple), background 220ms var(--ease-apple);
 }
 .mandateRowHead:hover .mandateRowChevron {
@@ -6393,6 +6483,33 @@
   color: var(--text-primary);
 }
 
+/* Rotate-signer action — Manager card only. Compact pill, pushed to the
+   right of the address row so it reads as a distinct (and consequential)
+   action without disturbing the two cards' coplanar footers. */
+.gasRotateBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 7px 11px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.08));
+  border-radius: var(--r-2, 6px);
+  cursor: pointer;
+  transition: background 200ms var(--ease-apple), border-color 200ms var(--ease-apple), color 200ms var(--ease-apple);
+}
+.gasRotateBtn:hover {
+  background: rgba(77, 171, 255, 0.08);
+  border-color: rgba(77, 171, 255, 0.32);
+  color: var(--text-primary);
+}
+.gasRotateBtn svg { color: var(--ocean-light, #6ba3ff); }
+
 /* ── Address row floats; footer slot is constant ──
    Push the address row up against the footer with margin-top:auto
    so the footer always lands at the same y across cards. The
@@ -6448,6 +6565,12 @@
   background: var(--accent-blue, #1990FF);
   box-shadow: 0 0 10px rgba(25, 144, 255, 0.7);
   animation: gasFooterDotBreathe 2.6s ease-in-out infinite;
+}
+/* Non-funded: a calm, static grey square (urgency lives in the status pill above). */
+.gasFooterStatusDotIdle {
+  background: var(--text-tertiary, rgba(255, 255, 255, 0.45));
+  box-shadow: none;
+  animation: none;
 }
 @keyframes gasFooterDotBreathe {
   0%, 100% { opacity: 1; box-shadow: 0 0 8px rgba(25, 144, 255, 0.5); }

@@ -11,8 +11,9 @@ const RPC_TIP = "An RPC is the connection your dashboard uses to read the blockc
  * RpcSection — the network/RPC config, living on the SMA hero card (moved out
  * of the Settings modal so the card is the single source of truth).
  *
- * Compact by default: endpoint + chain + a health pill that mirrors
- * `sailor doctor` (RPC reachable + kernel detected). "Edit" expands the
+ * Compact by default: endpoint + chain + a plain-language status pill
+ * ("Connected · <chain>" when healthy; an actionable warning otherwise —
+ * no RPC/kernel jargon on the user surface). "Edit" expands the
  * onboarding-style provider picker (Alchemy / Infura / Public) + API key field
  * + the "where do I find my key" guide — the same surface as the setup wizard's
  * step 03, so first-run and durable editing look identical.
@@ -175,11 +176,16 @@ export default function RpcSection() {
     <div className={styles.section}>
       <div className={styles.head}>
         <span className={styles.eyebrow}>RPC / <InfoTip label="What is an RPC?">{RPC_TIP}</InfoTip></span>
+        {/* Human-language status: a calm "Connected · <chain>" when all is
+            well; a plain, actionable message only when something's wrong.
+            No "RPC"/"kernel" jargon on the user surface. */}
         <span className={`${styles.health} ${rpcReachable && kernelDetected ? styles.healthOk : styles.healthWarn}`}>
           <span className={styles.healthDot} aria-hidden />
-          {rpcReachable
-            ? (kernelDetected ? 'Reachable · kernel detected' : 'Reachable · no kernel')
-            : 'No RPC configured'}
+          {rpcReachable && kernelDetected
+            ? `Connected · ${currentChain?.name ?? 'network'}`
+            : !rpcReachable
+              ? 'No network configured'
+              : `Sail not available on ${currentChain?.name ?? 'this network'}`}
         </span>
       </div>
 

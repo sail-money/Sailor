@@ -2,11 +2,27 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useSwitchChain } from 'wagmi'
+import { createPublicClient, http } from 'viem'
+import { chains } from '../../wagmi'
 import { GlassCard, RevealCalldata, Sai } from '../shared'
 import shared from '../shared/shared.module.css'
 import styles from './PendingSigningModal.module.css'
 import { useMockSigner } from '../../hooks/useMockSigner'
 import { submitMandate } from '../../data/sailorClient'
+
+/**
+ * A read client PINNED to a specific chain — see the same note in useRotateSigner:
+ * wagmi's usePublicClient() can lag the connected chain after a switch, so we
+ * build the client from the chain definition to guarantee receipts poll the
+ * chain the tx was broadcast on.
+ */
+function readsFor(chainId) {
+  const chain = chains.find((c) => c.id === chainId)
+  if (!chain) throw new Error(`Unsupported chain ${chainId} — not in the wallet config.`)
+  return createPublicClient({ chain, transport: http() })
+}
+
+const RECEIPT_OPTS = { timeout: 180_000, pollingInterval: 2_000 }
 
 /* User-facing labels for each SigningRequest.kind. Lifted from
    Sailor/packages/ui/src/pages/station/SigningStation.jsx:14 and extended
@@ -76,6 +92,10 @@ export default function PendingSigningModal({
 
   useEffect(() => {
     if (!open) return
+    // Reset any stale phase from a previous open (e.g. a lingering error banner)
+    // unless a sign op is still genuinely in flight.
+    setPhase((p) => (p.phase === 'submitting' || p.phase === 'confirming' ? p : { phase: 'idle' }))
+    setDraftPhase((p) => (p.phase === 'submitting' ? p : { phase: 'idle' }))
     const onKey = (e) => { if (e.key === 'Escape') onClose?.() }
     window.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
@@ -86,8 +106,8 @@ export default function PendingSigningModal({
   }, [open, onClose])
 
   // Only one signing op may be live at a time — disable the others while one
-  // is submitting/done (prevents simultaneous wallet prompts when live).
-  const signingInProgress = phase.phase === 'submitting' || phase.phase === 'done'
+  // is submitting/confirming/done (prevents simultaneous wallet prompts when live).
+  const signingInProgress = phase.phase === 'submitting' || phase.phase === 'confirming' || phase.phase === 'done'
 
   // When the channel resolves the active request, the dashboard drops it from
   // `requests`. Reset our local phase so the remaining cards leave their
@@ -109,6 +129,14 @@ export default function PendingSigningModal({
           value: req.value ? BigInt(req.value) : 0n,
           chainId: req.chainId,
         })
+        // Await the receipt before reporting success — a broadcast tx can still
+        // revert on-chain, and relaying `signed` for a reverted tx would tell the
+        // agent it was authorized when it wasn't. Mirrors useDeploySma/useRotateSigner.
+        setPhase({ phase: 'confirming', requestId: req.id, kind: req.kind, txHash: hash })
+        const receipt = await readsFor(req.chainId).waitForTransactionReceipt({ hash, ...RECEIPT_OPTS })
+        if (receipt?.status === 'reverted') {
+          throw new Error(`Transaction reverted on-chain (tx ${hash}). The agent was not authorized.`)
+        }
         setPhase({ phase: 'done', requestId: req.id, kind: req.kind, txHash: hash })
         send?.({ type: 'signed', requestId: req.id, txHash: hash })
       } else {
@@ -253,8 +281,11 @@ export default function PendingSigningModal({
 function OperationCard({ request, phase, canSign, walletChain, otherActive, onSign, onReject, onSwitch }) {
   const mine = phase.requestId === request.id
   const submitting = mine && phase.phase === 'submitting'
+  const confirming = mine && phase.phase === 'confirming'
   const done = mine && phase.phase === 'done'
   const hasError = mine && phase.phase === 'error'
+  // Both submitting and confirming are "in flight" — lock the controls.
+  const busy = submitting || confirming
   const wrongChain = canSign && walletChain != null && walletChain !== request.chainId
 
   const isTyped = request.type === 'typed-data'
@@ -344,7 +375,7 @@ function OperationCard({ request, phase, canSign, walletChain, otherActive, onSi
         <button
           type="button"
           className={styles.reject}
-          disabled={submitting || done || otherActive}
+          disabled={busy || done || otherActive}
           onClick={() => onReject(request.id)}
         >
           Reject
@@ -353,7 +384,7 @@ function OperationCard({ request, phase, canSign, walletChain, otherActive, onSi
           <button
             type="button"
             className={styles.authorize}
-            disabled={submitting || otherActive}
+            disabled={busy || otherActive}
             onClick={() => onSwitch?.(request.chainId)}
           >
             Switch to {chainName(request.chainId)}
@@ -362,18 +393,20 @@ function OperationCard({ request, phase, canSign, walletChain, otherActive, onSi
           <button
             type="button"
             className={styles.authorize}
-            disabled={!canSign || submitting || done || otherActive}
+            disabled={!canSign || busy || done || otherActive}
             onClick={() => onSign(request)}
           >
             {!canSign
               ? 'Connect to sign'
               : otherActive
                 ? 'Waiting…'
-                : submitting
-                  ? (isTyped ? 'Signing…' : 'Submitting…')
-                  : done
-                    ? 'Signed ✓'
-                    : isTyped ? 'Sign message' : 'Sign & submit'}
+                : confirming
+                  ? 'Confirming…'
+                  : submitting
+                    ? (isTyped ? 'Signing…' : 'Submitting…')
+                    : done
+                      ? 'Signed ✓'
+                      : isTyped ? 'Sign message' : 'Sign & submit'}
           </button>
         )}
       </div>

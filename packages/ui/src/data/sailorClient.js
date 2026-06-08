@@ -311,8 +311,8 @@ export async function onboardComplete({ safe, owner, manager, txHash, chainId } 
    ════════════════════════════════════════════════════════════════════════ */
 
 /** GET /api/overview — consolidated on-chain view (SMA + signers + mandates). */
-export async function getOverview() {
-  if (USE_LIVE) return api('/overview')
+export async function getOverview({ fresh } = {}) {
+  if (USE_LIVE) return api(fresh ? '/overview?fresh=1' : '/overview')
   return settle({ ...mock.overview })
 }
 
@@ -323,6 +323,148 @@ export async function renameAccount({ safe, name } = {}) {
   const a = mock.accounts?.find((x) => x.safe === safe)
   if (a) a.name = name
   return settle({ ok: true })
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   MANAGER-KEY ROTATION
+   Rotate the SMA's delegated signer (the agent wallet / manager). The server
+   only builds calldata + typed-data; the owner's wallet signs + submits (see
+   useRotateSigner). Rotation clears all attached mandates on-chain, which are
+   then re-approved so they bind to the new signer.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * GET /api/account/rotation-preview →
+ *   { safe, chainId, owner, permissionSigner, currentManager, permissions[] }
+ * What a rotation would touch: the live signer + the mandates it would clear.
+ */
+export async function getRotationPreview() {
+  if (USE_LIVE) return api('/account/rotation-preview')
+  return settle({
+    safe: mock.account?.safe ?? SMA_ADDRESS,
+    chainId: mock.account?.chainId ?? 8453,
+    owner: OWNER_ADDRESS,
+    permissionSigner: OWNER_ADDRESS,
+    currentManager: MANAGER_ADDRESS,
+    permissions: (mock.mandate?.permissions ?? []).map((p) => p.address).filter(Boolean),
+  })
+}
+
+/**
+ * POST /api/account/build-set-manager { newManager } →
+ *   { to, data, chainId, oldManager, permissions[] }
+ * Calldata for the owner to submit Safe.execTransaction(setManager).
+ */
+export async function buildSetManager({ newManager } = {}) {
+  if (USE_LIVE) return api('/account/build-set-manager', { method: 'POST', body: { newManager } })
+  return settle({ to: SMA_ADDRESS, data: '0xdeadbeef', chainId: 8453, oldManager: MANAGER_ADDRESS, permissions: [] })
+}
+
+/**
+ * POST /api/account/rotate-generate-key { passphrase? } → { address }
+ * Generates a FRESH agent keystore (backs up the old one). Overwrites by design.
+ */
+export async function rotateGenerateKey({ passphrase } = {}) {
+  if (USE_LIVE) return api('/account/rotate-generate-key', { method: 'POST', body: { passphrase } })
+  return settle({ address: MANAGER_ADDRESS })
+}
+
+/**
+ * POST /api/account/build-reattach { permissions[] } → { typedData, deadline }
+ * EIP-712 the owner signs to re-approve the cleared mandates.
+ */
+export async function buildReattach({ permissions } = {}) {
+  if (USE_LIVE) return api('/account/build-reattach', { method: 'POST', body: { permissions } })
+  return settle({ typedData: {}, deadline: '0' })
+}
+
+/**
+ * POST /api/account/build-reattach-tx { permissions[], deadline, signature } →
+ *   { to, data, value, chainId }
+ * kernel.registerPermissions calldata (+ summed fee) the owner submits.
+ */
+export async function buildReattachTx({ permissions, deadline, signature } = {}) {
+  if (USE_LIVE) return api('/account/build-reattach-tx', { method: 'POST', body: { permissions, deadline, signature } })
+  return settle({ to: SMA_ADDRESS, data: '0xdeadbeef', value: '0', chainId: 8453 })
+}
+
+/**
+ * POST /api/account/build-revoke { permissions[] } → { typedData, deadline }
+ * EIP-712 the owner signs to authorize removing the listed permission(s).
+ */
+export async function buildRevoke({ permissions } = {}) {
+  if (USE_LIVE) return api('/account/build-revoke', { method: 'POST', body: { permissions } })
+  return settle({ typedData: {}, deadline: '0' })
+}
+
+/**
+ * POST /api/account/build-revoke-tx { permissions[], deadline, signature } →
+ *   { to, data, chainId }
+ * kernel.revokePermissions calldata the owner submits (nonpayable, no value).
+ */
+export async function buildRevokeTx({ permissions, deadline, signature } = {}) {
+  if (USE_LIVE) return api('/account/build-revoke-tx', { method: 'POST', body: { permissions, deadline, signature } })
+  return settle({ to: SMA_ADDRESS, data: '0xdeadbeef', chainId: 8453 })
+}
+
+/**
+ * POST /api/account/revoke-complete { permissions[], txHash } → { ok, revoked }
+ * Records the revocation locally (activity log) + drops the cached overview.
+ */
+export async function revokeComplete({ permissions, txHash } = {}) {
+  if (USE_LIVE) return api('/account/revoke-complete', { method: 'POST', body: { permissions, txHash } })
+  return settle({ ok: true, revoked: (permissions ?? []).length })
+}
+
+/**
+ * GET /api/mandate-templates → { templates: [{ name, inputs: [{name,type}] }] }
+ * Compiled permission templates the browser can author + deploy on this project.
+ */
+export async function getMandateTemplates() {
+  if (USE_LIVE) return api('/mandate-templates')
+  return settle({ templates: [] })
+}
+
+/**
+ * POST /api/account/build-deploy-mandate { template, args[] } →
+ *   { data, chainId, name }
+ * Contract-creation calldata the owner submits to deploy a new permission
+ * contract. `args` aligns to the template constructor's `inputs`.
+ */
+export async function buildDeployMandate({ template, args } = {}) {
+  if (USE_LIVE) return api('/account/build-deploy-mandate', { method: 'POST', body: { template, args } })
+  return settle({ data: '0xdeadbeef', chainId: 8453, name: template })
+}
+
+/**
+ * POST /api/account/mandate-complete
+ *   { name, address, template?, constructorArgs?, deployTxHash, registerTxHash } → { ok, address }
+ * Records a deployed + registered mandate (state/mandates.json + activity log).
+ */
+export async function mandateComplete({ name, address, template, constructorArgs, deployTxHash, registerTxHash } = {}) {
+  if (USE_LIVE) {
+    return api('/account/mandate-complete', {
+      method: 'POST',
+      body: { name, address, template, constructorArgs, deployTxHash, registerTxHash },
+    })
+  }
+  return settle({ ok: true, address })
+}
+
+/**
+ * POST /api/account/rotate-complete
+ *   { newManager, txHash, reattachTxHash?, permissions? } → { ok, manager }
+ * Persists the rotated signer (account.json + list), logs activity.
+ */
+export async function rotateComplete({ newManager, txHash, reattachTxHash, permissions } = {}) {
+  if (USE_LIVE) {
+    return api('/account/rotate-complete', {
+      method: 'POST',
+      body: { newManager, txHash, reattachTxHash, permissions },
+    })
+  }
+  if (mock.account) mock.account.manager = newManager
+  return settle({ ok: true, manager: newManager })
 }
 
 /**
@@ -341,6 +483,13 @@ export async function getAccount() {
 export async function getAccounts() {
   if (USE_LIVE) return api('/accounts')
   return settle(mock.accounts.map((a) => ({ ...a })))
+}
+
+/** POST /api/account/switch { safe } — make a known SMA the active one
+ *  (rewrites account.json). The caller reloads live data afterward. */
+export async function switchAccount({ safe } = {}) {
+  if (USE_LIVE) return api('/account/switch', { method: 'POST', body: { safe } })
+  return settle({ ok: true, active: { safe } })
 }
 
 /** GET /api/activity — append-only event log (newest last, as on disk). */

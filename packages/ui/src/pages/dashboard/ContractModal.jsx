@@ -62,6 +62,16 @@ export default function ContractModal({
   const [phase, setPhase] = useState('preview')
   const [signedAt, setSignedAt] = useState(null)
   const [rejectOpen, setRejectOpen] = useState(false)
+  // Revocation is a real on-chain flow: `revokeStatus` mirrors the wallet/tx
+  // progress (sign → submit → confirm); `revokeError` surfaces a failed or
+  // rejected attempt back in the preview footer.
+  const [revokeStatus, setRevokeStatus] = useState(null)
+  const [revokeError, setRevokeError] = useState(null)
+  // Track the live phase in a ref so the Escape handler (whose effect can't
+  // depend on `phase` without re-running the open/reset logic) reads the
+  // current value rather than a stale closure.
+  const phaseRef = useRef(phase)
+  phaseRef.current = phase
   // Scroll the modal's article container to the signature block when
   // the user authorizes from above the fold — guarantees they see the
   // signature animation rather than missing it off-screen.
@@ -84,10 +94,15 @@ export default function ContractModal({
       setPhase('preview')
       setSignedAt(null)
     }
+    setRevokeStatus(null)
+    setRevokeError(null)
     document.body.style.overflow = 'hidden'
     const onKey = (e) => {
-      // Lock close while signing or revoking — the animation needs to finish.
-      if (e.key === 'Escape' && phase !== 'signing' && phase !== 'revoking' && phase !== 'revoked') onClose?.()
+      // Lock close while signing, submitting a revoke, or playing the revoke
+      // animation — the wallet flow / animation must finish. Reads phaseRef so
+      // it never closes on a stale phase.
+      const p = phaseRef.current
+      if (e.key === 'Escape' && p !== 'signing' && p !== 'submitting' && p !== 'revoking' && p !== 'revoked') onClose?.()
     }
     window.addEventListener('keydown', onKey)
     return () => {
@@ -132,26 +147,39 @@ export default function ContractModal({
     onAuthorize?.(mandate.id)
   }
 
-  /* Revocation flow — mirrors the signing animation in pacing so the
-     two destructive/constructive moments feel like a matched pair.
-       0ms     : scroll to signature block (user's eye lands on it)
-       280ms   : phase → 'revoking' — contract body fades + lifts;
-                 the REVOKED stamp begins its descent (large + faded).
-       640ms   : phase → 'revoked' — stamp snaps to scale 1.0 with
-                 a spring overshoot, inner ink shadow paints in, an
-                 impact ring pulses outward (CSS keyframe).
-       640ms+  : caption fades in below the stamp.
-       3600ms  : modal tears down via onRevoke callback. */
-  function revoke() {
-    const sig = sigBlockRef.current
-    const doc = docRef.current
-    if (sig && doc) {
-      const target = Math.max(0, sig.offsetTop - (doc.clientHeight - sig.clientHeight) / 2)
-      smoothScrollTo(doc, target, 360)
+  /* Revocation flow — REAL on-chain removal, not theater. The owner signs an
+     EIP-712 RevokePermissions authorization and submits kernel.revokePermissions
+     from their wallet (see onRevoke → useRevokePermission). The celebratory
+     REVOKED stamp only plays once the tx has actually confirmed, so the surface
+     never claims a revocation that didn't happen.
+       click   : phase → 'submitting' — footer shows live wallet/tx status.
+       confirmed: scroll to signature block + phase → 'revoking' (stamp descends)
+       +360ms  : phase → 'revoked' — stamp lands; caption fades in.
+       +3200ms : modal tears down via onClose.
+       error   : phase → 'preview' with the failure surfaced in the footer. */
+  async function revoke() {
+    setRevokeError(null)
+    setRevokeStatus(null)
+    setPhase('submitting')
+    try {
+      // onRevoke performs the live flow and resolves only when the on-chain tx
+      // confirms; it streams progress through the status callback.
+      await onRevoke?.(mandate.id, (s) => setRevokeStatus(s))
+      // Confirmed on-chain — now play the stamp.
+      const sig = sigBlockRef.current
+      const doc = docRef.current
+      if (sig && doc) {
+        const target = Math.max(0, sig.offsetTop - (doc.clientHeight - sig.clientHeight) / 2)
+        smoothScrollTo(doc, target, 360)
+      }
+      setPhase('revoking')
+      setTimeout(() => setPhase('revoked'), 360)
+      setTimeout(() => onClose?.(), 3200)
+    } catch (err) {
+      setRevokeError(err instanceof Error ? err.message : String(err))
+      setRevokeStatus(null)
+      setPhase('preview')
     }
-    setTimeout(() => setPhase('revoking'), 280)
-    setTimeout(() => setPhase('revoked'), 640)
-    setTimeout(() => onRevoke?.(mandate.id), 3600)
   }
 
   if (!open || !mandate) return null
@@ -177,7 +205,7 @@ export default function ContractModal({
           className={styles.close}
           onClick={onClose}
           aria-label="Close"
-          disabled={phase === 'signing'}
+          disabled={phase === 'signing' || phase === 'submitting' || phase === 'revoking'}
         >×</button>
 
         <article
@@ -482,12 +510,17 @@ export default function ContractModal({
               /* Revocation flow. */
               phase === 'preview' ? (
                 <>
+                  {revokeError && (
+                    <p className={styles.revokeError} role="alert">
+                      Revocation failed · {revokeError}
+                    </p>
+                  )}
                   <button
                     type="button"
                     className={styles.rejectBtn}
                     onClick={revoke}
                   >
-                    Revoke this mandate
+                    {revokeError ? 'Try again' : 'Revoke this mandate'}
                   </button>
                   <button
                     type="button"
@@ -498,11 +531,16 @@ export default function ContractModal({
                     Keep it active
                   </button>
                   <p className={styles.docFooterNote}>
-                    Revocation is <strong>permanent</strong> and immediate onchain. Open positions
-                    stay in your SMA — Sail won't unwind anything — but your AI loses authority
-                    to act and you cannot undo this.
+                    Revocation is <strong>permanent</strong> and immediate onchain. You sign with
+                    your wallet and pay gas. Open positions stay in your SMA · Sail won't unwind
+                    anything · but your AI loses authority to act and you cannot undo this.
                   </p>
                 </>
+              ) : phase === 'submitting' ? (
+                <div className={styles.revokingBlock} role="status" aria-live="polite">
+                  <span className={styles.revokingPulse} aria-hidden />
+                  <span className={styles.revokingTitle}>{revokeStatusText(revokeStatus)}</span>
+                </div>
               ) : phase === 'revoking' ? (
                 <div className={styles.revokingBlock} role="status" aria-live="polite">
                   <span className={styles.revokingPulse} aria-hidden />
@@ -756,6 +794,20 @@ function providerKey(name) {
   if (n === 'codex' || n === 'chatgpt' || n === 'openai' || n === 'gpt') return 'codex'
   return 'default'
 }
+/* Map the live revoke flow's status code (from useRevokePermission) to a calm,
+   plain-language line for the footer while the wallet/tx is in flight. */
+function revokeStatusText(status) {
+  switch (status) {
+    case 'building': return 'Preparing revocation…'
+    case 'sign': return 'Confirm the authorization in your wallet…'
+    case 'build-tx': return 'Preparing the transaction…'
+    case 'wallet': return 'Confirm the transaction in your wallet…'
+    case 'confirming': return 'Waiting for on-chain confirmation…'
+    case 'persisting': return 'Recording the revocation…'
+    default: return 'Revoking onchain…'
+  }
+}
+
 function capitalize(s) { return s ? s[0].toUpperCase() + s.slice(1) : s }
 function truncate(addr) {
   if (!addr || addr.length < 12) return addr ?? ''

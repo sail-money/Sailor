@@ -1,0 +1,85 @@
+/* CreateMandateModal — supplemental styles only. The modal shell (overlay,
+   card, header, field, footer, running, etc.) is reused from
+   RotateSignerModal.module.css to stay on the sharp / flat / mono direction.
+   These rules cover the mandate-specific bits: the multi-line value inputs, the
+   selector hints, and the deployed-address summary. */
+
+.textarea {
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  padding: 9px 11px;
+  background: var(--surface-850, rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10));
+  border-radius: var(--r-2, 3px);
+  color: var(--text-primary, #fff);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+}
+.textarea:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.28);
+}
+.textareaError {
+  border-color: #ff6b6b;
+}
+
+/* Quick-insert selector hints — small mono chips under a bytes4[] field. */
+.hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.hintChip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 7px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10));
+  border-radius: var(--r-1, 2px);
+  color: var(--text-secondary, rgba(255, 255, 255, 0.72));
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10.5px;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+.hintChip:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  color: var(--text-primary, #fff);
+}
+.hintChipSel {
+  color: var(--text-tertiary, rgba(255, 255, 255, 0.45));
+}
+
+/* Template picker — when more than one compiled template exists. */
+.templateRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.templateOpt {
+  padding: 5px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10));
+  border-radius: var(--r-2, 3px);
+  color: var(--text-secondary, rgba(255, 255, 255, 0.72));
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12px;
+  cursor: pointer;
+}
+.templateOptOn {
+  border-color: var(--accent-blue, #1990ff);
+  color: var(--text-primary, #fff);
+}
+
+/* Deployed-mandate address in the success summary. */
+.addrMono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--text-primary, #fff);
+  word-break: break-all;
+}

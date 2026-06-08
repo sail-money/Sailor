@@ -835,6 +835,20 @@
   font-style: italic;
 }
 
+/* Revoke failure / rejection — shown above the Try-again button when an
+   on-chain revoke attempt fails or the wallet rejects it. Destructive = red. */
+.revokeError {
+  margin: 0 0 2px;
+  width: 100%;
+  text-align: center;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  letter-spacing: 0.005em;
+  color: #ff6b6b;
+  word-break: break-word;
+}
+
 /* Read-only footer — shown when the contract is opened from the
    Agent page (the mandate is already signed). Just a Close button +
    a quiet onchain note. */
