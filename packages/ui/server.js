@@ -2011,6 +2011,22 @@ export function startServer(sailDir, { port = PORT } = {}) {
       socket.destroy()
       return
     }
+    // Reject connections from non-localhost origins — prevents a page on another
+    // domain from silently proxying signing requests through the local daemon.
+    const origin = req.headers.origin
+    if (origin) {
+      try {
+        const { hostname } = new URL(origin)
+        if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+          socket.write('HTTP/1.1 403 Forbidden\r\n\r\n')
+          socket.destroy()
+          return
+        }
+      } catch {
+        socket.destroy()
+        return
+      }
+    }
     wss.handleUpgrade(req, socket, head, (client) => relayToDaemon(client))
   })
 
