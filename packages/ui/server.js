@@ -317,6 +317,80 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
   })
 
+  // ── Dynamic multi-fork (selected chains during SMA creation) ──────────────
+  //
+  // The onboarding UI records which chains the SMA will live on; an external
+  // fork supervisor (`shipyard watch`) reacts by bringing up a fork per chain
+  // and publishing a manifest. Sailor stays fully decoupled — it only reads and
+  // writes its own .sail files; it never spawns anvil or imports shipyard.
+  //
+  //   POST /api/sim/forks          { chainIds, primary }  — record the request
+  //   GET  /api/sim/forks                                  — request + manifest + active
+  //   POST /api/sim/forks/activate { chainId }             — repoint .env.local
+  //                                                          at that chain's fork
+  const readForksManifest = () => {
+    try { return JSON.parse(fs.readFileSync(at('sim-forks.json'), 'utf-8')) } catch { return {} }
+  }
+  const readRequestedChains = () => {
+    try { return JSON.parse(fs.readFileSync(at('sim-requested-chains.json'), 'utf-8')) } catch { return null }
+  }
+  // Repoint the project's active network (single active fork + switch model):
+  // rewrite RPC_URL + CHAIN_ID, preserving comments and any other keys.
+  const setActiveNetwork = (rpcUrl, chainId) => {
+    const envPath = at('.env.local')
+    let content = ''
+    try { content = fs.readFileSync(envPath, 'utf-8') } catch { /* will create */ }
+    const rest = content.split('\n').filter((l) => {
+      const t = l.trim()
+      return !t.startsWith('RPC_URL=') && !t.startsWith('CHAIN_ID=')
+    })
+    const body = [`RPC_URL=${rpcUrl}`, `CHAIN_ID=${chainId}`, ...rest].join('\n')
+    fs.writeFileSync(envPath, body.endsWith('\n') ? body : `${body}\n`)
+  }
+
+  app.get('/api/sim/forks', (_req, res) => {
+    const net = readNetwork()
+    const requested = readRequestedChains()
+    res.json({
+      isLocal: net.isLocal,
+      active: net.isLocal ? { chainId: net.chainId, rpcUrl: net.rpcUrl } : null,
+      requested: requested?.chainIds ?? [],
+      primary: requested?.primary ?? null,
+      forks: readForksManifest(),
+    })
+  })
+
+  app.post('/api/sim/forks', (req, res) => {
+    const net = readNetwork()
+    if (!net.isLocal) return res.status(400).json({ error: 'multi-fork is only available against a local RPC (simulation mode)' })
+    const { chainIds, primary } = req.body ?? {}
+    if (!Array.isArray(chainIds) || chainIds.length === 0 || chainIds.some((c) => !Number.isInteger(c))) {
+      return res.status(400).json({ error: 'chainIds must be a non-empty array of integer chain ids' })
+    }
+    const payload = { chainIds, primary: Number.isInteger(primary) ? primary : chainIds[0], requestedAt: new Date().toISOString() }
+    try {
+      fs.writeFileSync(at('sim-requested-chains.json'), `${JSON.stringify(payload, null, 2)}\n`)
+    } catch (e) {
+      return res.status(500).json({ error: String(e) })
+    }
+    res.json({ ok: true, requested: payload, forks: readForksManifest() })
+  })
+
+  app.post('/api/sim/forks/activate', (req, res) => {
+    const net = readNetwork()
+    if (!net.isLocal) return res.status(400).json({ error: 'activate is only available against a local RPC' })
+    const { chainId } = req.body ?? {}
+    if (!Number.isInteger(chainId)) return res.status(400).json({ error: 'chainId (integer) is required' })
+    const entry = readForksManifest()[String(chainId)]
+    if (!entry?.rpcUrl) return res.status(409).json({ error: `no fork is up for chain ${chainId} yet`, forks: readForksManifest() })
+    try {
+      setActiveNetwork(entry.rpcUrl, chainId)
+    } catch (e) {
+      return res.status(500).json({ error: String(e) })
+    }
+    res.json({ ok: true, active: { chainId, rpcUrl: entry.rpcUrl } })
+  })
+
   // GET /api/account — the deployed SMA, or 404 before it exists.
   app.get('/api/account', (_req, res) => {
     try {

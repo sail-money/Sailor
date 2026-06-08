@@ -18,7 +18,7 @@
 
 const DEFAULT_OWNER = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
 
-export function maybeInstallSimWallet(localNetwork) {
+export function maybeInstallSimWallet(localNetwork, forks = {}) {
   if (typeof window === 'undefined') return false
   let params
   try { params = new URLSearchParams(window.location.search) } catch { return false }
@@ -28,13 +28,44 @@ export function maybeInstallSimWallet(localNetwork) {
     return false
   }
 
-  const rpcUrl = localNetwork.rpcUrl
   const account = (params.get('owner') || DEFAULT_OWNER)
-  const chainIdHex = `0x${Number(localNetwork.chainId).toString(16)}`
   let rpcId = 0
 
+  // Multi-fork routing. Each chain's calls go to ITS fork: the active fork
+  // (localNetwork) is always known; additional forks for the other selected
+  // chains come from the sim-fork manifest (GET /api/sim/forks). `currentChainId`
+  // follows wallet_switchEthereumChain, and we refresh the manifest on every
+  // switch so forks spun up AFTER page load (during onboarding) are picked up.
+  // This lets a multi-chain SMA deploy hit the right fork per chain with no reload.
+  const forkRpc = new Map([[Number(localNetwork.chainId), localNetwork.rpcUrl]])
+  for (const [cid, f] of Object.entries(forks || {})) {
+    if (f?.rpcUrl) forkRpc.set(Number(cid), f.rpcUrl)
+  }
+  let currentChainId = Number(localNetwork.chainId)
+  // The fork URL for a chain, or null if we have none. The active chain always
+  // has one (localNetwork); other chains only once their fork is up.
+  const rpcUrlFor = (cid) =>
+    forkRpc.get(Number(cid)) || (Number(cid) === Number(localNetwork.chainId) ? localNetwork.rpcUrl : null)
+
+  async function refreshForks() {
+    try {
+      const data = await fetch('/api/sim/forks', { cache: 'no-store' }).then((r) => r.json())
+      for (const [cid, f] of Object.entries(data?.forks || {})) {
+        if (f?.rpcUrl) forkRpc.set(Number(cid), f.rpcUrl)
+      }
+    } catch { /* keep what we have */ }
+  }
+
   async function rpc(method, rpcParams = []) {
-    const res = await fetch(rpcUrl, {
+    const url = rpcUrlFor(currentChainId)
+    if (!url) {
+      // Refuse to route to the wrong chain's fork (which would hang on receipt
+      // polling). Surfaces as a clear wallet error instead of a silent stall.
+      const err = new Error(`[sim-wallet] no local fork for chain ${currentChainId}. Run \`shipyard watch\` (or re-run \`shipyard up\`) and select this chain so its fork spins up.`)
+      err.code = 4900
+      throw err
+    }
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method, params: rpcParams }),
@@ -61,11 +92,20 @@ export function maybeInstallSimWallet(localNetwork) {
         case 'eth_accounts':
           return [account]
         case 'eth_chainId':
-          return chainIdHex
+          return `0x${currentChainId.toString(16)}`
         case 'net_version':
-          return String(Number(localNetwork.chainId))
-        case 'wallet_switchEthereumChain':
-          return null            // single-chain fork — already here
+          return String(currentChainId)
+        case 'wallet_switchEthereumChain': {
+          // Follow the dapp to the target chain and route subsequent calls at
+          // that chain's fork. Refresh the manifest so a just-spun-up fork is seen.
+          const target = params?.[0]?.chainId
+          if (target) {
+            currentChainId = parseInt(target, 16)
+            await refreshForks()
+            emit('chainChanged', `0x${currentChainId.toString(16)}`)
+          }
+          return null
+        }
         case 'wallet_addEthereumChain':
           return null
         case 'wallet_requestPermissions':
@@ -74,7 +114,8 @@ export function maybeInstallSimWallet(localNetwork) {
           return [{ parentCapability: 'eth_accounts' }]
         default:
           // eth_sendTransaction, eth_getTransactionCount, eth_estimateGas,
-          // eth_call, eth_getTransactionReceipt, eth_blockNumber, … → the fork.
+          // eth_call, eth_getTransactionReceipt, eth_blockNumber, … → the fork
+          // for the CURRENT chain.
           return rpc(method, params)
       }
     },
@@ -117,6 +158,9 @@ export function maybeInstallSimWallet(localNetwork) {
   window.addEventListener('eip6963:requestProvider', announce)
   announce()
 
-  console.info(`[sim-wallet] installed → ${account} on chain ${localNetwork.chainId} via ${rpcUrl}`)
+  // Pick up any forks already running at install time (best-effort, async).
+  refreshForks()
+
+  console.info(`[sim-wallet] installed → ${account} on chain ${localNetwork.chainId} via ${localNetwork.rpcUrl} (multi-fork aware)`)
   return provider
 }

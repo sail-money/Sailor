@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 
 /**
- * Play / Reset controls for a local simulation, rendered only when the project
+ * Save / Reset controls for a local simulation, rendered only when the project
  * is pointed at a local RPC (info.isLocal — see GET /api/network). They sit at
  * the right edge of the LocalRpcBanner.
  *
- *   ▶ Play   — captures a chain checkpoint (evm_snapshot) to rewind to later.
+ *   💾 Save  — captures a chain checkpoint (evm_snapshot) + stashes local state
+ *              to rewind to later.
  *   ↺ Reset  — rewinds the chain to that checkpoint AND clears local onboarding
  *              state (account, manager key, wizard progress), then reloads so
  *              the onboarding wizard replays from a clean slate.
@@ -28,15 +29,22 @@ export default function SimControls({ info }) {
     }
   }
 
-  // On mount, load status and auto-capture a checkpoint if none exists yet, so
-  // Reset works immediately without the operator pressing Play first.
+  // On mount, load status and auto-capture a checkpoint if none exists yet — but
+  // ONLY before onboarding (no SMA yet). This makes the default restore point
+  // "the beginning": Reset then rewinds to the fresh, pre-deploy state. If an
+  // SMA already exists, auto-capturing here would stash the onboarded state and
+  // Reset could never return to a clean wizard — so we skip it and let the user
+  // press Save to set a post-onboarding checkpoint deliberately.
   useEffect(() => {
     if (!info?.isLocal) return
     ;(async () => {
       const s = await refresh()
       if (s?.isLocal && !s.checkpoint) {
-        try { await fetch('/api/sim/checkpoint', { method: 'POST' }) } catch { /* non-fatal */ }
-        refresh()
+        const onboarded = await fetch('/api/account').then(r => r.ok).catch(() => false)
+        if (!onboarded) {
+          try { await fetch('/api/sim/checkpoint', { method: 'POST' }) } catch { /* non-fatal */ }
+          refresh()
+        }
       }
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -64,7 +72,7 @@ export default function SimControls({ info }) {
       : 'Reset the simulation?\n\n' +
         'No checkpoint set, so this clears onboarding (account, manager key, ' +
         'wizard progress, activity) and replays the wizard from scratch. ' +
-        'Press Play first to set a restore point.'
+        'Press Save first to set a restore point.'
     const ok = window.confirm(msg)
     if (!ok) return
     setBusy('reset')
@@ -132,7 +140,7 @@ export default function SimControls({ info }) {
         onClick={capture}
         title="Save a restore point — snapshots the chain AND your onboarding state (SMA, manager key, mandates, activity) to return to with Reset"
       >
-        ▶ {busy === 'checkpoint' ? 'Saving…' : 'Play'}
+        💾 {busy === 'checkpoint' ? 'Saving…' : 'Save'}
       </button>
       <button
         type="button"

@@ -132,13 +132,22 @@ function Router() {
 
 async function bootstrap() {
   const localNetwork = await probeLocalNetwork()
+  // Fetch the sim-fork manifest so the sim wallet can route per-chain across all
+  // forks (multi-chain SMA deploy). Empty/absent unless forks have been spun up.
+  let forks = {}
+  if (localNetwork?.isLocal) {
+    try {
+      const f = await fetch('/api/sim/forks', { cache: 'no-store', signal: AbortSignal.timeout(1500) }).then((r) => r.json())
+      forks = f?.forks ?? {}
+    } catch { /* none yet */ }
+  }
   // Local-only test harness: install a simulated wallet BEFORE building the wagmi
   // config so RainbowKit/wagmi discover it. No-op unless ?sim=1 on a local fork.
   // Never let a sim-wallet install failure abort boot (a blank page) — it's a
   // dev-only convenience, the real app must always render.
   let simProvider = null
   try {
-    simProvider = maybeInstallSimWallet(localNetwork)
+    simProvider = maybeInstallSimWallet(localNetwork, forks)
   } catch (e) {
     console.warn('[sim-wallet] install failed (continuing without it):', e)
   }

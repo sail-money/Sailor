@@ -19,5 +19,7 @@ dist/
 .sail/activity.jsonl
 .sail/.sim-checkpoint.json
 .sail/.sim-checkpoint-state/
+.sail/sim-forks.json
+.sail/sim-requested-chains.json
 !.sail/.gitkeep
 !.sail/config.json
