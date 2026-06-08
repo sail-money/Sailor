@@ -169,7 +169,7 @@ function fromSigner(overview, account, role) {
  *  endpoint; returns '' on any failure so the chip just stays empty. */
 async function fetchCreatedDate(chainId, blockNumber) {
   try {
-    if (!chainId || blockNumber == null) return ''
+    if (!chainId || !blockNumber || blockNumber === '0' || blockNumber === 0n) return ''
     const chain = chains.find((c) => c.id === chainId)
     if (!chain) return ''
     const client = createPublicClient({ chain, transport: http() })
@@ -338,7 +338,7 @@ export default function Dashboard() {
     setAccount(acc)
     setAccounts(Array.isArray(accts) ? accts : [])
     // Resolve the creation date from the block (async, best-effort).
-    if (acc?.createdAtBlock != null && (acc?.chainId ?? ov?.chainId)) {
+    if (acc?.createdAtBlock && acc.createdAtBlock !== '0' && (acc?.chainId ?? ov?.chainId)) {
       fetchCreatedDate(acc.chainId ?? ov?.chainId, acc.createdAtBlock).then((date) => {
         if (seq === reloadSeq.current && date) {
           setAccount((prev) => (prev ? { ...prev, createdAt: date } : prev))
