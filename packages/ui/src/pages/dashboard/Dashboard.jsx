@@ -1341,8 +1341,9 @@ function GasCard({ wallet, chain, primary, onRotate, onFund }) {
         </span>
       </header>
 
-      {/* Balance · mono console readout. */}
+      {/* Balance · mono console readout, with the ETH mark (matches the SMA hero). */}
       <div className={styles.gasBalanceRow}>
+        <EthGlyph />
         <span className={styles.gasBalance}>{fmtEth(wallet.balanceEth)}</span>
         <span className={styles.gasUnit}>ETH</span>
       </div>

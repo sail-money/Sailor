@@ -6413,6 +6413,14 @@
   align-items: baseline;
   gap: 8px;
 }
+/* ETH mark on the manager/owner balances — matches the SMA hero's blue diamond. */
+.gasBalanceRow > svg {
+  align-self: center;
+  color: var(--accent-blue-bright, #4DABFF);
+  width: 16px;
+  height: 16px;
+  filter: drop-shadow(0 0 5px var(--accent-glow, rgba(25, 144, 255, 0.5)));
+}
 .gasBalance {
   font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
   font-size: 32px;
