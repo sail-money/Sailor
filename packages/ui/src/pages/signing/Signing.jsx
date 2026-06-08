@@ -13,15 +13,7 @@ import shared from '../shared/shared.module.css'
 import styles from './Signing.module.css'
 import { useDeploySma } from '../../hooks/useDeploySma'
 import { useOwnerWallet } from '../../hooks/useOwnerWallet'
-import { useDemoState } from '../../demo/useDemoState'
 import { getOnboardState } from '../../data/sailorClient'
-
-// Legacy login/signup URLs route to the unified 'connect' state so old
-// demo-console links keep working.
-const STATE_ALIASES = { login: 'connect', signup: 'connect' }
-const VALID_DEMO_STATES = new Set([
-  'welcome', 'connect', 'network', 'password', 'deploy', 'confirming',
-])
 
 /* ── Setup data (from the Sailor framework) ──
    Supported chains are the verified SailKernel deployments bundled in

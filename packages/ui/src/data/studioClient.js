@@ -12,24 +12,37 @@
  * wallet address.
  */
 
-import {
-  explorerUrl as _explorerUrl,
-  txExplorerUrl as _txExplorerUrl,
-  safeAppUrl as _safeAppUrl,
-  debankUrl as _debankUrl,
-} from './mockState'
-
-/** Owner EOA profile. There is no mock owner — the live connected wallet
- *  (useOwnerWallet) is the source of truth for the address. Returns null so
- *  Dashboard uses `wallet.address ?? ownerProfile?.address`. */
+/** Owner EOA profile. The live connected wallet (useOwnerWallet) is the
+ *  source of truth. Returns null so Dashboard falls back to wallet.address. */
 export async function getOwnerProfile() {
   return null
 }
 
-/* ── Explorer URL helpers ──
-   Pure presentational helpers (no endpoint, no wallet state). Re-exported as
-   plain functions so pages never import the raw fixtures for them. */
-export const explorerUrl = _explorerUrl
-export const txExplorerUrl = _txExplorerUrl
-export const safeAppUrl = _safeAppUrl
-export const debankUrl = _debankUrl
+export function explorerUrl(chain, address) {
+  const map = {
+    42161: `https://arbiscan.io/address/${address}`,
+    1: `https://etherscan.io/address/${address}`,
+    8453: `https://basescan.org/address/${address}`,
+    10: `https://optimistic.etherscan.io/address/${address}`,
+  }
+  return map[chain.id] ?? map[1]
+}
+
+export function txExplorerUrl(chain, hash) {
+  const base = {
+    42161: 'https://arbiscan.io/tx/',
+    1: 'https://etherscan.io/tx/',
+    8453: 'https://basescan.org/tx/',
+    10: 'https://optimistic.etherscan.io/tx/',
+  }
+  return (base[chain.id] ?? base[1]) + hash
+}
+
+export function safeAppUrl(chain, address) {
+  const prefix = { 42161: 'arb1', 1: 'eth', 8453: 'base', 10: 'oeth' }[chain.id] ?? 'eth'
+  return `https://app.safe.global/home?safe=${prefix}:${address}`
+}
+
+export function debankUrl(address) {
+  return `https://debank.com/profile/${address}`
+}
