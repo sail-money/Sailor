@@ -7,27 +7,27 @@ import { InfoTip } from '../shared'
 import { getAgentStatus, stopAgent } from '../../data/sailorClient'
 
 /**
- * AutomationSection — a compact live readout of HOW/WHERE the agent runs, with
+ * AutomationSection · a compact live readout of HOW/WHERE the agent runs, with
  * an expandable details panel (run methods, schedule, how to change it).
  * Reflects real `/api/agent-status`; offers a Stop control for a local run.
  *
  * Run methods (real, framework-shipped):
- *   • Local — `sailor run` on this machine (server sees the PID → source 'local')
- *   • GitHub Actions — the scaffolded .github/workflows/*.yml ticks on a cron
+ *   • Local · `sailor run` on this machine (server sees the PID → source 'local')
+ *   • GitHub Actions · the scaffolded .github/workflows/*.yml ticks on a cron
  *     schedule in CI (server detects the workflow → source 'remote')
- * The agent's strategy + schedule live in the PROJECT CODE — users change them
+ * The agent's strategy + schedule live in the PROJECT CODE · users change them
  * by talking to their AI coding assistant (the AGENTS.md flow), not in this UI.
  */
 
 const AUTOMATION_TIP =
-  "Your agent's run schedule. Today it runs your project's agent loop (`sailor run`) — locally, or in the cloud via the GitHub Actions workflow the project ships, which ticks on a schedule even when your computer is off. The protocol supports more than one agent per account: the SMA's manager can be a multisig that routes to several agents under a single dispatcher. Either way, mandates are the boundaries every agent runs within."
+  "Your agent's run schedule. Today it runs your project's agent loop (`sailor run`) · locally, or in the cloud via the GitHub Actions workflow the project ships, which ticks on a schedule even when your computer is off. The protocol supports more than one agent per account: the SMA's manager can be a multisig that routes to several agents under a single dispatcher. Either way, mandates are the boundaries every agent runs within."
 
 const CHANGE_PROMPT =
-  'Sail, change how often my agent runs — I want it to [e.g. run every hour / every day at 9am / only on weekdays].'
+  'Sail, change how often my agent runs · I want it to [e.g. run every hour / every day at 9am / only on weekdays].'
 
 function methodLabel(s) {
   if (s.running && s.source === 'local') return 'Local'
-  // A 'remote' run is any host that's been active recently — GitHub Actions if
+  // A 'remote' run is any host that's been active recently · GitHub Actions if
   // we detected the workflow, otherwise some other scheduler (server cron, CI…).
   if (s.running && s.source === 'remote') return s.githubActions?.file ? 'GitHub Actions' : 'Remote'
   if (s.githubActions?.file) return 'GitHub Actions'
@@ -183,13 +183,13 @@ export default function AutomationSection() {
                   {gh?.file && <span className={auto.methodFile}>{gh.file}</span>}
                 </span>
                 <span className={auto.methodDesc}>
-                  Runs in the cloud on the schedule above — even when your computer is off.
+                  Runs in the cloud on the schedule above · even when your computer is off.
                 </span>
                 <ol className={auto.steps}>
                   <li><span className={auto.stepNum}>01</span><span className={auto.stepText}>Push your project to a GitHub repo.</span></li>
                   <li><span className={auto.stepNum}>02</span><span className={auto.stepText}>In the repo: <strong>Settings → Secrets and variables → Actions</strong>.</span></li>
                   <li><span className={auto.stepNum}>03</span><span className={auto.stepText}>Add secrets <code>RPC_URL</code> and <code>MANAGER_KEY</code>, and a variable <code>CHAIN_ID</code>.</span></li>
-                  <li><span className={auto.stepNum}>04</span><span className={auto.stepText}>Done — <code>{gh?.file ?? 'agent-tick.yml'}</code> runs on schedule, or trigger it with <strong>Run workflow</strong>.</span></li>
+                  <li><span className={auto.stepNum}>04</span><span className={auto.stepText}>Done · <code>{gh?.file ?? 'agent-tick.yml'}</code> runs on schedule, or trigger it with <strong>Run workflow</strong>.</span></li>
                 </ol>
                 <a
                   className={auto.repoLink}
@@ -204,7 +204,7 @@ export default function AutomationSection() {
               <li className={`${auto.method} ${running && status.source === 'local' ? auto.methodActive : ''}`}>
                 <span className={auto.methodName}>Local <span className={auto.methodTag}>this machine</span></span>
                 <span className={auto.methodDesc}>
-                  Runs on your computer — good for testing. Only ticks while it&rsquo;s on and the command is running.
+                  Runs on your computer · good for testing. Only ticks while it&rsquo;s on and the command is running.
                 </span>
                 <div className={auto.codeBlock}>
                   <code>cd your-project &amp;&amp; sailor run</code>
@@ -221,7 +221,7 @@ export default function AutomationSection() {
               <li className={auto.method}>
                 <span className={auto.methodName}>Anywhere else <span className={auto.methodTag}>self-hosted</span></span>
                 <span className={auto.methodDesc}>
-                  The agent is just <code>sailor run --once</code> — GitHub Actions is only the default. Any scheduler
+                  The agent is just <code>sailor run --once</code> · GitHub Actions is only the default. Any scheduler
                   works: a server cron, a <code>systemd</code>/<code>launchd</code> timer, another CI (GitLab, CircleCI…),
                   or a cloud function. It only needs <code>RPC_URL</code>, <code>MANAGER_KEY</code> and <code>CHAIN_ID</code>
                   in its environment, on whatever schedule you choose.
@@ -229,7 +229,7 @@ export default function AutomationSection() {
               </li>
             </ul>
             <p className={auto.note}>
-              <strong>Switching methods?</strong> There&rsquo;s no toggle here — the run method is simply wherever you
+              <strong>Switching methods?</strong> There&rsquo;s no toggle here · the run method is simply wherever you
               schedule <code>sailor run</code>. To move off GitHub Actions, set up your chosen runner with those three
               values and disable the workflow (or ask your AI assistant to wire it up).
             </p>
@@ -239,7 +239,7 @@ export default function AutomationSection() {
           <div className={auto.block}>
             <span className={auto.label}>Change the schedule or strategy</span>
             <p className={auto.note}>
-              Your agent&rsquo;s schedule and strategy live in your project code — not in this dashboard.
+              Your agent&rsquo;s schedule and strategy live in your project code · not in this dashboard.
               To change them, open the chat with your AI coding assistant (where you set Sail up) and ask:
             </p>
             <div className={auto.promptCard}>

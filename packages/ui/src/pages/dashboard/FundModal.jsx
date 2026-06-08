@@ -44,7 +44,7 @@ function capitalize(s) {
 }
 
 /**
- * Fund modal — a focused "receive ETH" screen for a gas wallet (the SMA or the
+ * Fund modal · a focused "receive ETH" screen for a gas wallet (the SMA or the
  * manager). The address is the hero: send native ETH on the account's chain to
  * it. On-direction: flat raised surface, sharp corners, mono address, one blue
  * accent, grey for the network warning.
@@ -111,7 +111,7 @@ export default function FundModal({ open, target, onClose }) {
             </span>
           </div>
 
-          {/* The address — the hero of this screen. */}
+          {/* The address · the hero of this screen. */}
           <div className={styles.addrLabel}>{label} address</div>
           <button type="button" className={styles.addrBlock} onClick={copy} title="Copy address">
             <span className={styles.addrText}>{address}</span>
@@ -126,7 +126,7 @@ export default function FundModal({ open, target, onClose }) {
             </a>
           )}
 
-          {/* Network warning — neutral grey, not amber. */}
+          {/* Network warning · neutral grey, not amber. */}
           <div className={styles.warn} role="note">
             <span className={styles.warnIcon} aria-hidden><WarnGlyph /></span>
             <span className={styles.warnText}>

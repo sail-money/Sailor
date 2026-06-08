@@ -5,17 +5,17 @@ import styles from './RpcSection.module.css'
 import { InfoTip } from '../shared'
 import { getOnboardState, saveConfig } from '../../data/sailorClient'
 
-const RPC_TIP = "An RPC is the connection your dashboard uses to read the blockchain and broadcast transactions — like a phone line to the network. Sail talks to the chain directly through it; there's no Sail server in between. A free Alchemy/Infura key (or a public endpoint) works."
+const RPC_TIP = "An RPC is the connection your dashboard uses to read the blockchain and broadcast transactions · like a phone line to the network. Sail talks to the chain directly through it; there's no Sail server in between. A free Alchemy/Infura key (or a public endpoint) works."
 
 /**
- * RpcSection — the network/RPC config, living on the SMA hero card (moved out
+ * RpcSection · the network/RPC config, living on the SMA hero card (moved out
  * of the Settings modal so the card is the single source of truth).
  *
  * Compact by default: endpoint + chain + a plain-language status pill
- * ("Connected · <chain>" when healthy; an actionable warning otherwise —
+ * ("Connected · <chain>" when healthy; an actionable warning otherwise ·
  * no RPC/kernel jargon on the user surface). "Edit" expands the
  * onboarding-style provider picker (Alchemy / Infura / Public) + API key field
- * + the "where do I find my key" guide — the same surface as the setup wizard's
+ * + the "where do I find my key" guide · the same surface as the setup wizard's
  * step 03, so first-run and durable editing look identical.
  *
  * Contract: reads GET /api/onboard/state, writes POST /api/onboard/save-config
@@ -42,7 +42,7 @@ const RPC_PROVIDERS = [
       'Create a free account at alchemy.com.',
       'Click "Create new app" and pick this network.',
       'Open the app and copy the API key from the top of the page.',
-      'Paste it above — one key works across every network.',
+      'Paste it above · one key works across every network.',
     ],
   },
   {
@@ -63,7 +63,7 @@ const RPC_PROVIDERS = [
   },
 ]
 
-/* Per-chain hostnames so the provider picker can compose a real RPC_URL —
+/* Per-chain hostnames so the provider picker can compose a real RPC_URL ·
    exactly the string the framework persists. */
 const ALCHEMY_HOST = {
   8453: 'base-mainnet.g.alchemy.com', 42161: 'arb-mainnet.g.alchemy.com',
@@ -205,7 +205,7 @@ export default function RpcSection() {
           </button>
         </div>
       ) : (
-        /* ── Edit — onboarding-style provider picker ── */
+        /* ── Edit · onboarding-style provider picker ── */
         <div className={styles.edit}>
           <span className={styles.listLabel}>Network</span>
           <div className={styles.chainRow}>
@@ -342,7 +342,7 @@ function RpcGlyph({ id }) {
       </svg>
     )
   }
-  // alchemy — hex node
+  // alchemy · hex node
   return (
     <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
       <path d="M8 1.6l5.5 3.2v6.4L8 14.4 2.5 11.2V4.8z" />

@@ -54,7 +54,7 @@
   background: var(--status-warn-bg);
   border: 1px solid var(--status-warn-border);
   border-radius: 50%;
-  box-shadow: 0 0 24px -8px rgba(245, 165, 36, 0.5);
+  box-shadow: 0 0 24px -8px rgba(255, 107, 107, 0.5);
 }
 
 .title {

@@ -3066,8 +3066,8 @@
   box-shadow: 0 18px 50px -32px rgba(25, 144, 255, 0.55);
 }
 .flowStep_done {
-  border-color: rgba(58, 200, 144, 0.32);
-  box-shadow: 0 14px 40px -28px rgba(58, 200, 144, 0.40);
+  border-color: rgba(25, 144, 255, 0.32);
+  box-shadow: 0 14px 40px -28px rgba(25, 144, 255, 0.40);
 }
 .flowStep_next, .flowStep_rest { opacity: 1; }
 
@@ -3111,8 +3111,8 @@
 .flowStepBadge_done {
   color: #fff;
   background: linear-gradient(180deg, #2BC78F 0%, #1FA876 100%);
-  border-color: rgba(58, 200, 144, 0.7);
-  box-shadow: 0 0 16px rgba(58, 200, 144, 0.45);
+  border-color: rgba(25, 144, 255, 0.7);
+  box-shadow: 0 0 16px rgba(25, 144, 255, 0.45);
 }
 .flowStepBadge_rest {
   color: var(--text-tertiary);
@@ -3261,8 +3261,8 @@
 }
 .flowActionDone:hover {
   color: #fff;
-  background: rgba(58, 200, 144, 0.22);
-  border-color: rgba(58, 200, 144, 0.55);
+  background: rgba(25, 144, 255, 0.22);
+  border-color: rgba(25, 144, 255, 0.55);
 }
 .flowActionPrimary {
   color: #fff;
@@ -3294,8 +3294,8 @@
   transition: border-color 220ms var(--ease-apple);
 }
 .flowPreviewDone {
-  background: rgba(58, 200, 144, 0.06);
-  border-color: rgba(58, 200, 144, 0.28);
+  background: rgba(25, 144, 255, 0.06);
+  border-color: rgba(25, 144, 255, 0.28);
 }
 .flowPreviewList {
   list-style: none;
@@ -3377,8 +3377,8 @@
 }
 .flowPreviewCopyDone:hover {
   color: #fff;
-  background: rgba(58, 200, 144, 0.22);
-  border-color: rgba(58, 200, 144, 0.55);
+  background: rgba(25, 144, 255, 0.22);
+  border-color: rgba(25, 144, 255, 0.55);
 }
 
 /* Step 3's resting affordance — a small pill with a live dot,

@@ -50,11 +50,11 @@ const NETWORKS = [
 export default function Signing() {
   // Live onboarding always starts at 'welcome'. (The demo-console state seeding
   // is intentionally bypassed here so a stale demo step can't drop a real user
-  // mid-flow — e.g. straight into 'confirming' with no deploy running.)
+  // mid-flow · e.g. straight into 'confirming' with no deploy running.)
   const [state, setState] = useState('welcome')
   const [progress, setProgress] = useState('idle')
 
-  // Guard: if an SMA already exists, this user doesn't belong in onboarding —
+  // Guard: if an SMA already exists, this user doesn't belong in onboarding ·
   // send them to the dashboard. EXCEPTION: `#/signing?new=1` is the explicit
   // "create another SMA" entry from the dashboard, so we honor it even when an
   // account already exists (a stale hash, by contrast, has no `new=1`).
@@ -64,11 +64,11 @@ export default function Signing() {
     let alive = true
     getOnboardState()
       .then((s) => { if (alive && s?.hasAccount) window.location.hash = '#/dashboard' })
-      .catch(() => { /* can't confirm — stay in onboarding */ })
+      .catch(() => { /* can't confirm · stay in onboarding */ })
     return () => { alive = false }
   }, [])
 
-  // Setup selections carried across steps. Networks is multi-select —
+  // Setup selections carried across steps. Networks is multi-select ·
   // Sail deploys one SMA per chain, so an operator can stand several up
   // in a single pass.
   // Default to the chain this local project is configured for (.sail/.env.local
@@ -76,7 +76,7 @@ export default function Signing() {
   // this must match the server's configured kernel/RPC.
   const [networks, setNetworks] = useState(['base'])
   const [deployError, setDeployError] = useState(null)
-  // The password from the SECURE step — encrypts the agent (manager) signing
+  // The password from the SECURE step · encrypts the agent (manager) signing
   // key on this device. Threaded into deploy() → generateKey({ passphrase }).
   const [passphrase, setPassphrase] = useState('')
 
@@ -186,7 +186,7 @@ function HeaderBar({ onLogo, state }) {
   )
 }
 
-/* ─────────── Stepper — the five setup phases ─────────── */
+/* ─────────── Stepper · the five setup phases ─────────── */
 const SIGNING_STEPS = [
   { id: 'connect',  label: 'Connect' },
   { id: 'network',  label: 'Network' },
@@ -236,7 +236,7 @@ function Stepper({ state }) {
   )
 }
 
-/* ─────────── Welcome — single Connect CTA ─────────── */
+/* ─────────── Welcome · single Connect CTA ─────────── */
 function WelcomeState({ onConnect }) {
   return (
     <GlassCard className={styles.welcomeCard}>
@@ -267,7 +267,7 @@ function WelcomeState({ onConnect }) {
   )
 }
 
-/* ─────────── Connect wallet — RainbowKit-style picker ───────────
+/* ─────────── Connect wallet · RainbowKit-style picker ───────────
    No separate paths for new vs returning users: the wallet itself is
    the identity. Connection is handled by RainbowKit; this is the
    in-brand wallet picker that fronts it. */
@@ -485,7 +485,7 @@ function NetworkState({ selected, onToggle, onBack, onNext }) {
         kicker="SELECT NETWORKS"
         title="Where will your SMAs live?"
         sub="Sail deploys an account on every network you select. Pick one or more, and add chains later too."
-        tip="Each SMA is bound to a single blockchain — its address, funds, and permissions all live there. Pick the chain where you want this account to operate. Mainnets use real funds; testnets (Base Sepolia) are free for rehearsal."
+        tip="Each SMA is bound to a single blockchain · its address, funds, and permissions all live there. Pick the chain where you want this account to operate. Mainnets use real funds; testnets (Base Sepolia) are free for rehearsal."
       />
 
       <div className={styles.listLabelRow}>
@@ -552,7 +552,7 @@ function PasswordState({ onBack, onNext }) {
         kicker="SECURE YOUR AGENT KEY"
         title="Set a password"
         sub="Sail generates your agent's signing key and encrypts it on this device. This password unlocks it for every run. Sail never sees it."
-        tip="Your agent needs its own wallet to submit actions. Sail creates that key and encrypts it on this machine with this password. It's stored only locally — never uploaded — and you'll enter it when the agent runs. There's no recovery, so save it in a password manager."
+        tip="Your agent needs its own wallet to submit actions. Sail creates that key and encrypts it on this machine with this password. It's stored only locally · never uploaded · and you'll enter it when the agent runs. There's no recovery, so save it in a password manager."
       />
 
       <div className={styles.fieldBlock}>
@@ -645,7 +645,7 @@ function scorePassword(pw) {
 
 /* ─────────── Deploy review ─────────── */
 function DeployState({ onSign, onBack, networks, isConnected, error }) {
-  const { preview } = useDeploySma() // deploy seam — tx-preview fields (was mockDeploy)
+  const { preview } = useDeploySma() // deploy seam · tx-preview fields (was mockDeploy)
   const nets = networks?.length ? networks : [{ id: 'base', name: preview.network }]
   const multi = nets.length > 1
   return (
@@ -764,10 +764,10 @@ function ConfirmState({ progress }) {
   //   'building' | 'switching' → preparing the transaction
   //   'wallet'                 → waiting for a wallet signature (may happen
   //                              TWICE: Base's factory needs the two-step
-  //                              register path — deploy Safe, then registerAccount)
+  //                              register path · deploy Safe, then registerAccount)
   //   'confirming'             → tx broadcast, waiting to be mined
   //   'confirmed' | 'done'     → fully deployed + persisted
-  // ONLY 'confirmed'/'done' is real success — never claim success earlier, or
+  // ONLY 'confirmed'/'done' is real success · never claim success earlier, or
   // we hide the second signature the register path still needs.
   const done = progress === 'confirmed' || progress === 'done'
   const confirming = progress === 'confirming'
@@ -783,7 +783,7 @@ function ConfirmState({ progress }) {
     sub = 'Waiting for the transaction to be mined.'
   } else if (waitingSig) {
     headline = 'Check your wallet'
-    sub = 'Approve the transaction to continue. Base needs two signatures — a second prompt will follow.'
+    sub = 'Approve the transaction to continue. Base needs two signatures · a second prompt will follow.'
   }
 
   return (
@@ -909,7 +909,7 @@ function KeyIcon() {
   )
 }
 
-/* Monoline chain marks — abstract, brand-evocative, rendered white on
+/* Monoline chain marks · abstract, brand-evocative, rendered white on
    the blueprint tile (no provider colours leak in). */
 function ChainGlyph({ id }) {
   const c = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true }

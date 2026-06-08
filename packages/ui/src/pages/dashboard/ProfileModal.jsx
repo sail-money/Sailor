@@ -31,14 +31,14 @@ function ArrowOutIcon() {
 }
 
 /**
- * Account panel — EOA at the top, SMAs listed below.
+ * Account panel · EOA at the top, SMAs listed below.
  *
  * The new model: one EOA (the user's wallet, the source of identity)
  * can own multiple SMAs. The panel makes that hierarchy obvious by
  * leading with the EOA hero, then surfacing every SMA the EOA
  * controls as a sibling row.
  *
- * Network chip has been removed — chain context belongs on each
+ * Network chip has been removed · chain context belongs on each
  * individual SMA row, not on the EOA itself.
  */
 export default function ProfileModal({
@@ -105,7 +105,7 @@ export default function ProfileModal({
         aria-modal="true"
         aria-label="Account"
       >
-        {/* EOA hero — the user's wallet, the top of the hierarchy.
+        {/* EOA hero · the user's wallet, the top of the hierarchy.
             One EOA can manage many SMAs (listed below). */}
         <div className={styles.hero}>
           <div className={styles.avatarRing}>
@@ -138,7 +138,7 @@ export default function ProfileModal({
 
         <div className={styles.divider} />
 
-        {/* SMAs — every Separately Managed Account this EOA owns. */}
+        {/* SMAs · every Separately Managed Account this EOA owns. */}
         <section className={styles.smasSection}>
           <header className={styles.smasHead}>
             <span className={styles.smasKicker}>Separately Managed Accounts</span>
@@ -248,12 +248,12 @@ export default function ProfileModal({
                     </span>
                   </button>
 
-                  {/* Deposit/withdraw flows retired — depositing happens
+                  {/* Deposit/withdraw flows retired · depositing happens
                       by copying the SMA address above and sending from
                       any wallet. Withdrawal is removed from this surface
                       entirely; users perform it through the Safe app. */}
 
-                  {/* Safe App quick-link — opens this exact SMA in the
+                  {/* Safe App quick-link · opens this exact SMA in the
                       Safe interface on its home chain. Promoted to the
                       primary action now that deposit/withdraw are gone. */}
                   <a
@@ -287,7 +287,7 @@ export default function ProfileModal({
                   <span className={styles.smaNewBody}>
                     <span className={styles.smaNewTitle}>Create another SMA</span>
                     <span className={styles.smaNewSub}>
-                      Deploy a new Safe under this EOA — useful for separate strategies.
+                      Deploy a new Safe under this EOA · useful for separate strategies.
                     </span>
                   </span>
                 </button>

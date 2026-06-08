@@ -21,7 +21,7 @@ const STEP_LABEL = {
 
 /* Common ERC-20 / approval selectors offered as quick-insert chips for a
    bytes4[] field. Raw 4-byte function selectors, not a substitute for reading
-   the calldata — just a convenience so the user doesn't hand-compute them. */
+   the calldata · just a convenience so the user doesn't hand-compute them. */
 const COMMON_SELECTORS = [
   { sel: '0x095ea7b3', sig: 'approve(address,uint256)' },
   { sel: '0xa9059cbb', sig: 'transfer(address,uint256)' },
@@ -29,7 +29,7 @@ const COMMON_SELECTORS = [
 ]
 
 /* Validate one constructor input's raw string against its Solidity type.
-   Returns { value, error } — value is the coerced JS value to send (arrays for
+   Returns { value, error } · value is the coerced JS value to send (arrays for
    T[], string for scalars), error is a human message or null. */
 function validateInput(type, raw) {
   const s = (raw ?? '').trim()
@@ -56,7 +56,7 @@ function scalarError(type, v) {
   if (type.startsWith('uint') || type.startsWith('int')) return /^\d+$/.test(v) ? null : 'expected a whole number'
   if (type === 'bool') return /^(true|false|0|1|yes|no)$/i.test(v) ? null : 'expected true/false'
   if (type.startsWith('bytes')) return /^0x[0-9a-fA-F]*$/.test(v) ? null : 'expected 0x-hex'
-  return null // string et al — accept
+  return null // string et al · accept
 }
 
 /* A short, human label + hint for the known BoundedCallPermission inputs;
@@ -75,7 +75,7 @@ function fieldMeta(input) {
 }
 
 /**
- * Create mandate — authors a NEW permission contract in the browser and brings
+ * Create mandate · authors a NEW permission contract in the browser and brings
  * it on-chain end-to-end (deploy → register), all owner-signed (useCreateMandate).
  *
  * The form is driven by the chosen template's constructor inputs (raw fields):

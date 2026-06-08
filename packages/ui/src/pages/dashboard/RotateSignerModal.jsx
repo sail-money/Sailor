@@ -29,11 +29,11 @@ function WarningGlyph() {
 }
 
 /**
- * Manager-key rotation — rotates the SMA's delegated signer (the agent wallet).
+ * Manager-key rotation · rotates the SMA's delegated signer (the agent wallet).
  *
  * Drives the live, owner-signed flow (useRotateSigner): the owner submits
- * Safe.execTransaction(setManager) — which CLEARS every attached mandate
- * on-chain — then signs + submits the re-approval that re-binds those mandates
+ * Safe.execTransaction(setManager) · which CLEARS every attached mandate
+ * on-chain · then signs + submits the re-approval that re-binds those mandates
  * to the new signer. The whole flow stays on this surface; the owner's wallet is
  * the only thing that signs.
  */

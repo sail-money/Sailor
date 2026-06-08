@@ -11,14 +11,14 @@ import { useMockSigner } from '../../hooks/useMockSigner'
 import { submitMandate } from '../../data/sailorClient'
 
 /**
- * A read client PINNED to a specific chain — see the same note in useRotateSigner:
+ * A read client PINNED to a specific chain · see the same note in useRotateSigner:
  * wagmi's usePublicClient() can lag the connected chain after a switch, so we
  * build the client from the chain definition to guarantee receipts poll the
  * chain the tx was broadcast on.
  */
 function readsFor(chainId) {
   const chain = chains.find((c) => c.id === chainId)
-  if (!chain) throw new Error(`Unsupported chain ${chainId} — not in the wallet config.`)
+  if (!chain) throw new Error(`Unsupported chain ${chainId} · not in the wallet config.`)
   return createPublicClient({ chain, transport: http() })
 }
 
@@ -51,7 +51,7 @@ const chainName = (id) => CHAIN_NAMES[id] ?? `Chain ${id}`
 const shortHex = (h) => (h && h.length > 12 ? `${h.slice(0, 6)}…${h.slice(-4)}` : h ?? '')
 
 /**
- * Surface 4 — the pending-signing surface that replaces the standalone
+ * Surface 4 · the pending-signing surface that replaces the standalone
  * signing-station PAGE. Opened from the dashboard banner.
  *
  * Each item is a `SigningRequest` (see @sail/sdk/signing.ts): base
@@ -78,7 +78,7 @@ export default function PendingSigningModal({
   const { sendTransactionAsync, signTypedDataAsync } = useMockSigner()
   const { switchChainAsync } = useSwitchChain()
 
-  // Ensure the wallet is on the request's chain before signing — wagmi throws a
+  // Ensure the wallet is on the request's chain before signing · wagmi throws a
   // ChainMismatch if you send/sign for a chainId the wallet isn't on (e.g. the
   // request targets Base 8453 but the wallet is on Ethereum).
   const ensureChain = useCallback(async (chainId) => {
@@ -105,7 +105,7 @@ export default function PendingSigningModal({
     }
   }, [open, onClose])
 
-  // Only one signing op may be live at a time — disable the others while one
+  // Only one signing op may be live at a time · disable the others while one
   // is submitting/confirming/done (prevents simultaneous wallet prompts when live).
   const signingInProgress = phase.phase === 'submitting' || phase.phase === 'confirming' || phase.phase === 'done'
 
@@ -129,7 +129,7 @@ export default function PendingSigningModal({
           value: req.value ? BigInt(req.value) : 0n,
           chainId: req.chainId,
         })
-        // Await the receipt before reporting success — a broadcast tx can still
+        // Await the receipt before reporting success · a broadcast tx can still
         // revert on-chain, and relaying `signed` for a reverted tx would tell the
         // agent it was authorized when it wasn't. Mirrors useDeploySma/useRotateSigner.
         setPhase({ phase: 'confirming', requestId: req.id, kind: req.kind, txHash: hash })
@@ -270,7 +270,7 @@ export default function PendingSigningModal({
         )}
 
         <button type="button" className={styles.later} onClick={onClose}>
-          {count === 0 ? 'Close' : 'Review later — keep in notifications'}
+          {count === 0 ? 'Close' : 'Review later · keep in notifications'}
         </button>
       </GlassCard>
     </div>
@@ -284,7 +284,7 @@ function OperationCard({ request, phase, canSign, walletChain, otherActive, onSi
   const confirming = mine && phase.phase === 'confirming'
   const done = mine && phase.phase === 'done'
   const hasError = mine && phase.phase === 'error'
-  // Both submitting and confirming are "in flight" — lock the controls.
+  // Both submitting and confirming are "in flight" · lock the controls.
   const busy = submitting || confirming
   const wrongChain = canSign && walletChain != null && walletChain !== request.chainId
 
@@ -293,7 +293,7 @@ function OperationCard({ request, phase, canSign, walletChain, otherActive, onSi
   // Don't synthesize an Action row if the request already provides one.
   const hasActionDetail = (request.details ?? []).some((d) => /^action$/i.test(d.label))
 
-  // The technical payload behind the plain-English summary — typed-data message
+  // The technical payload behind the plain-English summary · typed-data message
   // or the raw transaction calldata. Must match the details[] above it.
   const calldata = isTyped
     ? JSON.stringify(
@@ -367,7 +367,7 @@ function OperationCard({ request, phase, canSign, walletChain, otherActive, onSi
       {hasError && <div className={`${styles.banner} ${styles.bannerDanger}`}>{phase.message}</div>}
       {wrongChain && (
         <div className={`${styles.banner} ${styles.bannerWarn}`}>
-          Wallet is on {chainName(walletChain)} — switch to {chainName(request.chainId)} to sign.
+          Wallet is on {chainName(walletChain)} · switch to {chainName(request.chainId)} to sign.
         </div>
       )}
 
@@ -415,7 +415,7 @@ function OperationCard({ request, phase, canSign, walletChain, otherActive, onSi
 }
 
 /* ────────── Mandate draft (GET /api/mandate-draft) ──────────
-   A draft is not yet a SigningRequest — it's the agent's proposed mandate,
+   A draft is not yet a SigningRequest · it's the agent's proposed mandate,
    reviewed item-by-item, signed once, then persisted via /api/mandate-submit. */
 function DraftCard({ draft, phase, disabled, canSign, onSign }) {
   const submitting = phase.phase === 'submitting'
@@ -433,7 +433,7 @@ function DraftCard({ draft, phase, disabled, canSign, onSign }) {
       <h3 className={`${shared.displayHeadline} ${styles.itemTitle}`}>Review your new mandate</h3>
       <p className={styles.itemDesc}>
         Each line is one permission your agent will hold under this mandate. Signing authorizes the
-        whole set — nothing outside it.
+        whole set · nothing outside it.
       </p>
 
       <ul className={styles.draftItems}>

@@ -1636,40 +1636,6 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
   })
 
-  // GET /api/wizard-state — current wizard progress, or null.
-  app.get('/api/wizard-state', (_req, res) => {
-    try {
-      const raw = fs.readFileSync(at('.wizard-state.json'), 'utf-8')
-      res.json(JSON.parse(raw))
-    } catch {
-      res.json(null)
-    }
-  })
-
-  // POST /api/wizard-state — persist the wizard progress object.
-  app.post('/api/wizard-state', (req, res) => {
-    try {
-      fs.mkdirSync(sailDir, { recursive: true })
-      fs.writeFileSync(at('.wizard-state.json'), `${JSON.stringify(req.body, null, 2)}\n`)
-      res.json({ ok: true })
-    } catch (err) {
-      res.status(500).json({ error: String(err) })
-    }
-  })
-
-  // GET /api/positions — latest vault positions snapshot for the active SMA.
-  // Written by the agent at state/positions-<chainId>.json after each tick.
-  app.get('/api/positions', (_req, res) => {
-    try {
-      const account = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
-      const chainId = account?.chainId ?? 8453
-      const file = at(`state/positions-${chainId}.json`)
-      res.json(JSON.parse(fs.readFileSync(file, 'utf-8')))
-    } catch {
-      res.status(404).json({ error: 'no positions snapshot' })
-    }
-  })
-
   // GET /api/overview — the consolidated, local-first monitoring view:
   //   • the SMA (from account.json), confirmed against the kernel on-chain
   //   • the mandates currently attached on-chain (getPermissions), enriched

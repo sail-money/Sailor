@@ -43,7 +43,7 @@ import RotateSignerModal from './RotateSignerModal'
 import FundModal from './FundModal'
 
 /* ──────────────────────────────────────────────────────────────
-   Data bridges — the studio SMA/mandate shape (sail_framework_1.1)
+   Data bridges · the studio SMA/mandate shape (sail_framework_1.1)
    differs from the one demo-2's ProfileModal + ContractModal were
    built against. Rather than rewriting either component, we map
    the local shape into their expected shape at the wiring site so
@@ -56,7 +56,7 @@ const chainName = (id) => CHAIN_NAMES[Number(id)] ?? (id ? `Chain ${id}` : '')
 /** ProfileModal expects an array of `safes` with id/name/address/
  *  network/networks/mandateCount/createdAt. Build it from the FULL accounts
  *  list (state/accounts.json via /api/accounts) so every SMA the owner has
- *  shows and is selectable — not just the active one. The active SMA is
+ *  shows and is selectable · not just the active one. The active SMA is
  *  enriched with the live overview's chain + mandate count; the others use
  *  what's recorded locally (name, chainId). */
 function buildSafesForProfile(accounts, activeSma, mandates) {
@@ -111,7 +111,7 @@ function asContractMandate(m, sma) {
 }
 
 /* ──────────────────────────────────────────────────────────────
-   LIVE adapters — map the real on-chain data (sailorClient:
+   LIVE adapters · map the real on-chain data (sailorClient:
    getOverview/getAccount) into the studio-shaped records the
    render body was built against. Journal/agents/ownerProfile stay
    on the studio (mock) seam; SMA card, gas balances, and mandate
@@ -145,7 +145,7 @@ const STATUS_LABEL = {
 function statusLabel(status) { return STATUS_LABEL[status] ?? 'Not funded' }
 
 /** Pill class per funding state. Funded=blue; low=blue (act-on-me);
- *  empty=coral (zero — needs gas before it can run). */
+ *  empty=coral (zero · needs gas before it can run). */
 function statusPillClass(status) {
   if (status === 'low') return styles.gasPillLow
   if (status === 'empty') return styles.gasPillEmpty
@@ -173,7 +173,7 @@ function fromSigner(overview, account, role) {
 }
 
 /** Resolve the SMA's creation DATE from its `createdAtBlock` (account.json has
- *  no timestamp — only the block). One light RPC read via the chain's default
+ *  no timestamp · only the block). One light RPC read via the chain's default
  *  endpoint; returns '' on any failure so the chip just stays empty. */
 async function fetchCreatedDate(chainId, blockNumber) {
   try {
@@ -196,8 +196,8 @@ function capitalizeWord(s) {
 
 /** Footer hint copy per funding state. */
 function fundHint(status) {
-  if (status === 'empty') return 'Not funded — top up to run.'
-  if (status === 'low') return 'Low balance — top up to keep running.'
+  if (status === 'empty') return 'Not funded · top up to run.'
+  if (status === 'low') return 'Low balance · top up to keep running.'
   return null
 }
 
@@ -260,7 +260,7 @@ function buildLiveMandates(overview) {
   }))
 }
 
-/** Mandate list filters — mirrors the activity actor switcher. */
+/** Mandate list filters · mirrors the activity actor switcher. */
 const MANDATE_FILTERS = [
   { id: 'all',     label: 'All' },
   { id: 'active',  label: 'Active' },
@@ -269,7 +269,7 @@ const MANDATE_FILTERS = [
 ]
 
 /**
- * Dashboard — local-UI dashboard for an AI-managed SMA.
+ * Dashboard · local-UI dashboard for an AI-managed SMA.
  *
  * Anchored on the data the protocol + framework actually expose
  * (the studio seam mirrors `sail_framework_1.1` 1:1). The visual
@@ -283,7 +283,7 @@ export default function Dashboard() {
   // anchor + the only key that can authorize anything. Mock today; wagmi later.
   const wallet = useOwnerWallet()
   const { isConnected } = wallet
-  // Revoke seam — owner-signed, owner-submitted kernel.revokePermissions.
+  // Revoke seam · owner-signed, owner-submitted kernel.revokePermissions.
   const { revoke: revokePermission } = useRevokePermission()
 
   // ── Live on-chain load state ──
@@ -294,11 +294,11 @@ export default function Dashboard() {
   const [overview, setOverview] = useState(null)
   const [account, setAccount] = useState(null)
   // Every SMA the owner has (state/accounts.json), so the profile menu can
-  // list + switch between them — not just the active one.
+  // list + switch between them · not just the active one.
   const [accounts, setAccounts] = useState([])
 
   // Recent activity is LIVE (GET /api/activity). Owner profile stays on the
-  // studio (mock) seam — no live endpoint for it.
+  // studio (mock) seam · no live endpoint for it.
   const [journal, setJournal] = useState([])
   const [ownerProfile, setOwnerProfile] = useState(null)
   useEffect(() => {
@@ -322,7 +322,7 @@ export default function Dashboard() {
     try {
       ob = await getOnboardState()
     } catch {
-      // Couldn't reach the server — DON'T assume "no account" (that would bounce
+      // Couldn't reach the server · DON'T assume "no account" (that would bounce
       // a real user into onboarding). Mark it unknown so the redirect holds off.
       ob = { hasAccount: false, unknown: true }
     }
@@ -385,7 +385,7 @@ export default function Dashboard() {
     try {
       const ov = await getOverview({ fresh })
       if (ov) setOverview(ov)
-    } catch { /* transient — keep the last known overview rather than blanking */ }
+    } catch { /* transient · keep the last known overview rather than blanking */ }
   }, [])
 
   // Derive the studio-shaped records the render body reads from LIVE data.
@@ -396,14 +396,14 @@ export default function Dashboard() {
   // Keep balances live without a manual reconnect. loadLive only runs on
   // mount/connect, so without this the dashboard would freeze its balances until
   // the user disconnected/reconnected. Poll on a light interval (cached path),
-  // and force a FRESH on-chain read whenever the tab regains focus — e.g. the
+  // and force a FRESH on-chain read whenever the tab regains focus · e.g. the
   // user just funded a wallet in another window and switches back.
   useEffect(() => {
     if (!hasAccount) return undefined
     // Passive: a light overview poll every 15s keeps balances trickling in.
     const id = setInterval(() => refreshOverview({ fresh: false }), 15_000)
     // Active: when the user returns to the tab (e.g. after funding/signing in
-    // their wallet), do a FULL fresh reload — the exact thing a reconnect does,
+    // their wallet), do a FULL fresh reload · the exact thing a reconnect does,
     // so they never have to disconnect/reconnect to see current state.
     const onFocus = () => loadLive()
     const onVisible = () => { if (document.visibilityState === 'visible') loadLive() }
@@ -420,7 +420,7 @@ export default function Dashboard() {
   // the new design's onboarding wizard (the Signing page). It drives the real
   // deploy and returns to #/dashboard, where loadLive flips hasAccount true.
   useEffect(() => {
-    // Only redirect when we DEFINITIVELY know there's no account — never on a
+    // Only redirect when we DEFINITIVELY know there's no account · never on a
     // transient load failure (onboard.unknown), which would falsely eject a
     // real user with an SMA into onboarding.
     if (isConnected && onboard && !onboard.hasAccount && !onboard.unknown) {
@@ -431,11 +431,11 @@ export default function Dashboard() {
   // ── Pending signing queue (Surface 4) ── sourced from the seam
   // (GET /api/station/pending), polled ~3s, mirroring Sailor's useSailorPending.
   // These are SigningRequest[] (@sail/sdk/signing.ts), NOT the old dashboard
-  // mandate shape — the signing surface standardizes on the real protocol type.
+  // mandate shape · the signing surface standardizes on the real protocol type.
   const [pending, setPending] = useState([])
   const [mandateDraft, setMandateDraft] = useState(null)
 
-  // The signing channel — bridge between the agent/CLI and the Owner's wallet
+  // The signing channel · bridge between the agent/CLI and the Owner's wallet
   // (replaces the standalone station page). When the daemon resolves a request
   // it echoes `request-resolved`; drop it from local state so the banner clears.
   const handleChannelMessage = useCallback((msg) => {
@@ -461,7 +461,7 @@ export default function Dashboard() {
         if (!alive) return
         setPending(reqs)
         setMandateDraft(draft)
-      } catch { /* transient — keep last known queue */ }
+      } catch { /* transient · keep last known queue */ }
     }
     tick()
     pollRef.current = setInterval(tick, 3000)
@@ -487,17 +487,17 @@ export default function Dashboard() {
   // SMA profile menu (reincorporated from demo-2).
   const [profileOpen, setProfileOpen] = useState(false)
   // In-dashboard "Create new SMA" flow.
-  // Pending signatures modal — opened from the announcement bar.
+  // Pending signatures modal · opened from the announcement bar.
   // Shows the queue of operations the user's AI has drafted and is
   // waiting for the user to sign. Drilling into any item opens the
   // mandate as a contract document. Replaces the previous
   // "router.push('/signing')" jump-out so the user stays on the
   // dashboard while triaging the queue.
   const [signingOpen, setSigningOpen] = useState(false)
-  // Manager-key rotation surface — opens from the agent (Manager) wallet card.
+  // Manager-key rotation surface · opens from the agent (Manager) wallet card.
   const [rotateOpen, setRotateOpen] = useState(false)
   // Manual hard-refresh (the header "resync" control). A full page reload is the
-  // nuclear option that guarantees fresh data + latest code — no reconnect dance.
+  // nuclear option that guarantees fresh data + latest code · no reconnect dance.
   const [resyncing, setResyncing] = useState(false)
   const hardRefresh = useCallback(async () => {
     setResyncing(true)
@@ -507,10 +507,10 @@ export default function Dashboard() {
         const keys = await caches.keys()
         await Promise.all(keys.map((k) => caches.delete(k)))
       }
-    } catch { /* no Cache API — fine */ }
+    } catch { /* no Cache API · fine */ }
     window.location.reload()
   }, [])
-  // Fund (receive ETH) surface — opens from the SMA hero + operator wallet cards.
+  // Fund (receive ETH) surface · opens from the SMA hero + operator wallet cards.
   // null when closed, else { kind, label, role, address, chain }.
   const [fundTarget, setFundTarget] = useState(null)
   // Local copy so we can flip an active mandate to revoked without
@@ -556,7 +556,7 @@ export default function Dashboard() {
       <FluidBackground />
 
       {/* ── Top bar ──
-          Reads "[Sai] / SAIL LOCAL DASHBOARD" — the slash is the
+          Reads "[Sai] / SAIL LOCAL DASHBOARD" · the slash is the
           breadcrumb tick the user asked for, an explicit beat
           between the brand mark and the surface name. */}
       <header className={styles.header}>
@@ -564,7 +564,7 @@ export default function Dashboard() {
           type="button"
           className={styles.brand}
           onClick={() => { window.scrollTo({ top: 0 }); window.location.hash = '#/dashboard'; window.location.reload() }}
-          aria-label="Sail dashboard — refresh"
+          aria-label="Sail dashboard · refresh"
           title="Refresh dashboard"
         >
           <span className={styles.brandWrap}>
@@ -578,13 +578,13 @@ export default function Dashboard() {
         </button>
 
         <div className={styles.topActionsPill}>
-          {/* Manual hard-refresh — "resync". Re-pulls on-chain state (and the
+          {/* Manual hard-refresh · "resync". Re-pulls on-chain state (and the
               latest build) with one click, so balances never look stale. */}
           <button
             type="button"
             className={styles.resyncBtn}
             onClick={hardRefresh}
-            title="$ resync — hard refresh, re-pull on-chain state"
+            title="$ resync · hard refresh, re-pull on-chain state"
             aria-label="Resync: hard refresh the dashboard"
           >
             <span className={`${styles.resyncGlyph} ${resyncing ? styles.resyncGlyphSpin : ''}`} aria-hidden>
@@ -632,7 +632,7 @@ export default function Dashboard() {
 
       <main className={agentStyles.main}>
         {!isConnected ? (
-          // (a) Wallet not connected — the connect gate.
+          // (a) Wallet not connected · the connect gate.
           <ConnectGate onConnect={wallet.connect} />
         ) : onboard == null ? (
           // (b) Connected, but the live onboard state hasn't loaded yet.
@@ -655,7 +655,7 @@ export default function Dashboard() {
         )}
 
         {/* ── SMA title block ──
-            The SMA *is* the Safe — there's no daylight between "this
+            The SMA *is* the Safe · there's no daylight between "this
             account" and "your funds". So the title section doubles as
             the SMA balance card: native ETH balance, Funded/Low pill,
             address with copy + explorer, and the chain/created meta.
@@ -668,7 +668,7 @@ export default function Dashboard() {
                 Separately Managed Account
                 <InfoTip label="What is an SMA?" side="bottom">
                   A Separately Managed Account is a self-custody smart account (a Safe) that
-                  your AI agents operate inside. You own it outright — Sail and the AI only
+                  your AI agents operate inside. You own it outright · Sail and the AI only
                   ever act within the limits you sign. It&rsquo;s deployed once and bound to one chain.
                 </InfoTip>
               </span>
@@ -750,7 +750,7 @@ export default function Dashboard() {
               <InfoTip label="What is the session?" side="bottom">
                 The session is the kernel&rsquo;s master switch for this account. When
                 <strong> active</strong>, your agent can execute actions within its mandates;
-                when <strong>paused</strong>, every dispatch is blocked on-chain — a one-flag
+                when <strong>paused</strong>, every dispatch is blocked on-chain · a one-flag
                 kill switch. A new SMA starts paused; resume it (you sign) to let the agent run.
               </InfoTip>
             </span>
@@ -759,7 +759,7 @@ export default function Dashboard() {
           {/* ── In-hero quick links ── DeBank + Safe.
               Plain, logo-free links out to the two places users inspect the
               account from outside: portfolio view (DeBank) and custody
-              management (Safe). No third-party brand marks — just labelled
+              management (Safe). No third-party brand marks · just labelled
               links bound to the SMA they act on. */}
           <div className={styles.smaHeroLinks}>
             <a
@@ -791,13 +791,13 @@ export default function Dashboard() {
           {/* ── Network / RPC ──
               The chain connection lives on the account it serves. Compact
               readout (endpoint + chain + health) by default; Edit expands the
-              onboarding-style provider picker. Single source of truth — moved
+              onboarding-style provider picker. Single source of truth · moved
               out of Settings. Maps to /api/onboard/* via sailorClient. */}
           <RpcSection />
           <AutomationSection />
         </section>
 
-        {/* ── Agent wallets — operational gas balances ──
+        {/* ── Agent wallets · operational gas balances ──
             Only the wallets the user has to top up themselves: the
             Agent wallet that pays per-dispatch gas, and the Owner EOA
             that signs mandate changes. The SMA's balance lives in the
@@ -811,8 +811,8 @@ export default function Dashboard() {
               <span className={styles.sectionName}>Your wallets</span>
               <InfoTip label="What are your wallets?">
                 The two wallets that run your account. The <strong>Manager</strong> is your
-                agent&rsquo;s wallet — it submits each action and pays gas. The <strong>Owner</strong>
-                is your own wallet — it holds the Safe and signs mandate changes. Keep both
+                agent&rsquo;s wallet · it submits each action and pays gas. The <strong>Owner</strong>
+                is your own wallet · it holds the Safe and signs mandate changes. Keep both
                 funded with a little ETH for gas.
               </InfoTip>
             </h2>
@@ -836,12 +836,12 @@ export default function Dashboard() {
           </div>
         </section>
 
-        {/* ── Your mandates — simplified list ──
+        {/* ── Your mandates · simplified list ──
             Each mandate is one row: LLM brand mark · name · address ·
             expand. Expand reveals the LLM-written brief and the three
             actions: Revoke (opens the contract revoke animation),
             Check on chain (block explorer), Edit (opens an info-only
-            redraft modal). Modelled after the permissions list — the
+            redraft modal). Modelled after the permissions list · the
             row stays calm; everything dense lives behind the chevron. */}
         <section className={styles.mandatesSection} aria-label="Your mandates">
           <header className={styles.mandatesSectionHead}>
@@ -851,14 +851,14 @@ export default function Dashboard() {
               <span className={styles.sectionName}>Your mandates</span>
               <InfoTip label="What is a mandate?">
                 A mandate is a permission contract registered on-chain that bounds exactly what
-                your agent may do — which contracts it can call, which functions, and within
+                your agent may do · which contracts it can call, which functions, and within
                 what limits. Your agent can never act outside its mandates, and you can revoke
                 one at any time.
               </InfoTip>
             </h2>
-            {/* Active / Revoked / Expired / All switcher — mirrors the
+            {/* Active / Revoked / Expired / All switcher · mirrors the
                 activity filter. Mandate CREATION is intentionally NOT a button
-                here — new mandates are authored through the AI chat (the
+                here · new mandates are authored through the AI chat (the
                 origination flow), which drives the deploy+register engine
                 (useCreateMandate). The dashboard only reflects + manages them. */}
             <div className={styles.actSwitcher} role="tablist" aria-label="Filter mandates by status">
@@ -905,9 +905,9 @@ export default function Dashboard() {
         </section>
 
         {/* ── Recent activity ──
-            Each row expands inline to reveal the actor's processing —
+            Each row expands inline to reveal the actor's processing ·
             the manager's reasoning + evidence, or the owner's signed
-            action — plus an on-chain link when there's a real artifact.
+            action · plus an on-chain link when there's a real artifact.
             Filterable by actor (All / Manager / Owner) with a Load-more
             pager. No navigation away; everything stays on this surface. */}
         <RecentActivity journal={journal} chain={sma.chain} />
@@ -938,7 +938,7 @@ export default function Dashboard() {
         onRevoke={async (permission, onStatus) => {
           // REAL revoke: owner signs RevokePermissions + submits
           // kernel.revokePermissions from their wallet. Resolves only when the
-          // tx confirms — the modal plays its stamp on success and re-throws to
+          // tx confirms · the modal plays its stamp on success and re-throws to
           // its own error state on failure. We refresh live data so the row
           // flips to Revoked from on-chain truth (getPermissions), not a guess.
           await revokePermission({
@@ -953,7 +953,7 @@ export default function Dashboard() {
       {/* ── Pending signing surface (Surface 4) ──
           Opens from the announcement bar / bell. Renders each pending
           SigningRequest (from GET /api/station/pending) as a reviewable
-          contract — kind, summary, details, and a calldata reveal — and
+          contract · kind, summary, details, and a calldata reveal · and
           wires Authorize/Reject through the signing channel + Owner wallet.
           Replaces the standalone signing-station PAGE; the daemon bridge
           (channel) stays. A mandate draft, when present, is surfaced here too. */}
@@ -1021,7 +1021,7 @@ export default function Dashboard() {
 /* ────────── Mandate row ──────────
    Collapsed: brand mark + name + address + chevron.
    Expanded: LLM-written brief + three actions (Revoke / Check on
-   chain / Edit). Modeled after the permissions list — the row is
+   chain / Edit). Modeled after the permissions list · the row is
    quiet by default and reveals detail behind the chevron. */
 function MandateRow({ mandate, chain, onView, onRevoke, onEdit }) {
   const [open, setOpen] = useState(false)
@@ -1050,7 +1050,7 @@ function MandateRow({ mandate, chain, onView, onRevoke, onEdit }) {
         aria-expanded={open}
       >
         {/* Leading mascot. A drafted mandate shows its LLM brand mark; an
-            on-chain permission flies Sai — animated when active (alive),
+            on-chain permission flies Sai · animated when active (alive),
             static + desaturated when revoked/expired. Vertically centered
             against the title+subtitle block by the row's align-items. */}
         {mandate.drafter ? (
@@ -1099,7 +1099,7 @@ function MandateRow({ mandate, chain, onView, onRevoke, onEdit }) {
         aria-hidden={!open}
       >
         <div className={styles.mandateRowDetailInner}>
-          {/* Block 1 — recital + provenance, framed as a quote
+          {/* Block 1 · recital + provenance, framed as a quote
               card with a left blue rail. */}
           {(mandate.brief || mandate.drafter || mandate.signedAt) ? (
             <>
@@ -1130,7 +1130,7 @@ function MandateRow({ mandate, chain, onView, onRevoke, onEdit }) {
             </>
           ) : null}
 
-          {/* Block 2 — onchain meta. Address as a wide blueprint
+          {/* Block 2 · onchain meta. Address as a wide blueprint
               chip + status pinned right. Mono throughout. */}
           <section className={styles.mandateOnchainBlock}>
             <span className={styles.mandateBlockEyebrow}>ONCHAIN /</span>
@@ -1158,7 +1158,7 @@ function MandateRow({ mandate, chain, onView, onRevoke, onEdit }) {
 
           <div className={styles.mandateBlockDivider} aria-hidden />
 
-          {/* Actions toolbar — no eyebrow. The dotted divider above
+          {/* Actions toolbar · no eyebrow. The dotted divider above
               + VIEW CONTRACT's filled blue weight already mark this
               as the action band; a separate ACTIONS / label was
               labelling-for-labelling's-sake. */}
@@ -1206,7 +1206,7 @@ function MandateRow({ mandate, chain, onView, onRevoke, onEdit }) {
 }
 
 /* ────────── Edit modal ──────────
-   Informational only. No "Open in {LLM}" CTA — just the prompt the
+   Informational only. No "Open in {LLM}" CTA · just the prompt the
    user should send their AI, with copy-to-clipboard. Mirrors the
    tone of demo-2's AI handoff modal but stays in this surface
    instead of bouncing the user out. */
@@ -1308,8 +1308,8 @@ function PendingBanner({ count, onReview }) {
 /* ────────── Gas card ──────────
    Visual architecture: every card in the grid is geometrically
    identical regardless of status. The footer slot at the bottom
-   always renders — Low shows the refill CTA, Funded shows a quiet
-   mono status line — so the two cards never disagree on height.
+   always renders · Low shows the refill CTA, Funded shows a quiet
+   mono status line · so the two cards never disagree on height.
    Address row sits on a flex spacer so it floats to the same
    baseline whether the description is one line or two. */
 function GasCard({ wallet, chain, primary, onRotate, onFund }) {
@@ -1331,7 +1331,7 @@ function GasCard({ wallet, chain, primary, onRotate, onFund }) {
           {wallet.label}
           <InfoTip label={`What is the ${wallet.label}?`}>
             {primary === 'owner'
-              ? 'Your own wallet — the custody anchor. It owns the Safe and is the only key that can authorize mandates or resume/pause the session. It only needs a little ETH for the occasional signature.'
+              ? 'Your own wallet · the custody anchor. It owns the Safe and is the only key that can authorize mandates or resume/pause the session. It only needs a little ETH for the occasional signature.'
               : 'Your agent’s wallet (the dispatcher). It submits every on-chain action your agent takes and pays the gas. Keep it topped up so runs don’t stall.'}
           </InfoTip>
         </span>
@@ -1341,7 +1341,7 @@ function GasCard({ wallet, chain, primary, onRotate, onFund }) {
         </span>
       </header>
 
-      {/* Balance — mono console readout. */}
+      {/* Balance · mono console readout. */}
       <div className={styles.gasBalanceRow}>
         <span className={styles.gasBalance}>{fmtEth(wallet.balanceEth)}</span>
         <span className={styles.gasUnit}>ETH</span>
@@ -1349,7 +1349,7 @@ function GasCard({ wallet, chain, primary, onRotate, onFund }) {
 
       <p className={styles.gasDesc}>{wallet.description}</p>
 
-      {/* Address strip — pushed to the bottom via .gasAddrRow flex
+      {/* Address strip · pushed to the bottom via .gasAddrRow flex
           rule so it lands at the same y in both cards. */}
       <div className={styles.gasAddrRow}>
         <button
@@ -1388,13 +1388,13 @@ function GasCard({ wallet, chain, primary, onRotate, onFund }) {
         )}
       </div>
 
-      {/* Footer slot — always rendered, fixed geometry. Low gets
+      {/* Footer slot · always rendered, fixed geometry. Low gets
           the refill CTA; Funded gets a quiet "in good standing"
           mono line. Both occupy the same vertical footprint so
           the two cards stay coplanar. */}
       {/* One consistent footer in every state: a quiet status readout + a
           calm Fund link. Urgency is carried by the status pill above, not by
-          a big button — same clean treatment across SMA, Manager, Owner. */}
+          a big button · same clean treatment across SMA, Manager, Owner. */}
       <div className={styles.gasFooter}>
         <span className={styles.gasFooterStatus}>
           <span
@@ -1419,7 +1419,7 @@ function GasCard({ wallet, chain, primary, onRotate, onFund }) {
    owner's signed action) and a link to the onchain artifact when one
    exists. Replaces the old "route to /journal" rows. */
 
-/** Which actor drove this event — the manager (the agent/dispatcher)
+/** Which actor drove this event · the manager (the agent/dispatcher)
  *  or the owner (the EOA that signs). Sail-runtime/system events fall
  *  through to neither and only appear under "All". */
 /** Map raw /api/activity events (append-only jsonl) to the row shape the
@@ -1595,7 +1595,7 @@ function ActivityRow({ entry: e, chain, open, onToggle }) {
 
       <div className={`${styles.actDetail} ${open ? styles.actDetailOpen : ''}`} aria-hidden={!open}>
         <div className={styles.actDetailInner}>
-          {/* Processing — the manager's reasoning, or the owner's note. */}
+          {/* Processing · the manager's reasoning, or the owner's note. */}
           {e.detail?.reasoning && (
             <div className={styles.actBlock}>
               <span className={styles.actBlockLabel}>
@@ -1605,7 +1605,7 @@ function ActivityRow({ entry: e, chain, open, onToggle }) {
             </div>
           )}
 
-          {/* Evidence — the structured k/v the actor logged. */}
+          {/* Evidence · the structured k/v the actor logged. */}
           {e.detail?.evidence?.length > 0 && (
             <div className={styles.actBlock}>
               <span className={styles.actBlockLabel}>EVIDENCE /</span>
@@ -1620,7 +1620,7 @@ function ActivityRow({ entry: e, chain, open, onToggle }) {
             </div>
           )}
 
-          {/* Footer — role chip + onchain link when there's an artifact. */}
+          {/* Footer · role chip + onchain link when there's an artifact. */}
           <div className={styles.actDetailFoot}>
             <span className={`${styles.actRoleChip} ${styles[`actRoleChip_${role}`] ?? ''}`}>
               <span className={styles.actRoleDot} aria-hidden />

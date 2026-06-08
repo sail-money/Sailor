@@ -498,19 +498,6 @@ export async function getActivity() {
   return settle(mock.activity.map((e) => ({ ...e })))
 }
 
-/** GET /api/positions — { positions[], updatedAt } for the active SMA's chain. */
-export async function getPositions() {
-  if (USE_LIVE) return api('/positions')
-  return settle({ ...mock.positions, positions: mock.positions.positions.map((p) => ({ ...p })) })
-}
-
-/** GET /api/mandate — the live signed mandate (mandate.json), or null. */
-export async function getMandate() {
-  if (USE_LIVE) return api('/mandate')
-  if (!mock.mandate) return settle(null)
-  return settle({ ...mock.mandate, permissions: mock.mandate.permissions.map((p) => ({ ...p })) })
-}
-
 /** GET /api/agent-status — is the agent running, and from where. */
 export async function getAgentStatus() {
   if (USE_LIVE) return api('/agent-status')
@@ -545,10 +532,3 @@ export async function submitMandate({ signature, signedAt } = {}) {
   return settle({ ok: true, signedAt: signedAt ?? new Date().toISOString() })
 }
 
-/* Test-only: lets the mockup resolve a pending request (remove it from the
-   queue) so Authorize/Reject visibly clears the banner. No live equivalent —
-   the daemon emits `request-resolved` over the socket instead. */
-export function _mockResolvePending(id) {
-  const i = mock.pending.findIndex((r) => r.id === id)
-  if (i >= 0) mock.pending.splice(i, 1)
-}

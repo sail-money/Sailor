@@ -15,18 +15,18 @@ import {
 } from '../../data/permissionsRegistry'
 
 /**
- * The Mandate — the View Details surface presented as a formal
+ * The Mandate · the View Details surface presented as a formal
  * legal-style contract document.
  *
  * Sections:
- *   1. Header — kicker, contract title, parties, date drafted by AI.
- *   2. Recitals — friendly human-readable summary.
- *   3. Article I  — Parties (Owner EOA, SMA, Delegated Agent).
- *   4. Article II — Scope (networks, assets, protocols).
- *   5. Article III — Limits (spending cap, time limit).
- *   6. Article IV — Permitted actions (numbered).
- *   7. Article V  — Reservation of rights (revocation, pause).
- *   8. Signature block — two columns, AI counter-signer + user signer.
+ *   1. Header · kicker, contract title, parties, date drafted by AI.
+ *   2. Recitals · friendly human-readable summary.
+ *   3. Article I  · Parties (Owner EOA, SMA, Delegated Agent).
+ *   4. Article II · Scope (networks, assets, protocols).
+ *   5. Article III · Limits (spending cap, time limit).
+ *   6. Article IV · Permitted actions (numbered).
+ *   7. Article V  · Reservation of rights (revocation, pause).
+ *   8. Signature block · two columns, AI counter-signer + user signer.
  *
  * Authorize & Sign paints the user's EOA into the signature line in a
  * formal monospace, with a timestamp and a small "signed onchain"
@@ -45,9 +45,9 @@ export default function ContractModal({
   readOnly = false,
   signedDate = null,
   /* mode controls the contract surface's purpose:
-       'sign'   — drafting flow (default). Preview → signing → signed.
-       'view'   — read-only signed contract (implied by readOnly).
-       'revoke' — revocation flow. Opens on signed contract,
+       'sign'   · drafting flow (default). Preview → signing → signed.
+       'view'   · read-only signed contract (implied by readOnly).
+       'revoke' · revocation flow. Opens on signed contract,
                   destructive footer, plays a stamp animation. */
   mode = 'sign',
 }) {
@@ -56,7 +56,7 @@ export default function ContractModal({
   // preview → signing → signed (sign mode)
   // preview → revoking → revoked (revoke mode)
   // signed (view mode, immediate)
-  // Wallet seam — owner address + the SMAs this owner controls (was mockWallet / mockSafes).
+  // Wallet seam · owner address + the SMAs this owner controls (was mockWallet / mockSafes).
   const { address: ownerAddress } = useOwnerWallet()
   const { primary: primarySafe } = useOwnerSafes()
   const [phase, setPhase] = useState('preview')
@@ -73,15 +73,15 @@ export default function ContractModal({
   const phaseRef = useRef(phase)
   phaseRef.current = phase
   // Scroll the modal's article container to the signature block when
-  // the user authorizes from above the fold — guarantees they see the
+  // the user authorizes from above the fold · guarantees they see the
   // signature animation rather than missing it off-screen.
   const sigBlockRef = useRef(null)
   const docRef = useRef(null)
 
   useEffect(() => {
     if (!open) return
-    // View mode: contract is already signed — render signed state.
-    // Revoke mode: contract is signed but live — render in preview
+    // View mode: contract is already signed · render signed state.
+    // Revoke mode: contract is signed but live · render in preview
     //   (signed sig painted, destructive footer), wait for user.
     // Sign mode: blank preview, awaiting authorization.
     if (effectiveMode === 'view') {
@@ -99,7 +99,7 @@ export default function ContractModal({
     document.body.style.overflow = 'hidden'
     const onKey = (e) => {
       // Lock close while signing, submitting a revoke, or playing the revoke
-      // animation — the wallet flow / animation must finish. Reads phaseRef so
+      // animation · the wallet flow / animation must finish. Reads phaseRef so
       // it never closes on a stale phase.
       const p = phaseRef.current
       if (e.key === 'Escape' && p !== 'signing' && p !== 'submitting' && p !== 'revoking' && p !== 'revoked') onClose?.()
@@ -118,20 +118,20 @@ export default function ContractModal({
     // see the signature animation rather than staring at the article
     // body while it plays off-screen. We scroll the modal's own
     // scroll container (the .doc element) rather than calling
-    // scrollIntoView — which can fail to bubble correctly inside a
-    // flex column on some browsers — so the behavior is deterministic.
+    // scrollIntoView · which can fail to bubble correctly inside a
+    // flex column on some browsers · so the behavior is deterministic.
     const sig = sigBlockRef.current
     const doc = docRef.current
     if (sig && doc) {
       const target = Math.max(0, sig.offsetTop - (doc.clientHeight - sig.clientHeight) / 2)
-      // Smooth scroll via rAF tween — `scrollTo({behavior:'smooth'})`
+      // Smooth scroll via rAF tween · `scrollTo({behavior:'smooth'})`
       // gets cancelled mid-flight by the imminent phase re-render,
       // so we drive the animation ourselves over ~360ms with an
       // ease-out curve. Lands the user on the signature block
       // before the signing animation starts.
       smoothScrollTo(doc, target, 360)
     }
-    // Brief beat so the scroll lands before the animation starts —
+    // Brief beat so the scroll lands before the animation starts ·
     // the user's eye arrives, then the signature begins to paint.
     setTimeout(() => setPhase('signing'), 280)
     setTimeout(() => {
@@ -147,14 +147,14 @@ export default function ContractModal({
     onAuthorize?.(mandate.id)
   }
 
-  /* Revocation flow — REAL on-chain removal, not theater. The owner signs an
+  /* Revocation flow · REAL on-chain removal, not theater. The owner signs an
      EIP-712 RevokePermissions authorization and submits kernel.revokePermissions
      from their wallet (see onRevoke → useRevokePermission). The celebratory
      REVOKED stamp only plays once the tx has actually confirmed, so the surface
      never claims a revocation that didn't happen.
-       click   : phase → 'submitting' — footer shows live wallet/tx status.
+       click   : phase → 'submitting' · footer shows live wallet/tx status.
        confirmed: scroll to signature block + phase → 'revoking' (stamp descends)
-       +360ms  : phase → 'revoked' — stamp lands; caption fades in.
+       +360ms  : phase → 'revoked' · stamp lands; caption fades in.
        +3200ms : modal tears down via onClose.
        error   : phase → 'preview' with the failure surfaced in the footer. */
   async function revoke() {
@@ -165,7 +165,7 @@ export default function ContractModal({
       // onRevoke performs the live flow and resolves only when the on-chain tx
       // confirms; it streams progress through the status callback.
       await onRevoke?.(mandate.id, (s) => setRevokeStatus(s))
-      // Confirmed on-chain — now play the stamp.
+      // Confirmed on-chain · now play the stamp.
       const sig = sigBlockRef.current
       const doc = docRef.current
       if (sig && doc) {
@@ -231,7 +231,7 @@ export default function ContractModal({
 
           <Divider />
 
-          {/* ── The ask — the plain-language recital ──
+          {/* ── The ask · the plain-language recital ──
               The single most important thing on this surface: what, in
               the AI's own words, you are authorizing. */}
           {mandate.summary && (
@@ -249,7 +249,7 @@ export default function ContractModal({
             </Section>
           )}
 
-          {/* ── Scope — what it can touch ── */}
+          {/* ── Scope · what it can touch ── */}
           <Section roman="" title="Scope" kicker="What it can touch">
             <div className={styles.scopeGrid}>
               <ScopeBlock label="Networks" count={mandate.networks?.length ?? 0}>
@@ -264,7 +264,7 @@ export default function ContractModal({
               </ScopeBlock>
               <ScopeBlock label="Assets" count={mandate.assets?.length ?? 0}>
                 {(mandate.assets?.length ?? 0) === 0 && (
-                  <span className={styles.scopeEmpty}>—</span>
+                  <span className={styles.scopeEmpty}>·</span>
                 )}
                 {(mandate.assets ?? []).map((s) => {
                   const t = getToken(s)
@@ -291,7 +291,7 @@ export default function ContractModal({
             </div>
           </Section>
 
-          {/* ── Limits — only shown when the mandate actually sets them ── */}
+          {/* ── Limits · only shown when the mandate actually sets them ── */}
           {(mandate.caps?.length > 0 || mandate.duration) && (
           <Section roman="" title="Limits" kicker="Hard caps">
             <div className={styles.limitsGrid}>
@@ -321,7 +321,7 @@ export default function ContractModal({
           </Section>
           )}
 
-          {/* ── Permitted actions — only when there are concrete ones ── */}
+          {/* ── Permitted actions · only when there are concrete ones ── */}
           {mandate.actions?.length > 0 && (
           <Section roman="" title="Permitted actions" kicker={`${mandate.actions.length} authorised`}>
             {mandate.actions?.length > 0 ? (
@@ -352,7 +352,7 @@ export default function ContractModal({
           </Section>
           )}
 
-          {/* ── Protections — the four legal bullets condensed to one
+          {/* ── Protections · the four legal bullets condensed to one
               row of trust chips. Everything an owner needs to feel safe:
               revocable, self-custody, enforced onchain. ── */}
           <div className={styles.protections}>
@@ -376,7 +376,7 @@ export default function ContractModal({
             </span>
           </div>
 
-          {/* ── Onchain — inspect the deployed code before you sign ──
+          {/* ── Onchain · inspect the deployed code before you sign ──
               The whole point of bounded delegation: the rules are
               enforced by a contract you can read. We surface the
               permission contract + the Safe so a careful signer can
@@ -419,7 +419,7 @@ export default function ContractModal({
 
           <Divider />
 
-          {/* ── Signature block — simplified to the one signature that
+          {/* ── Signature block · simplified to the one signature that
               matters: yours. The AI counter-signature stays as quiet
               provenance. ── */}
           <section ref={sigBlockRef} className={styles.sigBlock} aria-label="Signature">
@@ -433,7 +433,7 @@ export default function ContractModal({
             </header>
 
             <div className={styles.sigGrid}>
-              {/* AI counter-signer — only when an AI drafter is attributed */}
+              {/* AI counter-signer · only when an AI drafter is attributed */}
               {mandate.aiName ? (
                 <SignatureCard
                   role="Drafted by"
@@ -447,7 +447,7 @@ export default function ContractModal({
                 />
               ) : null}
 
-              {/* User signer — already signed in view/revoke modes;
+              {/* User signer · already signed in view/revoke modes;
                   empty (pending) in sign mode until Authorize. */}
               <SignatureCard
                 role="Owner"
@@ -474,7 +474,7 @@ export default function ContractModal({
               />
             </div>
 
-            {/* REVOKED stamp — descends onto the signature pair when
+            {/* REVOKED stamp · descends onto the signature pair when
                 the user confirms revocation. The visible card stays in
                 place; the stamp is purely a CSS overlay. */}
             {(phase === 'revoking' || phase === 'revoked') && (
@@ -547,7 +547,7 @@ export default function ContractModal({
                   <span className={styles.revokingTitle}>Revoking onchain…</span>
                 </div>
               ) : (
-                /* phase === 'revoked' — final, calm closure. */
+                /* phase === 'revoked' · final, calm closure. */
                 <div className={styles.revokedBlock} role="status" aria-live="polite">
                   <span className={styles.revokedMark} aria-hidden>
                     <svg viewBox="0 0 32 32" width="22" height="22" fill="none" aria-hidden>
@@ -594,7 +594,7 @@ export default function ContractModal({
                 </p>
               </>
             ) : (
-              /* Mandate signed — celebratory feedback state. */
+              /* Mandate signed · celebratory feedback state. */
               <div className={styles.successBlock} role="status" aria-live="polite">
                 <span className={styles.successMark} aria-hidden>
                   <svg viewBox="0 0 32 32" width="22" height="22" fill="none" aria-hidden>
@@ -653,7 +653,7 @@ export default function ContractModal({
 /* ─────────── helpers ─────────── */
 
 /* Manual smooth scroll for an overflow container. We can't use
-   `scrollTo({behavior:'smooth'})` here — the modal's phase change
+   `scrollTo({behavior:'smooth'})` here · the modal's phase change
    re-render cancels the in-flight smooth scroll silently. Driving
    the tween ourselves with rAF + an ease-out curve is robust and
    plays nicely with React state transitions. */
@@ -665,7 +665,7 @@ function smoothScrollTo(el, target, durationMs = 360) {
   const startedAt = Date.now()
   const ease = (t) => 1 - Math.pow(1 - t, 3) // cubic ease-out
   // setTimeout-driven step (not rAF) so the tween also runs when the
-  // document is in a background/hidden tab — rAF gets throttled to 0
+  // document is in a background/hidden tab · rAF gets throttled to 0
   // there. ~16ms tick approximates 60fps when visible.
   function step() {
     const t = Math.min(1, (Date.now() - startedAt) / durationMs)
