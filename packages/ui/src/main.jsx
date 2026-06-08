@@ -13,6 +13,7 @@ import JournalPage from './pages/dashboard/JournalPage'
 import { buildWagmiConfig } from './wagmi'
 import { maybeInstallSimWallet } from './devSimWallet'
 import LocalRpcBanner from './components/LocalRpcBanner'
+import SimControls from './components/SimControls'
 import './styles/globals.css'
 
 const queryClient = new QueryClient()
@@ -141,6 +142,7 @@ async function bootstrap() {
         <QueryClientProvider client={queryClient}>
           <RainbowKitProvider>
             <LocalRpcBanner info={localNetwork} />
+            <SimControls info={localNetwork} />
             <Router />
           </RainbowKitProvider>
         </QueryClientProvider>
