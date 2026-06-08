@@ -123,4 +123,6 @@ When the sailor project has the shipyard extension attached (`SHIPYARD.md` exist
 
 This lets you test every combination of permissions and agent logic safely, while the human still uses the exact browser flows they will use in production. Stop with `shipyard sim stop`; resume later with `shipyard sim resume` and the entire fork world (SMAs, mandates, balances) is restored.
 
+Shipyard is purely additive: it never patches sailor. Its only hook is the `.sail/.env.local` that `shipyard sim start` writes. The UI detects a local RPC generically via `GET /api/network` — when the configured RPC is localhost it routes the dapp's wagmi transport at the fork (so reads and owner-signing preflight hit the fork, not a public RPC) and shows an amber "⚓ Local RPC" banner. So the human just picks the normal network card (the fork preserves the original chain ID); there are no special "fork" cards.
+
 See the project-local `SHIPYARD.md` for the full mental model and command list. Use this liberally — it is the recommended way to gain confidence before any real-chain work.

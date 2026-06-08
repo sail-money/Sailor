@@ -129,6 +129,25 @@ export function startServer(sailDir, { port = PORT } = {}) {
       .finally(() => overviewInFlight.delete(key))
   }
 
+  // GET /api/network — generic RPC awareness for the dapp.
+  //
+  // Reflects whatever RPC the project is configured against (.sail/.env.local,
+  // which the entire sailor stack already reads preferentially). When that RPC
+  // resolves to a localhost endpoint — e.g. a local anvil node or a fork started
+  // by an external tool — the browser app can (a) route its wagmi transport for
+  // that chain at the local RPC so reads and owner-signing preflight hit the
+  // same endpoint the wallet is on (instead of the chain's public RPC), and
+  // (b) surface a banner so the operator knows transactions execute against a
+  // non-production endpoint. Deliberately generic: no coupling to any specific
+  // simulation tool — it just describes the configured network.
+  app.get('/api/network', (_req, res) => {
+    const env = parseEnvFile(at('.env.local'))
+    const rpcUrl = env.RPC_URL || ''
+    const chainId = env.CHAIN_ID ? Number(env.CHAIN_ID) : null
+    const isLocal = /^https?:\/\/(127\.0\.0\.1|localhost|0\.0\.0\.0|\[::1\])(:\d+)?(\/|$)/i.test(rpcUrl)
+    res.json({ rpcUrl: rpcUrl || null, chainId, isLocal })
+  })
+
   // GET /api/account — the deployed SMA, or 404 before it exists.
   app.get('/api/account', (_req, res) => {
     try {
