@@ -563,8 +563,9 @@ export default function Dashboard() {
         <button
           type="button"
           className={styles.brand}
-          onClick={() => { window.location.hash = '#/dashboard' }}
-          aria-label="Sail dashboard"
+          onClick={() => { window.scrollTo({ top: 0 }); window.location.hash = '#/dashboard'; window.location.reload() }}
+          aria-label="Sail dashboard — refresh"
+          title="Refresh dashboard"
         >
           <span className={styles.brandWrap}>
             <Sai size={42} animate />
