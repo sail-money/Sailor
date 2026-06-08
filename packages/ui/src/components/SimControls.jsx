@@ -55,11 +55,17 @@ export default function SimControls({ info }) {
   }
 
   const reset = async () => {
-    const ok = window.confirm(
-      'Reset the simulation?\n\n' +
-        'Rewinds the local chain to the checkpoint and clears onboarding ' +
-        '(account, manager key, wizard progress) so you can replay onboarding from scratch.',
-    )
+    const cp = status?.checkpoint
+    const msg = cp
+      ? 'Rewind to your last checkpoint?\n\n' +
+        `Reverts the chain to block ${cp.block ?? '?'} and restores the onboarding ` +
+        'state you had when you pressed Play (SMA, manager key, mandates, activity). ' +
+        'Anything since then is discarded.'
+      : 'Reset the simulation?\n\n' +
+        'No checkpoint set, so this clears onboarding (account, manager key, ' +
+        'wizard progress, activity) and replays the wizard from scratch. ' +
+        'Press Play first to set a restore point.'
+    const ok = window.confirm(msg)
     if (!ok) return
     setBusy('reset')
     try {
@@ -124,7 +130,7 @@ export default function SimControls({ info }) {
         style={btn(busy != null)}
         disabled={busy != null}
         onClick={capture}
-        title="Capture a chain checkpoint to rewind to (evm_snapshot)"
+        title="Save a restore point — snapshots the chain AND your onboarding state (SMA, manager key, mandates, activity) to return to with Reset"
       >
         ▶ {busy === 'checkpoint' ? 'Saving…' : 'Play'}
       </button>
@@ -133,7 +139,7 @@ export default function SimControls({ info }) {
         style={btn(busy != null)}
         disabled={busy != null}
         onClick={reset}
-        title="Rewind the chain to the checkpoint and clear onboarding state"
+        title="Rewind the chain and your onboarding state to the last Play checkpoint (or clear from scratch if none)"
       >
         ↺ {busy === 'reset' ? 'Resetting…' : 'Reset'}
       </button>

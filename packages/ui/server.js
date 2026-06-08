@@ -184,6 +184,63 @@ export function startServer(sailDir, { port = PORT } = {}) {
   const writeCheckpoint = (cp) => {
     try { fs.writeFileSync(checkpointPath, `${JSON.stringify(cp, null, 2)}\n`) } catch { /* best-effort */ }
   }
+  // A checkpoint is only valid for the chain it was taken on — after the project
+  // is repointed at a different fork (e.g. base-sepolia → base) anvil's snapshot
+  // ids reset, so a checkpoint from the old chain is stale and must be ignored.
+  const validCheckpoint = (net) => {
+    const cp = readCheckpoint()
+    if (!cp) return null
+    if (cp.chainId != null && net.chainId != null && Number(cp.chainId) !== Number(net.chainId)) return null
+    return cp
+  }
+
+  // The project's local onboarding state — what makes the UI show "you have an
+  // SMA" vs. the first-run wizard. Play stashes these alongside the chain
+  // snapshot; Reset restores them, so a rewind returns to the exact Play moment
+  // (deployed SMA, manager key, mandates, activity) instead of wiping back to
+  // first-run onboarding.
+  const checkpointStateDir = at('.sim-checkpoint-state')
+  const STATE_ENTRIES = ['account.json', 'state', 'keys', '.wizard-state.json', 'activity.jsonl']
+
+  const stashState = () => {
+    fs.rmSync(checkpointStateDir, { recursive: true, force: true })
+    fs.mkdirSync(checkpointStateDir, { recursive: true })
+    for (const rel of STATE_ENTRIES) {
+      const src = at(rel)
+      if (fs.existsSync(src)) fs.cpSync(src, path.join(checkpointStateDir, rel), { recursive: true })
+    }
+  }
+  const hasStash = () => fs.existsSync(checkpointStateDir)
+  const restoreState = () => {
+    const restored = []
+    for (const rel of STATE_ENTRIES) {
+      const dst = at(rel)
+      fs.rmSync(dst, { recursive: true, force: true })
+      const src = path.join(checkpointStateDir, rel)
+      if (fs.existsSync(src)) { fs.cpSync(src, dst, { recursive: true }); restored.push(rel) }
+    }
+    return restored
+  }
+  // First-run clear (no checkpoint): wipe onboarding so the wizard replays from
+  // scratch, AND empty the activity feed.
+  const clearState = () => {
+    const removed = []
+    const accountPath = at('account.json')
+    if (fs.existsSync(accountPath)) {
+      fs.renameSync(accountPath, `${accountPath}.bak-${Date.now()}`)
+      removed.push('account.json')
+    }
+    for (const rel of ['state/accounts.json', 'state/mandates.json', 'keys/manager.json', '.wizard-state.json', 'activity.jsonl']) {
+      const p = at(rel)
+      if (fs.existsSync(p)) { fs.rmSync(p, { force: true }); removed.push(rel) }
+    }
+    const overviewDir = at('state/overview')
+    if (fs.existsSync(overviewDir)) {
+      fs.rmSync(overviewDir, { recursive: true, force: true })
+      removed.push('state/overview/*')
+    }
+    return removed
+  }
 
   // GET /api/sim/status — checkpoint + current head, or { isLocal:false }.
   app.get('/api/sim/status', async (_req, res) => {
@@ -191,11 +248,12 @@ export function startServer(sailDir, { port = PORT } = {}) {
     if (!net.isLocal) return res.json({ isLocal: false })
     let currentBlock = null
     try { currentBlock = parseInt(await anvilRpc(net.rpcUrl, 'eth_blockNumber'), 16) } catch { /* fork may be down */ }
-    res.json({ isLocal: true, rpcUrl: net.rpcUrl, chainId: net.chainId, checkpoint: readCheckpoint(), currentBlock })
+    res.json({ isLocal: true, rpcUrl: net.rpcUrl, chainId: net.chainId, checkpoint: validCheckpoint(net), currentBlock })
   })
 
-  // POST /api/sim/checkpoint ("Play") — capture an evm_snapshot to rewind to
-  // later. Overwrites any prior checkpoint (the new starting line).
+  // POST /api/sim/checkpoint ("Play") — mark a restore point: snapshot the chain
+  // (evm_snapshot) AND stash the local onboarding state. Overwrites any prior
+  // checkpoint (the new starting line that Reset returns to).
   app.post('/api/sim/checkpoint', async (_req, res) => {
     const net = readNetwork()
     if (!net.isLocal) return res.status(400).json({ error: 'checkpoint is only available against a local RPC' })
@@ -203,7 +261,8 @@ export function startServer(sailDir, { port = PORT } = {}) {
       const id = await anvilRpc(net.rpcUrl, 'evm_snapshot')
       let block = null
       try { block = parseInt(await anvilRpc(net.rpcUrl, 'eth_blockNumber'), 16) } catch { /* non-fatal */ }
-      const cp = { id, block, chainId: net.chainId, capturedAt: new Date().toISOString() }
+      stashState()
+      const cp = { id, block, chainId: net.chainId, capturedAt: new Date().toISOString(), hasState: true }
       writeCheckpoint(cp)
       res.json({ ok: true, checkpoint: cp })
     } catch (err) {
@@ -211,14 +270,16 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
   })
 
-  // POST /api/sim/reset ("Reset") — rewind the local chain to the checkpoint and
-  // clear local onboarding state so the wizard replays from a clean slate.
+  // POST /api/sim/reset ("Reset") — rewind to the last checkpoint: revert the
+  // chain AND restore the stashed local state, so you return to the exact Play
+  // moment. With no checkpoint, fall back to a full from-scratch clear so the
+  // onboarding wizard replays (and the activity feed empties).
   app.post('/api/sim/reset', async (_req, res) => {
     const net = readNetwork()
     if (!net.isLocal) return res.status(400).json({ error: 'reset is only available against a local RPC' })
-    const result = { chainRewound: false, stateCleared: [] }
+    const result = { chainRewound: false, stateRestored: false, stateCleared: [] }
     try {
-      const cp = readCheckpoint()
+      const cp = validCheckpoint(net)
       if (cp?.id) {
         try {
           const ok = await anvilRpc(net.rpcUrl, 'evm_revert', [cp.id])
@@ -237,28 +298,19 @@ export function startServer(sailDir, { port = PORT } = {}) {
           result.chainError = String(e)
         }
       } else {
-        result.chainError = 'no checkpoint set — chain not rewound (state still cleared)'
+        result.chainError = 'no checkpoint set — chain not rewound'
       }
 
-      // Full-replay state clear: account.json (backed up), the multi-SMA list,
-      // mandates, overview caches, the manager key, and wizard progress.
-      const removed = []
-      const accountPath = at('account.json')
-      if (fs.existsSync(accountPath)) {
-        fs.renameSync(accountPath, `${accountPath}.bak-${Date.now()}`)
-        removed.push('account.json')
-      }
-      for (const rel of ['state/accounts.json', 'state/mandates.json', 'keys/manager.json', '.wizard-state.json']) {
-        const p = at(rel)
-        if (fs.existsSync(p)) { fs.rmSync(p, { force: true }); removed.push(rel) }
-      }
-      const overviewDir = at('state/overview')
-      if (fs.existsSync(overviewDir)) {
-        fs.rmSync(overviewDir, { recursive: true, force: true })
-        removed.push('state/overview/*')
+      if (cp && hasStash()) {
+        // Restore local onboarding state to the Play moment (account, manager
+        // key, mandates, wizard progress, activity feed).
+        result.stateRestored = true
+        result.stateCleared = restoreState()
+      } else {
+        // No checkpoint → full clear so onboarding replays from scratch.
+        result.stateCleared = clearState()
       }
       overviewCacheByAccount.clear()
-      result.stateCleared = removed
       res.json({ ok: true, ...result })
     } catch (err) {
       res.status(500).json({ error: String(err), ...result })

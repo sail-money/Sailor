@@ -17,5 +17,7 @@ dist/
 .sail/mandate.json
 .sail/mandate-draft.json
 .sail/activity.jsonl
+.sail/.sim-checkpoint.json
+.sail/.sim-checkpoint-state/
 !.sail/.gitkeep
 !.sail/config.json
