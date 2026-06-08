@@ -11,6 +11,7 @@ import AgentPage from './pages/dashboard/AgentPage'
 import MandatePage from './pages/dashboard/MandatePage'
 import JournalPage from './pages/dashboard/JournalPage'
 import { buildWagmiConfig } from './wagmi'
+import { maybeInstallSimWallet } from './devSimWallet'
 import LocalRpcBanner from './components/LocalRpcBanner'
 import './styles/globals.css'
 
@@ -129,6 +130,9 @@ function Router() {
 
 async function bootstrap() {
   const localNetwork = await probeLocalNetwork()
+  // Local-only test harness: install a simulated wallet BEFORE building the wagmi
+  // config so RainbowKit/wagmi discover it. No-op unless ?sim=1 on a local fork.
+  maybeInstallSimWallet(localNetwork)
   const config = buildWagmiConfig(localNetwork)
 
   ReactDOM.createRoot(document.getElementById('root')).render(

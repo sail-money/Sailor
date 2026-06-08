@@ -401,6 +401,22 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
   const { sendTransactionAsync } = useSendTransaction()
   const { switchChainAsync } = useSwitchChain()
 
+  // When the project points at a local/custom RPC (e.g. a shipyard anvil fork —
+  // see GET /api/network), simulation and receipt polling must hit THAT endpoint,
+  // not the chain's public RPC. The tx is broadcast to the fork via the wallet,
+  // so its receipt only ever appears on the fork. Falls back to PUBLIC_RPC.
+  const [localNet, setLocalNet] = useState(null)
+  useEffect(() => {
+    fetch('/api/network', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setLocalNet(d && d.isLocal ? d : null))
+      .catch(() => {})
+  }, [])
+  function rpcFor(chainId) {
+    if (localNet?.rpcUrl && Number(localNet.chainId) === Number(chainId)) return localNet.rpcUrl
+    return PUBLIC_RPC[chainId]
+  }
+
   // Per-chain status: 'pending' | 'switching' | 'building' | 'wallet' | 'confirming' | 'done' | 'error'
   const [statuses, setStatuses] = useState(() =>
     Object.fromEntries(chainIds.map(id => [id, 'pending']))
@@ -433,7 +449,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
     // kernel.createAccount path won't work → fall back to the two-step register path.
     // This handles both "factory not trusted" (UntrustedFactory error) and any other
     // revert the selective kernel might produce with this factory on this chain.
-    const rpc = PUBLIC_RPC[chainId]
+    const rpc = rpcFor(chainId)
     let useRegisterPath = false
     if (rpc) {
       const sim = await fetch(rpc, {
@@ -469,7 +485,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
       setStatus(chainId, 'wallet')
       const deployHash = await sendTransactionAsync({ to: path.deployTx.to, data: path.deployTx.data, chainId })
       setStatus(chainId, 'confirming')
-      const deployReceipt = await waitForReceipt(deployHash, chainId)
+      const deployReceipt = await waitForReceipt(deployHash, chainId, rpcFor(chainId))
 
       // Parse the Safe address from ProxyCreation event (topic[1] = proxy address, indexed)
       // ProxyCreation(address indexed proxy, address singleton) — factory emits this
@@ -491,7 +507,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
       setStatus(chainId, 'wallet')
       const registerHash = await sendTransactionAsync({ to: path.kernel, data: registerData, chainId })
       setStatus(chainId, 'confirming')
-      const registerReceipt = await waitForReceipt(registerHash, chainId)
+      const registerReceipt = await waitForReceipt(registerHash, chainId, rpcFor(chainId))
       if (registerReceipt?.status === '0x0') throw new Error('registerAccount reverted — check the kernel address and try again.')
 
       await fetch('/api/onboard/complete', {
@@ -508,7 +524,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
     const hash = await sendTransactionAsync({ to: body.to, data: body.data, chainId })
 
     setStatus(chainId, 'confirming')
-    const receipt = await waitForReceipt(hash, chainId)
+    const receipt = await waitForReceipt(hash, chainId, rpcFor(chainId))
     // Check tx status before looking for the event — a reverted tx has no logs.
     if (receipt?.status === '0x0') {
       throw new Error('createAccount transaction reverted. The Safe factory may not be supported on this chain — try again and the wizard will use the register path.')
@@ -632,8 +648,8 @@ const PUBLIC_RPC = {
 }
 
 // Poll for a transaction receipt (public client not available as hook here).
-async function waitForReceipt(hash, chainId) {
-  const rpc = PUBLIC_RPC[chainId]
+async function waitForReceipt(hash, chainId, rpcUrl) {
+  const rpc = rpcUrl || PUBLIC_RPC[chainId]
   if (!rpc) throw new Error(`No public RPC for chain ${chainId}`)
   for (let i = 0; i < 60; i++) {
     await new Promise(r => setTimeout(r, 2000))
