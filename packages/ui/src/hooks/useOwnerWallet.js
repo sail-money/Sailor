@@ -1,5 +1,3 @@
-'use client'
-
 import { useCallback } from 'react'
 import { useAccount, useDisconnect } from 'wagmi'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
@@ -11,8 +9,6 @@ import { useConnectModal } from '@rainbow-me/rainbowkit'
  * can authorize anything. This hook is the wallet seam — every surface that
  * needs the owner address or connection state reads it here.
  *
- * Return shape is identical to the prior mock ({ address, isConnected,
- * chainId, connect, disconnect }) so no caller changed during the live swap.
  * Providers (WagmiProvider + RainbowKitProvider) are mounted in src/main.jsx.
  */
 export function useOwnerWallet() {

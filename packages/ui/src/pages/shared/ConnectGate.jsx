@@ -1,5 +1,3 @@
-'use client'
-
 import GlassCard from './GlassCard'
 import Sai from './Sai'
 import SailButton from './SailButton'
@@ -14,8 +12,7 @@ import styles from './ConnectGate.module.css'
  * The Owner IS the connected wallet — the custody anchor and the only key that
  * can authorize anything. So this gate is the floor the whole surface stands on.
  *
- * `connect` comes from useOwnerWallet() (mock today; openConnectModal() from
- * RainbowKit when live — same call site, no change here).
+ * `connect` comes from useOwnerWallet() via RainbowKit's openConnectModal.
  */
 export default function ConnectGate({
   eyebrow = 'OWNER WALLET',

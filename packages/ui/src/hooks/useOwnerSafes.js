@@ -1,5 +1,3 @@
-'use client'
-
 import { useEffect, useState } from 'react'
 import { useOwnerWallet } from './useOwnerWallet'
 import { getAccounts } from '../data/sailorClient'

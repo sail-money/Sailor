@@ -1,5 +1,3 @@
-'use client'
-
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   BrandMark,
@@ -43,11 +41,8 @@ import RotateSignerModal from './RotateSignerModal'
 import FundModal from './FundModal'
 
 /* ──────────────────────────────────────────────────────────────
-   Data bridges · the studio SMA/mandate shape (sail_framework_1.1)
-   differs from the one demo-2's ProfileModal + ContractModal were
-   built against. Rather than rewriting either component, we map
-   the local shape into their expected shape at the wiring site so
-   they can be reincorporated as first-class flows.
+   Data bridges · map the framework's SMA/mandate shape into the
+   shape ProfileModal and ContractModal expect.
    ────────────────────────────────────────────────────────────── */
 
 const CHAIN_NAMES = { 1: 'Ethereum', 130: 'Unichain', 8453: 'Base', 42161: 'Arbitrum', 84532: 'Base Sepolia', 421614: 'Arbitrum Sepolia', 11155111: 'Sepolia' }
@@ -85,8 +80,7 @@ function buildSafesForProfile(accounts, activeSma, mandates) {
 
 /** ContractModal expects a richer mandate shape (title, aiName,
  *  summary, networks, assets, caps, duration, endsAt, actions).
- *  We fill the gaps from the local mandate + SMA so the contract
- *  surface stays informative even without the demo-2 spec. */
+ *  Fill the gaps from the local mandate + SMA. */
 function asContractMandate(m, sma) {
   if (!m || !sma) return null
   return {
@@ -113,9 +107,7 @@ function asContractMandate(m, sma) {
 /* ──────────────────────────────────────────────────────────────
    LIVE adapters · map the real on-chain data (sailorClient:
    getOverview/getAccount) into the studio-shaped records the
-   render body was built against. Journal/agents/ownerProfile stay
-   on the studio (mock) seam; SMA card, gas balances, and mandate
-   list are now fed from LIVE data here.
+   render body expects.
    ────────────────────────────────────────────────────────────── */
 
 const SIGNER_META = {
@@ -271,16 +263,12 @@ const MANDATE_FILTERS = [
 /**
  * Dashboard · local-UI dashboard for an AI-managed SMA.
  *
- * Anchored on the data the protocol + framework actually expose
- * (the studio seam mirrors `sail_framework_1.1` 1:1). The visual
- * language comes from the sail-local-ui-demo-2 design system:
+ * Anchored on the data the protocol + framework actually expose.
  * FluidBackground, glass cards, sparing blue accent, MD Nichrome
  * for display, DM Sans for body.
  */
 export default function Dashboard() {
 
-  // ── Owner wallet (Surface 3) ── the connected wallet IS the Owner: custody
-  // anchor + the only key that can authorize anything. Mock today; wagmi later.
   const wallet = useOwnerWallet()
   const { isConnected } = wallet
   // Revoke seam · owner-signed, owner-submitted kernel.revokePermissions.
@@ -297,8 +285,7 @@ export default function Dashboard() {
   // list + switch between them · not just the active one.
   const [accounts, setAccounts] = useState([])
 
-  // Recent activity is LIVE (GET /api/activity). Owner profile stays on the
-  // studio (mock) seam · no live endpoint for it.
+  // Recent activity is LIVE (GET /api/activity). Owner profile has no live endpoint.
   const [journal, setJournal] = useState([])
   const [ownerProfile, setOwnerProfile] = useState(null)
   useEffect(() => {
@@ -450,8 +437,7 @@ export default function Dashboard() {
   }, [])
   const { status: channelStatus, send } = useSigningChannel({ onMessage: handleChannelMessage })
 
-  // Poll the pending queue. The mock seam mutates its store on resolve, so the
-  // poll stays consistent with the optimistic local removal above.
+  // Poll the pending queue — stays consistent with the optimistic local removal above.
   const pollRef = useRef()
   useEffect(() => {
     let alive = true
@@ -484,7 +470,6 @@ export default function Dashboard() {
   // and revoking. `contractFlow.id` selects the mandate; `mode` is
   // `'view'` for inspect or `'revoke'` for the destructive flow.
   const [contractFlow, setContractFlow] = useState({ id: null, mode: 'view' })
-  // SMA profile menu (reincorporated from demo-2).
   const [profileOpen, setProfileOpen] = useState(false)
   // In-dashboard "Create new SMA" flow.
   // Pending signatures modal · opened from the announcement bar.
@@ -989,8 +974,7 @@ export default function Dashboard() {
         onClose={() => setFundTarget(null)}
       />
 
-      {/* ── SMA Profile menu ──
-          Reincorporated from demo-2. EOA hero + SMAs list with copy,
+      {/* ── SMA Profile menu ── EOA hero + SMAs list with copy,
           deposit, withdraw, rename. Opens from the avatar button. */}
       <ProfileModal
         open={profileOpen}
@@ -1207,9 +1191,7 @@ function MandateRow({ mandate, chain, onView, onRevoke, onEdit }) {
 
 /* ────────── Edit modal ──────────
    Informational only. No "Open in {LLM}" CTA · just the prompt the
-   user should send their AI, with copy-to-clipboard. Mirrors the
-   tone of demo-2's AI handoff modal but stays in this surface
-   instead of bouncing the user out. */
+   user should send their AI, with copy-to-clipboard. */
 function EditMandateModal({ open, mandate, onClose }) {
   const [copied, setCopied] = useState(false)
   if (!open || !mandate) return null

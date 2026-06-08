@@ -1,5 +1,3 @@
-'use client'
-
 import { useCallback, useEffect, useState } from 'react'
 import { useSwitchChain } from 'wagmi'
 import { createPublicClient, http } from 'viem'

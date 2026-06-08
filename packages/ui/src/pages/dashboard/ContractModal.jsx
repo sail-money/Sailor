@@ -56,7 +56,6 @@ export default function ContractModal({
   // preview → signing → signed (sign mode)
   // preview → revoking → revoked (revoke mode)
   // signed (view mode, immediate)
-  // Wallet seam · owner address + the SMAs this owner controls (was mockWallet / mockSafes).
   const { address: ownerAddress } = useOwnerWallet()
   const { primary: primarySafe } = useOwnerSafes()
   const [phase, setPhase] = useState('preview')

@@ -1,5 +1,3 @@
-'use client'
-
 import { useEffect, useState } from 'react'
 import styles from './RpcSection.module.css'
 import { InfoTip } from '../shared'
@@ -21,8 +19,7 @@ const RPC_TIP = "An RPC is the connection your dashboard uses to read the blockc
  * Contract: reads GET /api/onboard/state, writes POST /api/onboard/save-config
  * { rpcUrl, sailApiKey, chainId } via src/data/sailorClient.js. The framework
  * persists the composed endpoint locally as RPC_URL in .sail/.env.local; the
- * provider picker is only a helper that builds that URL string. Mock today;
- * USE_LIVE flips it to the real daemon with no shape change.
+ * provider picker is only a helper that builds that URL string.
  */
 
 const CHAINS = [

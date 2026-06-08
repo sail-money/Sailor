@@ -1,5 +1,3 @@
-'use client'
-
 import { useCallback, useEffect, useState } from 'react'
 import {
   FluidBackground,
@@ -40,9 +38,6 @@ const NETWORKS = [
  * the keys.
  */
 export default function Signing() {
-  // Live onboarding always starts at 'welcome'. (The demo-console state seeding
-  // is intentionally bypassed here so a stale demo step can't drop a real user
-  // mid-flow · e.g. straight into 'confirming' with no deploy running.)
   const [state, setState] = useState('welcome')
   const [progress, setProgress] = useState('idle')
 
@@ -637,7 +632,7 @@ function scorePassword(pw) {
 
 /* ─────────── Deploy review ─────────── */
 function DeployState({ onSign, onBack, networks, isConnected, error }) {
-  const { preview } = useDeploySma() // deploy seam · tx-preview fields (was mockDeploy)
+  const { preview } = useDeploySma()
   const nets = networks?.length ? networks : [{ id: 'base', name: preview.network }]
   const multi = nets.length > 1
   return (

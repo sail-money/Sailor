@@ -1,5 +1,3 @@
-'use client'
-
 import { useCallback, useEffect, useState } from 'react'
 import styles from './RpcSection.module.css'
 import auto from './AutomationSection.module.css'

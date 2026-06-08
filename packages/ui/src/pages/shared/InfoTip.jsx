@@ -1,5 +1,3 @@
-'use client'
-
 import { useCallback, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import styles from './InfoTip.module.css'
