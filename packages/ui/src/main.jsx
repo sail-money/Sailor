@@ -14,6 +14,7 @@ import { buildWagmiConfig } from './wagmi'
 import { maybeInstallSimWallet } from './devSimWallet'
 import LocalRpcBanner from './components/LocalRpcBanner'
 import SimControls from './components/SimControls'
+import SimModeToggle from './components/SimModeToggle'
 import './styles/globals.css'
 
 const queryClient = new QueryClient()
@@ -133,8 +134,17 @@ async function bootstrap() {
   const localNetwork = await probeLocalNetwork()
   // Local-only test harness: install a simulated wallet BEFORE building the wagmi
   // config so RainbowKit/wagmi discover it. No-op unless ?sim=1 on a local fork.
-  maybeInstallSimWallet(localNetwork)
-  const config = buildWagmiConfig(localNetwork)
+  // Never let a sim-wallet install failure abort boot (a blank page) — it's a
+  // dev-only convenience, the real app must always render.
+  let simProvider = null
+  try {
+    simProvider = maybeInstallSimWallet(localNetwork)
+  } catch (e) {
+    console.warn('[sim-wallet] install failed (continuing without it):', e)
+  }
+  // In sim mode, buildWagmiConfig presents ONLY the sim wallet (no Rabby/MetaMask),
+  // so the fork auto-signs and no real wallet can intercept with signing prompts.
+  const config = buildWagmiConfig(localNetwork, simProvider)
 
   ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>
@@ -142,6 +152,7 @@ async function bootstrap() {
         <QueryClientProvider client={queryClient}>
           <RainbowKitProvider>
             <LocalRpcBanner info={localNetwork} />
+            <SimModeToggle info={localNetwork} />
             <SimControls info={localNetwork} />
             <Router />
           </RainbowKitProvider>

@@ -85,7 +85,23 @@ export function maybeInstallSimWallet(localNetwork) {
     },
   }
 
-  window.ethereum = provider
+  // Install as the legacy injected provider. Some wallet extensions (Rabby,
+  // MetaMask) define `window.ethereum` as a non-configurable / read-only
+  // property; a bare assignment then THROWS, and because this runs inside
+  // bootstrap() before React mounts, the throw aborts boot and the page renders
+  // blank. Guard it (assign → defineProperty → give up gracefully). The EIP-6963
+  // announcement below surfaces the sim wallet to modern wagmi/RainbowKit
+  // regardless, so discovery still works even when we can't take over
+  // window.ethereum — the user just picks "Sim Wallet (fork)" in the dialog.
+  try {
+    window.ethereum = provider
+  } catch {
+    try {
+      Object.defineProperty(window, 'ethereum', { value: provider, configurable: true, writable: true })
+    } catch {
+      console.warn('[sim-wallet] window.ethereum is locked by another wallet extension; relying on EIP-6963 discovery. Pick "Sim Wallet (fork)" in the connect dialog.')
+    }
+  }
 
   // EIP-6963 — modern wagmi/RainbowKit discover injected wallets via this event
   // rather than reading window.ethereum directly.
@@ -102,5 +118,5 @@ export function maybeInstallSimWallet(localNetwork) {
   announce()
 
   console.info(`[sim-wallet] installed → ${account} on chain ${localNetwork.chainId} via ${rpcUrl}`)
-  return true
+  return provider
 }
