@@ -179,17 +179,15 @@ export default function PendingSigningModal({
     try {
       const td = draft.typedData
       await ensureChain(td?.domain?.chainId ?? draft.chainId)
-      let signature = '0xmock-draft-signature'
-      if (td) {
-        const message = Object.fromEntries(
-          Object.entries(td.message ?? {}).map(([k, v]) =>
-            [k, typeof v === 'string' && /^\d+$/.test(v) ? BigInt(v) : v],
-          ),
-        )
-        signature = await signTypedDataAsync({
-          domain: td.domain, types: td.types, primaryType: td.primaryType, message,
-        })
-      }
+      if (!td) throw new Error('Mandate draft is missing typed-data — cannot sign')
+      const message = Object.fromEntries(
+        Object.entries(td.message ?? {}).map(([k, v]) =>
+          [k, typeof v === 'string' && /^\d+$/.test(v) ? BigInt(v) : v],
+        ),
+      )
+      const signature = await signTypedDataAsync({
+        domain: td.domain, types: td.types, primaryType: td.primaryType, message,
+      })
       const signedAt = new Date().toISOString()
       await submitMandate({ signature, signedAt })
       setDraftPhase({ phase: 'done' })
