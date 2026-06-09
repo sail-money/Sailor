@@ -4282,6 +4282,10 @@
   color: #ffce5a;
   text-transform: none;
 }
+.smaBadgeBtn {
+  cursor: pointer;
+  background: none;
+}
 
 /* ────── Attached mandates (on-chain permission rows) ────── */
 .mandateRows {

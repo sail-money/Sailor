@@ -1076,6 +1076,35 @@ function DashboardContent({ onReset }) {
                     <PencilIcon />
                   </button>
                 )}
+                {overview?.sma && (
+                  <div className={styles.smaBadges}>
+                    {overview.sma.registered && (
+                      <span className={styles.smaBadge}>
+                        <ShieldGlyphSm />
+                        Registered SMA
+                      </span>
+                    )}
+                    {overview.network && (
+                      <span className={styles.smaBadge}>{overview.network}</span>
+                    )}
+                    <MandateStatus status={agentRunning ? 'active' : 'paused'} kind="agent" />
+                    {agentSource && (
+                      <span className={styles.smaBadge}>
+                        {agentSource === 'remote' ? 'remote agent' : agentSource === 'github-actions' ? 'github actions' : `local · PID ${agentPid}`}
+                      </span>
+                    )}
+                    {!overview.onchain && (
+                      <button
+                        type="button"
+                        className={`${styles.smaBadge} ${styles.smaBadgeWarn} ${styles.smaBadgeBtn}`}
+                        title="Add RPC_URL=https://your-endpoint to .sail/.env.local&#10;Get a free endpoint at alchemy.com"
+                        onClick={() => alert('Add RPC_URL=https://your-endpoint to .sail/.env.local\nGet a free endpoint at alchemy.com')}
+                      >
+                        Add RPC URL to enable balance tracking
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className={agentStyles.addrRow}>
@@ -1105,36 +1134,6 @@ function DashboardContent({ onReset }) {
                   SMA · created {sma?.createdAt ?? sma?.createdAgo ?? '—'}
                 </span>
               </div>
-
-              {overview?.sma && (
-                <div className={styles.smaBadges}>
-                  {overview.sma.registered && (
-                    <span className={styles.smaBadge}>
-                      <ShieldGlyphSm />
-                      Registered SMA
-                    </span>
-                  )}
-                  {overview.network && (
-                    <span className={styles.smaBadge}>{overview.network}</span>
-                  )}
-                  <MandateStatus status={agentRunning ? 'active' : 'paused'} kind="agent" />
-                  {agentSource && (
-                    <span className={styles.smaBadge}>
-                      {agentSource === 'remote' ? 'remote agent' : agentSource === 'github-actions' ? 'github actions' : `local · PID ${agentPid}`}
-                    </span>
-                  )}
-                  {!overview.onchain && (
-                    <button
-                      type="button"
-                      className={`${styles.smaBadge} ${styles.smaBadgeWarn} ${styles.smaBadgeBtn}`}
-                      title="Add RPC_URL=https://your-endpoint to .sail/.env.local&#10;Get a free endpoint at alchemy.com"
-                      onClick={() => alert('Add RPC_URL=https://your-endpoint to .sail/.env.local\nGet a free endpoint at alchemy.com')}
-                    >
-                      Add RPC URL to enable balance tracking
-                    </button>
-                  )}
-                </div>
-              )}
             </section>
 
             {/* ── Quick links ─────────────────────────────────────────
