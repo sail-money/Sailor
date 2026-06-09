@@ -144,7 +144,7 @@ export default function SigningStation() {
         ) : phase.phase === 'success' ? (
           <SuccessScreen kind={phase.kind} onDone={() => { setPhase({ phase: 'idle' }); window.location.hash = '#/dashboard' }} />
         ) : hasDraft ? (
-          <MandateSigningFlow draft={draft} />
+          <MandateSigningFlow draft={draft} embedded />
         ) : requests.length === 0 ? (
           <EmptyQueue daemonConnected={daemonStatus === 'connected'} onAsk={() => setAiOpen(true)} />
         ) : (

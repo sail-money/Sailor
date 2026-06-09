@@ -3,7 +3,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { getChain } from '@sail/chains'
 import { sailDeployments } from '@sail/sdk/deployments'
 import { zeroAddress } from 'viem'
-import { useAccount, usePublicClient, useSignTypedData } from 'wagmi'
+import { useAccount, usePublicClient, useSignTypedData, useSwitchChain } from 'wagmi'
 import { FluidBackground, GlassCard, Sai, RevealCalldata, SailButton } from '../shared'
 import PageHeader from '../shared/PageHeader'
 import shared from '../shared/shared.module.css'
@@ -589,9 +589,10 @@ const SIGNER_NONCES_ABI = [
   },
 ]
 
-export function MandateSigningFlow({ draft }) {
-  const { isConnected } = useAccount()
+export function MandateSigningFlow({ draft, embedded = false }) {
+  const { isConnected, chainId: walletChainId } = useAccount()
   const { signTypedDataAsync } = useSignTypedData()
+  const { switchChainAsync } = useSwitchChain()
   const publicClient = usePublicClient()
   const [phase, setPhase] = useState('review') // review | signing | done
   const [errorMsg, setErrorMsg] = useState('')
@@ -613,6 +614,16 @@ export function MandateSigningFlow({ draft }) {
       return zeroAddress
     }
   })()
+
+  const wrongChain = isConnected && walletChainId !== draft.chainId
+
+  async function onSwitchChain() {
+    try {
+      await switchChainAsync({ chainId: draft.chainId })
+    } catch (err) {
+      setErrorMsg(err?.shortMessage || err?.message || 'Could not switch network')
+    }
+  }
 
   async function onSign() {
     if (phase === 'signing') return
@@ -671,76 +682,88 @@ export function MandateSigningFlow({ draft }) {
     }
   }
 
+  const content = phase === 'done' ? (
+    <MandateSignedCard draft={draft} />
+  ) : (
+    <GlassCard className={styles.authCard}>
+      <CardHeader
+        kicker="REVIEW MANDATE"
+        title="Authorize your agent"
+        sub="Sign with your wallet — Sail never holds your keys."
+      />
+
+      {!isConnected ? (
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 8 }}>
+          <ConnectButton showBalance={false} />
+        </div>
+      ) : (
+        <>
+          <ul
+            style={{
+              listStyle: 'none',
+              padding: 0,
+              margin: '12px 0',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+            }}
+          >
+            {items.map((it, i) => (
+              <li
+                key={i}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: 2,
+                  background: 'var(--glass-bg)',
+                  border: '1px solid var(--glass-border)',
+                }}
+              >
+                <span style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.5 }}>
+                  {it.explanation}
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          {errorMsg && (
+            <p style={{ color: '#ff6b6b', fontSize: 13, margin: '8px 0' }}>{errorMsg}</p>
+          )}
+
+          {wrongChain ? (
+            <>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', margin: '0 0 10px' }}>
+                Your wallet is on a different network. Switch to sign this mandate.
+              </p>
+              <SailButton fullWidth onClick={onSwitchChain}>
+                Switch to {(() => { try { return getChain(draft.chainId).name } catch { return `Chain ${draft.chainId}` } })()}
+              </SailButton>
+            </>
+          ) : (
+            <>
+              <SailButton fullWidth onClick={onSign} disabled={phase === 'signing'}>
+                {phase === 'signing' ? 'Waiting for wallet…' : 'Sign mandate'}
+              </SailButton>
+              <p className={styles.fineprint}>
+                Revocable on-chain at any time from your dashboard.
+              </p>
+            </>
+          )}
+        </>
+      )}
+    </GlassCard>
+  )
+
+  if (embedded) {
+    return <div className={styles.embeddedFlow}>{content}</div>
+  }
+
   return (
     <div className={styles.shell}>
       <FluidBackground />
       <HeaderBar state={phase === 'done' ? 'confirming' : 'review'} />
-
       <main className={styles.stage}>
         <div className={styles.stageInner}>
-          {phase === 'done' ? (
-            <MandateSignedCard draft={draft} />
-          ) : (
-            <GlassCard className={styles.authCard}>
-              <CardHeader
-                kicker="REVIEW MANDATE"
-                title="Authorize your agent"
-                sub="Sign with your wallet — Sail never holds your keys."
-              />
-
-              {!isConnected ? (
-                <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 8 }}>
-                  <ConnectButton showBalance={false} />
-                </div>
-              ) : (
-                <>
-                  <ul
-                    style={{
-                      listStyle: 'none',
-                      padding: 0,
-                      margin: '12px 0',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 10,
-                    }}
-                  >
-                    {items.map((it, i) => (
-                      <li
-                        key={i}
-                        style={{
-                          padding: '10px 12px',
-                          borderRadius: 10,
-                          background: 'var(--glass-bg)',
-                          border: '1px solid var(--glass-border)',
-                        }}
-                      >
-                        <span
-                          style={{
-                            color: 'var(--text-secondary)',
-                            fontSize: 14,
-                            lineHeight: 1.5,
-                          }}
-                        >
-                          {it.explanation}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  {errorMsg && (
-                    <p style={{ color: '#ff6b6b', fontSize: 13, margin: '8px 0' }}>{errorMsg}</p>
-                  )}
-
-                  <SailButton fullWidth onClick={onSign} disabled={phase === 'signing'}>
-                    {phase === 'signing' ? 'Waiting for wallet…' : 'Sign mandate'}
-                  </SailButton>
-                  <p className={styles.fineprint}>
-                    Revocable on-chain at any time from your dashboard.
-                  </p>
-                </>
-              )}
-            </GlassCard>
-          )}
+          {content}
         </div>
       </main>
     </div>

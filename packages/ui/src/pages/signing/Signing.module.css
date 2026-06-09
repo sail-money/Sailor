@@ -1194,3 +1194,15 @@
   transition: color 150ms, border-color 150ms;
 }
 .mandateSignedCopyBtn:hover { color: rgba(255,255,255,0.7); border-color: rgba(255,255,255,0.2); }
+
+/* ── Embedded mode (inside station — no shell/header) ── */
+.embeddedFlow {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 0 24px 40px;
+}
+.embeddedFlow .authCard {
+  max-width: 100%;
+  width: 100%;
+}
