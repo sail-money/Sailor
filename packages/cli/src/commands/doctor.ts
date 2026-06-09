@@ -3,7 +3,7 @@ import {
   SAFE_V141,
   SailorClient,
   buildSafeSetupInitializer,
-  computeSafeProxyAddress,
+  computeSailSmaAddress,
   sailDeployments,
   safeProxyFactoryAbi,
   type SailChainId,
@@ -260,8 +260,11 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
         functionName: "proxyCreationCode",
       })) as Hex;
       const ownerAddr = stored.owner ? getAddress(stored.owner) : null;
-      if (ownerAddr) {
-        console.log(`\nMulti-chain addresses (salt ${saltNonce}, owner ${ownerAddr}):`);
+      const managerAddr = stored.manager ? getAddress(stored.manager) : null;
+      if (ownerAddr && managerAddr) {
+        console.log(
+          `\nMulti-chain addresses (salt ${saltNonce}, owner ${ownerAddr}, manager ${managerAddr}):`,
+        );
         const CHAIN_NAMES: Record<number, string> = { 8453: "Base", 42161: "Arbitrum", 130: "Unichain" };
         for (const cid of MAINNET_CHAINS) {
           const dep = sailDeployments[cid];
@@ -271,13 +274,21 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
             kernel: dep.kernel,
             safeModuleEnabler: dep.safeModuleEnabler,
           });
-          const predicted = computeSafeProxyAddress({ initializer, saltNonce, proxyCreationCode });
+          const predicted = computeSailSmaAddress({
+            initializer,
+            saltNonce,
+            deployer: ownerAddr,
+            permissionSigner: ownerAddr,
+            manager: managerAddr,
+            feePolicy: dep.standardFeePolicy as Address,
+            proxyCreationCode,
+          });
           const isDeployed = predicted.toLowerCase() === safe.toLowerCase() && cid === chainId;
           const label = isDeployed ? "deployed (this account)" : predicted;
           console.log(`  ${CHAIN_NAMES[cid].padEnd(12)} (${cid}):  ${label}`);
         }
         console.log(
-          "  ⚠  Addresses differ per chain (chain-specific initializer). Run \"sailor account predict\" for details.",
+          '  ⚠  Addresses differ per chain (chain-specific kernel salt + initializer). Run "sailor account predict" for details.',
         );
       }
     } catch {

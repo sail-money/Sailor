@@ -120,9 +120,13 @@ account
 account
   .command("predict")
   .description(
-    "Compute the deterministic Safe address for a given owner + salt (no gas, no deployment)",
+    "Compute the deterministic Safe address for a given owner + manager + salt (no gas, no deployment)",
   )
   .option("--owner <address>", "Owner EOA address (defaults to .sail/account.json)")
+  .option(
+    "--manager <address>",
+    "Agent (manager) wallet — mixed into the kernel salt (defaults to .sail/account.json)",
+  )
   .option("--salt <n>", "CREATE2 salt nonce (default: 0)")
   .option("--chain <id>", "Show prediction for one chain only")
   .option("--json", "Emit machine-readable JSON")

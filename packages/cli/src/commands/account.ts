@@ -2,7 +2,7 @@ import { getChain } from "@sail/chains";
 import {
   SAFE_V141,
   buildSafeSetupInitializer,
-  computeSafeProxyAddress,
+  computeSailSmaAddress,
   sailDeployments,
   safeProxyFactoryAbi,
   type ChainConfig,
@@ -151,21 +151,26 @@ async function fetchProxyCreationCode(preferredChainId: number): Promise<Hex> {
 export interface PredictOptions {
   salt?: string;
   owner?: string;
+  manager?: string;
   chain?: string;
   json?: boolean;
 }
 
 /**
- * `sailor account predict` — compute the deterministic Safe address for a
- * given owner + salt on each supported chain, WITHOUT deploying anything.
+ * `sailor account predict` — compute the deterministic Safe address that
+ * SailKernel.createAccount will deploy for a given owner + manager + salt on
+ * each supported chain, WITHOUT deploying anything.
  *
- * Shows predicted addresses before any gas is spent ("reservation"). Since the
- * Safe initializer encodes chain-specific contract addresses (kernel and
- * safeModuleEnabler), addresses differ across chains even with the same salt —
- * this is reported clearly with a root-cause explanation.
+ * The kernel binds the CREATE2 salt to the deployer, permission signer, manager
+ * (agent wallet), and fee policy (see `computeSailSmaAddress`), so the address
+ * depends on the agent wallet too — not just the owner and salt. It also differs
+ * across chains because the Safe initializer and fee policy are chain-specific.
+ * Both facts are reported with a root-cause explanation.
  */
 export async function accountPredict(options: PredictOptions): Promise<void> {
-  // ── Resolve owner ────────────────────────────────────────────────────────────
+  const stored = readJsonFile<StoredAccount>(sailPath("account.json"));
+
+  // ── Resolve owner (= deployer = permission signer in the onboarding flow) ─────
   let ownerAddr: Address;
   if (options.owner) {
     if (!isAddress(options.owner, { strict: false })) {
@@ -173,13 +178,28 @@ export async function accountPredict(options: PredictOptions): Promise<void> {
     }
     ownerAddr = getAddress(options.owner);
   } else {
-    const stored = readJsonFile<StoredAccount>(sailPath("account.json"));
     if (!stored?.owner) {
       throw new Error(
         "No owner found in .sail/account.json. Pass --owner <address> or run sailor onboard first.",
       );
     }
     ownerAddr = getAddress(stored.owner);
+  }
+
+  // ── Resolve manager (agent wallet) — part of the kernel's salt binding ────────
+  let managerAddr: Address;
+  if (options.manager) {
+    if (!isAddress(options.manager, { strict: false })) {
+      throw new Error(`Invalid --manager address: ${options.manager}`);
+    }
+    managerAddr = getAddress(options.manager);
+  } else if (stored?.manager) {
+    managerAddr = getAddress(stored.manager);
+  } else {
+    throw new Error(
+      "The predicted address depends on the agent (manager) wallet, which is mixed into the kernel's CREATE2 salt.\n" +
+        "Pass --manager <agent address> (create one first with `sailor keys`), or run after onboarding so it can be read from .sail/account.json.",
+    );
   }
 
   const saltNonce = options.salt != null ? BigInt(options.salt) : 0n;
@@ -212,7 +232,15 @@ export async function accountPredict(options: PredictOptions): Promise<void> {
       kernel: deployment.kernel,
       safeModuleEnabler: deployment.safeModuleEnabler,
     });
-    const predictedAddress = computeSafeProxyAddress({ initializer, saltNonce, proxyCreationCode });
+    const predictedAddress = computeSailSmaAddress({
+      initializer,
+      saltNonce,
+      deployer: ownerAddr,
+      permissionSigner: ownerAddr,
+      manager: managerAddr,
+      feePolicy: deployment.standardFeePolicy as Address,
+      proxyCreationCode,
+    });
     return {
       chainId,
       name: viemChain.name,
@@ -231,6 +259,7 @@ export async function accountPredict(options: PredictOptions): Promise<void> {
         {
           salt: saltNonce.toString(),
           owner: ownerAddr,
+          manager: managerAddr,
           chains: results.map(({ chainId, name, predictedAddress }) => ({
             chainId,
             name,
@@ -238,8 +267,8 @@ export async function accountPredict(options: PredictOptions): Promise<void> {
           })),
           allSame,
           note: allSame
-            ? "All chains produce the same address with this salt and owner."
-            : "Addresses differ per chain because the Safe initializer encodes chain-specific contract addresses (kernel, safeModuleEnabler). Cross-chain same-address requires deterministic protocol deployment or a registerExisting() flow.",
+            ? "All chains produce the same address with this salt, owner, and manager."
+            : "Addresses differ per chain because the kernel salt binds the chain-specific fee policy and the Safe initializer encodes chain-specific contract addresses (kernel, safeModuleEnabler). Cross-chain same-address requires deterministic protocol deployment or a registerExisting() flow.",
         },
         null,
         2,
@@ -248,9 +277,10 @@ export async function accountPredict(options: PredictOptions): Promise<void> {
     return;
   }
 
-  console.log(`\nPredicted Safe addresses`);
-  console.log(`  Owner: ${ownerAddr}`);
-  console.log(`  Salt:  ${saltNonce}`);
+  console.log("\nPredicted Safe addresses");
+  console.log(`  Owner:   ${ownerAddr}`);
+  console.log(`  Manager: ${managerAddr}`);
+  console.log(`  Salt:    ${saltNonce}`);
   console.log("────────────────────────────────────────────────────");
   for (const { chainId, name, predictedAddress } of results) {
     console.log(`  ${name.padEnd(14)} (${String(chainId).padEnd(5)}):  ${predictedAddress}`);
@@ -262,20 +292,20 @@ export async function accountPredict(options: PredictOptions): Promise<void> {
   } else {
     console.log("\n⚠  Addresses differ across chains.");
     console.log(
-      "   Root cause: SafeProxyFactory computes CREATE2 salt as\n" +
-        "   keccak256(keccak256(initializer) ‖ saltNonce). The Safe initializer\n" +
-        "   includes chain-specific addresses (kernel, safeModuleEnabler), so\n" +
-        "   different chains produce different salts → different addresses.\n" +
+      "   Root cause: SailKernel.createAccount binds the CREATE2 salt as\n" +
+        "   keccak256(saltNonce, deployer, permissionSigner, manager, feePolicy),\n" +
+        "   then SafeProxyFactory derives the address from that bound salt and the\n" +
+        "   Safe initializer. Both the fee policy and the initializer (kernel,\n" +
+        "   safeModuleEnabler) are chain-specific, so each chain yields a different\n" +
+        "   address even with the same owner, manager, and salt.\n" +
         "\n" +
         "   For cross-chain same-address the Sail Protocol needs one of:\n" +
-        "   A) Deterministic (CREATE2) deployment of kernel + safeModuleEnabler\n" +
-        "      so they land at the same address on every chain.\n" +
+        "   A) Deterministic (CREATE2) deployment of kernel + safeModuleEnabler +\n" +
+        "      fee policy so they land at the same address on every chain.\n" +
         "   B) A registerExisting() path allowing a plain Safe (deployed with a\n" +
         "      chain-agnostic initializer) to be registered with the kernel.",
     );
   }
-  console.log(
-    "\nTo deploy on this chain: sailor onboard --new-sma --salt " + saltNonce.toString(),
-  );
+  console.log(`\nTo deploy on this chain: sailor onboard --new-sma --salt ${saltNonce}`);
 }
 
