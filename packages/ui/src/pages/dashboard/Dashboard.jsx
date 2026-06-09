@@ -1086,6 +1086,12 @@ function DashboardContent({ onReset }) {
                   {overview.network && (
                     <span className={styles.smaBadge}>{overview.network}</span>
                   )}
+                  <MandateStatus status={agentRunning ? 'active' : 'paused'} kind="agent" />
+                  {agentSource && (
+                    <span className={styles.smaBadge}>
+                      {agentSource === 'remote' ? 'remote agent' : agentSource === 'github-actions' ? 'github actions' : `local · PID ${agentPid}`}
+                    </span>
+                  )}
                   {!overview.onchain && (
                     <button
                       type="button"
