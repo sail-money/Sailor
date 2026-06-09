@@ -3673,7 +3673,7 @@
 }
 .titleNameBtn svg {
   color: var(--text-tertiary);
-  opacity: 0;
+  opacity: 0.45;
   flex-shrink: 0;
   transition: opacity 0.15s;
 }
