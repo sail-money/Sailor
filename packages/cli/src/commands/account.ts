@@ -360,6 +360,9 @@ export async function accountDeployChain(options: DeployChainOptions): Promise<v
   const saltNonce = options.salt != null ? BigInt(options.salt) : BigInt(stored.saltNonce!);
 
   // ── 2. Validate target chain ──────────────────────────────────────────────────
+  if (!/^\d+$/.test(options.chain)) {
+    throw new Error(`Invalid --chain value: "${options.chain}" — must be a numeric chain ID.`);
+  }
   const targetChainId = Number(options.chain) as SailChainId;
   if (!(targetChainId in sailDeployments)) {
     throw new Error(
@@ -437,9 +440,13 @@ export async function accountDeployChain(options: DeployChainOptions): Promise<v
     chain: getChainById(targetChainId),
     transport: http(getRpcUrl(targetChainId) ?? undefined),
   });
+  const alreadyRecorded = (stored.deployedChains ?? []).includes(targetChainId);
+  if (alreadyRecorded) {
+    say(() => console.log(`\nChain ${targetChainId} is already recorded as deployed — verifying on-chain…`));
+  }
   const existingCode = await targetClient.getCode({ address: predicted });
   if (existingCode && existingCode !== "0x") {
-    say(() => console.log(`\nSMA already deployed on chain ${targetChainId} at ${predicted}.`));
+    say(() => console.log(`SMA confirmed at ${predicted} on chain ${targetChainId}.`));
     recordDeployedChain(stored, targetChainId);
     if (json) {
       console.log(
@@ -574,13 +581,15 @@ export async function accountDeployChain(options: DeployChainOptions): Promise<v
   }
 }
 
-/** Append chainId to stored.deployedChains and rewrite account.json. */
+/** Append chainId to stored.deployedChains and rewrite account.json + accounts list. */
 function recordDeployedChain(stored: StoredAccount, chainId: number): void {
-  const existing = stored.deployedChains ?? [stored.chainId];
+  const existing = [...(stored.deployedChains ?? [stored.chainId])];
   if (!existing.includes(chainId)) {
     existing.push(chainId);
     existing.sort((a, b) => a - b);
   }
-  writeJsonFile(sailPath("account.json"), { ...stored, deployedChains: existing });
+  const updated: StoredAccount = { ...stored, deployedChains: existing };
+  upsertAccountInList(updated);
+  writeJsonFile(sailPath("account.json"), updated);
 }
 

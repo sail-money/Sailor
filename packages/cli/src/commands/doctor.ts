@@ -306,7 +306,7 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
           const label = isPrimary
             ? "deployed (this account)"
             : isRecorded
-              ? `${predicted}  ✓ deployed`
+              ? `${predicted}  ✓ deployed (recorded)`
               : predicted;
           console.log(`  ${CHAIN_NAMES[cid].padEnd(12)} (${cid}):  ${label}`);
         }
