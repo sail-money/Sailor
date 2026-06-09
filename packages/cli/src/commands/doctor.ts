@@ -278,6 +278,10 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
           `\nMulti-chain addresses (salt ${saltNonce}, owner ${ownerAddr}, manager ${managerAddr}):`,
         );
         const CHAIN_NAMES: Record<number, string> = { 1: "Ethereum", 8453: "Base", 42161: "Arbitrum", 130: "Unichain" };
+        const deployedChains = new Set([
+          stored.chainId,
+          ...(stored.deployedChains ?? []),
+        ]);
         const predictions: string[] = [];
         for (const cid of MAINNET_CHAINS) {
           const dep = sailDeployments[cid];
@@ -297,8 +301,13 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
             proxyCreationCode,
           });
           predictions.push(predicted.toLowerCase());
-          const isDeployed = predicted.toLowerCase() === safe.toLowerCase() && cid === chainId;
-          const label = isDeployed ? "deployed (this account)" : predicted;
+          const isPrimary = cid === chainId;
+          const isRecorded = deployedChains.has(cid);
+          const label = isPrimary
+            ? "deployed (this account)"
+            : isRecorded
+              ? `${predicted}  ✓ deployed`
+              : predicted;
           console.log(`  ${CHAIN_NAMES[cid].padEnd(12)} (${cid}):  ${label}`);
         }
         // With CREATE2 deterministic deployment (same kernel, safeModuleEnabler, and

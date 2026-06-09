@@ -14,6 +14,11 @@ export type StoredAccount = {
   createdAtBlock: string;
   /** CREATE2 salt used to deploy this Safe. Stored so `sailor account predict` can reproduce the address. */
   saltNonce?: string;
+  /**
+   * Chain IDs on which this SMA is confirmed deployed. Populated by `sailor account deploy-chain`.
+   * The primary chain (chainId) is implicitly deployed even if absent from this list.
+   */
+  deployedChains?: number[];
 };
 
 /**

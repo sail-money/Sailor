@@ -1,6 +1,7 @@
 import { getChain } from "@sail/chains";
 import {
   SAFE_V141,
+  SailKernelAbi,
   buildSafeSetupInitializer,
   computeSailSmaAddress,
   sailDeployments,
@@ -13,13 +14,18 @@ import {
   type Address,
   type Hex,
   createPublicClient,
+  encodeFunctionData,
   getAddress,
   isAddress,
+  parseEventLogs,
+  zeroAddress,
 } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import {
+  appendActivity,
   checksum,
   makeClient,
+  nowIso,
   parseEnvFile,
   prompt,
   promptAddress,
@@ -28,7 +34,9 @@ import {
   writeJsonFile,
 } from "../lib/io.js";
 import { keyExists, loadKeyring } from "../lib/keys.js";
+import { projectPort } from "../lib/packagePaths.js";
 import { type StoredAccount, upsertAccountInList } from "../lib/state.js";
+import { createSigningChannel } from "../signing/client.js";
 
 function resolveChain(chainId: number): ChainConfig {
   try {
@@ -309,5 +317,270 @@ export async function accountPredict(options: PredictOptions): Promise<void> {
     );
   }
   console.log(`\nTo deploy on this chain: sailor onboard --new-sma --salt ${saltNonce}`);
+}
+
+export interface DeployChainOptions {
+  chain: string;
+  salt?: string;
+  json?: boolean;
+}
+
+/**
+ * `sailor account deploy-chain --chain <id>` — deploy the SAME SMA address on an
+ * additional chain using the stored owner, manager, and saltNonce.
+ *
+ * Requires the project's SMA to have been created against the current CREATE2
+ * contracts (PR #74). If the stored SMA address doesn't match what the current
+ * contracts would predict, the command refuses with a clear explanation — the SMA
+ * was deployed against the old per-chain kernel addresses and cannot be reproduced
+ * at the same address on another chain.
+ */
+export async function accountDeployChain(options: DeployChainOptions): Promise<void> {
+  const json = !!options.json;
+  const say = (fn: () => void) => { if (!json) fn(); };
+
+  // ── 1. Read stored account ────────────────────────────────────────────────────
+  const stored = readJsonFile<StoredAccount>(sailPath("account.json"));
+  if (!stored?.safe || !stored?.owner || !stored?.manager) {
+    throw new Error(
+      "No SMA found in .sail/account.json. Run `sailor onboard --new-sma` first.",
+    );
+  }
+  if (stored.saltNonce == null && options.salt == null) {
+    throw new Error(
+      "No saltNonce stored in .sail/account.json.\n" +
+        "Pass --salt <n> explicitly, or re-deploy your SMA with `sailor onboard --new-sma --salt <n>`\n" +
+        "so the salt is recorded for cross-chain use.",
+    );
+  }
+
+  const ownerAddr = getAddress(stored.owner);
+  const managerAddr = getAddress(stored.manager);
+  const storedSafe = getAddress(stored.safe);
+  const saltNonce = options.salt != null ? BigInt(options.salt) : BigInt(stored.saltNonce!);
+
+  // ── 2. Validate target chain ──────────────────────────────────────────────────
+  const targetChainId = Number(options.chain) as SailChainId;
+  if (!(targetChainId in sailDeployments)) {
+    throw new Error(
+      `Chain ${targetChainId} has no Sail Protocol deployment.\n` +
+        `Supported: ${Object.keys(sailDeployments).join(", ")}`,
+    );
+  }
+  if (targetChainId === stored.chainId) {
+    throw new Error(
+      `Chain ${targetChainId} is already the primary chain for this SMA.\n` +
+        "Use a different chain ID.",
+    );
+  }
+
+  // ── 3. Fetch proxyCreationCode (once; same Safe factory on every chain) ───────
+  const allChainIds = Object.keys(sailDeployments).map(Number);
+  const rpcPreferred = allChainIds.find((cid) => getRpcUrl(cid) != null) ?? allChainIds[0];
+  const proxyCreationCode = await fetchProxyCreationCode(rpcPreferred);
+
+  // ── 4. Predict SMA address on target chain ────────────────────────────────────
+  const deployment = sailDeployments[targetChainId];
+  const initializer = buildSafeSetupInitializer({
+    owners: [ownerAddr],
+    threshold: 1n,
+    kernel: deployment.kernel,
+    safeModuleEnabler: deployment.safeModuleEnabler,
+  });
+  const predicted = computeSailSmaAddress({
+    initializer,
+    saltNonce,
+    deployer: ownerAddr,
+    permissionSigner: ownerAddr,
+    manager: managerAddr,
+    feePolicy: deployment.standardFeePolicy as Address,
+    proxyCreationCode,
+  });
+
+  // ── 5. OLD-SMA GUARD ──────────────────────────────────────────────────────────
+  // If the prediction doesn't match the stored safe, this SMA was deployed against
+  // the old per-chain kernel addresses (pre-CREATE2 deployment) and cannot be
+  // reproduced at the same address on another chain.
+  if (predicted.toLowerCase() !== storedSafe.toLowerCase()) {
+    const msg =
+      `Your existing SMA (${storedSafe}) cannot be reproduced at the same address on\n` +
+      `chain ${targetChainId}. Predicted address: ${predicted}.\n\n` +
+      "This means the SMA was deployed against the previous contracts (pre-deterministic\n" +
+      "kernel deployment). The current contracts are identical across all chains, which is\n" +
+      "required for cross-chain same-address deployment.\n\n" +
+      "To get a cross-chain same-address SMA:\n" +
+      "  1. Deploy a new SMA on your primary chain with the current contracts:\n" +
+      `       sailor onboard --new-sma --salt ${saltNonce}\n` +
+      "  2. Then run deploy-chain from that account.";
+    if (json) {
+      console.log(
+        JSON.stringify(
+          {
+            status: "error",
+            error: "old-contracts",
+            stored: storedSafe,
+            predicted,
+            targetChainId,
+            message: msg,
+          },
+          null,
+          2,
+        ),
+      );
+      process.exit(1);
+    }
+    throw new Error(msg);
+  }
+
+  // ── 6. Already-deployed check (idempotent — no double-deploy) ─────────────────
+  const targetClient = createPublicClient({
+    chain: getChainById(targetChainId),
+    transport: http(getRpcUrl(targetChainId) ?? undefined),
+  });
+  const existingCode = await targetClient.getCode({ address: predicted });
+  if (existingCode && existingCode !== "0x") {
+    say(() => console.log(`\nSMA already deployed on chain ${targetChainId} at ${predicted}.`));
+    recordDeployedChain(stored, targetChainId);
+    if (json) {
+      console.log(
+        JSON.stringify({ status: "ok", alreadyDeployed: true, address: predicted, chainId: targetChainId }, null, 2),
+      );
+    }
+    return;
+  }
+
+  // ── 7. Deploy via signing channel (owner approves in browser) ─────────────────
+  say(() =>
+    console.log(
+      `\nDeploying SMA on ${getChainById(targetChainId).name} (chain ${targetChainId})…`,
+    ),
+  );
+  say(() => console.log(`  Predicted address: ${predicted}`));
+
+  const createAccountData = encodeFunctionData({
+    abi: SailKernelAbi,
+    functionName: "createAccount",
+    args: [
+      SAFE_V141.proxyFactory as Address,
+      SAFE_V141.singletonL2 as Address,
+      initializer,
+      saltNonce,
+      ownerAddr,   // permissionSigner = owner (same as original deployment)
+      managerAddr, // manager = agent wallet
+      deployment.standardFeePolicy as Address,
+      zeroAddress, // feeAsset (native)
+    ],
+  });
+
+  const channel = await createSigningChannel(process.cwd());
+  try {
+    await channel.start();
+
+    say(() =>
+      console.log(
+        `\n→ Open the Sailor dashboard and switch your wallet to ${getChainById(targetChainId).name}:\n` +
+          `  http://localhost:${projectPort(process.cwd())}/#/station\n`,
+      ),
+    );
+
+    say(() => console.log("Pushing signing request…"));
+    const response = await channel.requestSignature({
+      type: "transaction",
+      kind: "create-sma",
+      title: `Deploy SMA on ${getChainById(targetChainId).name}`,
+      description:
+        `Deploy the same SMA at ${predicted} on ${getChainById(targetChainId).name}. ` +
+        `Switch your wallet to chain ${targetChainId} before signing.`,
+      chainId: targetChainId,
+      to: deployment.kernel,
+      data: createAccountData,
+      details: [
+        { label: "Owner", value: ownerAddr },
+        { label: "Agent wallet", value: managerAddr },
+        { label: "Predicted address", value: predicted },
+        { label: "Fee policy", value: deployment.standardFeePolicy },
+        { label: "Salt", value: saltNonce.toString() },
+      ],
+    });
+
+    if (response.status === "rejected") {
+      throw new Error(`User rejected deployment: ${response.reason ?? "no reason given"}`);
+    }
+    if (response.status !== "signed") {
+      throw new Error("Unexpected response from signing UI");
+    }
+
+    say(() => console.log("Waiting for transaction confirmation…"));
+    const receipt = await targetClient.waitForTransactionReceipt({ hash: response.txHash });
+
+    // ── 8. Verify deployed address matches prediction ─────────────────────────
+    const logs = parseEventLogs({ abi: SailKernelAbi, logs: receipt.logs });
+    const registered = logs.find(
+      (l): l is typeof l & { eventName: "AccountRegistered"; args: { account: Address } } =>
+        l.eventName === "AccountRegistered",
+    );
+    if (!registered) {
+      throw new Error(
+        `AccountRegistered event not found in receipt (tx ${response.txHash}) — ` +
+          "transaction may have failed or was sent to the wrong contract.",
+      );
+    }
+    const deployedAddress = registered.args.account;
+    if (deployedAddress.toLowerCase() !== predicted.toLowerCase()) {
+      throw new Error(
+        `Deployed address mismatch: predicted ${predicted}, got ${deployedAddress}.\n` +
+          "Please report this as a bug — this should not happen with deterministic contracts.",
+      );
+    }
+
+    // ── 9. Persist + activity log ─────────────────────────────────────────────
+    recordDeployedChain(stored, targetChainId);
+    appendActivity({
+      ts: nowIso(),
+      actor: "owner",
+      type: "sma_deployed_chain",
+      sma: deployedAddress,
+      owner: ownerAddr,
+      manager: managerAddr,
+      txHash: response.txHash,
+      chainId: targetChainId,
+      saltNonce: saltNonce.toString(),
+    });
+
+    say(() => {
+      console.log(`\n${"─".repeat(56)}`);
+      console.log("✓ SMA deployed on additional chain!");
+      console.log(`  Address: ${deployedAddress}`);
+      console.log(`  Chain:   ${getChainById(targetChainId).name} (${targetChainId})`);
+      console.log(`  Tx:      ${response.txHash}`);
+      console.log("─".repeat(56));
+    });
+    if (json) {
+      console.log(
+        JSON.stringify(
+          {
+            status: "ok",
+            address: deployedAddress,
+            chainId: targetChainId,
+            txHash: response.txHash,
+          },
+          null,
+          2,
+        ),
+      );
+    }
+  } finally {
+    channel.stop();
+  }
+}
+
+/** Append chainId to stored.deployedChains and rewrite account.json. */
+function recordDeployedChain(stored: StoredAccount, chainId: number): void {
+  const existing = stored.deployedChains ?? [stored.chainId];
+  if (!existing.includes(chainId)) {
+    existing.push(chainId);
+    existing.sort((a, b) => a - b);
+  }
+  writeJsonFile(sailPath("account.json"), { ...stored, deployedChains: existing });
 }
 
