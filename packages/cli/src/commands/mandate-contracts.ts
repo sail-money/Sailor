@@ -488,7 +488,7 @@ async function runDeployClone(
       [sma, impl, BigInt(Math.floor(Date.now() / 1000))],
     ),
   );
-  const clone = predictCloneAddress(impl, project.contracts.permissionFactory, submitter, salt);
+  const clone = predictCloneAddress(impl, project.contracts.mandateFactory, submitter, salt);
 
   say(() => {
     console.log(`\n${spec.label} clone (${options.template})`);
@@ -607,7 +607,7 @@ async function runDeployClone(
     args: [sma, impl, salt, initData, deadline, signature],
   });
   const txHash = await walletClient.sendTransaction({
-    to: project.contracts.permissionFactory,
+    to: project.contracts.mandateFactory,
     data,
     value: fee,
     account: agentSigner.viemAccount,

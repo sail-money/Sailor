@@ -81,7 +81,7 @@ export async function capabilities(options: { json?: boolean } = {}): Promise<vo
     dispatchModelSource: modelSource,
     contracts: {
       kernel,
-      permissionFactory: project.contracts.permissionFactory,
+      mandateFactory: project.contracts.mandateFactory,
     },
     supportedChains: (Object.keys(sailDeployments) as unknown as number[]).map((id) => ({
       chainId: Number(id),

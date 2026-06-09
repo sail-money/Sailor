@@ -129,7 +129,7 @@ export async function accountCreate(): Promise<void> {
 }
 
 /** Supported mainnet chains for multi-chain SMA operations. */
-const SAIL_MAINNET_CHAINS: SailChainId[] = [8453, 42161, 130];
+const SAIL_MAINNET_CHAINS: SailChainId[] = [1, 8453, 42161, 130];
 
 /**
  * Fetch proxyCreationCode from SafeProxyFactory once (same on all chains).
