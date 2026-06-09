@@ -3,6 +3,7 @@ import { http, type Address, createPublicClient } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { confirm, readJsonFile, sailPath, writeJsonFile } from "../lib/io.js";
 import { MandateStore } from "../lib/mandates.js";
+import { type PermissionExplanation, explainPermission } from "../lib/permission-explainer.js";
 import { ProjectContext } from "../lib/project.js";
 import type { StoredAccount, StoredMandate } from "../lib/state.js";
 import { mandateAttach } from "./mandate-contracts.js";
@@ -31,7 +32,7 @@ type TrackedPermission = {
 type MandateDraft = {
   account: string;
   chainId: number;
-  permissions: Array<{ address: string; label: string }>;
+  permissions: Array<{ address: string; label: string; explanation?: PermissionExplanation }>;
   createdAt: string;
 };
 
@@ -140,13 +141,17 @@ export async function mandatePrepare(): Promise<void> {
     console.log(`    ${status}`);
   }
 
+  const store = new MandateStore();
   const draft: MandateDraft = {
     account: account.safe,
     chainId: account.chainId,
-    // Exclude permissions revoked on-chain — the draft reflects the live set.
     permissions: permissions
       .filter((p) => !p.revokedOnChain)
-      .map((p) => ({ address: p.address, label: p.label })),
+      .map((p) => {
+        const mandate = store.find(p.address);
+        const explanation = explainPermission(p.label, mandate?.sourcePath) ?? undefined;
+        return { address: p.address, label: p.label, explanation };
+      }),
     createdAt: new Date().toISOString(),
   };
   writeJsonFile(sailPath("mandate-draft.json"), draft);

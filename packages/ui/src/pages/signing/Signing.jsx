@@ -589,6 +589,121 @@ const SIGNER_NONCES_ABI = [
   },
 ]
 
+function ExplanationPanel({ ex }) {
+  const chip = (label, color) => (
+    <span style={{
+      display: 'inline-block', padding: '2px 8px', borderRadius: 3,
+      fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+      background: color + '22', color, border: `1px solid ${color}44`,
+    }}>{label}</span>
+  )
+
+  return (
+    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--glass-border)' }}>
+      {(ex.protocol || ex.chain) && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+          {ex.protocol && chip(ex.protocol, '#7eb8f7')}
+          {ex.chain && chip(ex.chain, '#9b8ff7')}
+          {ex.version && chip(ex.version, 'rgba(255,255,255,0.4)')}
+        </div>
+      )}
+      {ex.enforced?.length > 0 && (
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5dde8b', marginBottom: 5 }}>
+            Enforced on-chain
+          </div>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {ex.enforced.map((b, i) => (
+              <li key={i} style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', paddingLeft: 12, position: 'relative' }}>
+                <span style={{ position: 'absolute', left: 0, color: '#5dde8b' }}>·</span>
+                {b}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {ex.notEnforced?.length > 0 && (
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 5 }}>
+            Agent code — not enforced on-chain
+          </div>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {ex.notEnforced.map((b, i) => (
+              <li key={i} style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', paddingLeft: 12, position: 'relative' }}>
+                <span style={{ position: 'absolute', left: 0 }}>·</span>
+                {b}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PermissionRow({ item }) {
+  const [open, setOpen] = useState(false)
+  const ex = item.permExplanation
+
+  return (
+    <li style={{
+      borderRadius: 2,
+      background: 'var(--glass-bg)',
+      border: '1px solid var(--glass-border)',
+      overflow: 'hidden',
+    }}>
+      <div
+        onClick={() => ex && setOpen(o => !o)}
+        style={{
+          padding: '10px 12px',
+          cursor: ex ? 'pointer' : 'default',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 8,
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.5 }}>
+            {item.explanation}
+          </div>
+          {item.address && (
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', marginTop: 2, fontFamily: 'monospace' }}>
+              {item.address.slice(0, 6)}…{item.address.slice(-4)}
+            </div>
+          )}
+        </div>
+        {ex && (
+          <span style={{
+            flexShrink: 0,
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            padding: '3px 8px', borderRadius: 4,
+            border: '1px solid rgba(255,255,255,0.12)',
+            background: open ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.03)',
+            fontSize: 11, color: 'rgba(255,255,255,0.5)',
+            fontWeight: 500, whiteSpace: 'nowrap',
+            transition: 'background 0.15s, color 0.15s',
+            userSelect: 'none',
+          }}>
+            Details
+            <span style={{
+              fontSize: 8, display: 'inline-block',
+              transform: open ? 'rotate(180deg)' : 'none',
+              transition: 'transform 0.2s',
+              opacity: 0.6,
+            }}>▾</span>
+          </span>
+        )}
+      </div>
+      {open && ex && (
+        <div style={{ padding: '0 12px 12px' }}>
+          <ExplanationPanel ex={ex} />
+        </div>
+      )}
+    </li>
+  )
+}
+
 export function MandateSigningFlow({ draft, embedded = false }) {
   const { isConnected, chainId: walletChainId } = useAccount()
   const { signTypedDataAsync } = useSignTypedData()
@@ -598,11 +713,16 @@ export function MandateSigningFlow({ draft, embedded = false }) {
   const [errorMsg, setErrorMsg] = useState('')
 
   // Normalise both draft formats:
-  // - CLI format: { permissions: [{address, label}] }
+  // - CLI format: { permissions: [{address, label, explanation?}] }
   // - Legacy format: { items: [{template, explanation}] }
   const items = (draft.items ?? []).length > 0
     ? draft.items
-    : (draft.permissions ?? []).map((p) => ({ template: p.address, explanation: p.label }))
+    : (draft.permissions ?? []).map((p) => ({
+        template: p.address,
+        explanation: p.label,
+        address: p.address,
+        permExplanation: p.explanation ?? null,
+      }))
 
   // The kernel address (EIP-712 verifyingContract) comes from the draft's
   // chainId via @sail/chains. Falls back to the zero address when the chain
@@ -714,19 +834,7 @@ export function MandateSigningFlow({ draft, embedded = false }) {
             }}
           >
             {items.map((it, i) => (
-              <li
-                key={i}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: 2,
-                  background: 'var(--glass-bg)',
-                  border: '1px solid var(--glass-border)',
-                }}
-              >
-                <span style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.5 }}>
-                  {it.explanation}
-                </span>
-              </li>
+              <PermissionRow key={i} item={it} />
             ))}
           </ul>
 
