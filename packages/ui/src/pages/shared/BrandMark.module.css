@@ -1,41 +1,35 @@
+/* Sui single-accent discipline: provider marks render monochrome on
+   a neutral sharp-cornered tile (no Claude orange / Cursor black /
+   OpenAI white substrates leaking color into the page). */
 .disc {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
+  border-radius: 2px;
   flex: 0 0 auto;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.10) inset,
-    0 1px 2px rgba(0, 0, 0, 0.32);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
   overflow: hidden;
 }
 
 .icon {
   display: block;
+  filter: grayscale(1) brightness(1.8) contrast(0.9);
 }
 
-/* Claude — warm orange substrate */
-.claude {
-  background: #CC785C;
-}
-.claude .icon { color: #FAF9F5; }
-
-/* Cursor — near-black */
-.cursor {
-  background: #161616;
-}
-.cursor .icon { color: #FAFAFA; }
-
-/* OpenAI / Codex / ChatGPT — black mark on white per request */
+.claude,
+.cursor,
 .openai {
-  background: #FFFFFF;
+  background: rgba(255, 255, 255, 0.06);
 }
-.openai .icon { color: #0A0A0A; }
+.claude .icon,
+.cursor .icon,
+.openai .icon { color: #FFFFFF; }
 
 /* Fallback letter avatar */
 .fallback {
-  background: rgba(25, 144, 255, 0.12);
-  border: 1px solid rgba(25, 144, 255, 0.32);
+  background: rgba(38, 128, 254, 0.12);
+  border: 1px solid rgba(38, 128, 254, 0.32);
   color: var(--ocean-light);
   font-family: 'DM Sans', sans-serif;
   font-weight: 600;
