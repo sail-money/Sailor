@@ -20,6 +20,7 @@ import CreateSMAModal from './CreateSMAModal'
 import RevokeMandateModal from './RevokeMandateModal'
 import AddSignerModal from './AddSignerModal'
 import RotateSignerModal from './RotateSignerModal'
+import RpcSection from './RpcSection'
 import {
   useSailorAccount,
   useSailorAccounts,
@@ -1081,16 +1082,6 @@ function DashboardContent({ onReset }) {
                         {agentSource === 'remote' ? 'remote agent' : agentSource === 'github-actions' ? 'github actions' : `local · PID ${agentPid}`}
                       </span>
                     )}
-                    {!overview.onchain && (
-                      <button
-                        type="button"
-                        className={`${styles.smaBadge} ${styles.smaBadgeWarn} ${styles.smaBadgeBtn}`}
-                        title="Add RPC_URL=https://your-endpoint to .sail/.env.local&#10;Get a free endpoint at alchemy.com"
-                        onClick={() => alert('Add RPC_URL=https://your-endpoint to .sail/.env.local\nGet a free endpoint at alchemy.com')}
-                      >
-                        Add RPC URL to enable balance tracking
-                      </button>
-                    )}
                   </div>
                 )}
               </div>
@@ -1230,6 +1221,11 @@ function DashboardContent({ onReset }) {
                 onAddSigner={() => setAddSignerOpen(true)}
                 onRotateSigner={overview?.kernel && overview?.sma?.address ? () => setRotateOpen(true) : undefined}
               />
+            </section>
+
+            {/* ── RPC / Network config ─────────────────────────────── */}
+            <section className={agentStyles.card}>
+              <RpcSection />
             </section>
 
             {/* ── Recent activity / Decision Journal ─────────────── */}
