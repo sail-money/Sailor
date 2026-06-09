@@ -30,7 +30,7 @@ export type ProjectContracts = {
   governance: Address;
   standardFeePolicy: Address;
   safeModuleEnabler: Address;
-  permissionFactory: Address;
+  mandateFactory: Address;
 };
 
 type OwnerState = { owner: Address; chainId: number; connectedAt: string };
@@ -77,10 +77,13 @@ export class ProjectContext {
           ? overrides.safeModuleEnabler
           : this.deployment.safeModuleEnabler,
       ),
-      permissionFactory: getAddress(
-        nonEmpty(overrides.permissionFactory)
-          ? overrides.permissionFactory
-          : this.deployment.permissionFactory,
+      // Accept both override names: mandateFactory (new) and permissionFactory (legacy).
+      mandateFactory: getAddress(
+        nonEmpty(overrides.mandateFactory)
+          ? overrides.mandateFactory
+          : nonEmpty(overrides.permissionFactory)
+            ? overrides.permissionFactory
+            : this.deployment.mandateFactory,
       ),
     };
   }

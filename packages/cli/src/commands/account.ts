@@ -129,7 +129,7 @@ export async function accountCreate(): Promise<void> {
 }
 
 /** Supported mainnet chains for multi-chain SMA operations. */
-const SAIL_MAINNET_CHAINS: SailChainId[] = [8453, 42161, 130];
+const SAIL_MAINNET_CHAINS: SailChainId[] = [1, 8453, 42161, 130];
 
 /**
  * Fetch proxyCreationCode from SafeProxyFactory once (same on all chains).
@@ -219,8 +219,10 @@ export async function accountPredict(options: PredictOptions): Promise<void> {
   }
 
   // ── Fetch proxyCreationCode (one read from any chain — same factory everywhere) ─
-  const firstChain = chainIds[0];
-  const proxyCreationCode = await fetchProxyCreationCode(firstChain);
+  // Prefer a chain where the user has a configured RPC to avoid falling back to
+  // a rate-limited public endpoint when only a non-first chain has a URL set.
+  const preferredChain = chainIds.find((cid) => getRpcUrl(cid) != null) ?? chainIds[0];
+  const proxyCreationCode = await fetchProxyCreationCode(preferredChain);
 
   // ── Compute predicted address per chain ──────────────────────────────────────
   const results = chainIds.map((chainId) => {

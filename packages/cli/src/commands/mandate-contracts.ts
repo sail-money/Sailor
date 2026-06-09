@@ -440,6 +440,17 @@ async function runDeployClone(
     );
   }
 
+  // Guard: if no standalone templates have been deployed on this chain at all, give a
+  // clear actionable error before any signing or gas is consumed.
+  const templateMap = project.deployment.standaloneTemplates ?? {};
+  if (Object.keys(templateMap).length === 0) {
+    throw new Error(
+      `No clone templates are available on chain ${project.chainId} yet — ` +
+        `templates are pending redeployment against the new kernel (${project.deployment.kernel}). ` +
+        `Deploy your permission directly with \`sailor mandate deploy\` instead.`,
+    );
+  }
+
   const impl = project.deployment.standaloneTemplates?.[options.template] as Address | undefined;
   if (!impl || !isAddress(impl, { strict: false })) {
     throw new Error(
@@ -488,7 +499,7 @@ async function runDeployClone(
       [sma, impl, BigInt(Math.floor(Date.now() / 1000))],
     ),
   );
-  const clone = predictCloneAddress(impl, project.contracts.permissionFactory, submitter, salt);
+  const clone = predictCloneAddress(impl, project.contracts.mandateFactory, submitter, salt);
 
   say(() => {
     console.log(`\n${spec.label} clone (${options.template})`);
@@ -607,7 +618,7 @@ async function runDeployClone(
     args: [sma, impl, salt, initData, deadline, signature],
   });
   const txHash = await walletClient.sendTransaction({
-    to: project.contracts.permissionFactory,
+    to: project.contracts.mandateFactory,
     data,
     value: fee,
     account: agentSigner.viemAccount,

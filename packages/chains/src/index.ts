@@ -5,65 +5,79 @@ export type { ChainConfig };
 /**
  * Registry of live SailKernel deployments, keyed by EVM chainId.
  *
- * Addresses verified on-chain against each kernel's DISPATCH_TYPEHASH.
+ * All entries were updated to the CREATE2-deterministic deployment (gitCommit
+ * 1199b33) in which every core contract lands at the same address on every chain.
  * Add new chains here as SailKernel is deployed on additional networks.
  */
 export const chains: Record<number, ChainConfig> = {
-  // Base Sepolia (testnet)
-  84532: {
-    chainId: 84532,
-    name: "Base Sepolia",
-    // SAIL-405 redeploy (2026-06-04, gitCommit 6d872e6) — adds owner-gated
-    // setManager(newManager) to rotate the delegated signer. Genesis allowlist
-    // bootstrap + createAccount fix carried over; allowlistBootstrapped=true,
-    // zero fees. Supersedes 0xcC50009115DAaBCB40513e03a1a0Cc2Fdf6Be558.
-    kernel: "0xf1D0F4C9893612627409948BAa9d82a01a373799",
-    mandateFactory: "0xdfF6a2272F667cDf78Af4681b9c88A219998db95",
-    governance: "0xEaD44bC6999E7b00b9b2E11c1660248DC2a30993",
-    dispatchModel: "selective", // selective: verified on-chain DISPATCH_TYPEHASH 0xbe50c5391dcf9e08d11d2c30dbee822c14ad07af2ceb503c778d265801fb0e5c
+  // Ethereum mainnet
+  1: {
+    chainId: 1,
+    name: "Ethereum",
+    // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33).
+    kernel: "0x02ABC18B65A328de2e749F56ba79ACF2718a6659",
+    mandateFactory: "0x14EDd6c2a56EfC0d71E215ab13094B9AF90543d2",
+    governance: "0x7A478118715791728BDE3bc7A4D7ECfdEB89C6EC",
+    dispatchModel: "selective",
     protocols: {},
   },
   // Base mainnet
   8453: {
     chainId: 8453,
     name: "Base",
-    // SAIL-405 redeploy (2026-06-04, gitCommit 0ed0561) — adds owner-gated
-    // setManager(newManager) to rotate the delegated signer. Genesis allowlist
-    // bootstrap carried over; allowlistBootstrapped=true, zero fees.
-    // Supersedes 0x20eff0DbE752e22655A6dAA5A94521FA06CDdE06.
-    kernel: "0x6319d3dfDDe3804ba93D65752b00c52bFb05a1ab",
-    mandateFactory: "0x7724EACd97C8601d5AC244Aadbf76ad87353Ff31",
-    governance: "0x7E897D919872b1587577617ffFC42113679d0C50",
-    dispatchModel: "selective", // selective: verified on-chain DISPATCH_TYPEHASH 0xbe50c5391dcf9e08d11d2c30dbee822c14ad07af2ceb503c778d265801fb0e5c
+    // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33).
+    // Supersedes 0x6319d3dfDDe3804ba93D65752b00c52bFb05a1ab (SAIL-405).
+    kernel: "0x02ABC18B65A328de2e749F56ba79ACF2718a6659",
+    mandateFactory: "0x14EDd6c2a56EfC0d71E215ab13094B9AF90543d2",
+    governance: "0x7A478118715791728BDE3bc7A4D7ECfdEB89C6EC",
+    dispatchModel: "selective",
     protocols: {},
   },
   // Arbitrum mainnet
   42161: {
     chainId: 42161,
     name: "Arbitrum",
-    // SAIL-405 redeploy (2026-06-04, gitCommit 0ed0561) — adds owner-gated
-    // setManager(newManager) to rotate the delegated signer. Genesis allowlist
-    // bootstrap carried over (bootstrap sent as a standalone tx post-core-deploy);
-    // allowlistBootstrapped=true, zero fees.
-    // Supersedes 0x9AF32E0C395fb31f5cA28994351F8fAE3003e125.
-    kernel: "0x2716B12832DED0EF5688519c5Fe069EFc0374E02",
-    mandateFactory: "0x23681A8A4C9819D8EaB37E46B858da6F3c85E683",
-    governance: "0xd6AbB7A1036ADc7958Abffec9Da03450c5a2Ec8e",
-    dispatchModel: "selective", // selective: verified on-chain DISPATCH_TYPEHASH 0xbe50c5391dcf9e08d11d2c30dbee822c14ad07af2ceb503c778d265801fb0e5c
+    // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33).
+    // Supersedes 0x2716B12832DED0EF5688519c5Fe069EFc0374E02 (SAIL-405).
+    kernel: "0x02ABC18B65A328de2e749F56ba79ACF2718a6659",
+    mandateFactory: "0x14EDd6c2a56EfC0d71E215ab13094B9AF90543d2",
+    governance: "0x7A478118715791728BDE3bc7A4D7ECfdEB89C6EC",
+    dispatchModel: "selective",
     protocols: {},
   },
   // Unichain mainnet
   130: {
     chainId: 130,
     name: "Unichain",
-    // SAIL-406 deploy (2026-06-05, gitCommit 2c9e325) — full protocol deploy:
-    // core + the complete template suite (7 shared + 12 standalone), all
-    // source-verified on uniscan.xyz. Genesis allowlist bootstrap
-    // (allowlistBootstrapped=true), zero fees, onboarding live.
-    kernel: "0xD985029960a9B7C2E7E38e102C448b8b8539B156",
-    mandateFactory: "0x8edDb62Aa49CeB837abf2653be2d93Ad9Fe6777D",
-    governance: "0xAb5C90ECfF2763f6f20f8E553E3b8778dD9C349A",
-    dispatchModel: "selective", // selective: verified on-chain DISPATCH_TYPEHASH 0xbe50c5391dcf9e08d11d2c30dbee822c14ad07af2ceb503c778d265801fb0e5c
+    // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33).
+    // Supersedes 0xD985029960a9B7C2E7E38e102C448b8b8539B156 (SAIL-406).
+    kernel: "0x02ABC18B65A328de2e749F56ba79ACF2718a6659",
+    mandateFactory: "0x14EDd6c2a56EfC0d71E215ab13094B9AF90543d2",
+    governance: "0x7A478118715791728BDE3bc7A4D7ECfdEB89C6EC",
+    dispatchModel: "selective",
+    protocols: {},
+  },
+  // Base Sepolia (testnet)
+  84532: {
+    chainId: 84532,
+    name: "Base Sepolia",
+    // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33).
+    // Supersedes 0xf1D0F4C9893612627409948BAa9d82a01a373799 (SAIL-405).
+    kernel: "0x02ABC18B65A328de2e749F56ba79ACF2718a6659",
+    mandateFactory: "0x14EDd6c2a56EfC0d71E215ab13094B9AF90543d2",
+    governance: "0x7A478118715791728BDE3bc7A4D7ECfdEB89C6EC",
+    dispatchModel: "selective",
+    protocols: {},
+  },
+  // Eth Sepolia (testnet)
+  11155111: {
+    chainId: 11155111,
+    name: "Eth Sepolia",
+    // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33).
+    kernel: "0x02ABC18B65A328de2e749F56ba79ACF2718a6659",
+    mandateFactory: "0x14EDd6c2a56EfC0d71E215ab13094B9AF90543d2",
+    governance: "0x7A478118715791728BDE3bc7A4D7ECfdEB89C6EC",
+    dispatchModel: "selective",
     protocols: {},
   },
 };
