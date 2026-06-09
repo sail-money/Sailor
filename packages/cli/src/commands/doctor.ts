@@ -297,7 +297,7 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
             proxyCreationCode,
           });
           predictions.push(predicted.toLowerCase());
-          const isDeployed = predicted.toLowerCase() === safe.toLowerCase();
+          const isDeployed = predicted.toLowerCase() === safe.toLowerCase() && cid === chainId;
           const label = isDeployed ? "deployed (this account)" : predicted;
           console.log(`  ${CHAIN_NAMES[cid].padEnd(12)} (${cid}):  ${label}`);
         }
