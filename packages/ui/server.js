@@ -1059,6 +1059,26 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
   })
 
+  // Build a mandate list from state/mandates.json filtered to the active SMA.
+  // Used as a fallback when on-chain reads are unavailable.
+  function mandatesFromStore(at, account, nameByAddr, templateByAddr, network) {
+    try {
+      const store = JSON.parse(fs.readFileSync(at('state/mandates.json'), 'utf-8'))
+      const safe = account?.safe?.toLowerCase()
+      return (store.mandates ?? [])
+        .filter((m) => m.address && m.chainId === account?.chainId &&
+          (m.attachments ?? []).some((a) => a.sma?.toLowerCase() === safe))
+        .map((m) => ({
+          address: m.address,
+          name: m.name ?? nameByAddr.get(m.address.toLowerCase()) ?? null,
+          template: m.name ?? templateByAddr.get(m.address.toLowerCase()) ?? null,
+          network,
+        }))
+    } catch {
+      return []
+    }
+  }
+
   // GET /api/overview — the consolidated, local-first monitoring view:
   //   • the SMA (from account.json), confirmed against the kernel on-chain
   //   • the mandates currently attached on-chain (getPermissions), enriched
@@ -1228,12 +1248,14 @@ export function startServer(sailDir, { port = PORT } = {}) {
         result.sma.balanceEth = formatEther(safeBal)
         result.sma.balanceStatus = balanceStatus(safeBal)
 
-        result.mandates = perms.map((addr) => ({
-          address: addr,
-          name: nameByAddr.get(addr.toLowerCase()) ?? null,
-          template: templateByAddr.get(addr.toLowerCase()) ?? null,
-          network,
-        }))
+        result.mandates = perms.length > 0
+          ? perms.map((addr) => ({
+              address: addr,
+              name: nameByAddr.get(addr.toLowerCase()) ?? null,
+              template: templateByAddr.get(addr.toLowerCase()) ?? null,
+              network,
+            }))
+          : mandatesFromStore(at, account, nameByAddr, templateByAddr, network)
 
         let managerEntry
         if (managerSet) {
@@ -1265,24 +1287,11 @@ export function startServer(sailDir, { port = PORT } = {}) {
         ]
       } catch (err) {
         result.onchainError = err instanceof Error ? err.message : String(err)
-        // Best-effort mandate list from the local active set when chain is down.
-        try {
-          const local = JSON.parse(fs.readFileSync(at('mandate.json'), 'utf-8'))
-          result.mandates = (local.permissions ?? []).map((p) => {
-            const addr = typeof p === 'string' ? p : p.address
-            return {
-              address: addr,
-              name: nameByAddr.get(addr.toLowerCase()) ?? null,
-              template: (typeof p === 'object' ? p.template : null) ?? templateByAddr.get(addr.toLowerCase()) ?? null,
-              network,
-            }
-          })
-        } catch {
-          /* no local mandate */
-        }
+        result.mandates = mandatesFromStore(at, account, nameByAddr, templateByAddr, network)
       }
     } else {
       result.onchainError = 'No kernel/RPC configured for on-chain reads'
+      result.mandates = mandatesFromStore(at, account, nameByAddr, templateByAddr, network)
     }
 
     // If we have local manager keys but no signers were populated (e.g. no RPC, onchain error path,

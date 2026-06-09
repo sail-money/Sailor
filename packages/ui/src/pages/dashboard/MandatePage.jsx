@@ -13,6 +13,34 @@ import styles from './MandatePage.module.css'
 import { useSailorAccount, useSailorMandate } from '../../hooks/useSailorData'
 import { useAccount } from 'wagmi'
 
+const CHAIN_NAMES = {
+  1: 'ethereum',
+  42161: 'arbitrum',
+  8453: 'base',
+  10: 'optimism',
+  137: 'polygon',
+}
+const EXPLORER_ADDRESS = {
+  arbitrum: (a) => `https://arbiscan.io/address/${a}`,
+  ethereum: (a) => `https://etherscan.io/address/${a}`,
+  base:     (a) => `https://basescan.org/address/${a}`,
+  optimism: (a) => `https://optimistic.etherscan.io/address/${a}`,
+  polygon:  (a) => `https://polygonscan.com/address/${a}`,
+}
+const EXPLORER_TX = {
+  arbitrum: (h) => `https://arbiscan.io/tx/${h}`,
+  ethereum: (h) => `https://etherscan.io/tx/${h}`,
+  base:     (h) => `https://basescan.org/tx/${h}`,
+  optimism: (h) => `https://optimistic.etherscan.io/tx/${h}`,
+  polygon:  (h) => `https://polygonscan.com/tx/${h}`,
+}
+function explorerAddress(network, addr) {
+  return (EXPLORER_ADDRESS[network] ?? EXPLORER_ADDRESS.ethereum)(addr)
+}
+function explorerTx(network, hash) {
+  return (EXPLORER_TX[network] ?? EXPLORER_TX.ethereum)(hash)
+}
+
 // SailKernel protocol constants (from SailProtocol source)
 const GOVERNANCE = {
   maxPermissionsPerAccount: 10,
@@ -46,6 +74,7 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
   const { mandate: liveMandate } = useSailorMandate()
   const { account } = useSailorAccount()
   const { address: walletAddress } = useAccount()
+  const network = CHAIN_NAMES[account?.chainId] ?? 'ethereum'
 
   const baseMandate = useMemo(() => {
     if (!liveMandate) return null
@@ -306,13 +335,13 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
                           k="Registration tx"
                           v={p.registeredTxHash}
                           mono
-                          link={`https://arbiscan.io/tx/${p.registeredTxHash}`}
+                          link={explorerTx(network, p.registeredTxHash)}
                         />
                       </dl>
 
                       <div className={styles.permDetailActions}>
                         <a
-                          href={`https://arbiscan.io/address/${p.address}`}
+                          href={explorerAddress(network, p.address)}
                           target="_blank"
                           rel="noreferrer"
                           className={styles.permActionGhost}
@@ -476,10 +505,10 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
             <ReceiptRow k="Manager"           v={truncate(sma.address ?? '')} mono />
             <ReceiptRow k="Fee policy"        v={mandate.feePolicyKind ?? 'StandardFeePolicy'} mono />
             <ReceiptRow k="Policy hash"       v={mandate.policyHash} mono />
-            <ReceiptRow k="Block"             v={mandate.blockNumber.toLocaleString()} />
+            <ReceiptRow k="Block"             v={mandate.blockNumber != null ? mandate.blockNumber.toLocaleString() : '—'} />
             <ReceiptRow k="Tx hash"           v={
               <a
-                href={`https://arbiscan.io/tx/${mandate.txHash}`}
+                href={explorerTx(network, mandate.txHash)}
                 target="_blank"
                 rel="noreferrer"
                 className={styles.receiptLink}

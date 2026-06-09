@@ -4079,10 +4079,41 @@
   grid-template-columns: 22px 1fr;
   align-items: start;
   gap: 14px;
-  padding: 12px 0;
+  padding: 10px 10px;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  margin: 0 -10px;
+  transition: background 0.15s;
 }
-.mandateSummaryPermRow:first-child { border-top: 0; padding-top: 4px; }
+.mandateSummaryPermRow:first-child { border-top: 0; padding-top: 10px; }
+.mandateSummaryPermRow:has(.mandateSummaryPermLink):hover {
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+.mandateSummaryPermLink {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+  flex: 1;
+}
+.mandateSummaryPermLink:hover .mandateSummaryPermLabel { color: var(--accent-blue, #1990FF); }
+.mandateSummaryPermArrow {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 3px;
+  flex-shrink: 0;
+  color: var(--accent-blue, #1990FF);
+  opacity: 0.45;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.mandateSummaryPermLink:hover .mandateSummaryPermArrow {
+  opacity: 1;
+  transform: translate(1px, -1px);
+}
 .mandateSummaryCheck {
   display: inline-flex;
   align-items: center;
