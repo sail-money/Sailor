@@ -68,7 +68,7 @@
 .error {
   margin: 0 0 12px;
   padding: 9px 12px;
-  border-radius: 8px;
+  border-radius: 2px;
   font-size: 13px;
   color: var(--status-revoked, #e5484d);
   background: var(--status-revoked-bg, rgba(229, 72, 77, 0.12));
@@ -95,7 +95,7 @@
   font-weight: 600;
   font-size: 14px;
   padding: 9px 18px;
-  border-radius: 10px;
+  border-radius: 2px;
   cursor: pointer;
 }
 .cancel:hover:not(:disabled) { color: var(--text-primary); }

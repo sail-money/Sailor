@@ -120,7 +120,7 @@
   color: var(--text-tertiary);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--glass-border);
-  border-radius: 999px;
+  border-radius: 2px;
   cursor: pointer;
   transition: color 220ms var(--ease-apple),
               background 220ms var(--ease-apple),
@@ -155,8 +155,8 @@
   gap: 12px;
   padding: 20px 20px 18px;
   background: rgba(255, 255, 255, 0.025);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 18px;
+  border: 1px solid var(--hairline);
+  border-radius: 2px;
   cursor: pointer;
   transition: background 280ms var(--ease-apple),
               border-color 280ms var(--ease-apple),
@@ -237,8 +237,8 @@
   font-weight: 500;
   color: var(--text-primary);
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  border-radius: 2px;
   white-space: nowrap;
   max-width: 100%;
   overflow: hidden;
@@ -266,7 +266,7 @@
   color: var(--text-tertiary);
   background: transparent;
   border: 1px dashed rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
+  border-radius: 2px;
 }
 
 .listItem:hover .listItemCta {
@@ -290,7 +290,7 @@
   color: var(--ocean-light);
   background: rgba(25, 144, 255, 0.12);
   border: 1px solid rgba(25, 144, 255, 0.32);
-  border-radius: 6px;
+  border-radius: 2px;
 }
 
 .aiTagText {
@@ -376,7 +376,7 @@
   gap: 0;
   background: rgba(0, 0, 0, 0.18);
   border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
+  border-radius: 2px;
   overflow: hidden;
 }
 .specRow {
@@ -447,7 +447,7 @@
   width: 22px;
   height: 22px;
   font-size: 12px;
-  border-radius: 6px;
+  border-radius: 2px;
 }
 
 .permCheck {
