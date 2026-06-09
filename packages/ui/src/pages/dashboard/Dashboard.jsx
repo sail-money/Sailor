@@ -857,6 +857,8 @@ function DashboardContent({ onReset }) {
   const [handoff, setHandoff] = useState(null)
   const [revokeTarget, setRevokeTarget] = useState(null)
   const [safeNames, setSafeNames] = useState({})
+  const [editingName, setEditingName] = useState(false)
+  const [nameInput, setNameInput] = useState('')
 
   // Local-first: the overview (read from .sail/ + confirmed on-chain) is the
   // primary source, so the SMA renders without a browser wallet connected. The
@@ -1042,23 +1044,67 @@ function DashboardContent({ onReset }) {
                 deposit UI) and created-date meta. */}
             <section className={agentStyles.titleBlock}>
               <div className={styles.titleHeadFlex}>
-                <h1 className={agentStyles.title}>{smaName}</h1>
-                <button
-                  type="button"
-                  className={agentStyles.stopAllBtn}
-                  onClick={stopAgent}
-                  disabled={!agentRunning || stopping || agentSource === 'remote'}
-                  title={
-                    agentSource === 'remote'
-                      ? 'Remote agent — stop it from your CI/GH Actions workflow'
-                      : agentRunning
-                      ? 'Send SIGTERM to the running agent'
-                      : 'Agent is not running'
-                  }
-                >
-                  <StopIcon />
-                  <span>{stopping ? 'Stopping…' : 'Stop all agents'}</span>
-                </button>
+                {editingName ? (
+                  <input
+                    className={styles.titleNameInput}
+                    value={nameInput}
+                    autoFocus
+                    maxLength={40}
+                    onChange={(e) => setNameInput(e.target.value)}
+                    onBlur={() => {
+                      const trimmed = nameInput.trim()
+                      if (trimmed && trimmed !== smaName) {
+                        setSafeNames((m) => ({ ...m, [currentSafeId]: trimmed }))
+                        renameSailorAccount(currentSafeId, trimmed).catch(() => {})
+                        setRefreshTick((t) => t + 1)
+                      }
+                      setEditingName(false)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') e.target.blur()
+                      if (e.key === 'Escape') { setEditingName(false) }
+                    }}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.titleNameBtn}
+                    onClick={() => { setNameInput(smaName); setEditingName(true) }}
+                    title="Click to rename"
+                  >
+                    <h1 className={agentStyles.title}>{smaName}</h1>
+                    <PencilIcon />
+                  </button>
+                )}
+                {overview?.sma && (
+                  <div className={styles.smaBadges}>
+                    {overview.sma.registered && (
+                      <span className={styles.smaBadge}>
+                        <ShieldGlyphSm />
+                        Registered SMA
+                      </span>
+                    )}
+                    {overview.network && (
+                      <span className={styles.smaBadge}>{overview.network}</span>
+                    )}
+                    <MandateStatus status={agentRunning ? 'active' : 'paused'} kind="agent" />
+                    {agentSource && (
+                      <span className={styles.smaBadge}>
+                        {agentSource === 'remote' ? 'remote agent' : agentSource === 'github-actions' ? 'github actions' : `local · PID ${agentPid}`}
+                      </span>
+                    )}
+                    {!overview.onchain && (
+                      <button
+                        type="button"
+                        className={`${styles.smaBadge} ${styles.smaBadgeWarn} ${styles.smaBadgeBtn}`}
+                        title="Add RPC_URL=https://your-endpoint to .sail/.env.local&#10;Get a free endpoint at alchemy.com"
+                        onClick={() => alert('Add RPC_URL=https://your-endpoint to .sail/.env.local\nGet a free endpoint at alchemy.com')}
+                      >
+                        Add RPC URL to enable balance tracking
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className={agentStyles.addrRow}>
@@ -1088,36 +1134,6 @@ function DashboardContent({ onReset }) {
                   SMA · created {sma?.createdAt ?? sma?.createdAgo ?? '—'}
                 </span>
               </div>
-
-              {overview?.sma && (
-                <div className={styles.smaBadges}>
-                  {overview.sma.registered && (
-                    <span className={styles.smaBadge}>
-                      <ShieldGlyphSm />
-                      Registered SMA
-                    </span>
-                  )}
-                  {overview.network && (
-                    <span className={styles.smaBadge}>{overview.network}</span>
-                  )}
-                  <MandateStatus status={agentRunning ? 'active' : 'paused'} kind="agent" />
-                  {agentSource && (
-                    <span className={styles.smaBadge}>
-                      {agentSource === 'remote' ? 'remote agent' : agentSource === 'github-actions' ? 'github actions' : `local · PID ${agentPid}`}
-                    </span>
-                  )}
-                  {!overview.onchain && (
-                    <button
-                      type="button"
-                      className={`${styles.smaBadge} ${styles.smaBadgeWarn} ${styles.smaBadgeBtn}`}
-                      title="Add RPC_URL=https://your-endpoint to .sail/.env.local&#10;Get a free endpoint at alchemy.com"
-                      onClick={() => alert('Add RPC_URL=https://your-endpoint to .sail/.env.local\nGet a free endpoint at alchemy.com')}
-                    >
-                      Add RPC URL to enable balance tracking
-                    </button>
-                  )}
-                </div>
-              )}
             </section>
 
             {/* ── Quick links ─────────────────────────────────────────
@@ -1807,6 +1823,13 @@ function KeyGlyph() {
     <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <circle cx="5.5" cy="6" r="2.8" />
       <path d="M7.7 7.8l4.3 4.3M10.4 10.5l1.2-1.2M12 12.1l1.2-1.2" />
+    </svg>
+  )
+}
+function PencilIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M11.5 2.5a1.414 1.414 0 0 1 2 2L5 13H3v-2L11.5 2.5z" />
     </svg>
   )
 }
