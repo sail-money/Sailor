@@ -14,6 +14,7 @@ import type { Address } from "viem";
 import { emit } from "../lib/output.js";
 import { ProjectContext } from "../lib/project.js";
 import { createSigningChannel } from "../signing/client.js";
+import { projectPort } from "../lib/packagePaths.js";
 
 export async function ownerConnect(options: { json?: boolean; timeout?: string }): Promise<void> {
   const projectRoot = process.cwd();
@@ -35,8 +36,8 @@ export async function ownerConnect(options: { json?: boolean; timeout?: string }
       // the dashboard, which has no wallet-connect relay for an already-onboarded
       // project — so `waitForWallet` would never resolve. `#/station` exposes a
       // Connect button and relays `wallet-connected` to this daemon in any state.
-      console.log("→ Open this in your browser and connect your wallet:");
-      console.log(`  ${channel.url}/#/station`);
+      console.log("→ Open the Sailor dashboard and connect your wallet:");
+      console.log(`  http://localhost:${projectPort(projectRoot)}/#/station`);
       if (channel.remote) console.log("  (using the running signing station)");
       console.log("\nWaiting for a wallet connection…");
     }
