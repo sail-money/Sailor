@@ -961,7 +961,7 @@ function DashboardContent({ draft, onReset }) {
             onToggle={() => setNotifOpen((o) => !o)}
             onClose={() => setNotifOpen(false)}
             onOpenStation={() => { setNotifOpen(false); window.location.hash = '#/station' }}
-            onOpenSigning={() => { setNotifOpen(false); window.location.hash = '#/signing' }}
+            onOpenSigning={() => { setNotifOpen(false); window.location.hash = '#/station' }}
           />
           <button
             type="button"
@@ -1021,7 +1021,7 @@ function DashboardContent({ draft, onReset }) {
             {draft && draftItemCount(draft) > 0 && (
               <DraftBanner
                 draft={draft}
-                onReview={() => { window.location.hash = '#/signing' }}
+                onReview={() => { window.location.hash = '#/station' }}
               />
             )}
             {pending.length > 0 && (
@@ -1587,10 +1587,6 @@ function DraftBanner({ draft, onReview }) {
           <strong>{count}</strong> permission{count === 1 ? '' : 's'} queued — sign or reject
         </span>
       </span>
-      <span className={styles.pendingBannerCta}>
-        Review
-        <ArrowRightSm />
-      </span>
     </button>
   )
 }
@@ -1735,10 +1731,12 @@ function NotificationsBell({ pending, draft, open, onToggle, onClose, onOpenStat
             </ul>
           )}
 
-          <button type="button" className={styles.notifFootBtn} onClick={onOpenStation}>
-            Open signing station
-            <ArrowRightSm />
-          </button>
+          {pending.length > 0 && (
+            <button type="button" className={styles.notifFootBtn} onClick={onOpenStation}>
+              Open signing station
+              <ArrowRightSm />
+            </button>
+          )}
         </div>
       )}
     </div>
