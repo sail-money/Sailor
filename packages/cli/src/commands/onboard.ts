@@ -57,6 +57,7 @@ export interface OnboardOptions {
   template?: string;
   skipMandate?: boolean;
   json?: boolean;
+  salt?: string;
 }
 
 interface OnboardResult {
@@ -142,11 +143,14 @@ async function runOnboard(
   let smaAddress: Address;
   let justCreated = false;
   let ownerAddress = project.getOwner();
+  let deployedSaltNonce: bigint | undefined;
 
   if (smaChoice.kind === "new") {
-    const created = await createSma(project, channel, publicClient, agentAddress, json);
+    const saltNonce = options.salt != null ? BigInt(options.salt) : 0n;
+    const created = await createSma(project, channel, publicClient, agentAddress, json, saltNonce);
     smaAddress = created.sma;
     ownerAddress = created.owner;
+    deployedSaltNonce = created.saltNonce;
     justCreated = true;
   } else {
     smaAddress = smaChoice.address;
@@ -195,6 +199,7 @@ async function runOnboard(
     permissionSigner,
     manager: onChainManager,
     chainId: project.chainId,
+    saltNonce: deployedSaltNonce,
   });
 
   // ── Step 4: Mandate attachment ──────────────────────────────────────────────
@@ -400,7 +405,8 @@ async function createSma(
   publicClient: PublicClient,
   agentAddress: Address,
   json = false,
-): Promise<{ sma: Address; owner: Address }> {
+  saltNonce = 0n,
+): Promise<{ sma: Address; owner: Address; saltNonce: bigint }> {
   const say = (fn: () => void) => {
     if (!json) fn();
   };
@@ -417,7 +423,6 @@ async function createSma(
     kernel: project.contracts.kernel,
     safeModuleEnabler: deployment.safeModuleEnabler,
   });
-  const saltNonce = BigInt(Date.now());
 
   const createAccountData = encodeFunctionData({
     abi: SailKernelAbi,
@@ -473,6 +478,7 @@ async function createSma(
 
   const safeAddress = registered.args.account;
   say(() => console.log("✓", `SMA created at ${safeAddress}`));
+  say(() => console.log("   Salt:", saltNonce.toString(), "(stored in .sail/account.json — use for sailor account predict)"));
   appendActivity({
     ts: nowIso(),
     actor: "owner",
@@ -482,8 +488,9 @@ async function createSma(
     manager: agentAddress,
     txHash: response.txHash,
     chainId: project.chainId,
+    saltNonce: saltNonce.toString(),
   });
-  return { sma: safeAddress, owner: ownerAddress };
+  return { sma: safeAddress, owner: ownerAddress, saltNonce };
 }
 
 /**
@@ -685,6 +692,7 @@ async function persistAccount(
     permissionSigner: Address;
     manager: Address;
     chainId: number;
+    saltNonce?: bigint;
   },
 ): Promise<void> {
   let createdAtBlock = "0";
@@ -700,6 +708,7 @@ async function persistAccount(
     manager: checksum(account.manager),
     chainId: account.chainId,
     createdAtBlock,
+    ...(account.saltNonce != null ? { saltNonce: account.saltNonce.toString() } : {}),
   };
   // Register the SMA in the multi-SMA list the dashboard switcher reads *before*
   // overwriting account.json, so the previously-active SMA is backfilled into

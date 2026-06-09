@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import { accountCreate } from "./commands/account.js";
+import {
+  type PredictOptions,
+  accountCreate,
+  accountPredict,
+} from "./commands/account.js";
 import { capabilities } from "./commands/capabilities.js";
 import { doctor } from "./commands/doctor.js";
 import { initCommand } from "./commands/init.js";
@@ -115,6 +119,20 @@ account
   .description("Create a new Sail SMA on-chain")
   .action(action(accountCreate));
 account
+  .command("predict")
+  .description(
+    "Compute the deterministic Safe address for a given owner + manager + salt (no gas, no deployment)",
+  )
+  .option("--owner <address>", "Owner EOA address (defaults to .sail/account.json)")
+  .option(
+    "--manager <address>",
+    "Agent (manager) wallet — mixed into the kernel salt (defaults to .sail/account.json)",
+  )
+  .option("--salt <n>", "CREATE2 salt nonce (default: 0)")
+  .option("--chain <id>", "Show prediction for one chain only")
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<PredictOptions>(accountPredict));
+account
   .command("rotate-signer")
   .description("Rotate the SMA's delegated signer (agent wallet) and re-approve its mandates")
   .option("--sma <address>", "SMA to rotate (defaults to the active account)")
@@ -206,6 +224,7 @@ program
   .description("Set up an SMA, register a permission, confirm the agent is operational")
   .option("--sma <address>", "Use a specific SMA address instead of prompting")
   .option("--new-sma", "Create a new SMA via SailKernel")
+  .option("--salt <n>", "CREATE2 salt for deterministic Safe address (default: 0; use 0 for first SMA, increment for subsequent)")
   .option("--template <kindOrAddress>", "Register this permission contract (kind, label, or address)")
   .option("--skip-mandate", "Skip the permission registration step")
   .option("--json", "Emit machine-readable JSON (implies non-interactive)")

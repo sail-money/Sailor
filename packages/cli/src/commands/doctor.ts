@@ -1,8 +1,17 @@
 import type { EncryptedKeystore } from "@sail/sdk";
-import { SailorClient } from "@sail/sdk";
+import {
+  SAFE_V141,
+  SailorClient,
+  buildSafeSetupInitializer,
+  computeSailSmaAddress,
+  sailDeployments,
+  safeProxyFactoryAbi,
+  type SailChainId,
+} from "@sail/sdk";
 import {
   http,
   type Address,
+  type Hex,
   type PublicClient,
   createPublicClient,
   formatEther,
@@ -171,6 +180,7 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
             manager: managerAddr ? { address: managerAddr, ...(managerBal ?? {}) } : null,
           },
           account: safe,
+          saltNonce: stored?.saltNonce ?? null,
           permissions,
           permissionsWithoutCode: permsNoCode,
           conjunctivePassThrough:
@@ -250,6 +260,58 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
     return;
   }
   console.log(`Account: ${safe}`);
+
+  // ── Multi-chain SMA addresses (shown when saltNonce is stored) ───────────────
+  if (stored?.saltNonce != null) {
+    const saltNonce = BigInt(stored.saltNonce);
+    const MAINNET_CHAINS: SailChainId[] = [8453, 42161, 130];
+    try {
+      const proxyCreationCode = (await pc.readContract({
+        address: SAFE_V141.proxyFactory as Address,
+        abi: safeProxyFactoryAbi,
+        functionName: "proxyCreationCode",
+      })) as Hex;
+      const ownerAddr = stored.owner ? getAddress(stored.owner) : null;
+      const managerAddr = stored.manager ? getAddress(stored.manager) : null;
+      if (ownerAddr && managerAddr) {
+        console.log(
+          `\nMulti-chain addresses (salt ${saltNonce}, owner ${ownerAddr}, manager ${managerAddr}):`,
+        );
+        const CHAIN_NAMES: Record<number, string> = { 8453: "Base", 42161: "Arbitrum", 130: "Unichain" };
+        for (const cid of MAINNET_CHAINS) {
+          const dep = sailDeployments[cid];
+          const initializer = buildSafeSetupInitializer({
+            owners: [ownerAddr],
+            threshold: 1n,
+            kernel: dep.kernel,
+            safeModuleEnabler: dep.safeModuleEnabler,
+          });
+          const predicted = computeSailSmaAddress({
+            initializer,
+            saltNonce,
+            deployer: ownerAddr,
+            permissionSigner: ownerAddr,
+            manager: managerAddr,
+            feePolicy: dep.standardFeePolicy as Address,
+            proxyCreationCode,
+          });
+          const isDeployed = predicted.toLowerCase() === safe.toLowerCase() && cid === chainId;
+          const label = isDeployed ? "deployed (this account)" : predicted;
+          console.log(`  ${CHAIN_NAMES[cid].padEnd(12)} (${cid}):  ${label}`);
+        }
+        console.log(
+          '  ⚠  Addresses differ per chain (chain-specific kernel salt + initializer). Run "sailor account predict" for details.',
+        );
+      }
+    } catch {
+      // Multi-chain section is best-effort — don't block the rest of doctor if it fails.
+    }
+  } else if (stored) {
+    console.log(
+      "\nMulti-chain addresses: saltNonce not stored (deployed before salt tracking).",
+    );
+    console.log("  To enable: re-deploy with sailor onboard --new-sma --salt 0");
+  }
 
   if (permissions.length === 0) {
     console.log(
