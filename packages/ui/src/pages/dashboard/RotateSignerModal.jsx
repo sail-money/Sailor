@@ -167,6 +167,9 @@ export default function RotateSignerModal({
     setSavedSigners(null)
     setLoadingSaved(false)
     setSelectedSaved(initialTo ?? '')
+    // Opening straight into the "saved" tab bypasses selectMode, which is what
+    // normally lazy-loads the list — fetch it here instead.
+    if (initialTo) loadSavedSigners()
     document.body.style.overflow = 'hidden'
     const onKey = (e) => {
       if (e.key === 'Escape' && !busy && step !== 'rotating' && step !== 'reattaching') onClose?.()

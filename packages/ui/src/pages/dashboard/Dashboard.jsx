@@ -487,6 +487,13 @@ function SignerCard({ signer, network, onAddSigner, onRotateSigner }) {
         </button>
       )}
 
+      {/* On idle managers, open the modal with this address pre-selected. */}
+      {signer.role === 'manager' && isIdle && onRotateSigner && (
+        <button type="button" className={styles.signerRotateBtn} onClick={() => onRotateSigner(signer.address)}>
+          Rotate to this
+        </button>
+      )}
+
       {needsTopUp && (
         <div className={styles.signerTopUp}>
           <span className={styles.signerTopUpMsg}>

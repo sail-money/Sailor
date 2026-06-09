@@ -475,12 +475,26 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
   })
 
-  // Is `file` a delegated-signer (manager) keystore? Matches `manager.json` and
+  // Is `file` a delegated-signer (manager) keystore? Matches `manager.json`,
   // the per-SMA `manager-<safe>.json` (written with or without a 0x prefix by
-  // the UI vs the CLI). Backups (manager.json.<ts>.bak, .bak-0x… ) don't end in
-  // `.json`, so they're excluded; so are the permissionSigner keys.
+  // the UI vs the CLI), and the CLI's per-manager store `managers/<hex>.json`.
+  // Backups (manager.json.<ts>.bak, .bak-0x… ) don't end in `.json`, so
+  // they're excluded; so are the permissionSigner keys.
   const isManagerKeyFile = (file) =>
-    file === 'manager.json' || (file.startsWith('manager-') && file.endsWith('.json'))
+    file === 'manager.json' ||
+    (file.startsWith('manager-') && file.endsWith('.json')) ||
+    (file.startsWith('managers/') && file.endsWith('.json'))
+
+  // Keystore files eligible for listing/activation: top-level keys/ plus the
+  // CLI's per-manager store keys/managers/ (paths relative to keys/).
+  const listManagerKeyFiles = () => {
+    let files = []
+    try { files = fs.readdirSync(at('keys')) } catch { files = [] }
+    try {
+      files.push(...fs.readdirSync(at('keys/managers')).map((f) => `managers/${f}`))
+    } catch { /* per-manager store not created yet */ }
+    return files
+  }
 
   // Read the plaintext `address` field of a geth-v3 keystore (stored without the
   // 0x prefix). Never decrypts. Returns a checksummed address, or null.
@@ -502,8 +516,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
   // `active`. De-duplicated by address (the same key can live in several files).
   app.get('/api/signers', (_req, res) => {
     try {
-      let files = []
-      try { files = fs.readdirSync(at('keys')) } catch { files = [] }
+      const files = listManagerKeyFiles()
       const activeSafe = readActiveSafe()
       let activeManager = null
       try { activeManager = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8')).manager ?? null } catch { /* none */ }
@@ -550,8 +563,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
       return
     }
     try {
-      let files = []
-      try { files = fs.readdirSync(at('keys')) } catch { files = [] }
+      const files = listManagerKeyFiles()
       const want = getAddress(address).toLowerCase()
       const match = files.find((file) => isManagerKeyFile(file) && keystoreAddress(file)?.toLowerCase() === want)
       if (!match) {
