@@ -9,6 +9,7 @@ import {
   getAddress,
 } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
+import { checkContractExists } from "../lib/contract-check.js";
 import { readJsonFile, sailPath } from "../lib/io.js";
 import { resolveKeyPath } from "../lib/keys.js";
 import { IPERMISSION_ABI } from "../lib/permission-resolver.js";
@@ -109,9 +110,19 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
 
   let permissions: Address[] = [];
   let checks: PermCheck[] = [];
+  // Lean contract-existence check: a registered permission address with no
+  // bytecode (e.g. self-destructed, or a stale/wrong local record) would deny or
+  // brick dispatches. This only asks "is there a contract here" — it does NOT
+  // inspect the permission's internal target addresses (those are not generically
+  // introspectable; see `sailor mandate simulate` for sample-call target checks).
+  let permsNoCode: Address[] = [];
   if (safe) {
     const mandates = await client.mandate.list(safe);
     permissions = mandates.map((m) => getAddress(m.permission));
+    if (permissions.length > 0) {
+      const codeChecks = await Promise.all(permissions.map((p) => checkContractExists(pc, p)));
+      permsNoCode = codeChecks.filter((c) => !c.hasCode && !c.error).map((c) => c.address);
+    }
     if (caps.dispatchModel === "conjunctive" && permissions.length > 0) {
       checks = await Promise.all(permissions.map((p) => probePassThrough(pc, p, safe)));
     }
@@ -161,6 +172,7 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
           },
           account: safe,
           permissions,
+          permissionsWithoutCode: permsNoCode,
           conjunctivePassThrough:
             caps.dispatchModel === "conjunctive"
               ? checks.map((c) => ({
@@ -248,6 +260,13 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
   }
 
   console.log(`\nRegistered permissions (${permissions.length}):`);
+  if (permsNoCode.length > 0) {
+    console.log(
+      `\n⚠ ${permsNoCode.length} registered permission(s) have NO contract code on chain ${chainId} — ` +
+        "dispatches naming them will fail. Verify the address (wrong chain?) or revoke:",
+    );
+    permsNoCode.forEach((p) => console.log(`    ${p}`));
+  }
   if (caps.dispatchModel === "selective") {
     permissions.forEach((p, i) => console.log(`  ${i + 1}. ${p}`));
     console.log("\nEach dispatch names one permission, so pass-through is not required.");

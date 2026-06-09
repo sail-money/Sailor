@@ -18,6 +18,7 @@ import {
   mandateTemplates,
 } from "./commands/mandate-contracts.js";
 import { mandatePrepare, mandateSign } from "./commands/mandate.js";
+import { type SimulateOptions, mandateSimulate } from "./commands/mandate-simulate.js";
 import { type OnboardOptions, onboard } from "./commands/onboard.js";
 import { type RotateSignerOptions, rotateSigner } from "./commands/rotate-signer.js";
 import { ownerConnect, ownerShow } from "./commands/owner.js";
@@ -179,6 +180,22 @@ mandate
   .description("Show how to author your own permission contract (and any community-deployed addresses)")
   .option("--json", "Emit machine-readable JSON")
   .action(actionWith<{ json?: boolean }>(mandateTemplates));
+mandate
+  .command("simulate")
+  .description(
+    "Probe a permission against sample calls off-chain (eth_call, NO gas) — prove it " +
+      "accepts the calls you want and rejects the ones you don't, before authorizing on-chain",
+  )
+  .requiredOption("--address <permissionOrName>", "Permission to probe (address or tracked name)")
+  .option("--sma <address>", "SMA to probe as (ctx.account; defaults to .sail/account.json)")
+  .option("--target <address>", "Inline single call: target contract address")
+  .option("--calldata <hex>", "Inline single call: 0x-prefixed calldata")
+  .option("--value <wei>", "Inline single call: ETH value in wei (default 0)")
+  .option("--expect <pass|fail>", "Inline single call: expected outcome (sets non-zero exit on mismatch)")
+  .option("--label <text>", "Inline single call: human-readable label")
+  .option("--calls <file>", "Batch: JSON array of { target, calldata, value?, expect?, label? }")
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<SimulateOptions>(mandateSimulate));
 mandate
   .command("list")
   .description("List permission contracts deployed from this project")
