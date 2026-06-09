@@ -596,6 +596,13 @@ export function MandateSigningFlow({ draft }) {
   const [phase, setPhase] = useState('review') // review | signing | done
   const [errorMsg, setErrorMsg] = useState('')
 
+  // Normalise both draft formats:
+  // - CLI format: { permissions: [{address, label}] }
+  // - Legacy format: { items: [{template, explanation}] }
+  const items = (draft.items ?? []).length > 0
+    ? draft.items
+    : (draft.permissions ?? []).map((p) => ({ template: p.address, explanation: p.label }))
+
   // The kernel address (EIP-712 verifyingContract) comes from the draft's
   // chainId via @sail/chains. Falls back to the zero address when the chain
   // is not yet configured, so the flow stays demoable.
@@ -612,7 +619,7 @@ export function MandateSigningFlow({ draft }) {
     setErrorMsg('')
     setPhase('signing')
     try {
-      const permissions = (draft.items ?? []).map((it) => it.template)
+      const permissions = items.map((it) => it.template)
 
       // Read the current signer nonce from the kernel; default to 0 if the
       // kernel is unreachable or not yet deployed.
@@ -697,7 +704,7 @@ export function MandateSigningFlow({ draft }) {
                       gap: 10,
                     }}
                   >
-                    {(draft.items ?? []).map((it, i) => (
+                    {items.map((it, i) => (
                       <li
                         key={i}
                         style={{
@@ -900,7 +907,7 @@ function ArrowRight() {
 /* ── Mandate signed: contextual done state ── */
 function MandateSignedCard({ draft }) {
   const [copied, setCopied] = useState(false)
-  const permCount = (draft?.items ?? []).length
+  const permCount = (draft?.items ?? draft?.permissions ?? []).length
   const safeShort = draft?.account ? `${draft.account.slice(0, 10)}…${draft.account.slice(-6)}` : null
   const prompt = `My mandate is signed on Safe ${draft?.account ?? 'my Safe'}. ${permCount} permission${permCount === 1 ? '' : 's'} registered. Now deploy and start the agent — use SAIL_PASSPHRASE from my config and run sailor run.`
 
