@@ -1076,22 +1076,6 @@ function DashboardContent({ onReset }) {
                     <PencilIcon />
                   </button>
                 )}
-                <button
-                  type="button"
-                  className={agentStyles.stopAllBtn}
-                  onClick={stopAgent}
-                  disabled={!agentRunning || stopping || agentSource === 'remote'}
-                  title={
-                    agentSource === 'remote'
-                      ? 'Remote agent — stop it from your CI/GH Actions workflow'
-                      : agentRunning
-                      ? 'Send SIGTERM to the running agent'
-                      : 'Agent is not running'
-                  }
-                >
-                  <StopIcon />
-                  <span>{stopping ? 'Stopping…' : 'Stop all agents'}</span>
-                </button>
               </div>
 
               <div className={agentStyles.addrRow}>
