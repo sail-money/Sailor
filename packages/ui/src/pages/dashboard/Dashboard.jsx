@@ -1080,9 +1080,6 @@ function DashboardContent({ onReset }) {
                       Registered SMA
                     </span>
                   )}
-                  {overview.sma.registered != null && (
-                    <MandateStatus status={overview.sma.sessionActive ? 'active' : 'paused'} />
-                  )}
                   {overview.network && (
                     <span className={styles.smaBadge}>{overview.network}</span>
                   )}
