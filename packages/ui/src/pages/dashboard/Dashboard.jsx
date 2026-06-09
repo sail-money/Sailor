@@ -551,6 +551,18 @@ function LiveMandateCard({ mandate, network }) {
         <span className={styles.mandateSummaryFootMeta}>
           {status === 'active' ? 'Registered on-chain' : 'Signed — awaiting on-chain registration'}
         </span>
+        {mandate?.safe && (
+          <a
+            className={styles.mandateSummaryOpenHint}
+            href={explorerUrl(networkLabel, mandate.safe)}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="View contract on block explorer"
+          >
+            View contract
+            <ArrowOutIcon />
+          </a>
+        )}
       </footer>
     </article>
   )
