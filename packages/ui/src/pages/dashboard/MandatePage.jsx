@@ -505,7 +505,7 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
             <ReceiptRow k="Manager"           v={truncate(sma.address ?? '')} mono />
             <ReceiptRow k="Fee policy"        v={mandate.feePolicyKind ?? 'StandardFeePolicy'} mono />
             <ReceiptRow k="Policy hash"       v={mandate.policyHash} mono />
-            <ReceiptRow k="Block"             v={mandate.blockNumber.toLocaleString()} />
+            <ReceiptRow k="Block"             v={mandate.blockNumber != null ? mandate.blockNumber.toLocaleString() : '—'} />
             <ReceiptRow k="Tx hash"           v={
               <a
                 href={explorerTx(network, mandate.txHash)}
