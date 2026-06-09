@@ -40,8 +40,8 @@
   font-weight: 500;
   color: var(--text-secondary);
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  border-radius: 2px;
   cursor: pointer;
   transition: color 200ms, background 200ms, border-color 200ms, transform 200ms;
 }
@@ -102,7 +102,7 @@
   display: flex;
   flex-direction: column;
   padding: 24px 24px 22px;
-  border-radius: 18px;
+  border-radius: 2px;
   background: var(--glass-bg, rgba(255, 255, 255, 0.055));
   border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.10));
 }
@@ -152,7 +152,7 @@
   color: var(--accent-blue, #1990FF);
   background: rgba(25, 144, 255, 0.10);
   border: 1px solid rgba(25, 144, 255, 0.28);
-  border-radius: 999px;
+  border-radius: 2px;
   cursor: pointer;
   transition: background 180ms ease, border-color 180ms ease, color 180ms ease;
   white-space: nowrap;
@@ -170,7 +170,7 @@
   padding: 18px 22px 18px 28px;
   background: rgba(25, 144, 255, 0.05);
   border-left: 2px solid rgba(25, 144, 255, 0.5);
-  border-radius: 4px 12px 12px 4px;
+  border-radius: 2px 2px 2px 2px;
 }
 .recitalMark {
   position: absolute;
@@ -240,8 +240,8 @@
   margin-top: 8px;
   padding: 4px 10px;
   background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  border-radius: 2px;
   width: fit-content;
 }
 .permSlotPillStrong { color: var(--text-secondary); font-weight: 500; }
@@ -263,8 +263,8 @@
   letter-spacing: 0.005em;
   color: var(--text-tertiary);
   background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
+  border: 1px solid var(--hairline);
+  border-radius: 2px;
   padding: 4px 10px;
   cursor: pointer;
   transition: color 160ms ease, background 160ms ease, border-color 160ms ease;
@@ -283,7 +283,7 @@
   color: var(--status-revoked, #E5484D);
   background: rgba(229, 72, 77, 0.10);
   border: 1px solid rgba(229, 72, 77, 0.30);
-  border-radius: 999px;
+  border-radius: 2px;
   padding: 3px 10px;
   white-space: nowrap;
 }
@@ -314,7 +314,7 @@
   padding: 18px 20px 20px;
   background: var(--glass-bg, rgba(255, 255, 255, 0.055));
   border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.10));
-  border-radius: 16px;
+  border-radius: 2px;
   min-height: 184px;
 }
 .metricKicker {
@@ -359,15 +359,15 @@
   font-weight: 500;
   letter-spacing: 0.02em;
   padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 2px;
+  border: 1px solid var(--hairline);
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-secondary);
 }
 .metricPillDot {
   width: 6px;
   height: 6px;
-  border-radius: 999px;
+  border-radius: 2px;
   background: currentColor;
   box-shadow: 0 0 6px currentColor;
 }
@@ -385,14 +385,14 @@
   margin-top: auto;
   height: 6px;
   background: rgba(255, 255, 255, 0.06);
-  border-radius: 999px;
+  border-radius: 2px;
   overflow: hidden;
   position: relative;
 }
 .metricBarFill {
   height: 100%;
   background: linear-gradient(90deg, #0F7AE0 0%, #1990FF 60%, #6ba3ff 100%);
-  border-radius: 999px;
+  border-radius: 2px;
   box-shadow: 0 0 12px rgba(25, 144, 255, 0.4);
   transition: width 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -415,7 +415,7 @@
   font-weight: 500;
   letter-spacing: 0.02em;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: 2px;
   color: var(--status-warn, #F5A524);
   background: rgba(245, 165, 36, 0.10);
   border: 1px solid rgba(245, 165, 36, 0.30);
@@ -435,7 +435,7 @@
 .attestationDot {
   width: 6px;
   height: 6px;
-  border-radius: 999px;
+  border-radius: 2px;
   background: currentColor;
   box-shadow: 0 0 6px currentColor;
 }
@@ -456,8 +456,8 @@
   align-items: center;
   padding: 10px 14px;
   background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 2px;
 }
 .bookRow dt {
   font-size: 11px;
@@ -492,7 +492,7 @@
   color: var(--text-tertiary);
   background: rgba(245, 165, 36, 0.06);
   border-left: 2px solid rgba(245, 165, 36, 0.40);
-  border-radius: 0 8px 8px 0;
+  border-radius: 0 2px 2px 0;
 }
 .bookNote strong {
   color: var(--text-secondary);
@@ -513,7 +513,7 @@
   color: var(--text-tertiary);
   background: rgba(25, 144, 255, 0.05);
   border-left: 2px solid rgba(25, 144, 255, 0.30);
-  border-radius: 0 8px 8px 0;
+  border-radius: 0 2px 2px 0;
 }
 .feeLine > svg {
   color: var(--accent-blue, #1990FF);
@@ -530,19 +530,19 @@
   color: var(--ocean-pale, #bdd3fe);
   background: rgba(25, 144, 255, 0.10);
   border: 1px solid rgba(25, 144, 255, 0.20);
-  border-radius: 4px;
+  border-radius: 2px;
   padding: 1px 6px;
 }
 
 /* ── Expandable permission row + detail panel ── */
 .permListItem {
   list-style: none;
-  border-radius: 12px;
+  border-radius: 2px;
   transition: background 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .permListItemOpen {
   background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--hairline);
   margin: 4px 0;
 }
 .permListItemOpen + .permListItemOpen { margin-top: 8px; }
@@ -556,7 +556,7 @@
 .permRowClickable:focus-visible {
   outline: 2px solid var(--accent-blue, #1990FF);
   outline-offset: 2px;
-  border-radius: 8px;
+  border-radius: 2px;
 }
 
 .permExpandChevron {
@@ -590,7 +590,7 @@
   padding: 10px 14px;
   background: rgba(25, 144, 255, 0.04);
   border-left: 2px solid rgba(25, 144, 255, 0.30);
-  border-radius: 0 8px 8px 0;
+  border-radius: 0 2px 2px 0;
 }
 
 .permFieldGrid {
@@ -608,7 +608,7 @@
   gap: 12px;
   align-items: baseline;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: 2px;
   background: rgba(0, 0, 0, 0.20);
   border: 1px solid rgba(255, 255, 255, 0.04);
   min-width: 0;
@@ -661,8 +661,8 @@
   font-weight: 500;
   color: var(--text-secondary);
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 2px;
   padding: 7px 14px;
   cursor: pointer;
   text-decoration: none;
@@ -687,7 +687,7 @@
   color: var(--status-revoked, #E5484D);
   background: rgba(229, 72, 77, 0.10);
   border: 1px solid rgba(229, 72, 77, 0.30);
-  border-radius: 8px;
+  border-radius: 2px;
   padding: 7px 14px;
   cursor: pointer;
   margin-left: auto;
@@ -730,7 +730,7 @@
   font-weight: 500;
   letter-spacing: 0.005em;
   padding: 9px 16px;
-  border-radius: 10px;
+  border-radius: 2px;
   cursor: pointer;
   color: var(--text-primary);
   background: rgba(255, 255, 255, 0.06);
@@ -803,7 +803,7 @@
   color: var(--text-secondary);
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 10px;
+  border-radius: 2px;
 }
 .aboutList li::before {
   content: '';
@@ -812,7 +812,7 @@
   top: 18px;
   width: 8px;
   height: 8px;
-  border-radius: 999px;
+  border-radius: 2px;
   background: var(--accent-blue, #1990FF);
   box-shadow: 0 0 8px rgba(25, 144, 255, 0.6);
 }
@@ -830,7 +830,7 @@
   color: var(--ocean-pale, #bdd3fe);
   background: rgba(25, 144, 255, 0.10);
   border: 1px solid rgba(25, 144, 255, 0.22);
-  border-radius: 4px;
+  border-radius: 2px;
   padding: 1px 6px;
 }
 
@@ -844,8 +844,8 @@
   color: var(--text-tertiary);
   padding: 4px 8px;
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
+  border: 1px solid var(--hairline);
+  border-radius: 2px;
 }
 .permSelector { color: var(--ocean-pale, #bdd3fe); }
 .permEnforced {
@@ -857,8 +857,8 @@
   color: var(--text-tertiary);
   padding: 4px 10px;
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  border-radius: 2px;
   white-space: nowrap;
 }
 
@@ -879,8 +879,8 @@
   align-items: center;
   padding: 10px 14px;
   background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 2px;
 }
 .receiptRow dt {
   font-size: 11px;
@@ -925,8 +925,8 @@
   width: 100%;
   padding: 14px 16px;
   background: rgba(255, 255, 255, 0.025);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 2px;
   text-align: left;
   font-family: inherit;
   color: inherit;
@@ -941,7 +941,7 @@
 .agentDot {
   width: 8px;
   height: 8px;
-  border-radius: 999px;
+  border-radius: 2px;
 }
 .agentDotActive {
   background: var(--status-success, #22C55E);
@@ -999,7 +999,7 @@
   color: #fff;
   background: var(--status-revoked, #E5484D);
   border: 1px solid var(--status-revoked, #E5484D);
-  border-radius: 999px;
+  border-radius: 2px;
   cursor: pointer;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.18),

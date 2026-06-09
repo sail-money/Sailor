@@ -27,7 +27,7 @@
     linear-gradient(180deg, rgba(255,255,255,0.045) 0%, rgba(255,255,255,0.012) 60%, rgba(255,255,255,0.005) 100%),
     var(--glass-bg-modal);
   border: 1px solid var(--glass-border-strong);
-  border-radius: 28px;
+  border-radius: 2px;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
     0 32px 100px -24px rgba(0, 0, 0, 0.85),
@@ -52,7 +52,7 @@
   justify-content: center;
   color: var(--text-tertiary);
   background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--hairline);
   border-radius: 50%;
   cursor: pointer;
   transition: color 200ms, border-color 200ms, background 200ms;
@@ -112,8 +112,8 @@
   flex-direction: column;
   padding: 4px 0;
   background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 16px;
+  border: 1px solid var(--hairline);
+  border-radius: 2px;
 }
 .row {
   display: flex;
@@ -163,8 +163,8 @@
   color: var(--text-tertiary);
   padding: 2px 8px;
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  border-radius: 2px;
 }
 
 .permList {
@@ -185,7 +185,7 @@
   color: var(--text-primary);
   background: rgba(255, 255, 255, 0.022);
   border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
+  border-radius: 2px;
 }
 .permItemMuted {
   color: var(--text-tertiary);

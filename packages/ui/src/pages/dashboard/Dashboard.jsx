@@ -20,6 +20,7 @@ import CreateSMAModal from './CreateSMAModal'
 import RevokeMandateModal from './RevokeMandateModal'
 import AddSignerModal from './AddSignerModal'
 import RotateSignerModal from './RotateSignerModal'
+import RpcSection from './RpcSection'
 import {
   useSailorAccount,
   useSailorAccounts,
@@ -797,19 +798,16 @@ export default function Dashboard() {
 
   useEffect(() => { refreshOnboard() }, [])
 
-  // Mandate draft (from `sailor mandate prepare`) takes priority — show signing flow.
-  if (draft) return <MandateSigningFlow draft={draft} />
-
   // Show wizard until the project has a deployed Safe.
   if (!onboardChecked) return null
   if (!onboardState?.hasAccount) {
     return <OnboardingWizard onboardState={onboardState} onComplete={refreshOnboard} />
   }
 
-  return <DashboardContent onReset={refreshOnboard} />
+  return <DashboardContent draft={draft} onReset={refreshOnboard} />
 }
 
-function DashboardContent({ onReset }) {
+function DashboardContent({ draft, onReset }) {
   const { isConnected, address: wagmiAddress } = useAccount()
   const { disconnect } = useDisconnect()
   const { openConnectModal } = useConnectModal()
@@ -958,10 +956,12 @@ function DashboardContent({ onReset }) {
         <div className={styles.topActionsPill}>
           <NotificationsBell
             pending={pending}
+            draft={draft}
             open={notifOpen}
             onToggle={() => setNotifOpen((o) => !o)}
             onClose={() => setNotifOpen(false)}
             onOpenStation={() => { setNotifOpen(false); window.location.hash = '#/station' }}
+            onOpenSigning={() => { setNotifOpen(false); window.location.hash = '#/station' }}
           />
           <button
             type="button"
@@ -1018,6 +1018,12 @@ function DashboardContent({ onReset }) {
           />
         ) : (
           <>
+            {draft && draftItemCount(draft) > 0 && (
+              <DraftBanner
+                draft={draft}
+                onReview={() => { window.location.hash = '#/station' }}
+              />
+            )}
             {pending.length > 0 && (
               <PendingBanner
                 count={pending.length}
@@ -1080,16 +1086,6 @@ function DashboardContent({ onReset }) {
                       <span className={styles.smaBadge}>
                         {agentSource === 'remote' ? 'remote agent' : agentSource === 'github-actions' ? 'github actions' : `local · PID ${agentPid}`}
                       </span>
-                    )}
-                    {!overview.onchain && (
-                      <button
-                        type="button"
-                        className={`${styles.smaBadge} ${styles.smaBadgeWarn} ${styles.smaBadgeBtn}`}
-                        title="Add RPC_URL=https://your-endpoint to .sail/.env.local&#10;Get a free endpoint at alchemy.com"
-                        onClick={() => alert('Add RPC_URL=https://your-endpoint to .sail/.env.local\nGet a free endpoint at alchemy.com')}
-                      >
-                        Add RPC URL to enable balance tracking
-                      </button>
                     )}
                   </div>
                 )}
@@ -1230,6 +1226,11 @@ function DashboardContent({ onReset }) {
                 onAddSigner={() => setAddSignerOpen(true)}
                 onRotateSigner={overview?.kernel && overview?.sma?.address ? () => setRotateOpen(true) : undefined}
               />
+            </section>
+
+            {/* ── RPC / Network config ─────────────────────────────── */}
+            <section className={agentStyles.card}>
+              <RpcSection />
             </section>
 
             {/* ── Recent activity / Decision Journal ─────────────── */}
@@ -1564,6 +1565,32 @@ function SetupHero({ onCreate, onImport, ownerAddr }) {
   )
 }
 
+// CLI writes `permissions: [{address, label}]`; older format uses `items: [{template, explanation}]`.
+function draftItemCount(draft) {
+  return (draft?.permissions ?? draft?.items ?? []).length
+}
+
+/* ────────── Draft banner (mandate prepare queued) ────────── */
+function DraftBanner({ draft, onReview }) {
+  const count = draftItemCount(draft)
+  return (
+    <button
+      type="button"
+      className={`${styles.pendingBanner} ${styles.pendingBannerDraft}`}
+      onClick={onReview}
+      aria-label="Review pending mandate draft"
+    >
+      <span className={styles.pendingBannerPulse} aria-hidden />
+      <span className={styles.pendingBannerBody}>
+        <span className={styles.pendingBannerKicker}>Mandate draft ready</span>
+        <span className={styles.pendingBannerTitle}>
+          <strong>{count}</strong> permission{count === 1 ? '' : 's'} queued — sign or reject
+        </span>
+      </span>
+    </button>
+  )
+}
+
 /* ────────── Pending banner ────────── */
 function PendingBanner({ count, onReview }) {
   return (
@@ -1608,7 +1635,7 @@ function NewMandateTile({ onClick }) {
    running station daemon (via /api/station/pending). The dropdown gives a brief
    read on each pending tx/signature without leaving the dashboard; "Open
    signing station" jumps to #/station to actually approve. */
-function NotificationsBell({ pending, open, onToggle, onClose, onOpenStation }) {
+function NotificationsBell({ pending, draft, open, onToggle, onClose, onOpenStation, onOpenSigning }) {
   const wrapRef = useRef(null)
 
   useEffect(() => {
@@ -1627,7 +1654,9 @@ function NotificationsBell({ pending, open, onToggle, onClose, onOpenStation }) 
     }
   }, [open, onClose])
 
-  const count = pending.length
+  const draftCount = draftItemCount(draft)
+  const hasDraft = draftCount > 0
+  const count = pending.length + (hasDraft ? 1 : 0)
 
   return (
     <div className={styles.notifWrap} ref={wrapRef}>
@@ -1660,6 +1689,20 @@ function NotificationsBell({ pending, open, onToggle, onClose, onOpenStation }) 
             </div>
           ) : (
             <ul className={styles.notifList}>
+              {hasDraft && (
+                <li>
+                  <button type="button" className={styles.notifItem} onClick={onOpenSigning}>
+                    <span className={styles.notifItemTop}>
+                      <span className={styles.notifItemKind}>Mandate</span>
+                      <span className={styles.notifItemType}>signature</span>
+                    </span>
+                    <span className={styles.notifItemTitle}>Permission draft ready</span>
+                    <span className={styles.notifItemDesc}>
+                      {draftCount} permission{draftCount === 1 ? '' : 's'} queued — sign or reject
+                    </span>
+                  </button>
+                </li>
+              )}
               {pending.map((req) => (
                 <li key={req.id}>
                   <button
@@ -1688,10 +1731,12 @@ function NotificationsBell({ pending, open, onToggle, onClose, onOpenStation }) 
             </ul>
           )}
 
-          <button type="button" className={styles.notifFootBtn} onClick={onOpenStation}>
-            Open signing station
-            <ArrowRightSm />
-          </button>
+          {pending.length > 0 && (
+            <button type="button" className={styles.notifFootBtn} onClick={onOpenStation}>
+              Open signing station
+              <ArrowRightSm />
+            </button>
+          )}
         </div>
       )}
     </div>
