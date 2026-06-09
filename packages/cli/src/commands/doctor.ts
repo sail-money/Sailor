@@ -278,6 +278,7 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
           `\nMulti-chain addresses (salt ${saltNonce}, owner ${ownerAddr}, manager ${managerAddr}):`,
         );
         const CHAIN_NAMES: Record<number, string> = { 1: "Ethereum", 8453: "Base", 42161: "Arbitrum", 130: "Unichain" };
+        const predictions: string[] = [];
         for (const cid of MAINNET_CHAINS) {
           const dep = sailDeployments[cid];
           const initializer = buildSafeSetupInitializer({
@@ -295,21 +296,15 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
             feePolicy: dep.standardFeePolicy as Address,
             proxyCreationCode,
           });
-          const isDeployed = predicted.toLowerCase() === safe.toLowerCase() && cid === chainId;
+          predictions.push(predicted.toLowerCase());
+          const isDeployed = predicted.toLowerCase() === safe.toLowerCase();
           const label = isDeployed ? "deployed (this account)" : predicted;
           console.log(`  ${CHAIN_NAMES[cid].padEnd(12)} (${cid}):  ${label}`);
         }
-        const uniquePredictions = new Set(
-          MAINNET_CHAINS.map((cid) => {
-            const dep = sailDeployments[cid];
-            const init = buildSafeSetupInitializer({ owners: [ownerAddr], threshold: 1n, kernel: dep.kernel, safeModuleEnabler: dep.safeModuleEnabler });
-            return computeSailSmaAddress({ initializer: init, saltNonce, deployer: ownerAddr, permissionSigner: ownerAddr, manager: managerAddr, feePolicy: dep.standardFeePolicy as Address, proxyCreationCode }).toLowerCase();
-          }),
-        );
         // With CREATE2 deterministic deployment (same kernel, safeModuleEnabler, and
         // standardFeePolicy on every chain), this set should always be size 1. If it is
         // ever >1, the same-address invariant has been broken — kept as a regression guard.
-        if (uniquePredictions.size === 1) {
+        if (new Set(predictions).size === 1) {
           console.log("  ✓ Same address on all chains — cross-chain SMA deployment is live.");
         } else {
           console.log('  ⚠  Addresses differ per chain. Run "sailor account predict" for details.');
