@@ -12,6 +12,8 @@ export type StoredAccount = {
   manager: string;
   chainId: number;
   createdAtBlock: string;
+  /** CREATE2 salt used to deploy this Safe. Stored so `sailor account predict` can reproduce the address. */
+  saltNonce?: string;
 };
 
 /**

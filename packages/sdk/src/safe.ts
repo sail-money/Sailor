@@ -1,4 +1,15 @@
-import { type Address, type Hex, encodeFunctionData, encodePacked, pad, zeroAddress } from "viem";
+import {
+  type Address,
+  type Hex,
+  concat,
+  encodeAbiParameters,
+  encodeFunctionData,
+  encodePacked,
+  getCreate2Address,
+  keccak256,
+  pad,
+  zeroAddress,
+} from "viem";
 
 /** Minimal SailKernel ABI fragment for the manager-rotation call. */
 const setManagerAbi = [
@@ -137,6 +148,57 @@ export function buildApprovedHashSignature(owner: Address): Hex {
     ["bytes32", "bytes32", "uint8"],
     [pad(owner, { size: 32 }), pad("0x", { size: 32 }), 1],
   );
+}
+
+/** ABI for SafeProxyFactory.proxyCreationCode() — pure view returning SafeProxy creation bytecode. */
+export const safeProxyFactoryAbi = [
+  {
+    type: "function",
+    name: "proxyCreationCode",
+    stateMutability: "pure",
+    inputs: [],
+    outputs: [{ name: "", type: "bytes" }],
+  },
+] as const;
+
+/**
+ * Compute the CREATE2 address SafeProxyFactory.createProxyWithNonce() assigns.
+ *
+ * Factory formula (from SafeProxyFactory source):
+ *   initCode     = proxyCreationCode ++ abi.encode(singleton)
+ *   salt         = keccak256(keccak256(initializer) ++ uint256(saltNonce))
+ *   deployedAddr = CREATE2(factory, salt, keccak256(initCode))
+ *
+ * `proxyCreationCode` must be read once from the factory via `safeProxyFactoryAbi`;
+ * it is identical on every chain since SAFE_V141.proxyFactory is the same address everywhere.
+ *
+ * NOTE: the `initializer` encodes chain-specific addresses (kernel, safeModuleEnabler)
+ * via `buildSafeSetupInitializer`. Different initializers per chain → different CREATE2 salts
+ * → different deployed addresses, even with the same `saltNonce`. Cross-chain same-address
+ * requires the Sail Protocol to deploy kernel + safeModuleEnabler at identical addresses on
+ * every chain (deterministic CREATE2 deployment), or a registerExisting() flow that
+ * accepts a plain Safe deployed with a chain-agnostic initializer.
+ */
+export function computeSafeProxyAddress(params: {
+  initializer: Hex;
+  saltNonce: bigint;
+  proxyCreationCode: Hex;
+}): Address {
+  const { initializer, saltNonce, proxyCreationCode } = params;
+  const initCodeHash = keccak256(
+    concat([
+      proxyCreationCode,
+      encodeAbiParameters([{ type: "address" }], [SAFE_V141.singletonL2 as Address]),
+    ]),
+  );
+  const salt = keccak256(
+    encodePacked(["bytes32", "uint256"], [keccak256(initializer), saltNonce]),
+  );
+  return getCreate2Address({
+    from: SAFE_V141.proxyFactory as Address,
+    salt,
+    bytecodeHash: initCodeHash,
+  });
 }
 
 /** ABI-encode the kernel's `setManager(newManager)` call. */

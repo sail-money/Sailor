@@ -1,11 +1,29 @@
 import { getChain } from "@sail/chains";
-import type { ChainConfig } from "@sail/sdk";
+import {
+  SAFE_V141,
+  buildSafeSetupInitializer,
+  computeSafeProxyAddress,
+  sailDeployments,
+  safeProxyFactoryAbi,
+  type ChainConfig,
+  type SailChainId,
+} from "@sail/sdk";
+import {
+  http,
+  type Address,
+  type Hex,
+  createPublicClient,
+  getAddress,
+  isAddress,
+} from "viem";
+import { getChainById, getRpcUrl } from "../lib/chain.js";
 import {
   checksum,
   makeClient,
   parseEnvFile,
   prompt,
   promptAddress,
+  readJsonFile,
   sailPath,
   writeJsonFile,
 } from "../lib/io.js";
@@ -109,3 +127,155 @@ export async function accountCreate(): Promise<void> {
     throw err;
   }
 }
+
+/** Supported mainnet chains for multi-chain SMA operations. */
+const SAIL_MAINNET_CHAINS: SailChainId[] = [8453, 42161, 130];
+
+/**
+ * Fetch proxyCreationCode from SafeProxyFactory once (same on all chains).
+ * Uses any available RPC — the factory contract is identical on every chain.
+ */
+async function fetchProxyCreationCode(preferredChainId: number): Promise<Hex> {
+  const rpcUrl = getRpcUrl(preferredChainId) ?? undefined;
+  const publicClient = createPublicClient({
+    chain: getChainById(preferredChainId),
+    transport: http(rpcUrl),
+  });
+  return (await publicClient.readContract({
+    address: SAFE_V141.proxyFactory as Address,
+    abi: safeProxyFactoryAbi,
+    functionName: "proxyCreationCode",
+  })) as Hex;
+}
+
+export interface PredictOptions {
+  salt?: string;
+  owner?: string;
+  chain?: string;
+  json?: boolean;
+}
+
+/**
+ * `sailor account predict` — compute the deterministic Safe address for a
+ * given owner + salt on each supported chain, WITHOUT deploying anything.
+ *
+ * Shows predicted addresses before any gas is spent ("reservation"). Since the
+ * Safe initializer encodes chain-specific contract addresses (kernel and
+ * safeModuleEnabler), addresses differ across chains even with the same salt —
+ * this is reported clearly with a root-cause explanation.
+ */
+export async function accountPredict(options: PredictOptions): Promise<void> {
+  // ── Resolve owner ────────────────────────────────────────────────────────────
+  let ownerAddr: Address;
+  if (options.owner) {
+    if (!isAddress(options.owner, { strict: false })) {
+      throw new Error(`Invalid --owner address: ${options.owner}`);
+    }
+    ownerAddr = getAddress(options.owner);
+  } else {
+    const stored = readJsonFile<StoredAccount>(sailPath("account.json"));
+    if (!stored?.owner) {
+      throw new Error(
+        "No owner found in .sail/account.json. Pass --owner <address> or run sailor onboard first.",
+      );
+    }
+    ownerAddr = getAddress(stored.owner);
+  }
+
+  const saltNonce = options.salt != null ? BigInt(options.salt) : 0n;
+
+  // ── Determine chains ─────────────────────────────────────────────────────────
+  let chainIds: SailChainId[];
+  if (options.chain) {
+    const chainId = Number(options.chain) as SailChainId;
+    if (!(chainId in sailDeployments)) {
+      throw new Error(
+        `Chain ${chainId} has no Sail Protocol deployment. Supported: ${Object.keys(sailDeployments).join(", ")}`,
+      );
+    }
+    chainIds = [chainId];
+  } else {
+    chainIds = SAIL_MAINNET_CHAINS;
+  }
+
+  // ── Fetch proxyCreationCode (one read from any chain — same factory everywhere) ─
+  const firstChain = chainIds[0];
+  const proxyCreationCode = await fetchProxyCreationCode(firstChain);
+
+  // ── Compute predicted address per chain ──────────────────────────────────────
+  const results = chainIds.map((chainId) => {
+    const deployment = sailDeployments[chainId];
+    const viemChain = getChainById(chainId);
+    const initializer = buildSafeSetupInitializer({
+      owners: [ownerAddr],
+      threshold: 1n,
+      kernel: deployment.kernel,
+      safeModuleEnabler: deployment.safeModuleEnabler,
+    });
+    const predictedAddress = computeSafeProxyAddress({ initializer, saltNonce, proxyCreationCode });
+    return {
+      chainId,
+      name: viemChain.name,
+      predictedAddress,
+      kernel: deployment.kernel,
+      safeModuleEnabler: deployment.safeModuleEnabler,
+    };
+  });
+
+  const uniqueAddresses = new Set(results.map((r) => r.predictedAddress.toLowerCase()));
+  const allSame = uniqueAddresses.size === 1;
+
+  if (options.json) {
+    console.log(
+      JSON.stringify(
+        {
+          salt: saltNonce.toString(),
+          owner: ownerAddr,
+          chains: results.map(({ chainId, name, predictedAddress }) => ({
+            chainId,
+            name,
+            predictedAddress,
+          })),
+          allSame,
+          note: allSame
+            ? "All chains produce the same address with this salt and owner."
+            : "Addresses differ per chain because the Safe initializer encodes chain-specific contract addresses (kernel, safeModuleEnabler). Cross-chain same-address requires deterministic protocol deployment or a registerExisting() flow.",
+        },
+        null,
+        2,
+      ),
+    );
+    return;
+  }
+
+  console.log(`\nPredicted Safe addresses`);
+  console.log(`  Owner: ${ownerAddr}`);
+  console.log(`  Salt:  ${saltNonce}`);
+  console.log("────────────────────────────────────────────────────");
+  for (const { chainId, name, predictedAddress } of results) {
+    console.log(`  ${name.padEnd(14)} (${String(chainId).padEnd(5)}):  ${predictedAddress}`);
+  }
+  console.log("────────────────────────────────────────────────────");
+
+  if (allSame) {
+    console.log("✓ All chains produce the same address.");
+  } else {
+    console.log("\n⚠  Addresses differ across chains.");
+    console.log(
+      "   Root cause: SafeProxyFactory computes CREATE2 salt as\n" +
+        "   keccak256(keccak256(initializer) ‖ saltNonce). The Safe initializer\n" +
+        "   includes chain-specific addresses (kernel, safeModuleEnabler), so\n" +
+        "   different chains produce different salts → different addresses.\n" +
+        "\n" +
+        "   For cross-chain same-address the Sail Protocol needs one of:\n" +
+        "   A) Deterministic (CREATE2) deployment of kernel + safeModuleEnabler\n" +
+        "      so they land at the same address on every chain.\n" +
+        "   B) A registerExisting() path allowing a plain Safe (deployed with a\n" +
+        "      chain-agnostic initializer) to be registered with the kernel.",
+    );
+  }
+  console.log(
+    "\nTo deploy on this chain: sailor onboard --new-sma --salt " + saltNonce.toString(),
+  );
+}
+

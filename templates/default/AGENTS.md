@@ -40,6 +40,8 @@ If the user's first message is an npm install command, run it, then present the 
 
 In the browser. Run `sailor ui start`, open the printed URL, connect your owner wallet, choose your network, and deploy your SMA. Then create your agent wallet — a separate signing key I use to submit transactions on your behalf. You need gas in both: the owner wallet to deploy and sign the mandate; the agent wallet to submit transactions once the agent is running. The owner key never leaves the browser.
 
+**Deterministic address (salt):** every SMA deployment uses a CREATE2 salt. The CLI defaults to salt `0`, giving you a predictable address you can verify before spending gas: `sailor account predict --owner <your-wallet>`. The salt is saved in `.sail/account.json` automatically. Note: addresses differ across chains today (Base, Arbitrum, Unichain) because the Safe initializer encodes chain-specific contract addresses; true cross-chain same-address requires a future protocol update (deterministic kernel + safeModuleEnabler deployment).
+
 ## Stage 2 — Define your strategy
 
 Tell me what you want your agent to do. I'll ask the right questions, establish the on-chain bounds with you (tokens, amounts, slippage, venues), and set up your RPC endpoint once you've chosen your chain. Blank slate — you define the strategy.
