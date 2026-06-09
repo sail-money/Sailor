@@ -1206,3 +1206,29 @@
   max-width: 100%;
   width: 100%;
 }
+
+/* ── Action row (sign + reject side by side) ── */
+.actionRow {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+.rejectBtn {
+  flex-shrink: 0;
+  padding: 0 20px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.45);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: color 180ms, border-color 180ms, background 180ms;
+}
+.rejectBtn:hover:not(:disabled) {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.4);
+  background: rgba(248, 113, 113, 0.06);
+}
+.rejectBtn:disabled { opacity: 0.4; cursor: not-allowed; }

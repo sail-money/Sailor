@@ -617,6 +617,11 @@ export function MandateSigningFlow({ draft, embedded = false }) {
 
   const wrongChain = isConnected && walletChainId !== draft.chainId
 
+  async function onReject() {
+    await fetch('/api/mandate-draft', { method: 'DELETE' }).catch(() => {})
+    window.location.hash = '#/dashboard'
+  }
+
   async function onSwitchChain() {
     try {
       await switchChainAsync({ chainId: draft.chainId })
@@ -734,15 +739,21 @@ export function MandateSigningFlow({ draft, embedded = false }) {
               <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', margin: '0 0 10px' }}>
                 Your wallet is on a different network. Switch to sign this mandate.
               </p>
-              <SailButton fullWidth onClick={onSwitchChain}>
-                Switch to {(() => { try { return getChain(draft.chainId).name } catch { return `Chain ${draft.chainId}` } })()}
-              </SailButton>
+              <div className={styles.actionRow}>
+                <SailButton fullWidth onClick={onSwitchChain}>
+                  Switch to {(() => { try { return getChain(draft.chainId).name } catch { return `Chain ${draft.chainId}` } })()}
+                </SailButton>
+                <button type="button" className={styles.rejectBtn} onClick={onReject}>Reject</button>
+              </div>
             </>
           ) : (
             <>
-              <SailButton fullWidth onClick={onSign} disabled={phase === 'signing'}>
-                {phase === 'signing' ? 'Waiting for wallet…' : 'Sign mandate'}
-              </SailButton>
+              <div className={styles.actionRow}>
+                <SailButton fullWidth onClick={onSign} disabled={phase === 'signing'}>
+                  {phase === 'signing' ? 'Waiting for wallet…' : 'Sign mandate'}
+                </SailButton>
+                <button type="button" className={styles.rejectBtn} onClick={onReject} disabled={phase === 'signing'}>Reject</button>
+              </div>
               <p className={styles.fineprint}>
                 Revocable on-chain at any time from your dashboard.
               </p>
