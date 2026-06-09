@@ -23,10 +23,14 @@ export {
   buildApprovedHashSignature,
   buildSafeSetupInitializer,
   buildSetManagerExecTransaction,
+  computeKernelBoundSalt,
+  computeSafeProxyAddress,
+  computeSailSmaAddress,
   encodeSetManager,
   gnosisSafeAbi,
   gnosisSafeExecAbi,
   safeModuleEnablerAbi,
+  safeProxyFactoryAbi,
 } from "./safe.js";
 export { discoverSafesForOwner, getSafeTransactionServiceUrl } from "./discovery.js";
 export type {

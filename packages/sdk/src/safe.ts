@@ -1,4 +1,15 @@
-import { type Address, type Hex, encodeFunctionData, encodePacked, pad, zeroAddress } from "viem";
+import {
+  type Address,
+  type Hex,
+  concat,
+  encodeAbiParameters,
+  encodeFunctionData,
+  encodePacked,
+  getCreate2Address,
+  keccak256,
+  pad,
+  zeroAddress,
+} from "viem";
 
 /** Minimal SailKernel ABI fragment for the manager-rotation call. */
 const setManagerAbi = [
@@ -137,6 +148,131 @@ export function buildApprovedHashSignature(owner: Address): Hex {
     ["bytes32", "bytes32", "uint8"],
     [pad(owner, { size: 32 }), pad("0x", { size: 32 }), 1],
   );
+}
+
+/** ABI for SafeProxyFactory.proxyCreationCode() — pure view returning SafeProxy creation bytecode. */
+export const safeProxyFactoryAbi = [
+  {
+    type: "function",
+    name: "proxyCreationCode",
+    stateMutability: "pure",
+    inputs: [],
+    outputs: [{ name: "", type: "bytes" }],
+  },
+] as const;
+
+/**
+ * Compute the CREATE2 address SafeProxyFactory.createProxyWithNonce() assigns.
+ *
+ * Factory formula (from SafeProxyFactory source):
+ *   initCode     = proxyCreationCode ++ abi.encode(singleton)
+ *   salt         = keccak256(keccak256(initializer) ++ uint256(saltNonce))
+ *   deployedAddr = CREATE2(factory, salt, keccak256(initCode))
+ *
+ * `proxyCreationCode` must be read once from the factory via `safeProxyFactoryAbi`;
+ * it is identical on every chain since SAFE_V141.proxyFactory is the same address everywhere.
+ *
+ * This is the LOW-LEVEL factory primitive: `saltNonce` is the value handed to
+ * `createProxyWithNonce` verbatim. When the deployer is SailKernel.createAccount,
+ * the kernel does NOT use the caller's nonce directly — it binds it to the
+ * deployer + principals first. To predict a Sail SMA address, use
+ * `computeSailSmaAddress` (which applies `computeKernelBoundSalt`), NOT this
+ * function with the raw nonce.
+ *
+ * NOTE: the `initializer` encodes chain-specific addresses (kernel, safeModuleEnabler)
+ * via `buildSafeSetupInitializer`. Different initializers per chain → different CREATE2 salts
+ * → different deployed addresses, even with the same `saltNonce`. Cross-chain same-address
+ * requires the Sail Protocol to deploy kernel + safeModuleEnabler at identical addresses on
+ * every chain (deterministic CREATE2 deployment), or a registerExisting() flow that
+ * accepts a plain Safe deployed with a chain-agnostic initializer.
+ */
+export function computeSafeProxyAddress(params: {
+  initializer: Hex;
+  saltNonce: bigint;
+  proxyCreationCode: Hex;
+}): Address {
+  const { initializer, saltNonce, proxyCreationCode } = params;
+  const initCodeHash = keccak256(
+    concat([
+      proxyCreationCode,
+      encodeAbiParameters([{ type: "address" }], [SAFE_V141.singletonL2 as Address]),
+    ]),
+  );
+  const salt = keccak256(
+    encodePacked(["bytes32", "uint256"], [keccak256(initializer), saltNonce]),
+  );
+  return getCreate2Address({
+    from: SAFE_V141.proxyFactory as Address,
+    salt,
+    bytecodeHash: initCodeHash,
+  });
+}
+
+/**
+ * Derive the salt SailKernel.createAccount actually passes to the factory.
+ *
+ * The kernel does NOT forward the caller's `saltNonce` directly — it binds it to
+ * the deployer (`msg.sender`) and the account principals to prevent address
+ * front-running (SailKernel.sol):
+ *
+ *   boundSalt = uint256(keccak256(abi.encode(
+ *     saltNonce, msg.sender, permissionSigner, manager, feePolicy)))
+ *
+ * In the standard onboarding flow `deployer === permissionSigner === owner`
+ * (the owner's EOA submits createAccount and is also the Safe's permission
+ * signer), while `manager` is the agent wallet and `feePolicy` is the chain's
+ * StandardFeePolicy.
+ */
+export function computeKernelBoundSalt(params: {
+  saltNonce: bigint;
+  /** `msg.sender` of createAccount — the EOA that deploys (the owner). */
+  deployer: Address;
+  permissionSigner: Address;
+  manager: Address;
+  feePolicy: Address;
+}): bigint {
+  const { saltNonce, deployer, permissionSigner, manager, feePolicy } = params;
+  return BigInt(
+    keccak256(
+      encodeAbiParameters(
+        [
+          { type: "uint256" },
+          { type: "address" },
+          { type: "address" },
+          { type: "address" },
+          { type: "address" },
+        ],
+        [saltNonce, deployer, permissionSigner, manager, feePolicy],
+      ),
+    ),
+  );
+}
+
+/**
+ * Compute the deterministic SMA (Safe) address that SailKernel.createAccount
+ * will deploy for the given owner/manager/feePolicy and salt.
+ *
+ * This is the address `sailor account predict` should show: it applies the
+ * kernel's salt binding (`computeKernelBoundSalt`) before the factory's CREATE2
+ * formula (`computeSafeProxyAddress`). Because the bound salt mixes in the
+ * deployer, permission signer, manager, and fee policy, the address changes if
+ * ANY of those change — not just the `initializer`.
+ */
+export function computeSailSmaAddress(params: {
+  initializer: Hex;
+  saltNonce: bigint;
+  deployer: Address;
+  permissionSigner: Address;
+  manager: Address;
+  feePolicy: Address;
+  proxyCreationCode: Hex;
+}): Address {
+  const boundSalt = computeKernelBoundSalt(params);
+  return computeSafeProxyAddress({
+    initializer: params.initializer,
+    saltNonce: boundSalt,
+    proxyCreationCode: params.proxyCreationCode,
+  });
 }
 
 /** ABI-encode the kernel's `setManager(newManager)` call. */
