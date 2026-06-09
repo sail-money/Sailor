@@ -499,7 +499,7 @@ function SignerCard({ signer, network, onAddSigner, onRotateSigner }) {
 }
 
 /** Live mandate card built from .sail/mandate.json (replaces the mock summary cards). */
-function LiveMandateCard({ mandate, network }) {
+function LiveMandateCard({ mandate, network, addressByTemplate }) {
   const permissions = mandate?.permissions ?? []
   const status = mandate?.registeredOnChain ? 'active' : 'pending'
   const signed = mandate?.signedAt ? new Date(mandate.signedAt).toLocaleDateString() : ''
@@ -524,16 +524,11 @@ function LiveMandateCard({ mandate, network }) {
       </header>
 
       <ul className={styles.mandateSummaryPerms}>
-        {permissions.map((p, i) => (
-          <li key={`${p.template}-${i}`} className={styles.mandateSummaryPermRow}>
-            <span className={styles.mandateSummaryCheck} aria-hidden>
-              <CheckMark />
-            </span>
+        {permissions.map((p, i) => {
+          const addr = addressByTemplate?.get(p.template)
+          const body = (
             <span className={styles.mandateSummaryPermBody}>
               <span className={styles.mandateSummaryPermLabel}>{p.template}</span>
-              {/* UI-signed mandates carry a pre-rendered `explanation` string;
-                  CLI-signed mandates carry template name + params, explained
-                  locally. Either path renders plain-English here. */}
               {(p.explanation
                 ? String(p.explanation).split('; ')
                 : explainPermission(p)
@@ -543,8 +538,27 @@ function LiveMandateCard({ mandate, network }) {
                 </span>
               ))}
             </span>
-          </li>
-        ))}
+          )
+          return (
+            <li key={`${p.template}-${i}`} className={styles.mandateSummaryPermRow}>
+              <span className={styles.mandateSummaryCheck} aria-hidden>
+                <CheckMark />
+              </span>
+              {addr ? (
+                <a
+                  className={styles.mandateSummaryPermLink}
+                  href={explorerUrl(networkLabel, addr)}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={addr}
+                >
+                  {body}
+                  <span className={styles.mandateSummaryPermArrow} aria-hidden><ArrowOutIcon /></span>
+                </a>
+              ) : body}
+            </li>
+          )
+        })}
       </ul>
 
       <footer className={styles.mandateSummaryFoot}>
@@ -1234,15 +1248,19 @@ function DashboardContent({ onReset }) {
               </header>
 
               <div className={styles.mandateList}>
-                {overviewMandates.length > 0 ? (
+                {hasLiveMandate ? (
+                  <LiveMandateCard
+                    mandate={liveMandate}
+                    network={realNetwork}
+                    addressByTemplate={new Map(overviewMandates.map((m) => [m.name ?? m.template, m.address]))}
+                  />
+                ) : overviewMandates.length > 0 ? (
                   <AttachedMandatesPanel
                     mandates={overviewMandates}
                     network={overview?.network ?? realNetwork}
                     onchain={overview?.onchain}
                     onRevoke={overview?.kernel && overview?.sma?.address ? setRevokeTarget : undefined}
                   />
-                ) : hasLiveMandate ? (
-                  <LiveMandateCard mandate={liveMandate} network={realNetwork} />
                 ) : (
                   <NewMandateTile onClick={() => setHandoff({ variant: 'new', context: 'mandate' })} />
                 )}
