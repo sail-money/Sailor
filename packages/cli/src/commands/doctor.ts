@@ -306,6 +306,9 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
             return computeSailSmaAddress({ initializer: init, saltNonce, deployer: ownerAddr, permissionSigner: ownerAddr, manager: managerAddr, feePolicy: dep.standardFeePolicy as Address, proxyCreationCode }).toLowerCase();
           }),
         );
+        // With CREATE2 deterministic deployment (same kernel, safeModuleEnabler, and
+        // standardFeePolicy on every chain), this set should always be size 1. If it is
+        // ever >1, the same-address invariant has been broken — kept as a regression guard.
         if (uniquePredictions.size === 1) {
           console.log("  ✓ Same address on all chains — cross-chain SMA deployment is live.");
         } else {

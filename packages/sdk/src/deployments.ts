@@ -254,6 +254,16 @@ export function getSailDeployment(chainId: number): SailDeployment {
 }
 
 export function normalizeDeployment(input: Record<string, unknown>): SailDeployment {
+  // Guard: mandateFactory is required. Accept the legacy permissionFactory alias too,
+  // but if both are absent the config is malformed — cast-to-Address would silently
+  // produce undefined and cause a confusing runtime error far from the source.
+  if (!input.mandateFactory && !input.permissionFactory) {
+    throw new Error(
+      'normalizeDeployment: deployment config is missing "mandateFactory" ' +
+        '(and the legacy "permissionFactory" alias). ' +
+        "Add a mandateFactory address to the deployment configuration.",
+    );
+  }
   return {
     chainId: Number(input.chainId) as SailChainId,
     blockNumber: Number(input.blockNumber),

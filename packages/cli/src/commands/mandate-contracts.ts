@@ -440,6 +440,17 @@ async function runDeployClone(
     );
   }
 
+  // Guard: if no standalone templates have been deployed on this chain at all, give a
+  // clear actionable error before any signing or gas is consumed.
+  const templateMap = project.deployment.standaloneTemplates ?? {};
+  if (Object.keys(templateMap).length === 0) {
+    throw new Error(
+      `No clone templates are available on chain ${project.chainId} yet — ` +
+        `templates are pending redeployment against the new kernel (${project.deployment.kernel}). ` +
+        `Deploy your permission directly with \`sailor mandate deploy\` instead.`,
+    );
+  }
+
   const impl = project.deployment.standaloneTemplates?.[options.template] as Address | undefined;
   if (!impl || !isAddress(impl, { strict: false })) {
     throw new Error(
