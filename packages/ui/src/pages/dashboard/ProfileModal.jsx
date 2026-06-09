@@ -6,57 +6,14 @@ function truncate(addr) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`
 }
 
-/* Map a network id to Safe's app.safe.global chain prefix. Safe uses
-   short chain codes in its deep links (arb1 for arbitrumOne, oeth for
-   optimism, etc.). Unknown chains fall back to Ethereum mainnet. */
-const SAFE_CHAIN_PREFIX = {
-  ethereum: 'eth',
-  arbitrum: 'arb1',
-  base:     'base',
-  optimism: 'oeth',
-  polygon:  'matic',
-}
-function safeAppUrl(network, address) {
-  const prefix = SAFE_CHAIN_PREFIX[network] ?? 'eth'
-  return `https://app.safe.global/home?safe=${prefix}:${address}`
-}
-
-function ArrowOutIcon() {
-  return (
-    <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M5 9 L9 5" />
-      <path d="M5.4 5 H9 V8.6" />
-    </svg>
-  )
-}
-
-/**
- * Account panel — EOA at the top, SMAs listed below.
- *
- * The new model: one EOA (the user's wallet, the source of identity)
- * can own multiple SMAs. The panel makes that hierarchy obvious by
- * leading with the EOA hero, then surfacing every SMA the EOA
- * controls as a sibling row.
- *
- * Network chip has been removed — chain context belongs on each
- * individual SMA row, not on the EOA itself.
- */
 export default function ProfileModal({
   open,
   wallet,
-  safes = [],
-  currentSafeId,
-  hasSMA = true,
   onClose,
   onDisconnect,
-  onCreateSMA,
-  onRenameSafe,
-  onSelectSafe,
 }) {
   const [closing, setClosing] = useState(false)
-  const [copiedKey, setCopiedKey] = useState(null) // 'eoa' | sma.id | null
-  const [editingId, setEditingId] = useState(null)
-  const [draftName, setDraftName] = useState('')
+  const [copiedEoa, setCopiedEoa] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -71,27 +28,14 @@ export default function ProfileModal({
     setTimeout(() => { setClosing(false); onClose?.() }, 320)
   }
 
-  function copy(key, value) {
-    if (!value) return
-    if (navigator?.clipboard?.writeText) navigator.clipboard.writeText(value)
-    setCopiedKey(key)
-    setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1400)
+  function copyEoa() {
+    if (!wallet) return
+    if (navigator?.clipboard?.writeText) navigator.clipboard.writeText(wallet)
+    setCopiedEoa(true)
+    setTimeout(() => setCopiedEoa(false), 1400)
   }
-
-  function startEdit(sma) {
-    setEditingId(sma.id)
-    setDraftName(sma.name)
-  }
-  function commitEdit() {
-    const trimmed = draftName.trim()
-    if (editingId && trimmed) onRenameSafe?.(editingId, trimmed)
-    setEditingId(null)
-  }
-  function cancelEdit() { setEditingId(null) }
 
   if (!open) return null
-
-  const visibleSafes = hasSMA ? safes : []
 
   return (
     <>
@@ -102,8 +46,6 @@ export default function ProfileModal({
         aria-modal="true"
         aria-label="Account"
       >
-        {/* EOA hero — the user's wallet, the top of the hierarchy.
-            One EOA can manage many SMAs (listed below). */}
         <div className={styles.hero}>
           <div className={styles.avatarRing}>
             <div className={styles.avatar}>{wallet?.slice(2, 4).toUpperCase() ?? 'U'}</div>
@@ -113,12 +55,12 @@ export default function ProfileModal({
             <button
               type="button"
               className={styles.identityAddress}
-              onClick={() => copy('eoa', wallet)}
+              onClick={copyEoa}
               aria-label="Copy EOA address"
             >
               <span>{truncate(wallet)}</span>
               <span className={styles.identityCopyIcon} aria-hidden>
-                {copiedKey === 'eoa' ? <CheckIcon /> : <CopyIcon />}
+                {copiedEoa ? <CheckIcon /> : <CopyIcon />}
               </span>
             </button>
           </div>
@@ -130,195 +72,10 @@ export default function ProfileModal({
             Disconnect
           </button>
         </div>
-
-        <div className={styles.divider} />
-
-        {/* SMAs — every Separately Managed Account this EOA owns. */}
-        <section className={styles.smasSection}>
-          <header className={styles.smasHead}>
-            <span className={styles.smasKicker}>Separately Managed Accounts</span>
-            <span className={styles.smasCount}>
-              {visibleSafes.length} {visibleSafes.length === 1 ? 'SMA' : 'SMAs'}
-            </span>
-          </header>
-
-          {visibleSafes.length > 0 ? (
-            <ul className={styles.smaList}>
-              {visibleSafes.map((sma) => {
-                const isCurrent = sma.id?.toLowerCase() === currentSafeId?.toLowerCase()
-                const isEditing = sma.id === editingId
-                return (
-                <li key={sma.id} className={`${styles.smaCard} ${isCurrent ? styles.smaCardPrimary : ''}`}>
-                  {/* Identity row: tap anywhere (when not editing) to make
-                      this SMA the current one. */}
-                  <button
-                    type="button"
-                    className={styles.smaRow}
-                    onClick={() => { if (!isEditing) onSelectSafe?.(sma) }}
-                  >
-                    <span className={styles.smaIcon} aria-hidden>
-                      <VaultGlyph />
-                    </span>
-                    <span className={styles.smaBody}>
-                      <span className={styles.smaTitleRow}>
-                        {isEditing ? (
-                          <input
-                            autoFocus
-                            type="text"
-                            value={draftName}
-                            onChange={(e) => setDraftName(e.target.value)}
-                            onClick={(e) => e.stopPropagation()}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') { e.preventDefault(); commitEdit() }
-                              if (e.key === 'Escape') { e.preventDefault(); cancelEdit() }
-                            }}
-                            onBlur={commitEdit}
-                            className={styles.smaNameInput}
-                            maxLength={40}
-                            aria-label={`Rename ${sma.name}`}
-                          />
-                        ) : (
-                          <span className={styles.smaName}>{sma.name}</span>
-                        )}
-                        {isCurrent && !isEditing && (
-                          <span className={styles.smaPrimaryBadge}>Current</span>
-                        )}
-                        {!isEditing && (
-                          <span
-                            className={styles.smaRename}
-                            role="button"
-                            tabIndex={0}
-                            onClick={(e) => { e.stopPropagation(); startEdit(sma) }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault(); e.stopPropagation(); startEdit(sma)
-                              }
-                            }}
-                            aria-label={`Rename ${sma.name}`}
-                          >
-                            <PencilIcon />
-                          </span>
-                        )}
-                      </span>
-                      <span className={styles.smaAddress}>{truncate(sma.address)}</span>
-                      <span className={styles.smaMeta}>
-                        {sma.networks && sma.networks.length > 1 ? (
-                          <>
-                            <span className={styles.smaNetStack} aria-hidden>
-                              {sma.networks.slice(0, 4).map((n) => (
-                                <span
-                                  key={n}
-                                  className={`${styles.smaNetDot} ${styles[`smaNetDot_${n}`] ?? ''}`}
-                                />
-                              ))}
-                            </span>
-                            <span className={styles.smaNetName}>Multichain</span>
-                          </>
-                        ) : (
-                          <>
-                            <span className={`${styles.smaNetDot} ${styles[`smaNetDot_${sma.network}`] ?? ''}`} aria-hidden />
-                            <span className={styles.smaNetName}>{capitalize(sma.network)}</span>
-                          </>
-                        )}
-                        <span className={styles.smaMetaSep} aria-hidden>·</span>
-                        <span className={styles.smaAgentCount}>
-                          {sma.agentCount} {sma.agentCount === 1 ? 'agent' : 'agents'}
-                        </span>
-                      </span>
-                    </span>
-                    <span
-                      className={styles.smaCopy}
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => { e.stopPropagation(); copy(sma.id, sma.address) }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault(); e.stopPropagation(); copy(sma.id, sma.address)
-                        }
-                      }}
-                      aria-label={`Copy ${sma.name} address`}
-                    >
-                      {copiedKey === sma.id ? <CheckIcon /> : <CopyIcon />}
-                    </span>
-                  </button>
-
-                  {/* Deposit/withdraw flows retired — depositing happens
-                      by copying the SMA address above and sending from
-                      any wallet. Withdrawal is removed from this surface
-                      entirely; users perform it through the Safe app. */}
-
-                  {/* Safe App quick-link — opens this exact SMA in the
-                      Safe interface on its home chain. Promoted to the
-                      primary action now that deposit/withdraw are gone. */}
-                  <a
-                    className={styles.smaSafeLink}
-                    href={safeAppUrl(sma.network, sma.address)}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    aria-label={`Open ${sma.name} in the Safe app on ${capitalize(sma.network)}`}
-                  >
-                    <span className={styles.smaSafeLinkLabel}>
-                      Open in Safe
-                      <span className={styles.smaSafeLinkChain}>
-                        {sma.networks && sma.networks.length > 1
-                          ? ` · ${capitalize(sma.network)} (home)`
-                          : ` · ${capitalize(sma.network)}`}
-                      </span>
-                    </span>
-                    <ArrowOutIcon />
-                  </a>
-                </li>
-                )
-              })}
-              <li>
-                <button
-                  type="button"
-                  className={styles.smaNew}
-                  onClick={onCreateSMA}
-                >
-                  <span className={styles.smaNewIcon} aria-hidden>+</span>
-                  <span className={styles.smaNewBody}>
-                    <span className={styles.smaNewTitle}>Create another SMA</span>
-                    <span className={styles.smaNewSub}>
-                      Deploy a new Safe under this EOA — useful for separate strategies.
-                    </span>
-                  </span>
-                </button>
-              </li>
-            </ul>
-          ) : (
-            <div className={styles.noSMA}>
-              <span className={styles.noSMAIcon} aria-hidden>
-                <VaultGlyph />
-              </span>
-              <div className={styles.noSMABody}>
-                <span className={styles.noSMAKicker}>Separately Managed Account</span>
-                <span className={styles.noSMATitle}>No SMA created yet</span>
-                <span className={styles.noSMASub}>
-                  Your SMA is deployed when you create your first agent.
-                </span>
-              </div>
-              <button
-                type="button"
-                className={styles.noSMACta}
-                onClick={onCreateSMA}
-              >
-                Create your first agent
-                <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M3 7h8M8 4l3 3-3 3" />
-                </svg>
-              </button>
-            </div>
-          )}
-        </section>
-
       </aside>
     </>
   )
 }
-
-function capitalize(s) { return s ? s[0].toUpperCase() + s.slice(1) : s }
 
 function CopyIcon() {
   return (
@@ -335,52 +92,3 @@ function CheckIcon() {
     </svg>
   )
 }
-function WalletGlyph() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden>
-      <rect x="2.5" y="5" width="15" height="11" rx="2.5" stroke="currentColor" strokeWidth="1.4"/>
-      <path d="M2.5 9h15" stroke="currentColor" strokeWidth="1.4"/>
-      <circle cx="14" cy="12.5" r="1" fill="currentColor"/>
-    </svg>
-  )
-}
-function PencilIcon() {
-  return (
-    <svg width="11" height="11" viewBox="0 0 14 14" fill="none" aria-hidden>
-      <path
-        d="M9.5 1.6l2.9 2.9-7.6 7.6-3.2.4.4-3.2 7.5-7.7z"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path d="M9 2.1l2.9 2.9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    </svg>
-  )
-}
-function VaultGlyph() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden>
-      <rect x="2.5" y="3.5" width="15" height="13" rx="2.6" stroke="currentColor" strokeWidth="1.4"/>
-      <circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.4"/>
-      <path d="M10 7v.6M10 13.4v-.6M13 10h-.6M7.6 10H7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-    </svg>
-  )
-}
-function DepositArrowIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden>
-      <path d="M7 2.5v6M4.5 6L7 8.5 9.5 6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M3 11.2h8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-    </svg>
-  )
-}
-function WithdrawArrowIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden>
-      <path d="M7 11.5v-6M4.5 8L7 5.5 9.5 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M3 2.8h8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-    </svg>
-  )
-}
-

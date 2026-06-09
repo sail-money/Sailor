@@ -1296,26 +1296,12 @@ function DashboardContent({ onReset }) {
       <ProfileModal
         open={profileOpen}
         wallet={ownerAddr}
-        safes={profileSafes}
-        currentSafeId={currentSafeId}
-        hasSMA={hasSMA}
         onClose={() => setProfileOpen(false)}
         onDisconnect={() => {
           setProfileOpen(false)
           setJustCreatedAccount(null)
           try { localStorage.removeItem('sail.account') } catch {}
           disconnect()
-        }}
-        onCreateSMA={() => { setProfileOpen(false); setCreateSMAOpen(true) }}
-        onRenameSafe={(id, name) => {
-          setSafeNames((m) => ({ ...m, [id]: name }))
-          renameSailorAccount(id, name).catch(() => {})
-          setRefreshTick((t) => t + 1)
-        }}
-        onSelectSafe={async (sma) => {
-          try { await switchSailorAccount(sma.address) } catch { /* server not running */ }
-          setRefreshTick((t) => t + 1)
-          setProfileOpen(false)
         }}
       />
 
