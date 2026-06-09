@@ -556,65 +556,6 @@ function LiveMandateCard({ mandate, network }) {
   )
 }
 
-/** Live agent card reflecting the real `sailor run` process state. */
-function LiveAgentCard({ running, pid, source, githubActions }) {
-  const isRemote = source === 'remote'
-  const scopeLabel = running
-    ? isRemote ? 'running · remote' : `running · PID ${pid}`
-    : 'stopped'
-  const locationLabel = isRemote ? 'remote agent' : 'local process'
-  const showGhSetup = !running && githubActions
-
-  return (
-    <article
-      className={`${styles.mCard} ${running ? styles.mCardActive : styles.mCardMuted}`}
-    >
-      <header className={styles.mCardTop}>
-        <span className={styles.mAiRow}>
-          <span className={styles.mAiText}>Sailor agent</span>
-        </span>
-        <MandateStatus status={running ? 'active' : 'paused'} kind="agent" />
-      </header>
-
-      <div className={styles.mTitleBlock}>
-        <h3 className={`${shared.displayHeadline} ${styles.mTitle}`}>Agent runner</h3>
-        <span className={styles.mScope}>{scopeLabel}</span>
-        <span className={styles.mDelegatedTag}>{isRemote ? 'remote agent' : showGhSetup ? 'github actions' : locationLabel}</span>
-      </div>
-
-      <div className={styles.mCardMid}>
-        <span
-          className={`${styles.mascot} ${running ? styles.mascotLive : styles.mascotMuted}`}
-          aria-hidden
-        >
-          <Sai size={48} animate={running} />
-        </span>
-      </div>
-
-      {showGhSetup && (
-        <div className={styles.ghSetupBanner}>
-          <span className={styles.ghSetupIcon} aria-hidden>⚠</span>
-          <div className={styles.ghSetupBody}>
-            <span className={styles.ghSetupTitle}>GH Actions workflow not running</span>
-            <span className={styles.ghSetupSub}>
-              Add secrets to your repo, then trigger the workflow manually once.
-            </span>
-          </div>
-          {githubActions.repoUrl && (
-            <a
-              className={styles.ghSetupLink}
-              href={`${githubActions.repoUrl}/settings/secrets/actions`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Add secrets →
-            </a>
-          )}
-        </div>
-      )}
-    </article>
-  )
-}
 
 const TX_EXPLORER = {
   arbitrum: (hash) => `https://arbiscan.io/tx/${hash}`,
@@ -1139,11 +1080,14 @@ function DashboardContent({ onReset }) {
                       Registered SMA
                     </span>
                   )}
-                  {overview.sma.registered != null && (
-                    <MandateStatus status={overview.sma.sessionActive ? 'active' : 'paused'} />
-                  )}
                   {overview.network && (
                     <span className={styles.smaBadge}>{overview.network}</span>
+                  )}
+                  <MandateStatus status={agentRunning ? 'active' : 'paused'} kind="agent" />
+                  {agentSource && (
+                    <span className={styles.smaBadge}>
+                      {agentSource === 'remote' ? 'remote agent' : agentSource === 'github-actions' ? 'github actions' : `local · PID ${agentPid}`}
+                    </span>
                   )}
                   {!overview.onchain && (
                     <button
@@ -1261,37 +1205,6 @@ function DashboardContent({ onReset }) {
                 onAddSigner={() => setAddSignerOpen(true)}
                 onRotateSigner={overview?.kernel && overview?.sma?.address ? () => setRotateOpen(true) : undefined}
               />
-            </section>
-
-            {/* ── Your agents — restored card grid ─────────────────
-                Each card is one agent wallet (one mandate in the
-                old data model). Mascot animates in the middle while
-                the agent is active. Clicking View drops into the rich
-                AgentPage detail (mandate fingerprint, permission
-                receipt, run history, decision journal). Edit opens the
-                AI handoff to redraft. Revoke triggers the contract
-                fade + REVOKED stamp animation. */}
-            <section className={agentStyles.card}>
-              <header className={agentStyles.cardHead}>
-                <div className={agentStyles.cardHeadText}>
-                  <h2 className={agentStyles.cardTitle}>
-                    <RobotGlyph />
-                    Your agents
-                  </h2>
-                  <p className={agentStyles.cardSub}>
-                    Agent wallets running under this mandate. Click View to inspect the agent in detail.
-                  </p>
-                </div>
-                <div className={styles.agentsHeadRight} />
-              </header>
-
-              <div className={styles.mandateCards}>
-                {liveMode ? (
-                  <LiveAgentCard running={agentRunning} pid={agentPid} source={agentSource} githubActions={githubActions} />
-                ) : (
-                  <EmptyAgentsState onNew={() => setHandoff({ variant: 'new', context: 'agent' })} />
-                )}
-              </div>
             </section>
 
             {/* ── Recent activity / Decision Journal ─────────────── */}
@@ -1664,17 +1577,6 @@ function NewMandateTile({ onClick }) {
   )
 }
 
-function EmptyAgentsState({ onNew }) {
-  return (
-    <div className={styles.emptyAgents}>
-      <h3 className={styles.emptyAgentsTitle}>No agents yet</h3>
-      <p className={styles.emptyAgentsBody}>
-        Once you have a mandate, ask your AI to draft an agent strategy. It will appear here for your signature.
-      </p>
-      <SailButton onClick={onNew}>Create your first agent</SailButton>
-    </div>
-  )
-}
 
 /* ────────── Notifications bell + dropdown ──────────
    The bell badges the count of signing requests the agent has pushed to the
@@ -1868,18 +1770,6 @@ function DocGlyph() {
       <path d="M4 2.5h5l3 3v8a.5.5 0 01-.5.5h-7.5a.5.5 0 01-.5-.5v-10a.5.5 0 01.5-.5z" />
       <path d="M9 2.5v3h3" />
       <path d="M5.6 9h5M5.6 11.4h5" />
-    </svg>
-  )
-}
-function RobotGlyph() {
-  return (
-    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <rect x="3" y="5.5" width="10" height="7" rx="1.6" />
-      <path d="M8 3.2v2.3" />
-      <circle cx="8" cy="2.6" r="0.6" fill="currentColor" />
-      <circle cx="6.3" cy="8.6" r="0.9" fill="currentColor" />
-      <circle cx="9.7" cy="8.6" r="0.9" fill="currentColor" />
-      <path d="M6.5 11h3" />
     </svg>
   )
 }

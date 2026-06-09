@@ -4,7 +4,6 @@ import ReactDOM from 'react-dom/client'
 import { RainbowKitProvider } from '@rainbow-me/rainbowkit'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WagmiProvider } from 'wagmi'
-import App from './App'
 import SigningStation from './pages/station/SigningStation'
 import Dashboard from './pages/dashboard/Dashboard'
 import AgentPage from './pages/dashboard/AgentPage'
@@ -35,12 +34,8 @@ function servedBySigningDaemon() {
 function Router() {
   const [route, setRoute] = useState(readRoute)
 
-  // Default landing for the local UI is the dashboard. The marketing
-  // landing page remains accessible at #/landing. But when this SPA is served
-  // by the signing daemon (ports 3141–3150 — the URL `sailor owner connect` /
-  // mandate signing print), land on the signing station so wallet-connect and
-  // approvals are front-and-centre and the connected wallet is relayed back to
-  // the CLI (the dashboard has no such relay once a project is onboarded).
+  // When served by the signing daemon (ports 3141–3150), land on the signing
+  // station so wallet-connect and approvals are front-and-centre.
   useEffect(() => {
     if (route === '/' || route === '') {
       window.location.replace(servedBySigningDaemon() ? '#/station' : '#/dashboard')
@@ -101,7 +96,6 @@ function Router() {
     )
   }
   else if (route.startsWith('/dashboard')) page = <Dashboard key={route} />
-  else if (route.startsWith('/landing')) page = <App />
   else page = <Dashboard key={route} />
 
   return page
