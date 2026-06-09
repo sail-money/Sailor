@@ -4,29 +4,31 @@ pragma solidity 0.8.26;
 // ─────────────────────────────────────────────────────────────────────────────
 // Protocol : Uniswap V3
 // Version  : SwapRouter02 (NOT the older SwapRouter — different selectors)
-// Chain    : Base mainnet
-// Target   : SwapRouter02  0x2626664c2603336E57B271c5C0b26F421741e481
+// Chain    : Base mainnet (8453)
+// Target   : SwapRouter02  0x2626664c2603336E57B271c5C0b26F421741e481  (verified on Basescan)
 //
-// ENFORCED ON-CHAIN (via kernel evaluate() on every dispatch):
-//   exactInputSingle path (selector 0x04e45aaf):
+// ENFORCES ON-CHAIN (kernel calls evaluate() on every dispatch; false ⇒ dispatch blocked):
+//   exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))  selector 0x04e45aaf
 //     • target must be SWAP_ROUTER
 //     • tokenIn  must equal FIXED_TOKEN_IN
 //     • tokenOut must be in ALLOWED_TOKENS_OUT
 //     • amountIn ≤ MAX_AMOUNT_IN
-//     • amountOutMinimum ≥ amountIn × MIN_BPS / 10 000  (slippage floor)
-//   approve path (selector 0x095ea7b3):
+//     • amountOutMinimum ≥ amountIn × MIN_BPS / 10 000  (slippage floor — see caveat below)
+//   approve(address,uint256)  selector 0x095ea7b3
 //     • target must be FIXED_TOKEN_IN (the ERC-20 being approved)
 //     • spender must be SWAP_ROUTER
 //     • amount  ≤ MAX_AMOUNT_IN
 //
-// NOT ENFORCED (agent code — can change without a new contract):
+// AGENT-ENFORCED / NOT BOUNDED HERE (off-chain — can change without redeploying this contract):
 //   • fee tier, sqrtPriceLimitX96, recipient address
 //   • swap frequency / cadence
+//   • real (cross-denomination) slippage — see MIN_BPS caveat in evaluate()
 //
 // VERIFY BEFORE USE:
-//   • Confirm SwapRouter02 address on your chain (Base default shown above).
+//   • Confirm SwapRouter02 address on your chain (Base default shown above; verified on Basescan).
 //   • Selector 0x04e45aaf = exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))
-//     on SwapRouter02. The older SwapRouter uses a different selector (0x414577b7).
+//     on SwapRouter02 (verified via `cast sig`). The OLDER SwapRouter's exactInputSingle (the
+//     deadline variant) is 0x414bf389 — a different selector; do not confuse the two.
 //   • Confirm that amountOutMinimum slippage floor fits your price-impact expectations for the
 //     chosen pool. Large amountIn values may trigger price impact beyond MIN_BPS.
 // ─────────────────────────────────────────────────────────────────────────────

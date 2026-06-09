@@ -4,24 +4,24 @@ pragma solidity 0.8.26;
 // ─────────────────────────────────────────────────────────────────────────────
 // Protocol : Aave V3
 // Version  : Pool (proxy) — fully on-chain, oracle-based liquidation
-// Chain    : Arbitrum mainnet
-// Target   : Aave V3 Pool  0x794a61358D6845594F94dc1DB02A252b5b4814aD
+// Chain    : Arbitrum mainnet (42161)
+// Target   : Aave V3 Pool  0x794a61358D6845594F94dc1DB02A252b5b4814aD  (verified on Arbiscan)
 //
-// ENFORCED ON-CHAIN (via kernel evaluate() on every dispatch):
-//   borrow(address asset, uint256 amount, uint256 interestRateMode,
-//          uint16 referralCode, address onBehalfOf)
-//   • target must be AAVE_POOL
-//   • asset must be in ALLOWED_ASSETS
-//   • amount ≤ MAX_BORROW_AMOUNT
-//   • onBehalfOf must equal ctx.account (the SMA — agent cannot borrow on behalf of others)
-//   • interestRateMode must be in ALLOWED_RATE_MODES
-//     (1 = stable [deprecated in V3.1], 2 = variable; restrict to [2] for V3.1+)
+// ENFORCES ON-CHAIN (kernel calls evaluate() on every dispatch; false ⇒ dispatch blocked):
+//   borrow(address asset,uint256 amount,uint256 interestRateMode,uint16 referralCode,address onBehalfOf)
+//   selector 0xa415bcad
+//     • target must be AAVE_POOL
+//     • asset must be in ALLOWED_ASSETS
+//     • amount ≤ MAX_BORROW_AMOUNT
+//     • onBehalfOf must equal ctx.account (the SMA — agent cannot borrow on behalf of others)
+//     • interestRateMode must be in ALLOWED_RATE_MODES
+//       (1 = stable [deprecated in V3.1], 2 = variable; restrict to [2] for V3.1+)
 //
-// NOT ENFORCED (agent code — can change without a new contract):
+// AGENT-ENFORCED / NOT BOUNDED HERE (off-chain — can change without redeploying this contract):
 //   • Health factor management — the kernel cannot check post-borrow health factor
 //   • referralCode (informational only, does not affect fund safety)
 //   • Repayment timing — agent decides when to repay
-//   • Collateral composition — managed by prior deposit permissions
+//   • Collateral composition — managed by prior deposit/supply permissions
 //
 // VERIFY BEFORE USE:
 //   • Confirm Aave V3 Pool address on Arbitrum (0x794a... — verify on Arbiscan).

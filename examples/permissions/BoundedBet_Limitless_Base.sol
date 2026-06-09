@@ -21,14 +21,15 @@ pragma solidity 0.8.26;
 //   Deploying this contract with an unverified ABI may silently PASS or FAIL
 //   all dispatches depending on whether the selector matches.
 //
-// ENFORCED ON-CHAIN (assuming verified ABI — see warning above):
-//   buy(bytes32 conditionId, uint256 amount, uint256 outcomeIndex)
-//   • target must be LIMITLESS_EXCHANGE
-//   • conditionId must be in ALLOWED_CONDITIONS
-//   • amount ≤ MAX_STAKE
-//   • outcomeIndex must be in ALLOWED_OUTCOMES
+// ENFORCES ON-CHAIN (kernel calls evaluate() on every dispatch; false ⇒ dispatch blocked)
+//                    — ASSUMING the unverified ABI above is correct:
+//   buy(bytes32 conditionId,uint256 amount,uint256 outcomeIndex)  selector = keccak256(sig)[0:4]
+//     • target must be LIMITLESS_EXCHANGE
+//     • conditionId must be in ALLOWED_CONDITIONS
+//     • amount ≤ MAX_STAKE
+//     • outcomeIndex must be in ALLOWED_OUTCOMES
 //
-// NOT ENFORCED:
+// AGENT-ENFORCED / NOT BOUNDED HERE (off-chain — can change without redeploying this contract):
 //   • Market price / odds (on-chain prediction market prices fluctuate)
 //   • Timing / frequency of bets
 //

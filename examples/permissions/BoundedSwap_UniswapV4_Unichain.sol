@@ -10,8 +10,8 @@ pragma solidity 0.8.26;
 // Target   : Universal Router  0xef740bf23acae26f6492b10de645d6b98dc8eaf3
 //            (verify on Uniscan before use)
 //
-// ENFORCED ON-CHAIN (via kernel evaluate() on every dispatch):
-//   execute(bytes,bytes[]) or execute(bytes,bytes[],uint256):
+// ENFORCES ON-CHAIN (kernel calls evaluate() on every dispatch; false ⇒ dispatch blocked):
+//   execute(bytes,bytes[],uint256) selector 0x3593564c  /  execute(bytes,bytes[]) selector 0x24856bc3
 //     • target must be UNIVERSAL_ROUTER
 //     • first command byte (masking the allow-failure MSB) must be V4_SWAP (0x10)
 //     • exactly one command (single-swap path — disallow multi-hop command strings)
@@ -19,9 +19,13 @@ pragma solidity 0.8.26;
 //     • tokenIn (from poolKey, derived by zeroForOne) must be FIXED_CURRENCY_IN
 //     • tokenOut must be in ALLOWED_CURRENCIES_OUT
 //     • amountIn ≤ MAX_AMOUNT_IN
-//     • amountOutMinimum ≥ amountIn × MIN_BPS / 10 000
+//     • amountOutMinimum ≥ amountIn × MIN_BPS / 10 000  (slippage floor — see caveat below)
 //
-// NOT ENFORCED — documented limitations:
+// AGENT-ENFORCED / NOT BOUNDED HERE (off-chain — can change without redeploying this contract):
+//   • real (cross-denomination) slippage — see MIN_BPS caveat in evaluate()
+//   • swap frequency / cadence
+//
+// DOCUMENTED LIMITATIONS (on-chain, but intentionally not constrained):
 //   • hookData is not inspected (hooks can alter swap behavior on-chain; if the
 //     pool uses a hook that significantly changes execution, this permission cannot
 //     constrain it. Deploy against pools with address(0) hooks or audited hooks only.)
@@ -93,11 +97,9 @@ contract BoundedSwap_UniswapV4_Unichain is IPermission {
         MAX_AMOUNT_IN     = maxAmountIn;
         MIN_BPS           = minBps;
         for (uint256 i = 0; i < allowedCurrenciesOut.length; i++) {
-            isAllowedCurrenciesOut[allowedCurrenciesOut[i]] = true;
+            isAllowedCurrencyOut[allowedCurrenciesOut[i]] = true;
         }
     }
-
-    mapping(address => bool) private isAllowedCurrenciesOut;
 
     function evaluate(bytes calldata txData, Context calldata ctx) external view returns (bool) {
         if (ctx.target != UNIVERSAL_ROUTER) return false;
@@ -133,7 +135,7 @@ contract BoundedSwap_UniswapV4_Unichain is IPermission {
         address tokenOut = p.zeroForOne ? p.poolKey.currency1 : p.poolKey.currency0;
 
         if (tokenIn != FIXED_CURRENCY_IN)            return false;
-        if (!isAllowedCurrenciesOut[tokenOut])       return false;
+        if (!isAllowedCurrencyOut[tokenOut])         return false;
         if (p.amountIn > MAX_AMOUNT_IN)              return false;
         // Slippage floor: amountOutMinimum ≥ amountIn × MIN_BPS / 10 000.
         // WARNING: compares tokenOut against tokenIn base units. For same-price/same-decimal
