@@ -54,7 +54,22 @@ Permission contracts live in `mandates/`. The user authors, reviews, and owns th
 
 ```bash
 forge build
-sailor mandate deploy --contract <Name> --attach --sma <SMA>
+sailor mandate deploy --contract <Name> --sma <SMA>   # deploy only — do NOT --attach yet
+```
+
+Before AUTHORIZING (attaching) the permission, BACK the plain-English claims with an actual on-chain probe. `evaluate()` lives on the deployed contract, so deploy first, then — before the irreversible authorization — generate sample calls from the user's stated strategy (ones the permission MUST accept and ones it MUST reject) and run them through `sailor mandate simulate`. This is an off-chain `eth_call` (no gas, no signing) that reports what the permission's `evaluate()` returns for each call, and flags any target with no contract code (a wrong or wrong-chain address):
+
+```bash
+# one call inline, or a batch via JSON
+sailor mandate simulate --address <PermissionOrName> --sma <SMA> \
+  --target <addr> --calldata <hex> --expect pass
+sailor mandate simulate --address <PermissionOrName> --sma <SMA> --calls calls.json
+```
+
+`calls.json` is an array of `{ target, calldata, value?, expect: "pass"|"fail", label }`. A mismatch between `expect` and the actual result exits non-zero — do not authorize until every sample matches. Simulate proves what the permission DOES; it does not guarantee it is correct.
+
+```bash
+sailor mandate attach --address <PermissionOrName> --sma <SMA>   # authorize, once simulate is clean
 ```
 
 Registration requires the owner to sign in the browser. If the wrong wallet is connected, the CLI rejects it.

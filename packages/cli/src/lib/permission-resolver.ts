@@ -61,6 +61,88 @@ export type PermissionContext = {
 };
 
 /**
+ * Build the Context struct for an off-chain evaluate() probe.
+ *
+ * SINGLE SOURCE OF TRUTH for the Context shape. The runner (via
+ * resolvePermissionForCall) and `sailor mandate simulate` (via
+ * probePermissionForCall) both go through here, so a simulation's probe is
+ * byte-identical to what the runner builds on a real dispatch — there is no
+ * divergent second construction to drift out of sync.
+ *
+ * - submitter = manager: mirrors the runner, which submits dispatches from the
+ *   manager (agent) wallet.
+ * - selector: first 4 bytes of calldata, or all-zeros when calldata is shorter
+ *   than a selector (matches the runner's extraction exactly).
+ */
+export function buildPermissionContext(params: {
+  account:   Address;
+  manager:   Address;
+  call:      { target: Address; value: bigint; data: Hex };
+  blockInfo: { number: bigint; timestamp: bigint };
+}): PermissionContext {
+  const { account, manager, call, blockInfo } = params;
+  const selector = (
+    call.data.length >= 10 ? call.data.slice(0, 10) : "0x00000000"
+  ) as Hex;
+  return {
+    account,
+    manager,
+    submitter:      manager, // conservative: submitter = manager for off-chain probe
+    target:         call.target,
+    selector,
+    value:          call.value,
+    blockTimestamp: blockInfo.timestamp,
+    blockNumber:    blockInfo.number,
+  };
+}
+
+/** Outcome of probing a single permission's evaluate() off-chain. */
+export type ProbeResult = {
+  /** evaluate() returned true — the permission accepts this call. */
+  accepted: boolean;
+  /** evaluate() reverted / ran out of gas (the kernel treats this as false). */
+  reverted: boolean;
+  /** First line of the revert reason, when reverted. */
+  error?:   string;
+};
+
+/**
+ * Probe ONE permission's evaluate() against ONE call off-chain (eth_call).
+ *
+ * Unlike resolvePermissionForCall (which iterates every registered permission to
+ * find the first that accepts), this targets a single permission the caller names
+ * — the verification primitive behind `sailor mandate simulate`. It builds the
+ * Context via buildPermissionContext, so it matches real dispatch behaviour.
+ *
+ * Distinguishes a returned `false` from a revert (the runner collapses both to
+ * "rejected"; simulate surfaces the difference so the user sees WHY a call fails).
+ */
+export async function probePermissionForCall(params: {
+  publicClient: PublicClient;
+  permission:   Address;
+  account:      Address;
+  manager:      Address;
+  call:         { target: Address; value: bigint; data: Hex };
+  blockInfo:    { number: bigint; timestamp: bigint };
+}): Promise<ProbeResult> {
+  const { publicClient, permission, account, manager, call, blockInfo } = params;
+  const ctx = buildPermissionContext({ account, manager, call, blockInfo });
+  try {
+    const accepted = await publicClient.readContract({
+      address:      permission,
+      abi:          IPERMISSION_ABI,
+      functionName: "evaluate",
+      args:         [call.data, ctx],
+    });
+    return { accepted: Boolean(accepted), reverted: false };
+  } catch (err) {
+    // Revert / gas overage / malformed return → treated as false, mirroring the
+    // kernel's fail-closed rule. Captured separately so simulate can show REVERT.
+    return { accepted: false, reverted: true, error: (err as Error).message.split("\n")[0] };
+  }
+}
+
+/**
  * Probe a single call against all registered permissions off-chain (eth_call),
  * returning the address of the first permission whose evaluate() returns true.
  *
@@ -92,21 +174,8 @@ export async function resolvePermissionForCall(params: {
 }): Promise<Address | undefined> {
   const { publicClient, account, manager, call, registeredPermissions, blockInfo } = params;
 
-  // Extract the 4-byte selector; default to all-zeros if calldata is short.
-  const selector = (
-    call.data.length >= 10 ? call.data.slice(0, 10) : "0x00000000"
-  ) as Hex;
-
-  const ctx: PermissionContext = {
-    account,
-    manager,
-    submitter:      manager, // conservative: submitter = manager for off-chain probe
-    target:         call.target,
-    selector,
-    value:          call.value,
-    blockTimestamp: blockInfo.timestamp,
-    blockNumber:    blockInfo.number,
-  };
+  // Shared Context builder — identical to the shape `sailor mandate simulate` probes.
+  const ctx = buildPermissionContext({ account, manager, call, blockInfo });
 
   for (const permission of registeredPermissions) {
     try {
