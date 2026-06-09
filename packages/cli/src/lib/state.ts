@@ -73,12 +73,15 @@ export function upsertAccountInList(
     }
   }
 
-  if (!accounts.find((a) => a.safe.toLowerCase() === account.safe.toLowerCase())) {
+  const idx = accounts.findIndex((a) => a.safe.toLowerCase() === account.safe.toLowerCase());
+  if (idx === -1) {
     accounts.push({
       ...account,
       name: name ?? `SMA ${accounts.length + 1}`,
       addedAt: nowIso(),
     });
+  } else {
+    accounts[idx] = { ...accounts[idx], ...account };
   }
 
   fs.mkdirSync(path.join(baseSailDir, "state"), { recursive: true });

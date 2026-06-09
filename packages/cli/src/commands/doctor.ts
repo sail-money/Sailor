@@ -301,7 +301,7 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
             proxyCreationCode,
           });
           predictions.push(predicted.toLowerCase());
-          const isPrimary = cid === chainId;
+          const isPrimary = cid === stored.chainId;
           const isRecorded = deployedChains.has(cid);
           const label = isPrimary
             ? "deployed (this account)"
