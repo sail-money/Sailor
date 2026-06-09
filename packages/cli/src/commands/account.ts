@@ -210,6 +210,9 @@ export async function accountPredict(options: PredictOptions): Promise<void> {
     );
   }
 
+  if (options.salt != null && !/^\d+$/.test(options.salt)) {
+    throw new Error(`Invalid --salt value: "${options.salt}" — must be a non-negative integer.`);
+  }
   const saltNonce = options.salt != null ? BigInt(options.salt) : 0n;
 
   // ── Determine chains ─────────────────────────────────────────────────────────
@@ -236,21 +239,13 @@ export async function accountPredict(options: PredictOptions): Promise<void> {
   const results = chainIds.map((chainId) => {
     const deployment = sailDeployments[chainId];
     const viemChain = getChainById(chainId);
-    const initializer = buildSafeSetupInitializer({
-      owners: [ownerAddr],
-      threshold: 1n,
-      kernel: deployment.kernel,
-      safeModuleEnabler: deployment.safeModuleEnabler,
-    });
-    const predictedAddress = computeSailSmaAddress({
-      initializer,
+    const { predicted: predictedAddress } = buildSmaAddressPrediction(
+      deployment,
+      ownerAddr,
+      managerAddr,
       saltNonce,
-      deployer: ownerAddr,
-      permissionSigner: ownerAddr,
-      manager: managerAddr,
-      feePolicy: deployment.standardFeePolicy as Address,
       proxyCreationCode,
-    });
+    );
     return {
       chainId,
       name: viemChain.name,
@@ -354,6 +349,9 @@ export async function accountDeployChain(options: DeployChainOptions): Promise<v
     );
   }
 
+  if (options.salt != null && !/^\d+$/.test(options.salt)) {
+    throw new Error(`Invalid --salt value: "${options.salt}" — must be a non-negative integer.`);
+  }
   const ownerAddr = getAddress(stored.owner);
   const managerAddr = getAddress(stored.manager);
   const storedSafe = getAddress(stored.safe);
@@ -379,26 +377,24 @@ export async function accountDeployChain(options: DeployChainOptions): Promise<v
 
   // ── 3. Fetch proxyCreationCode (once; same Safe factory on every chain) ───────
   const allChainIds = Object.keys(sailDeployments).map(Number);
-  const rpcPreferred = allChainIds.find((cid) => getRpcUrl(cid) != null) ?? allChainIds[0];
+  const rpcPreferred = allChainIds.find((cid) => getRpcUrl(cid) != null);
+  if (rpcPreferred == null) {
+    throw new Error(
+      "No RPC URL configured for any supported chain.\n" +
+        "Set RPC_URL or RPC_URL_<CHAIN_ID> in .sail/.env.local.",
+    );
+  }
   const proxyCreationCode = await fetchProxyCreationCode(rpcPreferred);
 
   // ── 4. Predict SMA address on target chain ────────────────────────────────────
   const deployment = sailDeployments[targetChainId];
-  const initializer = buildSafeSetupInitializer({
-    owners: [ownerAddr],
-    threshold: 1n,
-    kernel: deployment.kernel,
-    safeModuleEnabler: deployment.safeModuleEnabler,
-  });
-  const predicted = computeSailSmaAddress({
-    initializer,
+  const { initializer, predicted } = buildSmaAddressPrediction(
+    deployment,
+    ownerAddr,
+    managerAddr,
     saltNonce,
-    deployer: ownerAddr,
-    permissionSigner: ownerAddr,
-    manager: managerAddr,
-    feePolicy: deployment.standardFeePolicy as Address,
     proxyCreationCode,
-  });
+  );
 
   // ── 5. OLD-SMA GUARD ──────────────────────────────────────────────────────────
   // If the prediction doesn't match the stored safe, this SMA was deployed against
@@ -483,12 +479,21 @@ export async function accountDeployChain(options: DeployChainOptions): Promise<v
   try {
     await channel.start();
 
-    say(() =>
+    const stationUrl = `http://localhost:${projectPort(process.cwd())}/#/station`;
+    if (json) {
+      console.log(
+        JSON.stringify(
+          { status: "waiting_for_signature", url: stationUrl, chainId: targetChainId },
+          null,
+          2,
+        ),
+      );
+    } else {
       console.log(
         `\n→ Open the Sailor dashboard and switch your wallet to ${getChainById(targetChainId).name}:\n` +
-          `  http://localhost:${projectPort(process.cwd())}/#/station\n`,
-      ),
-    );
+          `  ${stationUrl}\n`,
+      );
+    }
 
     say(() => console.log("Pushing signing request…"));
     const response = await channel.requestSignature({
@@ -581,9 +586,35 @@ export async function accountDeployChain(options: DeployChainOptions): Promise<v
   }
 }
 
+/** Build the Safe initializer and deterministic SMA address for a given deployment + params. */
+function buildSmaAddressPrediction(
+  deployment: { kernel: Address; safeModuleEnabler: Address; standardFeePolicy: Address },
+  ownerAddr: Address,
+  managerAddr: Address,
+  saltNonce: bigint,
+  proxyCreationCode: Hex,
+): { initializer: Hex; predicted: Address } {
+  const initializer = buildSafeSetupInitializer({
+    owners: [ownerAddr],
+    threshold: 1n,
+    kernel: deployment.kernel,
+    safeModuleEnabler: deployment.safeModuleEnabler,
+  });
+  const predicted = computeSailSmaAddress({
+    initializer,
+    saltNonce,
+    deployer: ownerAddr,
+    permissionSigner: ownerAddr,
+    manager: managerAddr,
+    feePolicy: deployment.standardFeePolicy as Address,
+    proxyCreationCode,
+  });
+  return { initializer, predicted };
+}
+
 /** Append chainId to stored.deployedChains and rewrite account.json + accounts list. */
 function recordDeployedChain(stored: StoredAccount, chainId: number): void {
-  const existing = [...(stored.deployedChains ?? [stored.chainId])];
+  const existing = Array.from(new Set([stored.chainId, ...(stored.deployedChains ?? [])]));
   if (!existing.includes(chainId)) {
     existing.push(chainId);
     existing.sort((a, b) => a - b);
