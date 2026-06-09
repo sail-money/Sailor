@@ -622,6 +622,26 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
     }
     setRunning(false)
     const allSettled = [...deployed, ...results]
+
+    // In local simulation mode, repoint the project's active network
+    // (.sail/.env.local) at the primary chain we just deployed on. The wizard
+    // deploys per-chain via rpcFor(), but the dashboard / agent / station all
+    // read .env.local — without this they stay stranded on the scaffold chain's
+    // (often dead) fork, querying the wrong RPC for the new account. No-op on a
+    // public network: /api/sim/forks/activate is local-only and the env already
+    // points where the user pasted it.
+    if (localNet?.isLocal && allSettled.length) {
+      const deployedIds = new Set(allSettled.map(r => r?.chainId).filter(Boolean))
+      const primary = chainIds.find(id => deployedIds.has(id)) ?? chainIds[0]
+      try {
+        await fetch('/api/sim/forks/activate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chainId: primary }),
+        })
+      } catch { /* best-effort — the dashboard still resolves the chain from account.json */ }
+    }
+
     onDone(allSettled) // pass whatever succeeded
   }
 
