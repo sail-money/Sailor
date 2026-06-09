@@ -404,13 +404,14 @@ export async function accountDeployChain(options: DeployChainOptions): Promise<v
     const msg =
       `Your existing SMA (${storedSafe}) cannot be reproduced at the same address on\n` +
       `chain ${targetChainId}. Predicted address: ${predicted}.\n\n` +
-      "This means the SMA was deployed against the previous contracts (pre-deterministic\n" +
-      "kernel deployment). The current contracts are identical across all chains, which is\n" +
-      "required for cross-chain same-address deployment.\n\n" +
-      "To get a cross-chain same-address SMA:\n" +
-      "  1. Deploy a new SMA on your primary chain with the current contracts:\n" +
-      `       sailor onboard --new-sma --salt ${saltNonce}\n` +
-      "  2. Then run deploy-chain from that account.";
+      "Two possible causes:\n" +
+      "  a) Wrong --salt value. The stored deployment salt is " +
+      `${stored.saltNonce ?? "unknown"}. Re-run without --salt to use it automatically.\n` +
+      "  b) SMA was deployed against the old per-chain contracts (pre-deterministic\n" +
+      "     kernel deployment). The current contracts are identical across all chains.\n\n" +
+      "If it is (b), deploy a new SMA with the current contracts:\n" +
+      `  sailor onboard --new-sma --salt ${stored.saltNonce ?? saltNonce}\n` +
+      "Then run deploy-chain from that account.";
     if (json) {
       console.log(
         JSON.stringify(
@@ -443,7 +444,7 @@ export async function accountDeployChain(options: DeployChainOptions): Promise<v
   const existingCode = await targetClient.getCode({ address: predicted });
   if (existingCode && existingCode !== "0x") {
     say(() => console.log(`SMA confirmed at ${predicted} on chain ${targetChainId}.`));
-    recordDeployedChain(stored, targetChainId);
+    if (!alreadyRecorded) recordDeployedChain(stored, targetChainId);
     if (json) {
       console.log(
         JSON.stringify({ status: "ok", alreadyDeployed: true, address: predicted, chainId: targetChainId }, null, 2),
@@ -587,7 +588,7 @@ export async function accountDeployChain(options: DeployChainOptions): Promise<v
 }
 
 /** Build the Safe initializer and deterministic SMA address for a given deployment + params. */
-function buildSmaAddressPrediction(
+export function buildSmaAddressPrediction(
   deployment: { kernel: Address; safeModuleEnabler: Address; standardFeePolicy: Address },
   ownerAddr: Address,
   managerAddr: Address,

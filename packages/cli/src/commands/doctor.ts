@@ -2,12 +2,11 @@ import type { EncryptedKeystore } from "@sail/sdk";
 import {
   SAFE_V141,
   SailorClient,
-  buildSafeSetupInitializer,
-  computeSailSmaAddress,
   sailDeployments,
   safeProxyFactoryAbi,
   type SailChainId,
 } from "@sail/sdk";
+import { buildSmaAddressPrediction } from "./account.js";
 import {
   http,
   type Address,
@@ -285,25 +284,20 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
         const predictions: string[] = [];
         for (const cid of MAINNET_CHAINS) {
           const dep = sailDeployments[cid];
-          const initializer = buildSafeSetupInitializer({
-            owners: [ownerAddr],
-            threshold: 1n,
-            kernel: dep.kernel,
-            safeModuleEnabler: dep.safeModuleEnabler,
-          });
-          const predicted = computeSailSmaAddress({
-            initializer,
+          const { predicted } = buildSmaAddressPrediction(
+            dep,
+            ownerAddr,
+            managerAddr,
             saltNonce,
-            deployer: ownerAddr,
-            permissionSigner: ownerAddr,
-            manager: managerAddr,
-            feePolicy: dep.standardFeePolicy as Address,
             proxyCreationCode,
-          });
+          );
           predictions.push(predicted.toLowerCase());
+          // isPrimary: chain matches stored primary AND address matches — AND we are
+          // not inspecting a different SMA via --account (safe !== stored.safe).
           const isPrimary =
             cid === stored.chainId &&
-            predicted.toLowerCase() === stored.safe.toLowerCase();
+            predicted.toLowerCase() === stored.safe.toLowerCase() &&
+            (safe == null || safe.toLowerCase() === stored.safe.toLowerCase());
           const isRecorded = deployedChains.has(cid);
           const label = isPrimary
             ? "deployed (this account)"
