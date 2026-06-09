@@ -344,18 +344,6 @@ function SignersPanel({ overview, sma, onAddSigner, onRotateSigner }) {
           onRotateSigner={onRotateSigner}
         />
       ))}
-      {sma && overview?.sma?.balanceEth != null && (
-        <SignerCard
-          signer={{
-            role: 'sma',
-            address: overview.sma.address,
-            balanceEth: overview.sma.balanceEth,
-            // The Safe holds funds/tokens, not gas — never flag it for top-up.
-            status: 'vault',
-          }}
-          network={overview.network}
-        />
-      )}
     </div>
   )
 }
