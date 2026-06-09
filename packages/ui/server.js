@@ -581,6 +581,12 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
   })
 
+  // DELETE /api/mandate-draft — discard the draft without signing.
+  app.delete('/api/mandate-draft', (_req, res) => {
+    try { fs.rmSync(at('mandate-draft.json'), { force: true }) } catch { /* fine */ }
+    res.json({ ok: true })
+  })
+
   // POST /api/mandate-submit { signature, signedAt } — combines the draft with
   // the browser-produced signature into the canonical mandate.json shape (the
   // same shape `sailor mandate sign` writes, so downstream code is path-agnostic),

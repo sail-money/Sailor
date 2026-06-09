@@ -146,6 +146,34 @@
 }
 .identityAddress:hover .identityCopyIcon { color: var(--text-primary); }
 
+.identityActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.settingsPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 12px;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10));
+  border-radius: var(--r-2, 2px);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 200ms var(--ease-apple), background 200ms var(--ease-apple), border-color 200ms var(--ease-apple);
+}
+.settingsPill:hover {
+  color: #fff;
+  border-color: rgba(25, 144, 255, 0.42);
+  background: rgba(25, 144, 255, 0.08);
+}
 .disconnectPill {
   display: inline-flex;
   align-items: center;
@@ -226,8 +254,18 @@
   overflow-x: hidden;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
-  padding-top: 2px;
-  padding-bottom: 2px;
+  /* Fade content as it approaches the top/bottom edges of the
+     scrollable area — Apple-style soft horizon. */
+  mask-image: linear-gradient(180deg,
+    transparent 0px,
+    #000 14px,
+    #000 calc(100% - 14px),
+    transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg,
+    transparent 0px,
+    #000 14px,
+    #000 calc(100% - 14px),
+    transparent 100%);
   /* Firefox scrollbar */
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
@@ -846,8 +884,8 @@
   color: #6fdda1;
   padding: 3px 9px;
   border-radius: 999px;
-  background: rgba(95, 210, 138, 0.10);
-  box-shadow: inset 0 0 0 0.5px rgba(95, 210, 138, 0.22);
+  background: rgba(25, 144, 255, 0.10);
+  box-shadow: inset 0 0 0 0.5px rgba(25, 144, 255, 0.22);
 }
 .balSep {
   width: 3px;
@@ -957,3 +995,304 @@
 @media (max-width: 480px) {
   .panel { right: 12px; left: 12px; width: auto; }
 }
+
+/* ──────────────────────────────────────────────────────────────
+   ELECTRIC-BLUEPRINT OVERRIDES
+   Comprehensive sweep — every container squares to the sharp 2–3px
+   ladder, every pill becomes a chip, the EOA avatar becomes a flat
+   blueprint tile, and the SMA card's per-state chrome aligns with
+   the dashboard's section rhythm.
+   Appended at the bottom so the legacy rules above stay readable;
+   these win on cascade order.
+   ────────────────────────────────────────────────────────────── */
+
+/* Panel shell — sharp corners + faint blueprint wash welling up
+   from the top, matching the FluidBackground horizon. */
+.panel {
+  border-radius: var(--r-4, 3px);
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10));
+  background:
+    linear-gradient(180deg, rgba(25, 144, 255, 0.05) 0%, rgba(25, 144, 255, 0) 18%),
+    var(--surface-850, #161719);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 28px 90px -28px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(25, 144, 255, 0.04);
+}
+
+/* ── EOA hero ──
+   The big round monogram becomes a 2px blueprint tile. We keep
+   the inner radial gloss as a subtle highlight but drop the
+   "shiny ball" feel for a flat console glyph. */
+.avatarRing {
+  border-radius: var(--r-2, 2px);
+  background: transparent;
+  box-shadow:
+    0 8px 26px rgba(25, 144, 255, 0.32),
+    0 0 0 1px rgba(25, 144, 255, 0.32);
+  padding: 0;
+}
+.avatar {
+  border-radius: var(--r-2, 2px);
+  background: var(--accent-blue, #1990FF);
+  color: #fff;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.16);
+}
+
+/* Address chip — quieter inline, mono treatment. */
+.identityAddress {
+  border-radius: var(--r-2, 2px);
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace !important;
+}
+
+/* Disconnect chip — sharp 2px chip, no pill. */
+.disconnectPill {
+  border-radius: var(--r-2, 2px);
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 7px 12px;
+}
+
+/* Divider between EOA + SMAs becomes a dotted hairline matching the
+   Sui mega-menu rule treatment. */
+.divider {
+  background: none;
+  border: none;
+  height: 0;
+  border-top: 1px dashed var(--hairline, rgba(255, 255, 255, 0.12));
+}
+
+/* Section eyebrows — full Sui-style `LABEL/` rhythm. */
+.eoaLabel,
+.smasHead,
+.actionsHead {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace !important;
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.18em !important;
+  text-transform: uppercase !important;
+  color: var(--text-tertiary) !important;
+}
+/* The "/" suffix belongs on the kicker TEXT, not on the smasHead flex
+   row — putting it on the space-between container shoved a stray slash
+   to the far-right edge where the panel clipped it. */
+.eoaLabel::after,
+.actionsHead::after,
+.smasKicker::after {
+  content: ' /';
+  color: var(--text-quaternary);
+  font-weight: 400;
+}
+
+/* Scroll area — drop the edge mask (it faded the last row so content
+   read as "cut off / not shown") and give the list real breathing
+   room + a 1px reserved gutter so the scrollbar never overlaps a card.
+   The flex chain (panel → smasSection flex:1 → smaList flex:1,
+   min-height:0) already lets this scroll when content overflows. */
+.smaList {
+  mask-image: none !important;
+  -webkit-mask-image: none !important;
+  padding: 2px 4px 2px 0 !important;
+  overscroll-behavior: contain;
+}
+
+/* SMA card — sharp blueprint tile, no soft 14px corner. */
+.smaCard {
+  border-radius: var(--r-3, 2px);
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10));
+  background: var(--surface-800, #1E1F24);
+  transition:
+    border-color 220ms var(--ease-apple),
+    background 220ms var(--ease-apple),
+    box-shadow 220ms var(--ease-apple),
+    transform 220ms var(--ease-apple);
+}
+.smaCard:hover {
+  border-color: rgba(25, 144, 255, 0.40);
+  background: var(--surface-800, #1E1F24);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 18px 48px -28px rgba(25, 144, 255, 0.55);
+  transform: translateY(-1px);
+}
+.smaCardPrimary {
+  border-color: rgba(25, 144, 255, 0.45);
+  background:
+    linear-gradient(180deg, rgba(25, 144, 255, 0.09) 0%, rgba(25, 144, 255, 0.02) 60%),
+    var(--surface-800, #1E1F24);
+}
+.smaCardPrimary:hover {
+  border-color: rgba(25, 144, 255, 0.62);
+}
+
+/* SMA inner icon tile — sharp blueprint square, monoline icon. */
+.smaIcon {
+  border-radius: var(--r-2, 2px);
+  width: 36px;
+  height: 36px;
+  background: var(--accent-blue, #1990FF);
+  border: 1px solid rgba(25, 144, 255, 0.42);
+  color: #fff;
+}
+.smaIcon svg { color: #fff !important; opacity: 1 !important; }
+
+/* CURRENT badge — sharp mono chip, with a subtle sheen sweep on
+   hover so the active SMA reads alive. */
+.smaPrimaryBadge {
+  border-radius: var(--r-2, 2px);
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  padding: 2px 8px;
+  background: var(--accent-blue, #1990FF);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.18);
+  position: relative;
+  overflow: hidden;
+}
+.smaPrimaryBadge::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 25%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 75%
+  );
+  transform: translateX(-130%);
+  animation: ctaSheen 4.6s var(--ease-out-expo) infinite;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .smaPrimaryBadge::after { animation: none; }
+}
+
+/* Network dot for chain — keep round (it's an icon glyph). */
+.smaNetDot { /* unchanged radius */ }
+
+/* Copy button on each SMA row — sharp chip, hairline border. */
+.smaCopy {
+  border-radius: var(--r-2, 2px);
+  width: 30px;
+  height: 30px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--hairline);
+}
+.smaRow:hover .smaCopy {
+  background: rgba(25, 144, 255, 0.10);
+  border-color: rgba(25, 144, 255, 0.42);
+  color: #fff;
+}
+
+/* Name input — sharp blueprint border. */
+.smaNameInput {
+  border-radius: var(--r-2, 2px);
+}
+
+/* Open in Safe — kill the soft 12px pill, become a sharp button
+   that matches the "DeBank · Safe" quick-link grammar in the hero. */
+.smaSafeLink {
+  border-radius: var(--r-2, 2px);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  color: #fff;
+  background: var(--accent-blue, #1990FF);
+  border: 1px solid var(--accent-blue, #1990FF);
+  padding: 11px 16px;
+  position: relative;
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 8px 22px -10px rgba(25, 144, 255, 0.55);
+}
+.smaSafeLink::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 25%,
+    rgba(255, 255, 255, 0.30) 50%,
+    transparent 75%
+  );
+  transform: translateX(-120%);
+  pointer-events: none;
+}
+.smaSafeLink:hover {
+  color: #fff;
+  background: var(--accent-blue-bright, #4DABFF);
+  border-color: var(--accent-blue-bright, #4DABFF);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 14px 32px -8px rgba(25, 144, 255, 0.75);
+  transform: translateY(-1px);
+}
+.smaSafeLink:hover::after {
+  animation: ctaSheen 1100ms var(--ease-out-expo);
+}
+.smaSafeLinkChain { color: rgba(255, 255, 255, 0.72); }
+.smaSafeLink:hover .smaSafeLinkChain { color: rgba(255, 255, 255, 0.92); }
+
+/* Action buttons (Deposit / Withdraw) — square chips with hairline
+   borders that lift to blue. */
+.smaAction {
+  border-radius: var(--r-2, 2px);
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--hairline);
+  color: var(--text-secondary);
+  transition:
+    color 220ms var(--ease-apple),
+    background 220ms var(--ease-apple),
+    border-color 220ms var(--ease-apple),
+    transform 220ms var(--ease-apple);
+}
+.smaAction:hover {
+  color: #fff;
+  background: rgba(25, 144, 255, 0.08);
+  border-color: rgba(25, 144, 255, 0.45);
+  transform: translateY(-1px);
+}
+
+/* Create-another-SMA row — sharp dashed blueprint container,
+   matching the rest of the modal. */
+.createSmaRow,
+.emptyCreate {
+  border-radius: var(--r-3, 2px);
+  border: 1px dashed var(--hairline, rgba(255, 255, 255, 0.18));
+  background: rgba(255, 255, 255, 0.02);
+  transition:
+    border-color 220ms var(--ease-apple),
+    background 220ms var(--ease-apple);
+}
+.createSmaRow:hover,
+.emptyCreate:hover {
+  border-color: rgba(25, 144, 255, 0.42);
+  background: rgba(25, 144, 255, 0.04);
+}
+.createSmaIcon,
+.emptyCreateIcon {
+  border-radius: var(--r-2, 2px);
+}
+
+/* Disconnect bottom button — sharp chip. */
+.disconnect {
+  border-radius: var(--r-2, 2px);
+}
+

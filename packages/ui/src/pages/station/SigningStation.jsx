@@ -8,8 +8,9 @@ import ProfileModal from '../dashboard/ProfileModal'
 import AIHandoffModal from '../dashboard/AIHandoffModal'
 import styles from './SigningStation.module.css'
 import shared from '../shared/shared.module.css'
-import { useSailorAccount } from '../../hooks/useSailorData'
+import { useSailorAccount, useSailorMandateDraft } from '../../hooks/useSailorData'
 import { useSigningSocket } from '../../hooks/useSigningSocket'
+import { MandateSigningFlow } from '../signing/Signing'
 
 const KIND_LABELS = {
   'create-sma': 'Create Safe (SMA)',
@@ -70,6 +71,9 @@ function ChainDropdown({ open, onClose }) {
 }
 
 export default function SigningStation() {
+  const { draft } = useSailorMandateDraft()
+  const hasDraft = draft && (draft.permissions ?? draft.items ?? []).length > 0
+
   const [requests, setRequests] = useState([])
   const [phase, setPhase] = useState({ phase: 'idle' })
   const [profileOpen, setProfileOpen] = useState(false)
@@ -139,6 +143,8 @@ export default function SigningStation() {
           </div>
         ) : phase.phase === 'success' ? (
           <SuccessScreen kind={phase.kind} onDone={() => { setPhase({ phase: 'idle' }); window.location.hash = '#/dashboard' }} />
+        ) : hasDraft ? (
+          <MandateSigningFlow draft={draft} embedded />
         ) : requests.length === 0 ? (
           <EmptyQueue daemonConnected={daemonStatus === 'connected'} onAsk={() => setAiOpen(true)} />
         ) : (

@@ -1,15 +1,19 @@
 .btn {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: 46px;
+  height: 48px;
   padding: 0 28px;
   font-family: 'DM Sans', sans-serif;
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.005em;
-  border-radius: 999px;
+  /* Sharp blueprint corners — the brand identity. No pills. */
+  border-radius: var(--r-2, 2px);
   cursor: pointer;
   transition: background 240ms var(--ease-apple),
               color 240ms var(--ease-apple),
@@ -17,10 +21,11 @@
               box-shadow 280ms var(--ease-apple),
               transform 240ms var(--ease-apple);
 }
+.btn > * { position: relative; z-index: 1; }
 
 .btn:disabled {
   cursor: not-allowed;
-  opacity: 0.5;
+  opacity: 0.45;
 }
 
 .fullWidth {
@@ -32,19 +37,38 @@
   background: var(--accent-blue);
   border: 1px solid var(--accent-blue);
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.18) inset,
-    0 0 32px rgba(25, 144, 255, 0.4),
-    0 4px 14px rgba(0, 0, 0, 0.25);
+    0 1px 0 rgba(255, 255, 255, 0.20) inset,
+    0 10px 30px -10px rgba(25, 144, 255, 0.6),
+    0 2px 10px rgba(0, 0, 0, 0.25);
+}
+/* Sheen sweep on hover — the alive CTA language shared with the
+   dashboard's VIEW CONTRACT and FUND buttons. */
+.primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 25%,
+    rgba(255, 255, 255, 0.30) 50%,
+    transparent 75%
+  );
+  transform: translateX(-120%);
+  pointer-events: none;
 }
 
 .primary:not(:disabled):hover {
-  background: #2a9bff;
-  border-color: #2a9bff;
+  background: var(--accent-blue-bright, #4DABFF);
+  border-color: var(--accent-blue-bright, #4DABFF);
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.22) inset,
-    0 0 50px rgba(25, 144, 255, 0.55),
-    0 6px 18px rgba(0, 0, 0, 0.3);
+    0 1px 0 rgba(255, 255, 255, 0.26) inset,
+    0 16px 40px -10px rgba(25, 144, 255, 0.78),
+    0 4px 14px rgba(0, 0, 0, 0.3);
   transform: translateY(-1px);
+}
+.primary:not(:disabled):hover::after {
+  animation: ctaSheen 1100ms var(--ease-out-expo);
 }
 
 .primary:not(:disabled):active {
