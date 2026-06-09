@@ -105,6 +105,7 @@ contract BoundedApproveAndCallBatch is IPermission, IBatchPermission {
             isConsumingTarget[consumingTargets[i]] = true;
         }
         for (uint256 i = 0; i < consumingSelectors.length; i++) {
+            require(consumingSelectors[i] != bytes4(0), "zero selector");
             isConsumingSelector[consumingSelectors[i]] = true;
         }
         REQUIRE_AMOUNT_MATCH = requireAmountMatch;
