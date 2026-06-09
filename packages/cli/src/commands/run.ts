@@ -90,8 +90,11 @@ async function loadAgent(): Promise<Agent> {
     if (abs.endsWith(".ts")) {
       // tsx resolves .js import specifiers to .ts source files — required for
       // TypeScript agents that use the standard .js extension convention.
+      // Use a file URL as the specifier so Windows paths (C:\...) don't get
+      // misinterpreted as a URL with scheme "c:".
       const { tsImport } = await import("tsx/esm/api");
-      mod = (await tsImport(abs, pathToFileURL(abs).href)) as typeof mod;
+      const absUrl = pathToFileURL(abs).href;
+      mod = (await tsImport(absUrl, absUrl)) as typeof mod;
     } else {
       mod = (await import(pathToFileURL(abs).href)) as typeof mod;
     }
