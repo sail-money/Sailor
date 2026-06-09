@@ -27,12 +27,22 @@ pragma solidity 0.8.26;
 //     calls[1] = <consuming call>         on an allowlisted (target, selector)
 //                • target must be in ALLOWED_CONSUMING_TARGETS
 //                • selector must be in ALLOWED_CONSUMING_SELECTORS
-//                • if REQUIRE_AMOUNT_MATCH: the call's leading uint256 arg must equal calls[0].amount
+//                • if REQUIRE_AMOUNT_MATCH: c1.data[4:36] (the first ABI-encoded argument of the
+//                  consuming call) must equal the approve amount. Only enable this flag if the
+//                  consuming function's FIRST parameter is the amount — if the amount appears in a
+//                  later position the check reads the wrong slot and is silently bypassed.
 //     calls[2] = approve(spender,0)       selector 0x095ea7b3  — mandatory reset
 //                • same token and same spender as calls[0]
 //                • amount must be exactly 0
 //   Any deviation (wrong length, wrong token/spender/target/selector, over-cap, non-zero reset,
 //   reordering, non-zero value, malformed calldata) ⇒ false or revert.
+//
+// ⚠ FUND DESTINATION NOT BOUNDED: unlike every single-call permission in this repo, this contract
+//   makes NO assertion that the consuming call routes funds to ctx.account. The recipient, receiver,
+//   or beneficiary inside calls[1] is unchecked. An agent bug that names an external address in the
+//   consuming call's arguments will not be blocked here. To close this gap, either:
+//     a) use a consuming target/selector that structurally routes output to msg.sender (the SMA), or
+//     b) pair this contract with a protocol-specific single-call permission that bounds the recipient.
 //
 // AGENT-ENFORCED / NOT BOUNDED HERE (off-chain — can change without redeploying this contract):
 //   • The full calldata of the consuming call beyond its leading uint256 (recipients, paths, etc.)

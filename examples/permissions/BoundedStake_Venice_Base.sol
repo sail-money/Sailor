@@ -53,15 +53,16 @@ contract BoundedStake_Venice_Base is IPermission {
     bytes4 private constant SEL_CLAIM = 0x4e71d92d; // claim()
 
     /// @param stakingContract  Venice staking contract (the proxy address)
-    /// @param maxStakeAmount   Per-stake cap in VVV base units (18 decimals)
+    /// @param maxStakeAmount   Per-stake cap in VVV base units (18 decimals; must be > 0)
     constructor(address stakingContract, uint256 maxStakeAmount) {
+        require(stakingContract != address(0), "zero staking contract");
+        require(maxStakeAmount > 0,            "zero stake cap");
         STAKING_CONTRACT = stakingContract;
         MAX_STAKE_AMOUNT = maxStakeAmount;
     }
 
     function evaluate(bytes calldata txData, Context calldata ctx) external view returns (bool) {
         if (ctx.target != STAKING_CONTRACT) return false;
-        if (txData.length < 4)              return false;
 
         // stake(address recipient, uint256 amount)
         if (ctx.selector == SEL_STAKE) {

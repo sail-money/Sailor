@@ -63,10 +63,11 @@ contract BoundedPerp_GMXv2_Arbitrum is IPermission {
     bool public immutable ALLOW_SHORT;
 
     // createOrder(IBaseOrderUtils.CreateOrderParams)
-    // Computed via:
-    //   cast sig "createOrder((address,address,address,address,address,address,address[]),\
-    //   (uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256),\
-    //   uint8,uint8,bool,bool,bool,bytes32,bytes32[])"  ==  0x212234c3
+    // Computed via `cast sig` (split across lines for readability — paste as one string in the shell):
+    //   "createOrder((address,address,address,address,address,address,address[]),"
+    //               "(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256),"
+    //               "uint8,uint8,bool,bool,bool,bytes32,bytes32[])"
+    //   == 0x212234c3
     // ⚠ Older GMX routers use an earlier struct (no cancellationReceiver / no dataList) and a
     //   DIFFERENT selector. Reconfirm against your chosen router's ABI — see header banner.
     bytes4 private constant SEL_CREATE_ORDER = 0x212234c3;

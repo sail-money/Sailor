@@ -53,10 +53,13 @@ contract BoundedVault_ERC4626_Base is IPermission {
     bytes4 private constant SEL_REDEEM   = 0xba087652; // redeem(uint256,address,address)
 
     /// @param allowedVaults     ERC-4626 vaults the agent may deposit into / withdraw from
-    /// @param maxDepositAssets  Per-deposit cap in the asset's base units
+    /// @param maxDepositAssets  Per-deposit cap in the asset's base units (must be > 0)
     constructor(address[] memory allowedVaults, uint256 maxDepositAssets) {
+        require(allowedVaults.length > 0, "empty vault allowlist");
+        require(maxDepositAssets > 0,     "zero deposit cap");
         MAX_DEPOSIT_ASSETS = maxDepositAssets;
         for (uint256 i = 0; i < allowedVaults.length; i++) {
+            require(allowedVaults[i] != address(0), "zero vault address");
             isAllowedVault[allowedVaults[i]] = true;
         }
     }
@@ -77,6 +80,8 @@ contract BoundedVault_ERC4626_Base is IPermission {
         // withdraw(uint256 assets, address receiver, address owner)
         // redeem(uint256 shares,  address receiver, address owner)
         // Identical parameter layout: (uint256, address, address).
+        // Amount (assets/shares) is NOT bounded — the SMA can always exit its full position.
+        // Add a maxWithdrawAssets constructor param and check here if your strategy needs a cap.
         if (ctx.selector == SEL_WITHDRAW || ctx.selector == SEL_REDEEM) {
             if (txData.length < 4 + 3 * 32) return false;
             (, address receiver, address owner) = abi.decode(txData[4:], (uint256, address, address));

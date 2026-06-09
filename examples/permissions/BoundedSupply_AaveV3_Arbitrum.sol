@@ -45,12 +45,16 @@ contract BoundedSupply_AaveV3_Arbitrum is IPermission {
     bytes4 private constant SEL_SUPPLY = 0x617ba037;
 
     /// @param aavePool         Aave V3 Pool proxy address
-    /// @param allowedAssets    Assets the agent may supply
-    /// @param maxSupplyAmount  Per-call supply cap in asset base units
+    /// @param allowedAssets    Assets the agent may supply (must be non-empty)
+    /// @param maxSupplyAmount  Per-call supply cap in asset base units (must be > 0)
     constructor(address aavePool, address[] memory allowedAssets, uint256 maxSupplyAmount) {
+        require(aavePool != address(0),      "zero pool address");
+        require(allowedAssets.length > 0,    "empty asset allowlist");
+        require(maxSupplyAmount > 0,         "zero supply cap");
         AAVE_POOL        = aavePool;
         MAX_SUPPLY_AMOUNT = maxSupplyAmount;
         for (uint256 i = 0; i < allowedAssets.length; i++) {
+            require(allowedAssets[i] != address(0), "zero asset address");
             isAllowedAsset[allowedAssets[i]] = true;
         }
     }
