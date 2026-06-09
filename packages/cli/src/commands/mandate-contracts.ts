@@ -54,6 +54,7 @@ import { emit } from "../lib/output.js";
 import { ProjectContext, loadManagerSigner } from "../lib/project.js";
 import { type SigningChannel, createSigningChannel } from "../signing/client.js";
 import { attachMandate } from "./onboard.js";
+import { projectPort } from "../lib/packagePaths.js";
 
 export interface DeployOptions {
   artifact?: string;
@@ -197,7 +198,7 @@ async function runDeploy(
 
   say(() => {
     console.log(
-      `\n→ Signing station:\n  Open ${channel.url} in your browser and connect your wallet\n`,
+      `\n→ Open the Sailor dashboard to approve signing requests:\n  http://localhost:${projectPort(process.cwd())}/#/station\n`,
     );
     console.log(`Pushing deploy request for "${contractName}"…`);
   });
@@ -495,7 +496,7 @@ async function runDeployClone(
     console.log(`  predicted clone: ${clone}`);
     console.log(`  SMA:             ${sma}`);
     for (const d of spec.describe(initParams)) console.log(`  ${d.label}: ${d.value}`);
-    console.log(`\n→ Signing station:\n  Open ${channel.url} and connect your Owner wallet\n`);
+    console.log(`\n→ Open the Sailor dashboard to approve signing requests:\n  http://localhost:${projectPort(process.cwd())}/#/station\n`);
   });
 
   // Owner signs RegisterPermission for the PREDICTED clone address.
@@ -692,7 +693,7 @@ async function runAttach(
 
   if (!json) {
     console.log(
-      `\n→ Signing station:\n  Open ${channel.url} in your browser and connect your wallet\n`,
+      `\n→ Open the Sailor dashboard to approve signing requests:\n  http://localhost:${projectPort(process.cwd())}/#/station\n`,
     );
   }
 
@@ -793,7 +794,7 @@ async function runRevoke(
     console.log(`\nRevoking ${targets.length} permission(s) from ${sma}:`);
     for (const p of targets) console.log(`  ${nameFor(p) ?? p}  ${p}`);
     console.log(
-      `\n→ Signing station:\n  Open ${channel.url} in your browser and connect your Owner wallet\n`,
+      `\n→ Open the Sailor dashboard to approve signing requests:\n  http://localhost:${projectPort(process.cwd())}/#/station\n`,
     );
   });
 

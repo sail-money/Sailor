@@ -58,6 +58,7 @@ import { emit } from "../lib/output.js";
 import { ProjectContext } from "../lib/project.js";
 import { type SigningChannel, createSigningChannel } from "../signing/client.js";
 import type { StoredAccount } from "../lib/state.js";
+import { projectPort } from "../lib/packagePaths.js";
 
 export interface RotateSignerOptions {
   sma?: string;
@@ -213,7 +214,7 @@ async function runRotateSigner(
       );
     }
     console.log(
-      `\n→ Signing station:\n  Open ${channel.url} in your browser and connect the owner wallet (${owner}).\n`,
+      `\n→ Open the Sailor dashboard to approve signing requests:\n  http://localhost:${projectPort(process.cwd())}/#/station\n`,
     );
   });
 
