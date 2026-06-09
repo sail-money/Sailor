@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import {
+  type DeployChainOptions,
   type PredictOptions,
   accountCreate,
+  accountDeployChain,
   accountPredict,
 } from "./commands/account.js";
 import { capabilities } from "./commands/capabilities.js";
@@ -132,6 +134,13 @@ account
   .option("--chain <id>", "Show prediction for one chain only")
   .option("--json", "Emit machine-readable JSON")
   .action(actionWith<PredictOptions>(accountPredict));
+account
+  .command("deploy-chain")
+  .description("Deploy the same SMA address on an additional chain using the same owner, manager, and salt")
+  .requiredOption("--chain <id>", "Target EVM chain ID (e.g. 8453, 42161, 130, 1)")
+  .option("--salt <n>", "CREATE2 salt (defaults to saltNonce stored in .sail/account.json)")
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<DeployChainOptions>(accountDeployChain));
 account
   .command("rotate-signer")
   .description("Rotate the SMA's delegated signer (agent wallet) and re-approve its mandates")

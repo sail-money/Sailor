@@ -2,12 +2,11 @@ import type { EncryptedKeystore } from "@sail/sdk";
 import {
   SAFE_V141,
   SailorClient,
-  buildSafeSetupInitializer,
-  computeSailSmaAddress,
   sailDeployments,
   safeProxyFactoryAbi,
   type SailChainId,
 } from "@sail/sdk";
+import { buildSmaAddressPrediction } from "./account.js";
 import {
   http,
   type Address,
@@ -278,27 +277,33 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
           `\nMulti-chain addresses (salt ${saltNonce}, owner ${ownerAddr}, manager ${managerAddr}):`,
         );
         const CHAIN_NAMES: Record<number, string> = { 1: "Ethereum", 8453: "Base", 42161: "Arbitrum", 130: "Unichain" };
+        const deployedChains = new Set([
+          stored.chainId,
+          ...(stored.deployedChains ?? []),
+        ]);
         const predictions: string[] = [];
         for (const cid of MAINNET_CHAINS) {
           const dep = sailDeployments[cid];
-          const initializer = buildSafeSetupInitializer({
-            owners: [ownerAddr],
-            threshold: 1n,
-            kernel: dep.kernel,
-            safeModuleEnabler: dep.safeModuleEnabler,
-          });
-          const predicted = computeSailSmaAddress({
-            initializer,
+          const { predicted } = buildSmaAddressPrediction(
+            dep,
+            ownerAddr,
+            managerAddr,
             saltNonce,
-            deployer: ownerAddr,
-            permissionSigner: ownerAddr,
-            manager: managerAddr,
-            feePolicy: dep.standardFeePolicy as Address,
             proxyCreationCode,
-          });
+          );
           predictions.push(predicted.toLowerCase());
-          const isDeployed = predicted.toLowerCase() === safe.toLowerCase() && cid === chainId;
-          const label = isDeployed ? "deployed (this account)" : predicted;
+          // isPrimary: chain matches stored primary AND address matches — AND we are
+          // not inspecting a different SMA via --account (safe !== stored.safe).
+          const isPrimary =
+            cid === stored.chainId &&
+            predicted.toLowerCase() === stored.safe.toLowerCase() &&
+            (safe == null || safe.toLowerCase() === stored.safe.toLowerCase());
+          const isRecorded = deployedChains.has(cid);
+          const label = isPrimary
+            ? "deployed (this account)"
+            : isRecorded
+              ? `${predicted}  ✓ deployed (recorded)`
+              : predicted;
           console.log(`  ${CHAIN_NAMES[cid].padEnd(12)} (${cid}):  ${label}`);
         }
         // With CREATE2 deterministic deployment (same kernel, safeModuleEnabler, and

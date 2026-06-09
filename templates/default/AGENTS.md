@@ -42,6 +42,8 @@ In the browser. Run `sailor ui start`, open the printed URL, connect your owner 
 
 **Deterministic address (salt):** every SMA deployment uses a CREATE2 salt. The CLI defaults to salt `0`, giving you a predictable address you can verify before spending gas: `sailor account predict --owner <your-wallet> --manager <agent-wallet>`. The kernel binds the salt to your owner wallet, agent (manager) wallet, and fee policy — create your agent wallet first, then predict. The salt is saved in `.sail/account.json` automatically. All supported chains (Ethereum, Base, Arbitrum, Unichain, plus testnets) share the same protocol addresses via CREATE2, so the same owner, manager, and salt produce the **same SMA address on every chain**.
 
+**Multi-chain deployment:** once your SMA is live on one chain, deploy it at the same address on any other supported chain with `sailor account deploy-chain --chain <id>` (e.g. `--chain 42161` for Arbitrum). The owner approves the deployment in the browser; no new salt or agent wallet needed. Run `sailor account predict` first to confirm the address matches.
+
 ## Stage 2 — Define your strategy
 
 Tell me what you want your agent to do. I'll ask the right questions, establish the on-chain bounds with you (tokens, amounts, slippage, venues), and set up your RPC endpoint once you've chosen your chain. Blank slate — you define the strategy.

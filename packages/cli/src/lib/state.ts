@@ -14,6 +14,11 @@ export type StoredAccount = {
   createdAtBlock: string;
   /** CREATE2 salt used to deploy this Safe. Stored so `sailor account predict` can reproduce the address. */
   saltNonce?: string;
+  /**
+   * Chain IDs on which this SMA is confirmed deployed. Populated by `sailor account deploy-chain`.
+   * The primary chain (chainId) is implicitly deployed even if absent from this list.
+   */
+  deployedChains?: number[];
 };
 
 /**
@@ -68,12 +73,15 @@ export function upsertAccountInList(
     }
   }
 
-  if (!accounts.find((a) => a.safe.toLowerCase() === account.safe.toLowerCase())) {
+  const idx = accounts.findIndex((a) => a.safe.toLowerCase() === account.safe.toLowerCase());
+  if (idx === -1) {
     accounts.push({
       ...account,
       name: name ?? `SMA ${accounts.length + 1}`,
       addedAt: nowIso(),
     });
+  } else {
+    accounts[idx] = { ...accounts[idx], ...account };
   }
 
   fs.mkdirSync(path.join(baseSailDir, "state"), { recursive: true });
