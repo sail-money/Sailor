@@ -1,8 +1,9 @@
 import type { Chain } from "viem";
-import { arbitrum, base, baseSepolia, unichain } from "viem/chains";
+import { arbitrum, base, baseSepolia, mainnet, unichain } from "viem/chains";
 import { parseEnvFile, sailPath } from "./io.js";
 
 const CHAINS: Record<number, Chain> = {
+  1: mainnet,
   8453: base,
   84532: baseSepolia,
   42161: arbitrum,
@@ -14,7 +15,7 @@ export function getChainById(chainId: number): Chain {
   const chain = CHAINS[chainId];
   if (!chain) {
     throw new Error(
-      `Unsupported chainId: ${chainId}. Supported: 8453 (Base), 84532 (Base Sepolia), 42161 (Arbitrum), 130 (Unichain)`,
+      `Unsupported chainId: ${chainId}. Supported: 1 (Ethereum), 8453 (Base), 84532 (Base Sepolia), 42161 (Arbitrum), 130 (Unichain)`,
     );
   }
   return chain;
