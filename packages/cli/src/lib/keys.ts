@@ -123,6 +123,16 @@ export async function loadManagerSigner(safe?: string): Promise<LocalKeyring> {
   return loadKeyring("manager", safe);
 }
 
+/**
+ * Canonical keystore path for a specific manager address.
+ * Stored as `.sail/keys/managers/<hex>.json` — separate namespace from per-SMA
+ * keystores (`manager-0x<safe>.json`) so there is no collision.
+ */
+export function managerKeystorePath(managerAddr: string): string {
+  const hex = managerAddr.toLowerCase().replace(/^0x/, "").replace(/[^0-9a-f]/g, "");
+  return sailPath("keys", "managers", `${hex}.json`);
+}
+
 /** Loads whichever signing key is available, preferring the permission signer. */
 export async function loadAnySigner(): Promise<LocalKeyring> {
   if (keyExists("permissionSigner")) return loadKeyring("permissionSigner");

@@ -70,6 +70,14 @@ function signerEntry(role, address, balanceByAddr) {
   }
 }
 
+/** Deduplicated managers list that always includes both the old and new address. */
+function addManagerToList(existing, current, next) {
+  const base = existing ?? (current ? [getAddress(current)] : [])
+  const all = [...base, getAddress(next)]
+  const seen = new Set()
+  return all.filter((a) => { const l = a.toLowerCase(); if (seen.has(l)) return false; seen.add(l); return true })
+}
+
 const OVERVIEW_TTL_MS = 10_000
 
 /**
@@ -437,7 +445,8 @@ export function startServer(sailDir, { port = PORT } = {}) {
       try {
         const account = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
         if (account?.safe?.toLowerCase() === safe.toLowerCase()) {
-          fs.writeFileSync(at('account.json'), `${JSON.stringify({ ...account, manager }, null, 2)}\n`)
+          const managers = addManagerToList(account.managers, account.manager, manager)
+          fs.writeFileSync(at('account.json'), `${JSON.stringify({ ...account, manager, managers }, null, 2)}\n`)
         }
       } catch { /* no account.json — nothing to update */ }
       // Update the matching entry in the multi-SMA list.
@@ -446,7 +455,9 @@ export function startServer(sailDir, { port = PORT } = {}) {
         const list = JSON.parse(fs.readFileSync(listPath, 'utf-8'))
         const idx = list.findIndex((a) => a.safe?.toLowerCase() === safe.toLowerCase())
         if (idx !== -1) {
-          list[idx] = { ...list[idx], manager }
+          const entry = list[idx]
+          const managers = addManagerToList(entry.managers, entry.manager, manager)
+          list[idx] = { ...entry, manager, managers }
           fs.writeFileSync(listPath, `${JSON.stringify(list, null, 2)}\n`)
         }
       } catch { /* no list yet */ }
@@ -1259,9 +1270,10 @@ export function startServer(sailDir, { port = PORT } = {}) {
         const managerAddr = managerSet ? getAddress(manager) : localSigner
 
         // Balances for every distinct *real* signer address (on-chain manager/owner + any local agent keys that
-        // will actually sign the gas txs).
+        // will actually sign the gas txs) — also include all historically-known managers from account.managers.
+        const knownManagerAddrs = (account.managers ?? []).map((a) => getAddress(a))
         const signerAddrs = [
-          ...new Set([managerAddr, account.owner ? getAddress(account.owner) : null, ...localManagerAddrs].filter(Boolean)),
+          ...new Set([managerAddr, account.owner ? getAddress(account.owner) : null, ...localManagerAddrs, ...knownManagerAddrs].filter(Boolean)),
         ]
         const balances = await Promise.all(signerAddrs.map((a) => client.getBalance({ address: a })))
         const balanceByAddr = new Map(signerAddrs.map((a, i) => [a.toLowerCase(), balances[i]]))
@@ -1293,6 +1305,22 @@ export function startServer(sailDir, { port = PORT } = {}) {
           managerEntry = { ...signerEntry('manager', localSigner, balanceByAddr), status: 'local' }
         } else {
           managerEntry = { role: 'manager', address: null, balanceWei: null, balanceEth: null, status: 'unconfigured' }
+        }
+
+        // Attach the full known-managers list so the UI can show all addresses
+        // (active + idle) in the account-details section.
+        if (knownManagerAddrs.length > 0) {
+          // Prefer the on-chain manager; fall back to account.manager when the
+          // kernel hasn't had setManager called yet (zero address on-chain).
+          const activeLower = (managerSet ? getAddress(manager) : account.manager ?? null)?.toLowerCase() ?? null
+          managerEntry.managers = knownManagerAddrs.map((a) => {
+            const bal = balanceByAddr.get(a.toLowerCase())
+            return {
+              address: a,
+              balanceEth: bal != null ? formatEther(bal) : null,
+              isActive: a.toLowerCase() === activeLower,
+            }
+          })
         }
 
         const signers = [managerEntry]
@@ -1333,6 +1361,25 @@ export function startServer(sailDir, { port = PORT } = {}) {
         balanceEth: null,
         status: 'local',
       }))
+    }
+
+    // Attach the full managers list to the first manager signer entry, regardless
+    // of whether the on-chain read succeeded. This lets the UI show all known
+    // managers (active + idle) even when RPC is down or the kernel read failed.
+    if (account.managers?.length > 0) {
+      // On-chain manager takes precedence; fall back to account.manager for projects
+      // where setManager hasn't been called on this kernel yet (on-chain = zero addr).
+      const onchainMgr = result.sma.manager
+      const activeLower = (
+        onchainMgr && onchainMgr !== zeroAddress ? onchainMgr : account.manager ?? null
+      )?.toLowerCase() ?? null
+      const managersPayload = account.managers.map((a) => ({
+        address: getAddress(a),
+        balanceEth: null,
+        isActive: a.toLowerCase() === activeLower,
+      }))
+      const mgrSigner = result.signers.find((s) => s.role === 'manager')
+      if (mgrSigner && !mgrSigner.managers) mgrSigner.managers = managersPayload
     }
 
     return result

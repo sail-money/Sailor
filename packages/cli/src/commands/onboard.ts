@@ -706,6 +706,7 @@ async function persistAccount(
     owner: checksum(account.owner),
     permissionSigner: checksum(account.permissionSigner),
     manager: checksum(account.manager),
+    managers: [checksum(account.manager)],
     chainId: account.chainId,
     createdAtBlock,
     ...(account.saltNonce != null ? { saltNonce: account.saltNonce.toString() } : {}),

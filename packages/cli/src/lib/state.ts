@@ -9,7 +9,13 @@ export type StoredAccount = {
   safe: string;
   owner: string;
   permissionSigner: string;
+  /** The currently active agent wallet address. */
   manager: string;
+  /**
+   * All known agent wallet addresses for this SMA. The active one is `manager`.
+   * Populated on create (onboard) and extended on each successful rotation.
+   */
+  managers?: string[];
   chainId: number;
   createdAtBlock: string;
   /** CREATE2 salt used to deploy this Safe. Stored so `sailor account predict` can reproduce the address. */

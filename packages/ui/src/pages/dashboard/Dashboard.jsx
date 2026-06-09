@@ -312,7 +312,24 @@ function MandateRow({ mandate, network, onRevoke }) {
 
 /** Delegated-signer balances with top-up status. */
 function SignersPanel({ overview, sma, onAddSigner, onRotateSigner }) {
-  const signers = overview?.signers ?? []
+  const rawSigners = overview?.signers ?? []
+
+  // Expand manager signers that have a known managers list into one card each.
+  const signers = rawSigners.flatMap((s) => {
+    if (s.role === 'manager' && s.managers?.length > 0) {
+      return s.managers.map((m) => ({
+        ...s,
+        address: m.address,
+        balanceEth: m.balanceEth,
+        // Preserve balance status only for the active manager.
+        status: m.isActive ? s.status : 'idle',
+        managers: undefined,
+        _isActive: m.isActive,
+      }))
+    }
+    return [s]
+  })
+
   if (signers.length === 0) {
     return (
       <div className={styles.signersOffline}>
@@ -323,9 +340,6 @@ function SignersPanel({ overview, sma, onAddSigner, onRotateSigner }) {
               ? 'Add RPC_URL to .sail/.env.local to see balances.'
               : 'Reading balances…'}
         </p>
-        {/* The agent needs a agent wallet to dispatch; offer to create or
-            import one even before the on-chain read lands, as long as an SMA
-            exists for the key to attach to. */}
         {sma && (
           <SailButton variant="secondary" onClick={onAddSigner}>
             Add agent wallet
@@ -358,11 +372,13 @@ function SignerCard({ signer, network, onAddSigner, onRotateSigner }) {
     : (SIGNER_ROLE[signer.role] ?? { label: signer.role, sub: '' })
   const unconfigured = signer.status === 'unconfigured'
   const isLocal = signer.status === 'local'
-  // The on-chain delegated signer the kernel actually recognises for this SMA.
-  // Local-only keystores (status 'local') are created but not yet registered, so
-  // only a non-local, configured manager card is the active/registered one.
-  const isActiveManager = signer.role === 'manager' && !isLocal && !unconfigured
-  const bal = signer.role === 'sma' || unconfigured || isLocal
+  const isIdle = signer.status === 'idle'
+  // _isActive is set by SignersPanel when expanding a managers list.
+  // Fall back to the old derivation for non-expanded manager cards.
+  const isActiveManager = signer.role === 'manager' && (
+    signer._isActive !== undefined ? signer._isActive : (!isLocal && !unconfigured && !isIdle)
+  )
+  const bal = signer.role === 'sma' || unconfigured || isLocal || isIdle
     ? null
     : (BALANCE_STATUS[signer.status] ?? BALANCE_STATUS.ok)
   const localBal = isLocal && signer.balanceEth != null ? Number(signer.balanceEth) : null
@@ -390,6 +406,12 @@ function SignerCard({ signer, network, onAddSigner, onRotateSigner }) {
           >
             <span className={styles.balancePillDot} aria-hidden style={{ background: '#34d399' }} />
             Active
+          </span>
+        )}
+        {isIdle && (
+          <span className={styles.balancePill} style={{ color: 'var(--text-secondary)' }}>
+            <span className={styles.balancePillDot} aria-hidden style={{ background: 'rgba(255,255,255,0.25)' }} />
+            Idle
           </span>
         )}
         {bal && (
@@ -421,7 +443,9 @@ function SignerCard({ signer, network, onAddSigner, onRotateSigner }) {
           ? 'No agent wallet assigned yet — create or import one to let your agent sign.'
           : isLocal
             ? 'Created locally — not yet delegated on-chain.'
-            : role.sub}
+            : isIdle
+              ? 'Known manager — not currently active on-chain.'
+              : role.sub}
       </p>
 
       {unconfigured && (
@@ -456,11 +480,9 @@ function SignerCard({ signer, network, onAddSigner, onRotateSigner }) {
         </footer>
       )}
 
-      {/* Rotation applies to the on-chain delegated signer (the agent wallet) —
-          offer it whenever a manager is delegated, as the recovery path for a
-          lost/compromised agent key. */}
-      {signer.role === 'manager' && !unconfigured && !isLocal && onRotateSigner && (
-        <button type="button" className={styles.signerRotateBtn} onClick={onRotateSigner}>
+      {/* Rotate button: on active manager, opens modal to pick new manager */}
+      {signer.role === 'manager' && isActiveManager && onRotateSigner && (
+        <button type="button" className={styles.signerRotateBtn} onClick={() => onRotateSigner()}>
           Rotate manager
         </button>
       )}
@@ -817,6 +839,7 @@ function DashboardContent({ draft, onReset }) {
   const [refreshTick, setRefreshTick] = useState(0)
   const [addSignerOpen, setAddSignerOpen] = useState(false)
   const [rotateOpen, setRotateOpen] = useState(false)
+  const [rotateTo, setRotateTo] = useState(null) // pre-selected manager address for rotation
   const { account: realAccount, loading: accountLoading } = useSailorAccount(refreshTick)
   const { accounts: allAccounts } = useSailorAccounts(refreshTick)
   const { overview } = useSailorOverview(refreshTick)
@@ -1224,7 +1247,9 @@ function DashboardContent({ draft, onReset }) {
                 overview={overview}
                 sma={sma}
                 onAddSigner={() => setAddSignerOpen(true)}
-                onRotateSigner={overview?.kernel && overview?.sma?.address ? () => setRotateOpen(true) : undefined}
+                onRotateSigner={overview?.kernel && overview?.sma?.address
+                  ? (addr) => { setRotateTo(addr ?? null); setRotateOpen(true) }
+                  : undefined}
               />
             </section>
 
@@ -1323,7 +1348,8 @@ function DashboardContent({ draft, onReset }) {
         owner={overview?.sma?.owner}
         currentManager={overview?.sma?.manager}
         mandates={overview?.mandates ?? []}
-        onClose={() => setRotateOpen(false)}
+        initialTo={rotateTo}
+        onClose={() => { setRotateOpen(false); setRotateTo(null) }}
         onRotated={() => setRefreshTick((t) => t + 1)}
       />
 
