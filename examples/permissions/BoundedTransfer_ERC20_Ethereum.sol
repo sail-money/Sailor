@@ -6,13 +6,13 @@ pragma solidity 0.8.26;
 // Version  : Standard ERC-20 (version-agnostic)
 // Chain    : Ethereum mainnet (works on any EVM — the most general example)
 //
-// ENFORCED ON-CHAIN (via kernel evaluate() on every dispatch):
-//   transfer(address to, uint256 amount)
-//   • target must be in ALLOWED_TOKENS
-//   • recipient (to) must be in ALLOWED_RECIPIENTS
-//   • amount ≤ MAX_AMOUNT_PER_TRANSFER
+// ENFORCES ON-CHAIN (kernel calls evaluate() on every dispatch; false ⇒ dispatch blocked):
+//   transfer(address to,uint256 amount)  selector 0xa9059cbb
+//     • target must be in ALLOWED_TOKENS
+//     • recipient (to) must be in ALLOWED_RECIPIENTS
+//     • amount ≤ MAX_AMOUNT_PER_TRANSFER
 //
-// NOT ENFORCED (agent code — can change without a new contract):
+// AGENT-ENFORCED / NOT BOUNDED HERE (off-chain — can change without redeploying this contract):
 //   • transfer frequency / timing
 //   • choice of token within ALLOWED_TOKENS
 //   • choice of recipient within ALLOWED_RECIPIENTS
