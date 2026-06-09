@@ -85,6 +85,9 @@ function explorerUrl(network, address) {
   }
   return map[network] ?? map.ethereum
 }
+function explorerCodeUrl(network, address) {
+  return `${explorerUrl(network, address)}#code`
+}
 
 function truncateAddr(addr) {
   if (!addr || addr.length < 12) return addr ?? ''
@@ -547,7 +550,7 @@ function LiveMandateCard({ mandate, network, addressByTemplate }) {
               {addr ? (
                 <a
                   className={styles.mandateSummaryPermLink}
-                  href={explorerUrl(networkLabel, addr)}
+                  href={explorerCodeUrl(networkLabel, addr)}
                   target="_blank"
                   rel="noreferrer"
                   title={addr}
@@ -565,18 +568,6 @@ function LiveMandateCard({ mandate, network, addressByTemplate }) {
         <span className={styles.mandateSummaryFootMeta}>
           {status === 'active' ? 'Registered on-chain' : 'Signed — awaiting on-chain registration'}
         </span>
-        {mandate?.safe && (
-          <a
-            className={styles.mandateSummaryOpenHint}
-            href={explorerUrl(networkLabel, mandate.safe)}
-            target="_blank"
-            rel="noreferrer"
-            aria-label="View contract on block explorer"
-          >
-            View contract
-            <ArrowOutIcon />
-          </a>
-        )}
       </footer>
     </article>
   )
