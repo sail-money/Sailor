@@ -308,15 +308,12 @@ export default function RpcSection() {
       </div>
 
       <div className={styles.chainList}>
-        {CHAINS.map((chain) => (
-          <ChainRow
-            key={chain.id}
-            chainId={chain.id}
-            rpcUrl={rpcByChain[chain.id] ?? null}
-            activeChainId={activeChainId}
-            onSaved={load}
-          />
-        ))}
+        <ChainRow
+          chainId={activeChainId}
+          rpcUrl={rpcByChain[activeChainId] ?? null}
+          activeChainId={activeChainId}
+          onSaved={load}
+        />
       </div>
     </div>
   )
