@@ -200,7 +200,9 @@ export async function mandateSimulate(options: SimulateOptions): Promise<void> {
   // submitter in ctx. Fall back to the account address when no manager key is
   // available locally (e.g. pre-key-gen) — noted in the output so the user knows
   // the probe used a stand-in submitter.
-  const resolvedManager = managerAddress(stored?.safe);
+  // Use options.sma (if overridden) for keystore path resolution so the manager
+  // key lookup stays consistent with the account being probed.
+  const resolvedManager = managerAddress(options.sma ?? stored?.safe);
   const manager = resolvedManager ?? account;
   const managerIsStandIn = resolvedManager === null;
 
@@ -209,43 +211,46 @@ export async function mandateSimulate(options: SimulateOptions): Promise<void> {
   // Fetch the current block once — time/block-gated permissions need real values
   // to avoid false negatives, matching what the runner feeds evaluate().
   let blockInfo = { number: 0n, timestamp: 0n };
+  let blockStale = false;
   try {
     const block = await pc.getBlock();
     blockInfo = { number: block.number ?? 0n, timestamp: block.timestamp ?? 0n };
   } catch {
-    // RPC hiccup — probe proceeds with zeros; per-call errors will surface below.
+    // RPC hiccup — probe proceeds with zeros. Warn: time/block-gated permissions
+    // will see timestamp=0 / blockNumber=0 and may produce false negatives.
+    blockStale = true;
   }
 
-  // ── Probe each call (eth_call only — NO gas, NO signing) ─────────────────────
-  const results: CallResult[] = [];
-  for (let i = 0; i < calls.length; i++) {
-    const c = calls[i];
-    const [probe, codeCheck] = await Promise.all([
-      probePermissionForCall({
-        publicClient: pc,
-        permission,
-        account,
-        manager,
-        call: { target: c.target, value: c.value, data: c.data },
-        blockInfo,
-      }),
-      checkContractExists(pc, c.target),
-    ]);
-    const result: "pass" | "fail" = probe.accepted ? "pass" : "fail";
-    results.push({
-      index: i,
-      label: c.label,
-      target: c.target,
-      value: c.value.toString(),
-      result,
-      reverted: probe.reverted,
-      revertReason: probe.error,
-      expect: c.expect ?? null,
-      match: c.expect ? c.expect === result : null,
-      targetHasCode: codeCheck.hasCode,
-      targetCheckError: codeCheck.error,
-    });
-  }
+  // ── Probe all calls concurrently (eth_call only — NO gas, NO signing) ────────
+  const results: CallResult[] = await Promise.all(
+    calls.map(async (c, i) => {
+      const [probe, codeCheck] = await Promise.all([
+        probePermissionForCall({
+          publicClient: pc,
+          permission,
+          account,
+          manager,
+          call: { target: c.target, value: c.value, data: c.data },
+          blockInfo,
+        }),
+        checkContractExists(pc, c.target),
+      ]);
+      const result: "pass" | "fail" = probe.accepted ? "pass" : "fail";
+      return {
+        index: i,
+        label: c.label,
+        target: c.target,
+        value: c.value.toString(),
+        result,
+        reverted: probe.reverted,
+        revertReason: probe.error,
+        expect: c.expect ?? null,
+        match: c.expect ? c.expect === result : null,
+        targetHasCode: codeCheck.hasCode,
+        targetCheckError: codeCheck.error,
+      };
+    }),
+  );
 
   const mismatches = results.filter((r) => r.match === false);
   const noCodeTargets = results.filter((r) => !r.targetHasCode && !r.targetCheckError);
@@ -262,6 +267,7 @@ export async function mandateSimulate(options: SimulateOptions): Promise<void> {
       submitter: manager,
       submitterIsStandIn: managerIsStandIn,
       blockNumber: blockInfo.number.toString(),
+      blockContextStale: blockStale,
       results: results.map((r) => ({
         index: r.index,
         label: r.label,
@@ -295,7 +301,7 @@ export async function mandateSimulate(options: SimulateOptions): Promise<void> {
   console.log(
     `Submitter:  ${manager}${managerIsStandIn ? "  (stand-in: no manager key found locally)" : "  (agent wallet)"}`,
   );
-  console.log(`Chain:      ${chainId}   block ${blockInfo.number}`);
+  console.log(`Chain:      ${chainId}   block ${blockInfo.number}${blockStale ? "  ⚠ could not fetch block — time/block-gated permissions may show false negatives" : ""}`);
   console.log("");
 
   for (const r of results) {

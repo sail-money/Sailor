@@ -87,7 +87,7 @@ export function buildPermissionContext(params: {
   return {
     account,
     manager,
-    submitter:      manager, // conservative: submitter = manager for off-chain probe
+    submitter:      manager, // runner submits dispatches from the manager (agent) wallet
     target:         call.target,
     selector,
     value:          call.value,
