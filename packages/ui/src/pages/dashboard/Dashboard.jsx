@@ -857,6 +857,8 @@ function DashboardContent({ onReset }) {
   const [handoff, setHandoff] = useState(null)
   const [revokeTarget, setRevokeTarget] = useState(null)
   const [safeNames, setSafeNames] = useState({})
+  const [editingName, setEditingName] = useState(false)
+  const [nameInput, setNameInput] = useState('')
 
   // Local-first: the overview (read from .sail/ + confirmed on-chain) is the
   // primary source, so the SMA renders without a browser wallet connected. The
@@ -1042,7 +1044,38 @@ function DashboardContent({ onReset }) {
                 deposit UI) and created-date meta. */}
             <section className={agentStyles.titleBlock}>
               <div className={styles.titleHeadFlex}>
-                <h1 className={agentStyles.title}>{smaName}</h1>
+                {editingName ? (
+                  <input
+                    className={styles.titleNameInput}
+                    value={nameInput}
+                    autoFocus
+                    maxLength={40}
+                    onChange={(e) => setNameInput(e.target.value)}
+                    onBlur={() => {
+                      const trimmed = nameInput.trim()
+                      if (trimmed && trimmed !== smaName) {
+                        setSafeNames((m) => ({ ...m, [currentSafeId]: trimmed }))
+                        renameSailorAccount(currentSafeId, trimmed).catch(() => {})
+                        setRefreshTick((t) => t + 1)
+                      }
+                      setEditingName(false)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') e.target.blur()
+                      if (e.key === 'Escape') { setEditingName(false) }
+                    }}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.titleNameBtn}
+                    onClick={() => { setNameInput(smaName); setEditingName(true) }}
+                    title="Click to rename"
+                  >
+                    <h1 className={agentStyles.title}>{smaName}</h1>
+                    <PencilIcon />
+                  </button>
+                )}
                 <button
                   type="button"
                   className={agentStyles.stopAllBtn}
@@ -1807,6 +1840,13 @@ function KeyGlyph() {
     <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <circle cx="5.5" cy="6" r="2.8" />
       <path d="M7.7 7.8l4.3 4.3M10.4 10.5l1.2-1.2M12 12.1l1.2-1.2" />
+    </svg>
+  )
+}
+function PencilIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M11.5 2.5a1.414 1.414 0 0 1 2 2L5 13H3v-2L11.5 2.5z" />
     </svg>
   )
 }

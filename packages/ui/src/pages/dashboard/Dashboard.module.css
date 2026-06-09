@@ -3660,6 +3660,40 @@
   gap: 16px;
   flex-wrap: wrap;
 }
+.titleNameBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: text;
+  color: inherit;
+  min-width: 0;
+}
+.titleNameBtn svg {
+  color: var(--text-tertiary);
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+.titleNameBtn:hover svg { opacity: 1; }
+.titleNameInput {
+  font-family: 'Instrument Sans', 'DM Sans', sans-serif;
+  font-size: 40px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid var(--accent-blue, #1990FF);
+  outline: none;
+  padding: 0 0 2px;
+  width: 100%;
+  min-width: 120px;
+  max-width: 500px;
+}
 
 /* Bigger quick-link cards — the dashboard surfaces these at a higher
    visual altitude than the agent page does (they're the user's two
