@@ -6,9 +6,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--s3, 12px);
-  margin-top: var(--s5, 20px);
-  padding-top: var(--s5, 20px);
-  border-top: 1px dotted rgba(255, 255, 255, 0.16);
 }
 
 .head {
@@ -44,7 +41,84 @@
 .healthWarn { color: var(--text-tertiary); background: rgba(255,255,255,0.04); }
 .healthWarn .healthDot { background: var(--text-tertiary); }
 
-/* ── Compact readout ── */
+/* ── Per-chain list ── */
+.chainList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2, 8px);
+}
+.chainCard {
+  border: 1px solid var(--hairline, rgba(255,255,255,0.10));
+  border-radius: var(--r-3, 6px);
+  background: var(--surface-800, #1E1F24);
+  overflow: hidden;
+}
+.chainCardActive {
+  border-color: rgba(25,144,255,0.28);
+  background: linear-gradient(180deg, rgba(25,144,255,0.05) 0%, rgba(25,144,255,0.01) 100%), var(--surface-800, #1E1F24);
+}
+.chainCardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3, 12px);
+  padding: 12px 16px;
+}
+.chainMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.chainName {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: var(--t-sm, 13.5px);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.chainTag {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-quaternary);
+  border: 1px solid var(--hairline); border-radius: var(--r-1, 0); padding: 1px 4px;
+}
+.chainTagActive {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 8.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--accent-blue, #1990FF);
+  background: rgba(25,144,255,0.12);
+  border: 1px solid rgba(25,144,255,0.3); border-radius: var(--r-1, 0); padding: 1px 5px;
+}
+.chainEndpoint {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 360px;
+}
+.chainEndpointMissing {
+  color: var(--text-quaternary);
+  font-style: italic;
+}
+.edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3, 12px);
+  padding: 0 16px 16px;
+  border-top: 1px dotted rgba(255,255,255,0.1);
+  animation: rpcEditRise 240ms var(--ease-out-expo, cubic-bezier(0.16,1,0.3,1)) both;
+}
+@keyframes rpcEditRise {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Compact readout (legacy, kept for reference) ── */
 .compact {
   display: flex;
   align-items: center;

@@ -812,12 +812,24 @@ export function startServer(sailDir, { port = PORT } = {}) {
     const chainId = config?.chainId ?? 8453
     let deployment = null
     try { deployment = getSailDeployment(chainId) } catch {}
+    // Collect per-chain RPC URLs: RPC_URL_<chainId> entries, plus RPC_URL as
+    // the active chain's fallback so existing single-chain projects still work.
+    const SUPPORTED_CHAIN_IDS = [8453, 42161, 130, 84532]
+    const rpcByChain = {}
+    for (const cid of SUPPORTED_CHAIN_IDS) {
+      const perChainKey = `RPC_URL_${cid}`
+      if (env[perChainKey]) rpcByChain[cid] = env[perChainKey]
+    }
+    // If the project has a single RPC_URL but no per-chain entry for its chain,
+    // surface it under the active chainId so the UI can show it.
+    if (env.RPC_URL && !rpcByChain[chainId]) rpcByChain[chainId] = env.RPC_URL
     res.json({
       hasAccount,
       hasManagerKey: Boolean(managerAddress),
       managerAddress,
-      hasRpc: Boolean(env.RPC_URL),
+      hasRpc: Boolean(env.RPC_URL || Object.keys(rpcByChain).length > 0),
       rpcUrl: env.RPC_URL ?? null,
+      rpcByChain,
       hasSailApiKey: Boolean(env.SAIL_API_KEY),
       chainId,
       projectName: config?.name ?? null,
@@ -829,14 +841,23 @@ export function startServer(sailDir, { port = PORT } = {}) {
     })
   })
 
-  // POST /api/onboard/save-config { rpcUrl, sailApiKey, chainId } — merges the
-  // provided values into .sail/.env.local without clobbering existing keys.
+  // POST /api/onboard/save-config { rpcUrl, chainId } — saves the RPC URL for
+  // a specific chain as RPC_URL_<chainId> and also updates RPC_URL if this is
+  // the active project chain, so existing CLI commands keep working.
   app.post('/api/onboard/save-config', (req, res) => {
     const { rpcUrl, sailApiKey, chainId } = req.body ?? {}
     try {
+      const config = (() => { try { return JSON.parse(fs.readFileSync(at('config.json'), 'utf-8')) } catch { return null } })()
+      const activeChainId = config?.chainId ?? 8453
       const envPath = at('.env.local')
       const existing = parseEnvFile(envPath)
-      if (rpcUrl) existing.RPC_URL = rpcUrl
+      if (rpcUrl && chainId) {
+        existing[`RPC_URL_${chainId}`] = rpcUrl
+        // Keep RPC_URL in sync with the active chain so CLI commands work.
+        if (Number(chainId) === Number(activeChainId)) existing.RPC_URL = rpcUrl
+      } else if (rpcUrl) {
+        existing.RPC_URL = rpcUrl
+      }
       if (sailApiKey) existing.SAIL_API_KEY = sailApiKey
       if (chainId) existing.CHAIN_ID = String(chainId)
       const content = Object.entries(existing).map(([k, v]) => `${k}=${v}`).join('\n') + '\n'

@@ -3,29 +3,12 @@ import styles from './RpcSection.module.css'
 import { InfoTip } from '../shared'
 import { getOnboardState, saveConfig } from '../../data/sailorClient'
 
-const RPC_TIP = "An RPC is the connection your dashboard uses to read the blockchain and broadcast transactions · like a phone line to the network. Sail talks to the chain directly through it; there's no Sail server in between. A free Alchemy/Infura key (or a public endpoint) works."
-
-/**
- * RpcSection · the network/RPC config, living on the SMA hero card (moved out
- * of the Settings modal so the card is the single source of truth).
- *
- * Compact by default: endpoint + chain + a plain-language status pill
- * ("Connected · <chain>" when healthy; an actionable warning otherwise ·
- * no RPC/kernel jargon on the user surface). "Edit" expands the
- * onboarding-style provider picker (Alchemy / Infura / Public) + API key field
- * + the "where do I find my key" guide · the same surface as the setup wizard's
- * step 03, so first-run and durable editing look identical.
- *
- * Contract: reads GET /api/onboard/state, writes POST /api/onboard/save-config
- * { rpcUrl, sailApiKey, chainId } via src/data/sailorClient.js. The framework
- * persists the composed endpoint locally as RPC_URL in .sail/.env.local; the
- * provider picker is only a helper that builds that URL string.
- */
+const RPC_TIP = "An RPC is the connection your dashboard uses to read the blockchain and broadcast transactions — like a phone line to the network. Sail talks to the chain directly through it; there's no Sail server in between. A free Alchemy/Infura key (or a public endpoint) works."
 
 const CHAINS = [
-  { id: 8453, name: 'Base', kind: 'mainnet' },
-  { id: 42161, name: 'Arbitrum', kind: 'mainnet' },
-  { id: 130, name: 'Unichain', kind: 'mainnet' },
+  { id: 8453,  name: 'Base',         kind: 'mainnet' },
+  { id: 42161, name: 'Arbitrum',     kind: 'mainnet' },
+  { id: 130,   name: 'Unichain',     kind: 'mainnet' },
   { id: 84532, name: 'Base Sepolia', kind: 'testnet' },
 ]
 
@@ -39,7 +22,7 @@ const RPC_PROVIDERS = [
       'Create a free account at alchemy.com.',
       'Click "Create new app" and pick this network.',
       'Open the app and copy the API key from the top of the page.',
-      'Paste it above · one key works across every network.',
+      'Paste it above — one key works across every network.',
     ],
   },
   {
@@ -55,13 +38,11 @@ const RPC_PROVIDERS = [
     ],
   },
   {
-    id: 'public', name: 'Public RPC', needsKey: false,
-    desc: 'No key needed. Rate-limited, not for unattended runs.',
+    id: 'custom', name: 'Custom / Public', needsKey: false,
+    desc: 'Paste any RPC URL — a public endpoint, your own node, or a private provider.',
   },
 ]
 
-/* Per-chain hostnames so the provider picker can compose a real RPC_URL ·
-   exactly the string the framework persists. */
 const ALCHEMY_HOST = {
   8453: 'base-mainnet.g.alchemy.com', 42161: 'arb-mainnet.g.alchemy.com',
   130: 'unichain-mainnet.g.alchemy.com', 84532: 'base-sepolia.g.alchemy.com',
@@ -76,25 +57,24 @@ const PUBLIC_RPC = {
 }
 
 function composeRpcUrl(provider, chainId, key) {
-  if (provider === 'public') return PUBLIC_RPC[chainId] ?? ''
   if (provider === 'infura') {
     const host = INFURA_HOST[chainId]
     return host ? `https://${host}/v3/${key}` : ''
   }
-  const host = ALCHEMY_HOST[chainId]
-  return host ? `https://${host}/v2/${key}` : ''
+  if (provider === 'alchemy') {
+    const host = ALCHEMY_HOST[chainId]
+    return host ? `https://${host}/v2/${key}` : ''
+  }
+  return key // custom: key field holds the full URL
 }
 
-/* Best-effort provider inference from an existing endpoint, so opening Edit
-   pre-selects what's already configured. */
 function inferProvider(url) {
   if (!url) return 'alchemy'
   if (/alchemy\.com/i.test(url)) return 'alchemy'
   if (/infura\.io/i.test(url)) return 'infura'
-  return 'public'
+  return 'custom'
 }
 
-/* Mask the key segment of an endpoint for the compact readout. */
 function maskRpcUrl(url) {
   if (!url) return ''
   const m = url.match(/^(https?:\/\/[^/]+)(\/.*\/)([^/]+)$/)
@@ -104,122 +84,76 @@ function maskRpcUrl(url) {
   return `${origin}${path}${shown}`
 }
 
-export default function RpcSection() {
-  const [onboard, setOnboard] = useState(null)
+function ChainRow({ chainId, rpcUrl, activeChainId, onSaved }) {
+  const chain = CHAINS.find((c) => c.id === chainId)
   const [editing, setEditing] = useState(false)
   const [provider, setProvider] = useState('alchemy')
   const [apiKey, setApiKey] = useState('')
-  const [chainId, setChainId] = useState(42161)
-  const [howOpen, setHowOpen] = useState(true)
+  const [customUrl, setCustomUrl] = useState('')
+  const [howOpen, setHowOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [savedTick, setSavedTick] = useState(false)
 
-  useEffect(() => {
-    let alive = true
-    getOnboardState().then((st) => {
-      if (!alive) return
-      setOnboard(st)
-      setChainId(st.chainId ?? 42161)
-      setProvider(inferProvider(st.rpcUrl))
-    })
-    return () => { alive = false }
-  }, [])
-
-  if (!onboard) {
-    return (
-      <div className={styles.section}>
-        <span className={styles.eyebrow}>RPC /</span>
-        <span className={styles.loading}>Reading configuration…</span>
-      </div>
-    )
-  }
-
-  const sel = RPC_PROVIDERS.find((p) => p.id === provider)
-  const needsKey = !!sel?.needsKey
-  const keyValid = !needsKey || apiKey.trim().length >= 12
-  const rpcReachable = Boolean(onboard.rpcUrl)
-  const kernelDetected = Boolean(onboard.kernel)
-  const currentChain = CHAINS.find((c) => c.id === onboard.chainId)
+  const isActive = chainId === activeChainId
 
   function openEdit() {
-    setProvider(inferProvider(onboard.rpcUrl))
-    setChainId(onboard.chainId ?? 42161)
+    const p = inferProvider(rpcUrl)
+    setProvider(p)
     setApiKey('')
-    setHowOpen(true)
+    setCustomUrl(p === 'custom' ? (rpcUrl ?? '') : (PUBLIC_RPC[chainId] ?? ''))
+    setHowOpen(false)
     setEditing(true)
   }
 
   async function onSave() {
-    // Public RPC needs no key; keyed providers compose origin/path/key. If the
-    // key field is left blank on a keyed provider but the chain is unchanged,
-    // keep the existing endpoint (the user is only re-confirming).
-    let rpcUrl
-    if (!needsKey) rpcUrl = composeRpcUrl('public', chainId)
-    else if (apiKey.trim()) rpcUrl = composeRpcUrl(provider, chainId, apiKey.trim())
-    else rpcUrl = onboard.rpcUrl
-
+    let url
+    if (provider === 'custom') url = customUrl.trim()
+    else if (provider === 'alchemy' && apiKey.trim()) url = composeRpcUrl('alchemy', chainId, apiKey.trim())
+    else if (provider === 'infura' && apiKey.trim()) url = composeRpcUrl('infura', chainId, apiKey.trim())
+    else url = rpcUrl
+    if (!url) return
     setSaving(true)
-    await saveConfig({ rpcUrl, chainId })
-    const st = await getOnboardState()
-    setOnboard(st)
-    setApiKey('')
+    await saveConfig({ rpcUrl: url, chainId })
     setSaving(false)
     setSavedTick(true)
     setTimeout(() => setSavedTick(false), 1600)
     setEditing(false)
+    onSaved?.()
   }
 
+  const sel = RPC_PROVIDERS.find((p) => p.id === provider)
+  const needsKey = sel?.needsKey ?? false
+  const canSave = provider === 'custom'
+    ? customUrl.trim().startsWith('http')
+    : !needsKey || apiKey.trim().length >= 12 || Boolean(rpcUrl)
+
   return (
-    <div className={styles.section}>
-      <div className={styles.head}>
-        <span className={styles.eyebrow}>RPC / <InfoTip label="What is an RPC?">{RPC_TIP}</InfoTip></span>
-        {/* Human-language status: a calm "Connected · <chain>" when all is
-            well; a plain, actionable message only when something's wrong.
-            No "RPC"/"kernel" jargon on the user surface. */}
-        <span className={`${styles.health} ${rpcReachable && kernelDetected ? styles.healthOk : styles.healthWarn}`}>
-          <span className={styles.healthDot} aria-hidden />
-          {rpcReachable && kernelDetected
-            ? `Connected · ${currentChain?.name ?? 'network'}`
-            : !rpcReachable
-              ? 'No network configured'
-              : `Sail not available on ${currentChain?.name ?? 'this network'}`}
-        </span>
+    <div className={`${styles.chainCard} ${isActive ? styles.chainCardActive : ''}`}>
+      <div className={styles.chainCardHead}>
+        <div className={styles.chainMeta}>
+          <span className={styles.chainName}>
+            {chain?.name ?? `Chain ${chainId}`}
+            {chain?.kind === 'testnet' && <span className={styles.chainTag}>testnet</span>}
+            {isActive && <span className={styles.chainTagActive}>active</span>}
+          </span>
+          {!editing && (
+            <span className={styles.chainEndpoint}>
+              {rpcUrl
+                ? maskRpcUrl(rpcUrl)
+                : <span className={styles.chainEndpointMissing}>Not configured</span>}
+            </span>
+          )}
+        </div>
+        {!editing && (
+          <button type="button" className={styles.editBtn} onClick={openEdit}>
+            {savedTick ? 'Saved ✓' : rpcUrl ? 'Edit' : 'Add'}
+          </button>
+        )}
       </div>
 
-      {!editing ? (
-        /* ── Compact readout ── */
-        <div className={styles.compact}>
-          <div className={styles.compactMain}>
-            <span className={styles.endpoint}>{maskRpcUrl(onboard.rpcUrl) || 'Not configured'}</span>
-            <span className={styles.compactMeta}>
-              <span className={styles.chainChipStatic}>{currentChain?.name ?? `Chain ${onboard.chainId}`}</span>
-              <span className={styles.compactSep} aria-hidden>·</span>
-              <span className={styles.providerName}>{RPC_PROVIDERS.find((p) => p.id === inferProvider(onboard.rpcUrl))?.name}</span>
-            </span>
-          </div>
-          <button type="button" className={styles.editBtn} onClick={openEdit}>
-            {savedTick ? 'Saved ✓' : 'Edit'}
-          </button>
-        </div>
-      ) : (
-        /* ── Edit · onboarding-style provider picker ── */
+      {editing && (
         <div className={styles.edit}>
-          <span className={styles.listLabel}>Network</span>
-          <div className={styles.chainRow}>
-            {CHAINS.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                className={`${styles.chainChip} ${chainId === c.id ? styles.chainChipActive : ''}`}
-                onClick={() => setChainId(c.id)}
-              >
-                {c.name}
-                {c.kind === 'testnet' && <span className={styles.chainTag}>testnet</span>}
-              </button>
-            ))}
-          </div>
-
-          <span className={styles.listLabel}>Commonly used</span>
+          <span className={styles.listLabel}>Provider</span>
           <ul className={styles.optionList}>
             {RPC_PROVIDERS.map((p) => {
               const active = provider === p.id
@@ -228,14 +162,17 @@ export default function RpcSection() {
                   <button
                     type="button"
                     className={`${styles.optionRow} ${active ? styles.optionRowActive : ''}`}
-                    onClick={() => setProvider(p.id)}
+                    onClick={() => {
+                      setProvider(p.id)
+                      if (p.id === 'custom') setCustomUrl(rpcUrl ?? PUBLIC_RPC[chainId] ?? '')
+                    }}
                     aria-pressed={active}
                   >
                     <span className={styles.optionBody}>
                       <span className={styles.optionNameRow}>
                         <span className={styles.optionName}>{p.name}</span>
                         {p.tag && <span className={styles.optionTag}>{p.tag}</span>}
-                        {!p.needsKey && <span className={styles.optionTagMuted}>No key</span>}
+                        {!p.needsKey && <span className={styles.optionTagMuted}>URL</span>}
                       </span>
                       <span className={styles.optionSub}>{p.desc}</span>
                     </span>
@@ -248,25 +185,24 @@ export default function RpcSection() {
 
           {needsKey && (
             <div className={styles.fieldBlock}>
-              <label className={styles.fieldLabel} htmlFor="rpc-card-key">{sel.name} API key</label>
+              <label className={styles.fieldLabel} htmlFor={`rpc-key-${chainId}`}>{sel.name} API key</label>
               <div className={styles.field}>
                 <span className={styles.fieldIcon} aria-hidden><KeyIcon /></span>
                 <input
-                  id="rpc-card-key"
+                  id={`rpc-key-${chainId}`}
                   type="text"
                   className={styles.fieldInput}
-                  placeholder={onboard.rpcUrl && inferProvider(onboard.rpcUrl) === provider ? '•••••••••• (keep current)' : sel.keyHint}
+                  placeholder={rpcUrl && inferProvider(rpcUrl) === provider ? '•••••••••• (keep current)' : sel.keyHint}
                   value={apiKey}
                   spellCheck={false}
                   autoComplete="off"
                   onChange={(e) => setApiKey(e.target.value)}
                 />
-                {keyValid && apiKey && <span className={styles.fieldOk} aria-hidden><MiniCheck /></span>}
+                {apiKey.trim().length >= 12 && <span className={styles.fieldOk} aria-hidden><MiniCheck /></span>}
               </div>
               <p className={styles.fieldNote}>
-                Stored locally in <code>.sail/.env.local</code> as <code>RPC_URL</code>. Never sent to Sail.
+                Stored in <code>.sail/.env.local</code>. Never sent to Sail.
               </p>
-
               <div className={styles.howBlock}>
                 <button
                   type="button"
@@ -299,18 +235,34 @@ export default function RpcSection() {
           )}
 
           {!needsKey && (
-            <p className={styles.fieldNote}>
-              Uses <code>{PUBLIC_RPC[chainId]}</code>. Fine for a look around; switch to a keyed
-              provider before letting the agent run unattended.
-            </p>
+            <div className={styles.fieldBlock}>
+              <label className={styles.fieldLabel} htmlFor={`rpc-url-${chainId}`}>RPC URL</label>
+              <div className={styles.field}>
+                <span className={styles.fieldIcon} aria-hidden><LinkIcon /></span>
+                <input
+                  id={`rpc-url-${chainId}`}
+                  type="text"
+                  className={styles.fieldInput}
+                  placeholder={PUBLIC_RPC[chainId] ?? 'https://your-rpc-endpoint'}
+                  value={customUrl}
+                  spellCheck={false}
+                  autoComplete="off"
+                  onChange={(e) => setCustomUrl(e.target.value)}
+                />
+                {customUrl.trim().startsWith('http') && <span className={styles.fieldOk} aria-hidden><MiniCheck /></span>}
+              </div>
+              <p className={styles.fieldNote}>
+                Stored in <code>.sail/.env.local</code> as <code>RPC_URL_{chainId}</code>.
+              </p>
+            </div>
           )}
 
           <div className={styles.editActions}>
             <button type="button" className={styles.cancelBtn} onClick={() => setEditing(false)} disabled={saving}>
               Cancel
             </button>
-            <button type="button" className={styles.saveBtn} onClick={onSave} disabled={saving || (needsKey && !!apiKey && !keyValid)}>
-              {saving ? 'Saving…' : 'Save RPC config'}
+            <button type="button" className={styles.saveBtn} onClick={onSave} disabled={saving || !canSave}>
+              {saving ? 'Saving…' : 'Save'}
             </button>
           </div>
         </div>
@@ -319,39 +271,70 @@ export default function RpcSection() {
   )
 }
 
-/* ────────── Icons ────────── */
-function RpcGlyph({ id }) {
-  if (id === 'public') {
+export default function RpcSection() {
+  const [onboard, setOnboard] = useState(null)
+
+  function load() {
+    getOnboardState().then(setOnboard).catch(() => {})
+  }
+
+  useEffect(() => { load() }, [])
+
+  if (!onboard) {
     return (
-      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-        <circle cx="8" cy="8" r="6" />
-        <path d="M2 8h12M8 2c2 2 2 10 0 12M8 2c-2 2-2 10 0 12" strokeWidth="1.2" />
-      </svg>
+      <div className={styles.section}>
+        <span className={styles.eyebrow}>RPC /</span>
+        <span className={styles.loading}>Reading configuration…</span>
+      </div>
     )
   }
-  if (id === 'infura') {
-    return (
-      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-        <circle cx="8" cy="3.2" r="1.6" />
-        <circle cx="3.4" cy="11.4" r="1.6" />
-        <circle cx="12.6" cy="11.4" r="1.6" />
-        <path d="M8 4.8l-4.6 6.6M8 4.8l4.6 6.6M4.6 11.4h6.8" strokeWidth="1.1" />
-      </svg>
-    )
-  }
-  // alchemy · hex node
+
+  const rpcByChain = onboard.rpcByChain ?? {}
+  const activeChainId = onboard.chainId ?? 8453
+  const configuredCount = Object.keys(rpcByChain).length
+
   return (
-    <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-      <path d="M8 1.6l5.5 3.2v6.4L8 14.4 2.5 11.2V4.8z" />
-      <circle cx="8" cy="8" r="2" fill="currentColor" stroke="none" />
-    </svg>
+    <div className={styles.section}>
+      <div className={styles.head}>
+        <span className={styles.eyebrow}>
+          RPC / <InfoTip label="What is an RPC?">{RPC_TIP}</InfoTip>
+        </span>
+        <span className={`${styles.health} ${configuredCount > 0 ? styles.healthOk : styles.healthWarn}`}>
+          <span className={styles.healthDot} aria-hidden />
+          {configuredCount > 0
+            ? `${configuredCount} network${configuredCount > 1 ? 's' : ''} configured`
+            : 'No networks configured'}
+        </span>
+      </div>
+
+      <div className={styles.chainList}>
+        {CHAINS.map((chain) => (
+          <ChainRow
+            key={chain.id}
+            chainId={chain.id}
+            rpcUrl={rpcByChain[chain.id] ?? null}
+            activeChainId={activeChainId}
+            onSaved={load}
+          />
+        ))}
+      </div>
+    </div>
   )
 }
+
 function KeyIcon() {
   return (
     <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <circle cx="5.5" cy="5.5" r="3" />
       <path d="M7.6 7.6l5 5M11 11l1.4-1.4M9.4 9.4l1.4-1.4" />
+    </svg>
+  )
+}
+function LinkIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M6.5 9.5a3.5 3.5 0 0 0 5 0l1.5-1.5a3.5 3.5 0 0 0-5-5L7.5 3.5" />
+      <path d="M9.5 6.5a3.5 3.5 0 0 0-5 0L3 8a3.5 3.5 0 0 0 5 5l.5-.5" />
     </svg>
   )
 }
