@@ -100,3 +100,67 @@
 }
 .cancel:hover:not(:disabled) { color: var(--text-primary); }
 .cancel:disabled { opacity: 0.5; cursor: default; }
+
+.permList {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 300px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.permItem {
+  border-radius: 2px;
+}
+.permItem:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.permLabel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  cursor: pointer;
+  width: 100%;
+}
+.permCheck {
+  flex-shrink: 0;
+  accent-color: var(--accent-blue, #1990FF);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+.permName {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.permAddr {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.confirmList {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.confirmItem {
+  font-size: 13px;
+  color: var(--text-primary);
+  padding: 6px 10px;
+  background: rgba(229, 72, 77, 0.08);
+  border: 1px solid rgba(229, 72, 77, 0.2);
+  border-radius: 2px;
+}
