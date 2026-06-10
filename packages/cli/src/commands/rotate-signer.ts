@@ -56,7 +56,7 @@ import {
 import { keyPath, loadManagerSigner, managerKeystorePath } from "../lib/keys.js";
 import { emit } from "../lib/output.js";
 import { ProjectContext } from "../lib/project.js";
-import { type SigningChannel, createSigningChannel } from "../signing/client.js";
+import { type SigningChannel, createSigningChannel, signingPageUrl } from "../signing/client.js";
 import type { StoredAccount } from "../lib/state.js";
 import { projectPort } from "../lib/packagePaths.js";
 
@@ -240,7 +240,7 @@ async function runRotateSigner(
       );
     }
     console.log(
-      `\n→ Open the Sailor dashboard to approve signing requests:\n  http://localhost:${projectPort(process.cwd())}/#/station\n`,
+      `\n→ Open the Sailor dashboard to approve signing requests:\n  ${signingPageUrl(channel, projectPort(process.cwd()))}\n`,
     );
   });
 

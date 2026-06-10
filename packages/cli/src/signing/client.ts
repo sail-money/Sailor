@@ -115,6 +115,24 @@ export class SigningClient implements SigningChannel {
 
 type RuntimeServerState = { url?: string; port?: number; pid?: number; requestSecret?: string };
 
+/**
+ * Rewrite `localhost` to `127.0.0.1` for CLI-side network calls. The station
+ * binds 127.0.0.1 only, but Node's fetch (undici) may resolve `localhost` to
+ * ::1 first and fail with ECONNREFUSED (observed on Node 18), which made every
+ * command miss a healthy daemon and silently spawn a hidden ephemeral server.
+ * Browser-facing URLs keep `localhost` — browsers fall back across families,
+ * and the daemon's origin-trust checks compare against its localhost identity.
+ */
+function toLoopbackIPv4(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.hostname === "localhost") u.hostname = "127.0.0.1";
+    return u.toString().replace(/\/$/, "");
+  } catch {
+    return url;
+  }
+}
+
 function readRuntimeServerState(projectRoot: string): RuntimeServerState | null {
   const file = join(projectRoot, RUNTIME_SERVER_FILE);
   if (!existsSync(file)) return null;
@@ -125,13 +143,26 @@ function readRuntimeServerState(projectRoot: string): RuntimeServerState | null 
   }
 }
 
+/**
+ * The URL a user should open to approve this channel's signing requests:
+ * the project dashboard when a daemon is running (the dashboard proxies the
+ * station's pending queue), or the ephemeral server's own station page when
+ * the command spawned one — a dashboard banner would point at a server that
+ * cannot see the request.
+ */
+export function signingPageUrl(channel: SigningChannel, dashboardPort: number): string {
+  return channel.remote
+    ? `http://localhost:${dashboardPort}/#/station`
+    : `${channel.url}/#/station`;
+}
+
 /** Return a {@link SigningClient} for a reachable daemon, or null if none runs. */
 export async function discoverDaemon(
   projectRoot: string = process.cwd(),
 ): Promise<SigningClient | null> {
   const state = readRuntimeServerState(projectRoot);
   if (!state?.url) return null;
-  const client = new SigningClient(state.url, state.requestSecret ?? "");
+  const client = new SigningClient(toLoopbackIPv4(state.url), state.requestSecret ?? "");
   return (await client.ping()) ? client : null;
 }
 
