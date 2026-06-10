@@ -31,6 +31,7 @@ jobs:
       contents: read
     uses: ./.github/workflows/publish-npm-public-pkg.yaml
     with:
+      package_dir: packages/sdk
       package-name: ${{ github.event_name == 'workflow_dispatch' && '@dev.sail.money/sdk' || '@sail.money/sdk' }}
       dist-tag: ${{ github.event_name == 'workflow_dispatch' && 'dev' || 'latest' }}
       make-latest: true
