@@ -1,4 +1,4 @@
-import type { Address, Hex } from "viem";
+import type { Address, Hex, PublicClient } from "viem";
 import type { KernelCapabilities } from "./capabilities.js";
 
 export type { Address, Hex };
@@ -438,6 +438,12 @@ export type AgentContext = {
   /** Wall-clock time of this tick. */
   now: Date;
   client: ISailorClient;
+  /**
+   * Viem PublicClient bound to this tick's RPC endpoint and chain.
+   * Use for arbitrary on-chain reads that `ctx.read` does not cover
+   * (e.g. QuoterV2 calls, custom view functions, multicall).
+   */
+  publicClient: PublicClient;
   /** The manager keyring used for signing dispatches. */
   manager: ILocalKeyring;
   /** Logs to the console and appends a line to .sail/activity.jsonl. */
@@ -456,6 +462,16 @@ export type AgentContext = {
      * native asset (ETH), or an ERC-20 token address for its `balanceOf`.
      */
     balance: (token: Address | "native") => Promise<bigint>;
+    /**
+     * Returns the current ERC-20 allowance granted by `owner` to `spender`.
+     * Useful for checking whether an approve is needed before a supply/swap.
+     */
+    allowance: (token: Address, owner: Address, spender: Address) => Promise<bigint>;
+    /**
+     * Returns the ERC-20 token's `decimals()`. Cached for the lifetime of
+     * the runner process — safe to call multiple times without extra RPC cost.
+     */
+    decimals: (token: Address) => Promise<number>;
   };
 };
 
