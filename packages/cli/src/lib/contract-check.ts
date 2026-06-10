@@ -31,8 +31,8 @@ export type SelectorCheck = {
   /**
    * True  — selector found in the contract's dispatch table.
    * False — selector NOT found; call would likely revert with "unknown selector".
-   * null  — could not determine: proxy pattern detected (EIP-1167 or EIP-1967),
-   *         or calldata shorter than 4 bytes.
+   * null  — could not determine: proxy pattern detected (EIP-1167, EIP-1967
+   *         implementation, or EIP-1967 beacon), or calldata shorter than 4 bytes.
    */
   routes: boolean | null;
   /** Human-readable reason when routes is null. */
@@ -70,11 +70,10 @@ export async function checkContractExists(
  *
  * Proxy detection:
  * - EIP-1167 minimal proxy (~45 bytes): caught by the length guard (< 100 hex chars).
- * - EIP-1967 UUPS / transparent proxy: detected by the presence of the EIP-1967
- *   implementation slot prefix `360894a1` (first 4 bytes of
- *   keccak256("eip1967.proxy.implementation") - 1), which every standard proxy
- *   pushes to read its implementation address. This is specific enough to avoid
- *   false positives on non-proxy contracts.
+ * - EIP-1967 UUPS / transparent proxy: detected by the implementation slot prefix
+ *   `360894a1` (first 4 bytes of keccak256("eip1967.proxy.implementation") - 1).
+ * - EIP-1967 beacon proxy: detected by the beacon slot prefix `a3f0ad74` (first 4
+ *   bytes of keccak256("eip1967.proxy.beacon") - 1).
  */
 export function checkSelectorRoutes(calldata: Hex, bytecode: Hex): SelectorCheck {
   // Need at least 4 bytes (10 hex chars including "0x") for a selector.
@@ -95,6 +94,12 @@ export function checkSelectorRoutes(calldata: Hex, bytecode: Hex): SelectorCheck
   // All UUPS and transparent proxies push this storage key to read their implementation.
   if (body.includes("360894a1")) {
     return { selector, routes: null, reason: "EIP-1967 proxy detected — routing is in the implementation contract" };
+  }
+
+  // EIP-1967 beacon slot: first 4 bytes of keccak256("eip1967.proxy.beacon") - 1.
+  // Beacon proxies read the implementation address from a beacon contract stored at this slot.
+  if (body.includes("a3f0ad74")) {
+    return { selector, routes: null, reason: "EIP-1967 beacon proxy detected — routing is in the beacon implementation" };
   }
 
   return { selector, routes: body.includes(selector) };
