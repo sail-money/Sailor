@@ -9,7 +9,7 @@ import {
   type ILocalKeyring,
   SailorClient,
 } from "@sail/sdk";
-import { http, type Address, createPublicClient, createWalletClient, defineChain } from "viem";
+import { http, type Address, createPublicClient, createWalletClient, defineChain, getAddress } from "viem";
 import {
   appendActivity,
   checksum,
@@ -282,8 +282,11 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
 
   // Open data slot — seeded once from SAILOR_DATA (JSON file) if set, else {}.
   // The same object is passed every tick so agents can cache across ticks.
+  // _publicClient: kept for one release so agents written against the old
+  // undocumented key still work. Use ctx.publicClient instead.
   const agentData: Record<string, unknown> = {
     ...loadAgentData(env.SAILOR_DATA ?? process.env.SAILOR_DATA),
+    _publicClient: publicClient,
   };
 
   // SMA balance reader: native ETH via getBalance, ERC-20 via balanceOf.
@@ -310,14 +313,15 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
   // Decimals are immutable — cache per token for the lifetime of this run.
   const decimalsCache = new Map<Address, number>();
   const readDecimals = async (token: Address): Promise<number> => {
-    const cached = decimalsCache.get(token);
+    const key = getAddress(token);
+    const cached = decimalsCache.get(key);
     if (cached !== undefined) return cached;
     const d = await publicClient.readContract({
       address: token,
       abi: ERC20_READ_ABI,
       functionName: "decimals",
     });
-    decimalsCache.set(token, d);
+    decimalsCache.set(key, d);
     return d;
   };
 

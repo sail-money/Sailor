@@ -468,8 +468,8 @@ export type AgentContext = {
      */
     allowance: (token: Address, owner: Address, spender: Address) => Promise<bigint>;
     /**
-     * Returns the ERC-20 token's `decimals()`. Cached per token per tick
-     * by the runner — safe to call multiple times without extra RPC cost.
+     * Returns the ERC-20 token's `decimals()`. Cached for the lifetime of
+     * the runner process — safe to call multiple times without extra RPC cost.
      */
     decimals: (token: Address) => Promise<number>;
   };
