@@ -5,6 +5,11 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      publish-sdk:
+        description: 'Publish the @sail.money/sdk package'
+        type: boolean
+        default: true
 
 jobs:
   publish:
@@ -16,6 +21,22 @@ jobs:
     with:
       package_dir: .
       package_name: ${{ github.ref_name == 'main' && '@sailagent/sailor' || '@sailagent/sailor-dev' }}
+      is_dev_version: true
+      dist_tag: ${{ github.ref_name == 'main' && 'latest' || 'dev' }}
+      use_github_registry: true
+      pnpm-version: '11'
+    secrets: inherit
+
+  publish-sdk:
+    if: github.event_name != 'workflow_dispatch' || inputs.publish-sdk
+    permissions:
+      id-token: write
+      contents: read
+      packages: write
+    uses: SailAgent/devops-templates/.github/workflows/publish-pnpm.yaml@main
+    with:
+      package_dir: packages/sdk
+      package_name: ${{ github.ref_name == 'main' && '@sail.money/sdk' || '@sail.money/sdk-dev' }}
       is_dev_version: true
       dist_tag: ${{ github.ref_name == 'main' && 'latest' || 'dev' }}
       use_github_registry: true
