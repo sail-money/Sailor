@@ -15,7 +15,7 @@
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, resolve, sep } from "node:path";
 import {
   REGISTER_PERMISSION_TYPES,
   REGISTER_PERMISSION_TYPES_NO_DEADLINE,
@@ -62,6 +62,7 @@ export interface DeployOptions {
   out: string;
   name?: string;
   args?: string;
+  argsFile?: string;
   build?: boolean;
   attach?: boolean;
   sma?: string;
@@ -190,7 +191,18 @@ async function runDeploy(
   }
 
   const { abi, bytecode, contractName, artifactPath } = resolveArtifact(options);
-  const args = coerceConstructorArgs(abi, options.args);
+  let argsJson: string | undefined;
+  if (options.argsFile) {
+    const argsFilePath = resolve(options.argsFile);
+    try {
+      argsJson = readFileSync(argsFilePath, "utf8").trim();
+    } catch {
+      throw new Error(`Cannot read --args-file: ${argsFilePath}`);
+    }
+  } else {
+    argsJson = options.args;
+  }
+  const args = coerceConstructorArgs(abi, argsJson);
   const deployData = encodeDeployData({ abi, bytecode, args });
 
   const chainId = project.chainId;
@@ -213,7 +225,10 @@ async function runDeploy(
     data: deployData,
     details: [
       { label: "Contract", value: contractName },
-      { label: "Constructor args", value: options.args ? options.args : "(none)" },
+      {
+        label: options.argsFile ? "Constructor args (from file)" : "Constructor args",
+        value: argsJson ? argsJson : "(none)",
+      },
     ],
   });
 
@@ -1072,7 +1087,7 @@ function resolveArtifact(options: DeployOptions): {
   // Prevent path traversal: resolve and assert the path stays within cwd.
   const resolved = resolve(artifactPath);
   const projectRoot = resolve(process.cwd());
-  if (!resolved.startsWith(projectRoot + "/") && resolved !== projectRoot) {
+  if (!resolved.startsWith(projectRoot + sep) && resolved !== projectRoot) {
     throw new Error(
       `Artifact path must be inside the project directory.\nResolved: ${resolved}`,
     );

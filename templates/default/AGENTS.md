@@ -56,9 +56,39 @@ I'll write the permission contracts that bound your agent, prove in plain Englis
 
 Permission contracts live in `mandates/`. The user authors, reviews, and owns them. For examples by protocol and chain, see `examples/permissions/`.
 
+**Prerequisite — Foundry:** `forge build` requires the Foundry toolchain. If `forge` is not found, install it:
+```bash
+curl -L https://foundry.paradigm.xyz | bash   # then restart shell
+foundryup
+```
+
+**Approve coverage — mandatory:** ERC-20 `approve()` calls are NOT covered by supply or deposit permission contracts. If your strategy approves a token before supplying, you MUST deploy a separate bounded-approve permission that covers that specific `(token, spender, maxAmount)` combination, and authorize it alongside the supply permission. An agent that calls `approve()` without a matching permission will be rejected by the kernel.
+
+**Batching:** if a strategy tick needs to approve before supplying, build both calls into a single dispatch array — `[approveCall, supplyCall]` — not two separate ticks. Splitting them wastes a tick and the approval sits exposed until the next run.
+
 ```bash
 forge build
 sailor mandate deploy --contract <Name> --sma <SMA>   # deploy only — do NOT --attach yet
+```
+
+**Constructor args:** quoting rules differ by shell.
+
+Bash / Git Bash:
+```bash
+sailor mandate deploy --contract <Name> --args '["0xToken","1000000"]' --sma <SMA>
+```
+
+PowerShell — use escaped inner quotes inside single quotes:
+```powershell
+sailor mandate deploy --contract <Name> --args '[\"0xToken\",\"1000000\"]' --sma <SMA>
+```
+
+Any shell — `--args-file` avoids quoting entirely:
+```json
+["0xToken", "1000000"]
+```
+```bash
+sailor mandate deploy --contract <Name> --args-file args.json --sma <SMA>
 ```
 
 Before AUTHORIZING (attaching) the permission, BACK the plain-English claims with an actual on-chain probe. `evaluate()` lives on the deployed contract, so deploy first, then — before the irreversible authorization — generate sample calls from the user's stated strategy (ones the permission MUST accept and ones it MUST reject) and run them through `sailor mandate simulate`. This is an off-chain `eth_call` (no gas, no signing) that reports what the permission's `evaluate()` returns for each call, and flags any target with no contract code (a wrong or wrong-chain address):
@@ -90,13 +120,30 @@ sailor run --once    # single tick — confirm it works before automating
 For GitHub Actions:
 
 1. Run `sailor keys export-ci` — copies your encrypted agent wallet to `ci-keystore.json` in the project root and adds it to `.gitignore` as an allowed file. The keystore is geth v3 encrypted; the raw private key is never exposed.
-2. Commit and push `ci-keystore.json`:
+2. Commit the required files. CI needs these non-secret files to be in the repo:
    ```bash
-   git add ci-keystore.json && git commit -m "chore: add CI keystore" && git push
+   npm install                  # generate package-lock.json if it doesn't exist
+   git add ci-keystore.json package-lock.json .sail/account.json .sail/config.json .sail/mandate.json
+   git commit -m "chore: add CI keystore and sail state" && git push
    ```
+   `package-lock.json` is required by `npm ci` (used in the workflow). `.sail/account.json`, `.sail/config.json`, and `.sail/mandate.json` contain only public addresses and flags — no secrets. The `.gitignore` already has `!` exceptions for all of these.
 3. Add two secrets in GitHub (Settings → Secrets → Actions):
    - `SAIL_PASSPHRASE` — the passphrase that encrypts your agent wallet
    - `RPC_URL` — your RPC endpoint
+4. Install the `gh` CLI — required to manage the workflow from the terminal (trigger runs, check logs, add secrets without opening the browser):
+   - macOS: `brew install gh`
+   - Windows: `winget install --id GitHub.cli` or `scoop install gh`
+   - Linux: see https://github.com/cli/cli/blob/trunk/docs/install_linux.md
+   Then authenticate with the `workflow` scope:
+   ```bash
+   gh auth login --scopes workflow
+   ```
+   The `workflow` scope is required — without it, `gh` cannot trigger or inspect Actions runs. Verify with:
+   ```bash
+   gh auth status          # confirm workflow scope is listed
+   gh workflow run agent-tick.yml   # manual trigger
+   gh run list --workflow agent-tick.yml   # check run history
+   ```
 
 The scaffolded workflow at `.github/workflows/agent-tick.yml` picks up `ci-keystore.json`, unlocks it with `SAIL_PASSPHRASE`, and runs on the configured schedule. No private key ever appears in the workflow or in secrets.
 
@@ -120,3 +167,5 @@ Use `buildDispatchSignature` from `@sail.money/sdk` — it reads the on-chain `D
 - Do not hardcode the dispatch model — detect it on-chain
 - Do not present example permissions as audited or as a supported menu
 - Do not commit `SAIL_PASSPHRASE` or private keys
+- Do not write a supply or deposit permission without also deploying a bounded-approve permission for each token the agent will approve — approve calls have no mandate coverage otherwise
+- Do not pass `--args` inline JSON from PowerShell — use `--args-file` instead
