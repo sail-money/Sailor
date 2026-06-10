@@ -634,7 +634,7 @@ function persistManager(safe: Address, manager: Address): void {
 }
 
 /** Returns a deduplicated managers list that includes both the old and new manager. */
-function addToManagerList(
+export function addToManagerList(
   existing: string[] | undefined,
   current: string,
   next: Address,

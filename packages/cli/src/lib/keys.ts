@@ -1,4 +1,5 @@
 import { type EncryptedKeystore, LocalKeyring } from "@sail/sdk";
+import { isAddress } from "viem";
 import { fileExists, promptHidden, readJsonFile, sailPath } from "./io.js";
 
 export const ROLES = ["manager", "permissionSigner"] as const;
@@ -129,7 +130,10 @@ export async function loadManagerSigner(safe?: string): Promise<LocalKeyring> {
  * keystores (`manager-0x<safe>.json`) so there is no collision.
  */
 export function managerKeystorePath(managerAddr: string): string {
-  const hex = managerAddr.toLowerCase().replace(/^0x/, "").replace(/[^0-9a-f]/g, "");
+  if (!isAddress(managerAddr, { strict: false })) {
+    throw new Error(`managerKeystorePath: invalid address "${managerAddr}"`);
+  }
+  const hex = managerAddr.toLowerCase().replace(/^0x/, "");
   return sailPath("keys", "managers", `${hex}.json`);
 }
 

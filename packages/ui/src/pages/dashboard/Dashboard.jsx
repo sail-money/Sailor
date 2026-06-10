@@ -324,7 +324,7 @@ function SignersPanel({ overview, sma, onAddSigner, onRotateSigner }) {
         // Preserve balance status only for the active manager.
         status: m.isActive ? s.status : 'idle',
         managers: undefined,
-        _isActive: m.isActive,
+        activeManager: m.isActive,
       }))
     }
     return [s]
@@ -373,10 +373,10 @@ function SignerCard({ signer, network, onAddSigner, onRotateSigner }) {
   const unconfigured = signer.status === 'unconfigured'
   const isLocal = signer.status === 'local'
   const isIdle = signer.status === 'idle'
-  // _isActive is set by SignersPanel when expanding a managers list.
+  // activeManager is set by SignersPanel when expanding a managers list.
   // Fall back to the old derivation for non-expanded manager cards.
   const isActiveManager = signer.role === 'manager' && (
-    signer._isActive !== undefined ? signer._isActive : (!isLocal && !unconfigured && !isIdle)
+    signer.activeManager !== undefined ? signer.activeManager : (!isLocal && !unconfigured && !isIdle)
   )
   const bal = signer.role === 'sma' || unconfigured || isLocal || isIdle
     ? null
