@@ -40,7 +40,6 @@ jobs:
       package_dir: packages/sdk
       package-name: '@sail.money/sdk'
       dist-tag: ${{ needs.setup.outputs.dist-tag }}
-      make-latest: true
       build-number: ${{ needs.setup.outputs.build-number }}
     secrets: inherit
 
@@ -55,7 +54,6 @@ jobs:
       use-manifest: package-publish.json
       package-name: '@sail.money/sailor'
       dist-tag: ${{ needs.setup.outputs.dist-tag }}
-      make-latest: true
       build-number: ${{ needs.setup.outputs.build-number }}
       set-dependency: ${{ needs.publish-sdk.result == 'success' && format('@sail.money/sdk={0}', needs.publish-sdk.outputs.version) || '' }}
     secrets: inherit

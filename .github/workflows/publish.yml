@@ -42,7 +42,6 @@ jobs:
       package-name: '@sailagent/sdk'
       registry-url: 'https://npm.pkg.github.com'
       dist-tag: ${{ needs.setup.outputs.dist-tag }}
-      make-latest: true
       build-number: ${{ needs.setup.outputs.build-number }}
     secrets:
       NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -60,7 +59,6 @@ jobs:
       package-name: '@sailagent/sailor'
       registry-url: 'https://npm.pkg.github.com'
       dist-tag: ${{ needs.setup.outputs.dist-tag }}
-      make-latest: true
       build-number: ${{ needs.setup.outputs.build-number }}
       set-dependency: ${{ needs.publish-sdk.result == 'success' && format('@sailagent/sdk={0}', needs.publish-sdk.outputs.version) || '' }}
     secrets:

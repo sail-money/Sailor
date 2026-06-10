@@ -17,11 +17,6 @@ on:
         type: string
         required: false
         default: 'latest'
-      make-latest:
-        description: 'When true, also tags the published version as latest after publishing.'
-        type: boolean
-        required: false
-        default: false
       build-number:
         description: 'Number to append to the version as a prerelease suffix. Pass 0 (default) to skip.'
         type: string
@@ -170,11 +165,3 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Tag as latest
-        if: inputs.make-latest == true
-        working-directory: ${{ inputs.package_dir }}
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          npm dist-tag add ${{ inputs.package-name }}@${VERSION} latest
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
