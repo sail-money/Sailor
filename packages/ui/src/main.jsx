@@ -32,16 +32,21 @@ function servedBySigningDaemon() {
   return port >= 3141 && port <= 3150
 }
 
+// Redirect bare / to the correct default route synchronously — before React
+// renders — so the Router never starts with route='/' and mounts Dashboard
+// with key='/', only to immediately remount it with key='/dashboard' after the
+// useEffect fires. That double-mount caused Dashboard to hit its
+// `onboardChecked = false → return null` gate twice, showing a black screen
+// for the duration of the second refreshOnboard fetch.
+if (typeof window !== 'undefined') {
+  const initial = readRoute()
+  if (initial === '/' || initial === '') {
+    window.location.replace(servedBySigningDaemon() ? '#/station' : '#/dashboard')
+  }
+}
+
 function Router() {
   const [route, setRoute] = useState(readRoute)
-
-  // When served by the signing daemon (ports 3141–3150), land on the signing
-  // station so wallet-connect and approvals are front-and-centre.
-  useEffect(() => {
-    if (route === '/' || route === '') {
-      window.location.replace(servedBySigningDaemon() ? '#/station' : '#/dashboard')
-    }
-  }, [route])
 
   useEffect(() => {
     const onHash = () => setRoute(readRoute())

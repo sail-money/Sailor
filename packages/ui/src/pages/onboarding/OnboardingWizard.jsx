@@ -494,11 +494,15 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
       const registerReceipt = await waitForReceipt(registerHash, chainId)
       if (registerReceipt?.status === '0x0') throw new Error('registerAccount reverted — check the kernel address and try again.')
 
-      await fetch('/api/onboard/complete', {
+      const completeRes1 = await fetch('/api/onboard/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ safe, owner, manager: managerAddress, txHash: registerHash, chainId }),
       })
+      const completeData1 = await completeRes1.json()
+      if (completeData1?.account) {
+        try { localStorage.setItem('sail.account', JSON.stringify(completeData1.account)) } catch {}
+      }
       setStatus(chainId, 'done')
       return { chainId, safe }
     }
@@ -517,11 +521,15 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
     if (!log) throw new Error('AccountRegistered event not found in receipt. This may be a kernel version mismatch — please report this.')
     const safe = getAddress(`0x${log.topics[1].slice(26)}`)
 
-    await fetch('/api/onboard/complete', {
+    const completeRes2 = await fetch('/api/onboard/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ safe, owner, manager: managerAddress, txHash: hash, chainId }),
     })
+    const completeData2 = await completeRes2.json()
+    if (completeData2?.account) {
+      try { localStorage.setItem('sail.account', JSON.stringify(completeData2.account)) } catch {}
+    }
     setStatus(chainId, 'done')
     return { chainId, safe }
   }
@@ -669,6 +677,7 @@ function DoneStep({ deployedSafes, onComplete }) {
     const net = SUPPORTED_NETWORKS.find(n => n.chainId === chainId)
     return `${net?.name ?? `Chain ${chainId}`}: ${safe}`
   }).join('\n')
+  const primaryNet = SUPPORTED_NETWORKS.find(n => n.chainId === deployedSafes[0]?.chainId)
 
   const aiPrompt = [
     `My Sail SMAs are deployed:`,
@@ -680,7 +689,7 @@ function DoneStep({ deployedSafes, onComplete }) {
     '',
     '5. Configure RPC & API keys',
     '   - Add to .sail/.env.local:',
-    '     RPC_URL=<your RPC endpoint for ' + (network?.name ?? 'the network') + '>',
+    '     RPC_URL=<your RPC endpoint for ' + (primaryNet?.name ?? 'the network') + '>',
     '     SAIL_API_KEY=<your key from api.sail.money>',
     '',
     '6. Fund agent key',

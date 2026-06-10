@@ -76,6 +76,14 @@ export interface AttachOptions {
   json?: boolean;
 }
 
+export interface UpdateOptions {
+  address: string;
+  name?: string;
+  sourcePath?: string;
+  artifactPath?: string;
+  json?: boolean;
+}
+
 export interface RevokeOptions {
   address?: string;
   sma: string;
@@ -258,8 +266,8 @@ async function runDeploy(
     deployedAt: new Date().toISOString(),
   };
   const store = new MandateStore();
-  store.add(record);
-  say(() => console.log("Tracked in .sail/state/mandates.json"));
+  const stored = store.add(record);
+  say(() => console.log("Tracked in .sail/state/mandates.json" + (stored.name !== record.name ? ` as "${stored.name}"` : "")));
 
   // Owner-paid contract creation: the owner signed/paid for this deploy tx
   // (the signing server logged the approval); here we record the confirmed
@@ -268,7 +276,7 @@ async function runDeploy(
     ts: nowIso(),
     actor: "owner",
     type: "mandate_deployed",
-    name: record.name,
+    name: stored.name,
     address: deployed,
     txHash: response.txHash,
     chainId,
@@ -283,7 +291,7 @@ async function runDeploy(
       publicClient,
       sma,
       deployed,
-      record.name,
+      stored.name,
       json,
     );
     store.recordAttachment(deployed, { sma, txHash: attachTxHash });
@@ -297,7 +305,7 @@ async function runDeploy(
 
   emit(json, () => {}, {
     status: "ok",
-    mandate: { name: record.name, address: deployed, txHash: response.txHash, chainId },
+    mandate: { name: stored.name, address: deployed, txHash: response.txHash, chainId },
     attached: options.attach ? { sma: getAddress(options.sma!), txHash: attachTxHash } : null,
   });
 }
@@ -655,7 +663,7 @@ async function runDeployClone(
   say(() => console.log("✓", `Deployed + registered ${spec.label} at ${clone}`));
 
   const store = new MandateStore();
-  store.add({
+  const storedClone = store.add({
     name: label,
     address: clone,
     txHash,
@@ -668,7 +676,7 @@ async function runDeployClone(
     actor: "agent",
     type: "permission_registered",
     permission: clone,
-    name: label,
+    name: storedClone.name,
     sma,
     txHash,
     chainId: project.chainId,
@@ -1066,6 +1074,24 @@ export function mandateContractsList(): void {
       console.log("  Registered on:", m.attachments.map((a) => a.sma).join(", "));
     }
   }
+}
+
+// ── update ───────────────────────────────────────────────────────────────────
+
+export function mandateUpdate(options: UpdateOptions): void {
+  const { address, name, sourcePath, artifactPath, json } = options;
+  if (!name && !sourcePath && !artifactPath) {
+    throw new Error("Provide at least one of --name, --source-path, or --artifact-path");
+  }
+  const store = new MandateStore();
+  const updated = store.update(address, { name, sourcePath, artifactPath });
+  emit(!!json, () => {
+    const changes: string[] = [];
+    if (name) changes.push(`name → ${updated.name}`);
+    if (sourcePath) changes.push(`sourcePath → ${updated.sourcePath}`);
+    if (artifactPath) changes.push(`artifactPath → ${updated.artifactPath}`);
+    console.log(`Updated ${updated.address}: ${changes.join(", ")}`);
+  }, { status: "ok", mandate: updated });
 }
 
 // ── artifact + args helpers ──────────────────────────────────────────────────

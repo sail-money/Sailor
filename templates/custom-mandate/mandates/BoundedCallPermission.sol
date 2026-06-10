@@ -2,12 +2,18 @@
 pragma solidity 0.8.26;
 
 import {IPermission, Context} from "@sail/interfaces/IPermission.sol";
+// SailCalldata: safe helpers for extracting calldata parameters inside evaluate().
+// Use SailCalldata.hasParams(txData, N) + SailCalldata.asAddress/asUint256/... instead of
+// manual abi.decode when you need to bound specific call arguments (amounts, recipients, etc.).
+// See SailCalldata.sol for the full API and examples/permissions/ for protocol examples.
+import {SailCalldata} from "./SailCalldata.sol";
 
 /// @title BoundedCallPermission
 /// @notice General-purpose IPermission primitive. Bounds the universal properties of any call:
 ///         allowed targets, allowed selectors, and max ETH value. Protocol-agnostic.
-///         For calldata-parameter bounds (amount caps, recipient checks, slippage), write a
-///         protocol-specific permission — see examples/permissions/ for the pattern per protocol.
+///         For calldata-parameter bounds (amount caps, recipient checks, slippage), use
+///         SailCalldata (imported above) and write a protocol-specific permission —
+///         see examples/permissions/ for the pattern per protocol.
 /// @dev Deploy one instance per SMA with constructor-configured parameters.
 contract BoundedCallPermission is IPermission {
     bytes32 private constant DISCRIMINATOR = keccak256("BoundedCallPermission");

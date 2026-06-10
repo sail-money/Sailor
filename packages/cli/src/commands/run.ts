@@ -9,7 +9,7 @@ import {
   type ILocalKeyring,
   SailorClient,
 } from "@sail/sdk";
-import { http, type Address, createPublicClient, createWalletClient, defineChain } from "viem";
+import { http, type Address, createPublicClient, createWalletClient, defineChain, getAddress } from "viem";
 import {
   appendActivity,
   checksum,
@@ -50,14 +50,31 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
  */
 type RunnerDispatch = Dispatch & { permission?: Address };
 
-/** Minimal ERC-20 ABI fragment for reading a token balance. */
-const ERC20_BALANCE_ABI = [
+/** Minimal ERC-20 ABI fragments for read helpers. */
+const ERC20_READ_ABI = [
   {
     type: "function",
     name: "balanceOf",
     stateMutability: "view",
     inputs: [{ name: "account", type: "address" }],
     outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "allowance",
+    stateMutability: "view",
+    inputs: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "decimals",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint8" }],
   },
 ] as const;
 
@@ -265,8 +282,8 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
 
   // Open data slot — seeded once from SAILOR_DATA (JSON file) if set, else {}.
   // The same object is passed every tick so agents can cache across ticks.
-  // _publicClient is injected so agents can make arbitrary on-chain reads
-  // (e.g. QuoterV2 calls) without needing a separate RPC connection.
+  // _publicClient: kept for one release so agents written against the old
+  // undocumented key still work. Use ctx.publicClient instead.
   const agentData: Record<string, unknown> = {
     ...loadAgentData(env.SAILOR_DATA ?? process.env.SAILOR_DATA),
     _publicClient: publicClient,
@@ -279,10 +296,33 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
     }
     return publicClient.readContract({
       address: token,
-      abi: ERC20_BALANCE_ABI,
+      abi: ERC20_READ_ABI,
       functionName: "balanceOf",
       args: [accountAddr],
     });
+  };
+
+  const readAllowance = (token: Address, owner: Address, spender: Address): Promise<bigint> =>
+    publicClient.readContract({
+      address: token,
+      abi: ERC20_READ_ABI,
+      functionName: "allowance",
+      args: [owner, spender],
+    });
+
+  // Decimals are immutable — cache per token for the lifetime of this run.
+  const decimalsCache = new Map<Address, number>();
+  const readDecimals = async (token: Address): Promise<number> => {
+    const key = getAddress(token);
+    const cached = decimalsCache.get(key);
+    if (cached !== undefined) return cached;
+    const d = await publicClient.readContract({
+      address: token,
+      abi: ERC20_READ_ABI,
+      functionName: "decimals",
+    });
+    decimalsCache.set(key, d);
+    return d;
   };
 
   // ── One tick: agent.tick → preview → execute → log ───────────────────────────
@@ -321,10 +361,15 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
         dispatch: execClient.dispatch,
         strategy: execClient.strategy,
       }),
+      publicClient,
       manager: agentManager,
       log,
       data: agentData,
-      read: { balance: readBalance },
+      read: {
+        balance: readBalance,
+        allowance: readAllowance,
+        decimals: readDecimals,
+      },
     };
 
     let dispatches: Dispatch[];

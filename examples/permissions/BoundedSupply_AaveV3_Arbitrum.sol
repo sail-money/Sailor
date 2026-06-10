@@ -33,6 +33,7 @@ pragma solidity 0.8.26;
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {IPermission, Context} from "@sail/interfaces/IPermission.sol";
+import {SailCalldata} from "./SailCalldata.sol";
 
 contract BoundedSupply_AaveV3_Arbitrum is IPermission {
     bytes32 private constant DISCRIMINATOR = keccak256("BoundedSupply_AaveV3_Arbitrum");
@@ -63,15 +64,12 @@ contract BoundedSupply_AaveV3_Arbitrum is IPermission {
         if (ctx.target != AAVE_POOL)    return false;
         if (ctx.selector != SEL_SUPPLY) return false;
         // supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode)
-        // = 4 ABI-encoded 32-byte slots after the 4-byte selector
-        if (txData.length < 4 + 4 * 32) return false;
+        if (!SailCalldata.hasParams(txData, 4)) return false;
 
-        (
-            address asset,
-            uint256 amount,
-            address onBehalfOf,
-            /* uint16 referralCode — not bounded */
-        ) = abi.decode(txData[4:], (address, uint256, address, uint16));
+        address asset      = SailCalldata.asAddress(txData, 0);
+        uint256 amount     = SailCalldata.asUint256(txData, 1);
+        address onBehalfOf = SailCalldata.asAddress(txData, 2);
+        // slot 3 = referralCode (uint16) — informational, not bounded
 
         if (!isAllowedAsset[asset])       return false;
         if (amount > MAX_SUPPLY_AMOUNT)   return false;
