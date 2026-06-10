@@ -10,9 +10,9 @@ Sailor is the operator layer for [Sail Protocol](../SailProtocol): the tooling a
 
 | Package | Name | Role |
 |---|---|---|
-| `packages/sdk` | `@sail/sdk` | TypeScript library wrapping SailKernel and MandateFactory |
-| `packages/cli` | `sailor` | CLI for account setup, mandate signing, and agent execution |
-| `packages/chains` | `@sail/chains` | Per-chain address registry (EVM-compatible) |
+| `packages/sdk` | `@sail.money/sdk` | TypeScript library wrapping SailKernel and MandateFactory |
+| `packages/cli` | `@sail.money/sailor` | CLI for account setup, mandate signing, and agent execution |
+| `packages/chains` | `@sail.money/chains` | Per-chain address registry (EVM-compatible) |
 | `packages/ui` | `sailor-ui` | Local dashboard running on localhost:3333 |
 | `templates/default` | — | Default agent starter (neutral; what `sailor init` scaffolds) |
 | `templates/custom-mandate` | — | Solidity reference: IPermission scaffold (not a project template) |
@@ -74,7 +74,7 @@ Prerequisites:
 - Node.js 18+
 - A wallet (MetaMask or Rabby)
 - An RPC URL (e.g. Alchemy free tier)
-- A supported chain: **Base, Base Sepolia, Arbitrum, or Unichain** — verified deployments are bundled in `@sail/sdk`, no `@sail/chains` entry needed. Other chains require addresses in `@sail/chains`.
+- A supported chain: **Base, Base Sepolia, Arbitrum, or Unichain** — verified deployments are bundled in `@sail.money/sdk`, no `@sail.money/chains` entry needed. Other chains require addresses in `@sail.money/chains`.
 
 ### Recommended — assistant-driven
 
@@ -188,7 +188,7 @@ sailor ui stop
 ## Agent-driven onboarding & custom mandates
 
 For chains with a bundled Sail deployment (Base, Base Sepolia, Arbitrum, Unichain — shipped
-in `@sail/sdk`, no `@sail/chains` entry required), an agent can drive the whole
+in `@sail.money/sdk`, no `@sail.money/chains` entry required), an agent can drive the whole
 setup through a browser **signing station**. The station is a local HTTP +
 WebSocket daemon that bridges the CLI and the owner's wallet: the agent never
 holds the owner key — it pushes signing requests, the owner approves them in the
@@ -246,6 +246,53 @@ non-interactively. No private key ever appears in the workflow file or in secret
 
 ---
 
+## Packages
+
+Sailor ships as two independent npm packages:
+
+| Package | Contents |
+|---|---|
+| `@sail.money/sailor` | CLI binary, UI server, templates, examples |
+| `@sail.money/sdk` | TypeScript SDK — `SailorClient`, EIP-712 helpers, deployment registry |
+
+Installing sailor pulls in the SDK automatically. To use the SDK on its own:
+
+```bash
+npm install @sail.money/sdk
+```
+
+Both packages use the `@sail.money` scope. Dev builds carry a prerelease version suffix and are tagged `dev`; production releases are tagged `latest`:
+
+| | `@sail.money/sailor` | `@sail.money/sdk` |
+|---|---|---|
+| Production (tag push) | `1.0.0` → `latest` | `1.0.0` → `latest` |
+| Dev (manual dispatch) | `1.0.0-dev.42` → `dev` | `1.0.0-dev.42` → `dev` |
+
+```bash
+npm install @sail.money/sailor        # latest stable
+npm install @sail.money/sailor@dev    # latest dev build
+```
+
+### Publishing flow
+
+SDK publishes first; sailor publishes after with a pinned dependency on the exact SDK version just built. Both packages share the same build number so their versions always match.
+
+`package-publish.json` at the repo root is the manifest CI uses when publishing sailor: it omits `packages/sdk/dist` from `files` since the SDK ships as a proper npm dependency instead. The repo `package.json` keeps the SDK dist bundled so `file:` installs and local testing continue to work unchanged.
+
+### GitHub Packages and import paths
+
+`@sailagent/sailor` and `@sailagent/sdk` are also published to GitHub Packages for internal testing — no public npm registry required. GitHub Packages requires packages to be scoped to the owning organisation (`@sailagent`), so the SDK import path differs from the npm one. If you install from GitHub Packages and need to import the SDK in your own code, add an alias to your `package.json`:
+
+```json
+"dependencies": {
+  "@sail.money/sdk": "npm:@sailagent/sdk"
+}
+```
+
+This lets you keep `import from '@sail.money/sdk'` in your code regardless of which registry you installed from.
+
+---
+
 ## Architecture
 
 ```
@@ -268,7 +315,7 @@ non-interactively. No private key ever appears in the workflow file or in secret
    │  (register perms)  │  │      (custody)     │  │  (named, per-call) │
    └────────────────────┘  └────────────────────┘  └────────────────────┘
 
-          sailor CLI / @sail/sdk drive both signing paths above.
+          sailor CLI / @sail.money/sdk drive both signing paths above.
           .sail/ (account · mandate · activity) ──→ sailor-ui (localhost:3333)
 ```
 
@@ -290,13 +337,13 @@ The CLI and SDK sit between the operator and SailKernel: they build the EIP-712 
 
 Sailor is functional and published as [`@sail.money/sailor`](https://www.npmjs.com/package/@sail.money/sailor) on npm (v0.0.1). The SDK, CLI, keystore, mandate flows, agent runner, and dashboard are implemented and have been exercised end to end against Base Sepolia.
 
-The Sail Protocol trusted core is deployed on Base, Base Sepolia, Arbitrum, and Unichain as staging deployments for testing ahead of a formal launch. All four run the selective dispatch model, with verified deployments bundled in `@sail/sdk`. These deployments are under an ongoing external audit by [Octane Security](https://octane.security) and are not final — do not use them with funds you are not prepared to lose. Permission templates are not yet deployed against the Base, Arbitrum, and Base Sepolia kernels; **Unichain** ships the full template suite (7 shared + 12 standalone, source-verified) and its template registries in `@sail/sdk` are populated. `@sail/chains` and the remaining template registries will be filled in as templates are deployed on the other chains and at mainnet launch.
+The Sail Protocol trusted core is deployed on Base, Base Sepolia, Arbitrum, and Unichain as staging deployments for testing ahead of a formal launch. All four run the selective dispatch model, with verified deployments bundled in `@sail.money/sdk`. These deployments are under an ongoing external audit by [Octane Security](https://octane.security) and are not final — do not use them with funds you are not prepared to lose. Permission templates are not yet deployed against the Base, Arbitrum, and Base Sepolia kernels; **Unichain** ships the full template suite (7 shared + 12 standalone, source-verified) and its template registries in `@sail.money/sdk` are populated. `@sail.money/chains` and the remaining template registries will be filled in as templates are deployed on the other chains and at mainnet launch.
 
 ---
 
 ## Deployments
 
-The Sail Protocol trusted core is live on the following chains as **staging deployments** ahead of a formal launch, bundled in `@sail/sdk`. All run the selective dispatch model with zero fees. Permission templates are not yet deployed against the Base, Arbitrum, and Base Sepolia kernels; **Unichain** ships the full template suite (7 shared + 12 standalone, source-verified on uniscan.xyz) and has its onboarding allowlists seeded at genesis.
+The Sail Protocol trusted core is live on the following chains as **staging deployments** ahead of a formal launch, bundled in `@sail.money/sdk`. All run the selective dispatch model with zero fees. Permission templates are not yet deployed against the Base, Arbitrum, and Base Sepolia kernels; **Unichain** ships the full template suite (7 shared + 12 standalone, source-verified on uniscan.xyz) and has its onboarding allowlists seeded at genesis.
 
 ### Base (8453)
 
@@ -348,9 +395,9 @@ First chain to ship the full permission-template suite (7 shared + 12 standalone
 | SafeModuleEnabler | `0xFE9227A9F2baf704060c604466df354a5A137b9B` |
 | Treasury | `0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6` |
 
-The 19 template addresses are in `@sail/sdk` (`knownTemplates` + `standaloneTemplates` for chain 130).
+The 19 template addresses are in `@sail.money/sdk` (`knownTemplates` + `standaloneTemplates` for chain 130).
 
-Addresses are sourced from `@sail/sdk` (`packages/sdk/src/deployments.ts`), the canonical registry.
+Addresses are sourced from `@sail.money/sdk` (`packages/sdk/src/deployments.ts`), the canonical registry.
 
 ---
 

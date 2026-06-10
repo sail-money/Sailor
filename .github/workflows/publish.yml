@@ -12,33 +12,48 @@ on:
         default: true
 
 jobs:
-  publish:
-    permissions:
-      id-token: write
-      contents: read
-      packages: write
-    uses: SailAgent/devops-templates/.github/workflows/publish-pnpm.yaml@main
-    with:
-      package_dir: .
-      package_name: ${{ github.ref_name == 'main' && '@sailagent/sailor' || '@sailagent/sailor-dev' }}
-      is_dev_version: true
-      dist_tag: ${{ github.ref_name == 'main' && 'latest' || 'dev' }}
-      use_github_registry: true
-      pnpm-version: '11'
-    secrets: inherit
+  # Single source of truth for dist-tag and build-number.
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      dist-tag: ${{ steps.vars.outputs.dist-tag }}
+      build-number: ${{ steps.vars.outputs.build-number }}
+    steps:
+      - id: vars
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "dist-tag=dev"                              >> $GITHUB_OUTPUT
+            echo "build-number=${{ github.run_number }}"    >> $GITHUB_OUTPUT
+          else
+            echo "dist-tag=latest"                          >> $GITHUB_OUTPUT
+            echo "build-number=0"                           >> $GITHUB_OUTPUT
+          fi
 
   publish-sdk:
+    needs: setup
     if: github.event_name != 'workflow_dispatch' || inputs.publish-sdk
-    permissions:
-      id-token: write
-      contents: read
-      packages: write
-    uses: SailAgent/devops-templates/.github/workflows/publish-pnpm.yaml@main
+    uses: ./.github/workflows/publish-npm-public-pkg.yaml
     with:
       package_dir: packages/sdk
-      package_name: ${{ github.ref_name == 'main' && '@sailagent/sdk' || '@sailagent/sdk-dev' }}
-      is_dev_version: true
-      dist_tag: ${{ github.ref_name == 'main' && 'latest' || 'dev' }}
-      use_github_registry: true
-      pnpm-version: '11'
-    secrets: inherit
+      package-name: '@sailagent/sdk'
+      registry-url: 'https://npm.pkg.github.com'
+      dist-tag: ${{ needs.setup.outputs.dist-tag }}
+      make-latest: true
+      build-number: ${{ needs.setup.outputs.build-number }}
+    secrets:
+      NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish:
+    needs: [setup, publish-sdk]
+    if: always() && needs.setup.result == 'success' && (needs.publish-sdk.result == 'success' || needs.publish-sdk.result == 'skipped')
+    uses: ./.github/workflows/publish-npm-public-pkg.yaml
+    with:
+      use-manifest: package-publish.json
+      package-name: '@sailagent/sailor'
+      registry-url: 'https://npm.pkg.github.com'
+      dist-tag: ${{ needs.setup.outputs.dist-tag }}
+      make-latest: true
+      build-number: ${{ needs.setup.outputs.build-number }}
+      set-dependency: ${{ needs.publish-sdk.result == 'success' && format('@sailagent/sdk={0}', needs.publish-sdk.outputs.version) || '' }}
+    secrets:
+      NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}

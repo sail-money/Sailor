@@ -1,4 +1,4 @@
-# @sail/chains
+# @sail.money/chains
 
 Per-chain SailKernel deployment addresses for Sailor.
 

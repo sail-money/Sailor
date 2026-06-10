@@ -1,0 +1,38 @@
+{
+  "name": "sailor",
+  "private": true,
+  "version": "0.0.2",
+  "description": "Operator toolkit for Sail Protocol",
+  "bin": {
+    "sailor": "packages/cli/dist/index.cjs"
+  },
+  "files": [
+    "packages/cli/dist",
+    "packages/ui/dist",
+    "templates",
+    "examples",
+    "docs",
+    "scripts",
+    "README.md",
+    "AGENTS.md"
+  ],
+  "scripts": {
+    "build": "pnpm --filter @sail/sdk build && pnpm --filter @sail/chains build && pnpm --filter sailor build && pnpm --filter sailor-ui build",
+    "test": "pnpm --filter sailor-ui test",
+    "test:ui": "pnpm --filter sailor-ui test:ui",
+    "link:cli": "pnpm link --global",
+    "postinstall": "node scripts/postinstall.js",
+    "typecheck": "pnpm --filter @sail/sdk build && pnpm --filter @sail/chains build && pnpm -r typecheck",
+    "docs:check": "node scripts/check-docs.mjs",
+    "init:check": "node scripts/check-init.mjs",
+    "eval": "node evals/run.mjs",
+    "lint": "biome check ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.0",
+    "typescript": "^5.5.0"
+  },
+  "dependencies": {
+    "tsx": "^4.22.4"
+  }
+}
