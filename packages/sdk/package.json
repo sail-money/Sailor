@@ -5,6 +5,7 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "sideEffects": false,
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -31,6 +32,28 @@
     "dist",
     "README.md"
   ],
+  "keywords": [
+    "sail",
+    "sail-protocol",
+    "defi",
+    "eip712",
+    "safe",
+    "sma",
+    "viem",
+    "ethereum"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SailAgent/Sailor.git",
+    "directory": "packages/sdk"
+  },
+  "homepage": "https://sail.money",
+  "bugs": {
+    "url": "https://github.com/SailAgent/Sailor/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "publishConfig": {
     "name": "@sail.money/sdk",
     "access": "public"
@@ -38,6 +61,7 @@
   "scripts": {
     "prebuild": "node scripts/generate-intelligence.mjs",
     "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test src/**/*.test.ts",
     "generate:intelligence": "node scripts/generate-intelligence.mjs"
