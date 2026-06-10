@@ -266,8 +266,8 @@ async function runDeploy(
     deployedAt: new Date().toISOString(),
   };
   const store = new MandateStore();
-  store.add(record);
-  say(() => console.log("Tracked in .sail/state/mandates.json"));
+  const stored = store.add(record);
+  say(() => console.log("Tracked in .sail/state/mandates.json" + (stored.name !== record.name ? ` as "${stored.name}"` : "")));
 
   // Owner-paid contract creation: the owner signed/paid for this deploy tx
   // (the signing server logged the approval); here we record the confirmed
@@ -276,7 +276,7 @@ async function runDeploy(
     ts: nowIso(),
     actor: "owner",
     type: "mandate_deployed",
-    name: record.name,
+    name: stored.name,
     address: deployed,
     txHash: response.txHash,
     chainId,
@@ -291,7 +291,7 @@ async function runDeploy(
       publicClient,
       sma,
       deployed,
-      record.name,
+      stored.name,
       json,
     );
     store.recordAttachment(deployed, { sma, txHash: attachTxHash });
@@ -305,7 +305,7 @@ async function runDeploy(
 
   emit(json, () => {}, {
     status: "ok",
-    mandate: { name: record.name, address: deployed, txHash: response.txHash, chainId },
+    mandate: { name: stored.name, address: deployed, txHash: response.txHash, chainId },
     attached: options.attach ? { sma: getAddress(options.sma!), txHash: attachTxHash } : null,
   });
 }

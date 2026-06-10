@@ -65,7 +65,7 @@ export class MandateStore {
    * When another mandate with the same name already exists on the same chain, the
    * incoming mandate's name is suffixed with `[2]`, `[3]`, … to keep names unique.
    */
-  add(mandate: DeployedMandate): void {
+  add(mandate: DeployedMandate): DeployedMandate {
     const data = this.read();
     // Drop any prior record at the same address (redeploy).
     data.mandates = data.mandates.filter(
@@ -83,6 +83,7 @@ export class MandateStore {
     }
     data.mandates.push(mandate);
     this.write(data);
+    return mandate;
   }
 
   /** Update mutable metadata fields on a tracked mandate (name, sourcePath, artifactPath). */
@@ -98,7 +99,7 @@ export class MandateStore {
     if (!mandate) throw new Error(`No tracked mandate found for: ${addressOrName}`);
     if (patch.name !== undefined && patch.name !== mandate.name) {
       const conflict = data.mandates.find(
-        (m) => m.name === patch.name && m.chainId === mandate.chainId && m.address !== mandate.address,
+        (m) => m.name === patch.name && m.chainId === mandate.chainId && m.address.toLowerCase() !== mandate.address.toLowerCase(),
       );
       if (conflict) throw new Error(`Name "${patch.name}" is already used by ${conflict.address} on chain ${mandate.chainId}`);
       mandate.name = patch.name;
