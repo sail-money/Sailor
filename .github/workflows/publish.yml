@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       publish-sdk:
-        description: 'Publish the @sail.money/sdk package'
+        description: 'Publish the SDK package'
         type: boolean
         default: true
 
@@ -36,7 +36,7 @@ jobs:
     uses: SailAgent/devops-templates/.github/workflows/publish-pnpm.yaml@main
     with:
       package_dir: packages/sdk
-      package_name: ${{ github.ref_name == 'main' && '@sail.money/sdk' || '@sail.money/sdk-dev' }}
+      package_name: ${{ github.ref_name == 'main' && '@sailagent/sdk' || '@sailagent/sdk-dev' }}
       is_dev_version: true
       dist_tag: ${{ github.ref_name == 'main' && 'latest' || 'dev' }}
       use_github_registry: true
