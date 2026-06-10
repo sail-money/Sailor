@@ -70,6 +70,30 @@ export type FetchLifiQuoteParams = {
 };
 
 /**
+ * Compute the minimum acceptable output amount for a swap, given a quoted
+ * `toAmount` and a slippage tolerance.
+ *
+ * Use this to enforce slippage protection when building dispatch calldata —
+ * pass the result as `amountOutMinimum` (Uniswap) or `minAmount` (LiFi).
+ *
+ * @param toAmount  Expected output in the destination token's base units
+ *                  (from `LifiSwapQuote.toAmount` or a Quoter call).
+ * @param slippage  Maximum acceptable price movement as a fraction (0.03 = 3%).
+ *                  Defaults to `DEFAULT_SLIPPAGE` (3%).
+ *
+ * @example
+ * const quote = await fetchLifiQuote({ ... });
+ * const minOut = minTokenOut(quote.toAmount, 0.005); // 0.5% slippage
+ */
+export function minTokenOut(toAmount: bigint, slippage: number = DEFAULT_SLIPPAGE): bigint {
+  if (slippage < 0 || slippage >= 1) throw new Error(`slippage must be in [0, 1) — got ${slippage}`);
+  // Scale to 1e6 precision to avoid floating-point truncation on small amounts.
+  const scale = 1_000_000n;
+  const keepFraction = BigInt(Math.round((1 - slippage) * 1_000_000));
+  return (toAmount * keepFraction) / scale;
+}
+
+/**
  * Fetch an executable LiFi quote for a same-chain swap. Throws with the API's
  * error body when the quote is unavailable or malformed.
  */

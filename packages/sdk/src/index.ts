@@ -80,6 +80,7 @@ export {
   LIFI_ROUTERS,
   encodeApprove,
   fetchLifiQuote,
+  minTokenOut,
 } from "./lifi.js";
 
 // ── Intelligence API (auto-generated from api.sail.money/openapi.json) ────────
