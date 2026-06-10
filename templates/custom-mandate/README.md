@@ -78,8 +78,39 @@ Both attach paths open the browser signing station so the owner authorizes the r
 > contract address you provide. A bug can block all agent activity or authorize transactions you did
 > not intend. Review carefully before attaching.**
 
+## Extracting calldata parameters safely
+
+When you need to bound a specific call argument (amount cap, recipient check, slippage floor),
+use `SailCalldata` instead of manual `abi.decode`. The two common bugs it prevents:
+
+1. **Forgetting the length check** — decoding before checking `txData.length` can revert or
+   silently return wrong values. `SailCalldata.hasParams(txData, N)` is the one-line guard.
+2. **Wrong slot index** — off-by-one decodes the wrong parameter. Named helpers make the
+   intent explicit: `asAddress(txData, 0)`, `asUint256(txData, 1)`, `asAddress(txData, 2)`.
+
+```solidity
+import {SailCalldata} from "./SailCalldata.sol";
+
+function evaluate(bytes calldata txData, Context calldata ctx) external view returns (bool) {
+    if (ctx.target != POOL)        return false;
+    if (ctx.selector != SEL_SUPPLY) return false;
+    // supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode)
+    if (!SailCalldata.hasParams(txData, 4)) return false;
+    address asset      = SailCalldata.asAddress(txData, 0);
+    uint256 amount     = SailCalldata.asUint256(txData, 1);
+    address onBehalfOf = SailCalldata.asAddress(txData, 2);
+    // ...
+}
+```
+
+Available helpers: `asAddress`, `asUint256`, `asInt256`, `asBytes32`, `asBool`,
+`asUint128`, `asUint64`, `asUint32`, `asUint24`, `asUint16`, `asBytes4`.
+Only covers static (fixed-size) types. For `bytes`, `string`, or dynamic arrays,
+use `abi.decode(txData[4:], ...)` after the `hasParams` guard.
+
 ## Structure
 
 - `foundry.toml` — Foundry config with `@sail/` remapping to `.sail/contracts/`
 - `.sail/contracts/interfaces/IPermission.sol` — interface copy (matches SailProtocol)
 - `mandates/BoundedCallPermission.sol` — general primitive: allowlisted targets, optional selector filter, max ETH value
+- `mandates/SailCalldata.sol` — safe calldata parameter extraction helpers
