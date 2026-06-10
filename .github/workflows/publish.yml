@@ -5,11 +5,6 @@ on:
     branches:
       - main
   workflow_dispatch:
-    inputs:
-      publish-sdk:
-        description: 'Publish the SDK package'
-        type: boolean
-        default: true
 
 jobs:
   # Single source of truth for dist-tag and build-number.
@@ -29,37 +24,17 @@ jobs:
             echo "build-number=0"                           >> $GITHUB_OUTPUT
           fi
 
-  publish-sdk:
-    needs: setup
-    if: github.event_name != 'workflow_dispatch' || inputs.publish-sdk
-    permissions:
-      id-token: write
-      contents: read
-      packages: write
-    uses: ./.github/workflows/publish-npm-public-pkg.yaml
-    with:
-      package_dir: packages/sdk
-      package-name: '@sailagent/sdk'
-      registry-url: 'https://npm.pkg.github.com'
-      dist-tag: ${{ needs.setup.outputs.dist-tag }}
-      build-number: ${{ needs.setup.outputs.build-number }}
-    secrets:
-      NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   publish:
-    needs: [setup, publish-sdk]
-    if: always() && needs.setup.result == 'success' && (needs.publish-sdk.result == 'success' || needs.publish-sdk.result == 'skipped')
+    needs: setup
     permissions:
       id-token: write
       contents: read
       packages: write
     uses: ./.github/workflows/publish-npm-public-pkg.yaml
     with:
-      use-manifest: package-publish.json
       package-name: '@sailagent/sailor'
       registry-url: 'https://npm.pkg.github.com'
       dist-tag: ${{ needs.setup.outputs.dist-tag }}
       build-number: ${{ needs.setup.outputs.build-number }}
-      set-dependency: ${{ needs.publish-sdk.result == 'success' && format('@sailagent/sdk={0}', needs.publish-sdk.outputs.version) || '' }}
     secrets:
       NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { getChain } from "@sail/chains";
+import { getProjectChain } from "../lib/chain.js";
 import {
   type Agent,
   type AgentContext,
@@ -213,18 +213,18 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
   let mandateFactory: Address | undefined;
   let chainName = `Chain ${chainId}`;
   try {
-    const cfg = getChain(chainId);
+    const cfg = getProjectChain(chainId);
     kernel = checksum(cfg.kernel);
     mandateFactory = checksum(cfg.mandateFactory);
     chainName = cfg.name;
   } catch {
-    // chain not in @sail/chains registry — env override may still supply it
+    // chain not in registry — env override may still supply it
   }
   if (env.KERNEL_ADDRESS) kernel = checksum(env.KERNEL_ADDRESS);
   if (env.MANDATE_FACTORY) mandateFactory = checksum(env.MANDATE_FACTORY);
   if (!kernel) {
     throw new Error(
-      `No SailKernel address for chain ${chainId}.\nConfigure the chain in @sail/chains or set KERNEL_ADDRESS in .sail/.env.local.`,
+      `No SailKernel address for chain ${chainId}.\nAdd it to .sail/chains.json or set KERNEL_ADDRESS in .sail/.env.local.`,
     );
   }
 

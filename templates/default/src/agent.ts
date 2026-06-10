@@ -12,7 +12,7 @@
  *   see examples/dca/agent.ts and examples/dca/mandate.ts
  */
 
-import type { Agent, AgentContext, Dispatch } from "@sail/sdk";
+import type { Agent, AgentContext, Dispatch } from "@sail.money/sailor/sdk";
 
 export const agent: Agent = {
   name: "my-agent",

@@ -6,6 +6,12 @@
   "bin": {
     "sailor": "packages/cli/dist/index.cjs"
   },
+  "exports": {
+    "./sdk": {
+      "import": "./packages/sdk/dist/index.js",
+      "types": "./packages/sdk/dist/index.d.ts"
+    }
+  },
   "files": [
     "packages/cli/dist",
     "packages/sdk/dist",
