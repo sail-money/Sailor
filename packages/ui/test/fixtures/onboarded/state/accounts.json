@@ -4,6 +4,7 @@
     "owner": "0x7f8c6DB60b46F7eCBA131b882fBea1Fed4F5f4F5",
     "permissionSigner": "0x7f8c6DB60b46F7eCBA131b882fBea1Fed4F5f4F5",
     "manager": "0xa6D478146f03E9473582aCe099c67e3CbB5EC2BE",
+    "managers": ["0xa6D478146f03E9473582aCe099c67e3CbB5EC2BE"],
     "chainId": 8453,
     "createdAtBlock": "46757914",
     "name": "Test SMA",

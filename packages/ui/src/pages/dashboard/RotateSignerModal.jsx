@@ -122,6 +122,7 @@ export default function RotateSignerModal({
   owner,
   currentManager,
   mandates = [],
+  initialTo = null,
   onClose,
   onRotated,
 }) {
@@ -153,7 +154,7 @@ export default function RotateSignerModal({
   useEffect(() => {
     if (!open) return
     setStep('confirm')
-    setMode('create')
+    setMode(initialTo ? 'saved' : 'create')
     setImportKind('privateKey')
     setSecret('')
     setPassword('')
@@ -165,7 +166,10 @@ export default function RotateSignerModal({
     setReattachTx(null)
     setSavedSigners(null)
     setLoadingSaved(false)
-    setSelectedSaved('')
+    setSelectedSaved(initialTo ?? '')
+    // Opening straight into the "saved" tab bypasses selectMode, which is what
+    // normally lazy-loads the list — fetch it here instead.
+    if (initialTo) loadSavedSigners()
     document.body.style.overflow = 'hidden'
     const onKey = (e) => {
       if (e.key === 'Escape' && !busy && step !== 'rotating' && step !== 'reattaching') onClose?.()

@@ -149,6 +149,7 @@ account
   .option("--generate", "Generate a fresh local agent wallet (default when --to is omitted)")
   .option("--skip-reattach", "Do not re-approve the previously-attached mandates")
   .option("--reattach-only", "Skip rotation; only re-approve mandates (resume after funding)")
+  .option("--list", "List known agent wallets for this SMA without rotating")
   .option("--json", "Machine-readable output")
   .action(actionWith<RotateSignerOptions>(rotateSigner));
 

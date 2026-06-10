@@ -21,7 +21,7 @@
  * agent wallet is funded.
  */
 
-import { rmSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import {
   SailKernelAbi,
   buildRegisterPermissionsBatchTypedData,
@@ -53,7 +53,7 @@ import {
   sailPath,
   writeJsonFile,
 } from "../lib/io.js";
-import { keyPath, loadManagerSigner } from "../lib/keys.js";
+import { keyPath, loadManagerSigner, managerKeystorePath } from "../lib/keys.js";
 import { emit } from "../lib/output.js";
 import { ProjectContext } from "../lib/project.js";
 import { type SigningChannel, createSigningChannel } from "../signing/client.js";
@@ -70,6 +70,8 @@ export interface RotateSignerOptions {
   skipReattach?: boolean;
   /** Skip the rotation itself; only re-approve mandates (resume after funding). */
   reattachOnly?: boolean;
+  /** List known agent wallets for this SMA without rotating. */
+  list?: boolean;
   json?: boolean;
 }
 
@@ -116,6 +118,8 @@ interface RotateResult {
   rotated: boolean;
   reattached: Address[];
   reattachDeferred: boolean;
+  /** Set by --list: every known agent wallet, with the active one flagged. */
+  managers?: Array<{ address: string; active: boolean; keystoreStored: boolean }>;
 }
 
 async function runRotateSigner(
@@ -131,6 +135,28 @@ async function runRotateSigner(
   const account = resolveAccount(options);
   const smaAddress = account.safe;
   const owner = account.owner;
+
+  // ── List known managers ──────────────────────────────────────────────────────
+  // Output happens in printSummary (human) or emit (json) so --json stays a
+  // single machine-readable line.
+  if (options.list) {
+    const stored = readJsonFile<StoredAccount>(sailPath("account.json"));
+    const known: string[] = stored?.managers ?? (stored?.manager ? [stored.manager] : []);
+    const active = stored?.manager ?? "";
+    return {
+      sma: smaAddress,
+      oldManager: null,
+      newManager: active as Address,
+      rotated: false,
+      reattached: [],
+      reattachDeferred: false,
+      managers: known.map((m) => ({
+        address: m,
+        active: m.toLowerCase() === active.toLowerCase(),
+        keystoreStored: readJsonFile<unknown>(managerKeystorePath(m)) !== null,
+      })),
+    };
+  }
 
   const publicClient = createPublicClient({
     chain: getChainById(project.chainId),
@@ -280,6 +306,11 @@ async function runRotateSigner(
 
   // Persist the new manager in account.json + the multi-SMA list.
   persistManager(smaAddress, newManager);
+
+  // Rotation is confirmed on-chain — now it is safe to make the stored
+  // keystore (if any) the active signing key. --generate already wrote its
+  // fresh keystore (with a .bak of the previous one) in resolveNewManager.
+  if (options.to) promoteManagerKeystore(newManager, say);
 
   // ── Re-attach the previously-registered mandates ────────────────────────────
   if (options.skipReattach || currentPermissions.length === 0) {
@@ -491,16 +522,26 @@ async function resolveNewManager(
       throw new Error(`Invalid --to address: ${options.to}`);
     }
     const to = getAddress(options.to);
-    say(() =>
-      console.log(
-        `\nRotating to existing address ${to}. The local agent keystore is left unchanged —\n` +
-          "ensure the agent that signs dispatches holds this key.",
-      ),
-    );
+    // A stored keystore for this address is promoted to the active slot only
+    // after the rotation confirms (see promoteManagerKeystore) — a rejected or
+    // reverted rotation must not swap the signing key.
+    if (readJsonFile<unknown>(managerKeystorePath(to)) !== null) {
+      say(() =>
+        console.log(
+          `\nRotating to ${to}. Its stored keystore will become the active one\n(.sail/keys/manager.json) once the rotation confirms.`,
+        ),
+      );
+    } else {
+      say(() =>
+        console.log(
+          `\nRotating to existing address ${to}. No local keystore found for this address —\nensure the agent that signs dispatches holds this key.`,
+        ),
+      );
+    }
     return to;
   }
 
-  // Generate a fresh agent wallet and replace the local keystore. Back up any
+  // Generate a fresh agent wallet and replace the active keystore. Back up any
   // existing one first — the old key may still be needed for an in-flight tx.
   if (json) {
     throw new Error("Pass --to <address> in --json mode (key generation is interactive).");
@@ -521,6 +562,13 @@ async function resolveNewManager(
   const keyring = Keyring.generate();
   const keystore = await keyring.exportKeystore(password);
   writeJsonFile(target, keystore);
+
+  // Persist a copy under the manager-specific path so future `--to <addr>`
+  // rotations back to this key can promote it without re-entering the password.
+  const perManagerPath = managerKeystorePath(keyring.address);
+  mkdirSync(sailPath("keys", "managers"), { recursive: true });
+  writeJsonFile(perManagerPath, keystore);
+
   say(() =>
     console.log(
       `  New agent wallet: ${checksum(keyring.address)} (keystore at .sail/keys/manager.json)`,
@@ -529,11 +577,46 @@ async function resolveNewManager(
   return keyring.address as Address;
 }
 
+/**
+ * Promote the stored per-manager keystore for `newManager` to the active slot
+ * (`.sail/keys/manager.json`) so the new agent wallet pays gas going forward.
+ *
+ * The displaced active keystore is snapshotted under its own per-manager path
+ * first — keyed by the address embedded in the keystore file, which is the
+ * ground truth even when it differs from the on-chain manager — so the key is
+ * never lost and a later rotation can promote it back. Keystores that predate
+ * the per-manager store (onboard-created or pre-multi-manager) get their copy
+ * created here on first rotate-away.
+ *
+ * Only called after the rotation tx has confirmed.
+ */
+function promoteManagerKeystore(newManager: Address, say: (fn: () => void) => void): void {
+  const stored = readJsonFile<unknown>(managerKeystorePath(newManager));
+  if (!stored) return;
+
+  mkdirSync(sailPath("keys", "managers"), { recursive: true });
+  const activeTarget = keyPath("manager");
+  const displaced = readJsonFile<{ address?: string }>(activeTarget);
+  if (displaced?.address) {
+    const snapshotPath = managerKeystorePath(displaced.address);
+    if (readJsonFile<unknown>(snapshotPath) === null) writeJsonFile(snapshotPath, displaced);
+  } else if (displaced) {
+    // No address field — not a recognizable keystore; keep a .bak rather than overwrite.
+    writeJsonFile(`${activeTarget}.${Date.now()}.bak`, displaced);
+  }
+
+  writeJsonFile(activeTarget, stored);
+  say(() =>
+    console.log(`  Agent wallet keystore for ${newManager} is now active (.sail/keys/manager.json).`),
+  );
+}
+
 /** Persist the rotated manager into account.json and the multi-SMA list. */
 function persistManager(safe: Address, manager: Address): void {
   const account = readJsonFile<StoredAccount>(sailPath("account.json"));
   if (account && account.safe.toLowerCase() === safe.toLowerCase()) {
-    writeJsonFile(sailPath("account.json"), { ...account, manager: checksum(manager) });
+    const managers = addToManagerList(account.managers, account.manager, manager);
+    writeJsonFile(sailPath("account.json"), { ...account, manager: checksum(manager), managers });
   }
   const listPath = sailPath("state", "accounts.json");
   const list = readJsonFile<Array<StoredAccount & { name?: string; addedAt?: string | null }>>(
@@ -542,10 +625,31 @@ function persistManager(safe: Address, manager: Address): void {
   if (Array.isArray(list)) {
     const idx = list.findIndex((a) => a.safe.toLowerCase() === safe.toLowerCase());
     if (idx !== -1) {
-      list[idx] = { ...list[idx], manager: checksum(manager) };
+      const entry = list[idx];
+      const managers = addToManagerList(entry.managers, entry.manager, manager);
+      list[idx] = { ...entry, manager: checksum(manager), managers };
       writeJsonFile(listPath, list);
     }
   }
+}
+
+/** Returns a deduplicated managers list that includes both the old and new manager. */
+export function addToManagerList(
+  existing: string[] | undefined,
+  current: string,
+  next: Address,
+): string[] {
+  const all = [...(existing ?? [current]), checksum(next)];
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+  for (const a of all) {
+    const lower = a.toLowerCase();
+    if (!seen.has(lower)) {
+      seen.add(lower);
+      deduped.push(checksum(a));
+    }
+  }
+  return deduped;
 }
 
 function writePending(pending: PendingReattach): void {
@@ -561,6 +665,19 @@ function clearPending(): void {
 }
 
 function printSummary(r: RotateResult): void {
+  if (r.managers) {
+    console.log("\nKnown agent wallets for this SMA:");
+    if (r.managers.length === 0) {
+      console.log("  (none recorded)");
+    } else {
+      for (const m of r.managers) {
+        const marker = m.active ? "* " : "  ";
+        console.log(`${marker}${m.address}${m.keystoreStored ? " (keystore stored)" : ""}`);
+      }
+      console.log("\n* = active");
+    }
+    return;
+  }
   console.log(`\n${"─".repeat(56)}`);
   if (r.rotated) {
     console.log("✓ Agent wallet rotated");
