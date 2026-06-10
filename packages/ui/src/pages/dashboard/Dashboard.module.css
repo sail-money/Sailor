@@ -4262,6 +4262,24 @@
   font-size: 12px;
   color: var(--text-tertiary);
 }
+.mandateRevokeBtn {
+  appearance: none;
+  flex-shrink: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 2px;
+  cursor: pointer;
+  color: var(--status-revoked, #e5484d);
+  background: var(--status-revoked-bg, rgba(229, 72, 77, 0.1));
+  border: 1px solid var(--status-revoked-border, rgba(229, 72, 77, 0.26));
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+.mandateRevokeBtn:hover {
+  background: rgba(229, 72, 77, 0.18);
+  border-color: rgba(229, 72, 77, 0.4);
+}
 .mandateSummaryOpenHint {
   display: inline-flex;
   align-items: center;

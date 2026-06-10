@@ -520,11 +520,28 @@ function SignerCard({ signer, network, onAddSigner, onRotateSigner }) {
 }
 
 /** Live mandate card built from .sail/mandate.json (replaces the mock summary cards). */
-function LiveMandateCard({ mandate, network, addressByTemplate }) {
+function LiveMandateCard({ mandate, network, addressByTemplate, onRevoke }) {
   const permissions = mandate?.permissions ?? []
   const status = mandate?.registeredOnChain ? 'active' : 'pending'
   const signed = mandate?.signedAt ? new Date(mandate.signedAt).toLocaleDateString() : ''
   const networkLabel = network ?? (mandate?.chainId ? CHAIN_NAMES[mandate.chainId] : null)
+
+  // Only permissions with a known on-chain address can be revoked; dedup by address
+  const revokeablePool = onRevoke
+    ? (() => {
+        const seen = new Set()
+        return permissions
+          .map((p) => ({ name: p.template, address: addressByTemplate?.get(p.template) }))
+          .filter((p) => {
+            if (!p.address) return false
+            const key = p.address.toLowerCase()
+            if (seen.has(key)) return false
+            seen.add(key)
+            return true
+          })
+      })()
+    : []
+
   return (
     <article className={styles.mandateSummary}>
       <header className={styles.mandateSummaryHead}>
@@ -586,6 +603,15 @@ function LiveMandateCard({ mandate, network, addressByTemplate }) {
         <span className={styles.mandateSummaryFootMeta}>
           {status === 'active' ? 'Registered on-chain' : 'Signed — awaiting on-chain registration'}
         </span>
+        {revokeablePool.length > 0 && (
+          <button
+            type="button"
+            className={styles.mandateRevokeBtn}
+            onClick={() => onRevoke(revokeablePool)}
+          >
+            Revoke permission
+          </button>
+        )}
       </footer>
     </article>
   )
@@ -1218,6 +1244,7 @@ function DashboardContent({ draft, onReset }) {
                     mandate={liveMandate}
                     network={realNetwork}
                     addressByTemplate={new Map(overviewMandates.map((m) => [m.name ?? m.template, m.address]))}
+                    onRevoke={overview?.kernel && overview?.sma?.address ? setRevokeTarget : undefined}
                   />
                 ) : overviewMandates.length > 0 ? (
                   <AttachedMandatesPanel
@@ -1374,7 +1401,8 @@ function DashboardContent({ draft, onReset }) {
 
       <RevokeMandateModal
         open={revokeTarget != null}
-        mandate={revokeTarget}
+        mandate={Array.isArray(revokeTarget) ? undefined : revokeTarget}
+        permissions={Array.isArray(revokeTarget) ? revokeTarget : undefined}
         sma={overview?.sma?.address}
         kernel={overview?.kernel}
         chainId={overview?.chainId}
