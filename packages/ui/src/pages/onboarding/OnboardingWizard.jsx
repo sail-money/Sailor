@@ -88,6 +88,26 @@ export default function OnboardingWizard({ onboardState, onComplete }) {
     )
   }
 
+  // Leaving the network step: in local simulation mode, record the selected
+  // chains so the fork supervisor (`shipyard watch`) brings up a fork per chain.
+  // Fire-and-forget — the forks warm up in the background while the user
+  // connects a wallet + creates a key, so they're ready by SMA creation. No-op
+  // (and never blocks) against a normal/public network.
+  async function handleNetworkDone() {
+    try {
+      const net = await fetch('/api/network', { cache: 'no-store' }).then(r => r.json()).catch(() => null)
+      if (net?.isLocal && selectedChainIds.length) {
+        await fetch('/api/sim/forks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chainIds: selectedChainIds, primary: selectedChainIds[0] }),
+        }).catch(() => {})
+      }
+    } finally {
+      setStep('connect')
+    }
+  }
+
   const progressIndex = PROGRESS_STEPS.indexOf(step)
 
   return (
@@ -103,7 +123,7 @@ export default function OnboardingWizard({ onboardState, onComplete }) {
               selected={selectedChainIds}
               onToggle={toggleChain}
               onBack={() => setStep('welcome')}
-              onDone={() => setStep('connect')}
+              onDone={handleNetworkDone}
               progressIndex={progressIndex}
               progressTotal={PROGRESS_STEPS.length}
             />
@@ -401,6 +421,56 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
   const { sendTransactionAsync } = useSendTransaction()
   const { switchChainAsync } = useSwitchChain()
 
+  // When the project points at a local/custom RPC (e.g. a shipyard anvil fork —
+  // see GET /api/network), simulation and receipt polling must hit THAT endpoint,
+  // not the chain's public RPC. The tx is broadcast to the fork via the wallet,
+  // so its receipt only ever appears on the fork. Falls back to PUBLIC_RPC.
+  const [localNet, setLocalNet] = useState(null)
+  // Per-chain fork RPCs (chainId → { rpcUrl }) from the sim-fork manifest, so a
+  // multi-chain deploy on forks hits the right fork for EACH chain (not just the
+  // active one). Polled until every selected chain has a fork up.
+  const [forks, setForks] = useState({})
+  const [forksReady, setForksReady] = useState(true)
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/network', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled) setLocalNet(d && d.isLocal ? d : null) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+  useEffect(() => {
+    if (!localNet?.isLocal) { setForksReady(true); return } // public network: nothing to wait for
+    let cancelled = false
+    let timer
+    setForksReady(false)
+    const tick = async () => {
+      try {
+        const data = await fetch('/api/sim/forks', { cache: 'no-store' }).then(r => r.json())
+        if (cancelled) return
+        const f = data?.forks ?? {}
+        setForks(f)
+        const allUp = chainIds.every(id => f[String(id)]?.rpcUrl)
+        setForksReady(allUp)
+        if (!allUp) timer = setTimeout(tick, 1500)
+      } catch {
+        if (!cancelled) timer = setTimeout(tick, 1500)
+      }
+    }
+    tick()
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [localNet, chainIds])
+  function rpcFor(chainId) {
+    const forked = forks[String(chainId)]?.rpcUrl
+    if (forked) return forked
+    if (localNet?.rpcUrl && Number(localNet.chainId) === Number(chainId)) return localNet.rpcUrl
+    return PUBLIC_RPC[chainId]
+  }
+  const waitingForForks = Boolean(localNet?.isLocal) && !forksReady
+  const missingForks = waitingForForks
+    ? chainIds.filter(id => !forks[String(id)]?.rpcUrl).map(id => SUPPORTED_NETWORKS.find(n => n.chainId === id)?.name ?? id)
+    : []
+
   // Per-chain status: 'pending' | 'switching' | 'building' | 'wallet' | 'confirming' | 'done' | 'error'
   const [statuses, setStatuses] = useState(() =>
     Object.fromEntries(chainIds.map(id => [id, 'pending']))
@@ -433,7 +503,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
     // kernel.createAccount path won't work → fall back to the two-step register path.
     // This handles both "factory not trusted" (UntrustedFactory error) and any other
     // revert the selective kernel might produce with this factory on this chain.
-    const rpc = PUBLIC_RPC[chainId]
+    const rpc = rpcFor(chainId)
     let useRegisterPath = false
     if (rpc) {
       const sim = await fetch(rpc, {
@@ -469,7 +539,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
       setStatus(chainId, 'wallet')
       const deployHash = await sendTransactionAsync({ to: path.deployTx.to, data: path.deployTx.data, chainId })
       setStatus(chainId, 'confirming')
-      const deployReceipt = await waitForReceipt(deployHash, chainId)
+      const deployReceipt = await waitForReceipt(deployHash, chainId, rpcFor(chainId))
 
       // Parse the Safe address from ProxyCreation event (topic[1] = proxy address, indexed)
       // ProxyCreation(address indexed proxy, address singleton) — factory emits this
@@ -491,7 +561,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
       setStatus(chainId, 'wallet')
       const registerHash = await sendTransactionAsync({ to: path.kernel, data: registerData, chainId })
       setStatus(chainId, 'confirming')
-      const registerReceipt = await waitForReceipt(registerHash, chainId)
+      const registerReceipt = await waitForReceipt(registerHash, chainId, rpcFor(chainId))
       if (registerReceipt?.status === '0x0') throw new Error('registerAccount reverted — check the kernel address and try again.')
 
       await fetch('/api/onboard/complete', {
@@ -508,7 +578,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
     const hash = await sendTransactionAsync({ to: body.to, data: body.data, chainId })
 
     setStatus(chainId, 'confirming')
-    const receipt = await waitForReceipt(hash, chainId)
+    const receipt = await waitForReceipt(hash, chainId, rpcFor(chainId))
     // Check tx status before looking for the event — a reverted tx has no logs.
     if (receipt?.status === '0x0') {
       throw new Error('createAccount transaction reverted. The Safe factory may not be supported on this chain — try again and the wizard will use the register path.')
@@ -552,6 +622,26 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
     }
     setRunning(false)
     const allSettled = [...deployed, ...results]
+
+    // In local simulation mode, repoint the project's active network
+    // (.sail/.env.local) at the primary chain we just deployed on. The wizard
+    // deploys per-chain via rpcFor(), but the dashboard / agent / station all
+    // read .env.local — without this they stay stranded on the scaffold chain's
+    // (often dead) fork, querying the wrong RPC for the new account. No-op on a
+    // public network: /api/sim/forks/activate is local-only and the env already
+    // points where the user pasted it.
+    if (localNet?.isLocal && allSettled.length) {
+      const deployedIds = new Set(allSettled.map(r => r?.chainId).filter(Boolean))
+      const primary = chainIds.find(id => deployedIds.has(id)) ?? chainIds[0]
+      try {
+        await fetch('/api/sim/forks/activate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chainId: primary }),
+        })
+      } catch { /* best-effort — the dashboard still resolves the chain from account.json */ }
+    }
+
     onDone(allSettled) // pass whatever succeeded
   }
 
@@ -594,9 +684,14 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
       <Detail label="Owner" value={owner} />
       <Detail label="Agent key" value={managerAddress} />
       {!allSettled && (
-        <SailButton fullWidth onClick={deployAll} disabled={running} style={{ marginTop: 14 }}>
-          {running ? 'Deploying…' : 'Deploy SMAs'}
+        <SailButton fullWidth onClick={deployAll} disabled={running || waitingForForks} style={{ marginTop: 14 }}>
+          {running ? 'Deploying…' : waitingForForks ? 'Spinning up forks…' : 'Deploy SMAs'}
         </SailButton>
+      )}
+      {waitingForForks && (
+        <p style={{ color: '#ffd66b', fontSize: 12.5, margin: '10px 0 0', textAlign: 'center' }}>
+          ⚓ Waiting for simulation forks: {missingForks.join(', ')}. Make sure <code>shipyard watch</code> is running.
+        </p>
       )}
       {allSettled && hasRetryableError && (
         <SailButton fullWidth onClick={deployAll} disabled={running} style={{ marginTop: 14 }}>
@@ -632,8 +727,8 @@ const PUBLIC_RPC = {
 }
 
 // Poll for a transaction receipt (public client not available as hook here).
-async function waitForReceipt(hash, chainId) {
-  const rpc = PUBLIC_RPC[chainId]
+async function waitForReceipt(hash, chainId, rpcUrl) {
+  const rpc = rpcUrl || PUBLIC_RPC[chainId]
   if (!rpc) throw new Error(`No public RPC for chain ${chainId}`)
   for (let i = 0; i < 60; i++) {
     await new Promise(r => setTimeout(r, 2000))
