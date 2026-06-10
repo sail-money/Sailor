@@ -76,6 +76,14 @@ export interface AttachOptions {
   json?: boolean;
 }
 
+export interface UpdateOptions {
+  address: string;
+  name?: string;
+  sourcePath?: string;
+  artifactPath?: string;
+  json?: boolean;
+}
+
 export interface RevokeOptions {
   address?: string;
   sma: string;
@@ -1066,6 +1074,24 @@ export function mandateContractsList(): void {
       console.log("  Registered on:", m.attachments.map((a) => a.sma).join(", "));
     }
   }
+}
+
+// ── update ───────────────────────────────────────────────────────────────────
+
+export function mandateUpdate(options: UpdateOptions): void {
+  const { address, name, sourcePath, artifactPath, json } = options;
+  if (!name && !sourcePath && !artifactPath) {
+    throw new Error("Provide at least one of --name, --source-path, or --artifact-path");
+  }
+  const store = new MandateStore();
+  const updated = store.update(address, { name, sourcePath, artifactPath });
+  emit(!!json, () => {
+    const changes: string[] = [];
+    if (name) changes.push(`name → ${updated.name}`);
+    if (sourcePath) changes.push(`sourcePath → ${updated.sourcePath}`);
+    if (artifactPath) changes.push(`artifactPath → ${updated.artifactPath}`);
+    console.log(`Updated ${updated.address}: ${changes.join(", ")}`);
+  }, { status: "ok", mandate: updated });
 }
 
 // ── artifact + args helpers ──────────────────────────────────────────────────

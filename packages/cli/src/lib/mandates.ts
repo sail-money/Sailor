@@ -60,14 +60,53 @@ export class MandateStore {
     );
   }
 
-  /** Append a newly deployed mandate (replacing any prior record at the same address). */
+  /**
+   * Append a newly deployed mandate (replacing any prior record at the same address).
+   * When another mandate with the same name already exists on the same chain, the
+   * incoming mandate's name is suffixed with `[2]`, `[3]`, … to keep names unique.
+   */
   add(mandate: DeployedMandate): void {
     const data = this.read();
+    // Drop any prior record at the same address (redeploy).
     data.mandates = data.mandates.filter(
       (m) => m.address.toLowerCase() !== mandate.address.toLowerCase(),
     );
+    // Deduplicate name within the same chain by appending a numeric suffix.
+    const baseName = mandate.name;
+    const sameName = (m: DeployedMandate) => m.name === mandate.name && m.chainId === mandate.chainId;
+    if (data.mandates.some(sameName)) {
+      let n = 2;
+      while (data.mandates.some((m) => m.name === `${baseName}[${n}]` && m.chainId === mandate.chainId)) {
+        n++;
+      }
+      mandate = { ...mandate, name: `${baseName}[${n}]` };
+    }
     data.mandates.push(mandate);
     this.write(data);
+  }
+
+  /** Update mutable metadata fields on a tracked mandate (name, sourcePath, artifactPath). */
+  update(
+    addressOrName: string,
+    patch: Partial<Pick<DeployedMandate, "name" | "sourcePath" | "artifactPath">>,
+  ): DeployedMandate {
+    const data = this.read();
+    const needle = addressOrName.toLowerCase();
+    const mandate = data.mandates.find(
+      (m) => m.address.toLowerCase() === needle || m.name === addressOrName,
+    );
+    if (!mandate) throw new Error(`No tracked mandate found for: ${addressOrName}`);
+    if (patch.name !== undefined && patch.name !== mandate.name) {
+      const conflict = data.mandates.find(
+        (m) => m.name === patch.name && m.chainId === mandate.chainId && m.address !== mandate.address,
+      );
+      if (conflict) throw new Error(`Name "${patch.name}" is already used by ${conflict.address} on chain ${mandate.chainId}`);
+      mandate.name = patch.name;
+    }
+    if (patch.sourcePath !== undefined) mandate.sourcePath = patch.sourcePath;
+    if (patch.artifactPath !== undefined) mandate.artifactPath = patch.artifactPath;
+    this.write(data);
+    return mandate;
   }
 
   /** Record that a tracked mandate was attached to an SMA. */

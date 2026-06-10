@@ -22,6 +22,8 @@ import {
   mandateDeployClone,
   mandateRevoke,
   mandateTemplates,
+  mandateUpdate,
+  type UpdateOptions,
 } from "./commands/mandate-contracts.js";
 import { mandatePrepare, mandateSign } from "./commands/mandate.js";
 import { type SimulateOptions, mandateSimulate } from "./commands/mandate-simulate.js";
@@ -225,6 +227,15 @@ mandate
   .option("--calls <file>", "Batch: JSON array of { target, calldata, value?, expect?, label? }")
   .option("--json", "Emit machine-readable JSON")
   .action(actionWith<SimulateOptions>(mandateSimulate));
+mandate
+  .command("update")
+  .description("Update metadata for a tracked permission contract (rename, source path, artifact path)")
+  .requiredOption("--address <mandateOrName>", "Permission address or tracked name to update")
+  .option("--name <label>", "New tracking label (must be unique within the same chain)")
+  .option("--source-path <path>", "Update the relative path to the Solidity source file")
+  .option("--artifact-path <path>", "Update the relative path to the Foundry artifact JSON")
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<UpdateOptions>(mandateUpdate));
 mandate
   .command("list")
   .description("List permission contracts deployed from this project")
