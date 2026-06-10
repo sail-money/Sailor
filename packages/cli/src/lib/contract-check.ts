@@ -71,9 +71,9 @@ export async function checkContractExists(
  * Proxy detection:
  * - EIP-1167 minimal proxy (~45 bytes): caught by the length guard (< 100 hex chars).
  * - EIP-1967 UUPS / transparent proxy: detected by the implementation slot prefix
- *   `360894a1` (first 4 bytes of keccak256("eip1967.proxy.implementation") - 1).
- * - EIP-1967 beacon proxy: detected by the beacon slot prefix `a3f0ad74` (first 4
- *   bytes of keccak256("eip1967.proxy.beacon") - 1).
+ *   `360894a13ba1a321` (first 8 bytes of keccak256("eip1967.proxy.implementation") - 1).
+ * - EIP-1967 beacon proxy: detected by the beacon slot prefix `a3f0ad74e5423aeb`
+ *   (first 8 bytes of keccak256("eip1967.proxy.beacon") - 1).
  */
 export function checkSelectorRoutes(calldata: Hex, bytecode: Hex): SelectorCheck {
   // Need at least 4 bytes (10 hex chars including "0x") for a selector.
@@ -90,15 +90,14 @@ export function checkSelectorRoutes(calldata: Hex, bytecode: Hex): SelectorCheck
     return { selector, routes: null, reason: "proxy or minimal contract — routing not determinable from bytecode" };
   }
 
-  // EIP-1967 implementation slot: first 4 bytes of keccak256("eip1967.proxy.implementation") - 1.
-  // All UUPS and transparent proxies push this storage key to read their implementation.
-  if (body.includes("360894a1")) {
+  // EIP-1967 implementation slot: first 8 bytes of keccak256("eip1967.proxy.implementation") - 1.
+  // Using 8 bytes (vs 4) avoids false-positive matches with 4-byte function selectors.
+  if (body.includes("360894a13ba1a321")) {
     return { selector, routes: null, reason: "EIP-1967 proxy detected — routing is in the implementation contract" };
   }
 
-  // EIP-1967 beacon slot: first 4 bytes of keccak256("eip1967.proxy.beacon") - 1.
-  // Beacon proxies read the implementation address from a beacon contract stored at this slot.
-  if (body.includes("a3f0ad74")) {
+  // EIP-1967 beacon slot: first 8 bytes of keccak256("eip1967.proxy.beacon") - 1.
+  if (body.includes("a3f0ad74e5423aeb")) {
     return { selector, routes: null, reason: "EIP-1967 beacon proxy detected — routing is in the beacon implementation" };
   }
 
