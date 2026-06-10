@@ -839,31 +839,67 @@ function LiveActivityFeed({ events, positions, network }) {
   )
 }
 
+// Module-level cache: survives React remounts (route changes) but resets on
+// a full page reload. Prevents showing the loading shell every time the
+// dashboard unmounts and remounts due to navigation, while still showing it
+// on the very first page load before we know the onboard state.
+let _onboardCache = null
+
+// Read a minimal synthetic onboard state from localStorage so that after a
+// full page reload (e.g. triggered by a wallet redirect) we can skip the
+// loading shell immediately if we already know an account exists. DashboardContent
+// never uses this — it fetches its own data — so { hasAccount: true } is enough.
+function localStorageOnboardHint() {
+  try {
+    const a = JSON.parse(localStorage.getItem('sail.account') ?? 'null')
+    if (a) return { hasAccount: true }
+  } catch {}
+  return null
+}
+
 export default function Dashboard() {
-  const [onboardState, setOnboardState] = useState(null)
-  const [onboardChecked, setOnboardChecked] = useState(false)
+  const [onboardState, setOnboardState] = useState(() => _onboardCache ?? localStorageOnboardHint())
+  const [onboardChecked, setOnboardChecked] = useState(() => _onboardCache !== null || localStorageOnboardHint() !== null)
   const { draft } = useSailorMandateDraft()
 
   function refreshOnboard() {
     fetch('/api/onboard/state')
       .then(r => r.json())
-      .then(s => { setOnboardState(s); setOnboardChecked(true) })
+      .then(s => { _onboardCache = s; setOnboardState(s); setOnboardChecked(true) })
       .catch(() => setOnboardChecked(true))
+  }
+
+  // Called by the wizard's "Go to dashboard →" button. Optimistically mark
+  // hasAccount = true so the dashboard appears immediately without waiting for
+  // another /api/onboard/state round-trip. Then fetch in the background to
+  // populate the full state (rpcUrl, chainId, etc.).
+  function handleOnboardComplete() {
+    const optimistic = { ...(onboardState ?? {}), hasAccount: true }
+    _onboardCache = optimistic
+    setOnboardState(optimistic)
+    setOnboardChecked(true)
+    refreshOnboard()
   }
 
   useEffect(() => { refreshOnboard() }, [])
 
-  // Show wizard until the project has a deployed Safe.
-  // Render the shell + background instead of null so any re-mount (HMR reload,
-  // hash change) shows the app chrome rather than a black screen while the
-  // refreshOnboard fetch is in flight.
+  // Poll every 2 s while we don't have an account yet. This auto-transitions the
+  // UI when a wallet-triggered reload interrupts an in-progress deployment:
+  // the background deployAll JS keeps running, creates account.json, and the
+  // next poll picks it up so the user never needs to manually refresh.
+  useEffect(() => {
+    if (onboardState?.hasAccount) return
+    const id = setInterval(refreshOnboard, 2000)
+    return () => clearInterval(id)
+  }, [onboardState?.hasAccount])
+
   if (!onboardChecked) return (
     <div className={`${shared.pageShell} ${styles.shell}`}>
       <FluidBackground />
     </div>
   )
   if (!onboardState?.hasAccount) {
-    return <OnboardingWizard onboardState={onboardState} onComplete={refreshOnboard} />
+    return <OnboardingWizard onboardState={onboardState} onComplete={handleOnboardComplete} />
   }
 
   return <DashboardContent draft={draft} onReset={refreshOnboard} />
