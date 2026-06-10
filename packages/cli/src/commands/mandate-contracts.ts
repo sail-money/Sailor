@@ -663,7 +663,7 @@ async function runDeployClone(
   say(() => console.log("✓", `Deployed + registered ${spec.label} at ${clone}`));
 
   const store = new MandateStore();
-  store.add({
+  const storedClone = store.add({
     name: label,
     address: clone,
     txHash,
@@ -676,7 +676,7 @@ async function runDeployClone(
     actor: "agent",
     type: "permission_registered",
     permission: clone,
-    name: label,
+    name: storedClone.name,
     sma,
     txHash,
     chainId: project.chainId,

@@ -31,8 +31,8 @@ export type SelectorCheck = {
   /**
    * True  — selector found in the contract's dispatch table.
    * False — selector NOT found; call would likely revert with "unknown selector".
-   * null  — could not determine: proxy/delegate pattern detected (bytecode too short
-   *         or contains DELEGATECALL), or calldata shorter than 4 bytes.
+   * null  — could not determine: proxy pattern detected (EIP-1167 or EIP-1967),
+   *         or calldata shorter than 4 bytes.
    */
   routes: boolean | null;
   /** Human-readable reason when routes is null. */
@@ -65,9 +65,16 @@ export async function checkContractExists(
  *
  * Scans the raw bytecode hex for the 4-byte selector sequence. This catches the
  * standard Solidity/Vyper dispatch table pattern. Returns `routes: null` when the
- * bytecode exhibits proxy/delegatecall characteristics (< 100 hex chars or contains
- * the DELEGATECALL opcode 0xf4) — in those cases the real routing happens in the
+ * bytecode is identified as a proxy — in those cases the real routing happens in the
  * implementation contract and cannot be determined without following the proxy.
+ *
+ * Proxy detection:
+ * - EIP-1167 minimal proxy (~45 bytes): caught by the length guard (< 100 hex chars).
+ * - EIP-1967 UUPS / transparent proxy: detected by the presence of the EIP-1967
+ *   implementation slot prefix `360894a1` (first 4 bytes of
+ *   keccak256("eip1967.proxy.implementation") - 1), which every standard proxy
+ *   pushes to read its implementation address. This is specific enough to avoid
+ *   false positives on non-proxy contracts.
  */
 export function checkSelectorRoutes(calldata: Hex, bytecode: Hex): SelectorCheck {
   // Need at least 4 bytes (10 hex chars including "0x") for a selector.
@@ -84,9 +91,10 @@ export function checkSelectorRoutes(calldata: Hex, bytecode: Hex): SelectorCheck
     return { selector, routes: null, reason: "proxy or minimal contract — routing not determinable from bytecode" };
   }
 
-  // 0xf4 = DELEGATECALL opcode — presence strongly suggests a proxy pattern.
-  if (body.includes("f4")) {
-    return { selector, routes: null, reason: "DELEGATECALL detected — proxy pattern, routing not determinable" };
+  // EIP-1967 implementation slot: first 4 bytes of keccak256("eip1967.proxy.implementation") - 1.
+  // All UUPS and transparent proxies push this storage key to read their implementation.
+  if (body.includes("360894a1")) {
+    return { selector, routes: null, reason: "EIP-1967 proxy detected — routing is in the implementation contract" };
   }
 
   return { selector, routes: body.includes(selector) };
