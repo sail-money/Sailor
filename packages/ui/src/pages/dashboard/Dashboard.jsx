@@ -854,7 +854,14 @@ export default function Dashboard() {
   useEffect(() => { refreshOnboard() }, [])
 
   // Show wizard until the project has a deployed Safe.
-  if (!onboardChecked) return null
+  // Render the shell + background instead of null so any re-mount (HMR reload,
+  // hash change) shows the app chrome rather than a black screen while the
+  // refreshOnboard fetch is in flight.
+  if (!onboardChecked) return (
+    <div className={`${shared.pageShell} ${styles.shell}`}>
+      <FluidBackground />
+    </div>
+  )
   if (!onboardState?.hasAccount) {
     return <OnboardingWizard onboardState={onboardState} onComplete={refreshOnboard} />
   }
