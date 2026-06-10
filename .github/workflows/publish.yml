@@ -32,6 +32,10 @@ jobs:
   publish-sdk:
     needs: setup
     if: github.event_name != 'workflow_dispatch' || inputs.publish-sdk
+    permissions:
+      id-token: write
+      contents: read
+      packages: write
     uses: ./.github/workflows/publish-npm-public-pkg.yaml
     with:
       package_dir: packages/sdk
@@ -46,6 +50,10 @@ jobs:
   publish:
     needs: [setup, publish-sdk]
     if: always() && needs.setup.result == 'success' && (needs.publish-sdk.result == 'success' || needs.publish-sdk.result == 'skipped')
+    permissions:
+      id-token: write
+      contents: read
+      packages: write
     uses: ./.github/workflows/publish-npm-public-pkg.yaml
     with:
       use-manifest: package-publish.json
