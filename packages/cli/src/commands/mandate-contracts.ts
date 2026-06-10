@@ -191,9 +191,17 @@ async function runDeploy(
   }
 
   const { abi, bytecode, contractName, artifactPath } = resolveArtifact(options);
-  const argsJson = options.argsFile
-    ? readFileSync(resolve(options.argsFile), "utf8").trim()
-    : options.args;
+  let argsJson: string | undefined;
+  if (options.argsFile) {
+    const argsFilePath = resolve(options.argsFile);
+    try {
+      argsJson = readFileSync(argsFilePath, "utf8").trim();
+    } catch {
+      throw new Error(`Cannot read --args-file: ${argsFilePath}`);
+    }
+  } else {
+    argsJson = options.args;
+  }
   const args = coerceConstructorArgs(abi, argsJson);
   const deployData = encodeDeployData({ abi, bytecode, args });
 
@@ -217,7 +225,10 @@ async function runDeploy(
     data: deployData,
     details: [
       { label: "Contract", value: contractName },
-      { label: "Constructor args", value: argsJson ? argsJson : "(none)" },
+      {
+        label: options.argsFile ? "Constructor args (from file)" : "Constructor args",
+        value: argsJson ? argsJson : "(none)",
+      },
     ],
   });
 
