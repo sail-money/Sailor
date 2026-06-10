@@ -31,7 +31,7 @@ import {
   isHex,
 } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
-import { checkContractExists } from "../lib/contract-check.js";
+import { checkContractExists, checkSelectorRoutes } from "../lib/contract-check.js";
 import { readJsonFile, sailPath } from "../lib/io.js";
 import { resolveKeyPath } from "../lib/keys.js";
 import { MandateStore } from "../lib/mandates.js";
@@ -78,6 +78,15 @@ type CallResult = {
   /** Contract-existence of the target (eth_getCode). */
   targetHasCode: boolean;
   targetCheckError?: string;
+  /**
+   * Whether the 4-byte selector in calldata routes on the target contract.
+   * null = proxy/delegatecall detected or calldata < 4 bytes (indeterminate).
+   */
+  selectorRoutes: boolean | null;
+  /** The 4-byte selector (8 hex chars, no 0x prefix) that was checked. */
+  selector: string;
+  /** Human-readable reason when selectorRoutes is null. */
+  selectorRoutesReason?: string;
 };
 
 function parseExpect(raw: string | undefined, where: string): "pass" | "fail" | undefined {
@@ -236,6 +245,10 @@ export async function mandateSimulate(options: SimulateOptions): Promise<void> {
         checkContractExists(pc, c.target),
       ]);
       const result: "pass" | "fail" = probe.accepted ? "pass" : "fail";
+      const selectorCheck =
+        codeCheck.hasCode && codeCheck.bytecode
+          ? checkSelectorRoutes(c.data, codeCheck.bytecode)
+          : { selector: "", routes: null as null, reason: codeCheck.hasCode ? "bytecode unavailable" : undefined };
       return {
         index: i,
         label: c.label,
@@ -248,6 +261,9 @@ export async function mandateSimulate(options: SimulateOptions): Promise<void> {
         match: c.expect ? c.expect === result : null,
         targetHasCode: codeCheck.hasCode,
         targetCheckError: codeCheck.error,
+        selectorRoutes: selectorCheck.routes,
+        selector: selectorCheck.selector,
+        selectorRoutesReason: selectorCheck.reason,
       };
     }),
   );
@@ -280,6 +296,9 @@ export async function mandateSimulate(options: SimulateOptions): Promise<void> {
         match: r.match,
         targetHasCode: r.targetHasCode,
         targetCheckError: r.targetCheckError,
+        selector: r.selector,
+        selectorRoutes: r.selectorRoutes,
+        selectorRoutesReason: r.selectorRoutesReason,
       })),
       mismatches: mismatches.length,
       noCodeTargets: noCodeTargets.map((r) => r.target),
@@ -318,7 +337,16 @@ export async function mandateSimulate(options: SimulateOptions): Promise<void> {
       : r.targetHasCode
         ? "✓ contract present"
         : `⚠ NO contract code on chain ${chainId} — this call would fail on-chain regardless of the permission`;
+    const selectorNote =
+      r.selectorRoutes === true
+        ? `✓ selector 0x${r.selector} routes`
+        : r.selectorRoutes === false
+          ? `⚠ selector 0x${r.selector} NOT found in bytecode — call would likely revert with unknown selector`
+          : r.selectorRoutesReason
+            ? `~ selector check skipped (${r.selectorRoutesReason})`
+            : null;
     console.log(`     target ${r.target}   ${codeNote}`);
+    if (selectorNote) console.log(`     ${selectorNote}`);
     if (r.reverted && r.revertReason) {
       console.log(`     evaluate() reverted: ${r.revertReason}`);
     }
