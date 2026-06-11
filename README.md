@@ -10,7 +10,7 @@ Sailor is the off-chain operator layer for [Sail Protocol](https://github.com/sa
 
 | Package | Name | Role |
 |---|---|---|
-| `packages/sdk` | `@sail.money/sailor/sdk` | TypeScript library: SailorClient, EIP-712 helpers, ABIs, deployment registry, chain registry |
+| `packages/sdk` | `@sail.money/sdk` / `@sail.money/sailor/sdk` | TypeScript library: SailorClient, EIP-712 helpers, ABIs, deployment registry, chain registry |
 | `packages/cli` | `@sail.money/sailor` | CLI for account setup, mandate signing, and agent execution |
 | `packages/ui` | `sailor-ui` | Local dashboard running at localhost:3333 |
 | `templates/default` | — | Default agent starter (neutral; what `sailor init` scaffolds) |
@@ -384,8 +384,9 @@ All core contracts are deployed at the same address on every supported chain via
 | MandateFactory | `0x14EDd6c2a56EfC0d71E215ab13094B9AF90543d2` |
 | StandardFeePolicy | `0xe7B5901b839cFFDEd9D4108A22712C8BfdA1D80D` |
 | SafeModuleEnabler | `0x7897Cb53a4be4a2eaAf46D60573C4Fd83b33fE1F` |
+| Treasury | `0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6` |
 
-These addresses are bundled in `@sail.money/sailor` and exposed via `getSailDeployment(chainId)` in the SDK. The SailProtocol repository is the canonical source of truth for deployment details — see [deployments/addresses.md](../SailProtocol/deployments/addresses.md).
+These addresses are bundled in `@sail.money/sailor` and exposed via `getSailDeployment(chainId)` in the SDK. The Protocol repository is the canonical source of truth for deployment details — see [deployments/addresses.md](https://github.com/sail-money/Protocol/blob/main/deployments/addresses.md).
 
 ### Supported chains
 
