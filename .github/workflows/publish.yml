@@ -16,7 +16,7 @@ jobs:
     with:
       registry-url: 'https://npm.pkg.github.com'
       package-name: ${{ github.event_name == 'workflow_dispatch' && '@sail-money/sailor-dev' || '@sail-money/sailor' }}
-      dist-tag: ${{ github.event_name == 'workflow_dispatch' && 'dev' || 'latest' }}
+      dist-tag: 'latest'
       build-number: ${{ github.event_name == 'workflow_dispatch' && github.run_number || 0 }}
     secrets:
       NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
