@@ -7,34 +7,16 @@ on:
   workflow_dispatch:
 
 jobs:
-  # Single source of truth for dist-tag and build-number.
-  setup:
-    runs-on: ubuntu-latest
-    outputs:
-      dist-tag: ${{ steps.vars.outputs.dist-tag }}
-      build-number: ${{ steps.vars.outputs.build-number }}
-    steps:
-      - id: vars
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "dist-tag=dev"                              >> $GITHUB_OUTPUT
-            echo "build-number=${{ github.run_number }}"    >> $GITHUB_OUTPUT
-          else
-            echo "dist-tag=latest"                          >> $GITHUB_OUTPUT
-            echo "build-number=0"                           >> $GITHUB_OUTPUT
-          fi
-
   sailor:
-    needs: setup
     permissions:
       id-token: write
       contents: read
       packages: write
     uses: ./.github/workflows/publish-npm-public-pkg.yaml
     with:
-      package-name: '@sailagent/sailor'
       registry-url: 'https://npm.pkg.github.com'
-      dist-tag: ${{ needs.setup.outputs.dist-tag }}
-      build-number: ${{ needs.setup.outputs.build-number }}
+      package-name: ${{ github.event_name == 'workflow_dispatch' && '@sailagent/sailor-dev' || '@sailagent/sailor' }}
+      dist-tag: ${{ github.event_name == 'workflow_dispatch' && 'dev' || 'latest' }}
+      build-number: ${{ github.event_name == 'workflow_dispatch' && github.run_number || 0 }}
     secrets:
       NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
