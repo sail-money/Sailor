@@ -144,16 +144,12 @@ function readRuntimeServerState(projectRoot: string): RuntimeServerState | null 
 }
 
 /**
- * The URL a user should open to approve this channel's signing requests:
- * the project dashboard when a daemon is running (the dashboard proxies the
- * station's pending queue), or the ephemeral server's own station page when
- * the command spawned one — a dashboard banner would point at a server that
- * cannot see the request.
+ * The URL a user should open to approve this channel's signing requests.
+ * Always uses the project dashboard port — the hash route distinguishes
+ * the station view from the main dashboard.
  */
-export function signingPageUrl(channel: SigningChannel, dashboardPort: number): string {
-  return channel.remote
-    ? `http://localhost:${dashboardPort}/#/station`
-    : `${channel.url}/#/station`;
+export function signingPageUrl(_channel: SigningChannel, dashboardPort: number): string {
+  return `http://localhost:${dashboardPort}/#/station`;
 }
 
 /** Return a {@link SigningClient} for a reachable daemon, or null if none runs. */
