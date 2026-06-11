@@ -999,25 +999,31 @@ function DashboardContent({ draft, onReset }) {
           const key = a.safe.toLowerCase()
           const net = CHAIN_NAMES[a.chainId] ?? 'ethereum'
           const isCurrent = a.safe?.toLowerCase() === currentSafeId?.toLowerCase()
+          const deployedNets = a.deployedChains
+            ? a.deployedChains.map((id) => CHAIN_NAMES[id] ?? 'ethereum').filter(Boolean)
+            : null
           if (!byId.has(key)) {
             byId.set(key, {
               id: a.safe,
               name: safeNames[a.safe] ?? a.name ?? 'My SMA',
               address: a.safe,
               network: net,
-              networks: [net],
+              networks: deployedNets ?? [net],
               mandateCount: isCurrent ? (overview?.mandateCount ?? 0) : 0,
               createdAt: a.addedAt ?? null,
             })
           } else {
             const entry = byId.get(key)
-            if (!entry.networks.includes(net)) entry.networks.push(net)
+            const toMerge = deployedNets ?? [net]
+            for (const n of toMerge) {
+              if (!entry.networks.includes(n)) entry.networks.push(n)
+            }
           }
         }
         return [...byId.values()]
       })()
     : sma
-    ? [{ ...sma, name: smaName, networks: [realNetwork], mandateCount: overview?.mandateCount ?? 0, createdAt: null }]
+    ? [{ ...sma, name: smaName, networks: activeAccount?.deployedChains ? activeAccount.deployedChains.map((id) => CHAIN_NAMES[id] ?? 'ethereum').filter(Boolean) : [realNetwork], mandateCount: overview?.mandateCount ?? 0, createdAt: null }]
     : []
 
   const safeUrl = sma ? safeAppUrl(sma.network, sma.address) : '#'
@@ -1189,9 +1195,12 @@ function DashboardContent({ draft, onReset }) {
                         Registered SMA
                       </span>
                     )}
-                    {overview.network && (
-                      <span className={styles.smaBadge}>{overview.network}</span>
-                    )}
+                    {(activeAccount?.deployedChains
+                      ? activeAccount.deployedChains.map((id) => CHAIN_NAMES[id]).filter(Boolean)
+                      : overview.network ? [overview.network] : []
+                    ).map((n) => (
+                      <span key={n} className={styles.smaBadge}>{n}</span>
+                    ))}
                     <MandateStatus status={agentRunning ? 'active' : 'paused'} kind="agent" />
                     {agentSource && (
                       <span className={styles.smaBadge}>
@@ -1342,7 +1351,7 @@ function DashboardContent({ draft, onReset }) {
 
             {/* ── RPC / Network config ─────────────────────────────── */}
             <section className={agentStyles.card}>
-              <RpcSection />
+              <RpcSection deployedChains={activeAccount?.deployedChains} />
             </section>
 
             {/* ── Recent activity / Decision Journal ─────────────── */}

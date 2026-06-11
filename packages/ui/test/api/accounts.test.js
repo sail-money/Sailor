@@ -85,12 +85,15 @@ describe('GET /api/mandate', () => {
   beforeEach(() => { fix = loadFixture('onboarded') })
   afterEach(() => fix.cleanup())
 
-  it('returns the signed mandate', async () => {
+  it('returns mandates as an array', async () => {
     const res = await fix.api.get('/api/mandate')
     expect(res.status).toBe(200)
-    expect(res.body.safe).toBe('0x8E637d9573Ad81B60cb93edA78b9C827860950a4')
-    expect(res.body.registeredOnChain).toBe(true)
-    expect(res.body.permissions.length).toBeGreaterThan(0)
-    expect(res.body.permissions[0].template).toBe('lifi-swap')
+    expect(Array.isArray(res.body)).toBe(true)
+    expect(res.body.length).toBeGreaterThan(0)
+    const mandate = res.body[0]
+    expect(mandate.safe).toBe('0x8E637d9573Ad81B60cb93edA78b9C827860950a4')
+    expect(mandate.registeredOnChain).toBe(true)
+    expect(mandate.permissions.length).toBeGreaterThan(0)
+    expect(mandate.permissions[0].template).toBe('lifi-swap')
   })
 })

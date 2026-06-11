@@ -303,9 +303,10 @@ program
   .command("run")
   .description("Run the agent execution loop (use --once for a single tick)")
   .option("--once", "Run a single tick then exit")
-  .action(async (opts: { once?: boolean }) => {
+  .option("--chain <chainId>", "Chain ID to run on (overrides CHAIN_ID env and .env.local)")
+  .action(async (opts: { once?: boolean; chain?: string }) => {
     try {
-      await runCommand({ once: opts.once });
+      await runCommand({ once: opts.once, chain: opts.chain ? Number(opts.chain) : undefined });
     } catch (err) {
       console.error(`Error: ${(err as Error).message}`);
       closePrompts();

@@ -28,16 +28,15 @@ Use the user-facing terms in all CLI output, prompts, and errors. The code ident
 
 ## Dispatch model
 
-Active kernels vary by chain — verified on-chain via `DISPATCH_TYPEHASH()`:
+All six chains share the same kernel at the same CREATE2 address, verified on-chain via `DISPATCH_TYPEHASH()`:
 
-| Chain | Kernel | Model | DISPATCH_TYPEHASH |
-|---|---|---|---|
-| Base 8453 | `0x6319d3dfDDe3804ba93D65752b00c52bFb05a1ab` | **selective** | `0xbe50c539...` |
-| Base Sepolia 84532 | `0xf1D0F4C9893612627409948BAa9d82a01a373799` | **selective** | `0xbe50c539...` |
-| Arbitrum 42161 | `0x2716B12832DED0EF5688519c5Fe069EFc0374E02` | **selective** | `0xbe50c539...` |
-| Unichain 130 | `0xD985029960a9B7C2E7E38e102C448b8b8539B156` | **selective** | `0xbe50c539...` |
+| Kernel (all 6 chains) | Model | DISPATCH_TYPEHASH |
+|---|---|---|
+| `0x02ABC18B65A328de2e749F56ba79ACF2718a6659` | **selective** | `0xbe50c539...` |
 
-All four kernels are live and bootstrapped (genesis allowlist set, `createAccount` verified working, zero fees). Unichain (130) additionally has the full permission-template suite deployed and source-verified (7 shared + 12 standalone) — it is the only chain with templates so far; the other three have core only. `packages/sdk/src/deployments.ts` is the canonical source of truth for kernel addresses, templates, and metadata.
+Supported chains: Ethereum (1), Base (8453), Arbitrum (42161), Unichain (130), Base Sepolia (84532), Eth Sepolia (11155111).
+
+All six kernels are live and bootstrapped (genesis allowlist set, `createAccount` verified working, zero fees). No templates are deployed against the current kernel on any chain yet — `knownTemplates` and `standaloneTemplates` are empty for all six entries. `packages/sdk/src/deployments.ts` is the canonical source of truth for kernel addresses, templates, and metadata.
 
 **Always use `detectKernelCapabilities` for the real model** — it reads the on-chain typehash and
 overrides the static label in `deployments.ts`. The static label is a fallback for offline use only.
@@ -56,11 +55,11 @@ Pass the detected value — never hardcode the type shape.
 
 ## Active addresses
 
-All four chain records in `packages/sdk/src/deployments.ts` are live — no commented-out or pending
+All six chain records in `packages/sdk/src/deployments.ts` are live — no commented-out or pending
 addresses remain. This file is the source of truth this guide mirrors.
 
 - `packages/sdk/src/deployments.ts` — `SailDeployment` records; canonical source of truth
-- `packages/chains/src/index.ts` — `ChainConfig` per chainId; kept in sync with deployments
+- `packages/sdk/src/chains.ts` — `ChainConfig` per chainId; canonical per-chain registry
 
 ## Key files
 
@@ -78,10 +77,10 @@ addresses remain. This file is the source of truth this guide mirrors.
 
 ```bash
 pnpm install
-pnpm build        # builds all packages; dependency order: sdk → chains → cli → ui
+pnpm build        # builds all packages; dependency order: sdk → cli → ui
 ```
 
-Build order matters — `cli` imports from `sdk` and `chains`.
+Build order matters — `cli` imports from `sdk`.
 
 ## Test
 

@@ -53,8 +53,8 @@ const CHAIN_NAMES = {
  * heads-up to refill a delegated signer, not an outage.
  */
 function balanceStatus(wei) {
+  if (wei === 0n) return 'critical'
   const eth = Number(formatEther(wei))
-  if (eth < 0.0005) return 'critical'
   if (eth < 0.002) return 'low'
   return 'ok'
 }
