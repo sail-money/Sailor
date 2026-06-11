@@ -1000,12 +1000,12 @@ function DashboardContent({ draft, onReset }) {
           address: a.safe,
           network: net,
           networks: [net],
-          agentCount: isCurrent && agentRunning ? 1 : 0,
+          mandateCount: isCurrent ? (overview?.mandateCount ?? 0) : 0,
           createdAt: a.addedAt ?? null,
         }
       })
     : sma
-    ? [{ ...sma, name: smaName, networks: [realNetwork], agentCount: agentRunning ? 1 : 0, createdAt: null }]
+    ? [{ ...sma, name: smaName, networks: [realNetwork], mandateCount: overview?.mandateCount ?? 0, createdAt: null }]
     : []
 
   const safeUrl = sma ? safeAppUrl(sma.network, sma.address) : '#'
