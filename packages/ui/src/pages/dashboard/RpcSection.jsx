@@ -84,7 +84,7 @@ function maskRpcUrl(url) {
   return `${origin}${path}${shown}`
 }
 
-function ChainRow({ chainId, rpcUrl, activeChainId, onSaved }) {
+function ChainRow({ chainId, rpcUrl, isActive, onSaved }) {
   const chain = CHAINS.find((c) => c.id === chainId)
   const [editing, setEditing] = useState(false)
   const [provider, setProvider] = useState('alchemy')
@@ -93,8 +93,6 @@ function ChainRow({ chainId, rpcUrl, activeChainId, onSaved }) {
   const [howOpen, setHowOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [savedTick, setSavedTick] = useState(false)
-
-  const isActive = chainId === activeChainId
 
   function openEdit() {
     const p = inferProvider(rpcUrl)
@@ -271,7 +269,7 @@ function ChainRow({ chainId, rpcUrl, activeChainId, onSaved }) {
   )
 }
 
-export default function RpcSection() {
+export default function RpcSection({ deployedChains }) {
   const [onboard, setOnboard] = useState(null)
 
   function load() {
@@ -291,7 +289,8 @@ export default function RpcSection() {
 
   const rpcByChain = onboard.rpcByChain ?? {}
   const activeChainId = onboard.chainId ?? 8453
-  const configuredCount = Object.keys(rpcByChain).length
+  const chainIds = deployedChains && deployedChains.length > 0 ? deployedChains : [activeChainId]
+  const configuredCount = chainIds.filter((id) => rpcByChain[id]).length
 
   return (
     <div className={styles.section}>
@@ -308,12 +307,15 @@ export default function RpcSection() {
       </div>
 
       <div className={styles.chainList}>
-        <ChainRow
-          chainId={activeChainId}
-          rpcUrl={rpcByChain[activeChainId] ?? null}
-          activeChainId={activeChainId}
-          onSaved={load}
-        />
+        {chainIds.map((id) => (
+          <ChainRow
+            key={id}
+            chainId={id}
+            rpcUrl={rpcByChain[id] ?? null}
+            isActive={Boolean(rpcByChain[id])}
+            onSaved={load}
+          />
+        ))}
       </div>
     </div>
   )
