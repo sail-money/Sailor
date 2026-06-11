@@ -1,8 +1,8 @@
 # Sailor
 
-> A toolkit for building and operating Sail Protocol SMAs with AI agents.
+> The operator toolkit for Sail Protocol — SDK, CLI, and local dashboard for building and running mandated agents.
 
-Sailor is the operator layer for [Sail Protocol](../SailProtocol): the tooling an agent builder uses to create a Separately Managed Account, bound it with permissions, and run a strategy against it. It wraps the on-chain primitives — SailKernel dispatch, MandateFactory registration, EIP-712 mandate signing — behind a TypeScript SDK, a CLI, and a local dashboard. An agent is an async function that receives context and returns intended transactions; Sailor previews each through the kernel, executes the approved ones, and records what happened. It does not deploy the protocol or author new permission templates — that lives in Sail Protocol. It sits one level up: turning a deployed SailKernel into something an operator can actually drive.
+Sailor is the off-chain operator layer for [Sail Protocol](https://github.com/sail-money/SailProtocol): the tooling an operator uses to create a Separately Managed Account, register a mandate, and run a strategy agent against it. It wraps SailKernel dispatch, MandateFactory registration, and EIP-712 mandate signing behind a TypeScript SDK, a CLI, and a local dashboard. It does not deploy the protocol or author permission templates — those live in Sail Protocol. It targets already-deployed SailKernel instances and gives operators the tooling to drive them.
 
 ---
 
@@ -10,38 +10,60 @@ Sailor is the operator layer for [Sail Protocol](../SailProtocol): the tooling a
 
 | Package | Name | Role |
 |---|---|---|
-| `packages/sdk` | `@sail/sdk` (internal) | TypeScript library: SailorClient, EIP-712 helpers, ABIs, chain registry |
+| `packages/sdk` | `@sail.money/sdk` / `@sail.money/sailor/sdk` | TypeScript library: SailorClient, EIP-712 helpers, ABIs, deployment registry, chain registry |
 | `packages/cli` | `@sail.money/sailor` | CLI for account setup, mandate signing, and agent execution |
-| `packages/ui` | `sailor-ui` | Local dashboard running on localhost:3333 |
+| `packages/ui` | `sailor-ui` | Local dashboard running at localhost:3333 |
 | `templates/default` | — | Default agent starter (neutral; what `sailor init` scaffolds) |
 | `templates/custom-mandate` | — | Solidity reference: IPermission scaffold (not a project template) |
 | `templates/lifi-permissions` | — | Solidity reference: LiFi clone permission contracts (not a project template) |
 
 ---
 
-## How it works
+## Protocol model
 
-The path from nothing to a running agent is five stages, guided by your AI coding assistant through the scaffolded `AGENTS.md`:
+```mermaid
+flowchart TD
+    Owner["**Owner**<br/>holds the Safe · signs the mandate"]
+    Manager["**Manager**<br/>agent · signs dispatches"]
+    SMA["**SMA**<br/>Safe · holds assets · executes"]
+    Mandate["**Mandate**<br/>set of permission contracts"]
+    Kernel["**Sail Kernel**<br/>evaluates permission · trusted core<br/>dispatches to Safe on success"]
 
-1. **Deploy your SMA and create your agent wallet** — done in the browser. Your owner wallet never leaves it.
-2. **Define your strategy** — describe what you want your agent to do. The assistant asks the right questions to establish on-chain bounds (tokens, amounts, venues), then helps design the permission contracts.
-3. **Build, test, and sign your mandate** — the assistant authors the permission contracts, proves in plain English what each one permits and blocks, deploys them, and walks you through signing to authorize.
-4. **Run** — `sailor run` executes your agent locally on a schedule, or via the GitHub Actions workflow the scaffold provides.
-5. **Extend** *(optional)* — the assistant can wire notifications (Telegram, email) and build a custom dashboard tailored to your strategy.
+    Owner -- "01 deploys & owns" --> SMA
+    Owner -- "02 signs mandate (EIP-712)" --> Mandate
+    Owner -- "03 appoints · instant revocation" --> Manager
+    Manager -- "04 signs dispatch (EIP-712)" --> Kernel
+    Mandate -- "05 defines bounds" --> Kernel
+    Kernel -- "06 ✓ executes · ✗ outside mandate: reverts" --> SMA
+```
 
-Run `npx sailor init my-agent`, open the scaffolded folder in Claude Code, Cursor, Codex, or any AI coding assistant, and say **"start"**. The `AGENTS.md` in the project drives the assistant through all five stages.
+Sailor is the operator tooling that drives the Manager/dispatch and mandate-registration flows (steps 02–05).
 
 ---
 
 ## Roles
 
-Sailor operates the three roles Sail Protocol separates:
+Sail Protocol separates three authority roles. Sailor operates all of them:
 
 | Role | Authority | Held by |
 |---|---|---|
-| **Owner** | Holds the Safe. Custody anchor. | The LP (Safe owner) — same wallet as MetaMask |
-| **Permission Signer** | Signs mandate registration and revocation via EIP-712. | Same as Owner, or a separate key |
-| **Manager** | Executes dispatches within permitted bounds. Signs each dispatch. | The agent key — encrypted in `.sail/keys/manager.json` |
+| **Owner** | Holds the Safe. Custody anchor. Always self-custodial. | The LP (Safe owner) |
+| **Permission Signer** | Authorizes the mandate. Signs registration and revocation via EIP-712. | Same as Owner, or a separate signing key |
+| **Manager** | Executes dispatches within mandate bounds. Signs each dispatch. | The agent wallet — encrypted in `.sail/keys/manager.json` |
+
+---
+
+## How it works
+
+The path from nothing to a running agent follows the protocol lifecycle:
+
+1. **Deploy your SMA** — `sailor onboard --new-sma` creates the SMA on-chain. `sailor account predict` computes the deterministic address in advance. The same owner, permission signer, manager, and salt produce the same SMA address on every supported chain.
+2. **Author your permissions** — describe what the agent may do. Permission contracts encode the bounds: tokens, amounts, venues, call targets. Author them in the scaffolded Foundry workspace.
+3. **Simulate, deploy, and sign your mandate** — `sailor mandate simulate` probes a permission off-chain before authorizing it. `sailor mandate deploy --attach` deploys and registers it on-chain. `sailor mandate sign` builds and signs the registration payload against live on-chain state.
+4. **Run** — `sailor run` executes the agent locally on a schedule, or via the GitHub Actions workflow the scaffold provides.
+5. **Operate** — `sailor doctor` checks kernel health and gas balances; `sailor chains` lists supported chains and deployment addresses; `sailor session pause` instantly revokes dispatch rights without touching Safe custody.
+
+Run `npx sailor init my-agent`, open the scaffolded folder in Claude Code, Cursor, or any AI coding assistant, and say **"start"**. The `AGENTS.md` in the project guides the assistant through all five stages.
 
 ---
 
@@ -71,9 +93,9 @@ sailor init my-agent
 Prerequisites:
 
 - Node.js 18+
-- A wallet (MetaMask or Rabby)
+- A wallet (MetaMask, Rabby, Phantom, and more)
 - An RPC URL (e.g. Alchemy free tier)
-- A supported chain: **Base, Base Sepolia, Arbitrum, or Unichain** — verified deployments are bundled in `@sail.money/sailor`.
+- A supported chain: **Ethereum, Base, Arbitrum, Unichain, Base Sepolia, or Eth Sepolia** — verified deployments are bundled in `@sail.money/sailor`.
 
 ### Recommended — assistant-driven
 
@@ -84,18 +106,31 @@ npm install
 
 Open this folder in Claude Code, Cursor, Codex, or any AI coding assistant and say **"start"**. The scaffolded `AGENTS.md` guides the assistant through all five stages — SMA deployment, strategy definition, mandate authoring, running, and automation. No manual steps required.
 
-### Direct CLI reference (advanced)
-
-For users who prefer the terminal:
+### Direct CLI reference
 
 ```bash
-sailor capabilities    # what you can build on this chain — read-only, no gas
-sailor doctor          # kernel model + RPC reachability + gas balances
-sailor ui start        # open http://localhost:3333 to deploy SMA + create agent wallet
-sailor run --once      # single tick — confirm it works before automating
-sailor run             # start the agent (continuous)
-sailor keys export-ci  # copy the encrypted agent wallet to ci-keystore.json for CI commits
-sailor mandate sign    # sign a mandate — reconciles against live on-chain permissions first
+# Discovery
+sailor chains              # list supported chains and kernel addresses
+sailor capabilities        # what you can build on this chain — read-only, no gas
+sailor doctor              # kernel model + RPC reachability + gas balances
+
+# SMA setup
+sailor account predict     # compute deterministic SMA address before deploying
+sailor onboard --new-sma   # deploy SMA and optionally attach a mandate
+
+# Mandate lifecycle
+sailor mandate simulate    # probe a permission off-chain (no gas) before registering
+sailor mandate sign        # sign the mandate — reconciles against live on-chain state
+sailor mandate deploy      # deploy a Foundry-compiled permission contract
+sailor mandate attach      # register an already-deployed permission on an SMA
+
+# Agent operation
+sailor run --once          # single tick — confirm it works before automating
+sailor run                 # start the agent (continuous)
+sailor keys export-ci      # copy encrypted agent wallet to ci-keystore.json for CI
+
+# Dashboard
+sailor ui start            # open http://localhost:3333
 ```
 
 `sailor run` writes reverted transactions to stderr as `reverted: <txHash> (gas used: N)`; successful dispatches are appended to `.sail/activity.jsonl`.
@@ -186,19 +221,19 @@ sailor ui stop
 
 ## Agent-driven onboarding & custom mandates
 
-For chains with a bundled Sail deployment (Base, Base Sepolia, Arbitrum, Unichain), an agent can drive the whole
-setup through a browser **signing station**. The station is a local HTTP +
-WebSocket daemon that bridges the CLI and the owner's wallet: the agent never
-holds the owner key — it pushes signing requests, the owner approves them in the
-browser, and the agent submits the transactions it's allowed to.
+On any of the six supported chains, an agent can drive the whole setup through
+a browser **signing station**. The station is a local HTTP + WebSocket daemon
+that bridges the CLI and the owner's wallet: the agent never holds the owner
+key — it pushes signing requests, the owner approves them in the browser, and
+the agent submits the transactions it's allowed to.
 
 ```bash
-sailor keys generate                       # manager (agent) key
-sailor station start &                      # signing daemon (serves the UI)
+sailor keys generate                       # create the manager (agent) key
+sailor station start &                     # signing daemon (serves the UI)
 # owner opens the printed URL once and connects their wallet
-sailor owner connect                        # detect & persist the owner
-sailor scan                                 # discover the owner's Safes + state
-sailor onboard --new-sma                    # create an SMA + (optionally) attach a mandate
+sailor owner connect                       # detect & persist the owner
+sailor scan                                # discover the owner's Safes + state
+sailor onboard --new-sma                   # create an SMA + (optionally) attach a mandate
 ```
 
 Agents author their own permission contracts and deploy them from the scaffolded
@@ -258,14 +293,16 @@ The SDK is available as a subpath export for use in agent code:
 import type { Agent, AgentContext, Dispatch } from '@sail.money/sailor/sdk'
 ```
 
+The SDK is also published separately as `@sail.money/sdk` for projects that consume it independently of the CLI.
+
 ### npm (`publish-npm.yml`)
 
 Published to the public npm registry under the `@sail.money` scope.
 
 | Trigger | Package | Version | dist-tag |
 |---|---|---|---|
-| Tag push (`v*`) | `@sail.money/sailor` | `1.0.0` | `latest` |
-| Manual dispatch | `@dev.sail.money/sailor` | `1.0.0-42` | `dev` |
+| Tag push (`v*`) | `@sail.money/sailor` | `0.1.0` | `latest` |
+| Manual dispatch | `@dev.sail.money/sailor` | `0.1.0-42` | `dev` |
 
 ```bash
 npm install @sail.money/sailor                # latest stable (tag push)
@@ -313,36 +350,6 @@ Either way, `@sail.money/sailor/sdk` imports work unchanged.
 
 ---
 
-## Architecture
-
-```
-   ┌────────────────────┐                          ┌────────────────────┐
-   │  Permission Signer │                          │    Manager/Agent   │
-   │  MetaMask / local  │                          │ .sail/keys/manager │
-   └─────────┬──────────┘                          └─────────┬──────────┘
-             │                                               │
-             │ EIP-712 mandate                               │ dispatch
-             ▼                                               ▼
-   ┌─────────────────────────────────────────────────────────────────────┐
-   │                            SailKernel                               │
-   │                          (Sail Protocol)                            │
-   └─────────┬───────────────────────┬───────────────────────┬───────────┘
-             │                       │                       │
-             │ registration          │ execution             │ evaluation
-             ▼                       ▼                       ▼
-   ┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐
-   │   MandateFactory   │  │         Safe       │  │     Permissions    │
-   │  (register perms)  │  │      (custody)     │  │  (named, per-call) │
-   └────────────────────┘  └────────────────────┘  └────────────────────┘
-
-          sailor CLI / @sail.money/sailor/sdk drive both signing paths above.
-          .sail/ (account · mandate · activity) ──→ sailor-ui (localhost:3333)
-```
-
-The CLI and SDK sit between the operator and SailKernel: they build the EIP-712 payloads, submit dispatches, and read kernel state via viem. The permission signer authorizes the mandate — registration runs through MandateFactory — while the manager key signs each dispatch the kernel evaluates against a named permission before executing it through the Safe. All local state — the deployed account, the signed mandate, and the agent's activity log — lives under `.sail/` on disk, which the dashboard reads through a small local server. Sailor never holds the Owner key and runs no hosted backend; the wallet talks to the chain directly.
-
----
-
 ## Security model
 
 - The agent signs dispatches; the kernel evaluates the named permission on every call. A permission returning false or exceeding its gas cap is treated as denial — fail-closed.
@@ -355,67 +362,42 @@ The CLI and SDK sit between the operator and SailKernel: they build the EIP-712 
 
 ## State of the project
 
-Sailor is functional and published as [`@sail.money/sailor`](https://www.npmjs.com/package/@sail.money/sailor) on npm (v0.0.1). The SDK, CLI, keystore, mandate flows, agent runner, and dashboard are implemented and have been exercised end to end against Base Sepolia.
+Sailor is functional and published as [`@sail.money/sailor`](https://www.npmjs.com/package/@sail.money/sailor) on npm (v0.1.0). The SDK, CLI, keystore, mandate flows, agent runner, and dashboard are implemented and have been exercised end to end.
 
-The Sail Protocol trusted core is deployed on Base, Base Sepolia, Arbitrum, and Unichain as staging deployments for testing ahead of a formal launch. All four run the selective dispatch model, with verified deployments bundled in `@sail.money/sailor`. These deployments are under an ongoing external audit by [Octane Security](https://octane.security) and are not final — do not use them with funds you are not prepared to lose. Permission templates are not yet deployed against the Base, Arbitrum, and Base Sepolia kernels; **Unichain** ships the full template suite (7 shared + 12 standalone, source-verified) and its template registries are populated. The remaining template registries will be filled in as templates are deployed on the other chains and at mainnet launch.
+The Sail Protocol trusted core is deployed on six chains — Ethereum, Base, Arbitrum, Unichain, Base Sepolia, and Eth Sepolia — via CREATE2, with every core contract at the same address on every chain. All six run the selective dispatch model with zero fees and are bootstrapped with a genesis allowlist so `createAccount` is usable immediately. These deployments are under an ongoing external audit by [Octane Security](https://octane.security) and are not final — do not use them with funds you are not prepared to lose.
+
+Permission templates have not yet been deployed against the current kernel on any chain; `knownTemplates` and `standaloneTemplates` are empty for all six chains in `packages/sdk/src/deployments.ts` and will be populated as templates are deployed and verified against the new kernel.
 
 ---
 
 ## Deployments
 
-The Sail Protocol trusted core is live on the following chains as **staging deployments** ahead of a formal launch. All addresses are bundled in `@sail.money/sailor` and run the selective dispatch model with zero fees. Permission templates are not yet deployed against the Base, Arbitrum, and Base Sepolia kernels; **Unichain** ships the full template suite (7 shared + 12 standalone, source-verified on uniscan.xyz) and has its onboarding allowlists seeded at genesis.
+All core contracts are deployed at the same address on every supported chain via CREATE2 (commit `1199b33`, 2026-06-09). An SMA created with the same owner, permission signer, manager, fee policy, and salt has the same address on every supported chain.
 
-### Base (8453)
-
-| Contract | Address |
-|---|---|
-| SailKernel | `0x6319d3dfDDe3804ba93D65752b00c52bFb05a1ab` |
-| SailGovernance | `0x7E897D919872b1587577617ffFC42113679d0C50` |
-| Timelock | `0x8eC3Ca951E193C6E3713A70022454d7A1f083281` |
-| PermissionFactory | `0x7724EACd97C8601d5AC244Aadbf76ad87353Ff31` |
-| StandardFeePolicy | `0x65850a8D5050aeAade68289ff96c4F119a24B82e` |
-| SafeModuleEnabler | `0xC84EdE78f93291A1fab19F51c4c7e938AB302Edf` |
-| Treasury | `0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6` |
-
-### Arbitrum (42161)
+### Core addresses (identical on all 6 chains)
 
 | Contract | Address |
 |---|---|
-| SailKernel | `0x2716B12832DED0EF5688519c5Fe069EFc0374E02` |
-| SailGovernance | `0xd6AbB7A1036ADc7958Abffec9Da03450c5a2Ec8e` |
-| Timelock | `0x114CB7110C780f7E3a6093AfE0B52463a569857C` |
-| PermissionFactory | `0x23681A8A4C9819D8EaB37E46B858da6F3c85E683` |
-| StandardFeePolicy | `0xAdfB986D48480bC67a7cF3751d30599161632e0D` |
-| SafeModuleEnabler | `0xabe2a6D03F592BC602cA1dBDCD885ba2493274f9` |
+| SailKernel | `0x02ABC18B65A328de2e749F56ba79ACF2718a6659` |
+| SailGovernance | `0x7A478118715791728BDE3bc7A4D7ECfdEB89C6EC` |
+| TimelockController | `0xE48Ba8DB6d748adafD13155c3590f62e58a77f56` |
+| MandateFactory | `0x14EDd6c2a56EfC0d71E215ab13094B9AF90543d2` |
+| StandardFeePolicy | `0xe7B5901b839cFFDEd9D4108A22712C8BfdA1D80D` |
+| SafeModuleEnabler | `0x7897Cb53a4be4a2eaAf46D60573C4Fd83b33fE1F` |
 | Treasury | `0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6` |
 
-### Base Sepolia (84532)
+These addresses are bundled in `@sail.money/sailor` and exposed via `getSailDeployment(chainId)` in the SDK. The Protocol repository is the canonical source of truth for deployment details — see [deployments/addresses.md](https://github.com/sail-money/Protocol/blob/main/deployments/addresses.md).
 
-| Contract | Address |
+### Supported chains
+
+| Chain | Chain ID |
 |---|---|
-| SailKernel | `0xf1D0F4C9893612627409948BAa9d82a01a373799` |
-| SailGovernance | `0xEaD44bC6999E7b00b9b2E11c1660248DC2a30993` |
-| Timelock | `0x97B863e392C9859336788D5Ec454527d33C95B74` |
-| PermissionFactory | `0xdfF6a2272F667cDf78Af4681b9c88A219998db95` |
-| StandardFeePolicy | `0x05570F7973b46Eb9Ed4518422891EFC26BD58b97` |
-| SafeModuleEnabler | `0xB2C2B52d94412e3472C9fb2B52186eA12a935869` |
-| Treasury | `0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6` |
-
-### Unichain (130)
-
-First chain to ship the full permission-template suite (7 shared + 12 standalone, source-verified on [uniscan.xyz](https://uniscan.xyz)). Genesis allowlist bootstrap — onboarding usable without the 48h timelock.
-
-| Contract | Address |
-|---|---|
-| SailKernel | `0xD985029960a9B7C2E7E38e102C448b8b8539B156` |
-| SailGovernance | `0xAb5C90ECfF2763f6f20f8E553E3b8778dD9C349A` |
-| Timelock | `0xd44FbBB37f01e235E0EE5386948F216d36D0CEf2` |
-| PermissionFactory | `0x8edDb62Aa49CeB837abf2653be2d93Ad9Fe6777D` |
-| StandardFeePolicy | `0x7bBA8BE3c01c972757aA4a230A00D58aB600A1F1` |
-| SafeModuleEnabler | `0xFE9227A9F2baf704060c604466df354a5A137b9B` |
-| Treasury | `0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6` |
-
-The 19 template addresses are in `packages/sdk/src/deployments.ts` (`knownTemplates` + `standaloneTemplates` for chain 130).
+| Ethereum | 1 |
+| Base | 8453 |
+| Arbitrum | 42161 |
+| Unichain | 130 |
+| Base Sepolia | 84532 |
+| Eth Sepolia | 11155111 |
 
 ---
 
