@@ -919,7 +919,7 @@ function DashboardContent({ draft, onReset }) {
   const { account: realAccount, loading: accountLoading } = useSailorAccount(refreshTick)
   const { accounts: allAccounts } = useSailorAccounts(refreshTick)
   const { overview } = useSailorOverview(refreshTick)
-  const { mandate: liveMandate } = useSailorMandate(refreshTick)
+  const { mandates: liveMandates } = useSailorMandate(refreshTick)
   const { events: liveActivity } = useSailorActivity(refreshTick)
   const { positions: livePositions } = useSailorPositions(refreshTick)
   const { running: agentRunning, pid: agentPid, source: agentSource, githubActions } = useSailorAgentStatus()
@@ -968,11 +968,10 @@ function DashboardContent({ draft, onReset }) {
   // "this SMA's mandate" when its safe matches the active account; a legacy entry
   // with no safe is trusted only on single-SMA projects where it's unambiguous.
   const activeSafe = (overviewAccount ?? realAccount)?.safe?.toLowerCase()
-  const hasLiveMandate =
-    liveMandate != null &&
-    (liveMandate.safe != null
-      ? liveMandate.safe.toLowerCase() === activeSafe
-      : allAccounts.length <= 1)
+  const activeLiveMandates = liveMandates.filter((m) =>
+    m.safe != null ? m.safe.toLowerCase() === activeSafe : allAccounts.length <= 1
+  )
+  const hasLiveMandate = activeLiveMandates.length > 0
   const liveMode = hasLiveMandate || agentRunning
 
   const realNetwork = effectiveAccount ? (CHAIN_NAMES[effectiveAccount.chainId] ?? 'ethereum') : null
@@ -1278,22 +1277,26 @@ function DashboardContent({ draft, onReset }) {
                         overviewMandates.length === 1 ? '' : 's'
                       }${overview?.onchain ? ' · attached on-chain' : ''}`
                     : hasLiveMandate
-                      ? `${(liveMandate.permissions ?? []).length} permission${
-                          (liveMandate.permissions ?? []).length === 1 ? '' : 's'
+                      ? `${activeLiveMandates.reduce((n, m) => n + (m.permissions ?? []).length, 0)} permission${
+                          activeLiveMandates.reduce((n, m) => n + (m.permissions ?? []).length, 0) === 1 ? '' : 's'
                         } · live`
                       : 'No permissions registered yet'}
                 </span>
               </header>
 
               <div className={styles.mandateList}>
-                {hasLiveMandate ? (
-                  <LiveMandateCard
-                    mandate={liveMandate}
-                    network={realNetwork}
-                    addressByTemplate={new Map(overviewMandates.map((m) => [m.name ?? m.template, m.address]))}
-                    onRevoke={overview?.kernel && overview?.sma?.address ? setRevokeTarget : undefined}
-                  />
-                ) : overviewMandates.length > 0 ? (
+                {hasLiveMandate ? (() => {
+                  const addressByTemplate = new Map(overviewMandates.map((m) => [m.name ?? m.template, m.address]))
+                  return activeLiveMandates.map((m, i) => (
+                    <LiveMandateCard
+                      key={m.signedAt ?? i}
+                      mandate={m}
+                      network={realNetwork}
+                      addressByTemplate={addressByTemplate}
+                      onRevoke={overview?.kernel && overview?.sma?.address ? setRevokeTarget : undefined}
+                    />
+                  ))
+                })() : overviewMandates.length > 0 ? (
                   <AttachedMandatesPanel
                     mandates={overviewMandates}
                     network={overview?.network ?? realNetwork}

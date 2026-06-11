@@ -231,6 +231,10 @@ export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
     // Only include permissions that are currently active on-chain.
     permissions: activePermissions.map((p) => ({ template: p.label, params: {} })),
   };
-  writeJsonFile(sailPath("mandate.json"), storedMandate);
+  const existingRaw = readJsonFile<StoredMandate | StoredMandate[]>(sailPath("mandate.json"));
+  const existing: StoredMandate[] = existingRaw
+    ? Array.isArray(existingRaw) ? existingRaw : [existingRaw]
+    : [];
+  writeJsonFile(sailPath("mandate.json"), [...existing, storedMandate]);
   console.log(`\n✓ Saved to .sail/mandate.json — agent is ready to run.`);
 }
