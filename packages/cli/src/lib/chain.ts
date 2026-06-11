@@ -45,17 +45,21 @@ export function getRpcUrl(chainId: number): string | undefined {
   const env = parseEnvFile(sailPath(".env.local"));
   const perChainVar = chains[chainId]?.rpcEnvVar;
 
-  // 1. .env.local chain-specific
+  // 1. .env.local named chain var (e.g. BASE_RPC_URL)
   const fromProjectChain = perChainVar ? env[perChainVar] : undefined;
   if (fromProjectChain?.trim()) return fromProjectChain.trim();
 
-  // 2. .env.local generic
+  // 2. .env.local chainId-keyed var (e.g. RPC_URL_8453) — written by the UI's save-config
+  const fromProjectChainId = env[`RPC_URL_${chainId}`];
+  if (fromProjectChainId?.trim()) return fromProjectChainId.trim();
+
+  // 3. .env.local generic fallback
   if (env.RPC_URL?.trim()) return env.RPC_URL.trim();
 
-  // 3. Shell chain-specific
+  // 4. Shell named chain var
   const fromEnvChain = perChainVar ? process.env[perChainVar] : undefined;
   if (fromEnvChain?.trim()) return fromEnvChain.trim();
 
-  // 4. Shell generic
+  // 5. Shell generic
   return process.env.RPC_URL?.trim() || undefined;
 }
