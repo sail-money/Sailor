@@ -357,6 +357,10 @@ function printWelcome(dest: string, name: string, inPlace: boolean, _hasRpc: boo
   // STATE A — fresh project.
   // Full welcome is in AGENTS.md — the assistant presents it when the user says start.
   // The terminal just directs traffic; the chat owns the welcome entirely.
+  // Suppress the banner when called from postinstall — it prints it after we return.
   if (!inPlace) console.log(`\nCreated ${name}/`);
-  console.log("\nYour Sail agent project is ready. Open your AI coding assistant in this folder and say start.");
+  if (!process.env.SAILOR_POSTINSTALL) {
+    console.log("\nYour Sail agent project is ready. Open your AI coding assistant in this folder and say start.");
+    console.log("If you are an AI agent, read AGENTS.md before proceeding.");
+  }
 }
