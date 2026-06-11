@@ -1,11 +1,12 @@
+import { getChain } from "@sail/chains";
 import {
   SAFE_V141,
   SailKernelAbi,
   buildSafeSetupInitializer,
   computeSailSmaAddress,
-  getChain,
   sailDeployments,
   safeProxyFactoryAbi,
+  type ChainConfig,
   type SailChainId,
 } from "@sail/sdk";
 import {
@@ -37,6 +38,18 @@ import { projectPort } from "../lib/packagePaths.js";
 import { type StoredAccount, upsertAccountInList } from "../lib/state.js";
 import { createSigningChannel } from "../signing/client.js";
 
+function resolveChain(chainId: number): ChainConfig {
+  try {
+    return getChain(chainId);
+  } catch {
+    throw new Error(
+      `Chain ${chainId} is not yet configured in @sail/chains.\n` +
+        "The SailKernel and mandate-factory addresses for this chain are unknown,\n" +
+        "so an account cannot be created yet. Add the chain to @sail/chains once\n" +
+        "SailKernel is deployed there.",
+    );
+  }
+}
 
 /**
  * `sailor account create` — deploys a Sail SMA (Safe + kernel registration).
@@ -68,7 +81,7 @@ export async function accountCreate(): Promise<void> {
     throw new Error(`Invalid CHAIN_ID: "${chainIdRaw}" — must be a number.`);
   }
 
-  const chain = getChain(chainId);
+  const chain = resolveChain(chainId);
   console.log(`Chain ${chainId} (${chain.name})`);
   console.log(`  SailKernel:      ${checksum(chain.kernel)}`);
   console.log(`  Mandate factory: ${checksum(chain.mandateFactory)}\n`);
