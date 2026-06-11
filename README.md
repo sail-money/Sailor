@@ -253,49 +253,64 @@ Sailor ships as a **single npm package** — the SDK is bundled inside it and ex
 |---|---|
 | `@sail.money/sailor` | CLI binary, UI server, templates, examples, and SDK |
 
-```bash
-npm install @sail.money/sailor        # latest stable
-npm install @sail.money/sailor@dev    # latest dev build
-```
-
 The SDK is available as a subpath export for use in agent code:
 
 ```ts
 import type { Agent, AgentContext, Dispatch } from '@sail.money/sailor/sdk'
 ```
 
-Dev builds carry a prerelease version suffix and are published under the `dev` dist-tag; production releases use `latest`:
+### npm (`publish-npm.yml`)
 
-| Trigger | Version | dist-tag |
-|---|---|---|
-| Tag push (`v*`) | `1.0.0` | `latest` |
-| Manual dispatch | `1.0.0-42` | `dev` |
+Published to the public npm registry under the `@sail.money` scope.
 
-### Publishing flow
-
-A single CI job builds sailor and publishes it to npm. No separate SDK publish step — the SDK dist lives inside the sailor package and is accessed via the `./sdk` subpath export.
-
-The workflow (`publish-npm.yml`) calls the reusable `publish-npm-public-pkg.yaml`:
-- Tag push → version unchanged, dist-tag `latest`
-- Manual dispatch → version stamped with run number (e.g. `1.0.0-42`), dist-tag `dev`
-
-### GitHub Packages
-
-`@sailagent/sailor` is also published to GitHub Packages for internal testing — no public npm registry required. GitHub Packages requires the `@sailagent` scope; install it with:
+| Trigger | Package | Version | dist-tag |
+|---|---|---|---|
+| Tag push (`v*`) | `@sail.money/sailor` | `1.0.0` | `latest` |
+| Manual dispatch | `@dev.sail.money/sailor` | `1.0.0-42` | `dev` |
 
 ```bash
-npm install @sailagent/sailor --registry https://npm.pkg.github.com
+npm install @sail.money/sailor                # latest stable (tag push)
 ```
 
-To keep `@sail.money/sailor/sdk` imports working in agent code when installing from GitHub Packages, add a package alias to your project's `package.json`:
+For dev builds, the package name changes scope to `@dev.sail.money`. Use an alias so your import paths stay the same:
+
+```bash
+npm install "@sail.money/sailor@npm:@dev.sail.money/sailor@dev"
+```
+
+This installs the latest dev build and makes it available as `@sail.money/sailor` locally — `@sail.money/sailor/sdk` imports continue to work unchanged.
+
+### GitHub Packages (`publish.yml`)
+
+Published to GitHub Packages under the `@sailagent` scope for internal testing — no public npm registry required.
+
+| Trigger | Package | dist-tag |
+|---|---|---|
+| Merge to `main` | `@sailagent/sailor` | `latest` |
+| Manual dispatch | `@sailagent/sailor-dev` | `dev` |
+
+Both builds require an alias since the package scope differs from `@sail.money`:
+
+```bash
+npm install "@sail.money/sailor@npm:@sailagent/sailor@latest" --registry https://npm.pkg.github.com
+npm install "@sail.money/sailor@npm:@sailagent/sailor-dev@dev" --registry https://npm.pkg.github.com
+```
+
+Or pin in `package.json`:
 
 ```json
 "dependencies": {
-  "@sail.money/sailor": "npm:@sailagent/sailor"
+  "@sail.money/sailor": "npm:@sailagent/sailor@latest"
 }
 ```
 
-This resolves `@sail.money/sailor` (and its `./sdk` subpath) to the `@sailagent/sailor` package transparently.
+```json
+"dependencies": {
+  "@sail.money/sailor": "npm:@sailagent/sailor-dev@dev"
+}
+```
+
+Either way, `@sail.money/sailor/sdk` imports work unchanged.
 
 ---
 
