@@ -524,7 +524,10 @@ function LiveMandateCard({ mandate, network, addressByTemplate, onRevoke }) {
   const permissions = mandate?.permissions ?? []
   const status = mandate?.registeredOnChain ? 'active' : 'pending'
   const signed = mandate?.signedAt ? new Date(mandate.signedAt).toLocaleDateString() : ''
-  const networkLabel = network ?? (mandate?.chainId ? CHAIN_NAMES[mandate.chainId] : null)
+  const networkLabel = (() => {
+    const n = network ?? (mandate?.chainId ? CHAIN_NAMES[mandate.chainId] : null)
+    return n ? n.charAt(0).toUpperCase() + n.slice(1) : null
+  })()
 
   // Only permissions with a known on-chain address can be revoked; dedup by address
   const revokeablePool = onRevoke
@@ -1265,11 +1268,11 @@ function DashboardContent({ draft, onReset }) {
                 listed is forbidden by the contract by default. Full
                 contract receipt, hashes, selectors, and the Revoke
                 action live one click in at /mandate/:id. */}
-            <section className={styles.mandatesSection} aria-label="Your permissions">
+            <section className={styles.mandatesSection} aria-label="Your mandates">
               <header className={styles.mandatesSectionHead}>
                 <h2 className={styles.mandatesSectionTitle}>
                   <DocGlyph />
-                  Your permissions
+                  Your Mandates
                 </h2>
                 <span className={styles.mandatesSectionMeta}>
                   {overviewMandates.length > 0
