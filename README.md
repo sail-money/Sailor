@@ -12,7 +12,6 @@ Sailor is the operator layer for [Sail Protocol](../SailProtocol): the tooling a
 |---|---|---|
 | `packages/sdk` | `@sail/sdk` (internal) | TypeScript library: SailorClient, EIP-712 helpers, ABIs, chain registry |
 | `packages/cli` | `@sail.money/sailor` | CLI for account setup, mandate signing, and agent execution |
-| `packages/chains` | `@sail/chains` | Per-chain address registry (EVM-compatible) |
 | `packages/ui` | `sailor-ui` | Local dashboard running on localhost:3333 |
 | `templates/default` | — | Default agent starter (neutral; what `sailor init` scaffolds) |
 | `templates/custom-mandate` | — | Solidity reference: IPermission scaffold (not a project template) |
@@ -282,31 +281,31 @@ This installs the latest dev build and makes it available as `@sail.money/sailor
 
 ### GitHub Packages (`publish.yml`)
 
-Published to GitHub Packages under the `@sailagent` scope for internal testing — no public npm registry required.
+Published to GitHub Packages under the `@sail-money` scope for internal testing — no public npm registry required.
 
 | Trigger | Package | dist-tag |
 |---|---|---|
-| Merge to `main` | `@sailagent/sailor` | `latest` |
-| Manual dispatch | `@sailagent/sailor-dev` | `dev` |
+| Merge to `main` | `@sail-money/sailor` | `latest` |
+| Manual dispatch | `@sail-money/sailor-dev` | `dev` |
 
 Both builds require an alias since the package scope differs from `@sail.money`:
 
 ```bash
-npm install "@sail.money/sailor@npm:@sailagent/sailor@latest" --registry https://npm.pkg.github.com
-npm install "@sail.money/sailor@npm:@sailagent/sailor-dev@dev" --registry https://npm.pkg.github.com
+npm install "@sail.money/sailor@npm:@sail-money/sailor@latest" --registry https://npm.pkg.github.com
+npm install "@sail.money/sailor@npm:@sail-money/sailor-dev@dev" --registry https://npm.pkg.github.com
 ```
 
 Or pin in `package.json`:
 
 ```json
 "dependencies": {
-  "@sail.money/sailor": "npm:@sailagent/sailor@latest"
+  "@sail.money/sailor": "npm:@sail-money/sailor@latest"
 }
 ```
 
 ```json
 "dependencies": {
-  "@sail.money/sailor": "npm:@sailagent/sailor-dev@dev"
+  "@sail.money/sailor": "npm:@sail-money/sailor-dev@dev"
 }
 ```
 

@@ -15,7 +15,7 @@ jobs:
     uses: ./.github/workflows/publish-npm-public-pkg.yaml
     with:
       registry-url: 'https://npm.pkg.github.com'
-      package-name: ${{ github.event_name == 'workflow_dispatch' && '@sailagent/sailor-dev' || '@sailagent/sailor' }}
+      package-name: ${{ github.event_name == 'workflow_dispatch' && '@sail-money/sailor-dev' || '@sail-money/sailor' }}
       dist-tag: ${{ github.event_name == 'workflow_dispatch' && 'dev' || 'latest' }}
       build-number: ${{ github.event_name == 'workflow_dispatch' && github.run_number || 0 }}
     secrets:

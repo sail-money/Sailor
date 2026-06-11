@@ -241,7 +241,7 @@ export async function initCommand(
     const deps = pkg.dependencies ?? {};
     if (deps["@sail/sdk"] === "workspace:*") {
       // Resolve to the SDK installed alongside this CLI package.
-      // packageRoot() = …/node_modules/@sailagent/sailor → SDK is at packages/sdk
+      // packageRoot() = …/node_modules/@sail-money/sailor → SDK is at packages/sdk
       // relative to the monorepo root, but when distributed only packages/cli/dist
       // and packages/ui/dist are shipped. Point at the dist that IS present.
       const sdkPath = path.join(pkgRoot, "packages", "sdk");

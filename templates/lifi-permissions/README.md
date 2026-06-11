@@ -17,7 +17,7 @@ These follow the `CloneInitializable` pattern: the constructor calls
 > no Foundry build. Build/deploy happens in that project via
 > `scripts/deploy-clone-templates.ts`.
 
-> **Note:** The kernels bundled in `@sail.money/sdk` (Base, Base Sepolia, Arbitrum, Unichain) now all run the **selective** dispatch model — verified on-chain against each kernel's `DISPATCH_TYPEHASH`. These templates were written for the older conjunctive model and include pass-through logic (`return true` for calls outside their domain) that is not required on selective kernels. Review before deploying against a selective kernel; the pass-through logic is harmless but unnecessary.
+> **Note:** The kernels bundled in `@sail.money/sailor/sdk` (Base, Base Sepolia, Arbitrum, Unichain) now all run the **selective** dispatch model — verified on-chain against each kernel's `DISPATCH_TYPEHASH`. These templates were written for the older conjunctive model and include pass-through logic (`return true` for calls outside their domain) that is not required on selective kernels. Review before deploying against a selective kernel; the pass-through logic is harmless but unnecessary.
 
 ## Contracts
 
