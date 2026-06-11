@@ -1229,9 +1229,6 @@ function DashboardContent({ draft, onReset }) {
                 target="_blank"
                 rel="noreferrer"
               >
-                <span className={`${agentStyles.qlIcon} ${styles.qlIconLarge}`} aria-hidden>
-                  <PieGlyph />
-                </span>
                 <span className={agentStyles.qlText}>
                   <span className={`${agentStyles.qlTitle} ${styles.qlTitleLarge}`}>View portfolio</span>
                   <span className={agentStyles.qlSub}>opens DeBank</span>
@@ -1244,9 +1241,6 @@ function DashboardContent({ draft, onReset }) {
                 target="_blank"
                 rel="noreferrer"
               >
-                <span className={`${agentStyles.qlIcon} ${styles.qlIconLarge}`} aria-hidden>
-                  <ShieldGlyph />
-                </span>
                 <span className={agentStyles.qlText}>
                   <span className={`${agentStyles.qlTitle} ${styles.qlTitleLarge}`}>Manage SMA</span>
                   <span className={agentStyles.qlSub}>opens Safe</span>
@@ -1911,22 +1905,6 @@ function StopIcon() {
   return (
     <svg viewBox="0 0 14 14" width="11" height="11" fill="currentColor" aria-hidden>
       <rect x="3.5" y="3.5" width="7" height="7" rx="1.2" />
-    </svg>
-  )
-}
-function PieGlyph() {
-  return (
-    <svg viewBox="0 0 16 16" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M8 2.5a5.5 5.5 0 105.5 5.5H8z" />
-      <path d="M8 2.5v5.5h5.5" />
-    </svg>
-  )
-}
-function ShieldGlyph() {
-  return (
-    <svg viewBox="0 0 16 16" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M8 2l5 2v4.5c0 3-2.2 5.4-5 6-2.8-.6-5-3-5-6V4l5-2z" />
-      <path d="M5.8 8.2l1.7 1.7L10.4 7" />
     </svg>
   )
 }
