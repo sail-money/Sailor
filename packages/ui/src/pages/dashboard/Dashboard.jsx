@@ -524,7 +524,10 @@ function LiveMandateCard({ mandate, network, addressByTemplate, onRevoke }) {
   const permissions = mandate?.permissions ?? []
   const status = mandate?.registeredOnChain ? 'active' : 'pending'
   const signed = mandate?.signedAt ? new Date(mandate.signedAt).toLocaleDateString() : ''
-  const networkLabel = network ?? (mandate?.chainId ? CHAIN_NAMES[mandate.chainId] : null)
+  const networkLabel = (() => {
+    const n = network ?? (mandate?.chainId ? CHAIN_NAMES[mandate.chainId] : null)
+    return n ? n.charAt(0).toUpperCase() + n.slice(1) : null
+  })()
 
   // Only permissions with a known on-chain address can be revoked; dedup by address
   const revokeablePool = onRevoke
@@ -919,7 +922,7 @@ function DashboardContent({ draft, onReset }) {
   const { account: realAccount, loading: accountLoading } = useSailorAccount(refreshTick)
   const { accounts: allAccounts } = useSailorAccounts(refreshTick)
   const { overview } = useSailorOverview(refreshTick)
-  const { mandate: liveMandate } = useSailorMandate(refreshTick)
+  const { mandates: liveMandates } = useSailorMandate(refreshTick)
   const { events: liveActivity } = useSailorActivity(refreshTick)
   const { positions: livePositions } = useSailorPositions(refreshTick)
   const { running: agentRunning, pid: agentPid, source: agentSource, githubActions } = useSailorAgentStatus()
@@ -968,11 +971,10 @@ function DashboardContent({ draft, onReset }) {
   // "this SMA's mandate" when its safe matches the active account; a legacy entry
   // with no safe is trusted only on single-SMA projects where it's unambiguous.
   const activeSafe = (overviewAccount ?? realAccount)?.safe?.toLowerCase()
-  const hasLiveMandate =
-    liveMandate != null &&
-    (liveMandate.safe != null
-      ? liveMandate.safe.toLowerCase() === activeSafe
-      : allAccounts.length <= 1)
+  const activeLiveMandates = liveMandates.filter((m) =>
+    m.safe != null ? m.safe.toLowerCase() === activeSafe : allAccounts.length <= 1
+  )
+  const hasLiveMandate = activeLiveMandates.length > 0
   const liveMode = hasLiveMandate || agentRunning
 
   const realNetwork = effectiveAccount ? (CHAIN_NAMES[effectiveAccount.chainId] ?? 'ethereum') : null
@@ -991,21 +993,31 @@ function DashboardContent({ draft, onReset }) {
   const smaName = safeNames[activeAccount?.safe ?? 'live-sma'] ?? activeAccount?.name ?? sma?.name ?? 'My SMA'
   const currentSafeId = activeAccount?.safe ?? effectiveAccount?.safe ?? 'live-sma'
   const profileSafes = allAccounts.length > 0
-    ? allAccounts.map((a) => {
-        const net = CHAIN_NAMES[a.chainId] ?? 'ethereum'
-        const isCurrent = a.safe?.toLowerCase() === currentSafeId?.toLowerCase()
-        return {
-          id: a.safe,
-          name: safeNames[a.safe] ?? a.name ?? 'My SMA',
-          address: a.safe,
-          network: net,
-          networks: [net],
-          agentCount: isCurrent && agentRunning ? 1 : 0,
-          createdAt: a.addedAt ?? null,
+    ? (() => {
+        const byId = new Map()
+        for (const a of allAccounts) {
+          const key = a.safe.toLowerCase()
+          const net = CHAIN_NAMES[a.chainId] ?? 'ethereum'
+          const isCurrent = a.safe?.toLowerCase() === currentSafeId?.toLowerCase()
+          if (!byId.has(key)) {
+            byId.set(key, {
+              id: a.safe,
+              name: safeNames[a.safe] ?? a.name ?? 'My SMA',
+              address: a.safe,
+              network: net,
+              networks: [net],
+              mandateCount: isCurrent ? (overview?.mandateCount ?? 0) : 0,
+              createdAt: a.addedAt ?? null,
+            })
+          } else {
+            const entry = byId.get(key)
+            if (!entry.networks.includes(net)) entry.networks.push(net)
+          }
         }
-      })
+        return [...byId.values()]
+      })()
     : sma
-    ? [{ ...sma, name: smaName, networks: [realNetwork], agentCount: agentRunning ? 1 : 0, createdAt: null }]
+    ? [{ ...sma, name: smaName, networks: [realNetwork], mandateCount: overview?.mandateCount ?? 0, createdAt: null }]
     : []
 
   const safeUrl = sma ? safeAppUrl(sma.network, sma.address) : '#'
@@ -1256,11 +1268,11 @@ function DashboardContent({ draft, onReset }) {
                 listed is forbidden by the contract by default. Full
                 contract receipt, hashes, selectors, and the Revoke
                 action live one click in at /mandate/:id. */}
-            <section className={styles.mandatesSection} aria-label="Your permissions">
+            <section className={styles.mandatesSection} aria-label="Your mandates">
               <header className={styles.mandatesSectionHead}>
                 <h2 className={styles.mandatesSectionTitle}>
                   <DocGlyph />
-                  Your permissions
+                  Your Mandates
                 </h2>
                 <span className={styles.mandatesSectionMeta}>
                   {overviewMandates.length > 0
@@ -1268,22 +1280,26 @@ function DashboardContent({ draft, onReset }) {
                         overviewMandates.length === 1 ? '' : 's'
                       }${overview?.onchain ? ' · attached on-chain' : ''}`
                     : hasLiveMandate
-                      ? `${(liveMandate.permissions ?? []).length} permission${
-                          (liveMandate.permissions ?? []).length === 1 ? '' : 's'
+                      ? `${activeLiveMandates.reduce((n, m) => n + (m.permissions ?? []).length, 0)} permission${
+                          activeLiveMandates.reduce((n, m) => n + (m.permissions ?? []).length, 0) === 1 ? '' : 's'
                         } · live`
                       : 'No permissions registered yet'}
                 </span>
               </header>
 
               <div className={styles.mandateList}>
-                {hasLiveMandate ? (
-                  <LiveMandateCard
-                    mandate={liveMandate}
-                    network={realNetwork}
-                    addressByTemplate={new Map(overviewMandates.map((m) => [m.name ?? m.template, m.address]))}
-                    onRevoke={overview?.kernel && overview?.sma?.address ? setRevokeTarget : undefined}
-                  />
-                ) : overviewMandates.length > 0 ? (
+                {hasLiveMandate ? (() => {
+                  const addressByTemplate = new Map(overviewMandates.map((m) => [m.name ?? m.template, m.address]))
+                  return activeLiveMandates.map((m, i) => (
+                    <LiveMandateCard
+                      key={m.signedAt ?? i}
+                      mandate={m}
+                      network={realNetwork}
+                      addressByTemplate={addressByTemplate}
+                      onRevoke={overview?.kernel && overview?.sma?.address ? setRevokeTarget : undefined}
+                    />
+                  ))
+                })() : overviewMandates.length > 0 ? (
                   <AttachedMandatesPanel
                     mandates={overviewMandates}
                     network={overview?.network ?? realNetwork}

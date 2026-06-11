@@ -222,7 +222,7 @@ export default function ProfileModal({
                         )}
                         <span className={styles.smaMetaSep} aria-hidden>·</span>
                         <span className={styles.smaAgentCount}>
-                          {sma.agentCount} {sma.agentCount === 1 ? 'agent' : 'agents'}
+                          {sma.mandateCount} {sma.mandateCount === 1 ? 'mandate' : 'mandates'}
                         </span>
                       </span>
                     </span>

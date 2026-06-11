@@ -100,8 +100,8 @@ export function useSailorActivity(trigger) {
 
 /** The signed mandate from `.sail/mandate.json`, or null. Polls every 10s. */
 export function useSailorMandate(trigger) {
-  const { data, loading, error } = usePolledJson('/api/mandate', null, 10000, trigger)
-  return { mandate: data, loading, error }
+  const { data, loading, error } = usePolledJson('/api/mandate', [], 10000, trigger)
+  return { mandates: Array.isArray(data) ? data : (data ? [data] : []), loading, error }
 }
 
 /** Whether `sailor run` is currently running. Polls every 5s. */

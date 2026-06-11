@@ -588,9 +588,10 @@ export function startServer(sailDir, { port = PORT } = {}) {
   // GET /api/mandate — the signed mandate, or null if not signed yet.
   app.get('/api/mandate', (_req, res) => {
     try {
-      res.json(JSON.parse(fs.readFileSync(at('mandate.json'), 'utf-8')))
+      const raw = JSON.parse(fs.readFileSync(at('mandate.json'), 'utf-8'))
+      res.json(Array.isArray(raw) ? raw : [raw])
     } catch {
-      res.json(null)
+      res.json([])
     }
   })
 
@@ -641,7 +642,12 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
     try {
       fs.mkdirSync(sailDir, { recursive: true })
-      fs.writeFileSync(at('mandate.json'), `${JSON.stringify(mandate, null, 2)}\n`)
+      let existing = []
+      try {
+        const raw = JSON.parse(fs.readFileSync(at('mandate.json'), 'utf-8'))
+        existing = Array.isArray(raw) ? raw : [raw]
+      } catch { /* no existing mandate */ }
+      fs.writeFileSync(at('mandate.json'), `${JSON.stringify([...existing, mandate], null, 2)}\n`)
       try {
         fs.rmSync(at('mandate-draft.json'))
       } catch {
@@ -1206,9 +1212,12 @@ export function startServer(sailDir, { port = PORT } = {}) {
       /* no local mandate history */
     }
     try {
-      const local = JSON.parse(fs.readFileSync(at('mandate.json'), 'utf-8'))
-      for (const p of local.permissions ?? []) {
-        if (p.address && p.template) templateByAddr.set(p.address.toLowerCase(), p.template)
+      const raw = JSON.parse(fs.readFileSync(at('mandate.json'), 'utf-8'))
+      const locals = Array.isArray(raw) ? raw : [raw]
+      for (const local of locals) {
+        for (const p of local.permissions ?? []) {
+          if (p.address && p.template) templateByAddr.set(p.address.toLowerCase(), p.template)
+        }
       }
     } catch {
       /* no mandate.json */
@@ -1392,6 +1401,14 @@ export function startServer(sailDir, { port = PORT } = {}) {
       }))
       const mgrSigner = result.signers.find((s) => s.role === 'manager')
       if (mgrSigner && !mgrSigner.managers) mgrSigner.managers = managersPayload
+    }
+
+    try {
+      const raw = JSON.parse(fs.readFileSync(at('mandate.json'), 'utf-8'))
+      const mandates = Array.isArray(raw) ? raw : [raw]
+      result.mandateCount = mandates.filter((m) => m.registeredOnChain || m.signature).length
+    } catch {
+      result.mandateCount = 0
     }
 
     return result
