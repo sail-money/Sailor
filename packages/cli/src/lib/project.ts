@@ -57,7 +57,10 @@ export class ProjectContext {
       throw new Error('No Sailor project found here. Run "sailor init" first.');
     }
     this.config = cfg;
-    this.chainId = cfg.chainId ?? 8453;
+    // Resolution order: inline shell env → .env.local CHAIN_ID → config.json → default Base
+    const envLocal = parseEnvFile(sailPath(".env.local"));
+    const envChainId = process.env.CHAIN_ID ?? envLocal.CHAIN_ID;
+    this.chainId = envChainId ? Number(envChainId) : (cfg.chainId ?? 8453);
     this.deployment = getSailDeployment(this.chainId);
 
     const overrides = cfg.contracts ?? {};
