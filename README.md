@@ -71,13 +71,24 @@ Run `npx sailor init my-agent`, open the scaffolded folder in Claude Code, Curso
 
 ### Start a new agent project (recommended)
 
-Open your AI coding assistant and run in its terminal:
+Create a folder, step into it, then install and init:
 
-```sh
-npx sailor init my-agent
+```bash
+# bash / zsh / macOS
+mkdir my-agent && cd my-agent && npm i @sail.money/sailor && npx sailor init
 ```
 
-Then say **"start"** — your assistant takes it from there.
+```powershell
+# PowerShell (Windows)
+mkdir my-agent ; cd my-agent ; npm i @sail.money/sailor ; npx sailor init
+```
+
+Then open the folder in your AI coding assistant and say **"start"**.
+
+> **npx shortcut** — skips the explicit install; npm downloads sailor on the fly:
+> ```sh
+> mkdir my-agent && cd my-agent && npx sailor init
+> ```
 
 ### Global CLI (for direct sailor commands)
 
@@ -100,8 +111,13 @@ Prerequisites:
 ### Recommended — assistant-driven
 
 ```bash
-npx sailor init my-agent && cd my-agent
-npm install
+# bash / zsh / macOS
+mkdir my-agent && cd my-agent && npm i @sail.money/sailor && npx sailor init && npm install
+```
+
+```powershell
+# PowerShell (Windows)
+mkdir my-agent ; cd my-agent ; npm i @sail.money/sailor ; npx sailor init ; npm install
 ```
 
 Open this folder in Claude Code, Cursor, Codex, or any AI coding assistant and say **"start"**. The scaffolded `AGENTS.md` guides the assistant through all five stages — SMA deployment, strategy definition, mandate authoring, running, and automation. No manual steps required.
