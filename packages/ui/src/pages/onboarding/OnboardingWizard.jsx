@@ -96,7 +96,7 @@ export default function OnboardingWizard({ onboardState, onComplete }) {
       <main className={styles.stage}>
         <div key={step} className={styles.stageInner}>
           {step === 'welcome' && (
-            <WelcomeState onStart={() => setStep('network')} />
+            <WelcomeState onStart={() => setStep('network')} onSkip={onComplete} />
           )}
           {step === 'network' && (
             <NetworkStep
@@ -161,7 +161,7 @@ function ProgressDots({ current, total }) {
 }
 
 /* ── Step 0: Welcome / setup overview ── */
-function WelcomeState({ onStart }) {
+function WelcomeState({ onStart, onSkip }) {
   return (
     <GlassCard className={styles.welcomeCard}>
       <div className={styles.cardSai} aria-hidden>
@@ -195,6 +195,11 @@ function WelcomeState({ onStart }) {
         <SailButton fullWidth onClick={onStart}>Start setup →</SailButton>
       </div>
       <p className={styles.fineprint}>Self-custody. Sail never holds your keys.</p>
+      {onSkip && (
+        <button className={styles.skipLink} onClick={onSkip}>
+          Already have an SMA? Skip to dashboard →
+        </button>
+      )}
     </GlassCard>
   )
 }
