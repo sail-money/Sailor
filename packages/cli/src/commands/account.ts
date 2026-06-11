@@ -1,9 +1,9 @@
-import { getChain } from "@sail/chains";
 import {
   SAFE_V141,
   SailKernelAbi,
   buildSafeSetupInitializer,
   computeSailSmaAddress,
+  getChain,
   sailDeployments,
   safeProxyFactoryAbi,
   type ChainConfig,
