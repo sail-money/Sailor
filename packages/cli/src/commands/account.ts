@@ -36,7 +36,7 @@ import {
 import { keyExists, loadKeyring } from "../lib/keys.js";
 import { projectPort } from "../lib/packagePaths.js";
 import { type StoredAccount, upsertAccountInList } from "../lib/state.js";
-import { createSigningChannel } from "../signing/client.js";
+import { createSigningChannel, signingPageUrl } from "../signing/client.js";
 
 function resolveChain(chainId: number): ChainConfig {
   try {
@@ -480,7 +480,7 @@ export async function accountDeployChain(options: DeployChainOptions): Promise<v
   try {
     await channel.start();
 
-    const stationUrl = `http://localhost:${projectPort(process.cwd())}/#/station`;
+    const stationUrl = signingPageUrl(channel, projectPort(process.cwd()));
     if (json) {
       console.log(
         JSON.stringify(

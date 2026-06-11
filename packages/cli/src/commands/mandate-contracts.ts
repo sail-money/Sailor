@@ -52,7 +52,7 @@ import { appendActivity, nowIso } from "../lib/io.js";
 import { type DeployedMandate, MandateStore } from "../lib/mandates.js";
 import { emit } from "../lib/output.js";
 import { ProjectContext, loadManagerSigner } from "../lib/project.js";
-import { type SigningChannel, createSigningChannel } from "../signing/client.js";
+import { type SigningChannel, createSigningChannel, signingPageUrl } from "../signing/client.js";
 import { attachMandate } from "./onboard.js";
 import { projectPort } from "../lib/packagePaths.js";
 
@@ -218,7 +218,7 @@ async function runDeploy(
 
   say(() => {
     console.log(
-      `\n→ Open the Sailor dashboard to approve signing requests:\n  http://localhost:${projectPort(process.cwd())}/#/station\n`,
+      `\n→ Open the Sailor dashboard to approve signing requests:\n  ${signingPageUrl(channel, projectPort(process.cwd()))}\n`,
     );
     console.log(`Pushing deploy request for "${contractName}"…`);
   });
@@ -530,7 +530,7 @@ async function runDeployClone(
     console.log(`  predicted clone: ${clone}`);
     console.log(`  SMA:             ${sma}`);
     for (const d of spec.describe(initParams)) console.log(`  ${d.label}: ${d.value}`);
-    console.log(`\n→ Open the Sailor dashboard to approve signing requests:\n  http://localhost:${projectPort(process.cwd())}/#/station\n`);
+    console.log(`\n→ Open the Sailor dashboard to approve signing requests:\n  ${signingPageUrl(channel, projectPort(process.cwd()))}\n`);
   });
 
   // Owner signs RegisterPermission for the PREDICTED clone address.
@@ -727,7 +727,7 @@ async function runAttach(
 
   if (!json) {
     console.log(
-      `\n→ Open the Sailor dashboard to approve signing requests:\n  http://localhost:${projectPort(process.cwd())}/#/station\n`,
+      `\n→ Open the Sailor dashboard to approve signing requests:\n  ${signingPageUrl(channel, projectPort(process.cwd()))}\n`,
     );
   }
 
@@ -828,7 +828,7 @@ async function runRevoke(
     console.log(`\nRevoking ${targets.length} permission(s) from ${sma}:`);
     for (const p of targets) console.log(`  ${nameFor(p) ?? p}  ${p}`);
     console.log(
-      `\n→ Open the Sailor dashboard to approve signing requests:\n  http://localhost:${projectPort(process.cwd())}/#/station\n`,
+      `\n→ Open the Sailor dashboard to approve signing requests:\n  ${signingPageUrl(channel, projectPort(process.cwd()))}\n`,
     );
   });
 
