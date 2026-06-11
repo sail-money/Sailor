@@ -1,7 +1,36 @@
 import { chains } from "@sail/sdk";
 import { http, createPublicClient } from "viem";
-import { getChainById, getRpcUrl } from "../lib/chain.js";
+import { getChainById } from "../lib/chain.js";
+import { parseEnvFile, readJsonFile, sailPath } from "../lib/io.js";
 import { emit } from "../lib/output.js";
+
+/**
+ * Resolve an RPC for a specific chain in the context of multi-chain verification.
+ * Generic RPC_URL is only used for the active chain (matching CHAIN_ID) — using it
+ * for other chains would give false positives when all kernels share the same
+ * CREATE2 address and only one RPC endpoint is configured.
+ */
+function resolveVerifyRpc(
+  chainId: number,
+  activeChainId: number | null,
+  env: Record<string, string>,
+): string | undefined {
+  const varName = chains[chainId]?.rpcEnvVar;
+
+  // Chain-specific var from .env.local
+  if (varName && env[varName]?.trim()) return env[varName]!.trim();
+
+  // Generic RPC_URL — only valid for the active chain
+  if (chainId === activeChainId && env.RPC_URL?.trim()) return env.RPC_URL.trim();
+
+  // Chain-specific var from shell
+  if (varName && process.env[varName]?.trim()) return process.env[varName]!.trim();
+
+  // Generic shell RPC_URL — only valid for the active chain
+  if (chainId === activeChainId && process.env.RPC_URL?.trim()) return process.env.RPC_URL.trim();
+
+  return undefined;
+}
 
 export interface ChainsOptions {
   verify?: boolean;
@@ -20,11 +49,17 @@ export interface ChainsOptions {
 export async function chainsCommand(options: ChainsOptions = {}): Promise<void> {
   const entries = Object.values(chains);
 
+  // Read active chain once — generic RPC_URL is only valid for this chain.
+  const env = parseEnvFile(sailPath(".env.local"));
+  const configChainId = readJsonFile<{ chainId?: number }>(sailPath("config.json"))?.chainId;
+  const activeChainIdRaw = env.CHAIN_ID ?? process.env.CHAIN_ID ?? (configChainId != null ? String(configChainId) : undefined);
+  const activeChainId = activeChainIdRaw != null ? Number(activeChainIdRaw) : null;
+
   const results = await Promise.all(
     entries.map(async (cfg) => {
       if (!options.verify) return { ...cfg, verified: undefined, rpcUrl: undefined, error: undefined };
 
-      const rpcUrl = getRpcUrl(cfg.chainId);
+      const rpcUrl = resolveVerifyRpc(cfg.chainId, activeChainId, env);
       if (!rpcUrl) {
         return { ...cfg, verified: null, rpcUrl: null, error: "no RPC configured" };
       }

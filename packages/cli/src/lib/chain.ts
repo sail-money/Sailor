@@ -1,5 +1,6 @@
 import type { Chain } from "viem";
 import { arbitrum, base, baseSepolia, mainnet, sepolia, unichain } from "viem/chains";
+import { chains } from "@sail/sdk";
 import { parseEnvFile, sailPath } from "./io.js";
 
 const CHAINS: Record<number, Chain> = {
@@ -22,14 +23,6 @@ export function getChainById(chainId: number): Chain {
   return chain;
 }
 
-const RPC_ENV_VARS: Record<number, string> = {
-  1: "ETH_MAINNET_RPC_URL",
-  8453: "BASE_RPC_URL",
-  42161: "ARBITRUM_RPC_URL",
-  130: "UNICHAIN_RPC_URL",
-  84532: "BASE_SEPOLIA_RPC_URL",
-  11155111: "SEPOLIA_RPC_URL",
-};
 
 /**
  * Resolve an RPC URL for a given chain. Resolution order (first match wins):
@@ -50,7 +43,7 @@ const RPC_ENV_VARS: Record<number, string> = {
  */
 export function getRpcUrl(chainId: number): string | undefined {
   const env = parseEnvFile(sailPath(".env.local"));
-  const perChainVar = RPC_ENV_VARS[chainId];
+  const perChainVar = chains[chainId]?.rpcEnvVar;
 
   // 1. .env.local chain-specific
   const fromProjectChain = perChainVar ? env[perChainVar] : undefined;

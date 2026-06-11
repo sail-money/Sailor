@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { chains } from "@sail/sdk";
 import { scaffoldFoundryWorkspace } from "../lib/foundry.js";
 import { packageRoot } from "../lib/packagePaths.js";
 
@@ -17,10 +18,10 @@ function copyDirSync(src: string, dest: string): void {
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
     if (TEMPLATE_COPY_EXCLUDES.has(entry.name)) continue;
     const srcPath = path.join(src, entry.name);
-    // _gitignore → .gitignore: npm strips .gitignore from package tarballs even
-    // when the file is inside a `files`-listed directory. Template ships it as
-    // `_gitignore`; we restore the real name at scaffold time.
-    const destName = entry.name === "_gitignore" ? ".gitignore" : entry.name;
+    // Underscore-prefixed → dot-prefixed: npm strips dot-files (.gitignore,
+    // .env.local) from package tarballs even inside `files`-listed directories.
+    // Templates ship them as _gitignore / _env.local; restore the real name here.
+    const destName = entry.name.startsWith("_") ? `.${entry.name.slice(1)}` : entry.name;
     const destPath = path.join(dest, destName);
     if (entry.isDirectory()) {
       copyDirSync(srcPath, destPath);
@@ -97,6 +98,12 @@ function scaffoldProjectWorkspace(dest: string, name: string, options: InitOptio
 
   writeIfMissing(path.join(sailDir, "README.md"), SAIL_WORKSPACE_README);
 
+  // Build per-chain var lines from the SDK registry — stays in sync when chains are added.
+  const chainEntries = Object.values(chains);
+  const perChainVarLines = chainEntries
+    .map(c => `# ${c.rpcEnvVar}=https://your-${c.name.toLowerCase().replace(/\s+/g, "-")}-endpoint`)
+    .join("\n");
+
   // .env.example — documents both RPC config patterns; CHAIN_ID omitted when
   // no chain was specified so Stage 1 can set it after the user picks a chain.
   const chainIdExample = chainId != null ? `CHAIN_ID=${chainId}` : `# CHAIN_ID=8453   # set after choosing your chain in Stage 1`;
@@ -112,12 +119,7 @@ ${chainIdExample}
 #
 # Option B: per-chain endpoints (multi-chain projects, or if you prefer explicit names)
 # Set CHAIN_ID to the chain sailor run uses; omit RPC_URL if all chains have a specific var.
-# BASE_RPC_URL=https://your-base-endpoint
-# ARBITRUM_RPC_URL=https://your-arbitrum-endpoint
-# UNICHAIN_RPC_URL=https://your-unichain-endpoint
-# ETH_MAINNET_RPC_URL=https://your-mainnet-endpoint
-# BASE_SEPOLIA_RPC_URL=https://your-base-sepolia-endpoint
-# SEPOLIA_RPC_URL=https://your-sepolia-endpoint
+${perChainVarLines}
 
 # Optional: non-interactive passphrase (CI, GitHub Actions, launchd, systemd)
 # SAIL_PASSPHRASE=change-me-to-a-strong-passphrase
@@ -125,24 +127,33 @@ ${chainIdExample}
     "utf-8",
   );
 
-  // .env.local — write the active RPC/chain. Uses the chain-specific var when a
-  // chain is known so multi-chain projects can add other per-chain vars alongside it.
-  const perChainVars: Record<number, string> = {
-    1: "ETH_MAINNET_RPC_URL", 8453: "BASE_RPC_URL", 42161: "ARBITRUM_RPC_URL",
-    130: "UNICHAIN_RPC_URL", 84532: "BASE_SEPOLIA_RPC_URL", 11155111: "SEPOLIA_RPC_URL",
-  };
-  const rpcVarName = chainId != null && perChainVars[chainId] ? perChainVars[chainId] : "RPC_URL";
-  const rpcLine = options.rpcUrl
-    ? `${rpcVarName}=${options.rpcUrl}`
-    : `# Paste your RPC endpoint here (Alchemy, Infura, or any HTTPS endpoint)\n# ${rpcVarName}=https://your-rpc-endpoint`;
-  const chainLine = chainId != null ? `\nCHAIN_ID=${chainId}` : ``;
-  writeIfMissing(
+  // .env.local — always generated so its per-chain comments match the SDK registry.
+  // Shows both Option A (generic RPC_URL + CHAIN_ID) and Option B (per-chain vars).
+  // When --rpc-url / --chain flags are given the active vars are pre-populated.
+  const rpcUrlLine = options.rpcUrl ? `RPC_URL=${options.rpcUrl}` : `# RPC_URL=https://your-rpc-endpoint`;
+  const chainIdLine = chainId != null ? `CHAIN_ID=${chainId}` : `# CHAIN_ID=8453   # set after choosing your chain`;
+  const allChainVarLines = chainEntries
+    .map(c => {
+      const isActive = c.chainId === chainId;
+      const val = isActive && options.rpcUrl ? options.rpcUrl : `https://your-${c.name.toLowerCase().replace(/\s+/g, "-")}-endpoint`;
+      return isActive && options.rpcUrl ? `${c.rpcEnvVar}=${val}` : `# ${c.rpcEnvVar}=${val}`;
+    })
+    .join("\n");
+  fs.writeFileSync(
     path.join(sailDir, ".env.local"),
-    `${rpcLine}${chainLine}
+    `# Real values — never commit this file.
+#
+# Option A: single active chain (simplest)
+${rpcUrlLine}
+${chainIdLine}
+#
+# Option B: per-chain endpoints (multi-chain or explicit names; omit RPC_URL if every chain has its own var)
+${allChainVarLines}
 
 # Optional: non-interactive passphrase (CI, GitHub Actions, launchd, systemd)
 # SAIL_PASSPHRASE=change-me-to-a-strong-passphrase
 `,
+    "utf-8",
   );
 }
 
@@ -302,7 +313,7 @@ function detectState(dest: string): ProjectState {
   }
 }
 
-function printWelcome(dest: string, name: string, inPlace: boolean, hasRpc: boolean, freshInit = false): void {
+function printWelcome(dest: string, name: string, inPlace: boolean, _hasRpc: boolean, freshInit = false): void {
   // A fresh sailor init always shows STATE A — the project was just created.
   const state = freshInit ? { kind: "A" as const } : detectState(dest);
 
