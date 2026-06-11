@@ -991,19 +991,29 @@ function DashboardContent({ draft, onReset }) {
   const smaName = safeNames[activeAccount?.safe ?? 'live-sma'] ?? activeAccount?.name ?? sma?.name ?? 'My SMA'
   const currentSafeId = activeAccount?.safe ?? effectiveAccount?.safe ?? 'live-sma'
   const profileSafes = allAccounts.length > 0
-    ? allAccounts.map((a) => {
-        const net = CHAIN_NAMES[a.chainId] ?? 'ethereum'
-        const isCurrent = a.safe?.toLowerCase() === currentSafeId?.toLowerCase()
-        return {
-          id: a.safe,
-          name: safeNames[a.safe] ?? a.name ?? 'My SMA',
-          address: a.safe,
-          network: net,
-          networks: [net],
-          mandateCount: isCurrent ? (overview?.mandateCount ?? 0) : 0,
-          createdAt: a.addedAt ?? null,
+    ? (() => {
+        const byId = new Map()
+        for (const a of allAccounts) {
+          const key = a.safe.toLowerCase()
+          const net = CHAIN_NAMES[a.chainId] ?? 'ethereum'
+          const isCurrent = a.safe?.toLowerCase() === currentSafeId?.toLowerCase()
+          if (!byId.has(key)) {
+            byId.set(key, {
+              id: a.safe,
+              name: safeNames[a.safe] ?? a.name ?? 'My SMA',
+              address: a.safe,
+              network: net,
+              networks: [net],
+              mandateCount: isCurrent ? (overview?.mandateCount ?? 0) : 0,
+              createdAt: a.addedAt ?? null,
+            })
+          } else {
+            const entry = byId.get(key)
+            if (!entry.networks.includes(net)) entry.networks.push(net)
+          }
         }
-      })
+        return [...byId.values()]
+      })()
     : sma
     ? [{ ...sma, name: smaName, networks: [realNetwork], mandateCount: overview?.mandateCount ?? 0, createdAt: null }]
     : []
