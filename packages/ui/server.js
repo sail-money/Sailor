@@ -1394,6 +1394,13 @@ export function startServer(sailDir, { port = PORT } = {}) {
       if (mgrSigner && !mgrSigner.managers) mgrSigner.managers = managersPayload
     }
 
+    try {
+      const m = JSON.parse(fs.readFileSync(at('mandate.json'), 'utf-8'))
+      result.mandateCount = m && (m.registeredOnChain || m.signature) ? 1 : 0
+    } catch {
+      result.mandateCount = 0
+    }
+
     return result
   }
 
