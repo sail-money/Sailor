@@ -146,7 +146,8 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
   if (!account) {
     throw new Error('No account found at .sail/account.json.\nRun "sailor account create" first.');
   }
-  const mandate = readJsonFile<StoredMandate>(sailPath("mandate.json"));
+  const mandateRaw = readJsonFile<StoredMandate | StoredMandate[]>(sailPath("mandate.json"));
+  const mandate = Array.isArray(mandateRaw) ? mandateRaw[0] : mandateRaw;
   if (!mandate) {
     throw new Error('No mandate found at .sail/mandate.json.\nRun "sailor mandate sign" first.');
   }
