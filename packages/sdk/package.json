@@ -23,6 +23,10 @@
       "import": "./dist/deployments.js",
       "types": "./dist/deployments.d.ts"
     },
+    "./chains": {
+      "import": "./dist/chains.js",
+      "types": "./dist/chains.d.ts"
+    },
     "./abis": {
       "import": "./dist/abis/index.js",
       "types": "./dist/abis/index.d.ts"

@@ -1,8 +1,7 @@
 import fs from "node:fs";
 import type { Chain } from "viem";
 import { arbitrum, base, baseSepolia, mainnet, sepolia, unichain } from "viem/chains";
-import type { ChainConfig } from "@sail/sdk";
-import { chains } from "@sail/chains";
+import { chains, type ChainConfig } from "@sail/sdk";
 import { parseEnvFile, sailPath } from "./io.js";
 
 const CHAINS: Record<number, Chain> = {

@@ -1,6 +1,4 @@
-import type { ChainConfig } from "@sail/sdk";
-
-export type { ChainConfig };
+import type { ChainConfig } from "./types.js";
 
 /**
  * Registry of live SailKernel deployments, keyed by EVM chainId.
@@ -87,7 +85,7 @@ export function getChain(chainId: number): ChainConfig {
   const config = chains[chainId];
   if (!config) {
     throw new Error(
-      `Chain ${chainId} is not yet supported. Add it to @sail/chains once SailKernel is deployed.`,
+      `Chain ${chainId} is not supported. To add it, create or update .sail/chains.json.`,
     );
   }
   return config;

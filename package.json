@@ -25,12 +25,12 @@
     "AGENTS.md"
   ],
   "scripts": {
-    "build": "pnpm --filter @sail/sdk build && pnpm --filter @sail/chains build && pnpm --filter sailor build && pnpm --filter sailor-ui build",
+    "build": "pnpm --filter @sail/sdk build && pnpm --filter sailor build && pnpm --filter sailor-ui build",
     "test": "pnpm --filter sailor-ui test",
     "test:ui": "pnpm --filter sailor-ui test:ui",
     "link:cli": "pnpm link --global",
     "postinstall": "node scripts/postinstall.js",
-    "typecheck": "pnpm --filter @sail/sdk build && pnpm --filter @sail/chains build && pnpm -r typecheck",
+    "typecheck": "pnpm --filter @sail/sdk build && pnpm -r typecheck",
     "docs:check": "node scripts/check-docs.mjs",
     "init:check": "node scripts/check-init.mjs",
     "eval": "node evals/run.mjs",
