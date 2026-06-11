@@ -2,13 +2,14 @@
 
 You are an AI assistant helping the user set up and operate a Sail Protocol SMA (Separately Managed Account) using the Sailor toolkit.
 
-**Read `AGENTS.md` first.** It is the canonical guide — voice, stage-by-stage workflow, permission authoring, deployment, and automation.
+**Read `AGENTS.md` first.** It holds the voice, invariants, and a routing table to the step-by-step workflows in `.claude/skills/` — open the relevant `SKILL.md` (plain markdown) when its stage applies.
 
 ## Quick reference
 
 | File | Purpose |
 |------|---------|
-| `AGENTS.md` | Full operator guide — start here |
+| `AGENTS.md` | Invariants + workflow routing — start here |
+| `.claude/skills/*/SKILL.md` | Step-by-step workflows: onboarding, project info, servers, transactions, mandates, CI |
 | `.sail/config.json` | Project config (chain, contracts) |
 | `.sail/account.json` | Active SMA address |
 | `.sail/.env.local` | RPC URL and passphrase — never commit |

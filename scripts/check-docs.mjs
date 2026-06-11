@@ -19,7 +19,7 @@
  * Run: `node scripts/check-docs.mjs` (or `pnpm docs:check`). Exit 1 on any miss.
  */
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -193,7 +193,54 @@ function codeRegions(md) {
   return regions;
 }
 
-// ── 4. Validate ──────────────────────────────────────────────────────────────
+// ── 4. Skills consistency ─────────────────────────────────────────────────────
+//
+// The scaffolded template ships agent skills under .claude/skills/. AGENTS.md is
+// the routing layer: it must point at every skill that exists, and every skill it
+// points at must exist with valid frontmatter — otherwise an agent either never
+// discovers a workflow or follows a dangling pointer.
+
+function checkSkills(errors) {
+  const skillsRoot = join(ROOT, "templates/default/.claude/skills");
+  const agentsPath = join(ROOT, "templates/default/AGENTS.md");
+  if (!existsSync(skillsRoot)) {
+    errors.push("templates/default/.claude/skills: directory missing");
+    return;
+  }
+  const agentsMd = readFileSync(agentsPath, "utf-8");
+  const dirs = readdirSync(skillsRoot).filter((d) =>
+    statSync(join(skillsRoot, d)).isDirectory(),
+  );
+  if (dirs.length === 0) errors.push("templates/default/.claude/skills: no skills found");
+
+  for (const d of dirs) {
+    const skillFile = join(skillsRoot, d, "SKILL.md");
+    if (!existsSync(skillFile)) {
+      errors.push(`templates/default/.claude/skills/${d}: missing SKILL.md`);
+      continue;
+    }
+    const fm = readFileSync(skillFile, "utf-8").match(/^---\n([\s\S]*?)\n---/);
+    if (!fm) {
+      errors.push(`${rel(skillFile)}: missing YAML frontmatter`);
+      continue;
+    }
+    const name = fm[1].match(/^name:\s*(\S+)\s*$/m)?.[1];
+    const description = fm[1].match(/^description:\s*(.+)$/m)?.[1]?.trim();
+    if (name !== d) errors.push(`${rel(skillFile)}: frontmatter name "${name}" ≠ directory "${d}"`);
+    if (!description) errors.push(`${rel(skillFile)}: frontmatter description missing or empty`);
+    if (!agentsMd.includes(`.claude/skills/${d}/SKILL.md`)) {
+      errors.push(`templates/default/AGENTS.md: routing table does not reference .claude/skills/${d}/SKILL.md`);
+    }
+  }
+
+  for (const m of agentsMd.matchAll(/\.claude\/skills\/([\w-]+)\/SKILL\.md/g)) {
+    if (!dirs.includes(m[1])) {
+      errors.push(`templates/default/AGENTS.md: references .claude/skills/${m[1]}/SKILL.md which does not exist`);
+    }
+  }
+}
+
+// ── 5. Validate ──────────────────────────────────────────────────────────────
 
 function main() {
   const cli = parseCliSurface();
@@ -241,6 +288,8 @@ function main() {
       }
     }
   }
+
+  checkSkills(errors);
 
   // ── Report ───────────────────────────────────────────────────────────────
   const cliCount = cli.leaves.size + [...cli.groups.values()].reduce((n, s) => n + s.size, 0);
