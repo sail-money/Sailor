@@ -12,7 +12,7 @@ jobs:
       id-token: write
       contents: read
       packages: write
-    uses: SailAgent/devops-templates/.github/workflows/publish-pnpm.yaml@main
+    uses: sail-money/devops-templates/.github/workflows/publish-pnpm.yaml@main
     with:
       package_dir: .
       package_name: ${{ github.ref_name == 'main' && '@sailagent/sailor' || '@sailagent/sailor-dev' }}
