@@ -1,7 +1,5 @@
-import fs from "node:fs";
 import type { Chain } from "viem";
 import { arbitrum, base, baseSepolia, mainnet, sepolia, unichain } from "viem/chains";
-import { chains, type ChainConfig } from "@sail/sdk";
 import { parseEnvFile, sailPath } from "./io.js";
 
 const CHAINS: Record<number, Chain> = {
@@ -12,39 +10,6 @@ const CHAINS: Record<number, Chain> = {
   84532: baseSepolia,
   11155111: sepolia,
 };
-
-/**
- * Resolve the SailKernel deployment config for a chain. Merges built-in
- * chain registry with any project-local overrides in `.sail/chains.json`.
- * Agents can add unsupported chains by editing that file — no SDK changes needed.
- */
-export function getProjectChain(chainId: number): ChainConfig {
-  let custom: Record<number, ChainConfig> = {};
-  const p = sailPath("chains.json");
-  if (fs.existsSync(p)) {
-    try { custom = JSON.parse(fs.readFileSync(p, "utf8")); } catch {}
-  }
-  const merged = { ...chains, ...custom };
-  const config = merged[chainId];
-  if (!config) {
-    throw new Error(
-      `Chain ${chainId} is not supported.\n` +
-        `To add it, create or update .sail/chains.json:\n` +
-        `{\n` +
-        `  "${chainId}": {\n` +
-        `    "chainId": ${chainId},\n` +
-        `    "name": "ChainName",\n` +
-        `    "kernel": "0x...",\n` +
-        `    "mandateFactory": "0x...",\n` +
-        `    "governance": "0x...",\n` +
-        `    "dispatchModel": "selective",\n` +
-        `    "protocols": {}\n` +
-        `  }\n` +
-        `}`,
-    );
-  }
-  return config;
-}
 
 /** Resolve a viem Chain for a supported Sail chain id. */
 export function getChainById(chainId: number): Chain {

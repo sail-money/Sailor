@@ -3,6 +3,7 @@ import {
   SailKernelAbi,
   buildSafeSetupInitializer,
   computeSailSmaAddress,
+  getChain,
   sailDeployments,
   safeProxyFactoryAbi,
   type SailChainId,
@@ -18,7 +19,7 @@ import {
   parseEventLogs,
   zeroAddress,
 } from "viem";
-import { getChainById, getProjectChain, getRpcUrl } from "../lib/chain.js";
+import { getChainById, getRpcUrl } from "../lib/chain.js";
 import {
   appendActivity,
   checksum,
@@ -67,7 +68,7 @@ export async function accountCreate(): Promise<void> {
     throw new Error(`Invalid CHAIN_ID: "${chainIdRaw}" — must be a number.`);
   }
 
-  const chain = getProjectChain(chainId);
+  const chain = getChain(chainId);
   console.log(`Chain ${chainId} (${chain.name})`);
   console.log(`  SailKernel:      ${checksum(chain.kernel)}`);
   console.log(`  Mandate factory: ${checksum(chain.mandateFactory)}\n`);

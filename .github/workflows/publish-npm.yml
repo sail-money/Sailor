@@ -24,7 +24,7 @@ jobs:
             echo "build-number=0"                           >> $GITHUB_OUTPUT
           fi
 
-  publish:
+  sailor:
     needs: setup
     permissions:
       id-token: write

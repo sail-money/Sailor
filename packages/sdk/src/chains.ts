@@ -85,7 +85,7 @@ export function getChain(chainId: number): ChainConfig {
   const config = chains[chainId];
   if (!config) {
     throw new Error(
-      `Chain ${chainId} is not supported. To add it, create or update .sail/chains.json.`,
+      `Chain ${chainId} is not supported. Supported chains: 1 (Ethereum), 8453 (Base), 42161 (Arbitrum), 130 (Unichain), 84532 (Base Sepolia), 11155111 (Eth Sepolia).`,
     );
   }
   return config;
