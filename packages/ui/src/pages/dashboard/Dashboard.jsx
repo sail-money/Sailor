@@ -246,7 +246,7 @@ function fmtEth(eth) {
 const BALANCE_STATUS = {
   ok: { label: 'Funded' },
   low: { label: 'Low' },
-  critical: { label: 'Low' },
+  critical: { label: 'Empty' },
 }
 
 const SIGNER_ROLE = {
