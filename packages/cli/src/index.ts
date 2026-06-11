@@ -8,6 +8,7 @@ import {
   accountPredict,
 } from "./commands/account.js";
 import { capabilities } from "./commands/capabilities.js";
+import { type ChainsOptions, chainsCommand } from "./commands/chains.js";
 import { doctor } from "./commands/doctor.js";
 import { initCommand } from "./commands/init.js";
 import { keysExportCi, keysGenerate, keysShow } from "./commands/keys.js";
@@ -336,6 +337,13 @@ program
   )
   .option("--json", "Emit machine-readable JSON")
   .action(actionWith<{ json?: boolean }>(capabilities));
+
+program
+  .command("chains")
+  .description("List supported chains and their SailKernel deployment addresses")
+  .option("--verify", "Verify each kernel is deployed via eth_getCode (one RPC call per chain)")
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<ChainsOptions>(chainsCommand));
 
 // ── Stubs ─────────────────────────────────────────────────────────────────────
 

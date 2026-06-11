@@ -22,21 +22,8 @@ importers:
         specifier: ^5.5.0
         version: 5.9.3
 
-  packages/chains:
-    dependencies:
-      '@sail/sdk':
-        specifier: workspace:*
-        version: link:../sdk
-    devDependencies:
-      typescript:
-        specifier: ^5.5.0
-        version: 5.9.3
-
   packages/cli:
     dependencies:
-      '@sail/chains':
-        specifier: workspace:*
-        version: link:../chains
       '@sail/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -83,9 +70,6 @@ importers:
       '@rainbow-me/rainbowkit':
         specifier: ^2.2.0
         version: 2.2.11(@tanstack/react-query@5.100.14(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(viem@2.51.3(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))(wagmi@2.19.5(@tanstack/query-core@5.100.14)(@tanstack/react-query@5.100.14(react@18.3.1))(bufferutil@4.1.0)(react@18.3.1)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.51.3(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))(zod@3.25.76))
-      '@sail/chains':
-        specifier: workspace:*
-        version: link:../chains
       '@sail/sdk':
         specifier: workspace:*
         version: link:../sdk

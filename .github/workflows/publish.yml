@@ -7,17 +7,16 @@ on:
   workflow_dispatch:
 
 jobs:
-  publish:
+  sailor:
     permissions:
       id-token: write
       contents: read
       packages: write
-    uses: sail-money/devops-templates/.github/workflows/publish-pnpm.yaml@main
+    uses: ./.github/workflows/publish-npm-public-pkg.yaml
     with:
-      package_dir: .
-      package_name: ${{ github.ref_name == 'main' && '@sailagent/sailor' || '@sailagent/sailor-dev' }}
-      is_dev_version: true
-      dist_tag: ${{ github.ref_name == 'main' && 'latest' || 'dev' }}
-      use_github_registry: true
-      pnpm-version: '11'
-    secrets: inherit
+      registry-url: 'https://npm.pkg.github.com'
+      package-name: ${{ github.event_name == 'workflow_dispatch' && '@sail-money/sailor-dev' || '@sail-money/sailor' }}
+      dist-tag: 'latest'
+      build-number: ${{ github.event_name == 'workflow_dispatch' && github.run_number || 0 }}
+    secrets:
+      NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}

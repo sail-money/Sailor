@@ -2,7 +2,7 @@
 // Shows: a complete DCA tick loop — USDC→WETH via Uniswap V3 on Base mainnet.
 // To adapt: replace token addresses, protocol ABIs, and swap logic with your target strategy.
 
-import type { Agent, AgentContext, Call, Dispatch } from "@sail/sdk";
+import type { Agent, AgentContext, Call, Dispatch } from "@sail.money/sailor/sdk";
 import { encodeFunctionData, type PublicClient } from "viem";
 import {
   ALLOWED_TOKENS,

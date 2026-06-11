@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
-import { getChain } from '@sail/chains'
+import { getChain } from '@sail/sdk/chains'
 import { sailDeployments } from '@sail/sdk/deployments'
 import { zeroAddress } from 'viem'
 import { useAccount, usePublicClient, useSignTypedData, useSwitchChain } from 'wagmi'

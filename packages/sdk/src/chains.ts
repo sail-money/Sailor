@@ -1,6 +1,4 @@
-import type { ChainConfig } from "@sail/sdk";
-
-export type { ChainConfig };
+import type { ChainConfig } from "./types.js";
 
 /**
  * Registry of live SailKernel deployments, keyed by EVM chainId.
@@ -14,6 +12,7 @@ export const chains: Record<number, ChainConfig> = {
   1: {
     chainId: 1,
     name: "Ethereum",
+    rpcEnvVar: "ETH_MAINNET_RPC_URL",
     // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33).
     kernel: "0x02ABC18B65A328de2e749F56ba79ACF2718a6659",
     mandateFactory: "0x14EDd6c2a56EfC0d71E215ab13094B9AF90543d2",
@@ -25,6 +24,7 @@ export const chains: Record<number, ChainConfig> = {
   8453: {
     chainId: 8453,
     name: "Base",
+    rpcEnvVar: "BASE_RPC_URL",
     // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33).
     // Supersedes 0x6319d3dfDDe3804ba93D65752b00c52bFb05a1ab (SAIL-405).
     kernel: "0x02ABC18B65A328de2e749F56ba79ACF2718a6659",
@@ -37,6 +37,7 @@ export const chains: Record<number, ChainConfig> = {
   42161: {
     chainId: 42161,
     name: "Arbitrum",
+    rpcEnvVar: "ARBITRUM_RPC_URL",
     // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33).
     // Supersedes 0x2716B12832DED0EF5688519c5Fe069EFc0374E02 (SAIL-405).
     kernel: "0x02ABC18B65A328de2e749F56ba79ACF2718a6659",
@@ -49,6 +50,7 @@ export const chains: Record<number, ChainConfig> = {
   130: {
     chainId: 130,
     name: "Unichain",
+    rpcEnvVar: "UNICHAIN_RPC_URL",
     // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33).
     // Supersedes 0xD985029960a9B7C2E7E38e102C448b8b8539B156 (SAIL-406).
     kernel: "0x02ABC18B65A328de2e749F56ba79ACF2718a6659",
@@ -61,6 +63,7 @@ export const chains: Record<number, ChainConfig> = {
   84532: {
     chainId: 84532,
     name: "Base Sepolia",
+    rpcEnvVar: "BASE_SEPOLIA_RPC_URL",
     // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33).
     // Supersedes 0xf1D0F4C9893612627409948BAa9d82a01a373799 (SAIL-405).
     kernel: "0x02ABC18B65A328de2e749F56ba79ACF2718a6659",
@@ -73,6 +76,7 @@ export const chains: Record<number, ChainConfig> = {
   11155111: {
     chainId: 11155111,
     name: "Eth Sepolia",
+    rpcEnvVar: "SEPOLIA_RPC_URL",
     // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33).
     kernel: "0x02ABC18B65A328de2e749F56ba79ACF2718a6659",
     mandateFactory: "0x14EDd6c2a56EfC0d71E215ab13094B9AF90543d2",
@@ -87,7 +91,7 @@ export function getChain(chainId: number): ChainConfig {
   const config = chains[chainId];
   if (!config) {
     throw new Error(
-      `Chain ${chainId} is not yet supported. Add it to @sail/chains once SailKernel is deployed.`,
+      `Chain ${chainId} is not supported. Supported chains: 1 (Ethereum), 8453 (Base), 42161 (Arbitrum), 130 (Unichain), 84532 (Base Sepolia), 11155111 (Eth Sepolia).`,
     );
   }
   return config;

@@ -7,14 +7,14 @@ on:
   workflow_dispatch:
 
 jobs:
-  publish:
+  sailor:
     permissions:
       id-token: write
       contents: read
+      packages: write
     uses: ./.github/workflows/publish-npm-public-pkg.yaml
     with:
       package-name: ${{ github.event_name == 'workflow_dispatch' && '@dev.sail.money/sailor' || '@sail.money/sailor' }}
-      dist-tag: ${{ github.event_name == 'workflow_dispatch' && 'dev' || 'latest' }}
-      make-latest: true
+      dist-tag: 'latest'
       build-number: ${{ github.event_name == 'workflow_dispatch' && github.run_number || 0 }}
     secrets: inherit

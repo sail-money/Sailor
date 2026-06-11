@@ -1,7 +1,7 @@
 // Reference example — not the user's strategy. Consult for patterns; author the user's own in src/.
 // Shows: token addresses, swap parameters, and contract addresses for a USDC→WETH DCA on Base mainnet.
 
-import type { Address } from "@sail/sdk";
+import type { Address } from "@sail.money/sailor/sdk";
 
 // ── Token addresses (Base mainnet) ────────────────────────────────────────────
 

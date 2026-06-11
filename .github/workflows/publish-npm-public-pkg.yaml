@@ -17,11 +17,6 @@ on:
         type: string
         required: false
         default: 'latest'
-      make-latest:
-        description: 'When true, also tags the published version as latest after publishing.'
-        type: boolean
-        required: false
-        default: false
       build-number:
         description: 'Number to append to the version as a prerelease suffix. Pass 0 (default) to skip.'
         type: string
@@ -47,6 +42,30 @@ on:
         type: boolean
         required: false
         default: false
+      package_dir:
+        description: 'Path to the package directory relative to the repo root. Defaults to repo root.'
+        type: string
+        required: false
+        default: '.'
+      use-manifest:
+        description: 'Path to a manifest file to copy over package.json before publishing (e.g. package-publish.json).'
+        type: string
+        required: false
+        default: ''
+      set-dependency:
+        description: 'Inject a dependency into package.json before publishing. Format: "NAME=VERSION" (e.g. "@sail.money/sdk=0.0.1").'
+        type: string
+        required: false
+        default: ''
+      registry-url:
+        description: 'npm registry to publish to. Defaults to https://registry.npmjs.org. Pass https://npm.pkg.github.com for GitHub Packages.'
+        type: string
+        required: false
+        default: 'https://registry.npmjs.org'
+    outputs:
+      version:
+        description: 'The exact version that was published (including any prerelease suffix).'
+        value: ${{ jobs.publish.outputs.version }}
     secrets:
       NPM_TOKEN:
         description: 'npm publish token. When provided, used for authentication instead of OIDC.'
@@ -54,10 +73,13 @@ on:
 permissions:
   id-token: write  # Required for OIDC
   contents: read
+  packages: write  # Required for GitHub Packages
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.capture.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -68,7 +90,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
-          registry-url: 'https://registry.npmjs.org'
+          registry-url: ${{ inputs.registry-url }}
           package-manager-cache: false  # never use caching in release builds
 
       - name: Download artifact
@@ -78,46 +100,68 @@ jobs:
           name: ${{ inputs.artifact-name }}
           path: ${{ inputs.artifact-path }}
 
-      - name: Install, build and test
+      - name: Install dependencies
         if: inputs.artifact-name == ''
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and test
+        if: inputs.artifact-name == ''
+        working-directory: ${{ inputs.package_dir }}
         run: |
-          pnpm install --frozen-lockfile
           npm run build --if-present
           npm test
 
       - name: Test (artifact path)
         if: inputs.artifact-name != '' && inputs.run-tests == true
+        working-directory: ${{ inputs.package_dir }}
         run: |
           pnpm install --frozen-lockfile
           npm test
 
+      - name: Use publish manifest
+        if: inputs.use-manifest != ''
+        working-directory: ${{ inputs.package_dir }}
+        run: cp "${{ inputs.use-manifest }}" package.json
+
       - name: Remove private flag
+        working-directory: ${{ inputs.package_dir }}
         run: npm pkg delete private
 
       - name: Set package name
+        working-directory: ${{ inputs.package_dir }}
         run: npm pkg set name="${{ inputs.package-name }}"
 
       - name: Override package version
         if: inputs.package-version != ''
+        working-directory: ${{ inputs.package_dir }}
         run: |
           VERSION="${{ inputs.package-version }}"
           npm pkg set version="${VERSION#v}"
 
       - name: Stamp run number
         if: inputs.build-number != '0'
+        working-directory: ${{ inputs.package_dir }}
         run: |
           BASE=$(node -p "require('./package.json').version")
           npm pkg set version="${BASE}-${{ inputs.build-number }}"
 
+      - name: Inject dependency
+        if: inputs.set-dependency != ''
+        working-directory: ${{ inputs.package_dir }}
+        run: |
+          DEP="${{ inputs.set-dependency }}"
+          NAME="${DEP%%=*}"
+          VER="${DEP#*=}"
+          npm pkg set "dependencies[$NAME]=$VER"
+
+      - name: Capture version
+        id: capture
+        working-directory: ${{ inputs.package_dir }}
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
       - name: Publish
+        working-directory: ${{ inputs.package_dir }}
         run: npm publish --access public --tag ${{ inputs.dist-tag }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Tag as latest
-        if: inputs.make-latest == true
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          npm dist-tag add ${{ inputs.package-name }}@${VERSION} latest
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

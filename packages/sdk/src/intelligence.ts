@@ -5,7 +5,7 @@
  * Do not edit manually — run `pnpm build` to regenerate.
  *
  * Spec version : 1.2.0
- * Generated at : 2026-06-10T16:13:43.286Z
+ * Generated at : 2026-06-11T07:51:34.098Z
  */
 
 export const SAIL_INTELLIGENCE_BASE_URL = "https://api.sail.money";

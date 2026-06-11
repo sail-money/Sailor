@@ -23,7 +23,7 @@ export function cliDistDir(): string {
  * scaffolding assets (`templates/`).
  *
  * Walks up from cliDistDir() collecting every package.json with `bin.sailor`
- * (resilient to any scope/org: @sailagent/sailor, @sail/sailor, sailor, …) and
+ * (resilient to any scope/org: @sail-money/sailor, @sail/sailor, sailor, …) and
  * returns the first one that ALSO contains a `templates/` directory — because
  * that is the root the scaffolder reads from. In a monorepo checkout the inner
  * `packages/cli/package.json` also declares `bin.sailor` but ships no templates,

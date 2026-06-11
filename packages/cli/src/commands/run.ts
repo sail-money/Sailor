@@ -1,13 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { getChain } from "@sail/chains";
 import {
   type Agent,
   type AgentContext,
   type Dispatch,
   type ILocalKeyring,
   SailorClient,
+  getChain,
 } from "@sail/sdk";
 import { http, type Address, createPublicClient, createWalletClient, defineChain, getAddress } from "viem";
 import {

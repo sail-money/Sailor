@@ -486,6 +486,8 @@ export type Agent = {
 export type ChainConfig = {
   chainId: number;
   name: string;
+  /** Environment variable name used to supply an RPC URL for this chain (e.g. BASE_RPC_URL). */
+  rpcEnvVar: string;
   kernel: Address;
   mandateFactory: Address;
   governance: Address;
