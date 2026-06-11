@@ -32,20 +32,37 @@ const RPC_ENV_VARS: Record<number, string> = {
 };
 
 /**
- * Resolve an RPC URL for a chain. Prefers the project's `.sail/.env.local`
- * `RPC_URL`, then a per-chain env var, then `process.env.RPC_URL`. Returns
- * undefined when unset so callers fall back to viem's default public RPC. Using
- * a dedicated endpoint avoids the read-after-write lag public replicas exhibit.
+ * Resolve an RPC URL for a given chain. Resolution order (first match wins):
+ *
+ *  1. `.sail/.env.local` — chain-specific var (e.g. BASE_RPC_URL, ARBITRUM_RPC_URL)
+ *  2. `.sail/.env.local` — generic RPC_URL (fallback for the active chain)
+ *  3. Shell environment  — chain-specific var
+ *  4. Shell environment  — generic RPC_URL
+ *
+ * This means a project can either set one `RPC_URL` for the active chain, or
+ * set individual per-chain vars (BASE_RPC_URL, ARBITRUM_RPC_URL, …) and omit
+ * `RPC_URL` entirely. Both patterns work; per-chain vars always take precedence
+ * for their specific chain so multi-chain projects resolve each endpoint correctly.
+ *
+ * Returns undefined when no URL is configured so callers can fall back to
+ * viem's default public RPC. A dedicated endpoint avoids the read-after-write
+ * lag that rate-limited public replicas exhibit.
  */
 export function getRpcUrl(chainId: number): string | undefined {
   const env = parseEnvFile(sailPath(".env.local"));
-  const fromProject = env.RPC_URL;
-  if (fromProject?.trim()) return fromProject.trim();
+  const perChainVar = RPC_ENV_VARS[chainId];
 
-  const perChain = RPC_ENV_VARS[chainId];
-  const fromPerChain = perChain ? process.env[perChain] : undefined;
-  if (fromPerChain?.trim()) return fromPerChain.trim();
+  // 1. .env.local chain-specific
+  const fromProjectChain = perChainVar ? env[perChainVar] : undefined;
+  if (fromProjectChain?.trim()) return fromProjectChain.trim();
 
-  const fromEnv = process.env.RPC_URL;
-  return fromEnv?.trim() ? fromEnv.trim() : undefined;
+  // 2. .env.local generic
+  if (env.RPC_URL?.trim()) return env.RPC_URL.trim();
+
+  // 3. Shell chain-specific
+  const fromEnvChain = perChainVar ? process.env[perChainVar] : undefined;
+  if (fromEnvChain?.trim()) return fromEnvChain.trim();
+
+  // 4. Shell generic
+  return process.env.RPC_URL?.trim() || undefined;
 }

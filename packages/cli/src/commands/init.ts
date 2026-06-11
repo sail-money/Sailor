@@ -97,31 +97,50 @@ function scaffoldProjectWorkspace(dest: string, name: string, options: InitOptio
 
   writeIfMissing(path.join(sailDir, "README.md"), SAIL_WORKSPACE_README);
 
-  // .env.example — omit CHAIN_ID when no chain was specified; AGENTS.md Stage 1
-  // will prompt the user to choose a chain and update config.json.
-  const chainIdLine = chainId != null ? `CHAIN_ID=${chainId}\n` : `# CHAIN_ID=8453   # set after choosing your chain in Stage 1\n`;
+  // .env.example — documents both RPC config patterns; CHAIN_ID omitted when
+  // no chain was specified so Stage 1 can set it after the user picks a chain.
+  const chainIdExample = chainId != null ? `CHAIN_ID=${chainId}` : `# CHAIN_ID=8453   # set after choosing your chain in Stage 1`;
   fs.writeFileSync(
     path.join(dest, ".env.example"),
     `# Sailor agent environment
+#
+# RPC configuration — two patterns, pick one:
+#
+# Option A: single active chain (simplest)
 RPC_URL=https://your-rpc-endpoint
-${chainIdLine}
-# Optional for non-interactive runs
+${chainIdExample}
+#
+# Option B: per-chain endpoints (multi-chain projects, or if you prefer explicit names)
+# Set CHAIN_ID to the chain sailor run uses; omit RPC_URL if all chains have a specific var.
+# BASE_RPC_URL=https://your-base-endpoint
+# ARBITRUM_RPC_URL=https://your-arbitrum-endpoint
+# UNICHAIN_RPC_URL=https://your-unichain-endpoint
+# ETH_MAINNET_RPC_URL=https://your-mainnet-endpoint
+# BASE_SEPOLIA_RPC_URL=https://your-base-sepolia-endpoint
+# SEPOLIA_RPC_URL=https://your-sepolia-endpoint
+
+# Optional: non-interactive passphrase (CI, GitHub Actions, launchd, systemd)
 # SAIL_PASSPHRASE=change-me-to-a-strong-passphrase
 `,
     "utf-8",
   );
 
-  // Always write .env.local with RPC_URL (filled in if --rpc-url was given, placeholder otherwise).
-  // CHAIN_ID is only written if the chain was explicitly passed; otherwise Stage 1 sets it.
+  // .env.local — write the active RPC/chain. Uses the chain-specific var when a
+  // chain is known so multi-chain projects can add other per-chain vars alongside it.
+  const perChainVars: Record<number, string> = {
+    1: "ETH_MAINNET_RPC_URL", 8453: "BASE_RPC_URL", 42161: "ARBITRUM_RPC_URL",
+    130: "UNICHAIN_RPC_URL", 84532: "BASE_SEPOLIA_RPC_URL", 11155111: "SEPOLIA_RPC_URL",
+  };
+  const rpcVarName = chainId != null && perChainVars[chainId] ? perChainVars[chainId] : "RPC_URL";
   const rpcLine = options.rpcUrl
-    ? `RPC_URL=${options.rpcUrl}`
-    : `# Paste your RPC endpoint here (Alchemy, Infura, or any HTTPS endpoint)\n# RPC_URL=https://your-rpc-endpoint`;
+    ? `${rpcVarName}=${options.rpcUrl}`
+    : `# Paste your RPC endpoint here (Alchemy, Infura, or any HTTPS endpoint)\n# ${rpcVarName}=https://your-rpc-endpoint`;
   const chainLine = chainId != null ? `\nCHAIN_ID=${chainId}` : ``;
   writeIfMissing(
     path.join(sailDir, ".env.local"),
     `${rpcLine}${chainLine}
 
-# Optional for non-interactive runs (CI, GitHub Actions, launchd, systemd)
+# Optional: non-interactive passphrase (CI, GitHub Actions, launchd, systemd)
 # SAIL_PASSPHRASE=change-me-to-a-strong-passphrase
 `,
   );

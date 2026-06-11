@@ -93,6 +93,36 @@ pnpm test:ui      # playwright — requires pnpm build first
 Test fixtures live in `packages/ui/test/fixtures/` — isolated directories with pre-canned `.sail/`
 state; no real RPC needed.
 
+## RPC configuration
+
+RPC URLs are resolved by `packages/cli/src/lib/chain.ts` `getRpcUrl(chainId)` in this order (first match wins):
+
+1. `.sail/.env.local` — chain-specific var (e.g. `BASE_RPC_URL`, `ARBITRUM_RPC_URL`)
+2. `.sail/.env.local` — generic `RPC_URL`
+3. Shell environment — chain-specific var
+4. Shell environment — generic `RPC_URL`
+
+Two valid patterns for `.sail/.env.local`:
+
+```
+# Option A — single active chain
+RPC_URL=https://your-base-endpoint
+CHAIN_ID=8453
+```
+
+```
+# Option B — per-chain (multi-chain projects; omit RPC_URL if all chains have a specific var)
+CHAIN_ID=8453
+BASE_RPC_URL=https://your-base-endpoint
+ARBITRUM_RPC_URL=https://your-arbitrum-endpoint
+UNICHAIN_RPC_URL=https://your-unichain-endpoint
+ETH_MAINNET_RPC_URL=https://your-mainnet-endpoint
+BASE_SEPOLIA_RPC_URL=https://your-base-sepolia-endpoint
+SEPOLIA_RPC_URL=https://your-sepolia-endpoint
+```
+
+Per-chain vars always take precedence for their specific chain, so multi-chain projects resolve each endpoint correctly. `sailor chains --verify` uses this to check every chain that has a configured RPC.
+
 ## Conventions
 
 - `SAIL_DIR` — env var pointing to the project's `.sail/` directory (used by the UI server)
