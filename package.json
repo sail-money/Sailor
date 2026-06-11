@@ -29,7 +29,6 @@
     "test": "pnpm --filter sailor-ui test",
     "test:ui": "pnpm --filter sailor-ui test:ui",
     "link:cli": "pnpm link --global",
-    "postinstall": "node scripts/postinstall.js",
     "typecheck": "pnpm --filter @sail/sdk build && pnpm -r typecheck",
     "docs:check": "node scripts/check-docs.mjs",
     "init:check": "node scripts/check-init.mjs",
