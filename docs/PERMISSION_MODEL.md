@@ -45,7 +45,7 @@ other." The fix was to redeploy every permission with pass-through semantics.
 Corollary: on a conjunctive kernel you **cannot** have two permissions that each
 enforce a different token's approve — each would reject the other's token. To support
 approving both DAI and USDC you need **one** approve permission that allows both (see
-`templates/lifi-permissions/`), not two narrow ones.
+`examples/lifi-permissions/`), not two narrow ones.
 
 Selective kernels don't have this problem: each dispatch names one permission and
 only that one is consulted.
