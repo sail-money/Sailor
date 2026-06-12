@@ -16,6 +16,8 @@ function truncateAddr(addr) {
 // Set to true when the onboarding header avatar button initiates a connect flow.
 // Module-level so it survives component re-renders and re-mounts.
 let _headerConnectPending = false
+// Set to true when "Already have an SMA?" initiates a connect flow.
+let _skipConnectPending = false
 
 // topic0 of AccountRegistered(address indexed account, address indexed permissionSigner, address indexed manager)
 const ACCOUNT_REGISTERED_TOPIC = '0x05f9a81a3b5e45d338f25347928e56b0aaaa0c65d4087a980c4e41370fcccfeb'
@@ -220,6 +222,25 @@ function ProgressDots({ current, total }) {
 
 /* ── Step 0: Welcome / setup overview ── */
 function WelcomeState({ onStart, onSkip }) {
+  const { isConnected } = useAccount()
+  const { openConnectModal } = useConnectModal()
+
+  useEffect(() => {
+    if (isConnected && _skipConnectPending) {
+      _skipConnectPending = false
+      onSkip?.()
+    }
+  }, [isConnected, onSkip])
+
+  function handleSkip() {
+    if (isConnected) {
+      onSkip?.()
+    } else {
+      _skipConnectPending = true
+      openConnectModal?.()
+    }
+  }
+
   return (
     <GlassCard className={styles.welcomeCard}>
       <div className={styles.cardSai} aria-hidden>
@@ -254,7 +275,7 @@ function WelcomeState({ onStart, onSkip }) {
       </div>
       <p className={styles.fineprint}>Self-custody. Sail never holds your keys.</p>
       {onSkip && (
-        <button className={styles.skipLink} onClick={onSkip}>
+        <button className={styles.skipLink} onClick={handleSkip}>
           Already have an SMA? Skip to dashboard →
         </button>
       )}
