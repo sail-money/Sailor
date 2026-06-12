@@ -812,6 +812,51 @@ function TickCard({ tick, positions }) {
   )
 }
 
+function AgentSourceBadge({ source, pid, pids }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const label = source === 'remote' ? 'remote agent'
+    : source === 'github-actions' ? 'github actions'
+    : 'local'
+
+  const hasDetail = source === 'local' && pids.length > 0
+
+  return (
+    <div className={styles.agentSourceWrap} ref={ref}>
+      <button
+        type="button"
+        className={`${styles.smaBadge} ${hasDetail ? styles.smaBadgeClickable : ''}`}
+        onClick={() => hasDetail && setOpen((o) => !o)}
+        aria-haspopup={hasDetail ? 'true' : undefined}
+        aria-expanded={open}
+      >
+        {label}
+      </button>
+      {open && (
+        <div className={styles.agentSourcePanel}>
+          {pids.map(({ chainId, pid: p }) => {
+            const chainLabel = chainId ? (CHAIN_NAMES[chainId] ?? `chain ${chainId}`) : 'unknown chain'
+            return (
+              <div key={chainId ?? p} className={styles.agentSourceRow}>
+                <span className={styles.agentSourceChain}>{chainLabel}</span>
+                <span className={styles.agentSourcePid}>PID {p}</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ActivityChainFilter({ deployedChains, chainFilter, onChainFilterChange }) {
   if (deployedChains.length <= 1) return null
   return (
@@ -1339,21 +1384,13 @@ function DashboardContent({ draft, onReset }) {
                       <span key={n} className={styles.smaBadge}>{n}</span>
                     ))}
                     <MandateStatus status={agentRunning ? 'active' : 'paused'} kind="agent" />
-                    {agentSource === 'local' && agentPids.length > 1
-                      ? agentPids.map(({ chainId, pid }) => {
-                          const chainLabel = chainId ? (CHAIN_NAMES[chainId] ?? `chain ${chainId}`) : null
-                          return (
-                            <span key={chainId ?? pid} className={styles.smaBadge}>
-                              {chainLabel ? `local · ${chainLabel} · PID ${pid}` : `local · PID ${pid}`}
-                            </span>
-                          )
-                        })
-                      : agentSource && (
-                          <span className={styles.smaBadge}>
-                            {agentSource === 'remote' ? 'remote agent' : agentSource === 'github-actions' ? 'github actions' : `local · PID ${agentPid}`}
-                          </span>
-                        )
-                    }
+                    {agentSource && (
+                      <AgentSourceBadge
+                        source={agentSource}
+                        pid={agentPid}
+                        pids={agentPids}
+                      />
+                    )}
                   </div>
                 )}
               </div>

@@ -4564,6 +4564,46 @@
 }
 .balancePill_critical .balancePillDot { background: #ff6b6b; }
 
+/* ────── Agent source badge + popover ────── */
+.agentSourceWrap { position: relative; }
+.smaBadgeClickable { cursor: pointer; }
+.smaBadgeClickable:hover { color: var(--text-primary); background: var(--glass-bg-strong); }
+.agentSourcePanel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 180px;
+  z-index: 40;
+  border-radius: 2px;
+  border: 1px solid var(--glass-border-strong);
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur-strong);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  animation: notifPanelIn 140ms var(--ease-apple, ease);
+}
+.agentSourceRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--glass-border);
+}
+.agentSourceRow:last-child { border-bottom: none; }
+.agentSourceChain {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: capitalize;
+}
+.agentSourcePid {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  color: var(--text-tertiary);
+}
+
 /* ────── Notifications bell dropdown ────── */
 .notifWrap { position: relative; }
 .notifPanel {
