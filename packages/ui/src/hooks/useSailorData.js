@@ -110,6 +110,7 @@ export function useSailorAgentStatus() {
   return {
     running: data?.running === true,
     pid: data?.pid ?? null,
+    pids: Array.isArray(data?.pids) ? data.pids : [],
     source: data?.source ?? null,
     lastActivityMs: data?.lastActivityMs ?? null,
     githubActions: data?.githubActions ?? null,

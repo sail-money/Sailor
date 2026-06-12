@@ -687,14 +687,36 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
   })
 
-  // Reads the agent PID, or null if no (valid) PID file exists.
-  const readAgentPid = () => {
+  // Reads a single agent PID from a file, or null.
+  const readPidFile = (filePath) => {
     try {
-      const pid = Number.parseInt(fs.readFileSync(at('agent.pid'), 'utf-8').trim(), 10)
+      const pid = Number.parseInt(fs.readFileSync(filePath, 'utf-8').trim(), 10)
       return Number.isNaN(pid) ? null : pid
     } catch {
       return null
     }
+  }
+
+  // Scans .sail/ for agent-<chainId>.pid files (and legacy agent.pid).
+  // Returns an array of { chainId, pid } for every live process found.
+  const readAgentPids = () => {
+    const results = []
+    try {
+      const files = fs.readdirSync(sailDir)
+      for (const f of files) {
+        const chainMatch = f.match(/^agent-(\d+)\.pid$/)
+        if (chainMatch) {
+          const pid = readPidFile(path.join(sailDir, f))
+          if (pid !== null && isAlive(pid)) results.push({ chainId: Number(chainMatch[1]), pid })
+        }
+      }
+    } catch {}
+    // Fall back to legacy agent.pid if no chain-specific files found
+    if (results.length === 0) {
+      const pid = readPidFile(path.join(sailDir, 'agent.pid'))
+      if (pid !== null && isAlive(pid)) results.push({ chainId: null, pid })
+    }
+    return results
   }
 
   // True if a process with the given PID is currently alive.
@@ -751,30 +773,33 @@ export function startServer(sailDir, { port = PORT } = {}) {
   // users who deployed to CI but haven't set secrets or triggered the run.
   app.get('/api/agent-status', (_req, res) => {
     const githubActions = detectGithubActions()
-    const pid = readAgentPid()
-    if (pid !== null && isAlive(pid)) return res.json({ running: true, pid, source: 'local', githubActions })
+    const pids = readAgentPids()
+    if (pids.length > 0) {
+      const first = pids[0]
+      return res.json({ running: true, pid: first.pid, pids, source: 'local', githubActions })
+    }
     const ageMs = recentActivityMs()
     if (ageMs < 10 * 60 * 1000) return res.json({ running: true, source: 'remote', lastActivityMs: ageMs, githubActions })
     res.json({ running: false, githubActions })
   })
 
-  // POST /api/agent-status { action: 'stop' } — SIGTERM the running agent.
+  // POST /api/agent-status { action: 'stop' } — SIGTERM all running agent processes.
   app.post('/api/agent-status', (req, res) => {
     if (req.body?.action !== 'stop') {
       res.status(400).json({ error: 'unknown action' })
       return
     }
-    const pid = readAgentPid()
-    if (pid !== null && isAlive(pid)) {
-      try {
-        process.kill(pid, 'SIGTERM')
-        res.json({ ok: true, stopped: pid })
-      } catch (err) {
-        res.status(500).json({ error: String(err) })
+    const pids = readAgentPids()
+    if (pids.length > 0) {
+      const stopped = []
+      const errors = []
+      for (const { pid } of pids) {
+        try { process.kill(pid, 'SIGTERM'); stopped.push(pid) } catch (err) { errors.push(String(err)) }
       }
-    } else {
-      res.json({ ok: true, running: false })
+      if (errors.length > 0) return res.status(500).json({ error: errors.join('; ') })
+      return res.json({ ok: true, stopped })
     }
+    res.json({ ok: true, running: false })
   })
 
   // GET /api/station/pending — proxy to the signing station daemon, or [] if not running.

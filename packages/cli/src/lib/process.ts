@@ -1,30 +1,30 @@
 import fs from "node:fs";
 import { sailPath } from "./io.js";
 
-/** Path to the agent PID file written by `sailor run`. */
-export function agentPidPath(): string {
-  return sailPath("agent.pid");
+/** Path to the agent PID file for a given chain (or legacy chain-agnostic). */
+export function agentPidPath(chainId?: number): string {
+  return chainId != null ? sailPath(`agent-${chainId}.pid`) : sailPath("agent.pid");
 }
 
-/** Writes the current process PID to .sail/agent.pid. */
-export function writeAgentPid(): void {
+/** Writes the current process PID to .sail/agent-<chainId>.pid. */
+export function writeAgentPid(chainId?: number): void {
   fs.mkdirSync(sailPath(), { recursive: true });
-  fs.writeFileSync(agentPidPath(), `${process.pid}\n`);
+  fs.writeFileSync(agentPidPath(chainId), `${process.pid}\n`);
 }
 
-/** Removes the agent PID file if present. */
-export function clearAgentPid(): void {
+/** Removes the agent PID file for the given chain (or legacy) if present. */
+export function clearAgentPid(chainId?: number): void {
   try {
-    fs.rmSync(agentPidPath());
+    fs.rmSync(agentPidPath(chainId));
   } catch {
     // already gone — nothing to do
   }
 }
 
 /** Reads the recorded agent PID, or null if no (valid) PID file exists. */
-export function readAgentPid(): number | null {
+export function readAgentPid(chainId?: number): number | null {
   try {
-    const pid = Number.parseInt(fs.readFileSync(agentPidPath(), "utf-8").trim(), 10);
+    const pid = Number.parseInt(fs.readFileSync(agentPidPath(chainId), "utf-8").trim(), 10);
     return Number.isNaN(pid) ? null : pid;
   } catch {
     return null;

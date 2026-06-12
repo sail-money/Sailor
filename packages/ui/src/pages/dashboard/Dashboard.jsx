@@ -1057,7 +1057,7 @@ function DashboardContent({ draft, onReset }) {
   const { mandates: liveMandates } = useSailorMandate(refreshTick)
   const { events: liveActivity } = useSailorActivity(refreshTick)
   const { positions: livePositions } = useSailorPositions(refreshTick)
-  const { running: agentRunning, pid: agentPid, source: agentSource, githubActions } = useSailorAgentStatus()
+  const { running: agentRunning, pid: agentPid, pids: agentPids, source: agentSource, githubActions } = useSailorAgentStatus()
   const { pending } = useSailorPending()
 
   const [justCreatedAccount, setJustCreatedAccount] = useState(() => {
@@ -1336,11 +1336,21 @@ function DashboardContent({ draft, onReset }) {
                       <span key={n} className={styles.smaBadge}>{n}</span>
                     ))}
                     <MandateStatus status={agentRunning ? 'active' : 'paused'} kind="agent" />
-                    {agentSource && (
-                      <span className={styles.smaBadge}>
-                        {agentSource === 'remote' ? 'remote agent' : agentSource === 'github-actions' ? 'github actions' : `local · PID ${agentPid}`}
-                      </span>
-                    )}
+                    {agentSource === 'local' && agentPids.length > 1
+                      ? agentPids.map(({ chainId, pid }) => {
+                          const chainLabel = chainId ? (CHAIN_NAMES[chainId] ?? `chain ${chainId}`) : null
+                          return (
+                            <span key={pid} className={styles.smaBadge}>
+                              {chainLabel ? `local · ${chainLabel} · PID ${pid}` : `local · PID ${pid}`}
+                            </span>
+                          )
+                        })
+                      : agentSource && (
+                          <span className={styles.smaBadge}>
+                            {agentSource === 'remote' ? 'remote agent' : agentSource === 'github-actions' ? 'github actions' : `local · PID ${agentPid}`}
+                          </span>
+                        )
+                    }
                   </div>
                 )}
               </div>

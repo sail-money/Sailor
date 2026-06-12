@@ -163,13 +163,12 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
     if (v && !process.env[k]) process.env[k] = v;
   }
 
-  const rpcUrl = env.RPC_URL ?? process.env.RPC_URL;
-  // CHAIN_ID resolution order: .env.local > shell env > config.json chainId.
-  // config.json is always present after `sailor init` and holds the chain the
-  // user selected, so we can fall back to it silently instead of hard-failing.
+  const rpcUrl = process.env.RPC_URL ?? env.RPC_URL;
+  // CHAIN_ID resolution order: shell env > .env.local > config.json chainId.
+  // Shell env takes precedence so CHAIN_ID=8453 sailor run overrides .env.local.
   const configChainId = readJsonFile<{ chainId?: number }>(sailPath("config.json"))?.chainId;
   const chainIdRaw =
-    env.CHAIN_ID ?? process.env.CHAIN_ID ?? (configChainId != null ? String(configChainId) : undefined);
+    process.env.CHAIN_ID ?? env.CHAIN_ID ?? (configChainId != null ? String(configChainId) : undefined);
   if (!rpcUrl || !chainIdRaw) {
     throw new Error(
       "RPC_URL must be set in .sail/.env.local.\n" +
@@ -574,13 +573,13 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
   console.log("");
 
   // ── PID file + clean shutdown ───────────────────────────────────────────────
-  writeAgentPid();
+  writeAgentPid(chainId);
   let stopping = false;
   const shutdown = (): void => {
     if (stopping) return;
     stopping = true;
     console.log("\nStopping agent…");
-    clearAgentPid();
+    clearAgentPid(chainId);
     process.exit(0);
   };
   process.on("SIGINT", shutdown);
