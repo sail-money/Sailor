@@ -191,7 +191,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
 
   // POST /api/account — persist a newly deployed SMA from the browser signing flow.
   app.post('/api/account', (req, res) => {
-    const { safe, owner, permissionSigner, manager, chainId, createdAtBlock } = req.body ?? {}
+    const { safe, owner, permissionSigner, manager, chainId, createdAtBlock, deployedChains } = req.body ?? {}
     if (!safe || !owner || !chainId) {
       res.status(400).json({ error: 'safe, owner, and chainId are required' })
       return
@@ -199,6 +199,9 @@ export function startServer(sailDir, { port = PORT } = {}) {
     try {
       fs.mkdirSync(at('state'), { recursive: true })
       const record = { safe, owner, permissionSigner: permissionSigner ?? owner, manager: manager ?? owner, chainId, createdAtBlock: createdAtBlock ?? '0' }
+      // A multichain SMA (same address deployed across chains) carries the full
+      // list so the dashboard's per-chain panels + switcher show every chain.
+      if (Array.isArray(deployedChains) && deployedChains.length > 0) record.deployedChains = deployedChains
 
       // Load the known-SMAs list. If it doesn't exist yet, the first SMA was
       // created outside the browser (CLI / onboarding writes account.json
