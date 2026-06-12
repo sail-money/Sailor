@@ -221,6 +221,13 @@ export async function initCommand(
     copyDirSync(examplesPermSrc, path.join(dest, "examples", "permissions"));
   }
 
+  // The IPermission authoring scaffold — `sailor mandate templates` points the
+  // user at examples/custom-mandate/README.md, so it must exist locally.
+  const customMandateSrc = path.join(pkgRoot, "examples", "custom-mandate");
+  if (fs.existsSync(customMandateSrc)) {
+    copyDirSync(customMandateSrc, path.join(dest, "examples", "custom-mandate"));
+  }
+
   const permModelSrc = path.join(pkgRoot, "docs", "PERMISSION_MODEL.md");
   if (fs.existsSync(permModelSrc)) {
     fs.mkdirSync(path.join(dest, "docs"), { recursive: true });
