@@ -4511,7 +4511,7 @@
 }
 .signerAddrOpen:hover { color: var(--ocean-light, #6ba3ff); border-color: var(--glass-border-strong); }
 .signerTopUp {
-  margin-top: 12px;
+  margin-top: 10px;
   padding: 9px 11px;
   border-radius: 2px;
   background: rgba(255, 184, 0, 0.1);
@@ -4991,6 +4991,9 @@
 }
 .signerFundBtn:hover:not(:disabled) { background: rgba(251,191,36,0.14); border-color: rgba(251,191,36,0.5); }
 .signerFundBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+
+.signerSpacer { flex: 1; }
 
 .signerRotateBtn {
   margin-top: 8px;
