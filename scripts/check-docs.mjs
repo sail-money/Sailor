@@ -159,7 +159,6 @@ const DOC_GLOBS = [
   "templates",
   "packages/cli/README.md",
   "packages/sdk/README.md",
-  "packages/chains/README.md",
   "packages/create-app/README.md",
 ];
 

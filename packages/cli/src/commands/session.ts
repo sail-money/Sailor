@@ -6,7 +6,7 @@ function requireAccount(): StoredAccount {
   const account = readJsonFile<StoredAccount>(sailPath("account.json"));
   if (!account) {
     throw new Error(
-      'No account found at .sail/account.json.\nRun "sailor account create" first.',
+      'No account found at .sail/account.json.\nRun "sailor onboard --new-sma" first.',
     );
   }
   return account;

@@ -12,10 +12,11 @@ Sailor is the off-chain operator layer for [Sail Protocol](https://github.com/sa
 |---|---|---|
 | `packages/sdk` | `@sail.money/sdk` / `@sail.money/sailor/sdk` | TypeScript library: SailorClient, EIP-712 helpers, ABIs, deployment registry, chain registry |
 | `packages/cli` | `@sail.money/sailor` | CLI for account setup, mandate signing, and agent execution |
-| `packages/ui` | `sailor-ui` | Local dashboard running at localhost:3333 |
-| `templates/default` | — | Default agent starter (neutral; what `sailor init` scaffolds) |
-| `templates/custom-mandate` | — | Solidity reference: IPermission scaffold (not a project template) |
-| `templates/lifi-permissions` | — | Solidity reference: LiFi clone permission contracts (not a project template) |
+| `packages/ui` | `sailor-ui` | Local dashboard (per-project port; see Dashboard below) |
+| `templates/default` | — | The agent starter `sailor init` scaffolds: slim `AGENTS.md` + on-demand skills under `.agents/skills/` |
+| `examples/permissions` | — | Worked permission contracts by protocol and chain (reference, unaudited) |
+| `examples/custom-mandate` | — | Solidity reference: IPermission authoring scaffold |
+| `examples/lifi-permissions` | — | Solidity reference: LiFi clone permission contracts (source of the clone implementations) |
 
 ---
 
@@ -63,7 +64,11 @@ The path from nothing to a running agent follows the protocol lifecycle:
 4. **Run** — `sailor run` executes the agent locally on a schedule, or via the GitHub Actions workflow the scaffold provides.
 5. **Operate** — `sailor doctor` checks kernel health and gas balances; `sailor chains` lists supported chains and deployment addresses; `sailor session pause` instantly revokes dispatch rights without touching Safe custody.
 
-Run `npx sailor init my-agent`, open the scaffolded folder in Claude Code, Cursor, or any AI coding assistant, and say **"start"**. The `AGENTS.md` in the project guides the assistant through all five stages.
+Run `npx sailor init my-agent`, open the scaffolded folder in Claude Code, Cursor, or any AI coding assistant, and say **"start"**.
+
+### How the assistant is guided
+
+The scaffold follows the open [Agent Skills](https://agentskills.io) standard: a slim, always-loaded `AGENTS.md` carries the welcome flow, project-state map, and hard invariants, while detailed procedures live in seven on-demand skills under `.agents/skills/` (onboarding, project info, servers, transactions, mandates, CI, extensions). Assistants that scan skills load each one only when relevant; assistants that don't follow the routing table in `AGENTS.md` to the same plain-markdown files. Works in Claude Code, Cursor, Copilot, and Codex.
 
 ---
 
@@ -120,7 +125,7 @@ mkdir my-agent && cd my-agent && npm i @sail.money/sailor && npx sailor init && 
 mkdir my-agent ; cd my-agent ; npm i @sail.money/sailor ; npx sailor init ; npm install
 ```
 
-Open this folder in Claude Code, Cursor, Codex, or any AI coding assistant and say **"start"**. The scaffolded `AGENTS.md` guides the assistant through all five stages — SMA deployment, strategy definition, mandate authoring, running, and automation. No manual steps required.
+Open this folder in Claude Code, Cursor, Codex, or any AI coding assistant and say **"start"**. The scaffolded `AGENTS.md` and its skills guide the assistant through the whole flow — SMA deployment, strategy definition, mandate authoring, running, and automation. No manual steps required.
 
 ### Direct CLI reference
 
@@ -146,7 +151,7 @@ sailor run                 # start the agent (continuous)
 sailor keys export-ci      # copy encrypted agent wallet to ci-keystore.json for CI
 
 # Dashboard
-sailor ui start            # open http://localhost:3333
+sailor ui start            # prints the per-project dashboard URL
 ```
 
 `sailor run` writes reverted transactions to stderr as `reverted: <txHash> (gas used: N)`; successful dispatches are appended to `.sail/activity.jsonl`.
@@ -174,9 +179,9 @@ sailor init my-agent --template <name>   # named subdirectory + specific templat
 ### What makes a valid template
 
 A valid template is any directory under `templates/` that contains a
-`package.json`. Directories without one (e.g. `custom-mandate`,
-`lifi-permissions`) are Solidity reference sources, not project scaffolds, and
-are excluded from the available list.
+`package.json`. Solidity reference sources live under `examples/`
+(`examples/permissions`, `examples/custom-mandate`, `examples/lifi-permissions`)
+— they are not project scaffolds and never appear in the template list.
 
 ### Adding a template
 
@@ -193,18 +198,22 @@ Template files are bundled into the published `sailor` npm package via the
 
 ## Dashboard (`sailor ui`)
 
-The Sailor dashboard is a local React app served at `http://localhost:3333`.
-It shows live account state, mandate health, signer balances, and recent
-activity — all read from the project's `.sail/` directory with no hosted
-backend.
+The Sailor dashboard is a local React app. It shows live account state, mandate
+health, signer balances, and recent activity — all read from the project's
+`.sail/` directory with no hosted backend.
+
+Each project gets its own deterministic port in the 3333–3999 range (derived
+from the project path, so several projects can run dashboards side by side).
+Use the URL the command prints, or read it from `.sail/runtime/ui.json` —
+do not assume port 3333.
 
 ### Commands
 
 ```bash
 sailor ui             # start the dashboard (same as sailor ui start)
-sailor ui start       # start the dashboard at http://localhost:3333
+sailor ui start       # start the dashboard and print its URL
 sailor ui stop        # stop the running dashboard
-sailor ui status      # show whether the dashboard is running + pid
+sailor ui status      # show whether the dashboard is running + URL + pid
 ```
 
 ### How it works
@@ -224,7 +233,7 @@ This means you can start the dashboard in one terminal and stop it from another.
 ```bash
 # macOS / Linux
 sailor ui start &
-sailor ui status      # ● running  http://localhost:3333  (pid 12345)
+sailor ui status      # ● running  http://localhost:<port>  (pid 12345)
 sailor ui stop        # Stopped Sailor UI (pid 12345).
 
 # Windows (PowerShell)
@@ -317,8 +326,8 @@ Published to the public npm registry under the `@sail.money` scope.
 
 | Trigger | Package | Version | dist-tag |
 |---|---|---|---|
-| Tag push (`v*`) | `@sail.money/sailor` | `0.1.0` | `latest` |
-| Manual dispatch | `@dev.sail.money/sailor` | `0.1.0-42` | `dev` |
+| Tag push (`v*`) | `@sail.money/sailor` | `1.1.0` | `latest` |
+| Manual dispatch | `@dev.sail.money/sailor` | `1.1.0-42` | `dev` |
 
 ```bash
 npm install @sail.money/sailor                # latest stable (tag push)
@@ -378,7 +387,7 @@ Either way, `@sail.money/sailor/sdk` imports work unchanged.
 
 ## State of the project
 
-Sailor is functional and published as [`@sail.money/sailor`](https://www.npmjs.com/package/@sail.money/sailor) on npm (v0.1.0). The SDK, CLI, keystore, mandate flows, agent runner, and dashboard are implemented and have been exercised end to end.
+Sailor is functional and published as [`@sail.money/sailor`](https://www.npmjs.com/package/@sail.money/sailor) on npm (v1.1.0). The SDK, CLI, keystore, mandate flows, agent runner, and dashboard are implemented and have been exercised end to end.
 
 The Sail Protocol trusted core is deployed on six chains — Ethereum, Base, Arbitrum, Unichain, Base Sepolia, and Eth Sepolia — via CREATE2, with every core contract at the same address on every chain. All six run the selective dispatch model with zero fees and are bootstrapped with a genesis allowlist so `createAccount` is usable immediately. These deployments are under an ongoing external audit by [Octane Security](https://octane.security) and are not final — do not use them with funds you are not prepared to lose.
 

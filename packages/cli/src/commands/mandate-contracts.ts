@@ -1042,7 +1042,7 @@ export function mandateTemplates(options: { json?: boolean }): void {
       console.log("  2. Implement IPermission.evaluate(txData, ctx) with your policy logic");
       console.log("  3. forge build");
       console.log("  4. sailor mandate deploy --contract <Name> --attach --sma <yourSMA>");
-      console.log("\n  See templates/custom-mandate/README.md for the full guide.");
+      console.log("\n  See examples/custom-mandate/README.md for the full guide.");
 
       if (community.length > 0) {
         console.log(

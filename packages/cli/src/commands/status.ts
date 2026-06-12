@@ -27,7 +27,7 @@ export async function status(): Promise<void> {
   if (account) {
     console.log(`  ✓ deployed   ${checksum(account.safe)}  (chain ${account.chainId})`);
   } else {
-    console.log('  ✗ not deployed   run "sailor account create"');
+    console.log('  ✗ not deployed   run "sailor onboard --new-sma"');
   }
 
   console.log("Mandate:");
