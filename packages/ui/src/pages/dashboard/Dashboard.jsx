@@ -716,16 +716,16 @@ const ACTIVITY_FILTERS = [
 
 /**
  * Groups raw activity events into ticks (agent runs) + standalone owner events.
- * Each tick bundles tick_start → log* → tick_end into one summary object.
- * Non-tick events (owner_signed, mandate_deployed, etc.) stay as individual rows.
+ * permToChain: Map<permAddrLower, chainId> — used to tag ticks and events with
+ * the chain they ran on so the chain filter can work without a server-side change.
  */
-function groupActivityItems(events) {
+function groupActivityItems(events, permToChain = new Map()) {
   const items = []
   let openTick = null
-  // Events come oldest-first from the server; we process in order then reverse.
   for (const e of events) {
+    const eventChain = e.permission ? (permToChain.get(e.permission.toLowerCase()) ?? null) : null
     if (e.type === 'tick_start') {
-      openTick = { kind: 'tick', startTs: e.ts, endTs: null, durationMs: null, logs: [], complete: false }
+      openTick = { kind: 'tick', startTs: e.ts, endTs: null, durationMs: null, logs: [], complete: false, chainIds: new Set() }
     } else if (e.type === 'tick_end' && openTick) {
       openTick.endTs = e.ts
       openTick.durationMs = new Date(e.ts) - new Date(openTick.startTs)
@@ -735,13 +735,18 @@ function groupActivityItems(events) {
     } else if (e.type === 'log' && openTick) {
       if (e.msg) openTick.logs.push(e.msg)
     } else if (e.type !== 'tick_start' && e.type !== 'tick_end' && e.type !== 'log') {
-      // Owner / lifecycle event — always shown individually
-      if (openTick) { items.push(openTick); openTick = null }
-      items.push({ kind: 'event', event: e })
+      if (openTick) {
+        if (eventChain) openTick.chainIds.add(eventChain)
+        items.push(openTick)
+        openTick = null
+      }
+      items.push({ kind: 'event', event: { ...e, chainId: e.chainId ?? eventChain } })
+    } else if (openTick && eventChain) {
+      openTick.chainIds.add(eventChain)
     }
   }
-  if (openTick) items.push({ kind: 'tick', ...openTick }) // in-progress
-  return items.reverse() // newest first
+  if (openTick) items.push({ kind: 'tick', ...openTick })
+  return items.reverse()
 }
 
 function fmtDuration(ms) {
@@ -807,44 +812,87 @@ function TickCard({ tick, positions }) {
  * Live activity feed — groups agent ticks into collapsible summary cards,
  * keeps owner/lifecycle events as individual rows.
  */
-function LiveActivityFeed({ events, positions, network }) {
+function LiveActivityFeed({ events, positions, network, deployedChains = [], permToChain = new Map() }) {
   const INITIAL_VISIBLE = 8
   const [filter, setFilter] = useState('all')
+  const [chainFilter, setChainFilter] = useState('all')
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE)
 
-  const allItems = groupActivityItems(events)
-  const filtered = filter === 'all'
-    ? allItems
-    : allItems.filter((item) =>
-        item.kind === 'tick'
-          ? filter === 'agent'
-          : activityActor(item.event) === filter
-      )
+  const isMultiChain = deployedChains.length > 1
+
+  const allItems = groupActivityItems(events, permToChain)
+
+  const filtered = allItems.filter((item) => {
+    const actorMatch = filter === 'all'
+      || (item.kind === 'tick' ? filter === 'agent' : activityActor(item.event) === filter)
+    const chainMatch = chainFilter === 'all'
+      || (item.kind === 'tick'
+        ? item.chainIds?.has(Number(chainFilter))
+        : item.event.chainId === Number(chainFilter))
+    return actorMatch && chainMatch
+  })
 
   const rows = filtered.slice(0, visibleCount)
   const hasMore = filtered.length > visibleCount
 
   const handleFilterChange = (key) => { setFilter(key); setVisibleCount(INITIAL_VISIBLE) }
+  const handleChainFilterChange = (key) => { setChainFilter(key); setVisibleCount(INITIAL_VISIBLE) }
+
+  const emptyLabel = [
+    filter !== 'all' ? filter : null,
+    chainFilter !== 'all' ? (CHAIN_NAMES[Number(chainFilter)] ?? chainFilter) : null,
+  ].filter(Boolean).join(' · ')
 
   return (
     <>
-      <div className={styles.activityFilter} role="tablist" aria-label="Filter activity by actor">
-        {ACTIVITY_FILTERS.map((f) => (
-          <button
-            key={f.key}
-            type="button"
-            role="tab"
-            aria-selected={filter === f.key}
-            className={`${styles.activityFilterBtn} ${filter === f.key ? styles.activityFilterBtnActive : ''}`}
-            onClick={() => handleFilterChange(f.key)}
-          >
-            {f.label}
-          </button>
-        ))}
+      <div className={styles.activityFilters}>
+        <div className={styles.activityFilter} role="tablist" aria-label="Filter by actor">
+          {ACTIVITY_FILTERS.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              role="tab"
+              aria-selected={filter === f.key}
+              className={`${styles.activityFilterBtn} ${filter === f.key ? styles.activityFilterBtnActive : ''}`}
+              onClick={() => handleFilterChange(f.key)}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        {isMultiChain && (
+          <div className={styles.activityFilter} role="tablist" aria-label="Filter by chain">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={chainFilter === 'all'}
+              className={`${styles.activityFilterBtn} ${chainFilter === 'all' ? styles.activityFilterBtnActive : ''}`}
+              onClick={() => handleChainFilterChange('all')}
+            >
+              All chains
+            </button>
+            {deployedChains.map((cid) => {
+              const name = CHAIN_NAMES[cid]
+              const label = name ? (name.charAt(0).toUpperCase() + name.slice(1)) : `Chain ${cid}`
+              return (
+                <button
+                  key={cid}
+                  type="button"
+                  role="tab"
+                  aria-selected={chainFilter === String(cid)}
+                  className={`${styles.activityFilterBtn} ${chainFilter === String(cid) ? styles.activityFilterBtnActive : ''}`}
+                  onClick={() => handleChainFilterChange(String(cid))}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
       {rows.length === 0 ? (
         <div className={styles.emptyAgents}>
-          <p className={styles.emptyAgentsBody}>No {filter === 'all' ? '' : `${filter} `}activity yet.</p>
+          <p className={styles.emptyAgentsBody}>No {emptyLabel ? `${emptyLabel} ` : ''}activity yet.</p>
         </div>
       ) : (
         <>
@@ -999,6 +1047,13 @@ function DashboardContent({ draft, onReset }) {
   const { accounts: allAccounts } = useSailorAccounts(refreshTick)
   const { overview } = useSailorOverview(refreshTick)
   const { overviews: chainOverviews } = useSailorOverviews(refreshTick)
+
+  const permToChain = new Map()
+  for (const ov of chainOverviews) {
+    for (const m of ov.mandates ?? []) {
+      if (m.address) permToChain.set(m.address.toLowerCase(), ov.chainId)
+    }
+  }
   const { mandates: liveMandates } = useSailorMandate(refreshTick)
   const { events: liveActivity } = useSailorActivity(refreshTick)
   const { positions: livePositions } = useSailorPositions(refreshTick)
@@ -1464,7 +1519,13 @@ function DashboardContent({ draft, onReset }) {
               </header>
 
               {liveActivity.length > 0 ? (
-                <LiveActivityFeed events={liveActivity} positions={livePositions} network={realNetwork} />
+                <LiveActivityFeed
+                  events={liveActivity}
+                  positions={livePositions}
+                  network={realNetwork}
+                  deployedChains={activeAccount?.deployedChains ?? []}
+                  permToChain={permToChain}
+                />
               ) : (
                 <div className={styles.emptyAgents}>
                   <p className={styles.emptyAgentsBody}>
