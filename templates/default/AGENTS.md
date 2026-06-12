@@ -77,6 +77,6 @@ Detailed procedures live in skills. If your tooling does not auto-discover skill
 - Do not hardcode the dispatch model — detect it on-chain with `detectKernelCapabilities`
 - Do not present example permissions as audited or as a supported menu
 - Do not commit `SAIL_PASSPHRASE` or private keys
-- Approve coverage is mandatory: every ERC-20 `approve()` the strategy implies needs its own bounded-approve permission covering that `(token, spender, maxAmount)` — supply/swap/deposit permissions never cover approvals, and the kernel rejects an uncovered `approve()`
-- Batch approve-then-act: build `[approveCall, actionCall]` into a single dispatch array, never split across ticks — a split wastes a tick and leaves the approval exposed
+- ERC-20 `approve()` calls are NOT covered by supply, swap, or deposit permissions — every approve the strategy makes needs explicit coverage. Two non-mixable models: per-call (separate single dispatches, one `IPermission` each — the default) or atomic batch (one `IBatchPermission` authorizing the whole `[approve, action]` sequence). A normal `IPermission` cannot authorize a batch. Details: `.agents/skills/sail-mandates/references/approvals.md`
+- Never authorize (attach) a permission before `forge test` and `sailor mandate simulate` both pass against samples derived from the user's strategy
 - Do not pass `--args` inline JSON from PowerShell — use `--args-file` instead

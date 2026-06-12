@@ -11,9 +11,12 @@ The lifecycle is an ordered set of gates. **The order is the correctness model**
 
 Establish, explicitly: tokens, amounts, venues, slippage, recipients. Philosophy: **every meaningful financial bound is enforced on-chain in Solidity**; only frequency/cadence lives in agent TypeScript. If a bound matters and it is not in a permission contract, it is not a bound.
 
-## Gate 2 — Enumerate every approve()
+## Gate 2 — Enumerate approvals and pick the execution model
 
-List every ERC-20 `approve()` the strategy implies. Each one needs its own bounded-approve coverage — a specific `(token, spender, maxAmount)` — authorized alongside the action permission. No supply, swap, or deposit permission covers approvals; the kernel rejects an uncovered `approve()`. Pair the approve and the action as `[approveCall, actionCall]` in one batch dispatch (see sail-transactions).
+List every ERC-20 `approve()` the strategy implies — protocol permissions never cover `approve()`, so each needs explicit coverage. How it is covered depends on the model you choose (read [references/approvals.md](references/approvals.md) before writing any contract):
+
+- **Per-call (default).** Approve and act are separate single-call dispatches, each gated by its own `IPermission`. Approve a sufficient allowance once and skip it when the on-chain allowance already covers the next action (the `examples/dca/` pattern). This is what the scaffolded `IPermission` supports out of the box.
+- **Atomic batch (advanced).** Approve + action run as one `dispatchBatch`. A batch consults exactly ONE batch-aware `IBatchPermission` (`evaluateBatch`) that validates the whole sequence — NOT two narrow `IPermission`s. Use this only when atomicity matters; see `references/approvals.md`. Do not mix the models.
 
 ## Gate 3 — Author the permission contracts
 
@@ -33,7 +36,7 @@ foundryup
 
 ## Gate 4 — Write and run Foundry tests BEFORE any deployment
 
-The scaffolded Foundry workspace ships no `test/` directory — create one. Write tests that call `evaluate()` (and `evaluateBatch()` for batch permissions) directly with calldata derived from the user's stated strategy:
+`test/BoundedCallPermission.t.sol` is the scaffolded example — copy it for each permission you author. Write tests that call `evaluate()` (and `evaluateBatch()` for batch permissions) directly with calldata derived from the user's stated strategy:
 
 - **Accept cases**: every call the strategy must make.
 - **Reject cases**: out-of-bounds amounts, wrong tokens, wrong recipients, wrong selectors, unbound venues.
@@ -65,7 +68,7 @@ sailor mandate simulate --address <PermissionOrName> --sma <SMA> --calls calls.j
 
 This is an off-chain `eth_call` — no gas, no signing. It reports what `evaluate()` returns per call, flags any target with no contract code on this chain (wrong or wrong-chain address), and checks whether each 4-byte selector actually routes on the target's bytecode. A mismatch between `expect` and the actual result exits non-zero. **Zero mismatches required before proceeding.** Simulate proves what the permission DOES; it does not guarantee it is correct.
 
-`calls.json` schema: [references/calls-schema.md](references/calls-schema.md).
+`calls.json` schema: [references/calls-schema.md](references/calls-schema.md). How to design pass/fail cases: [references/simulate-calls.md](references/simulate-calls.md).
 
 **Batch permissions:** simulate probes single-call `evaluate()` only — it does not exercise `evaluateBatch()`. Verify batch permissions by calling `evaluateBatch(calls, ctx)` directly via `cast call` with pass and fail batches before attaching.
 
@@ -75,7 +78,7 @@ This is an off-chain `eth_call` — no gas, no signing. It reports what `evaluat
 sailor mandate attach --address <PermissionOrName> --sma <SMA> --json   # BLOCKS — owner signs RegisterPermission EIP-712 in the browser
 ```
 
-Only now is the permission live. The owner (mandate signer) signs in the browser; the agent submits the registration and pays gas plus any registration fee. The CLI verifies the signature came from the on-chain mandate signer — a wrong connected wallet is rejected. After confirmation it polls `getPermissions()` until the permission appears.
+Only now is the permission live. The owner (mandate signer) signs in the browser; the agent submits the registration and pays gas plus any registration fee. **Fund the agent wallet before attaching**, or this step fails with `gas required exceeds allowance`. The CLI verifies the signature came from the on-chain mandate signer — a wrong connected wallet is rejected. After confirmation it polls `getPermissions()` until the permission appears. Per-call model: attach every permission the strategy needs (bounded-approve alongside the protocol permission) in one signing session.
 
 ## Maintenance
 

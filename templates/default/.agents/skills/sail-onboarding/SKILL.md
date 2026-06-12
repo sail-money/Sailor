@@ -5,6 +5,10 @@ description: Walks the agent through setting up a new Sailor project or resuming
 
 # Sail onboarding
 
+## Running the CLI
+
+The project does not install `sailor` as a dependency, so invoke it with **`npx sailor <command>`** unless it is installed globally (`npm i -g @sail.money/sailor`, then `sailor` works bare). Every `sailor …` command in these skills assumes one of those. Confirm the toolchain up front and pin a recent version — `npx sailor@latest --version` — because an old cached `npx` build can be missing newer commands (e.g. `mandate simulate`); if a documented command reports "unknown command", you are on a stale version, not hitting a missing feature.
+
 Stage machine keyed off `.sail/`. Read the state, enter at the right stage, never re-run completed stages.
 
 ## Determine where the user is
@@ -20,7 +24,7 @@ Supported chains: Ethereum (1), Base (8453), Arbitrum (42161), Unichain (130), B
 
 ## Stage 1 — Deploy the SMA and create the agent wallet
 
-In the browser. Run `sailor ui start`, open the printed URL, connect the owner wallet, choose the network, deploy the SMA, then create the agent wallet — a separate signing key the agent uses to submit transactions. Gas is needed in both: the owner wallet pays for SMA deploy and mandate signing; the agent wallet pays to submit dispatches once running. The owner key never leaves the browser.
+In the browser. Run `sailor ui start`, open the printed URL, connect the owner wallet, choose the network, deploy the SMA, then create the agent wallet — a separate signing key the agent uses to submit transactions. **Both wallets need gas, and the split is not what it looks like:** the owner *signs* (SMA deployment, mandate authorization) but the **agent wallet submits and pays for every on-chain transaction** — including `mandate deploy` and `mandate attach` during setup, not just dispatches once running. Fund the agent wallet before Stage 3 or attach fails with `gas required exceeds allowance`. The owner wallet needs gas only for transactions it submits directly in the browser (the SMA deployment). The owner key never leaves the browser.
 
 Headless alternative (the agent drives, the owner only signs in the browser):
 
@@ -61,7 +65,9 @@ If `deploy-chain` refuses with an address mismatch, the SMA was deployed against
 
 ## Gas requirements
 
-- Owner wallet: SMA deployment, mandate signing, any additional-chain deployment.
-- Agent wallet: every dispatch submission once the agent runs, plus permission registration fees on fee-charging chains.
+- Owner wallet: SMA deployment, mandate signing (EIP-712), any additional-chain deployment.
+- Agent wallet: `mandate deploy`, `mandate attach`, `mandate revoke`, and every dispatch submission once the agent runs, plus permission registration fees on fee-charging chains.
+
+`sailor doctor` — read-only preflight: kernel dispatch model, permission health, RPC reachability, gas balances in both wallets. Do not proceed to Stage 3 with a failing doctor.
 
 During setup, always ask before anything that costs gas.
