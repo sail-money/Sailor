@@ -1492,10 +1492,12 @@ export function startServer(sailDir, { port = PORT } = {}) {
       if (mgrSigner && !mgrSigner.managers) mgrSigner.managers = managersPayload
     }
 
-    // Use the on-chain mandate list already fetched; fall back to mandate.json
-    // filtered by chainId if RPC was unavailable and result.mandates is empty.
-    if ((result.mandates ?? []).length > 0) {
-      result.mandateCount = result.mandates.length
+    // Count mandate *documents* (not individual permissions) — one mandate can
+    // grant multiple permissions. Primary source: state/mandates.json filtered
+    // to this SMA + chain. Fallback: mandate.json filtered by chainId.
+    const storeCount = mandatesFromStore(at, account, nameByAddr, templateByAddr, network).length
+    if (storeCount > 0) {
+      result.mandateCount = storeCount
     } else {
       try {
         const raw = JSON.parse(fs.readFileSync(at('mandate.json'), 'utf-8'))
