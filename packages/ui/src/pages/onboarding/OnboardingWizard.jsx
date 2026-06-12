@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { encodeFunctionData, getAddress } from 'viem'
 import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi'
@@ -326,6 +325,7 @@ function NetworkCard({ net, selected, onToggle }) {
 /* ── Step 2: Connect wallet ── */
 function ConnectStep({ onBack, onDone, progressIndex, progressTotal }) {
   const { isConnected, address } = useAccount()
+  const { openConnectModal } = useConnectModal()
   const { status, send } = useSigningSocket()
 
   useEffect(() => {
@@ -347,9 +347,7 @@ function ConnectStep({ onBack, onDone, progressIndex, progressTotal }) {
         sub="This wallet owns your SMA and signs mandates. It never executes trades."
         onBack={onBack}
       />
-      <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 8 }}>
-        <ConnectButton showBalance={false} />
-      </div>
+      <SailButton fullWidth onClick={openConnectModal}>Connect wallet →</SailButton>
     </GlassCard>
   )
 }
