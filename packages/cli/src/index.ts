@@ -1,9 +1,10 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { Command } from "commander";
 import {
   type DeployChainOptions,
   type PredictOptions,
-  accountCreate,
   accountDeployChain,
   accountPredict,
 } from "./commands/account.js";
@@ -38,10 +39,27 @@ import { stationStart, stationStatus, stationStop } from "./commands/station.js"
 import { status } from "./commands/status.js";
 import { uiCommand, uiStatus, uiStop } from "./commands/ui.js";
 import { closePrompts } from "./lib/io.js";
+import { packageRoot } from "./lib/packagePaths.js";
+
+/**
+ * The version users installed — read from the package's own manifest at runtime
+ * (the same root the scaffolder resolves), so `sailor --version` can never
+ * drift from the published package.json again.
+ */
+function cliVersion(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(join(packageRoot(), "package.json"), "utf-8")) as {
+      version?: string;
+    };
+    return pkg.version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
 
 const program = new Command();
 
-program.name("sailor").description("Operator toolkit for Sail Protocol").version("0.1.0");
+program.name("sailor").description("Operator toolkit for Sail Protocol").version(cliVersion());
 
 /** Wraps a command action with consistent error handling and prompt cleanup. */
 function action(fn: () => Promise<void>): () => Promise<void> {
@@ -119,10 +137,6 @@ keys
   .action(action(keysExportCi));
 
 const account = program.command("account").description("Manage the Sail SMA");
-account
-  .command("create")
-  .description("Create a new Sail SMA on-chain")
-  .action(action(accountCreate));
 account
   .command("predict")
   .description(
@@ -345,19 +359,5 @@ program
   .option("--verify", "Verify each kernel is deployed via eth_getCode (one RPC call per chain)")
   .option("--json", "Emit machine-readable JSON")
   .action(actionWith<ChainsOptions>(chainsCommand));
-
-// ── Stubs ─────────────────────────────────────────────────────────────────────
-
-function stub(name: string, description: string): void {
-  program
-    .command(name)
-    .description(description)
-    .allowUnknownOption()
-    .action(() => {
-      console.log(`sailor ${name}: not implemented yet`);
-    });
-}
-
-stub("dispatch preview", "Preview a dispatch without submitting");
 
 program.parse(process.argv);

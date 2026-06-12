@@ -371,7 +371,7 @@ function printWelcome(dest: string, name: string, inPlace: boolean, _hasRpc: boo
     "║                                                                      ║",
     "║  DO THIS FIRST:                                                      ║",
     "║    1. Read AGENTS.md in the project root (FULL FILE, not a skim)     ║",
-    "║    2. Complete every step listed under Stage 1 — Onboarding          ║",
+    "║    2. Follow it — the detailed steps live in .agents/skills/         ║",
     '║    3. Confirm to the user: "I have read AGENTS.md and am ready."     ║',
     "║                                                                      ║",
     "║  If you skip this step, setup WILL break and you will have to        ║",

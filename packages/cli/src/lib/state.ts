@@ -39,7 +39,7 @@ export type AccountListEntry = StoredAccount & {
 
 /**
  * Upserts a stored account into `.sail/state/accounts.json` so an SMA created
- * via the CLI (onboard / account create) shows up in the dashboard switcher —
+ * via the CLI (onboard) shows up in the dashboard switcher —
  * not just in `account.json`, which only ever holds the single active SMA.
  *
  * Mirrors the UI server's `POST /api/account` logic (packages/ui/server.js) so

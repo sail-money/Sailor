@@ -54,7 +54,7 @@ async function saveAccount(account) {
       body: JSON.stringify(account),
     })
   } catch {
-    // best-effort — the user can also run `sailor account create`
+    // best-effort — the user can also run `sailor onboard --new-sma`
   }
 }
 
