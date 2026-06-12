@@ -4566,15 +4566,47 @@
 
 /* ────── Agent source badge + popover ────── */
 .agentSourceWrap { position: relative; }
-.smaBadgeClickable { cursor: pointer; gap: 5px; }
-.smaBadgeClickable:hover { color: var(--text-primary); background: var(--glass-bg-strong); border-color: var(--glass-border-strong); }
+.agentRunningBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 24px;
+  padding: 0 10px 0 9px;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 2px;
+  border: 1px solid var(--status-active-border);
+  background: var(--status-active-bg);
+  color: var(--accent-blue-bright, #4DABFF);
+  cursor: default;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+.agentRunningBadgeClickable { cursor: pointer; }
+.agentRunningBadgeClickable:hover {
+  background: color-mix(in srgb, var(--status-active-bg) 70%, var(--accent-blue-bright) 30%);
+  border-color: var(--accent-blue-bright, #4DABFF);
+}
+.agentRunningDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: var(--status-active);
+  box-shadow: 0 0 7px var(--accent-glow, rgba(25, 144, 255, 0.65));
+  animation: dot-breathe 2.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) { .agentRunningDot { animation: none; } }
 .agentSourceChevron {
   display: inline-block;
   flex-shrink: 0;
   opacity: 0.6;
   transition: transform 0.16s var(--ease-apple, ease), opacity 0.16s ease;
 }
-.smaBadgeClickable:hover .agentSourceChevron { opacity: 1; }
+.agentRunningBadgeClickable:hover .agentSourceChevron { opacity: 1; }
 .agentSourceChevronOpen { transform: rotate(180deg); opacity: 1; }
 .agentSourcePanel {
   position: absolute;

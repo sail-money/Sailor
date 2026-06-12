@@ -825,7 +825,7 @@ function AgentSourceBadge({ source, pid, pids }) {
 
   const label = source === 'remote' ? 'remote agent'
     : source === 'github-actions' ? 'github actions'
-    : 'local'
+    : 'Running'
 
   const hasDetail = source === 'local' && pids.length > 0
 
@@ -833,11 +833,12 @@ function AgentSourceBadge({ source, pid, pids }) {
     <div className={styles.agentSourceWrap} ref={ref}>
       <button
         type="button"
-        className={`${styles.smaBadge} ${hasDetail ? styles.smaBadgeClickable : ''}`}
+        className={`${styles.agentRunningBadge} ${hasDetail ? styles.agentRunningBadgeClickable : ''}`}
         onClick={() => hasDetail && setOpen((o) => !o)}
         aria-haspopup={hasDetail ? 'true' : undefined}
         aria-expanded={open}
       >
+        <span className={styles.agentRunningDot} aria-hidden />
         {label}
         {hasDetail && (
           <svg
