@@ -1200,7 +1200,7 @@ function DashboardContent({ draft, onReset }) {
               address: a.safe,
               network: net,
               networks: deployedNets ?? [net],
-              mandateCount: isCurrent ? (overview?.mandateCount ?? 0) : 0,
+              mandateCount: isCurrent ? (isMultiChain && chainOverviews.length > 0 ? chainOverviews.reduce((sum, ov) => sum + (ov.mandateCount ?? 0), 0) : (overview?.mandateCount ?? 0)) : 0,
               createdAt: a.addedAt ?? null,
             })
           } else {
@@ -1214,7 +1214,7 @@ function DashboardContent({ draft, onReset }) {
         return [...byId.values()]
       })()
     : sma
-    ? [{ ...sma, name: smaName, networks: activeAccount?.deployedChains ? activeAccount.deployedChains.map((id) => CHAIN_NAMES[id] ?? 'ethereum').filter(Boolean) : [realNetwork], mandateCount: overview?.mandateCount ?? 0, createdAt: null }]
+    ? [{ ...sma, name: smaName, networks: activeAccount?.deployedChains ? activeAccount.deployedChains.map((id) => CHAIN_NAMES[id] ?? 'ethereum').filter(Boolean) : [realNetwork], mandateCount: isMultiChain && chainOverviews.length > 0 ? chainOverviews.reduce((sum, ov) => sum + (ov.mandateCount ?? 0), 0) : (overview?.mandateCount ?? 0), createdAt: null }]
     : []
 
   const safeUrl = sma ? safeAppUrl(sma.network, sma.address) : '#'

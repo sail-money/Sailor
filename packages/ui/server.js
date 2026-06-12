@@ -1492,12 +1492,21 @@ export function startServer(sailDir, { port = PORT } = {}) {
       if (mgrSigner && !mgrSigner.managers) mgrSigner.managers = managersPayload
     }
 
-    try {
-      const raw = JSON.parse(fs.readFileSync(at('mandate.json'), 'utf-8'))
-      const mandates = Array.isArray(raw) ? raw : [raw]
-      result.mandateCount = mandates.filter((m) => m.registeredOnChain || m.signature).length
-    } catch {
-      result.mandateCount = 0
+    // Use the on-chain mandate list already fetched; fall back to mandate.json
+    // filtered by chainId if RPC was unavailable and result.mandates is empty.
+    if ((result.mandates ?? []).length > 0) {
+      result.mandateCount = result.mandates.length
+    } else {
+      try {
+        const raw = JSON.parse(fs.readFileSync(at('mandate.json'), 'utf-8'))
+        const mandates = Array.isArray(raw) ? raw : [raw]
+        result.mandateCount = mandates.filter((m) =>
+          (m.registeredOnChain || m.signature) &&
+          (m.chainId == null || m.chainId === chainId)
+        ).length
+      } catch {
+        result.mandateCount = 0
+      }
     }
 
     return result
