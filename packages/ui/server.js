@@ -137,6 +137,268 @@ export function startServer(sailDir, { port = PORT } = {}) {
       .finally(() => overviewInFlight.delete(key))
   }
 
+  // GET /api/network — generic RPC awareness for the dapp.
+  //
+  // Reflects whatever RPC the project is configured against (.sail/.env.local,
+  // which the entire sailor stack already reads preferentially). When that RPC
+  // resolves to a localhost endpoint — e.g. a local anvil node or a fork started
+  // by an external tool — the browser app can (a) route its wagmi transport for
+  // that chain at the local RPC so reads and owner-signing preflight hit the
+  // same endpoint the wallet is on (instead of the chain's public RPC), and
+  // (b) surface a banner so the operator knows transactions execute against a
+  // non-production endpoint. Deliberately generic: no coupling to any specific
+  // simulation tool — it just describes the configured network.
+  const readNetwork = () => {
+    const env = parseEnvFile(at('.env.local'))
+    const rpcUrl = env.RPC_URL || ''
+    const chainId = env.CHAIN_ID ? Number(env.CHAIN_ID) : null
+    const isLocal = /^https?:\/\/(127\.0\.0\.1|localhost|0\.0\.0\.0|\[::1\])(:\d+)?(\/|$)/i.test(rpcUrl)
+    return { rpcUrl, chainId, isLocal }
+  }
+
+  app.get('/api/network', (_req, res) => {
+    const { rpcUrl, chainId, isLocal } = readNetwork()
+    res.json({ rpcUrl: rpcUrl || null, chainId, isLocal })
+  })
+
+  // ── Local simulation controls (Play / Reset) ──────────────────────────────
+  //
+  // Generic "rewindability" for a local anvil-style node. When — and ONLY
+  // when — the project's RPC is local (see /api/network → isLocal), the UI can:
+  //   • POST /api/sim/checkpoint  ("Play")  — snapshot the current chain state.
+  //   • POST /api/sim/reset       ("Reset") — rewind the chain to that snapshot
+  //       AND clear local onboarding state (account, manager key, wizard
+  //       progress) so the whole onboarding flow can be replayed from scratch.
+  //   • GET  /api/sim/status                — drives the buttons.
+  //
+  // Uses only standard anvil JSON-RPC (evm_snapshot / evm_revert) — no coupling
+  // to any specific simulation tool. Hard-gated to local RPCs: against a public
+  // network these endpoints refuse, so there is zero production impact.
+  const checkpointPath = at('.sim-checkpoint.json')
+
+  const anvilRpc = async (rpcUrl, method, params = []) => {
+    const r = await fetch(rpcUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    })
+    const json = await r.json()
+    if (json.error) throw new Error(`${method}: ${json.error.message ?? JSON.stringify(json.error)}`)
+    return json.result
+  }
+  const readCheckpoint = () => {
+    try { return JSON.parse(fs.readFileSync(checkpointPath, 'utf-8')) } catch { return null }
+  }
+  const writeCheckpoint = (cp) => {
+    try { fs.writeFileSync(checkpointPath, `${JSON.stringify(cp, null, 2)}\n`) } catch { /* best-effort */ }
+  }
+  // A checkpoint is only valid for the chain it was taken on — after the project
+  // is repointed at a different fork (e.g. base-sepolia → base) anvil's snapshot
+  // ids reset, so a checkpoint from the old chain is stale and must be ignored.
+  const validCheckpoint = (net) => {
+    const cp = readCheckpoint()
+    if (!cp) return null
+    if (cp.chainId != null && net.chainId != null && Number(cp.chainId) !== Number(net.chainId)) return null
+    return cp
+  }
+
+  // The project's local onboarding state — what makes the UI show "you have an
+  // SMA" vs. the first-run wizard. Play stashes these alongside the chain
+  // snapshot; Reset restores them, so a rewind returns to the exact Play moment
+  // (deployed SMA, manager key, mandates, activity) instead of wiping back to
+  // first-run onboarding.
+  const checkpointStateDir = at('.sim-checkpoint-state')
+  const STATE_ENTRIES = ['account.json', 'state', 'keys', '.wizard-state.json', 'activity.jsonl']
+
+  const stashState = () => {
+    fs.rmSync(checkpointStateDir, { recursive: true, force: true })
+    fs.mkdirSync(checkpointStateDir, { recursive: true })
+    for (const rel of STATE_ENTRIES) {
+      const src = at(rel)
+      if (fs.existsSync(src)) fs.cpSync(src, path.join(checkpointStateDir, rel), { recursive: true })
+    }
+  }
+  const hasStash = () => fs.existsSync(checkpointStateDir)
+  const restoreState = () => {
+    const restored = []
+    for (const rel of STATE_ENTRIES) {
+      const dst = at(rel)
+      fs.rmSync(dst, { recursive: true, force: true })
+      const src = path.join(checkpointStateDir, rel)
+      if (fs.existsSync(src)) { fs.cpSync(src, dst, { recursive: true }); restored.push(rel) }
+    }
+    return restored
+  }
+  // First-run clear (no checkpoint): wipe onboarding so the wizard replays from
+  // scratch, AND empty the activity feed.
+  const clearState = () => {
+    const removed = []
+    const accountPath = at('account.json')
+    if (fs.existsSync(accountPath)) {
+      fs.renameSync(accountPath, `${accountPath}.bak-${Date.now()}`)
+      removed.push('account.json')
+    }
+    for (const rel of ['state/accounts.json', 'state/mandates.json', 'keys/manager.json', '.wizard-state.json', 'activity.jsonl']) {
+      const p = at(rel)
+      if (fs.existsSync(p)) { fs.rmSync(p, { force: true }); removed.push(rel) }
+    }
+    const overviewDir = at('state/overview')
+    if (fs.existsSync(overviewDir)) {
+      fs.rmSync(overviewDir, { recursive: true, force: true })
+      removed.push('state/overview/*')
+    }
+    return removed
+  }
+
+  // GET /api/sim/status — checkpoint + current head, or { isLocal:false }.
+  app.get('/api/sim/status', async (_req, res) => {
+    const net = readNetwork()
+    if (!net.isLocal) return res.json({ isLocal: false })
+    let currentBlock = null
+    try { currentBlock = parseInt(await anvilRpc(net.rpcUrl, 'eth_blockNumber'), 16) } catch { /* fork may be down */ }
+    res.json({ isLocal: true, rpcUrl: net.rpcUrl, chainId: net.chainId, checkpoint: validCheckpoint(net), currentBlock })
+  })
+
+  // POST /api/sim/checkpoint ("Play") — mark a restore point: snapshot the chain
+  // (evm_snapshot) AND stash the local onboarding state. Overwrites any prior
+  // checkpoint (the new starting line that Reset returns to).
+  app.post('/api/sim/checkpoint', async (_req, res) => {
+    const net = readNetwork()
+    if (!net.isLocal) return res.status(400).json({ error: 'checkpoint is only available against a local RPC' })
+    try {
+      const id = await anvilRpc(net.rpcUrl, 'evm_snapshot')
+      let block = null
+      try { block = parseInt(await anvilRpc(net.rpcUrl, 'eth_blockNumber'), 16) } catch { /* non-fatal */ }
+      stashState()
+      const cp = { id, block, chainId: net.chainId, capturedAt: new Date().toISOString(), hasState: true }
+      writeCheckpoint(cp)
+      res.json({ ok: true, checkpoint: cp })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  })
+
+  // POST /api/sim/reset ("Reset") — rewind to the last checkpoint: revert the
+  // chain AND restore the stashed local state, so you return to the exact Play
+  // moment. With no checkpoint, fall back to a full from-scratch clear so the
+  // onboarding wizard replays (and the activity feed empties).
+  app.post('/api/sim/reset', async (_req, res) => {
+    const net = readNetwork()
+    if (!net.isLocal) return res.status(400).json({ error: 'reset is only available against a local RPC' })
+    const result = { chainRewound: false, stateRestored: false, stateCleared: [] }
+    try {
+      const cp = validCheckpoint(net)
+      if (cp?.id) {
+        try {
+          const ok = await anvilRpc(net.rpcUrl, 'evm_revert', [cp.id])
+          if (ok) {
+            result.chainRewound = true
+            result.rewoundToBlock = cp.block ?? null
+            // evm_revert consumes the snapshot id (and any taken after it), so
+            // immediately re-snapshot at the same reverted state to keep Reset
+            // repeatable without the operator pressing Play again.
+            const newId = await anvilRpc(net.rpcUrl, 'evm_snapshot')
+            writeCheckpoint({ ...cp, id: newId, capturedAt: new Date().toISOString() })
+          } else {
+            result.chainError = 'evm_revert returned false (stale snapshot id)'
+          }
+        } catch (e) {
+          result.chainError = String(e)
+        }
+      } else {
+        result.chainError = 'no checkpoint set — chain not rewound'
+      }
+
+      if (cp && hasStash()) {
+        // Restore local onboarding state to the Play moment (account, manager
+        // key, mandates, wizard progress, activity feed).
+        result.stateRestored = true
+        result.stateCleared = restoreState()
+      } else {
+        // No checkpoint → full clear so onboarding replays from scratch.
+        result.stateCleared = clearState()
+      }
+      overviewCacheByAccount.clear()
+      res.json({ ok: true, ...result })
+    } catch (err) {
+      res.status(500).json({ error: String(err), ...result })
+    }
+  })
+
+  // ── Dynamic multi-fork (selected chains during SMA creation) ──────────────
+  //
+  // The onboarding UI records which chains the SMA will live on; an external
+  // fork supervisor (`shipyard watch`) reacts by bringing up a fork per chain
+  // and publishing a manifest. Sailor stays fully decoupled — it only reads and
+  // writes its own .sail files; it never spawns anvil or imports shipyard.
+  //
+  //   POST /api/sim/forks          { chainIds, primary }  — record the request
+  //   GET  /api/sim/forks                                  — request + manifest + active
+  //   POST /api/sim/forks/activate { chainId }             — repoint .env.local
+  //                                                          at that chain's fork
+  const readForksManifest = () => {
+    try { return JSON.parse(fs.readFileSync(at('sim-forks.json'), 'utf-8')) } catch { return {} }
+  }
+  const readRequestedChains = () => {
+    try { return JSON.parse(fs.readFileSync(at('sim-requested-chains.json'), 'utf-8')) } catch { return null }
+  }
+  // Repoint the project's active network (single active fork + switch model):
+  // rewrite RPC_URL + CHAIN_ID, preserving comments and any other keys.
+  const setActiveNetwork = (rpcUrl, chainId) => {
+    const envPath = at('.env.local')
+    let content = ''
+    try { content = fs.readFileSync(envPath, 'utf-8') } catch { /* will create */ }
+    const rest = content.split('\n').filter((l) => {
+      const t = l.trim()
+      return !t.startsWith('RPC_URL=') && !t.startsWith('CHAIN_ID=')
+    })
+    const body = [`RPC_URL=${rpcUrl}`, `CHAIN_ID=${chainId}`, ...rest].join('\n')
+    fs.writeFileSync(envPath, body.endsWith('\n') ? body : `${body}\n`)
+  }
+
+  app.get('/api/sim/forks', (_req, res) => {
+    const net = readNetwork()
+    const requested = readRequestedChains()
+    res.json({
+      isLocal: net.isLocal,
+      active: net.isLocal ? { chainId: net.chainId, rpcUrl: net.rpcUrl } : null,
+      requested: requested?.chainIds ?? [],
+      primary: requested?.primary ?? null,
+      forks: readForksManifest(),
+    })
+  })
+
+  app.post('/api/sim/forks', (req, res) => {
+    const net = readNetwork()
+    if (!net.isLocal) return res.status(400).json({ error: 'multi-fork is only available against a local RPC (simulation mode)' })
+    const { chainIds, primary } = req.body ?? {}
+    if (!Array.isArray(chainIds) || chainIds.length === 0 || chainIds.some((c) => !Number.isInteger(c))) {
+      return res.status(400).json({ error: 'chainIds must be a non-empty array of integer chain ids' })
+    }
+    const payload = { chainIds, primary: Number.isInteger(primary) ? primary : chainIds[0], requestedAt: new Date().toISOString() }
+    try {
+      fs.writeFileSync(at('sim-requested-chains.json'), `${JSON.stringify(payload, null, 2)}\n`)
+    } catch (e) {
+      return res.status(500).json({ error: String(e) })
+    }
+    res.json({ ok: true, requested: payload, forks: readForksManifest() })
+  })
+
+  app.post('/api/sim/forks/activate', (req, res) => {
+    const net = readNetwork()
+    if (!net.isLocal) return res.status(400).json({ error: 'activate is only available against a local RPC' })
+    const { chainId } = req.body ?? {}
+    if (!Number.isInteger(chainId)) return res.status(400).json({ error: 'chainId (integer) is required' })
+    const entry = readForksManifest()[String(chainId)]
+    if (!entry?.rpcUrl) return res.status(409).json({ error: `no fork is up for chain ${chainId} yet`, forks: readForksManifest() })
+    try {
+      setActiveNetwork(entry.rpcUrl, chainId)
+    } catch (e) {
+      return res.status(500).json({ error: String(e) })
+    }
+    res.json({ ok: true, active: { chainId, rpcUrl: entry.rpcUrl } })
+  })
+
   // GET /api/account — the deployed SMA, or 404 before it exists.
   app.get('/api/account', (_req, res) => {
     try {
@@ -1414,15 +1676,31 @@ export function startServer(sailDir, { port = PORT } = {}) {
     return result
   }
 
-  // Serve the built UI if available. SERVE_DIST=1 is the explicit flag set by
-  // `sailor ui start`, but we also auto-detect: if index.html exists next to
-  // this server file (or at SAILOR_UI_DIST), serve it without the flag so that
-  // direct invocations (`node server.js`) don't silently 404 on the root.
-  const distDir = process.env.SAILOR_UI_DIST ?? path.join(path.dirname(_thisFile), 'dist')
-  const hasUiDist = fs.existsSync(path.join(distDir, 'index.html'))
-  if (process.env.SERVE_DIST === '1' || hasUiDist) {
+  // Serve the built UI if available. `sailor ui start` sets SAILOR_UI_DIST (and
+  // SERVE_DIST=1) explicitly; but we also auto-detect so direct invocations
+  // (`node server.js` or the bundled `node cli/dist/server.cjs`) don't silently
+  // 404 on the root. Candidates cover both layouts: the source server's sibling
+  // (packages/ui/dist) and the bundled server's location (cli/dist → ../../ui/dist).
+  const here = path.dirname(_thisFile)
+  const distCandidates = [
+    process.env.SAILOR_UI_DIST,
+    path.join(here, 'dist'),                       // running source: packages/ui/server.js
+    path.join(here, '..', '..', 'ui', 'dist'),     // bundled: packages/cli/dist/server.cjs
+  ].filter(Boolean)
+  const distDir = distCandidates.find((d) => fs.existsSync(path.join(d, 'index.html')))
+  if (distDir) {
     app.use(express.static(distDir))
     app.get('*', (_req, res) => res.sendFile(path.join(distDir, 'index.html')))
+  } else {
+    // No built UI found — serve the API only, but say so explicitly instead of a
+    // bare Express "Cannot GET /", so a misconfigured direct launch is diagnosable.
+    console.warn(`[sailor-ui] No built UI found (looked in: ${distCandidates.join(', ')}). ` +
+      `Serving API only — run via \`sailor ui start\`, or set SAILOR_UI_DIST to the packages/ui/dist path.`)
+    app.get('/', (_req, res) =>
+      res.status(503).type('text/plain').send(
+        'Sailor API server is running, but no built UI was found to serve.\n' +
+        'Start via `sailor ui start`, or set SAILOR_UI_DIST=<path to packages/ui/dist> when running server.cjs directly.\n',
+      ))
   }
 
   const httpServer = app.listen(port, () => {
