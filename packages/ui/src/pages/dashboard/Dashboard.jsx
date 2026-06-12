@@ -1043,6 +1043,10 @@ export default function Dashboard() {
   const [onboardState, setOnboardState] = useState(() => _onboardCache ?? localStorageOnboardHint())
   const [onboardChecked, setOnboardChecked] = useState(() => _onboardCache !== null || localStorageOnboardHint() !== null)
   const { draft } = useSailorMandateDraft()
+  const { isConnected } = useAccount()
+  const [wizardSkipped, setWizardSkipped] = useState(false)
+  // Capture connected state at first render — if already connected on load, bypass the wizard.
+  const connectedOnMount = useRef(isConnected)
 
   function refreshOnboard() {
     fetch('/api/onboard/state')
@@ -1080,8 +1084,8 @@ export default function Dashboard() {
       <FluidBackground />
     </div>
   )
-  if (!onboardState?.hasAccount) {
-    return <OnboardingWizard onboardState={onboardState} onComplete={handleOnboardComplete} />
+  if (!onboardState?.hasAccount && !wizardSkipped && !connectedOnMount.current) {
+    return <OnboardingWizard onboardState={onboardState} onComplete={handleOnboardComplete} onSkip={() => setWizardSkipped(true)} />
   }
 
   return <DashboardContent draft={draft} onReset={refreshOnboard} />

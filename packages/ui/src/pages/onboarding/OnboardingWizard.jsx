@@ -1,12 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
+import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { encodeFunctionData, getAddress } from 'viem'
 import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi'
 import { sailDeployments } from '@sail/sdk/deployments'
 import { FluidBackground, GlassCard, Sai, SailButton } from '../shared'
 import shared from '../shared/shared.module.css'
 import styles from './OnboardingWizard.module.css'
+import dashStyles from '../dashboard/Dashboard.module.css'
 import { useSigningSocket } from '../../hooks/useSigningSocket'
+
+function truncateAddr(addr) {
+  return addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : ''
+}
 
 // topic0 of AccountRegistered(address indexed account, address indexed permissionSigner, address indexed manager)
 const ACCOUNT_REGISTERED_TOPIC = '0x05f9a81a3b5e45d338f25347928e56b0aaaa0c65d4087a980c4e41370fcccfeb'
@@ -62,7 +68,46 @@ const PROGRESS_STEPS = ['network', 'connect', 'keygen', 'create-sma']
  *   onboardState  — result of GET /api/onboard/state (or null while loading)
  *   onComplete    — called when the user clicks "Go to dashboard" on the done step
  */
-export default function OnboardingWizard({ onboardState, onComplete }) {
+function OnboardingHeader({ onSkip }) {
+  const { isConnected, address } = useAccount()
+  const { openConnectModal } = useConnectModal()
+  const wasConnected = useRef(isConnected)
+
+  useEffect(() => {
+    if (isConnected && !wasConnected.current) onSkip?.()
+    wasConnected.current = isConnected
+  }, [isConnected]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <header className={dashStyles.header}>
+      <button
+        type="button"
+        className={dashStyles.brand}
+        aria-label="Sail"
+      >
+        <Sai size={48} animate />
+      </button>
+      <div className={dashStyles.topActionsPill}>
+        <button
+          type="button"
+          className={dashStyles.avatarBtn}
+          onClick={isConnected ? onSkip : openConnectModal}
+          aria-label={isConnected && address ? `Connected (${truncateAddr(address)})` : 'Connect wallet'}
+          title={isConnected && address ? address : undefined}
+        >
+          <span className={dashStyles.avatarBtnMonogram} aria-hidden>
+            {isConnected && address ? address.slice(2, 4).toUpperCase() : '—'}
+          </span>
+          <span className={dashStyles.avatarBtnAddr}>
+            {isConnected && address ? truncateAddr(address) : 'Not connected'}
+          </span>
+        </button>
+      </div>
+    </header>
+  )
+}
+
+export default function OnboardingWizard({ onboardState, onComplete, onSkip }) {
   const { isConnected, address } = useAccount()
   const [step, setStep] = useState('welcome')
   // Multi-chain: user selects one or more chains; default to Base
@@ -75,7 +120,6 @@ export default function OnboardingWizard({ onboardState, onComplete }) {
 
   // If the wallet is already connected when the user lands on welcome,
   // advance to network so they can pick their chains — but no further.
-  // The ConnectStep handles its own transition once they've explicitly connected.
   useEffect(() => {
     if (step === 'welcome' && isConnected) setStep('network')
   }, [step, isConnected])
@@ -93,6 +137,7 @@ export default function OnboardingWizard({ onboardState, onComplete }) {
   return (
     <div className={styles.shell}>
       <FluidBackground />
+      <OnboardingHeader onSkip={onSkip ?? onComplete} />
       <main className={styles.stage}>
         <div key={step} className={styles.stageInner}>
           {step === 'welcome' && (
