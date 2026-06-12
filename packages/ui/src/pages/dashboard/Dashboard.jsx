@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import OnboardingWizard from '../onboarding/OnboardingWizard'
 import { MandateSigningFlow } from '../signing/Signing'
 import { ConnectButton, useConnectModal } from '@rainbow-me/rainbowkit'
-import { parseEther } from 'viem'
-import { useAccount, useDisconnect, useSendTransaction } from 'wagmi'
+import { useAccount, useDisconnect } from 'wagmi'
 import {
   FluidBackground,
   MandateStatus,
@@ -20,6 +19,7 @@ import CreateSMAModal from './CreateSMAModal'
 import RevokeMandateModal from './RevokeMandateModal'
 import AddSignerModal from './AddSignerModal'
 import RotateSignerModal from './RotateSignerModal'
+import FundGasModal from './FundGasModal'
 import RpcSection from './RpcSection'
 import {
   useSailorAccount,
@@ -251,7 +251,7 @@ const BALANCE_STATUS = {
 }
 
 const SIGNER_ROLE = {
-  manager: { label: 'Manager', sub: 'Pays gas for every dispatch — keep it funded.' },
+  manager: { label: 'Manager', sub: 'Pays gas for every dispatch.' },
   owner: { label: 'Owner', sub: 'Holds the Safe and signs mandates.' },
   permissionSigner: { label: 'Permission signer', sub: 'Authorizes which mandates apply.' },
 }
@@ -441,8 +441,7 @@ function SignersPanel({ overview, sma, onAddSigner, onRotateSigner }) {
 
 function SignerCard({ signer, network, onAddSigner, onRotateSigner }) {
   const [copied, setCopied] = useState(false)
-  const [funding, setFunding] = useState(false)
-  const { sendTransactionAsync } = useSendTransaction()
+  const [fundOpen, setFundOpen] = useState(false)
   const role = signer.role === 'sma'
     ? { label: 'SMA', sub: 'Holds your funds. Native ETH shown; tokens not counted.' }
     : (SIGNER_ROLE[signer.role] ?? { label: signer.role, sub: '' })
@@ -570,6 +569,7 @@ function SignerCard({ signer, network, onAddSigner, onRotateSigner }) {
         </button>
       )}
 
+      <div className={styles.signerSpacer} />
       {needsTopUp && (
         <div className={styles.signerTopUp}>
           <span className={styles.signerTopUpMsg}>
@@ -578,19 +578,18 @@ function SignerCard({ signer, network, onAddSigner, onRotateSigner }) {
           <button
             type="button"
             className={styles.signerFundBtn}
-            disabled={funding}
-            onClick={async () => {
-              setFunding(true)
-              try {
-                await sendTransactionAsync({ to: signer.address, value: parseEther('0.01') })
-              } catch { /* user rejected or no wallet */ }
-              setFunding(false)
-            }}
+            onClick={() => setFundOpen(true)}
           >
-            {funding ? 'Check wallet…' : 'Fund 0.01 ETH'}
+            Fund Gas
           </button>
         </div>
       )}
+      <FundGasModal
+        open={fundOpen}
+        onClose={() => setFundOpen(false)}
+        signer={signer}
+        network={network}
+      />
     </article>
   )
 }
