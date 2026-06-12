@@ -231,7 +231,7 @@ function checkSkills(errors) {
     }
   }
 
-  for (const m of agentsMd.matchAll(/\.claude\/skills\/([\w-]+)\/SKILL\.md/g)) {
+  for (const m of agentsMd.matchAll(/\.agents\/skills\/([\w-]+)\/SKILL\.md/g)) {
     if (!dirs.includes(m[1])) {
       errors.push(`templates/default/AGENTS.md: references .agents/skills/${m[1]}/SKILL.md which does not exist`);
     }
