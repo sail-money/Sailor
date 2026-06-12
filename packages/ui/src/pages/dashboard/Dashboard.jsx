@@ -723,10 +723,14 @@ function groupActivityItems(events, permToChain = new Map()) {
   const items = []
   let openTick = null
   for (const e of events) {
-    const eventChain = e.permission ? (permToChain.get(e.permission.toLowerCase()) ?? null) : null
+    // chainId from the event itself (written by CLI since this fix) takes priority;
+    // fall back to permToChain lookup for older events without explicit chainId.
+    const eventChain = e.chainId ?? (e.permission ? (permToChain.get(e.permission.toLowerCase()) ?? null) : null)
     if (e.type === 'tick_start') {
       openTick = { kind: 'tick', startTs: e.ts, endTs: null, durationMs: null, logs: [], complete: false, chainIds: new Set() }
+      if (eventChain) openTick.chainIds.add(eventChain)
     } else if (e.type === 'tick_end' && openTick) {
+      if (eventChain) openTick.chainIds.add(eventChain)
       openTick.endTs = e.ts
       openTick.durationMs = new Date(e.ts) - new Date(openTick.startTs)
       openTick.complete = true
@@ -740,7 +744,7 @@ function groupActivityItems(events, permToChain = new Map()) {
         items.push(openTick)
         openTick = null
       }
-      items.push({ kind: 'event', event: { ...e, chainId: e.chainId ?? eventChain } })
+      items.push({ kind: 'event', event: { ...e, chainId: eventChain } })
     } else if (openTick && eventChain) {
       openTick.chainIds.add(eventChain)
     }
@@ -1340,7 +1344,7 @@ function DashboardContent({ draft, onReset }) {
                       ? agentPids.map(({ chainId, pid }) => {
                           const chainLabel = chainId ? (CHAIN_NAMES[chainId] ?? `chain ${chainId}`) : null
                           return (
-                            <span key={pid} className={styles.smaBadge}>
+                            <span key={chainId ?? pid} className={styles.smaBadge}>
                               {chainLabel ? `local · ${chainLabel} · PID ${pid}` : `local · PID ${pid}`}
                             </span>
                           )
