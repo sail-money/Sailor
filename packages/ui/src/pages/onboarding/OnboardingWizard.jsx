@@ -14,6 +14,10 @@ function truncateAddr(addr) {
   return addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : ''
 }
 
+// Set to true when the onboarding header avatar button initiates a connect flow.
+// Module-level so it survives component re-renders and re-mounts.
+let _headerConnectPending = false
+
 // topic0 of AccountRegistered(address indexed account, address indexed permissionSigner, address indexed manager)
 const ACCOUNT_REGISTERED_TOPIC = '0x05f9a81a3b5e45d338f25347928e56b0aaaa0c65d4087a980c4e41370fcccfeb'
 
@@ -71,12 +75,22 @@ const PROGRESS_STEPS = ['network', 'connect', 'keygen', 'create-sma']
 function OnboardingHeader({ onSkip }) {
   const { isConnected, address } = useAccount()
   const { openConnectModal } = useConnectModal()
-  const wasConnected = useRef(isConnected)
 
   useEffect(() => {
-    if (isConnected && !wasConnected.current) onSkip?.()
-    wasConnected.current = isConnected
-  }, [isConnected]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (isConnected && _headerConnectPending) {
+      _headerConnectPending = false
+      onSkip?.()
+    }
+  }, [isConnected, onSkip])
+
+  function handleClick() {
+    if (isConnected) {
+      onSkip?.()
+    } else {
+      _headerConnectPending = true
+      openConnectModal?.()
+    }
+  }
 
   return (
     <header className={dashStyles.header}>
@@ -91,7 +105,7 @@ function OnboardingHeader({ onSkip }) {
         <button
           type="button"
           className={dashStyles.avatarBtn}
-          onClick={isConnected ? onSkip : openConnectModal}
+          onClick={handleClick}
           aria-label={isConnected && address ? `Connected (${truncateAddr(address)})` : 'Connect wallet'}
           title={isConnected && address ? address : undefined}
         >
