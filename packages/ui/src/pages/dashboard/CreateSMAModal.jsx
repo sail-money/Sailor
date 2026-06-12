@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useAccount, useSendTransaction, useSwitchChain, useWaitForTransactionReceipt } from 'wagmi'
+import { useAccount, useConfig, useSendTransaction, useSwitchChain } from 'wagmi'
+import { waitForTransactionReceipt } from 'wagmi/actions'
 import { encodeFunctionData, parseEventLogs, zeroAddress } from 'viem'
 import { SAFE_V141, buildSafeSetupInitializer, gnosisSafeAbi } from '@sail/sdk/safe'
 import { getSailDeployment } from '@sail/sdk/deployments'
@@ -46,6 +47,58 @@ function getSafeAddressFromReceipt(receipt) {
   return `0x${log.topics[1]?.slice(26)}`
 }
 
+/**
+ * Build the deploy transaction for one chain. With a Sail deployment present we
+ * deploy AND register the Safe atomically via SailKernel.createAccount; chains
+ * without one fall back to a plain (unmanaged) Safe proxy. The same `saltNonce`
+ * + owner + (chain-identical) factory/singleton/kernel addresses yield the SAME
+ * SMA address on every chain — that's what makes a single address multichain.
+ */
+function buildDeployTx(deployment, ownerAddress, saltNonce) {
+  if (deployment) {
+    // The kernel needs its module enabled during Safe setup, or createAccount
+    // reverts with ModuleNotEnabled().
+    const safeInitializer = buildSafeSetupInitializer({
+      owners: [ownerAddress],
+      threshold: 1n,
+      kernel: deployment.kernel,
+      safeModuleEnabler: deployment.safeModuleEnabler,
+    })
+    // No agent exists yet at SMA creation, so the owner is both permission
+    // signer and manager; the manager is reassigned when an agent is bound.
+    return {
+      to: deployment.kernel,
+      data: encodeFunctionData({
+        abi: SailKernelAbi,
+        functionName: 'createAccount',
+        args: [
+          SAFE_V141.proxyFactory,
+          SAFE_V141.singletonL2,
+          safeInitializer,
+          saltNonce,
+          ownerAddress, // permissionSigner
+          ownerAddress, // manager
+          deployment.standardFeePolicy,
+          zeroAddress, // feeAsset (native)
+        ],
+      }),
+    }
+  }
+  const initializer = encodeFunctionData({
+    abi: gnosisSafeAbi,
+    functionName: 'setup',
+    args: [[ownerAddress], 1n, zeroAddress, '0x', SAFE_V141.fallbackHandler, zeroAddress, 0n, zeroAddress],
+  })
+  return {
+    to: SAFE_V141.proxyFactory,
+    data: encodeFunctionData({
+      abi: PROXY_FACTORY_ABI,
+      functionName: 'createProxyWithNonce',
+      args: [SAFE_V141.singletonL2, initializer, saltNonce],
+    }),
+  }
+}
+
 async function saveAccount(account) {
   try {
     await fetch('/api/account', {
@@ -80,40 +133,22 @@ export default function CreateSMAModal({ open, onClose, onComplete }) {
   const [deployedSafe, setDeployedSafe] = useState(null)
   const [createdAccount, setCreatedAccount] = useState(null)
 
+  // Per-chain deploy progress for the confirm step: { index, total, name } or null.
+  const [progress, setProgress] = useState(null)
+
   const { address: ownerAddress, chainId: walletChainId } = useAccount()
   const { sendTransactionAsync } = useSendTransaction()
   const { switchChainAsync } = useSwitchChain()
-  const [txHash, setTxHash] = useState(null)
-  const { data: receipt, isSuccess: txConfirmed } = useWaitForTransactionReceipt({ hash: txHash })
-
-  // When the receipt lands, extract the Safe address and persist it.
-  useEffect(() => {
-    if (!txConfirmed || !receipt) return
-    const safe = getSafeAddressFromReceipt(receipt)
-    setDeployedSafe(safe)
-    const account = safe && ownerAddress && walletChainId
-      ? {
-          safe,
-          owner: ownerAddress,
-          permissionSigner: ownerAddress,
-          manager: ownerAddress,
-          chainId: walletChainId,
-          createdAtBlock: receipt.blockNumber?.toString() ?? '0',
-        }
-      : null
-    if (account) saveAccount(account)
-    setCreatedAccount(account)
-    setStep('ready')
-  }, [txConfirmed, receipt, ownerAddress, walletChainId])
+  const config = useConfig()
 
   // Reset when the modal opens.
   useEffect(() => {
     if (!open) return
     setStep('intro')
     setTxError('')
-    setTxHash(null)
     setDeployedSafe(null)
     setCreatedAccount(null)
+    setProgress(null)
     document.body.style.overflow = 'hidden'
     const onKey = (e) => { if (e.key === 'Escape' && step !== 'confirm') onClose?.() }
     window.addEventListener('keydown', onKey)
@@ -126,79 +161,75 @@ export default function CreateSMAModal({ open, onClose, onComplete }) {
 
   async function handleSign() {
     if (!ownerAddress) { setTxError('No wallet connected.'); return }
-    const selectedNet = ALL_NETWORKS.find((n) => networks.includes(n.id))
-    if (!selectedNet) { setTxError('Select a network.'); return }
+    const selectedNets = ALL_NETWORKS.filter((n) => networks.includes(n.id))
+    if (selectedNets.length === 0) { setTxError('Select a network.'); return }
 
-    // Resolve the Sail deployment for the target chain. When present we deploy
-    // AND register the Safe atomically through SailKernel.createAccount — a
-    // plain createProxyWithNonce leaves the Safe unregistered, so it can never
-    // have mandates attached or dispatch (the kernel's `registered[account]`
-    // mapping is only set by createAccount / registerAccount). Chains without a
-    // Sail deployment fall back to a plain, clearly-unmanaged Safe.
-    let deployment = null
-    try { deployment = getSailDeployment(selectedNet.chainId) } catch { /* not yet deployed */ }
-
+    // One salt for every chain → the same SMA address everywhere (the Safe
+    // factory/singleton + all six SailKernels live at identical CREATE2
+    // addresses across chains). Deploy sequentially: one wallet signature per
+    // chain, switching the wallet network between each.
     const saltNonce = BigInt(Date.now())
-    let to
-    let data
-
-    if (deployment) {
-      // The kernel needs its module enabled during Safe setup, or createAccount
-      // reverts with ModuleNotEnabled().
-      const safeInitializer = buildSafeSetupInitializer({
-        owners: [ownerAddress],
-        threshold: 1n,
-        kernel: deployment.kernel,
-        safeModuleEnabler: deployment.safeModuleEnabler,
-      })
-      // No agent exists yet at SMA creation, so the owner is both permission
-      // signer and manager; the manager is reassigned when an agent is bound.
-      to = deployment.kernel
-      data = encodeFunctionData({
-        abi: SailKernelAbi,
-        functionName: 'createAccount',
-        args: [
-          SAFE_V141.proxyFactory,
-          SAFE_V141.singletonL2,
-          safeInitializer,
-          saltNonce,
-          ownerAddress, // permissionSigner
-          ownerAddress, // manager
-          deployment.standardFeePolicy,
-          zeroAddress, // feeAsset (native)
-        ],
-      })
-    } else {
-      const initializer = encodeFunctionData({
-        abi: gnosisSafeAbi,
-        functionName: 'setup',
-        args: [[ownerAddress], 1n, zeroAddress, '0x', SAFE_V141.fallbackHandler, zeroAddress, 0n, zeroAddress],
-      })
-      to = SAFE_V141.proxyFactory
-      data = encodeFunctionData({
-        abi: PROXY_FACTORY_ABI,
-        functionName: 'createProxyWithNonce',
-        args: [SAFE_V141.singletonL2, initializer, saltNonce],
-      })
-    }
-
     setStep('confirm')
     setTxError('')
+
+    const deployedChains = []
+    let safeAddr = null
+    let firstBlock = '0'
+    let currentChain = walletChainId
+
     try {
-      // Switch wallet to the target chain if needed.
-      if (walletChainId !== selectedNet.chainId) {
-        await switchChainAsync({ chainId: selectedNet.chainId })
+      for (const net of selectedNets) {
+        setProgress({ index: deployedChains.length, total: selectedNets.length, name: net.name })
+        let deployment = null
+        try { deployment = getSailDeployment(net.chainId) } catch { /* chain has no Sail deployment */ }
+        const { to, data } = buildDeployTx(deployment, ownerAddress, saltNonce)
+
+        if (currentChain !== net.chainId) {
+          await switchChainAsync({ chainId: net.chainId })
+          currentChain = net.chainId
+        }
+        const hash = await sendTransactionAsync({ to, data, chainId: net.chainId })
+        const receipt = await waitForTransactionReceipt(config, { hash, chainId: net.chainId })
+
+        if (!safeAddr) {
+          safeAddr = getSafeAddressFromReceipt(receipt)
+          firstBlock = receipt.blockNumber?.toString() ?? '0'
+        }
+        deployedChains.push(net.chainId)
       }
-      const hash = await sendTransactionAsync({
-        to,
-        data,
-        chainId: selectedNet.chainId,
-      })
-      setTxHash(hash)
     } catch (err) {
-      setTxError(err?.shortMessage || err?.message || 'Transaction rejected.')
-      setStep('review')
+      // Nothing landed → surface the error and return to review. If at least
+      // one chain succeeded, keep going and persist what we have so the user
+      // isn't left with an undeployed SMA; note the partial failure.
+      if (deployedChains.length === 0) {
+        setTxError(err?.shortMessage || err?.message || 'Transaction rejected.')
+        setStep('review')
+        setProgress(null)
+        return
+      }
+      setTxError(
+        `Deployed on ${deployedChains.length} of ${selectedNets.length} chains — the rest were not completed. ${
+          err?.shortMessage || err?.message || ''
+        }`.trim(),
+      )
     }
+
+    setProgress(null)
+    if (!safeAddr) { setStep('review'); return }
+
+    const account = {
+      safe: safeAddr,
+      owner: ownerAddress,
+      permissionSigner: ownerAddress,
+      manager: ownerAddress,
+      chainId: deployedChains[0],
+      createdAtBlock: firstBlock,
+      deployedChains,
+    }
+    setDeployedSafe(safeAddr)
+    saveAccount(account)
+    setCreatedAccount(account)
+    setStep('ready')
   }
 
   if (!open) return null
@@ -241,7 +272,7 @@ export default function CreateSMAModal({ open, onClose, onComplete }) {
             ownerAddress={ownerAddress}
           />
         )}
-        {step === 'confirm' && <ConfirmStep confirmed={txConfirmed} networks={networks} />}
+        {step === 'confirm' && <ConfirmStep progress={progress} />}
         {step === 'ready'   && <ReadyStep safeAddress={deployedSafe} onContinue={() => { onClose?.(); onComplete?.(createdAccount) }} />}
       </GlassCard>
     </div>
@@ -449,24 +480,20 @@ function formatGasUsd(n) {
 }
 
 /* ─────────── Step 3 · Confirm ─────────── */
-function ConfirmStep({ confirmed }) {
+function ConfirmStep({ progress }) {
+  const multi = progress && progress.total > 1
   return (
     <section className={`${styles.body} ${styles.bodyCentered}`}>
-      <div className={`${styles.confirmIndicator} ${confirmed ? styles.confirmDone : ''}`}>
-        {confirmed ? (
-          <svg viewBox="0 0 32 32" width="48" height="48" aria-hidden>
-            <circle cx="16" cy="16" r="14" fill="none" stroke="var(--accent-blue)" strokeWidth="2" />
-            <path d="M9 16.5l4.5 4.5L23 11" fill="none" stroke="var(--accent-blue)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        ) : (
-          <span className={styles.pulse} />
-        )}
+      <div className={styles.confirmIndicator}>
+        <span className={styles.pulse} />
       </div>
       <h2 className={`${shared.displayHeadline} ${styles.confirmHeadline}`}>
-        {confirmed ? 'Transaction confirmed.' : 'Waiting for confirmation…'}
+        {progress ? `Deploying on ${progress.name}…` : 'Waiting for confirmation…'}
       </h2>
       <p className={styles.confirmSub}>
-        {confirmed ? 'Your SMA is live.' : 'Approve the deployment in your wallet, then wait for the block.'}
+        {multi
+          ? `Chain ${progress.index + 1} of ${progress.total} — approve each deployment in your wallet. You may be asked to switch networks between chains.`
+          : 'Approve the deployment in your wallet, then wait for the block.'}
       </p>
     </section>
   )
