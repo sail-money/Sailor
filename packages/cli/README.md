@@ -14,7 +14,6 @@ sailor init my-fund
 
 - `sailor init [name]` — scaffold a new agent project from a template
 - `sailor keys generate|show` — generate/show the agent wallet and mandate signer keys
-- `sailor account create` — create a new SMA on-chain
 - `sailor onboard` — set up an SMA, register a permission, and confirm the agent is operational
 - `sailor mandate prepare` — review the permissions attached to your SMA
 - `sailor mandate sign` — confirm the permissions authorized for your SMA

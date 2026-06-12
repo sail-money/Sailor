@@ -221,6 +221,13 @@ export async function initCommand(
     copyDirSync(examplesPermSrc, path.join(dest, "examples", "permissions"));
   }
 
+  // The IPermission authoring scaffold — `sailor mandate templates` points the
+  // user at examples/custom-mandate/README.md, so it must exist locally.
+  const customMandateSrc = path.join(pkgRoot, "examples", "custom-mandate");
+  if (fs.existsSync(customMandateSrc)) {
+    copyDirSync(customMandateSrc, path.join(dest, "examples", "custom-mandate"));
+  }
+
   const permModelSrc = path.join(pkgRoot, "docs", "PERMISSION_MODEL.md");
   if (fs.existsSync(permModelSrc)) {
     fs.mkdirSync(path.join(dest, "docs"), { recursive: true });
@@ -371,7 +378,7 @@ function printWelcome(dest: string, name: string, inPlace: boolean, _hasRpc: boo
     "║                                                                      ║",
     "║  DO THIS FIRST:                                                      ║",
     "║    1. Read AGENTS.md in the project root (FULL FILE, not a skim)     ║",
-    "║    2. Complete every step listed under Stage 1 — Onboarding          ║",
+    "║    2. Follow it — the detailed steps live in .agents/skills/         ║",
     '║    3. Confirm to the user: "I have read AGENTS.md and am ready."     ║',
     "║                                                                      ║",
     "║  If you skip this step, setup WILL break and you will have to        ║",

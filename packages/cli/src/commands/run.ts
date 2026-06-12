@@ -145,7 +145,7 @@ export async function runCommand(opts: { once?: boolean; chain?: number }): Prom
   // ── Load required local state ──────────────────────────────────────────────
   const account = readJsonFile<StoredAccount>(sailPath("account.json"));
   if (!account) {
-    throw new Error('No account found at .sail/account.json.\nRun "sailor account create" first.');
+    throw new Error('No account found at .sail/account.json.\nRun "sailor onboard --new-sma" first.');
   }
   const mandateRaw = readJsonFile<StoredMandate | StoredMandate[]>(sailPath("mandate.json"));
   const mandate = Array.isArray(mandateRaw) ? mandateRaw[0] : mandateRaw;
@@ -227,13 +227,13 @@ export async function runCommand(opts: { once?: boolean; chain?: number }): Prom
     mandateFactory = checksum(cfg.mandateFactory);
     chainName = cfg.name;
   } catch {
-    // chain not in @sail/chains registry — env override may still supply it
+    // chain not in the SDK chain registry — env override may still supply it
   }
   if (env.KERNEL_ADDRESS) kernel = checksum(env.KERNEL_ADDRESS);
   if (env.MANDATE_FACTORY) mandateFactory = checksum(env.MANDATE_FACTORY);
   if (!kernel) {
     throw new Error(
-      `No SailKernel address for chain ${chainId}.\nConfigure the chain in @sail/chains or set KERNEL_ADDRESS in .sail/.env.local.`,
+      `No SailKernel address for chain ${chainId}.\nConfigure the chain in the SDK chain registry or set KERNEL_ADDRESS in .sail/.env.local.`,
     );
   }
 
