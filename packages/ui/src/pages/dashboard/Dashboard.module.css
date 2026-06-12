@@ -4467,6 +4467,38 @@
   font-weight: 600;
   color: var(--text-tertiary);
 }
+/* Loading balance: shimmer the placeholder digits in place so it reads as the
+   number materialising, not a foreign grey bar. Same typography as the real
+   value (signerBalanceNum / signerBalanceUnit), so there's no layout shift. */
+.signerBalanceNumLoading {
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0.16) 30%,
+    rgba(255, 255, 255, 0.55) 50%,
+    rgba(255, 255, 255, 0.16) 70%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: signerBalanceShimmer 1.3s ease-in-out infinite;
+}
+@keyframes signerBalanceShimmer {
+  0% { background-position: 130% 50%; }
+  100% { background-position: -30% 50%; }
+}
+.balancePillLoading {
+  color: var(--text-tertiary);
+}
+.balancePillLoading .balancePillDot {
+  background: var(--text-tertiary);
+  animation: signerBalanceDotPulse 1.3s ease-in-out infinite;
+}
+@keyframes signerBalanceDotPulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
 .signerSub {
   margin: 6px 0 0;
   font-size: 12px;
@@ -4991,6 +5023,12 @@
 }
 .signerFundBtn:hover:not(:disabled) { background: rgba(251,191,36,0.14); border-color: rgba(251,191,36,0.5); }
 .signerFundBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+.signerCardCrit .signerFundBtn {
+  border-color: rgba(255,86,86,0.4);
+  background: rgba(255,86,86,0.1);
+  color: #ff8f8f;
+}
+.signerCardCrit .signerFundBtn:hover:not(:disabled) { background: rgba(255,86,86,0.16); border-color: rgba(255,86,86,0.55); }
 
 
 .signerSpacer { flex: 1; }

@@ -1234,10 +1234,14 @@ export function startServer(sailDir, { port = PORT } = {}) {
       return
     }
 
-    // Cold (never seen this SMA+chain): compute synchronously, cache, return.
-    const data = await computeOverview(account)
-    storeOverview(account.safe, chainId, data)
-    res.json(data)
+    // Cold (never seen this SMA+chain): return a disk-only skeleton instantly so
+    // the agent wallet (EOA) address renders without waiting on RPC, then hydrate
+    // balances from chain in the background. The dashboard's 2s poll picks up the
+    // enriched snapshot. Without this, the locally-known address was trapped
+    // behind the overview's balance RPC calls and only appeared once they resolved.
+    const skeleton = await computeOverview(account, { localOnly: true })
+    res.json(skeleton)
+    refreshOverviewInBackground(account)
   })
 
   // GET /api/overviews — one overview per deployed chain for the active SMA.
@@ -1265,9 +1269,11 @@ export function startServer(sailDir, { port = PORT } = {}) {
           refreshOverviewInBackground(chainAccount)
           return snapshot
         }
-        const data = await computeOverview(chainAccount)
-        storeOverview(account.safe, cid, data)
-        return data
+        // Cold: return a disk-only skeleton instantly (EOA address, no balances)
+        // and hydrate from chain in the background — see /api/overview.
+        const skeleton = await computeOverview(chainAccount, { localOnly: true })
+        refreshOverviewInBackground(chainAccount)
+        return skeleton
       })
     )
     res.json(results)
@@ -1276,7 +1282,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
   // Build the consolidated overview for a local account record by reading the
   // kernel + balances on-chain. Never throws: on RPC failure it returns a
   // best-effort result with `onchainError` set so the UI degrades gracefully.
-  async function computeOverview(account) {
+  async function computeOverview(account, { localOnly = false } = {}) {
     const env = parseEnvFile(at('.env.local'))
     const chainId = Number(account.chainId ?? env.CHAIN_ID ?? 0)
     let kernel = env.KERNEL_ADDRESS
@@ -1356,7 +1362,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
     const localSigner = localManagerAddrs.size > 0 ? [...localManagerAddrs][0] : null
 
-    if (kernel && isAddress(kernel) && account.safe && isAddress(account.safe)) {
+    if (!localOnly && kernel && isAddress(kernel) && account.safe && isAddress(account.safe)) {
       try {
         const client = createPublicClient({ transport: http(rpcUrl) })
         const safe = getAddress(account.safe)
@@ -1455,7 +1461,9 @@ export function startServer(sailDir, { port = PORT } = {}) {
         result.mandates = mandatesFromStore(at, account, nameByAddr, templateByAddr, network)
       }
     } else {
-      result.onchainError = 'No kernel/RPC configured for on-chain reads'
+      // localOnly = disk skeleton (no RPC): leave onchain=false with no error so
+      // the UI renders the known EOA/mandates instead of an "RPC down" state.
+      if (!localOnly) result.onchainError = 'No kernel/RPC configured for on-chain reads'
       result.mandates = mandatesFromStore(at, account, nameByAddr, templateByAddr, network)
     }
 

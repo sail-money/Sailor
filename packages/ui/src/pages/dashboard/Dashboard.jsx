@@ -388,12 +388,22 @@ function MandateRow({ mandate, network, onRevoke }) {
 
 /** Delegated-signer balances with top-up status. */
 function SignersPanel({ overview, sma, onAddSigner, onRotateSigner }) {
+  const { address: wagmiAddress } = useAccount()
   const rawSigners = overview?.signers ?? []
 
   // Expand manager signers that have a known managers list into one card each.
   const signers = rawSigners.flatMap((s) => {
     if (s.role === 'manager' && s.managers?.length > 0) {
-      return s.managers.map((m) => ({
+      // The active on-chain manager (s.address) isn't always present in the
+      // recorded managers list — e.g. an imported SMA, or setManager called
+      // out-of-band. Without this, the expand drops the active EOA entirely so
+      // it never shows in the gas section. Prepend it (with its real balance +
+      // status) when it's missing.
+      let list = s.managers
+      if (s.address && !list.some((m) => m.address?.toLowerCase() === s.address.toLowerCase())) {
+        list = [{ address: s.address, balanceEth: s.balanceEth, isActive: true }, ...list]
+      }
+      return list.map((m) => ({
         ...s,
         address: m.address,
         balanceEth: m.balanceEth,
@@ -406,7 +416,22 @@ function SignersPanel({ overview, sma, onAddSigner, onRotateSigner }) {
     return [s]
   })
 
-  if (signers.length === 0) {
+  // Balances pending: RPC is configured but the on-chain read hasn't hydrated
+  // yet (cold-load skeleton). Distinct from "no RPC", where balances never come.
+  const balancesLoading = Boolean(overview?.rpcConfigured) && !overview?.onchain
+
+  // While balances hydrate, seed the connected wallet (the owner EOA) as a card
+  // so the user sees their address immediately — with a loading balance —
+  // alongside the manager, instead of waiting for the on-chain read. Skip if
+  // that address is already in the signer set. The real owner card from the
+  // overview replaces it once hydrated.
+  let displaySigners = signers
+  if (balancesLoading && wagmiAddress &&
+      !displaySigners.some((s) => s.address?.toLowerCase() === wagmiAddress.toLowerCase())) {
+    displaySigners = [...displaySigners, { role: 'owner', address: wagmiAddress, balanceEth: null, status: undefined }]
+  }
+
+  if (displaySigners.length === 0) {
     return (
       <div className={styles.signersOffline}>
         <p className={styles.signersOfflineMsg}>
@@ -426,11 +451,12 @@ function SignersPanel({ overview, sma, onAddSigner, onRotateSigner }) {
   }
   return (
     <div className={styles.signerGrid}>
-      {signers.map((s) => (
+      {displaySigners.map((s) => (
         <SignerCard
           key={s.address ? `${s.role}:${s.address}` : s.role}
           signer={s}
           network={overview.network}
+          loading={balancesLoading}
           onAddSigner={onAddSigner}
           onRotateSigner={onRotateSigner}
         />
@@ -439,7 +465,7 @@ function SignersPanel({ overview, sma, onAddSigner, onRotateSigner }) {
   )
 }
 
-function SignerCard({ signer, network, onAddSigner, onRotateSigner }) {
+function SignerCard({ signer, network, loading, onAddSigner, onRotateSigner }) {
   const [copied, setCopied] = useState(false)
   const [fundOpen, setFundOpen] = useState(false)
   const role = signer.role === 'sma'
@@ -457,7 +483,16 @@ function SignerCard({ signer, network, onAddSigner, onRotateSigner }) {
     ? null
     : (BALANCE_STATUS[signer.status] ?? BALANCE_STATUS.ok)
   const localBal = isLocal && signer.balanceEth != null ? Number(signer.balanceEth) : null
-  const needsTopUp = signer.status === 'low' || signer.status === 'critical' || (isLocal && (localBal === null || localBal < 0.002))
+  // Exactly 0 = out of gas → always critical/red, even for a local (not-yet-
+  // delegated) manager whose server status is 'local', not 'critical'. Excludes
+  // idle managers and the SMA, which don't pay gas.
+  const balNum = signer.balanceEth != null ? Number(signer.balanceEth) : null
+  // Balance not hydrated yet (cold-load skeleton) — show a shimmer, not a 0 or
+  // an empty/low state we can't yet vouch for.
+  const balanceLoading = Boolean(loading) && !unconfigured && signer.balanceEth == null
+  const isEmpty = !unconfigured && !isIdle && signer.role !== 'sma' && balNum === 0
+  const isCritical = signer.status === 'critical' || isEmpty
+  const needsTopUp = !balanceLoading && (signer.status === 'low' || isCritical || (isLocal && (localBal === null || localBal < 0.002)))
 
   function copy() {
     if (navigator?.clipboard?.writeText) navigator.clipboard.writeText(signer.address)
@@ -468,44 +503,65 @@ function SignerCard({ signer, network, onAddSigner, onRotateSigner }) {
   return (
     <article
       className={`${styles.signerCard} ${needsTopUp ? styles.signerCardWarn : ''} ${
-        signer.status === 'critical' ? styles.signerCardCrit : ''
+        isCritical ? styles.signerCardCrit : ''
       }`}
     >
       <header className={styles.signerCardHead}>
         <span className={styles.signerRole}>{role.label}</span>
-        {isActiveManager && (
-          <span
-            className={styles.balancePill}
-            style={{ color: '#34d399' }}
-            title="Registered as this SMA's delegated signer on-chain"
-          >
-            <span className={styles.balancePillDot} aria-hidden style={{ background: '#34d399' }} />
-            Active
-          </span>
-        )}
-        {isIdle && (
-          <span className={styles.balancePill} style={{ color: 'var(--text-secondary)' }}>
-            <span className={styles.balancePillDot} aria-hidden style={{ background: 'rgba(255,255,255,0.25)' }} />
-            Idle
-          </span>
-        )}
-        {bal && (
-          <span className={`${styles.balancePill} ${styles[`balancePill_${signer.status}`] ?? ''}`}>
+        {/* While balances hydrate we can't vouch for a status — show a single
+            muted "Reading…" pill instead of a (possibly wrong) state badge. */}
+        {balanceLoading ? (
+          <span className={`${styles.balancePill} ${styles.balancePillLoading}`}>
             <span className={styles.balancePillDot} aria-hidden />
-            {bal.label}
+            Reading…
           </span>
-        )}
-        {isLocal && (
-          <span className={styles.balancePill} style={{ color: 'var(--text-secondary)' }}>
-            <span className={styles.balancePillDot} aria-hidden style={{ background: 'var(--accent-blue)' }} />
-            Not registered
-          </span>
+        ) : (
+          <>
+            {isActiveManager && (
+              <span
+                className={styles.balancePill}
+                style={{ color: '#34d399' }}
+                title="Registered as this SMA's delegated signer on-chain"
+              >
+                <span className={styles.balancePillDot} aria-hidden style={{ background: '#34d399' }} />
+                Active
+              </span>
+            )}
+            {isIdle && (
+              <span className={styles.balancePill} style={{ color: 'var(--text-secondary)' }}>
+                <span className={styles.balancePillDot} aria-hidden style={{ background: 'rgba(255,255,255,0.25)' }} />
+                Idle
+              </span>
+            )}
+            {bal && (
+              <span className={`${styles.balancePill} ${styles[`balancePill_${signer.status}`] ?? ''}`}>
+                <span className={styles.balancePillDot} aria-hidden />
+                {bal.label}
+              </span>
+            )}
+            {isLocal && (
+              <span className={styles.balancePill} style={{ color: 'var(--text-secondary)' }}>
+                <span className={styles.balancePillDot} aria-hidden style={{ background: 'var(--accent-blue)' }} />
+                Not registered
+              </span>
+            )}
+          </>
         )}
       </header>
 
       <div className={styles.signerBalance}>
         {unconfigured ? (
           <span className={styles.signerBalanceNum} style={{ opacity: 0.4 }}>—</span>
+        ) : balanceLoading ? (
+          <>
+            <span
+              className={`${styles.signerBalanceNum} ${styles.signerBalanceNumLoading}`}
+              aria-label="Loading balance"
+            >
+              0.0000
+            </span>
+            <span className={`${styles.signerBalanceUnit} ${styles.signerBalanceNumLoading}`}>ETH</span>
+          </>
         ) : (
           <>
             <span className={styles.signerBalanceNum}>{fmtEth(signer.balanceEth)}</span>
@@ -517,7 +573,7 @@ function SignerCard({ signer, network, onAddSigner, onRotateSigner }) {
         {unconfigured
           ? 'No agent wallet assigned yet — create or import one to let your agent sign.'
           : isLocal
-            ? 'Created locally — not yet delegated on-chain.'
+            ? 'Local key — not yet delegated.'
             : isIdle
               ? 'Known manager — not currently active on-chain.'
               : role.sub}
@@ -573,7 +629,7 @@ function SignerCard({ signer, network, onAddSigner, onRotateSigner }) {
       {needsTopUp && (
         <div className={styles.signerTopUp}>
           <span className={styles.signerTopUpMsg}>
-            {signer.status === 'critical' ? 'Out of gas — agent is stalled.' : 'Running low — top up soon.'}
+            {isCritical ? 'Out of gas — agent is stalled.' : 'Running low — top up soon.'}
           </span>
           <button
             type="button"
@@ -1084,7 +1140,11 @@ export default function Dashboard() {
       <FluidBackground />
     </div>
   )
-  if (!onboardState?.hasAccount && !wizardSkipped && !connectedOnMount.current) {
+  // Show onboarding whenever there's no SMA and no wallet connected — even if a
+  // wallet was connected on mount and later disconnected. Without the live
+  // `!isConnected` clause, that disconnect path fell through to the dashboard's
+  // bare "Connect wallet" card instead of the guided wizard.
+  if (!onboardState?.hasAccount && !wizardSkipped && (!connectedOnMount.current || !isConnected)) {
     return <OnboardingWizard onboardState={onboardState} onComplete={handleOnboardComplete} onSkip={() => setWizardSkipped(true)} />
   }
 

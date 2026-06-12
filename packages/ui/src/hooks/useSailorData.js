@@ -7,15 +7,18 @@ const POLL_MS = 5000
  * non-OK response it falls back to `fallback` and surfaces the error so
  * callers can decide whether to show mock data instead.
  */
-function usePolledJson(url, fallback, intervalMs = POLL_MS, trigger = 0) {
+function usePolledJson(url, fallback, intervalMs = POLL_MS, trigger = 0, opts = {}) {
+  const { fastWhile, fastMs = 1500 } = opts
   const [data, setData] = useState(fallback)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   useEffect(() => {
     let alive = true
+    let timer
 
     async function load() {
+      let latest
       try {
         const res = await fetch(url)
         if (!res.ok) {
@@ -23,28 +26,33 @@ function usePolledJson(url, fallback, intervalMs = POLL_MS, trigger = 0) {
             setData(fallback)
             setError(null)
           }
-          return
-        }
-        const json = await res.json()
-        if (alive) {
-          setData(json)
-          setError(null)
+        } else {
+          const json = await res.json()
+          latest = json
+          if (alive) {
+            setData(json)
+            setError(null)
+          }
         }
       } catch (err) {
         if (alive) setError(err)
       } finally {
         if (alive) setLoading(false)
       }
+      if (!alive) return
+      // Self-scheduling: poll fast while `fastWhile` holds (e.g. a cold-load
+      // skeleton awaiting on-chain hydration), then back off to intervalMs.
+      const delay = fastWhile && latest !== undefined && fastWhile(latest) ? fastMs : intervalMs
+      timer = setTimeout(load, delay)
     }
 
     load()
-    const timer = setInterval(load, intervalMs)
     return () => {
       alive = false
-      clearInterval(timer)
+      clearTimeout(timer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url, intervalMs, trigger])
+  }, [url, intervalMs, fastMs, trigger])
 
   return { data, loading, error }
 }
@@ -88,7 +96,13 @@ export async function renameSailorAccount(safe, name) {
  * an SMA exists locally.
  */
 export function useSailorOverview(trigger) {
-  const { data, loading, error } = usePolledJson('/api/overview', null, 15000, trigger)
+  const { data, loading, error } = usePolledJson('/api/overview', null, 15000, trigger, {
+    // Cold load returns a disk-only skeleton (onchain:false) while the on-chain
+    // refresh runs in the background. Poll fast until it hydrates so the
+    // "Reading…" state clears within ~1.5s instead of waiting for the 15s tick.
+    fastWhile: (d) => d != null && d.rpcConfigured === true && d.onchain !== true,
+    fastMs: 1500,
+  })
   return { overview: data, loading, error }
 }
 
@@ -232,6 +246,10 @@ export function useSailorPositions(trigger) {
 
 /** Per-chain overviews for the active multi-chain SMA. Returns an array, one entry per deployed chain. */
 export function useSailorOverviews(trigger) {
-  const { data, loading, error } = usePolledJson('/api/overviews', [], 15000, trigger)
+  const { data, loading, error } = usePolledJson('/api/overviews', [], 15000, trigger, {
+    // Poll fast while any chain is still a disk-only skeleton (see useSailorOverview).
+    fastWhile: (d) => Array.isArray(d) && d.some((o) => o?.rpcConfigured === true && o?.onchain !== true),
+    fastMs: 1500,
+  })
   return { overviews: Array.isArray(data) ? data : [], loading, error }
 }
