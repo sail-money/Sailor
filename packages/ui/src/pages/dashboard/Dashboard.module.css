@@ -4398,7 +4398,7 @@
 }
 
 /* ────── Delegated signers ────── */
-.signersSection { margin-top: 28px; }
+.signersSection { margin-top: 28px; display: flex; flex-direction: column; gap: 14px; }
 .signerGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));

@@ -282,9 +282,9 @@ function ChainSection({ chainOverview, liveMandates, sma, onNewMandate, onAddSig
     <div className={styles.chainSection}>
       <div className={styles.chainSectionHeader}>
         <span className={styles.chainSectionBadge}>{chainName}</span>
-        <span className={styles.chainSectionMeta}>
-          {chainOverview.onchain ? 'on-chain confirmed' : chainOverview.onchainError ? 'RPC unavailable' : 'loading…'}
-        </span>
+        {chainOverview.onchainError && (
+          <span className={styles.chainSectionMeta}>RPC unavailable</span>
+        )}
       </div>
 
       <section className={styles.mandatesSection} aria-label={`${chainName} mandates`}>
@@ -1380,12 +1380,6 @@ function DashboardContent({ draft, onReset }) {
                 )}
                 {overview?.sma && (
                   <div className={styles.smaBadges}>
-                    {overview.sma.registered && (
-                      <span className={styles.smaBadge}>
-                        <ShieldGlyphSm />
-                        Registered SMA
-                      </span>
-                    )}
                     {(activeAccount?.deployedChains
                       ? activeAccount.deployedChains.map((id) => CHAIN_NAMES[id]).filter(Boolean)
                       : overview.network ? [overview.network] : []
