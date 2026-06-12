@@ -355,8 +355,29 @@ function printWelcome(dest: string, name: string, inPlace: boolean, _hasRpc: boo
   }
 
   // STATE A — fresh project.
-  // Full welcome is in AGENTS.md — the assistant presents it when the user says start.
-  // The terminal just directs traffic; the chat owns the welcome entirely.
   if (!inPlace) console.log(`\nCreated ${name}/`);
-  console.log("\nYour Sail agent project is ready. Open your AI coding assistant in this folder and say start.");
+  console.log([
+    "",
+    "╔══════════════════════════════════════════════════════════════════════╗",
+    "║   !!  AI AGENT — MANDATORY ACTION REQUIRED BEFORE CONTINUING   !!    ║",
+    "╠══════════════════════════════════════════════════════════════════════╣",
+    "║                                                                      ║",
+    "║  YOU MUST STOP AND READ AGENTS.md BEFORE DOING ANYTHING ELSE.        ║",
+    "║                                                                      ║",
+    "║  DO NOT:                                                             ║",
+    "║    • respond to the user yet                                         ║",
+    "║    • run any sailor commands                                         ║",
+    "║    • assume you know what to do next                                 ║",
+    "║                                                                      ║",
+    "║  DO THIS FIRST:                                                      ║",
+    "║    1. Read AGENTS.md in the project root (FULL FILE, not a skim)     ║",
+    "║    2. Complete every step listed under Stage 1 — Onboarding          ║",
+    '║    3. Confirm to the user: "I have read AGENTS.md and am ready."     ║',
+    "║                                                                      ║",
+    "║  If you skip this step, setup WILL break and you will have to        ║",
+    "║  restart. There are no shortcuts.                                    ║",
+    "║                                                                      ║",
+    "╚══════════════════════════════════════════════════════════════════════╝",
+    "",
+  ].join("\n"));
 }

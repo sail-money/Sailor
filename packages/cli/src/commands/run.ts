@@ -19,6 +19,7 @@ import {
   readJsonFile,
   sailPath,
 } from "../lib/io.js";
+import { getRpcUrl } from "../lib/chain.js";
 import { keyExists, loadManagerSigner } from "../lib/keys.js";
 import {
   resolvePermissionForBatch,
@@ -138,7 +139,7 @@ async function loadAgent(): Promise<Agent> {
  * outcome to .sail/activity.jsonl. A denied or failing dispatch is logged and
  * skipped — it never stops the loop.
  */
-export async function runCommand(opts: { once?: boolean }): Promise<void> {
+export async function runCommand(opts: { once?: boolean; chain?: number }): Promise<void> {
   const once = opts.once === true;
 
   // ── Load required local state ──────────────────────────────────────────────
@@ -163,21 +164,29 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
     if (v && !process.env[k]) process.env[k] = v;
   }
 
-  const rpcUrl = process.env.RPC_URL ?? env.RPC_URL;
-  // CHAIN_ID resolution order: shell env > .env.local > config.json chainId.
-  // Shell env takes precedence so CHAIN_ID=8453 sailor run overrides .env.local.
+  // CHAIN_ID resolution order: --chain flag > shell env > .env.local > config.json chainId.
   const configChainId = readJsonFile<{ chainId?: number }>(sailPath("config.json"))?.chainId;
-  const chainIdRaw =
-    process.env.CHAIN_ID ?? env.CHAIN_ID ?? (configChainId != null ? String(configChainId) : undefined);
-  if (!rpcUrl || !chainIdRaw) {
+  const chainIdRaw = opts.chain != null
+    ? String(opts.chain)
+    : process.env.CHAIN_ID ?? env.CHAIN_ID ?? (configChainId != null ? String(configChainId) : undefined);
+  if (!chainIdRaw) {
     throw new Error(
-      "RPC_URL must be set in .sail/.env.local.\n" +
-        "  RPC_URL=https://your-rpc-endpoint\n  CHAIN_ID=8453   (or omit if set in .sail/config.json)",
+      "CHAIN_ID must be set in .sail/.env.local or .sail/config.json.\n" +
+        "  CHAIN_ID=8453   (Base) or CHAIN_ID=42161   (Arbitrum)",
     );
   }
   const chainId = Number(chainIdRaw);
   if (Number.isNaN(chainId)) {
     throw new Error(`Invalid CHAIN_ID: "${chainIdRaw}".`);
+  }
+  // RPC resolution: getRpcUrl checks named vars (BASE_RPC_URL, ARBITRUM_RPC_URL),
+  // then RPC_URL_<chainId>, then generic RPC_URL — so per-chain keys always win.
+  const rpcUrl = getRpcUrl(chainId);
+  if (!rpcUrl) {
+    throw new Error(
+      "RPC_URL must be set in .sail/.env.local.\n" +
+        "  RPC_URL=https://your-rpc-endpoint  (or BASE_RPC_URL / RPC_URL_8453 for per-chain config)",
+    );
   }
 
   // Validate the RPC URL to prevent SSRF attacks against internal network
@@ -270,7 +279,7 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
   }
 
   const intervalSec = (() => {
-    const raw = env.SAILOR_INTERVAL ?? process.env.SAILOR_INTERVAL;
+    const raw = process.env.SAILOR_INTERVAL ?? env.SAILOR_INTERVAL;
     const n = raw === undefined ? DEFAULT_INTERVAL_SEC : Number(raw);
     return Number.isNaN(n) || n <= 0 ? DEFAULT_INTERVAL_SEC : n;
   })();
@@ -285,7 +294,7 @@ export async function runCommand(opts: { once?: boolean }): Promise<void> {
   // _publicClient: kept for one release so agents written against the old
   // undocumented key still work. Use ctx.publicClient instead.
   const agentData: Record<string, unknown> = {
-    ...loadAgentData(env.SAILOR_DATA ?? process.env.SAILOR_DATA),
+    ...loadAgentData(process.env.SAILOR_DATA ?? env.SAILOR_DATA),
     _publicClient: publicClient,
   };
 
