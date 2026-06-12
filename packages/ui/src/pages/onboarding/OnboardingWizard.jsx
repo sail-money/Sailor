@@ -1,12 +1,23 @@
-import { useEffect, useRef, useState } from 'react'
-import { ConnectButton } from '@rainbow-me/rainbowkit'
+import { useEffect, useState } from 'react'
+import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { encodeFunctionData, getAddress } from 'viem'
 import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi'
 import { sailDeployments } from '@sail/sdk/deployments'
 import { FluidBackground, GlassCard, Sai, SailButton } from '../shared'
 import shared from '../shared/shared.module.css'
 import styles from './OnboardingWizard.module.css'
+import dashStyles from '../dashboard/Dashboard.module.css'
 import { useSigningSocket } from '../../hooks/useSigningSocket'
+
+function truncateAddr(addr) {
+  return addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : ''
+}
+
+// Set to true when the onboarding header avatar button initiates a connect flow.
+// Module-level so it survives component re-renders and re-mounts.
+let _headerConnectPending = false
+// Set to true when "Already have an SMA?" initiates a connect flow.
+let _skipConnectPending = false
 
 // topic0 of AccountRegistered(address indexed account, address indexed permissionSigner, address indexed manager)
 const ACCOUNT_REGISTERED_TOPIC = '0x05f9a81a3b5e45d338f25347928e56b0aaaa0c65d4087a980c4e41370fcccfeb'
@@ -62,7 +73,56 @@ const PROGRESS_STEPS = ['network', 'connect', 'keygen', 'create-sma']
  *   onboardState  — result of GET /api/onboard/state (or null while loading)
  *   onComplete    — called when the user clicks "Go to dashboard" on the done step
  */
-export default function OnboardingWizard({ onboardState, onComplete }) {
+function OnboardingHeader({ onSkip }) {
+  const { isConnected, address } = useAccount()
+  const { openConnectModal } = useConnectModal()
+
+  useEffect(() => {
+    if (isConnected && _headerConnectPending) {
+      _headerConnectPending = false
+      onSkip?.()
+    }
+  }, [isConnected, onSkip])
+
+  function handleClick() {
+    if (isConnected) {
+      onSkip?.()
+    } else {
+      _headerConnectPending = true
+      openConnectModal?.()
+    }
+  }
+
+  return (
+    <header className={dashStyles.header}>
+      <button
+        type="button"
+        className={dashStyles.brand}
+        aria-label="Sail"
+      >
+        <Sai size={48} animate />
+      </button>
+      <div className={dashStyles.topActionsPill}>
+        <button
+          type="button"
+          className={dashStyles.avatarBtn}
+          onClick={handleClick}
+          aria-label={isConnected && address ? `Connected (${truncateAddr(address)})` : 'Connect wallet'}
+          title={isConnected && address ? address : undefined}
+        >
+          <span className={dashStyles.avatarBtnMonogram} aria-hidden>
+            {isConnected && address ? address.slice(2, 4).toUpperCase() : '—'}
+          </span>
+          <span className={dashStyles.avatarBtnAddr}>
+            {isConnected && address ? truncateAddr(address) : 'Not connected'}
+          </span>
+        </button>
+      </div>
+    </header>
+  )
+}
+
+export default function OnboardingWizard({ onboardState, onComplete, onSkip }) {
   const { isConnected, address } = useAccount()
   const [step, setStep] = useState('welcome')
   // Multi-chain: user selects one or more chains; default to Base
@@ -75,7 +135,6 @@ export default function OnboardingWizard({ onboardState, onComplete }) {
 
   // If the wallet is already connected when the user lands on welcome,
   // advance to network so they can pick their chains — but no further.
-  // The ConnectStep handles its own transition once they've explicitly connected.
   useEffect(() => {
     if (step === 'welcome' && isConnected) setStep('network')
   }, [step, isConnected])
@@ -93,10 +152,11 @@ export default function OnboardingWizard({ onboardState, onComplete }) {
   return (
     <div className={styles.shell}>
       <FluidBackground />
+      <OnboardingHeader onSkip={onSkip ?? onComplete} />
       <main className={styles.stage}>
         <div key={step} className={styles.stageInner}>
           {step === 'welcome' && (
-            <WelcomeState onStart={() => setStep('network')} onSkip={onComplete} />
+            <WelcomeState onStart={() => setStep('network')} onSkip={onSkip ?? onComplete} />
           )}
           {step === 'network' && (
             <NetworkStep
@@ -119,7 +179,7 @@ export default function OnboardingWizard({ onboardState, onComplete }) {
           {step === 'keygen' && (
             <KeygenStep
               existingAddress={onboardState?.managerAddress}
-              onBack={() => setStep('connect')}
+              onBack={() => setStep('network')}
               onDone={(addr) => { setManagerAddress(addr); setStep('create-sma') }}
               progressIndex={progressIndex}
               progressTotal={PROGRESS_STEPS.length}
@@ -162,6 +222,25 @@ function ProgressDots({ current, total }) {
 
 /* ── Step 0: Welcome / setup overview ── */
 function WelcomeState({ onStart, onSkip }) {
+  const { isConnected } = useAccount()
+  const { openConnectModal } = useConnectModal()
+
+  useEffect(() => {
+    if (isConnected && _skipConnectPending) {
+      _skipConnectPending = false
+      onSkip?.()
+    }
+  }, [isConnected, onSkip])
+
+  function handleSkip() {
+    if (isConnected) {
+      onSkip?.()
+    } else {
+      _skipConnectPending = true
+      openConnectModal?.()
+    }
+  }
+
   return (
     <GlassCard className={styles.welcomeCard}>
       <div className={styles.cardSai} aria-hidden>
@@ -196,7 +275,7 @@ function WelcomeState({ onStart, onSkip }) {
       </div>
       <p className={styles.fineprint}>Self-custody. Sail never holds your keys.</p>
       {onSkip && (
-        <button className={styles.skipLink} onClick={onSkip}>
+        <button className={styles.skipLink} onClick={handleSkip}>
           Already have an SMA? Skip to dashboard →
         </button>
       )}
@@ -267,16 +346,11 @@ function NetworkCard({ net, selected, onToggle }) {
 /* ── Step 2: Connect wallet ── */
 function ConnectStep({ onBack, onDone, progressIndex, progressTotal }) {
   const { isConnected, address } = useAccount()
+  const { openConnectModal } = useConnectModal()
   const { status, send } = useSigningSocket()
-  // Track whether the wallet was already connected when this step mounted.
-  // Only auto-advance when the user connects *during* this step — don't bypass
-  // it (and the signing-daemon handshake) when the wallet persists from a
-  // previous session.
-  const wasConnectedOnMount = useRef(isConnected)
 
   useEffect(() => {
     if (!isConnected || !address) return
-    if (wasConnectedOnMount.current) return // let the user proceed manually
     if (status === 'connected') {
       send({ type: 'wallet-connected', address })
       onDone?.()
@@ -294,17 +368,7 @@ function ConnectStep({ onBack, onDone, progressIndex, progressTotal }) {
         sub="This wallet owns your SMA and signs mandates. It never executes trades."
         onBack={onBack}
       />
-      <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 8 }}>
-        <ConnectButton showBalance={false} />
-      </div>
-      {isConnected && wasConnectedOnMount.current && (
-        <SailButton fullWidth onClick={() => {
-          if (status === 'connected') send({ type: 'wallet-connected', address })
-          onDone?.()
-        }} style={{ marginTop: 12 }}>
-          Continue →
-        </SailButton>
-      )}
+      <SailButton fullWidth onClick={openConnectModal}>Connect wallet →</SailButton>
     </GlassCard>
   )
 }
