@@ -29,6 +29,7 @@ import {
   useSailorMandate,
   useSailorMandateDraft,
   useSailorOverview,
+  useSailorOverviews,
   useSailorPending,
   useSailorPositions,
   useDiscoverSafes,
@@ -253,6 +254,81 @@ const SIGNER_ROLE = {
   manager: { label: 'Manager', sub: 'Pays gas for every dispatch — keep it funded.' },
   owner: { label: 'Owner', sub: 'Holds the Safe and signs mandates.' },
   permissionSigner: { label: 'Permission signer', sub: 'Authorizes which mandates apply.' },
+}
+
+/**
+ * Per-chain panel for multi-chain SMAs: shows mandates + account details for one chain.
+ */
+function ChainSection({ chainOverview, liveMandates, sma, onNewMandate, onAddSigner, onRotateSigner, onRevoke }) {
+  const chainId = chainOverview.chainId
+  const network = chainOverview.network ?? CHAIN_NAMES[chainId] ?? null
+  const chainName = network ? (network.charAt(0).toUpperCase() + network.slice(1)) : `Chain ${chainId}`
+  const overviewMandates = chainOverview.mandates ?? []
+  const addressByTemplate = new Map(overviewMandates.map((m) => [m.name ?? m.template, m.address]))
+
+  // Use live mandates from mandate.json when available. Otherwise synthesize one
+  // mandate card per on-chain permission so the format stays consistent across chains.
+  const displayMandates = liveMandates.length > 0
+    ? liveMandates
+    : overviewMandates.map((m) => ({
+        chainId,
+        registeredOnChain: true,
+        permissions: [{ template: m.name ?? m.template ?? 'Unknown permission', params: {} }],
+      }))
+
+  const totalPerms = displayMandates.reduce((n, m) => n + (m.permissions ?? []).length, 0)
+
+  return (
+    <div className={styles.chainSection}>
+      <div className={styles.chainSectionHeader}>
+        <span className={styles.chainSectionBadge}>{chainName}</span>
+        <span className={styles.chainSectionMeta}>
+          {chainOverview.onchain ? 'on-chain confirmed' : chainOverview.onchainError ? 'RPC unavailable' : 'loading…'}
+        </span>
+      </div>
+
+      <section className={styles.mandatesSection} aria-label={`${chainName} mandates`}>
+        <header className={styles.mandatesSectionHead}>
+          <h2 className={styles.mandatesSectionTitle}><DocGlyph />Your Mandates</h2>
+          <span className={styles.mandatesSectionMeta}>
+            {totalPerms > 0
+              ? `${totalPerms} permission${totalPerms === 1 ? '' : 's'}${chainOverview.onchain ? ' · on-chain' : ''}`
+              : 'No permissions yet'}
+          </span>
+        </header>
+        <div className={styles.mandateList}>
+          {displayMandates.length > 0 ? (
+            displayMandates.map((m, i) => (
+              <LiveMandateCard
+                key={m.signedAt ?? i}
+                mandate={m}
+                network={network}
+                addressByTemplate={addressByTemplate}
+                onRevoke={onRevoke}
+              />
+            ))
+          ) : (
+            <NewMandateTile onClick={onNewMandate} />
+          )}
+        </div>
+      </section>
+
+      <section className={styles.signersSection} aria-label={`${chainName} account details`}>
+        <header className={styles.mandatesSectionHead}>
+          <h2 className={styles.mandatesSectionTitle}><KeyGlyph />Account Details</h2>
+          <span className={styles.mandatesSectionMeta}>
+            {chainOverview.onchain ? 'live balances · refill when low' : 'Add RPC URL to enable balance tracking'}
+          </span>
+        </header>
+        <SignersPanel
+          overview={chainOverview}
+          sma={sma}
+          onAddSigner={onAddSigner}
+          onRotateSigner={onRotateSigner}
+        />
+      </section>
+    </div>
+  )
 }
 
 /**
@@ -922,6 +998,7 @@ function DashboardContent({ draft, onReset }) {
   const { account: realAccount, loading: accountLoading } = useSailorAccount(refreshTick)
   const { accounts: allAccounts } = useSailorAccounts(refreshTick)
   const { overview } = useSailorOverview(refreshTick)
+  const { overviews: chainOverviews } = useSailorOverviews(refreshTick)
   const { mandates: liveMandates } = useSailorMandate(refreshTick)
   const { events: liveActivity } = useSailorActivity(refreshTick)
   const { positions: livePositions } = useSailorPositions(refreshTick)
@@ -944,6 +1021,7 @@ function DashboardContent({ draft, onReset }) {
   const [createSMAOpen, setCreateSMAOpen] = useState(false)
   const [handoff, setHandoff] = useState(null)
   const [revokeTarget, setRevokeTarget] = useState(null)
+  const [revokeContext, setRevokeContext] = useState(null) // { sma, kernel, chainId } for multi-chain revoke
   const [safeNames, setSafeNames] = useState({})
   const [editingName, setEditingName] = useState(false)
   const [nameInput, setNameInput] = useState('')
@@ -990,6 +1068,7 @@ function DashboardContent({ draft, onReset }) {
   const ownerAddr = effectiveAccount?.owner ?? wagmiAddress ?? null
 
   const activeAccount = allAccounts.find((a) => a.active) ?? allAccounts[0] ?? null
+  const isMultiChain = (activeAccount?.deployedChains?.length ?? 0) > 1
   const smaName = safeNames[activeAccount?.safe ?? 'live-sma'] ?? activeAccount?.name ?? sma?.name ?? 'My SMA'
   const currentSafeId = activeAccount?.safe ?? effectiveAccount?.safe ?? 'live-sma'
   const profileSafes = allAccounts.length > 0
@@ -1270,84 +1349,100 @@ function DashboardContent({ draft, onReset }) {
               </a>
             </section>
 
-            {/* ── Your permissions ───────────────────────────────────
-                Each mandate is its own signed contract with its own
-                permission set and its own delegated-signer roster.
-                We show only the ✓ permissions here — anything not
-                listed is forbidden by the contract by default. Full
-                contract receipt, hashes, selectors, and the Revoke
-                action live one click in at /mandate/:id. */}
-            <section className={styles.mandatesSection} aria-label="Your mandates">
-              <header className={styles.mandatesSectionHead}>
-                <h2 className={styles.mandatesSectionTitle}>
-                  <DocGlyph />
-                  Your Mandates
-                </h2>
-                <span className={styles.mandatesSectionMeta}>
-                  {overviewMandates.length > 0
-                    ? `${overviewMandates.length} permission${
-                        overviewMandates.length === 1 ? '' : 's'
-                      }${overview?.onchain ? ' · attached on-chain' : ''}`
-                    : hasLiveMandate
-                      ? `${activeLiveMandates.reduce((n, m) => n + (m.permissions ?? []).length, 0)} permission${
-                          activeLiveMandates.reduce((n, m) => n + (m.permissions ?? []).length, 0) === 1 ? '' : 's'
-                        } · live`
-                      : 'No permissions registered yet'}
-                </span>
-              </header>
-
-              <div className={styles.mandateList}>
-                {hasLiveMandate ? (() => {
-                  const addressByTemplate = new Map(overviewMandates.map((m) => [m.name ?? m.template, m.address]))
-                  return activeLiveMandates.map((m, i) => (
-                    <LiveMandateCard
-                      key={m.signedAt ?? i}
-                      mandate={m}
-                      network={realNetwork}
-                      addressByTemplate={addressByTemplate}
-                      onRevoke={overview?.kernel && overview?.sma?.address ? setRevokeTarget : undefined}
-                    />
-                  ))
-                })() : overviewMandates.length > 0 ? (
-                  <AttachedMandatesPanel
-                    mandates={overviewMandates}
-                    network={overview?.network ?? realNetwork}
-                    onchain={overview?.onchain}
-                    onRevoke={overview?.kernel && overview?.sma?.address ? setRevokeTarget : undefined}
+            {/* ── Mandates + Account Details ──────────────────────
+                Multi-chain SMAs get one section per deployed chain.
+                Single-chain SMAs get the original layout. */}
+            {isMultiChain && chainOverviews.length > 0 ? (
+              chainOverviews.map((chainOv) => {
+                const chainMandates = liveMandates.filter((m) =>
+                  (m.safe == null || m.safe.toLowerCase() === activeSafe) &&
+                  m.chainId === chainOv.chainId
+                )
+                return (
+                  <ChainSection
+                    key={chainOv.chainId}
+                    chainOverview={chainOv}
+                    liveMandates={chainMandates}
+                    sma={sma}
+                    onNewMandate={() => setHandoff({ variant: 'new', context: 'mandate' })}
+                    onAddSigner={() => setAddSignerOpen(true)}
+                    onRotateSigner={chainOv?.kernel && chainOv?.sma?.address
+                      ? (addr) => { setRotateTo(addr ?? null); setRotateOpen(true) }
+                      : undefined}
+                    onRevoke={chainOv?.kernel && chainOv?.sma?.address
+                      ? (target) => { setRevokeContext({ sma: chainOv.sma.address, kernel: chainOv.kernel, chainId: chainOv.chainId }); setRevokeTarget(target) }
+                      : undefined}
                   />
-                ) : (
-                  <NewMandateTile onClick={() => setHandoff({ variant: 'new', context: 'mandate' })} />
-                )}
-              </div>
-            </section>
+                )
+              })
+            ) : (
+              <>
+                <section className={styles.mandatesSection} aria-label="Your mandates">
+                  <header className={styles.mandatesSectionHead}>
+                    <h2 className={styles.mandatesSectionTitle}>
+                      <DocGlyph />
+                      Your Mandates
+                    </h2>
+                    <span className={styles.mandatesSectionMeta}>
+                      {overviewMandates.length > 0
+                        ? `${overviewMandates.length} permission${
+                            overviewMandates.length === 1 ? '' : 's'
+                          }${overview?.onchain ? ' · attached on-chain' : ''}`
+                        : hasLiveMandate
+                          ? `${activeLiveMandates.reduce((n, m) => n + (m.permissions ?? []).length, 0)} permission${
+                              activeLiveMandates.reduce((n, m) => n + (m.permissions ?? []).length, 0) === 1 ? '' : 's'
+                            } · live`
+                          : 'No permissions registered yet'}
+                    </span>
+                  </header>
+                  <div className={styles.mandateList}>
+                    {hasLiveMandate ? (() => {
+                      const addressByTemplate = new Map(overviewMandates.map((m) => [m.name ?? m.template, m.address]))
+                      return activeLiveMandates.map((m, i) => (
+                        <LiveMandateCard
+                          key={m.signedAt ?? i}
+                          mandate={m}
+                          network={realNetwork}
+                          addressByTemplate={addressByTemplate}
+                          onRevoke={overview?.kernel && overview?.sma?.address ? setRevokeTarget : undefined}
+                        />
+                      ))
+                    })() : overviewMandates.length > 0 ? (
+                      <AttachedMandatesPanel
+                        mandates={overviewMandates}
+                        network={overview?.network ?? realNetwork}
+                        onchain={overview?.onchain}
+                        onRevoke={overview?.kernel && overview?.sma?.address ? setRevokeTarget : undefined}
+                      />
+                    ) : (
+                      <NewMandateTile onClick={() => setHandoff({ variant: 'new', context: 'mandate' })} />
+                    )}
+                  </div>
+                </section>
 
-            {/* ── Agent wallets — gas balances ────────────────────
-                The manager (agent wallet) pays gas for every dispatch;
-                if it runs dry the agent stalls. This section surfaces each
-                signer's live native balance with a top-up status so you can
-                refill before that happens. Read-only: Sail never holds keys,
-                so "top up" means sending ETH to the shown address yourself. */}
-            <section className={styles.signersSection} aria-label="Accounts details">
-              <header className={styles.mandatesSectionHead}>
-                <h2 className={styles.mandatesSectionTitle}>
-                  <KeyGlyph />
-                  Accounts Details
-                </h2>
-                <span className={styles.mandatesSectionMeta}>
-                  {overview?.onchain
-                    ? 'live balances · refill when low'
-                    : 'Add RPC URL to enable balance tracking'}
-                </span>
-              </header>
-              <SignersPanel
-                overview={overview}
-                sma={sma}
-                onAddSigner={() => setAddSignerOpen(true)}
-                onRotateSigner={overview?.kernel && overview?.sma?.address
-                  ? (addr) => { setRotateTo(addr ?? null); setRotateOpen(true) }
-                  : undefined}
-              />
-            </section>
+                <section className={styles.signersSection} aria-label="Accounts details">
+                  <header className={styles.mandatesSectionHead}>
+                    <h2 className={styles.mandatesSectionTitle}>
+                      <KeyGlyph />
+                      Accounts Details
+                    </h2>
+                    <span className={styles.mandatesSectionMeta}>
+                      {overview?.onchain
+                        ? 'live balances · refill when low'
+                        : 'Add RPC URL to enable balance tracking'}
+                    </span>
+                  </header>
+                  <SignersPanel
+                    overview={overview}
+                    sma={sma}
+                    onAddSigner={() => setAddSignerOpen(true)}
+                    onRotateSigner={overview?.kernel && overview?.sma?.address
+                      ? (addr) => { setRotateTo(addr ?? null); setRotateOpen(true) }
+                      : undefined}
+                  />
+                </section>
+              </>
+            )}
 
             {/* ── RPC / Network config ─────────────────────────────── */}
             <section className={agentStyles.card}>
@@ -1465,11 +1560,11 @@ function DashboardContent({ draft, onReset }) {
         open={revokeTarget != null}
         mandate={Array.isArray(revokeTarget) ? undefined : revokeTarget}
         permissions={Array.isArray(revokeTarget) ? revokeTarget : undefined}
-        sma={overview?.sma?.address}
-        kernel={overview?.kernel}
-        chainId={overview?.chainId}
-        onClose={() => setRevokeTarget(null)}
-        onRevoked={() => setRevokeTarget(null)}
+        sma={revokeContext?.sma ?? overview?.sma?.address}
+        kernel={revokeContext?.kernel ?? overview?.kernel}
+        chainId={revokeContext?.chainId ?? overview?.chainId}
+        onClose={() => { setRevokeTarget(null); setRevokeContext(null) }}
+        onRevoked={() => { setRevokeTarget(null); setRevokeContext(null) }}
       />
 
       {/* Contract preview modal retired — viewing the signed contract

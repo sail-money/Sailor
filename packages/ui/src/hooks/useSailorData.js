@@ -228,3 +228,9 @@ export function useSailorPositions(trigger) {
   const { data, loading, error } = usePolledJson('/api/positions', { positions: [], updatedAt: null }, 15000, trigger)
   return { positions: data?.positions ?? [], updatedAt: data?.updatedAt ?? null, loading, error }
 }
+
+/** Per-chain overviews for the active multi-chain SMA. Returns an array, one entry per deployed chain. */
+export function useSailorOverviews(trigger) {
+  const { data, loading, error } = usePolledJson('/api/overviews', [], 15000, trigger)
+  return { overviews: Array.isArray(data) ? data : [], loading, error }
+}
