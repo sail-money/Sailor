@@ -156,7 +156,7 @@ export default function OnboardingWizard({ onboardState, onComplete, onSkip }) {
       <main className={styles.stage}>
         <div key={step} className={styles.stageInner}>
           {step === 'welcome' && (
-            <WelcomeState onStart={() => setStep('network')} onSkip={onComplete} />
+            <WelcomeState onStart={() => setStep('network')} onSkip={onSkip ?? onComplete} />
           )}
           {step === 'network' && (
             <NetworkStep
