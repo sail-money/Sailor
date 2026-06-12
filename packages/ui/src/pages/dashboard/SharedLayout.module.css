@@ -601,7 +601,7 @@
 .jStatus_info { color: var(--ocean-light, #6ba3ff); background: rgba(25, 144, 255, 0.10); }
 .jStatus_warn { color: var(--status-warn, rgba(255, 255, 255, 0.55)); background: rgba(25, 144, 255, 0.10); }
 
-.journalBody { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.journalBody { display: flex; flex-direction: column; gap: 3px; min-width: 0; overflow: hidden; }
 .journalTitle {
   font-family: 'DM Sans', sans-serif;
   font-size: 14px;
@@ -609,6 +609,8 @@
   letter-spacing: -0.002em;
   color: var(--text-primary);
   line-height: 1.35;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 .journalActor { font-weight: 600; }
 .journalAction { font-weight: 400; }
@@ -616,6 +618,8 @@
   font-size: 12px;
   color: var(--text-tertiary);
   line-height: 1.45;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 .journalRowRejected .journalAction { color: var(--text-secondary); }
 

@@ -336,7 +336,7 @@ export async function runCommand(opts: { once?: boolean; chain?: number }): Prom
 
   // ── One tick: agent.tick → preview → execute → log ───────────────────────────
   async function runTick(): Promise<void> {
-    appendActivity({ ts: nowIso(), actor: "agent", type: "tick_start" });
+    appendActivity({ ts: nowIso(), actor: "agent", type: "tick_start", chainId });
 
     // Fetch the current block once per tick. Real block number + timestamp are used
     // in the off-chain evaluate() probe so time- or block-gated permissions get
@@ -387,8 +387,8 @@ export async function runCommand(opts: { once?: boolean; chain?: number }): Prom
     } catch (err) {
       const reason = (err as Error).message;
       console.error(`tick error: ${reason}`);
-      appendActivity({ ts: nowIso(), actor: "agent", type: "error", reason });
-      appendActivity({ ts: nowIso(), actor: "agent", type: "tick_end" });
+      appendActivity({ ts: nowIso(), actor: "agent", type: "error", reason, chainId });
+      appendActivity({ ts: nowIso(), actor: "agent", type: "tick_end", chainId });
       return;
     }
 
@@ -570,7 +570,7 @@ export async function runCommand(opts: { once?: boolean; chain?: number }): Prom
       console.log(`tick complete: ${parts.join(", ")}`);
     }
 
-    appendActivity({ ts: nowIso(), actor: "agent", type: "tick_end" });
+    appendActivity({ ts: nowIso(), actor: "agent", type: "tick_end", chainId });
   }
 
   // ── Header ────────────────────────────────────────────────────────────────────
@@ -582,13 +582,13 @@ export async function runCommand(opts: { once?: boolean; chain?: number }): Prom
   console.log("");
 
   // ── PID file + clean shutdown ───────────────────────────────────────────────
-  writeAgentPid();
+  writeAgentPid(chainId);
   let stopping = false;
   const shutdown = (): void => {
     if (stopping) return;
     stopping = true;
     console.log("\nStopping agent…");
-    clearAgentPid();
+    clearAgentPid(chainId);
     process.exit(0);
   };
   process.on("SIGINT", shutdown);
@@ -606,6 +606,6 @@ export async function runCommand(opts: { once?: boolean; chain?: number }): Prom
       await sleep(intervalSec * 1000);
     }
   } finally {
-    clearAgentPid();
+    clearAgentPid(chainId);
   }
 }

@@ -4564,6 +4564,86 @@
 }
 .balancePill_critical .balancePillDot { background: #ff6b6b; }
 
+/* ────── Agent source badge + popover ────── */
+.agentSourceWrap { position: relative; }
+.agentRunningBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 24px;
+  padding: 0 10px 0 9px;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 2px;
+  border: 1px solid var(--status-active-border);
+  background: var(--status-active-bg);
+  color: var(--accent-blue-bright, #4DABFF);
+  cursor: default;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+.agentRunningBadgeClickable { cursor: pointer; }
+.agentRunningBadgeClickable:hover {
+  background: color-mix(in srgb, var(--status-active-bg) 70%, var(--accent-blue-bright) 30%);
+  border-color: var(--accent-blue-bright, #4DABFF);
+}
+.agentRunningDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: var(--status-active);
+  box-shadow: 0 0 7px var(--accent-glow, rgba(25, 144, 255, 0.65));
+  animation: dot-breathe 2.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) { .agentRunningDot { animation: none; } }
+.agentSourceChevron {
+  display: inline-block;
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: transform 0.16s var(--ease-apple, ease), opacity 0.16s ease;
+}
+.agentRunningBadgeClickable:hover .agentSourceChevron { opacity: 1; }
+.agentSourceChevronOpen { transform: rotate(180deg); opacity: 1; }
+.agentSourcePanel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 180px;
+  z-index: 40;
+  border-radius: 2px;
+  border: 1px solid var(--glass-border-strong);
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur-strong);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  animation: notifPanelIn 140ms var(--ease-apple, ease);
+}
+.agentSourceRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--glass-border);
+}
+.agentSourceRow:last-child { border-bottom: none; }
+.agentSourceChain {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: capitalize;
+}
+.agentSourcePid {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  color: var(--text-tertiary);
+}
+
 /* ────── Notifications bell dropdown ────── */
 .notifWrap { position: relative; }
 .notifPanel {
@@ -4926,3 +5006,39 @@
   transition: background 150ms, border-color 150ms, color 150ms;
 }
 .signerRotateBtn:hover { background: rgba(255,255,255,0.06); color: var(--text-primary, #fff); }
+
+/* ── Multi-chain section ──────────────────────────────────────────────────── */
+.chainSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 20px 24px 24px;
+  background: var(--glass-bg, rgba(255,255,255,0.025));
+  border: 1px solid var(--glass-border, rgba(255,255,255,0.07));
+  border-radius: 2px;
+}
+.chainSectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.chainSectionBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 2px;
+  border: 1px solid var(--glass-border, rgba(255,255,255,0.1));
+  background: rgba(255,255,255,0.06);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-primary, #fff);
+}
+.chainSectionMeta {
+  font-size: 12px;
+  color: var(--text-tertiary, rgba(255,255,255,0.35));
+}
+.chainSection .mandatesSection { padding: 0; }
+.chainSection .signersSection { margin-top: 24px; }

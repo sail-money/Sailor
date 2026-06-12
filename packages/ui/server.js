@@ -47,6 +47,26 @@ const CHAIN_NAMES = {
   130: 'unichain',
 }
 
+// Named env-var aliases the CLI uses (e.g. BASE_RPC_URL), alongside the
+// numeric form (RPC_URL_8453). Both are checked; first match wins.
+const CHAIN_RPC_ENV_KEYS = {
+  1:       ['RPC_URL_1',       'ETH_MAINNET_RPC_URL'],
+  8453:    ['RPC_URL_8453',    'BASE_RPC_URL'],
+  42161:   ['RPC_URL_42161',   'ARBITRUM_RPC_URL'],
+  130:     ['RPC_URL_130',     'UNICHAIN_RPC_URL'],
+  84532:   ['RPC_URL_84532',   'BASE_SEPOLIA_RPC_URL'],
+  11155111:['RPC_URL_11155111','SEPOLIA_RPC_URL'],
+}
+
+/** Resolve the RPC URL for a specific chain from the env. Falls back to generic RPC_URL. */
+function resolveRpcUrl(env, chainId) {
+  const keys = CHAIN_RPC_ENV_KEYS[chainId] ?? [`RPC_URL_${chainId}`]
+  for (const k of keys) {
+    if (env[k]) return env[k]
+  }
+  return env.RPC_URL ?? null
+}
+
 /**
  * Classify a native-balance reading into a top-up status. Thresholds are in
  * ETH and deliberately conservative — Base gas is cheap, so "low" is an early
@@ -97,44 +117,55 @@ export function startServer(sailDir, { port = PORT } = {}) {
 
   const at = (name) => path.join(sailDir, name)
 
-  // ── Per-SMA overview cache ───────────────────────────────────────────────
-  // Switching between SMAs should feel instant. The consolidated overview is
-  // several RPC reads, so we cache it per account (keyed by safe address) in
-  // memory AND on disk. A switch serves the last snapshot immediately and
-  // refreshes from chain in the background (stale-while-revalidate), so the UI
-  // never blocks on RPC for an SMA it has seen before — even across restarts.
-  const overviewCacheByAccount = new Map() // safeLower -> { at, data }
-  const overviewInFlight = new Set() // safeLower currently refreshing
-  const overviewSnapshotPath = (safe) => at(`state/overview/${safe.toLowerCase()}.json`)
+  // ── Per-SMA-per-chain overview cache ────────────────────────────────────
+  // Keyed by `${safe}-${chainId}` so multi-chain SMAs get independent snapshots.
+  const overviewCacheByAccount = new Map() // `${safeLower}-${chainId}` -> { at, data }
+  const overviewInFlight = new Set()
+  const overviewCacheKey = (safe, chainId) => `${safe.toLowerCase()}-${chainId}`
+  const overviewSnapshotPath = (safe, chainId) => at(`state/overview/${safe.toLowerCase()}-${chainId}.json`)
 
-  const readOverviewSnapshot = (safe) => {
+  const readOverviewSnapshot = (safe, chainId) => {
     try {
-      return JSON.parse(fs.readFileSync(overviewSnapshotPath(safe), 'utf-8'))
+      return JSON.parse(fs.readFileSync(overviewSnapshotPath(safe, chainId), 'utf-8'))
     } catch {
       return null
     }
   }
-  const writeOverviewSnapshot = (safe, data) => {
+  const writeOverviewSnapshot = (safe, chainId, data) => {
     try {
       fs.mkdirSync(at('state/overview'), { recursive: true })
-      fs.writeFileSync(overviewSnapshotPath(safe), `${JSON.stringify(data, null, 2)}\n`)
-    } catch {
-      /* best-effort disk cache — fine if it fails */
-    }
+      fs.writeFileSync(overviewSnapshotPath(safe, chainId), `${JSON.stringify(data, null, 2)}\n`)
+    } catch { /* best-effort */ }
   }
-  const storeOverview = (safe, data) => {
-    overviewCacheByAccount.set(safe.toLowerCase(), { at: Date.now(), data })
-    writeOverviewSnapshot(safe, data)
+  const storeOverview = (safe, chainId, data) => {
+    overviewCacheByAccount.set(overviewCacheKey(safe, chainId), { at: Date.now(), data })
+    writeOverviewSnapshot(safe, chainId, data)
   }
-  // Refresh one account's overview from chain in the background, deduped per safe.
   const refreshOverviewInBackground = (account) => {
-    const key = account.safe.toLowerCase()
+    const key = overviewCacheKey(account.safe, account.chainId)
     if (overviewInFlight.has(key)) return
     overviewInFlight.add(key)
     computeOverview(account)
-      .then((data) => storeOverview(account.safe, data))
+      .then((data) => storeOverview(account.safe, account.chainId, data))
       .catch(() => {})
       .finally(() => overviewInFlight.delete(key))
+  }
+
+  // Delete all cached overview entries (memory + disk) for a safe across all chains.
+  const invalidateOverviewCache = (safe) => {
+    const prefix = safe.toLowerCase() + '-'
+    for (const k of overviewCacheByAccount.keys()) {
+      if (k.startsWith(prefix)) overviewCacheByAccount.delete(k)
+    }
+    // Best-effort: remove any matching snapshot files.
+    try {
+      const dir = at('state/overview')
+      for (const f of fs.readdirSync(dir)) {
+        if (f.startsWith(safe.toLowerCase() + '-')) {
+          try { fs.rmSync(path.join(dir, f)) } catch { /* ignore */ }
+        }
+      }
+    } catch { /* directory may not exist */ }
   }
 
   // GET /api/account — the deployed SMA, or 404 before it exists.
@@ -412,9 +443,8 @@ export function startServer(sailDir, { port = PORT } = {}) {
         fs.appendFileSync(at('activity.jsonl'), `${JSON.stringify(ev)}\n`)
       } catch { /* non-fatal */ }
 
-      // Invalidate the cached overview so the new local signer shows immediately.
-      overviewCacheByAccount.delete(safe.toLowerCase())
-      try { fs.rmSync(overviewSnapshotPath(safe)) } catch { /* none */ }
+      // Invalidate cached overviews (all chains) for this safe so the new signer shows.
+      invalidateOverviewCache(safe)
 
       res.json({ ok: true, address: keyring.address, revealed })
     } catch (err) {
@@ -466,9 +496,8 @@ export function startServer(sailDir, { port = PORT } = {}) {
         const ev = { ts: new Date().toISOString(), actor: 'owner', type: 'signer_rotated', newManager: manager, safe, ...(txHash ? { txHash } : {}) }
         fs.appendFileSync(at('activity.jsonl'), `${JSON.stringify(ev)}\n`)
       } catch { /* non-fatal */ }
-      // Invalidate the cached overview so the new signer + cleared mandates show.
-      overviewCacheByAccount.delete(safe.toLowerCase())
-      try { fs.rmSync(overviewSnapshotPath(safe)) } catch { /* none */ }
+      // Invalidate cached overviews (all chains) so the new signer shows immediately.
+      invalidateOverviewCache(safe)
       res.json({ ok: true, manager })
     } catch (err) {
       res.status(500).json({ error: String(err) })
@@ -576,9 +605,8 @@ export function startServer(sailDir, { port = PORT } = {}) {
         fs.mkdirSync(at('keys'), { recursive: true })
         fs.copyFileSync(source, target)
       }
-      // New active signer — drop the cached overview so it shows immediately.
-      overviewCacheByAccount.delete(safe.toLowerCase())
-      try { fs.rmSync(overviewSnapshotPath(safe)) } catch { /* none */ }
+      // New active signer — drop cached overviews (all chains) so it shows immediately.
+      invalidateOverviewCache(safe)
       res.json({ ok: true, address: getAddress(address), file: match })
     } catch (err) {
       res.status(500).json({ error: String(err) })
@@ -659,14 +687,36 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
   })
 
-  // Reads the agent PID, or null if no (valid) PID file exists.
-  const readAgentPid = () => {
+  // Reads a single agent PID from a file, or null.
+  const readPidFile = (filePath) => {
     try {
-      const pid = Number.parseInt(fs.readFileSync(at('agent.pid'), 'utf-8').trim(), 10)
+      const pid = Number.parseInt(fs.readFileSync(filePath, 'utf-8').trim(), 10)
       return Number.isNaN(pid) ? null : pid
     } catch {
       return null
     }
+  }
+
+  // Scans .sail/ for agent-<chainId>.pid files (and legacy agent.pid).
+  // Returns an array of { chainId, pid } for every live process found.
+  const readAgentPids = () => {
+    const results = []
+    try {
+      const files = fs.readdirSync(sailDir)
+      for (const f of files) {
+        const chainMatch = f.match(/^agent-(\d+)\.pid$/)
+        if (chainMatch) {
+          const pid = readPidFile(path.join(sailDir, f))
+          if (pid !== null && isAlive(pid)) results.push({ chainId: Number(chainMatch[1]), pid })
+        }
+      }
+    } catch {}
+    // Fall back to legacy agent.pid if no chain-specific files found
+    if (results.length === 0) {
+      const pid = readPidFile(path.join(sailDir, 'agent.pid'))
+      if (pid !== null && isAlive(pid)) results.push({ chainId: null, pid })
+    }
+    return results
   }
 
   // True if a process with the given PID is currently alive.
@@ -723,30 +773,33 @@ export function startServer(sailDir, { port = PORT } = {}) {
   // users who deployed to CI but haven't set secrets or triggered the run.
   app.get('/api/agent-status', (_req, res) => {
     const githubActions = detectGithubActions()
-    const pid = readAgentPid()
-    if (pid !== null && isAlive(pid)) return res.json({ running: true, pid, source: 'local', githubActions })
+    const pids = readAgentPids()
+    if (pids.length > 0) {
+      const first = pids[0]
+      return res.json({ running: true, pid: first.pid, pids, source: 'local', githubActions })
+    }
     const ageMs = recentActivityMs()
     if (ageMs < 10 * 60 * 1000) return res.json({ running: true, source: 'remote', lastActivityMs: ageMs, githubActions })
     res.json({ running: false, githubActions })
   })
 
-  // POST /api/agent-status { action: 'stop' } — SIGTERM the running agent.
+  // POST /api/agent-status { action: 'stop' } — SIGTERM all running agent processes.
   app.post('/api/agent-status', (req, res) => {
     if (req.body?.action !== 'stop') {
       res.status(400).json({ error: 'unknown action' })
       return
     }
-    const pid = readAgentPid()
-    if (pid !== null && isAlive(pid)) {
-      try {
-        process.kill(pid, 'SIGTERM')
-        res.json({ ok: true, stopped: pid })
-      } catch (err) {
-        res.status(500).json({ error: String(err) })
+    const pids = readAgentPids()
+    if (pids.length > 0) {
+      const stopped = []
+      const errors = []
+      for (const { pid } of pids) {
+        try { process.kill(pid, 'SIGTERM'); stopped.push(pid) } catch (err) { errors.push(String(err)) }
       }
-    } else {
-      res.json({ ok: true, running: false })
+      if (errors.length > 0) return res.status(500).json({ error: errors.join('; ') })
+      return res.json({ ok: true, stopped })
     }
+    res.json({ ok: true, running: false })
   })
 
   // GET /api/station/pending — proxy to the signing station daemon, or [] if not running.
@@ -847,13 +900,16 @@ export function startServer(sailDir, { port = PORT } = {}) {
     const chainId = config?.chainId ?? 8453
     let deployment = null
     try { deployment = getSailDeployment(chainId) } catch {}
-    // Collect per-chain RPC URLs: RPC_URL_<chainId> entries, plus RPC_URL as
-    // the active chain's fallback so existing single-chain projects still work.
+    // Collect per-chain RPC URLs. Check both numeric (RPC_URL_8453) and named
+    // (BASE_RPC_URL) aliases so projects using either format show as configured.
     const SUPPORTED_CHAIN_IDS = [8453, 42161, 130, 84532]
     const rpcByChain = {}
     for (const cid of SUPPORTED_CHAIN_IDS) {
-      const perChainKey = `RPC_URL_${cid}`
-      if (env[perChainKey]) rpcByChain[cid] = env[perChainKey]
+      const url = resolveRpcUrl(env, cid)
+      // Only store if an explicit per-chain key matched — don't propagate a
+      // generic RPC_URL to every chain in the list.
+      const keys = CHAIN_RPC_ENV_KEYS[cid] ?? [`RPC_URL_${cid}`]
+      if (keys.some((k) => env[k])) rpcByChain[cid] = url
     }
     // If the project has a single RPC_URL but no per-chain entry for its chain,
     // surface it under the active chainId so the UI can show it.
@@ -1159,7 +1215,8 @@ export function startServer(sailDir, { port = PORT } = {}) {
       return
     }
 
-    const key = account.safe.toLowerCase()
+    const chainId = account.chainId
+    const key = overviewCacheKey(account.safe, chainId)
     const cached = overviewCacheByAccount.get(key)
 
     // Fresh in memory → serve as-is.
@@ -1169,19 +1226,51 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
 
     // Stale memory entry or a persisted snapshot → serve instantly, then
-    // refresh from chain in the background. This is what makes switching SMAs
-    // feel immediate: a previously-seen SMA never blocks on RPC.
-    const snapshot = cached?.data ?? readOverviewSnapshot(account.safe)
+    // refresh from chain in the background.
+    const snapshot = cached?.data ?? readOverviewSnapshot(account.safe, chainId)
     if (snapshot) {
       res.json(snapshot)
       refreshOverviewInBackground(account)
       return
     }
 
-    // Cold (never seen this SMA): compute once synchronously, cache, return.
+    // Cold (never seen this SMA+chain): compute synchronously, cache, return.
     const data = await computeOverview(account)
-    storeOverview(account.safe, data)
+    storeOverview(account.safe, chainId, data)
     res.json(data)
+  })
+
+  // GET /api/overviews — one overview per deployed chain for the active SMA.
+  // Used by the multi-chain dashboard to show per-chain mandates + signers.
+  app.get('/api/overviews', async (_req, res) => {
+    let account = null
+    try {
+      account = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
+    } catch {
+      res.json([])
+      return
+    }
+    if (!account?.safe) { res.json([]); return }
+
+    const deployedChains = account.deployedChains ?? [account.chainId]
+
+    const results = await Promise.all(
+      deployedChains.map(async (cid) => {
+        const chainAccount = { ...account, chainId: cid }
+        const key = overviewCacheKey(account.safe, cid)
+        const cached = overviewCacheByAccount.get(key)
+        if (cached && Date.now() - cached.at < OVERVIEW_TTL_MS) return cached.data
+        const snapshot = cached?.data ?? readOverviewSnapshot(account.safe, cid)
+        if (snapshot) {
+          refreshOverviewInBackground(chainAccount)
+          return snapshot
+        }
+        const data = await computeOverview(chainAccount)
+        storeOverview(account.safe, cid, data)
+        return data
+      })
+    )
+    res.json(results)
   })
 
   // Build the consolidated overview for a local account record by reading the
@@ -1198,7 +1287,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
         kernel = undefined
       }
     }
-    const rpcUrl = env.RPC_URL
+    const rpcUrl = resolveRpcUrl(env, chainId)
 
     // Friendly name lookup: address → name or template.
     const nameByAddr = new Map()
@@ -1403,12 +1492,23 @@ export function startServer(sailDir, { port = PORT } = {}) {
       if (mgrSigner && !mgrSigner.managers) mgrSigner.managers = managersPayload
     }
 
-    try {
-      const raw = JSON.parse(fs.readFileSync(at('mandate.json'), 'utf-8'))
-      const mandates = Array.isArray(raw) ? raw : [raw]
-      result.mandateCount = mandates.filter((m) => m.registeredOnChain || m.signature).length
-    } catch {
-      result.mandateCount = 0
+    // Count mandate *documents* (not individual permissions) — one mandate can
+    // grant multiple permissions. Primary source: state/mandates.json filtered
+    // to this SMA + chain. Fallback: mandate.json filtered by chainId.
+    const storeCount = mandatesFromStore(at, account, nameByAddr, templateByAddr, network).length
+    if (storeCount > 0) {
+      result.mandateCount = storeCount
+    } else {
+      try {
+        const raw = JSON.parse(fs.readFileSync(at('mandate.json'), 'utf-8'))
+        const mandates = Array.isArray(raw) ? raw : [raw]
+        result.mandateCount = mandates.filter((m) =>
+          (m.registeredOnChain || m.signature) &&
+          (m.chainId == null || m.chainId === chainId)
+        ).length
+      } catch {
+        result.mandateCount = 0
+      }
     }
 
     return result
