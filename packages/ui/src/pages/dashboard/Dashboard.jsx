@@ -812,17 +812,47 @@ function TickCard({ tick, positions }) {
   )
 }
 
+function ActivityChainFilter({ deployedChains, chainFilter, onChainFilterChange }) {
+  if (deployedChains.length <= 1) return null
+  return (
+    <div className={styles.activityFilter} role="tablist" aria-label="Filter by chain" style={{ marginBottom: 14 }}>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={chainFilter === 'all'}
+        className={`${styles.activityFilterBtn} ${chainFilter === 'all' ? styles.activityFilterBtnActive : ''}`}
+        onClick={() => onChainFilterChange('all')}
+      >
+        All chains
+      </button>
+      {deployedChains.map((cid) => {
+        const name = CHAIN_NAMES[cid]
+        const label = name ? (name.charAt(0).toUpperCase() + name.slice(1)) : `Chain ${cid}`
+        return (
+          <button
+            key={cid}
+            type="button"
+            role="tab"
+            aria-selected={chainFilter === String(cid)}
+            className={`${styles.activityFilterBtn} ${chainFilter === String(cid) ? styles.activityFilterBtnActive : ''}`}
+            onClick={() => onChainFilterChange(String(cid))}
+          >
+            {label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 /**
  * Live activity feed — groups agent ticks into collapsible summary cards,
  * keeps owner/lifecycle events as individual rows.
  */
-function LiveActivityFeed({ events, positions, network, deployedChains = [], permToChain = new Map() }) {
+function LiveActivityFeed({ events, positions, network, permToChain = new Map(), chainFilter = 'all' }) {
   const INITIAL_VISIBLE = 8
   const [filter, setFilter] = useState('all')
-  const [chainFilter, setChainFilter] = useState('all')
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE)
-
-  const isMultiChain = deployedChains.length > 1
 
   const allItems = groupActivityItems(events, permToChain)
 
@@ -840,7 +870,6 @@ function LiveActivityFeed({ events, positions, network, deployedChains = [], per
   const hasMore = filtered.length > visibleCount
 
   const handleFilterChange = (key) => { setFilter(key); setVisibleCount(INITIAL_VISIBLE) }
-  const handleChainFilterChange = (key) => { setChainFilter(key); setVisibleCount(INITIAL_VISIBLE) }
 
   const emptyLabel = [
     filter !== 'all' ? filter : null,
@@ -849,50 +878,19 @@ function LiveActivityFeed({ events, positions, network, deployedChains = [], per
 
   return (
     <>
-      <div className={styles.activityFilters}>
-        <div className={styles.activityFilter} role="tablist" aria-label="Filter by actor">
-          {ACTIVITY_FILTERS.map((f) => (
-            <button
-              key={f.key}
-              type="button"
-              role="tab"
-              aria-selected={filter === f.key}
-              className={`${styles.activityFilterBtn} ${filter === f.key ? styles.activityFilterBtnActive : ''}`}
-              onClick={() => handleFilterChange(f.key)}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-        {isMultiChain && (
-          <div className={styles.activityFilter} role="tablist" aria-label="Filter by chain">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={chainFilter === 'all'}
-              className={`${styles.activityFilterBtn} ${chainFilter === 'all' ? styles.activityFilterBtnActive : ''}`}
-              onClick={() => handleChainFilterChange('all')}
-            >
-              All chains
-            </button>
-            {deployedChains.map((cid) => {
-              const name = CHAIN_NAMES[cid]
-              const label = name ? (name.charAt(0).toUpperCase() + name.slice(1)) : `Chain ${cid}`
-              return (
-                <button
-                  key={cid}
-                  type="button"
-                  role="tab"
-                  aria-selected={chainFilter === String(cid)}
-                  className={`${styles.activityFilterBtn} ${chainFilter === String(cid) ? styles.activityFilterBtnActive : ''}`}
-                  onClick={() => handleChainFilterChange(String(cid))}
-                >
-                  {label}
-                </button>
-              )
-            })}
-          </div>
-        )}
+      <div className={styles.activityFilter} role="tablist" aria-label="Filter by actor">
+        {ACTIVITY_FILTERS.map((f) => (
+          <button
+            key={f.key}
+            type="button"
+            role="tab"
+            aria-selected={filter === f.key}
+            className={`${styles.activityFilterBtn} ${filter === f.key ? styles.activityFilterBtnActive : ''}`}
+            onClick={() => handleFilterChange(f.key)}
+          >
+            {f.label}
+          </button>
+        ))}
       </div>
       {rows.length === 0 ? (
         <div className={styles.emptyAgents}>
@@ -1081,6 +1079,7 @@ function DashboardContent({ draft, onReset }) {
   const [handoff, setHandoff] = useState(null)
   const [revokeTarget, setRevokeTarget] = useState(null)
   const [revokeContext, setRevokeContext] = useState(null) // { sma, kernel, chainId } for multi-chain revoke
+  const [activityChainFilter, setActivityChainFilter] = useState('all')
   const [safeNames, setSafeNames] = useState({})
   const [editingName, setEditingName] = useState(false)
   const [nameInput, setNameInput] = useState('')
@@ -1532,13 +1531,19 @@ function DashboardContent({ draft, onReset }) {
                 </div>
               </header>
 
+              <ActivityChainFilter
+                deployedChains={activeAccount?.deployedChains ?? []}
+                chainFilter={activityChainFilter}
+                onChainFilterChange={setActivityChainFilter}
+              />
+
               {liveActivity.length > 0 ? (
                 <LiveActivityFeed
                   events={liveActivity}
                   positions={livePositions}
                   network={realNetwork}
-                  deployedChains={activeAccount?.deployedChains ?? []}
                   permToChain={permToChain}
+                  chainFilter={activityChainFilter}
                 />
               ) : (
                 <div className={styles.emptyAgents}>

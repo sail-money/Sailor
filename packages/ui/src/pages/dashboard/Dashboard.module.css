@@ -4702,15 +4702,6 @@
 .notifFootBtn:hover { background: rgba(25, 144, 255, 0.16); }
 
 /* ── Recent-activity actor filter + actor badge ──────────────────────────── */
-.activityFilters {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 14px;
-}
-.activityFilters .activityFilter {
-  margin-bottom: 0;
-}
 .activityFilter {
   display: inline-flex;
   gap: 2px;
