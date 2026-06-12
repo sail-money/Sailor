@@ -50,22 +50,22 @@ If the user's first message is an npm install command, run it, then present the 
 
 ## Workflows live in skills
 
-The step-by-step procedures are in `.claude/skills/` — one directory per workflow, each with a `SKILL.md`. Claude Code loads them on demand from their descriptions; any other assistant should open the file directly when its stage applies. This file deliberately holds only invariants and routing — the skills are the procedure.
+The step-by-step procedures are in `.agents/skills/` — one directory per workflow, each with a `SKILL.md`. Compatible harnesses (Claude Code, VS Code Copilot, Codex, and others) load them on demand from their descriptions; any other assistant should open the file directly when its stage applies. This file deliberately holds only invariants and routing — the skills are the procedure.
 
 | Skill | Use when |
 |---|---|
-| `.claude/skills/sail-onboarding/SKILL.md` | Stage 1 — deploy the SMA, create the agent wallet, choose chain and RPC, go multi-chain |
-| `.claude/skills/sail-project-info/SKILL.md` | Fetching project, account, permission, chain, or health information |
-| `.claude/skills/sail-servers/SKILL.md` | Starting, stopping, or health-checking the dashboard and signing station |
-| `.claude/skills/sail-transactions/SKILL.md` | Building EVM transactions and dispatches, browser signing events, batching, custom runners |
-| `.claude/skills/sail-mandates/SKILL.md` | Stage 3 — author, test, deploy, simulate, attach, revoke permission contracts |
-| `.claude/skills/sail-ci/SKILL.md` | Stage 4 automation — GitHub Actions, CI keystore, scheduled runs |
+| `.agents/skills/sail-onboarding/SKILL.md` | Stage 1 — deploy the SMA, create the agent wallet, choose chain and RPC, go multi-chain |
+| `.agents/skills/sail-project-info/SKILL.md` | Fetching project, account, permission, chain, or health information |
+| `.agents/skills/sail-servers/SKILL.md` | Starting, stopping, or health-checking the dashboard and signing station |
+| `.agents/skills/sail-transactions/SKILL.md` | Building EVM transactions and dispatches, browser signing events, batching, custom runners |
+| `.agents/skills/sail-mandates/SKILL.md` | Stage 3 — author, test, deploy, simulate, attach, revoke permission contracts |
+| `.agents/skills/sail-ci/SKILL.md` | Stage 4 automation — GitHub Actions, CI keystore, scheduled runs |
 
 Stage 2 (define the strategy) is conversational — no skill. Blank slate: ask what the user wants and establish the on-chain bounds with them (tokens, amounts, slippage, venues). `examples/dca/` is a worked reference only — never the user's strategy. Stage 5 (notifications, a custom dashboard) is built by the coding assistant on request once the agent is live — these are not Sailor features.
 
 ## Invariants — always apply
 
-- ERC-20 `approve()` calls are NOT covered by supply, swap, or deposit permissions — every approve the strategy makes needs explicit coverage. Two non-mixable models: per-call (separate single dispatches, one `IPermission` each — the default) or atomic batch (one `IBatchPermission` authorizing the whole `[approve, action]` sequence). A normal `IPermission` cannot authorize a batch. Details: `.claude/skills/sail-mandates/references/approvals.md`.
+- ERC-20 `approve()` calls are NOT covered by supply, swap, or deposit permissions — every approve the strategy makes needs explicit coverage. Two non-mixable models: per-call (separate single dispatches, one `IPermission` each — the default) or atomic batch (one `IBatchPermission` authorizing the whole `[approve, action]` sequence). A normal `IPermission` cannot authorize a batch. Details: `.agents/skills/sail-mandates/references/approvals.md`.
 - Never authorize (attach) a permission before `forge test` and `sailor mandate simulate` both pass against samples derived from the user's strategy.
 - Do not put an owner key in the terminal — owner signing is browser-only.
 - Do not hand-roll dispatch EIP-712 signatures — use `buildDispatchSignature` from `@sail.money/sdk`. Do not hardcode the dispatch model — detect it on-chain (`docs/PERMISSION_MODEL.md`).

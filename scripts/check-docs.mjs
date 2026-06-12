@@ -195,28 +195,28 @@ function codeRegions(md) {
 
 // ── 4. Skills consistency ─────────────────────────────────────────────────────
 //
-// The scaffolded template ships agent skills under .claude/skills/. AGENTS.md is
+// The scaffolded template ships agent skills under .agents/skills/. AGENTS.md is
 // the routing layer: it must point at every skill that exists, and every skill it
 // points at must exist with valid frontmatter — otherwise an agent either never
 // discovers a workflow or follows a dangling pointer.
 
 function checkSkills(errors) {
-  const skillsRoot = join(ROOT, "templates/default/.claude/skills");
+  const skillsRoot = join(ROOT, "templates/default/.agents/skills");
   const agentsPath = join(ROOT, "templates/default/AGENTS.md");
   if (!existsSync(skillsRoot)) {
-    errors.push("templates/default/.claude/skills: directory missing");
+    errors.push("templates/default/.agents/skills: directory missing");
     return;
   }
   const agentsMd = readFileSync(agentsPath, "utf-8");
   const dirs = readdirSync(skillsRoot).filter((d) =>
     statSync(join(skillsRoot, d)).isDirectory(),
   );
-  if (dirs.length === 0) errors.push("templates/default/.claude/skills: no skills found");
+  if (dirs.length === 0) errors.push("templates/default/.agents/skills: no skills found");
 
   for (const d of dirs) {
     const skillFile = join(skillsRoot, d, "SKILL.md");
     if (!existsSync(skillFile)) {
-      errors.push(`templates/default/.claude/skills/${d}: missing SKILL.md`);
+      errors.push(`templates/default/.agents/skills/${d}: missing SKILL.md`);
       continue;
     }
     const fm = readFileSync(skillFile, "utf-8").match(/^---\n([\s\S]*?)\n---/);
@@ -228,14 +228,14 @@ function checkSkills(errors) {
     const description = fm[1].match(/^description:\s*(.+)$/m)?.[1]?.trim();
     if (name !== d) errors.push(`${rel(skillFile)}: frontmatter name "${name}" ≠ directory "${d}"`);
     if (!description) errors.push(`${rel(skillFile)}: frontmatter description missing or empty`);
-    if (!agentsMd.includes(`.claude/skills/${d}/SKILL.md`)) {
-      errors.push(`templates/default/AGENTS.md: routing table does not reference .claude/skills/${d}/SKILL.md`);
+    if (!agentsMd.includes(`.agents/skills/${d}/SKILL.md`)) {
+      errors.push(`templates/default/AGENTS.md: routing table does not reference .agents/skills/${d}/SKILL.md`);
     }
   }
 
   for (const m of agentsMd.matchAll(/\.claude\/skills\/([\w-]+)\/SKILL\.md/g)) {
     if (!dirs.includes(m[1])) {
-      errors.push(`templates/default/AGENTS.md: references .claude/skills/${m[1]}/SKILL.md which does not exist`);
+      errors.push(`templates/default/AGENTS.md: references .agents/skills/${m[1]}/SKILL.md which does not exist`);
     }
   }
 }

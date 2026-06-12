@@ -68,13 +68,13 @@ try {
     ".sail/contracts/interfaces/IPermission.sol",
     ".sail/contracts/interfaces/IBatchPermission.sol",
     "test/BoundedCallPermission.t.sol",
-    ".claude/skills/sail-onboarding/SKILL.md",
-    ".claude/skills/sail-project-info/SKILL.md",
-    ".claude/skills/sail-servers/SKILL.md",
-    ".claude/skills/sail-transactions/SKILL.md",
-    ".claude/skills/sail-mandates/SKILL.md",
-    ".claude/skills/sail-mandates/references/approvals.md",
-    ".claude/skills/sail-ci/SKILL.md",
+    ".agents/skills/sail-onboarding/SKILL.md",
+    ".agents/skills/sail-project-info/SKILL.md",
+    ".agents/skills/sail-servers/SKILL.md",
+    ".agents/skills/sail-transactions/SKILL.md",
+    ".agents/skills/sail-mandates/SKILL.md",
+    ".agents/skills/sail-mandates/references/approvals.md",
+    ".agents/skills/sail-ci/SKILL.md",
   ];
   for (const rel of mustExist) {
     if (!fs.existsSync(path.join(dest, rel))) fail(`expected scaffolded "${rel}" — not found`);
