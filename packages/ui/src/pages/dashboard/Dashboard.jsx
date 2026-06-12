@@ -1636,6 +1636,13 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
           disconnect()
         }}
         onCreateSMA={() => { setProfileOpen(false); setCreateSMAOpen(true) }}
+        onImportSMA={(account) => {
+          setJustCreatedAccount(account)
+          try { localStorage.setItem('sail.account', JSON.stringify(account)) } catch {}
+          fetch('/api/account', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(account) }).catch(() => {})
+          setRefreshTick((t) => t + 1)
+          setProfileOpen(false)
+        }}
         onRenameSafe={(id, name) => {
           setSafeNames((m) => ({ ...m, [id]: name }))
           renameSailorAccount(id, name).catch(() => {})

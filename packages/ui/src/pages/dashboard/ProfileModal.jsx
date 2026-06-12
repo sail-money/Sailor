@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import styles from './ProfileModal.module.css'
+import { useDiscoverSafes } from '../../hooks/useSailorData'
 
 function truncate(addr) {
   if (!addr || addr.length < 12) return addr ?? ''
@@ -41,6 +42,8 @@ function ArrowOutIcon() {
  * Network chip has been removed — chain context belongs on each
  * individual SMA row, not on the EOA itself.
  */
+const CHAIN_NAMES = { 1: 'Ethereum', 10: 'Optimism', 137: 'Polygon', 8453: 'Base', 42161: 'Arbitrum', 84532: 'Base Sepolia', 421614: 'Arb Sepolia' }
+
 export default function ProfileModal({
   open,
   wallet,
@@ -50,6 +53,7 @@ export default function ProfileModal({
   onClose,
   onDisconnect,
   onCreateSMA,
+  onImportSMA,
   onRenameSafe,
   onSelectSafe,
 }) {
@@ -57,6 +61,12 @@ export default function ProfileModal({
   const [copiedKey, setCopiedKey] = useState(null) // 'eoa' | sma.id | null
   const [editingId, setEditingId] = useState(null)
   const [draftName, setDraftName] = useState('')
+  const [showImport, setShowImport] = useState(false)
+  const [manualImport, setManualImport] = useState(false)
+  const [importAddr, setImportAddr] = useState('')
+  const [importChain, setImportChain] = useState('8453')
+  const [importErr, setImportErr] = useState('')
+  const { safes: discovered, scanning, done: scanDone } = useDiscoverSafes(wallet, showImport && !manualImport)
 
   useEffect(() => {
     if (!open) return
@@ -88,6 +98,20 @@ export default function ProfileModal({
     setEditingId(null)
   }
   function cancelEdit() { setEditingId(null) }
+
+  function handleImportSafe(safe, chainId) {
+    onImportSMA?.({ safe, owner: wallet ?? safe, permissionSigner: wallet ?? safe, manager: wallet ?? safe, chainId, createdAtBlock: '0' })
+    setShowImport(false)
+    handleClose()
+  }
+
+  function handleManualImport() {
+    const addr = importAddr.trim()
+    if (!/^0x[0-9a-fA-F]{40}$/.test(addr)) { setImportErr('Enter a valid 0x address.'); return }
+    const chainId = Number(importChain)
+    if (!chainId) { setImportErr('Enter a valid chain ID.'); return }
+    handleImportSafe(addr, chainId)
+  }
 
   if (!open) return null
 
@@ -271,21 +295,71 @@ export default function ProfileModal({
                 </li>
                 )
               })}
-              <li>
+              <li className={styles.smaActionRow}>
+                <button type="button" className={styles.smaActionBtn} onClick={onCreateSMA}>
+                  <span className={styles.smaActionIcon} aria-hidden>+</span>
+                  Create
+                </button>
                 <button
                   type="button"
-                  className={styles.smaNew}
-                  onClick={onCreateSMA}
+                  className={`${styles.smaActionBtn} ${showImport ? styles.smaActionBtnActive : ''}`}
+                  onClick={() => { setShowImport(v => !v); setManualImport(false); setImportErr('') }}
                 >
-                  <span className={styles.smaNewIcon} aria-hidden>+</span>
-                  <span className={styles.smaNewBody}>
-                    <span className={styles.smaNewTitle}>Create another SMA</span>
-                    <span className={styles.smaNewSub}>
-                      Deploy a new Safe under this EOA — useful for separate strategies.
-                    </span>
-                  </span>
+                  <span className={styles.smaActionIcon} aria-hidden>↓</span>
+                  Import
                 </button>
               </li>
+              {showImport && (
+                <li className={styles.smaImportSection}>
+                  {manualImport ? (
+                    <div className={styles.smaImportManual}>
+                      <input
+                        className={styles.smaImportInput}
+                        type="text"
+                        placeholder="Safe address  0x…"
+                        value={importAddr}
+                        onChange={(e) => { setImportAddr(e.target.value); setImportErr('') }}
+                        spellCheck={false}
+                        autoFocus
+                      />
+                      <input
+                        className={styles.smaImportInput}
+                        type="text"
+                        placeholder="Chain ID  e.g. 8453"
+                        value={importChain}
+                        onChange={(e) => { setImportChain(e.target.value); setImportErr('') }}
+                      />
+                      {importErr && <span className={styles.smaImportErr}>{importErr}</span>}
+                      <div className={styles.smaImportActions}>
+                        <button type="button" className={styles.smaImportConfirm} onClick={handleManualImport}>Import SMA</button>
+                        <button type="button" className={styles.smaImportLink} onClick={() => { setManualImport(false); setImportErr('') }}>← Back</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {scanning && discovered.length === 0 && (
+                        <span className={styles.smaImportScan}>Scanning for Safes…</span>
+                      )}
+                      {discovered.length > 0 && (
+                        <ul className={styles.smaImportList}>
+                          {discovered.map((s) => (
+                            <li key={`${s.chainId}-${s.safe}`}>
+                              <button type="button" className={styles.smaImportRow} onClick={() => handleImportSafe(s.safe, s.chainId)}>
+                                <span className={styles.smaImportRowAddr}>{truncate(s.safe)}</span>
+                                <span className={styles.smaImportRowNet}>{CHAIN_NAMES[s.chainId] ?? `chain ${s.chainId}`}</span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {scanDone && discovered.length === 0 && (
+                        <span className={styles.smaImportScan}>No Safes found for this wallet.</span>
+                      )}
+                      <button type="button" className={styles.smaImportLink} onClick={() => setManualImport(true)}>Enter address manually</button>
+                    </>
+                  )}
+                </li>
+              )}
             </ul>
           ) : (
             <div className={styles.noSMA}>
