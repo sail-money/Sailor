@@ -1088,10 +1088,10 @@ export default function Dashboard() {
     return <OnboardingWizard onboardState={onboardState} onComplete={handleOnboardComplete} onSkip={() => setWizardSkipped(true)} />
   }
 
-  return <DashboardContent draft={draft} onReset={refreshOnboard} />
+  return <DashboardContent draft={draft} onReset={refreshOnboard} wizardSkipped={wizardSkipped} />
 }
 
-function DashboardContent({ draft, onReset }) {
+function DashboardContent({ draft, onReset, wizardSkipped }) {
   const { isConnected, address: wagmiAddress } = useAccount()
   const { disconnect } = useDisconnect()
   const { openConnectModal } = useConnectModal()
@@ -1313,6 +1313,7 @@ function DashboardContent({ draft, onReset }) {
         ) : !hasSMA ? (
           <SetupHero
             onCreate={() => setCreateSMAOpen(true)}
+            initialShowImport={wizardSkipped}
             onImport={(account) => {
               setJustCreatedAccount(account)
               try { localStorage.setItem('sail.account', JSON.stringify(account)) } catch {}
@@ -1782,8 +1783,8 @@ function ConnectWalletHero() {
    owns (Safe Transaction Service, the same source the old auto-load used) and
    lets the user pick which to adopt — with a manual-address fallback for Safes
    on chains the service doesn't index. */
-function SetupHero({ onCreate, onImport, ownerAddr }) {
-  const [showImport, setShowImport] = useState(false)
+function SetupHero({ onCreate, onImport, ownerAddr, initialShowImport }) {
+  const [showImport, setShowImport] = useState(initialShowImport ?? false)
   const [manual, setManual] = useState(false)
   const [safeInput, setSafeInput] = useState('')
   const [chainInput, setChainInput] = useState('8453')
