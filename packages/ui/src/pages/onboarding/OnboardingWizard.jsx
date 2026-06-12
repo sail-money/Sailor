@@ -178,7 +178,7 @@ export default function OnboardingWizard({ onboardState, onComplete, onSkip }) {
           {step === 'keygen' && (
             <KeygenStep
               existingAddress={onboardState?.managerAddress}
-              onBack={() => setStep('connect')}
+              onBack={() => setStep('network')}
               onDone={(addr) => { setManagerAddress(addr); setStep('create-sma') }}
               progressIndex={progressIndex}
               progressTotal={PROGRESS_STEPS.length}
