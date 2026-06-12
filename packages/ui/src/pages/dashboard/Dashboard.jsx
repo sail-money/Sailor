@@ -839,6 +839,14 @@ function AgentSourceBadge({ source, pid, pids }) {
         aria-expanded={open}
       >
         {label}
+        {hasDetail && (
+          <svg
+            className={`${styles.agentSourceChevron} ${open ? styles.agentSourceChevronOpen : ''}`}
+            width="8" height="8" viewBox="0 0 8 8" fill="none" aria-hidden="true"
+          >
+            <path d="M1.5 3L4 5.5L6.5 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        )}
       </button>
       {open && (
         <div className={styles.agentSourcePanel}>

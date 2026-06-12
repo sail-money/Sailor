@@ -4566,8 +4566,16 @@
 
 /* ────── Agent source badge + popover ────── */
 .agentSourceWrap { position: relative; }
-.smaBadgeClickable { cursor: pointer; }
-.smaBadgeClickable:hover { color: var(--text-primary); background: var(--glass-bg-strong); }
+.smaBadgeClickable { cursor: pointer; gap: 5px; }
+.smaBadgeClickable:hover { color: var(--text-primary); background: var(--glass-bg-strong); border-color: var(--glass-border-strong); }
+.agentSourceChevron {
+  display: inline-block;
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: transform 0.16s var(--ease-apple, ease), opacity 0.16s ease;
+}
+.smaBadgeClickable:hover .agentSourceChevron { opacity: 1; }
+.agentSourceChevronOpen { transform: rotate(180deg); opacity: 1; }
 .agentSourcePanel {
   position: absolute;
   top: calc(100% + 6px);
