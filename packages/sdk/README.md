@@ -24,7 +24,7 @@ npm install @sail.money/sdk viem
 | `sailKernelDomain` | EIP-712 domain for any SailKernel |
 | `DISPATCH_EIP712_FIELDS` | Typed struct field lists keyed by dispatch model |
 | `LocalKeyring` | Encrypted manager key (geth keystore v3) |
-| `sailDeployments` | Live staging addresses (Base, Base Sepolia, Arbitrum, Unichain) |
+| `sailDeployments` | Live staging addresses (Ethereum, Base, Arbitrum, Unichain, Base Sepolia, Eth Sepolia) |
 | `SailIntelligence` | Typed client for the Sail Intelligence API |
 
 ## Dispatch signing
@@ -38,7 +38,7 @@ const manager = await LocalKeyring.load("path/to/manager.json", passphrase);
 
 const { signature, nonce, deadline, dispatchModel } = await buildDispatchSignature({
   publicClient,
-  kernel: "0x6319d3dfDDe3804ba93D65752b00c52bFb05a1ab", // Base
+  kernel: "0x02ABC18B65A328de2e749F56ba79ACF2718a6659", // SailKernel — same address on every supported chain
   chainId: 8453,
   account: mySafe,
   permission: myPermission,
