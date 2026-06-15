@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useAccount, useSendTransaction } from 'wagmi'
+import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi'
 import { parseEther } from 'viem'
 import { GlassCard, SailButton } from '../shared'
 import styles from './FundGasModal.module.css'
@@ -8,13 +8,14 @@ function short(a) {
   return a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '—'
 }
 
-export default function FundGasModal({ open, onClose, signer, network }) {
+export default function FundGasModal({ open, onClose, signer, network, chainId }) {
   const [amount, setAmount] = useState('0.01')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
-  const { address: fromAddress } = useAccount()
+  const { address: fromAddress, chainId: walletChainId } = useAccount()
   const { sendTransactionAsync } = useSendTransaction()
+  const { switchChainAsync } = useSwitchChain()
 
   // True when the connected wallet IS the signer — sending to itself is a no-op.
   const isSelf = fromAddress && signer?.address &&
@@ -54,7 +55,12 @@ export default function FundGasModal({ open, onClose, signer, network }) {
     setBusy(true)
     setError('')
     try {
-      await sendTransactionAsync({ to: signer.address, value: parseEther(amount) })
+      // The agent wallet lives on a specific chain. If the connected wallet is
+      // on a different chain, switch it first so the transfer lands on the right
+      // network — otherwise it'd fund an address on whatever chain happens to be
+      // active. Pin chainId on the send too, so wagmi rejects a stale chain.
+      if (chainId && walletChainId !== chainId) await switchChainAsync({ chainId })
+      await sendTransactionAsync({ to: signer.address, value: parseEther(amount), ...(chainId ? { chainId } : {}) })
       onClose?.()
     } catch (err) {
       const msg = err?.shortMessage ?? err?.message ?? 'Transaction rejected.'

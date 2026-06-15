@@ -1513,9 +1513,13 @@ export function startServer(sailDir, { port = PORT } = {}) {
         // Attach the full known-managers list so the UI can show all addresses
         // (active + idle) in the account-details section.
         if (knownManagerAddrs.length > 0) {
-          // Prefer the on-chain manager; fall back to account.manager when the
-          // kernel hasn't had setManager called yet (zero address on-chain).
-          const activeLower = (managerSet ? getAddress(manager) : account.manager ?? null)?.toLowerCase() ?? null
+          // The active manager is per-chain: this chain's on-chain delegate if
+          // set, otherwise the owner (who controls the SMA directly until a
+          // delegate is registered here). Do NOT fall back to the global
+          // account.manager — for a multi-chain SMA that holds the delegate from
+          // whichever chain was rotated last, which would wrongly mark a chain's
+          // real controller (the owner) as idle.
+          const activeLower = (managerSet ? getAddress(manager) : (account.owner ? getAddress(account.owner) : null))?.toLowerCase() ?? null
           managerEntry.managers = knownManagerAddrs.map((a) => {
             const bal = balanceByAddr.get(a.toLowerCase())
             return {

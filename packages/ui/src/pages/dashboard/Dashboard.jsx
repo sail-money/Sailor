@@ -395,6 +395,15 @@ function MandateRow({ mandate, network, onRevoke }) {
 function SignersPanel({ overview, sma, onAddSigner, onRotateSigner }) {
   const { address: wagmiAddress } = useAccount()
   const rawSigners = overview?.signers ?? []
+  const ownerLower = overview?.sma?.owner?.toLowerCase() ?? null
+
+  // The owner EOA can also be the delegated manager (e.g. an SMA created with
+  // no separate manager wallet, or rotated back to the owner). Don't render it
+  // as a second "manager" card — collapse it into the single EOA/owner card and
+  // tag that card instead. Track whether the owner is a manager (and active) so
+  // the owner card can show the tag + the rotate control.
+  let ownerIsManager = false
+  let ownerManagerActive = false
 
   // Expand manager signers that have a known managers list into one card each.
   const signers = rawSigners.flatMap((s) => {
@@ -408,18 +417,51 @@ function SignersPanel({ overview, sma, onAddSigner, onRotateSigner }) {
       if (s.address && !list.some((m) => m.address?.toLowerCase() === s.address.toLowerCase())) {
         list = [{ address: s.address, balanceEth: s.balanceEth, isActive: true }, ...list]
       }
-      return list.map((m) => ({
-        ...s,
-        address: m.address,
-        balanceEth: m.balanceEth,
-        // Preserve balance status only for the active manager.
-        status: m.isActive ? s.status : 'idle',
-        managers: undefined,
-        activeManager: m.isActive,
-      }))
+      const cards = []
+      for (const m of list) {
+        if (ownerLower && m.address?.toLowerCase() === ownerLower) {
+          ownerIsManager = true
+          if (m.isActive) ownerManagerActive = true
+          continue // shown as the EOA/owner card, not a duplicate manager card
+        }
+        cards.push({
+          ...s,
+          address: m.address,
+          balanceEth: m.balanceEth,
+          // Preserve balance status only for the active manager.
+          status: m.isActive ? s.status : 'idle',
+          managers: undefined,
+          activeManager: m.isActive,
+        })
+      }
+      return cards
+    }
+    // A non-expanded manager card that is itself the owner → fold into the EOA card.
+    if (s.role === 'manager' && s.address && ownerLower && s.address.toLowerCase() === ownerLower) {
+      ownerIsManager = true
+      if (!['local', 'unconfigured', 'idle'].includes(s.status)) ownerManagerActive = true
+      return []
     }
     return [s]
   })
+
+  // Ensure the owner appears exactly once, annotated if it's also the manager.
+  // When the owner *is* the on-chain manager the server emits no separate owner
+  // entry (it dedupes against the manager), so synthesize one here.
+  const ownerCardIdx = signers.findIndex((s) => s.role === 'owner')
+  if (ownerCardIdx !== -1) {
+    signers[ownerCardIdx] = { ...signers[ownerCardIdx], isManager: ownerIsManager, managerActive: ownerManagerActive }
+  } else if (ownerIsManager && ownerLower) {
+    const mgr = rawSigners.find((s) => s.role === 'manager')
+    signers.push({
+      role: 'owner',
+      address: overview.sma.owner,
+      balanceEth: mgr?.balanceEth ?? null,
+      status: mgr?.status,
+      isManager: true,
+      managerActive: ownerManagerActive,
+    })
+  }
 
   // Balances pending: RPC is configured but the on-chain read hasn't hydrated
   // yet (cold-load skeleton). Distinct from "no RPC", where balances never come.
@@ -461,6 +503,7 @@ function SignersPanel({ overview, sma, onAddSigner, onRotateSigner }) {
           key={s.address ? `${s.role}:${s.address}` : s.role}
           signer={s}
           network={overview.network}
+          chainId={overview.chainId}
           loading={balancesLoading}
           onAddSigner={onAddSigner}
           onRotateSigner={onRotateSigner}
@@ -470,7 +513,7 @@ function SignersPanel({ overview, sma, onAddSigner, onRotateSigner }) {
   )
 }
 
-function SignerCard({ signer, network, loading, onAddSigner, onRotateSigner }) {
+function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSigner }) {
   const [copied, setCopied] = useState(false)
   const [fundOpen, setFundOpen] = useState(false)
   const role = signer.role === 'sma'
@@ -484,6 +527,11 @@ function SignerCard({ signer, network, loading, onAddSigner, onRotateSigner }) {
   const isActiveManager = signer.role === 'manager' && (
     signer.activeManager !== undefined ? signer.activeManager : (!isLocal && !unconfigured && !isIdle)
   )
+  // Owner EOA that also serves as the delegated manager — tagged on the EOA
+  // card rather than duplicated as a separate manager card.
+  const isOwnerManager = signer.role === 'owner' && signer.isManager
+  const isOwnerActiveManager = signer.role === 'owner' && signer.managerActive
+  const canRotate = (isActiveManager || isOwnerActiveManager) && onRotateSigner
   const bal = signer.role === 'sma' || unconfigured || isLocal || isIdle
     ? null
     : (BALANCE_STATUS[signer.status] ?? BALANCE_STATUS.ok)
@@ -532,6 +580,27 @@ function SignerCard({ signer, network, loading, onAddSigner, onRotateSigner }) {
                 Active
               </span>
             )}
+            {/* Owner EOA that is also the delegated manager — tag instead of a
+                duplicate manager card. */}
+            {isOwnerActiveManager ? (
+              <span
+                className={styles.balancePill}
+                style={{ color: '#34d399' }}
+                title="This EOA is also registered as the SMA's delegated manager on-chain"
+              >
+                <span className={styles.balancePillDot} aria-hidden style={{ background: '#34d399' }} />
+                Active manager
+              </span>
+            ) : isOwnerManager ? (
+              <span
+                className={styles.balancePill}
+                style={{ color: 'var(--text-secondary)' }}
+                title="This EOA is a known manager for this SMA, not currently active on-chain"
+              >
+                <span className={styles.balancePillDot} aria-hidden style={{ background: 'rgba(255,255,255,0.25)' }} />
+                Manager
+              </span>
+            ) : null}
             {isIdle && (
               <span className={styles.balancePill} style={{ color: 'var(--text-secondary)' }}>
                 <span className={styles.balancePillDot} aria-hidden style={{ background: 'rgba(255,255,255,0.25)' }} />
@@ -616,8 +685,9 @@ function SignerCard({ signer, network, loading, onAddSigner, onRotateSigner }) {
         </footer>
       )}
 
-      {/* Rotate button: on active manager, opens modal to pick new manager */}
-      {signer.role === 'manager' && isActiveManager && onRotateSigner && (
+      {/* Rotate button: on the active manager (incl. the owner-as-manager card),
+          opens the modal to pick a new manager. */}
+      {canRotate && (
         <button type="button" className={styles.signerRotateBtn} onClick={() => onRotateSigner()}>
           Rotate manager
         </button>
@@ -650,6 +720,7 @@ function SignerCard({ signer, network, loading, onAddSigner, onRotateSigner }) {
         onClose={() => setFundOpen(false)}
         signer={signer}
         network={network}
+        chainId={chainId}
       />
     </article>
   )
@@ -1167,6 +1238,11 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
   const [addSignerOpen, setAddSignerOpen] = useState(false)
   const [rotateOpen, setRotateOpen] = useState(false)
   const [rotateTo, setRotateTo] = useState(null) // pre-selected manager address for rotation
+  // Per-chain context for the rotation. A multi-chain SMA has an independent
+  // manager per chain (each chain's kernel tracks its own setManager), so the
+  // modal must operate on the chain whose "Rotate" was clicked — not always the
+  // primary overview. Null falls back to the active single-chain overview.
+  const [rotateContext, setRotateContext] = useState(null)
   const { account: realAccount, loading: accountLoading } = useSailorAccount(refreshTick)
   const { accounts: allAccounts } = useSailorAccounts(refreshTick)
   const { overview } = useSailorOverview(refreshTick)
@@ -1501,9 +1577,6 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                     <ArrowOutIcon />
                   </a>
                 </button>
-                <span className={agentStyles.titleMeta}>
-                  SMA · created {sma?.createdAt ?? sma?.createdAgo ?? '—'}
-                </span>
               </div>
             </section>
 
@@ -1555,7 +1628,18 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                     onNewMandate={() => setHandoff({ variant: 'new', context: 'mandate' })}
                     onAddSigner={() => setAddSignerOpen(true)}
                     onRotateSigner={chainOv?.kernel && chainOv?.sma?.address
-                      ? (addr) => { setRotateTo(addr ?? null); setRotateOpen(true) }
+                      ? (addr) => {
+                          setRotateContext({
+                            sma: chainOv.sma.address,
+                            kernel: chainOv.kernel,
+                            chainId: chainOv.chainId,
+                            owner: chainOv.sma.owner,
+                            currentManager: chainOv.sma.manager,
+                            mandates: chainOv.mandates ?? [],
+                          })
+                          setRotateTo(addr ?? null)
+                          setRotateOpen(true)
+                        }
                       : undefined}
                     onRevoke={chainOv?.kernel && chainOv?.sma?.address
                       ? (target) => { setRevokeContext({ sma: chainOv.sma.address, kernel: chainOv.kernel, chainId: chainOv.chainId }); setRevokeTarget(target) }
@@ -1625,7 +1709,18 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                     sma={sma}
                     onAddSigner={() => setAddSignerOpen(true)}
                     onRotateSigner={overview?.kernel && overview?.sma?.address
-                      ? (addr) => { setRotateTo(addr ?? null); setRotateOpen(true) }
+                      ? (addr) => {
+                          setRotateContext({
+                            sma: overview.sma.address,
+                            kernel: overview.kernel,
+                            chainId: overview.chainId,
+                            owner: overview.sma.owner,
+                            currentManager: overview.sma.manager,
+                            mandates: overview.mandates ?? [],
+                          })
+                          setRotateTo(addr ?? null)
+                          setRotateOpen(true)
+                        }
                       : undefined}
                   />
                 </section>
@@ -1740,14 +1835,14 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
 
       <RotateSignerModal
         open={rotateOpen}
-        sma={overview?.sma?.address}
-        kernel={overview?.kernel}
-        chainId={overview?.chainId}
-        owner={overview?.sma?.owner}
-        currentManager={overview?.sma?.manager}
-        mandates={overview?.mandates ?? []}
+        sma={rotateContext?.sma ?? overview?.sma?.address}
+        kernel={rotateContext?.kernel ?? overview?.kernel}
+        chainId={rotateContext?.chainId ?? overview?.chainId}
+        owner={rotateContext?.owner ?? overview?.sma?.owner}
+        currentManager={rotateContext?.currentManager ?? overview?.sma?.manager}
+        mandates={rotateContext?.mandates ?? overview?.mandates ?? []}
         initialTo={rotateTo}
-        onClose={() => { setRotateOpen(false); setRotateTo(null) }}
+        onClose={() => { setRotateOpen(false); setRotateTo(null); setRotateContext(null) }}
         onRotated={() => setRefreshTick((t) => t + 1)}
       />
 
