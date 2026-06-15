@@ -1167,6 +1167,11 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
   const [addSignerOpen, setAddSignerOpen] = useState(false)
   const [rotateOpen, setRotateOpen] = useState(false)
   const [rotateTo, setRotateTo] = useState(null) // pre-selected manager address for rotation
+  // Per-chain context for the rotation. A multi-chain SMA has an independent
+  // manager per chain (each chain's kernel tracks its own setManager), so the
+  // modal must operate on the chain whose "Rotate" was clicked — not always the
+  // primary overview. Null falls back to the active single-chain overview.
+  const [rotateContext, setRotateContext] = useState(null)
   const { account: realAccount, loading: accountLoading } = useSailorAccount(refreshTick)
   const { accounts: allAccounts } = useSailorAccounts(refreshTick)
   const { overview } = useSailorOverview(refreshTick)
@@ -1555,7 +1560,18 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                     onNewMandate={() => setHandoff({ variant: 'new', context: 'mandate' })}
                     onAddSigner={() => setAddSignerOpen(true)}
                     onRotateSigner={chainOv?.kernel && chainOv?.sma?.address
-                      ? (addr) => { setRotateTo(addr ?? null); setRotateOpen(true) }
+                      ? (addr) => {
+                          setRotateContext({
+                            sma: chainOv.sma.address,
+                            kernel: chainOv.kernel,
+                            chainId: chainOv.chainId,
+                            owner: chainOv.sma.owner,
+                            currentManager: chainOv.sma.manager,
+                            mandates: chainOv.mandates ?? [],
+                          })
+                          setRotateTo(addr ?? null)
+                          setRotateOpen(true)
+                        }
                       : undefined}
                     onRevoke={chainOv?.kernel && chainOv?.sma?.address
                       ? (target) => { setRevokeContext({ sma: chainOv.sma.address, kernel: chainOv.kernel, chainId: chainOv.chainId }); setRevokeTarget(target) }
@@ -1625,7 +1641,18 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                     sma={sma}
                     onAddSigner={() => setAddSignerOpen(true)}
                     onRotateSigner={overview?.kernel && overview?.sma?.address
-                      ? (addr) => { setRotateTo(addr ?? null); setRotateOpen(true) }
+                      ? (addr) => {
+                          setRotateContext({
+                            sma: overview.sma.address,
+                            kernel: overview.kernel,
+                            chainId: overview.chainId,
+                            owner: overview.sma.owner,
+                            currentManager: overview.sma.manager,
+                            mandates: overview.mandates ?? [],
+                          })
+                          setRotateTo(addr ?? null)
+                          setRotateOpen(true)
+                        }
                       : undefined}
                   />
                 </section>
@@ -1740,14 +1767,14 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
 
       <RotateSignerModal
         open={rotateOpen}
-        sma={overview?.sma?.address}
-        kernel={overview?.kernel}
-        chainId={overview?.chainId}
-        owner={overview?.sma?.owner}
-        currentManager={overview?.sma?.manager}
-        mandates={overview?.mandates ?? []}
+        sma={rotateContext?.sma ?? overview?.sma?.address}
+        kernel={rotateContext?.kernel ?? overview?.kernel}
+        chainId={rotateContext?.chainId ?? overview?.chainId}
+        owner={rotateContext?.owner ?? overview?.sma?.owner}
+        currentManager={rotateContext?.currentManager ?? overview?.sma?.manager}
+        mandates={rotateContext?.mandates ?? overview?.mandates ?? []}
         initialTo={rotateTo}
-        onClose={() => { setRotateOpen(false); setRotateTo(null) }}
+        onClose={() => { setRotateOpen(false); setRotateTo(null); setRotateContext(null) }}
         onRotated={() => setRefreshTick((t) => t + 1)}
       />
 

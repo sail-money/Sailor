@@ -14,6 +14,7 @@ const SAFE_CHAIN_PREFIX = {
   ethereum: 'eth',
   arbitrum: 'arb1',
   base:     'base',
+  unichain: 'unichain',
   optimism: 'oeth',
   polygon:  'matic',
 }
