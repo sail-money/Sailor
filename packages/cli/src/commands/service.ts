@@ -442,36 +442,65 @@ function okInstall(cfg: ServiceConfig, unit: string): void {
 export async function serviceStatus(opts: ServiceOptions = {}): Promise<void> {
   const projectName = sanitizeName(path.basename(resolveProjectDir(opts.project)));
   const platform = process.platform;
+  // `installed` (the unit is registered) and `running` (a live process right
+  // now) are independent: a healthy service caught between ticks, throttled, or
+  // crash-looping is installed-but-not-running. Track them separately so we
+  // never report a registered unit as "not installed".
+  let installed = false;
   let running = false;
   let detail = "";
   try {
     if (platform === "darwin") {
+      installed = fs.existsSync(plistPath(projectName));
       const uid = process.getuid?.() ?? 0;
-      detail = execFileSync("launchctl", ["print", `gui/${uid}/${launchdLabel(projectName)}`], {
-        encoding: "utf-8",
-      });
-      running = /state = running/.test(detail);
+      try {
+        // stderr ignored so launchctl's "Could not find service" noise (when the
+        // job isn't loaded) doesn't leak to the terminal before our clean verdict.
+        detail = execFileSync("launchctl", ["print", `gui/${uid}/${launchdLabel(projectName)}`], {
+          encoding: "utf-8",
+          stdio: ["ignore", "pipe", "ignore"],
+        });
+        installed = true; // loaded into launchd → definitely installed
+        running = /state = running/.test(detail);
+      } catch {
+        /* not loaded — `installed` stays as the on-disk plist check above */
+      }
     } else if (platform === "linux") {
-      detail = execFileSync("systemctl", ["--user", "is-active", systemdUnitName(projectName)], {
-        encoding: "utf-8",
-      }).trim();
+      installed = fs.existsSync(systemdPath(projectName));
+      try {
+        // is-active prints active/inactive/failed; it exits non-zero unless
+        // active, so the value also arrives via stdout on the throw.
+        detail = execFileSync("systemctl", ["--user", "is-active", systemdUnitName(projectName)], {
+          encoding: "utf-8",
+          stdio: ["ignore", "pipe", "ignore"],
+        }).trim();
+      } catch (err) {
+        detail = ((err as { stdout?: Buffer }).stdout?.toString() ?? "").trim() || (err as Error).message;
+      }
       running = detail === "active";
     } else if (platform === "win32") {
-      detail = execFileSync("schtasks", ["/Query", "/TN", windowsTaskName(projectName)], {
-        encoding: "utf-8",
-      });
-      running = /Running/.test(detail);
+      try {
+        detail = execFileSync("schtasks", ["/Query", "/TN", windowsTaskName(projectName)], {
+          encoding: "utf-8",
+          stdio: ["ignore", "pipe", "ignore"],
+        });
+        installed = true; // schtasks query succeeded → the task exists
+        running = /Running/.test(detail);
+      } catch (err) {
+        detail = (err as Error).message;
+      }
     }
   } catch (err) {
     detail = (err as Error).message;
   }
+  const state = !installed ? "not installed" : running ? "running" : "installed · idle";
   emit(
     opts.json,
     () => {
-      console.log(`Service "${projectName}": ${running ? "running" : "not running / not installed"}`);
+      console.log(`Service "${projectName}": ${state}`);
       if (detail) console.log(detail.split("\n").slice(0, 8).join("\n"));
     },
-    { status: "ok", project: projectName, running },
+    { status: "ok", project: projectName, installed, running },
   );
 }
 
