@@ -329,7 +329,7 @@ function NetworkCard({ net, selected, onToggle }) {
       type="button"
       className={`${styles.networkCard} ${selected ? styles.networkCardSelected : ''} ${!live ? styles.networkCardSoon : ''}`}
       onClick={() => live && onToggle(net.chainId)}
-      style={{ '--net-color': live ? '#1990FF' : 'rgba(255,255,255,0.18)' }}
+      style={{ '--net-color': live ? 'var(--accent-blue)' : 'rgba(255,255,255,0.18)' }}
       title={live ? undefined : 'Sail kernel coming soon'}
     >
       <span className={styles.networkDot} />
@@ -653,7 +653,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
           const err = errors[chainId]
           return (
             <div key={chainId} className={styles.chainDeployRow}>
-              <span className={styles.chainDeployDot} style={{ '--net-color': '#1990FF' }} />
+              <span className={styles.chainDeployDot} style={{ '--net-color': 'var(--accent-blue)' }} />
               <span className={styles.chainDeployName}>{net?.name ?? `Chain ${chainId}`}</span>
               <span className={`${styles.chainDeployStatus} ${styles[`chainStatus_${status}`]}`}>
                 {status === 'pending' && '—'}
