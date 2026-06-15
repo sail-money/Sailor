@@ -14,7 +14,7 @@
 // TODO: replace with your strategy's parameters.
 // Example structure:
 //
-// import type { Address } from "@sail/sdk";
+// import type { Address } from "@sail.money/sailor/sdk";
 //
 // export const INPUT_TOKEN: Address = "0x...";   // token you're spending
 // export const OUTPUT_TOKEN: Address = "0x...";  // token you're acquiring
