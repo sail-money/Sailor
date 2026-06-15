@@ -28,6 +28,29 @@ function findFreePort(from: number): Promise<number> {
 }
 
 /**
+ * Wait until something is listening on `port`, or `timeoutMs` elapses. The UI
+ * server binds the port once it's ready, so a successful TCP connect is the
+ * real "started" signal — far more reliable than a fixed sleep + pid check,
+ * which raced the server's startup and reported a false "exited immediately".
+ * Returns false on timeout.
+ */
+function waitForPort(port: number, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  return new Promise((resolve) => {
+    const attempt = (): void => {
+      const socket = net.connect(port, "127.0.0.1");
+      socket.once("connect", () => { socket.destroy(); resolve(true); });
+      socket.once("error", () => {
+        socket.destroy();
+        if (Date.now() > deadline) resolve(false);
+        else setTimeout(attempt, 150);
+      });
+    };
+    attempt();
+  });
+}
+
+/**
  * `sailor ui` / `sailor ui start` — serves the UI via the bundled Express server.
  *
  * Path layout (works in both the monorepo and an installed npm package):
@@ -56,21 +79,41 @@ export async function uiCommand(): Promise<void> {
     return;
   }
 
+  // Capture the detached child's output to a log file so a real startup error
+  // surfaces (with stdio:"ignore" it vanished, leaving only a misleading
+  // "exited immediately" message).
+  const runtimeDir = path.join(projectRoot, ".sail", "runtime");
+  fs.mkdirSync(runtimeDir, { recursive: true });
+  const logFile = path.join(runtimeDir, "ui.log");
+  const logFd = fs.openSync(logFile, "a");
+
   const child = spawn(process.execPath, [serverBundle], {
     detached: true,
-    stdio: "ignore",
+    stdio: ["ignore", logFd, logFd],
     env: { ...process.env, SAIL_DIR: sailDir, SERVE_DIST: "1", PORT: String(port), SAILOR_UI_DIST: uiDistDir },
   });
 
   child.unref();
+  fs.closeSync(logFd); // the child holds its own copy of the fd
 
-  // Give the process ~300 ms to bind and stabilise before reporting success.
-  await new Promise((r) => setTimeout(r, 300));
-  if (!isAlive(child.pid!)) {
-    throw new Error(`Sailor UI process exited immediately. Check that the server bundle is intact.`);
+  // Wait for the server to actually bind the port — the true readiness signal.
+  // Bail early if the process dies before that.
+  const READY_TIMEOUT_MS = 10_000;
+  const deadline = Date.now() + READY_TIMEOUT_MS;
+  let ready = false;
+  while (Date.now() < deadline) {
+    if (!isAlive(child.pid!)) break;
+    if (await waitForPort(port, 500)) { ready = true; break; }
+  }
+  if (!ready) {
+    let tail = "";
+    try { tail = fs.readFileSync(logFile, "utf-8").split("\n").filter(Boolean).slice(-15).join("\n"); } catch { /* no log */ }
+    throw new Error(
+      `Sailor UI failed to start within ${READY_TIMEOUT_MS / 1000}s on port ${port}.` +
+        (tail ? `\n\nServer output:\n${tail}` : ` See ${path.relative(projectRoot, logFile)}.`),
+    );
   }
 
-  fs.mkdirSync(path.join(projectRoot, ".sail", "runtime"), { recursive: true });
   fs.writeFileSync(
     path.join(projectRoot, UI_STATE_FILE),
     JSON.stringify({ pid: child.pid, port, startedAt: new Date().toISOString() }, null, 2),
