@@ -320,7 +320,7 @@ function ChainSection({ chainOverview, liveMandates, sma, onNewMandate, onAddSig
 
       <section className={styles.signersSection} aria-label={`${chainName} account details`}>
         <header className={styles.mandatesSectionHead}>
-          <h2 className={styles.mandatesSectionTitle}><KeyGlyph />Account Details</h2>
+          <h2 className={styles.mandatesSectionTitle}><KeyGlyph />Your Wallets</h2>
           <span className={styles.mandatesSectionMeta}>
             {chainOverview.onchain ? 'live balances · refill when low' : 'Add RPC URL to enable balance tracking'}
           </span>
@@ -1728,7 +1728,9 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                 <div className={agentStyles.cardHeadText}>
                   <h2 className={styles.mandatesSectionTitle}>
                     <ClockGlyph />
-                    <span className={styles.sectionNum}>03 /</span>
+                    {/* Numbered headers are a single-chain affordance; a multi-chain
+                        dashboard repeats per-chain sections, so numbering reads oddly. */}
+                    {!isMultiChain && <span className={styles.sectionNum}>03 /</span>}
                     Recent Activity
                   </h2>
                   <p className={agentStyles.cardSub}>
