@@ -3,7 +3,8 @@ import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { encodeFunctionData, getAddress } from 'viem'
 import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi'
 import { sailDeployments } from '@sail/sdk/deployments'
-import { FluidBackground, GlassCard, Sai, SailButton } from '../shared'
+import { GlassCard, Sai, SailButton } from '../shared'
+import SailBackground from '../shared/SailBackground'
 import shared from '../shared/shared.module.css'
 import styles from './OnboardingWizard.module.css'
 import dashStyles from '../dashboard/Dashboard.module.css'
@@ -151,7 +152,7 @@ export default function OnboardingWizard({ onboardState, onComplete, onSkip }) {
 
   return (
     <div className={styles.shell}>
-      <FluidBackground />
+      <SailBackground />
       <OnboardingHeader onSkip={onSkip ?? onComplete} />
       <main className={styles.stage}>
         <div key={step} className={styles.stageInner}>
@@ -328,7 +329,7 @@ function NetworkCard({ net, selected, onToggle }) {
       type="button"
       className={`${styles.networkCard} ${selected ? styles.networkCardSelected : ''} ${!live ? styles.networkCardSoon : ''}`}
       onClick={() => live && onToggle(net.chainId)}
-      style={{ '--net-color': live ? net.color : 'rgba(255,255,255,0.18)' }}
+      style={{ '--net-color': live ? '#1990FF' : 'rgba(255,255,255,0.18)' }}
       title={live ? undefined : 'Sail kernel coming soon'}
     >
       <span className={styles.networkDot} />
@@ -652,7 +653,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
           const err = errors[chainId]
           return (
             <div key={chainId} className={styles.chainDeployRow}>
-              <span className={styles.chainDeployDot} style={{ '--net-color': net?.color }} />
+              <span className={styles.chainDeployDot} style={{ '--net-color': '#1990FF' }} />
               <span className={styles.chainDeployName}>{net?.name ?? `Chain ${chainId}`}</span>
               <span className={`${styles.chainDeployStatus} ${styles[`chainStatus_${status}`]}`}>
                 {status === 'pending' && '—'}
