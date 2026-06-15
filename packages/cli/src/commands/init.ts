@@ -60,6 +60,7 @@ function writeIfMissing(file: string, content: string): void {
 }
 
 const CANONICAL_PKG = "@sail.money/sailor";
+const DEV_PKG = "@dev.sail.money/sailor";
 
 /**
  * Name and version of the running CLI, read from its package manifest.
@@ -283,7 +284,7 @@ export async function initCommand(
     // the same registry the user already has configured. The dep key stays as the
     // canonical name so all `@sail.money/sailor/sdk` imports work unchanged.
     devDeps[CANONICAL_PKG] =
-      cliName === CANONICAL_PKG ? `^${cliVer}` : `npm:${cliName}@^${cliVer}`;
+      cliName === DEV_PKG ? `npm:${DEV_PKG}@^${cliVer}` : `^${cliVer}`;
     pkg.devDependencies = devDeps;
     fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
   }
