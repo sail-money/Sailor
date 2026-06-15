@@ -1163,10 +1163,7 @@ export default function Dashboard() {
   const [onboardState, setOnboardState] = useState(() => _onboardCache ?? localStorageOnboardHint())
   const [onboardChecked, setOnboardChecked] = useState(() => _onboardCache !== null || localStorageOnboardHint() !== null)
   const { draft } = useSailorMandateDraft()
-  const { isConnected } = useAccount()
   const [wizardSkipped, setWizardSkipped] = useState(false)
-  // Capture connected state at first render — if already connected on load, bypass the wizard.
-  const connectedOnMount = useRef(isConnected)
 
   function refreshOnboard() {
     fetch('/api/onboard/state')
@@ -1204,11 +1201,13 @@ export default function Dashboard() {
       <SailBackground />
     </div>
   )
-  // Show onboarding whenever there's no SMA and no wallet connected — even if a
-  // wallet was connected on mount and later disconnected. Without the live
-  // `!isConnected` clause, that disconnect path fell through to the dashboard's
-  // bare "Connect wallet" card instead of the guided wizard.
-  if (!onboardState?.hasAccount && !wizardSkipped && (!connectedOnMount.current || !isConnected)) {
+  // Show the guided wizard whenever there's no SMA and the user hasn't explicitly
+  // skipped it. Wallet-connection state is NOT a gate here: the wizard owns the
+  // connect step, so a wallet that's already connected on load (wagmi
+  // auto-reconnect) must keep the user in the flow through key generation and
+  // SMA creation — not eject them into the dashboard's create-SMA modal. Users
+  // who already have an SMA elsewhere use the wizard's "Skip to dashboard" link.
+  if (!onboardState?.hasAccount && !wizardSkipped) {
     return <OnboardingWizard onboardState={onboardState} onComplete={handleOnboardComplete} onSkip={() => setWizardSkipped(true)} />
   }
 
