@@ -151,6 +151,38 @@ export function startServer(sailDir, { port = PORT } = {}) {
       .finally(() => overviewInFlight.delete(key))
   }
 
+  // Resolve every chain a given SMA is deployed on, unioning all on-disk
+  // evidence. `account.deployedChains` is only populated when the SMA was
+  // created through the browser flow with the full list in the payload —
+  // CLI/onboarding writes and per-chain creates leave it unset, which would
+  // otherwise collapse the dashboard to a single badge/RPC panel. The accounts
+  // registry and the per-chain overview snapshots are authoritative records of
+  // what actually exists on disk, so fold them in too. Self-heals regardless of
+  // how the SMA was created.
+  const resolveDeployedChains = (account) => {
+    const safeLower = account.safe.toLowerCase()
+    const chains = new Set()
+    if (Array.isArray(account.deployedChains)) {
+      for (const c of account.deployedChains) if (c != null) chains.add(Number(c))
+    }
+    if (account.chainId != null) chains.add(Number(account.chainId))
+    // Registry entries for the same safe (each carries its own chainId).
+    try {
+      const accounts = JSON.parse(fs.readFileSync(at('state/accounts.json'), 'utf-8'))
+      for (const a of accounts) {
+        if (a?.safe?.toLowerCase() === safeLower && a.chainId != null) chains.add(Number(a.chainId))
+      }
+    } catch { /* registry may not exist */ }
+    // Per-chain overview snapshots: state/overview/<safe>-<chainId>.json
+    try {
+      for (const f of fs.readdirSync(at('state/overview'))) {
+        const m = f.match(/^(.+)-(\d+)\.json$/)
+        if (m && m[1] === safeLower) chains.add(Number(m[2]))
+      }
+    } catch { /* directory may not exist */ }
+    return [...chains].filter((c) => Number.isFinite(c) && c > 0)
+  }
+
   // Delete all cached overview entries (memory + disk) for a safe across all chains.
   const invalidateOverviewCache = (safe) => {
     const prefix = safe.toLowerCase() + '-'
@@ -1259,7 +1291,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
     if (!account?.safe) { res.json([]); return }
 
-    const deployedChains = account.deployedChains ?? [account.chainId]
+    const deployedChains = resolveDeployedChains(account)
 
     const results = await Promise.all(
       deployedChains.map(async (cid) => {

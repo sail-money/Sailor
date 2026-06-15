@@ -1243,7 +1243,18 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
   const ownerAddr = effectiveAccount?.owner ?? wagmiAddress ?? null
 
   const activeAccount = allAccounts.find((a) => a.active) ?? allAccounts[0] ?? null
-  const isMultiChain = (activeAccount?.deployedChains?.length ?? 0) > 1
+  // Resolve the chains this SMA spans by unioning the account's own list with
+  // the chain ids the server actually returned overviews for. `deployedChains`
+  // is only set when the SMA was created through the browser flow with the full
+  // list in the payload — CLI/onboarding and per-chain creates leave it unset,
+  // which would otherwise collapse the badges/RPC/activity panels to one chain.
+  const deployedChains = (() => {
+    const chains = new Set(activeAccount?.deployedChains ?? [])
+    for (const ov of chainOverviews) if (ov?.chainId != null) chains.add(Number(ov.chainId))
+    if (activeAccount?.chainId != null) chains.add(Number(activeAccount.chainId))
+    return [...chains].filter((c) => Number.isFinite(c) && c > 0)
+  })()
+  const isMultiChain = deployedChains.length > 1
   const smaName = safeNames[activeAccount?.safe ?? 'live-sma'] ?? activeAccount?.name ?? sma?.name ?? 'My SMA'
   const currentSafeId = activeAccount?.safe ?? effectiveAccount?.safe ?? 'live-sma'
   const profileSafes = allAccounts.length > 0
@@ -1277,7 +1288,7 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
         return [...byId.values()]
       })()
     : sma
-    ? [{ ...sma, name: smaName, networks: activeAccount?.deployedChains ? activeAccount.deployedChains.map((id) => CHAIN_NAMES[id] ?? 'ethereum').filter(Boolean) : [realNetwork], mandateCount: isMultiChain && chainOverviews.length > 0 ? chainOverviews.reduce((sum, ov) => sum + (ov.mandateCount ?? 0), 0) : (overview?.mandateCount ?? 0), createdAt: null }]
+    ? [{ ...sma, name: smaName, networks: deployedChains.length > 0 ? deployedChains.map((id) => CHAIN_NAMES[id] ?? 'ethereum').filter(Boolean) : [realNetwork], mandateCount: isMultiChain && chainOverviews.length > 0 ? chainOverviews.reduce((sum, ov) => sum + (ov.mandateCount ?? 0), 0) : (overview?.mandateCount ?? 0), createdAt: null }]
     : []
 
   const safeUrl = sma ? safeAppUrl(sma.network, sma.address) : '#'
@@ -1444,8 +1455,8 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                 )}
                 {overview?.sma && (
                   <div className={styles.smaBadges}>
-                    {(activeAccount?.deployedChains
-                      ? activeAccount.deployedChains.map((id) => CHAIN_NAMES[id]).filter(Boolean)
+                    {(deployedChains.length > 0
+                      ? deployedChains.map((id) => CHAIN_NAMES[id]).filter(Boolean)
                       : overview.network ? [overview.network] : []
                     ).map((n) => (
                       <span key={n} className={styles.smaBadge}>{n}</span>
@@ -1618,7 +1629,7 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
 
             {/* ── RPC / Network config ─────────────────────────────── */}
             <section className={agentStyles.card}>
-              <RpcSection deployedChains={activeAccount?.deployedChains} />
+              <RpcSection deployedChains={deployedChains} />
             </section>
 
             {/* ── Recent activity / Decision Journal ─────────────── */}
@@ -1636,7 +1647,7 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
               </header>
 
               <ActivityChainFilter
-                deployedChains={activeAccount?.deployedChains ?? []}
+                deployedChains={deployedChains}
                 chainFilter={activityChainFilter}
                 onChainFilterChange={setActivityChainFilter}
               />
