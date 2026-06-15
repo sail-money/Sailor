@@ -187,7 +187,7 @@
   align-items: center;
   gap: 14px;
   padding: 16px 18px;
-  border-radius: 3px;
+  border-radius: 2px;
   /* Full sail-card surface — fill + top rim + deep shadow + soft glow,
      matching the other dashboard panels. */
   background:
@@ -260,7 +260,7 @@
   display: flex;
   flex-direction: column;
   padding: 22px 22px 18px;
-  border-radius: 3px;
+  border-radius: 2px;
   /* Sail terminal-panel surface: near-black fill + soft blue top bloom, so the
      animated field reads only in the gutters between cards. */
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -986,7 +986,7 @@
   }
 }
 
-/* TRIAL: faint CRT scanlines on section panels (sail-card texture; uses ::after
+/* Faint CRT scanlines on section panels (sail-card texture; uses ::after
    since ::before is the top-hairline). */
 .card::after {
   content: '';
