@@ -1,142 +1,34 @@
-import { useEffect, useState } from 'react'
 import styles from './Sai.module.css'
 
-const GRID = [
-  '............XXX.................',
-  '............XXX.................',
-  '............XXXXX...............',
-  '............XXXXX...............',
-  '..........XXXXXXXXXX............',
-  '..........XXXXXXXXXX............',
-  '..........XXXXXXXXXX............',
-  '.......XXXXXXXXXXXXXXX..........',
-  '.......XXXXXXXXXXXXXXX..........',
-  '.......XXXXXXXXXXXXXXXXXX.......',
-  '.......XXXXXXXXXXXXXXXXXX.......',
-  '.......XXXXXXXXXXXXXXXXXX.......',
-  '.....XXXXXXXXXXXXXXXXXXXXXX.....',
-  '.....XXXXXXXXXXXXXXXXXXXXXX.....',
-  '..XXXXXXXXXXXXXXXXXXXXXXXXXXXX..',
-  '..XXXXXXXXXXXXXXXXXXXXXXXXXXXX..',
-  '..XXXXXXXXXXXXXXXXXXXXXXXXXXXX..',
-  '............XXX.................',
-  '............XXX.................',
-  'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
-  'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
-  'XXXXXXXXXXXXXXXXXoooXXoooXXXXXXX',
-  'XXXXXXXXXXXXXXXXXoooXXoooXXXXX..',
-  'XXXXXXXXXXXXXXXXXoooXXoooXXXXX..',
-  '..XXXXXXXXXXXXXXXXXXXXXXXXX.....',
-  '..XXXXXXXXXXXXXXXXXXXXXXXXX.....',
-  '..XXXXXXXXXXXXXXXXXXXXXXXXX.....',
-  '.....XXXXXXXXXXXXXXXXXXXX.......',
-  '.....XXXXXXXXXXXXXXXXXXXX.......',
-]
+// The Sail logo, exactly as delivered by design: a pixel-art sailboat with
+// rock / bob / sway / gaze / blink motion baked into the SVG. Encoded as a
+// data-URI and rendered via <img> — the same pattern as ChainIcon — so the
+// markup stays byte-for-byte from the source asset and its CSS animations play
+// in an isolated document. prefers-reduced-motion is handled inside the SVG.
+const LOGO_SRC = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 36 34" width="288" height="272" role="img" aria-label="Sail logo" overflow="visible"><style>
+  .boat  { transform-origin: 16px 28.5px; animation: rock 4.6s cubic-bezier(.37,0,.63,1) infinite; }
+  .bob   { animation: bob 3.5s cubic-bezier(.37,0,.63,1) infinite; }
+  .sail  { transform-origin: 13.5px 19px; animation: sway 6.7s cubic-bezier(.37,0,.63,1) -1.9s infinite; }
+  .eye   { transform-box: fill-box; animation: look 17s cubic-bezier(.65,0,.35,1) infinite; }
+  .eyeL  { transform-origin: 18.5px 22.5px; }
+  .eyeR  { transform-origin: 23.5px 22.5px; animation-delay: -.6s; }
+  .blink { transform-box: fill-box; transform-origin: bottom; animation: blink 5.2s cubic-bezier(.45,0,.55,1) infinite; }
+  @keyframes rock { 0%,100%{transform:rotate(-2.2deg)} 50%{transform:rotate(2.2deg)} }
+  @keyframes bob  { 0%,100%{transform:translateY(.55px)} 50%{transform:translateY(-.55px)} }
+  @keyframes sway { 0%,100%{transform:rotate(-1.4deg)} 50%{transform:rotate(1.4deg)} }
+  @keyframes look { 0%,14%{transform:translateX(0)} 22%,38%{transform:translateX(-.22px)} 46%,62%{transform:translateX(0)} 70%,86%{transform:translateX(.22px)} 100%{transform:translateX(0)} }
+  @keyframes blink{ 0%,86%,100%{transform:scaleY(1)} 90%{transform:scaleY(.16)} 95%{transform:scaleY(.16)} }
+  @media (prefers-reduced-motion: reduce){ .boat,.bob,.sail,.eye,.blink{ animation:none } }
+</style><g class="boat"><g class="bob"><g class="sail"><path d="M12 0.5h1v1h-1zM13 0.5h1v1h-1zM14 0.5h1v1h-1zM12 1.5h1v1h-1zM13 1.5h1v1h-1zM14 1.5h1v1h-1zM12 2.5h1v1h-1zM13 2.5h1v1h-1zM14 2.5h1v1h-1zM15 2.5h1v1h-1zM16 2.5h1v1h-1zM12 3.5h1v1h-1zM13 3.5h1v1h-1zM14 3.5h1v1h-1zM15 3.5h1v1h-1zM16 3.5h1v1h-1zM10 4.5h1v1h-1zM11 4.5h1v1h-1zM12 4.5h1v1h-1zM13 4.5h1v1h-1zM14 4.5h1v1h-1zM15 4.5h1v1h-1zM16 4.5h1v1h-1zM17 4.5h1v1h-1zM18 4.5h1v1h-1zM19 4.5h1v1h-1zM10 5.5h1v1h-1zM11 5.5h1v1h-1zM12 5.5h1v1h-1zM13 5.5h1v1h-1zM14 5.5h1v1h-1zM15 5.5h1v1h-1zM16 5.5h1v1h-1zM17 5.5h1v1h-1zM18 5.5h1v1h-1zM19 5.5h1v1h-1zM10 6.5h1v1h-1zM11 6.5h1v1h-1zM12 6.5h1v1h-1zM13 6.5h1v1h-1zM14 6.5h1v1h-1zM15 6.5h1v1h-1zM16 6.5h1v1h-1zM17 6.5h1v1h-1zM18 6.5h1v1h-1zM19 6.5h1v1h-1zM7 7.5h1v1h-1zM8 7.5h1v1h-1zM9 7.5h1v1h-1zM10 7.5h1v1h-1zM11 7.5h1v1h-1zM12 7.5h1v1h-1zM13 7.5h1v1h-1zM14 7.5h1v1h-1zM15 7.5h1v1h-1zM16 7.5h1v1h-1zM17 7.5h1v1h-1zM18 7.5h1v1h-1zM19 7.5h1v1h-1zM20 7.5h1v1h-1zM21 7.5h1v1h-1zM7 8.5h1v1h-1zM8 8.5h1v1h-1zM9 8.5h1v1h-1zM10 8.5h1v1h-1zM11 8.5h1v1h-1zM12 8.5h1v1h-1zM13 8.5h1v1h-1zM14 8.5h1v1h-1zM15 8.5h1v1h-1zM16 8.5h1v1h-1zM17 8.5h1v1h-1zM18 8.5h1v1h-1zM19 8.5h1v1h-1zM20 8.5h1v1h-1zM21 8.5h1v1h-1zM7 9.5h1v1h-1zM8 9.5h1v1h-1zM9 9.5h1v1h-1zM10 9.5h1v1h-1zM11 9.5h1v1h-1zM12 9.5h1v1h-1zM13 9.5h1v1h-1zM14 9.5h1v1h-1zM15 9.5h1v1h-1zM16 9.5h1v1h-1zM17 9.5h1v1h-1zM18 9.5h1v1h-1zM19 9.5h1v1h-1zM20 9.5h1v1h-1zM21 9.5h1v1h-1zM22 9.5h1v1h-1zM23 9.5h1v1h-1zM24 9.5h1v1h-1zM7 10.5h1v1h-1zM8 10.5h1v1h-1zM9 10.5h1v1h-1zM10 10.5h1v1h-1zM11 10.5h1v1h-1zM12 10.5h1v1h-1zM13 10.5h1v1h-1zM14 10.5h1v1h-1zM15 10.5h1v1h-1zM16 10.5h1v1h-1zM17 10.5h1v1h-1zM18 10.5h1v1h-1zM19 10.5h1v1h-1zM20 10.5h1v1h-1zM21 10.5h1v1h-1zM22 10.5h1v1h-1zM23 10.5h1v1h-1zM24 10.5h1v1h-1zM7 11.5h1v1h-1zM8 11.5h1v1h-1zM9 11.5h1v1h-1zM10 11.5h1v1h-1zM11 11.5h1v1h-1zM12 11.5h1v1h-1zM13 11.5h1v1h-1zM14 11.5h1v1h-1zM15 11.5h1v1h-1zM16 11.5h1v1h-1zM17 11.5h1v1h-1zM18 11.5h1v1h-1zM19 11.5h1v1h-1zM20 11.5h1v1h-1zM21 11.5h1v1h-1zM22 11.5h1v1h-1zM23 11.5h1v1h-1zM24 11.5h1v1h-1zM5 12.5h1v1h-1zM6 12.5h1v1h-1zM7 12.5h1v1h-1zM8 12.5h1v1h-1zM9 12.5h1v1h-1zM10 12.5h1v1h-1zM11 12.5h1v1h-1zM12 12.5h1v1h-1zM13 12.5h1v1h-1zM14 12.5h1v1h-1zM15 12.5h1v1h-1zM16 12.5h1v1h-1zM17 12.5h1v1h-1zM18 12.5h1v1h-1zM19 12.5h1v1h-1zM20 12.5h1v1h-1zM21 12.5h1v1h-1zM22 12.5h1v1h-1zM23 12.5h1v1h-1zM24 12.5h1v1h-1zM25 12.5h1v1h-1zM26 12.5h1v1h-1zM5 13.5h1v1h-1zM6 13.5h1v1h-1zM7 13.5h1v1h-1zM8 13.5h1v1h-1zM9 13.5h1v1h-1zM10 13.5h1v1h-1zM11 13.5h1v1h-1zM12 13.5h1v1h-1zM13 13.5h1v1h-1zM14 13.5h1v1h-1zM15 13.5h1v1h-1zM16 13.5h1v1h-1zM17 13.5h1v1h-1zM18 13.5h1v1h-1zM19 13.5h1v1h-1zM20 13.5h1v1h-1zM21 13.5h1v1h-1zM22 13.5h1v1h-1zM23 13.5h1v1h-1zM24 13.5h1v1h-1zM25 13.5h1v1h-1zM26 13.5h1v1h-1zM2 14.5h1v1h-1zM3 14.5h1v1h-1zM4 14.5h1v1h-1zM5 14.5h1v1h-1zM6 14.5h1v1h-1zM7 14.5h1v1h-1zM8 14.5h1v1h-1zM9 14.5h1v1h-1zM10 14.5h1v1h-1zM11 14.5h1v1h-1zM12 14.5h1v1h-1zM13 14.5h1v1h-1zM14 14.5h1v1h-1zM15 14.5h1v1h-1zM16 14.5h1v1h-1zM17 14.5h1v1h-1zM18 14.5h1v1h-1zM19 14.5h1v1h-1zM20 14.5h1v1h-1zM21 14.5h1v1h-1zM22 14.5h1v1h-1zM23 14.5h1v1h-1zM24 14.5h1v1h-1zM25 14.5h1v1h-1zM26 14.5h1v1h-1zM27 14.5h1v1h-1zM28 14.5h1v1h-1zM29 14.5h1v1h-1zM2 15.5h1v1h-1zM3 15.5h1v1h-1zM4 15.5h1v1h-1zM5 15.5h1v1h-1zM6 15.5h1v1h-1zM7 15.5h1v1h-1zM8 15.5h1v1h-1zM9 15.5h1v1h-1zM10 15.5h1v1h-1zM11 15.5h1v1h-1zM12 15.5h1v1h-1zM13 15.5h1v1h-1zM14 15.5h1v1h-1zM15 15.5h1v1h-1zM16 15.5h1v1h-1zM17 15.5h1v1h-1zM18 15.5h1v1h-1zM19 15.5h1v1h-1zM20 15.5h1v1h-1zM21 15.5h1v1h-1zM22 15.5h1v1h-1zM23 15.5h1v1h-1zM24 15.5h1v1h-1zM25 15.5h1v1h-1zM26 15.5h1v1h-1zM27 15.5h1v1h-1zM28 15.5h1v1h-1zM29 15.5h1v1h-1zM2 16.5h1v1h-1zM3 16.5h1v1h-1zM4 16.5h1v1h-1zM5 16.5h1v1h-1zM6 16.5h1v1h-1zM7 16.5h1v1h-1zM8 16.5h1v1h-1zM9 16.5h1v1h-1zM10 16.5h1v1h-1zM11 16.5h1v1h-1zM12 16.5h1v1h-1zM13 16.5h1v1h-1zM14 16.5h1v1h-1zM15 16.5h1v1h-1zM16 16.5h1v1h-1zM17 16.5h1v1h-1zM18 16.5h1v1h-1zM19 16.5h1v1h-1zM20 16.5h1v1h-1zM21 16.5h1v1h-1zM22 16.5h1v1h-1zM23 16.5h1v1h-1zM24 16.5h1v1h-1zM25 16.5h1v1h-1zM26 16.5h1v1h-1zM27 16.5h1v1h-1zM28 16.5h1v1h-1zM29 16.5h1v1h-1zM12 17.5h1v1h-1zM13 17.5h1v1h-1zM14 17.5h1v1h-1zM12 18.5h1v1h-1zM13 18.5h1v1h-1zM14 18.5h1v1h-1z" fill="#1990FF"/></g><g class="hull"><path d="M0 19.5h1v1h-1zM1 19.5h1v1h-1zM2 19.5h1v1h-1zM3 19.5h1v1h-1zM4 19.5h1v1h-1zM5 19.5h1v1h-1zM6 19.5h1v1h-1zM7 19.5h1v1h-1zM8 19.5h1v1h-1zM9 19.5h1v1h-1zM10 19.5h1v1h-1zM11 19.5h1v1h-1zM12 19.5h1v1h-1zM13 19.5h1v1h-1zM14 19.5h1v1h-1zM15 19.5h1v1h-1zM16 19.5h1v1h-1zM17 19.5h1v1h-1zM18 19.5h1v1h-1zM19 19.5h1v1h-1zM20 19.5h1v1h-1zM21 19.5h1v1h-1zM22 19.5h1v1h-1zM23 19.5h1v1h-1zM24 19.5h1v1h-1zM25 19.5h1v1h-1zM26 19.5h1v1h-1zM27 19.5h1v1h-1zM28 19.5h1v1h-1zM29 19.5h1v1h-1zM30 19.5h1v1h-1zM31 19.5h1v1h-1zM0 20.5h1v1h-1zM1 20.5h1v1h-1zM2 20.5h1v1h-1zM3 20.5h1v1h-1zM4 20.5h1v1h-1zM5 20.5h1v1h-1zM6 20.5h1v1h-1zM7 20.5h1v1h-1zM8 20.5h1v1h-1zM9 20.5h1v1h-1zM10 20.5h1v1h-1zM11 20.5h1v1h-1zM12 20.5h1v1h-1zM13 20.5h1v1h-1zM14 20.5h1v1h-1zM15 20.5h1v1h-1zM16 20.5h1v1h-1zM17 20.5h1v1h-1zM18 20.5h1v1h-1zM19 20.5h1v1h-1zM20 20.5h1v1h-1zM21 20.5h1v1h-1zM22 20.5h1v1h-1zM23 20.5h1v1h-1zM24 20.5h1v1h-1zM25 20.5h1v1h-1zM26 20.5h1v1h-1zM27 20.5h1v1h-1zM28 20.5h1v1h-1zM29 20.5h1v1h-1zM30 20.5h1v1h-1zM31 20.5h1v1h-1zM0 21.5h1v1h-1zM1 21.5h1v1h-1zM2 21.5h1v1h-1zM3 21.5h1v1h-1zM4 21.5h1v1h-1zM5 21.5h1v1h-1zM6 21.5h1v1h-1zM7 21.5h1v1h-1zM8 21.5h1v1h-1zM9 21.5h1v1h-1zM10 21.5h1v1h-1zM11 21.5h1v1h-1zM12 21.5h1v1h-1zM13 21.5h1v1h-1zM14 21.5h1v1h-1zM15 21.5h1v1h-1zM16 21.5h1v1h-1zM17 21.5h1v1h-1zM18 21.5h1v1h-1zM19 21.5h1v1h-1zM20 21.5h1v1h-1zM21 21.5h1v1h-1zM22 21.5h1v1h-1zM23 21.5h1v1h-1zM24 21.5h1v1h-1zM25 21.5h1v1h-1zM26 21.5h1v1h-1zM27 21.5h1v1h-1zM28 21.5h1v1h-1zM29 21.5h1v1h-1zM30 21.5h1v1h-1zM31 21.5h1v1h-1zM0 22.5h1v1h-1zM1 22.5h1v1h-1zM2 22.5h1v1h-1zM3 22.5h1v1h-1zM4 22.5h1v1h-1zM5 22.5h1v1h-1zM6 22.5h1v1h-1zM7 22.5h1v1h-1zM8 22.5h1v1h-1zM9 22.5h1v1h-1zM10 22.5h1v1h-1zM11 22.5h1v1h-1zM12 22.5h1v1h-1zM13 22.5h1v1h-1zM14 22.5h1v1h-1zM15 22.5h1v1h-1zM16 22.5h1v1h-1zM17 22.5h1v1h-1zM18 22.5h1v1h-1zM19 22.5h1v1h-1zM20 22.5h1v1h-1zM21 22.5h1v1h-1zM22 22.5h1v1h-1zM23 22.5h1v1h-1zM24 22.5h1v1h-1zM25 22.5h1v1h-1zM26 22.5h1v1h-1zM27 22.5h1v1h-1zM28 22.5h1v1h-1zM29 22.5h1v1h-1zM0 23.5h1v1h-1zM1 23.5h1v1h-1zM2 23.5h1v1h-1zM3 23.5h1v1h-1zM4 23.5h1v1h-1zM5 23.5h1v1h-1zM6 23.5h1v1h-1zM7 23.5h1v1h-1zM8 23.5h1v1h-1zM9 23.5h1v1h-1zM10 23.5h1v1h-1zM11 23.5h1v1h-1zM12 23.5h1v1h-1zM13 23.5h1v1h-1zM14 23.5h1v1h-1zM15 23.5h1v1h-1zM16 23.5h1v1h-1zM17 23.5h1v1h-1zM18 23.5h1v1h-1zM19 23.5h1v1h-1zM20 23.5h1v1h-1zM21 23.5h1v1h-1zM22 23.5h1v1h-1zM23 23.5h1v1h-1zM24 23.5h1v1h-1zM25 23.5h1v1h-1zM26 23.5h1v1h-1zM27 23.5h1v1h-1zM28 23.5h1v1h-1zM29 23.5h1v1h-1zM2 24.5h1v1h-1zM3 24.5h1v1h-1zM4 24.5h1v1h-1zM5 24.5h1v1h-1zM6 24.5h1v1h-1zM7 24.5h1v1h-1zM8 24.5h1v1h-1zM9 24.5h1v1h-1zM10 24.5h1v1h-1zM11 24.5h1v1h-1zM12 24.5h1v1h-1zM13 24.5h1v1h-1zM14 24.5h1v1h-1zM15 24.5h1v1h-1zM16 24.5h1v1h-1zM17 24.5h1v1h-1zM18 24.5h1v1h-1zM19 24.5h1v1h-1zM20 24.5h1v1h-1zM21 24.5h1v1h-1zM22 24.5h1v1h-1zM23 24.5h1v1h-1zM24 24.5h1v1h-1zM25 24.5h1v1h-1zM26 24.5h1v1h-1zM2 25.5h1v1h-1zM3 25.5h1v1h-1zM4 25.5h1v1h-1zM5 25.5h1v1h-1zM6 25.5h1v1h-1zM7 25.5h1v1h-1zM8 25.5h1v1h-1zM9 25.5h1v1h-1zM10 25.5h1v1h-1zM11 25.5h1v1h-1zM12 25.5h1v1h-1zM13 25.5h1v1h-1zM14 25.5h1v1h-1zM15 25.5h1v1h-1zM16 25.5h1v1h-1zM17 25.5h1v1h-1zM18 25.5h1v1h-1zM19 25.5h1v1h-1zM20 25.5h1v1h-1zM21 25.5h1v1h-1zM22 25.5h1v1h-1zM23 25.5h1v1h-1zM24 25.5h1v1h-1zM25 25.5h1v1h-1zM26 25.5h1v1h-1zM2 26.5h1v1h-1zM3 26.5h1v1h-1zM4 26.5h1v1h-1zM5 26.5h1v1h-1zM6 26.5h1v1h-1zM7 26.5h1v1h-1zM8 26.5h1v1h-1zM9 26.5h1v1h-1zM10 26.5h1v1h-1zM11 26.5h1v1h-1zM12 26.5h1v1h-1zM13 26.5h1v1h-1zM14 26.5h1v1h-1zM15 26.5h1v1h-1zM16 26.5h1v1h-1zM17 26.5h1v1h-1zM18 26.5h1v1h-1zM19 26.5h1v1h-1zM20 26.5h1v1h-1zM21 26.5h1v1h-1zM22 26.5h1v1h-1zM23 26.5h1v1h-1zM24 26.5h1v1h-1zM25 26.5h1v1h-1zM26 26.5h1v1h-1zM5 27.5h1v1h-1zM6 27.5h1v1h-1zM7 27.5h1v1h-1zM8 27.5h1v1h-1zM9 27.5h1v1h-1zM10 27.5h1v1h-1zM11 27.5h1v1h-1zM12 27.5h1v1h-1zM13 27.5h1v1h-1zM14 27.5h1v1h-1zM15 27.5h1v1h-1zM16 27.5h1v1h-1zM17 27.5h1v1h-1zM18 27.5h1v1h-1zM19 27.5h1v1h-1zM20 27.5h1v1h-1zM21 27.5h1v1h-1zM22 27.5h1v1h-1zM23 27.5h1v1h-1zM24 27.5h1v1h-1zM5 28.5h1v1h-1zM6 28.5h1v1h-1zM7 28.5h1v1h-1zM8 28.5h1v1h-1zM9 28.5h1v1h-1zM10 28.5h1v1h-1zM11 28.5h1v1h-1zM12 28.5h1v1h-1zM13 28.5h1v1h-1zM14 28.5h1v1h-1zM15 28.5h1v1h-1zM16 28.5h1v1h-1zM17 28.5h1v1h-1zM18 28.5h1v1h-1zM19 28.5h1v1h-1zM20 28.5h1v1h-1zM21 28.5h1v1h-1zM22 28.5h1v1h-1zM23 28.5h1v1h-1zM24 28.5h1v1h-1z" fill="#1990FF"/></g><g class="eye eyeL"><g class="blink"><path d="M17 21.5h1v1h-1zM18 21.5h1v1h-1zM19 21.5h1v1h-1zM17 22.5h1v1h-1zM18 22.5h1v1h-1zM19 22.5h1v1h-1zM17 23.5h1v1h-1zM18 23.5h1v1h-1zM19 23.5h1v1h-1z" fill="#0A1124"/></g></g><g class="eye eyeR"><g class="blink"><path d="M22 21.5h1v1h-1zM23 21.5h1v1h-1zM24 21.5h1v1h-1zM22 22.5h1v1h-1zM23 22.5h1v1h-1zM24 22.5h1v1h-1zM22 23.5h1v1h-1zM23 23.5h1v1h-1zM24 23.5h1v1h-1z" fill="#0A1124"/></g></g></g></g></svg>`)}`
 
-const BLUE = '#1990FF'
-const NAVY = '#0A1124'
-
-const VB_W = 32
-const VB_H = 30 // tight: 1px breathing room top + 1px bottom for float
-
-const sailPx = []
-const hullPx = []
-const eyeLPx = []
-const eyeRPx = []
-
-GRID.forEach((row, y) => {
-  for (let x = 0; x < row.length; x++) {
-    const ch = row[x]
-    if (ch === '.') continue
-    if (ch === 'X') {
-      if (y <= 18) sailPx.push([x, y])
-      else hullPx.push([x, y])
-    } else if (ch === 'o') {
-      if (x <= 19) eyeLPx.push([x, y])
-      else eyeRPx.push([x, y])
-    }
-  }
-})
-
-function Pixels({ cells, color }) {
+export default function Sai({ size = 80, className = '' }) {
   return (
-    <g fill={color}>
-      {cells.map(([x, y]) => (
-        <rect key={`${x}-${y}`} x={x} y={y + 0.5} width="1.02" height="1.02" />
-      ))}
-    </g>
-  )
-}
-
-export default function Sai({
-  size = 80,
-  animate = false,
-  className = '',
-  ariaLabel = 'Sai, the Sail mascot',
-}) {
-  // Random-interval blinks. Real eyes don't blink on a metronome — keeping
-  // this stochastic is the single biggest "feels alive" win.
-  const [blinkTick, setBlinkTick] = useState(0)
-  useEffect(() => {
-    if (!animate) return
-    let cancelled = false
-    let timer
-    const schedule = () => {
-      // 4–8s between blinks. Occasionally a double-blink follows quickly (1 in 6).
-      const isDouble = Math.random() < 0.16 && blinkTick > 0
-      const wait = isDouble ? 280 : 4000 + Math.random() * 4000
-      timer = setTimeout(() => {
-        if (cancelled) return
-        setBlinkTick((t) => t + 1)
-        schedule()
-      }, wait)
-    }
-    schedule()
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [animate])
-
-  const cls = [styles.mark, animate ? styles.animate : '', className]
-    .filter(Boolean)
-    .join(' ')
-
-  return (
-    <span
-      className={cls}
-      style={{ width: size, height: size }}
-      role="img"
-      aria-label={ariaLabel}
-    >
-      <span className={styles.halo} aria-hidden />
-      <svg
-        className={styles.svg}
-        viewBox={`0 0 ${VB_W} ${VB_H}`}
-        xmlns="http://www.w3.org/2000/svg"
-        shapeRendering="crispEdges"
-        preserveAspectRatio="xMidYMid meet"
-      >
-        <g className={styles.boat}>
-          <g className={styles.sail}>
-            <Pixels cells={sailPx} color={BLUE} />
-          </g>
-          <g className={styles.hull}>
-            <Pixels cells={hullPx} color={BLUE} />
-          </g>
-          <g className={`${styles.eye} ${styles.eyeLeft}`}>
-            <g className={styles.blink} key={`l-${blinkTick}`}>
-              <Pixels cells={eyeLPx} color={NAVY} />
-            </g>
-          </g>
-          <g className={`${styles.eye} ${styles.eyeRight}`}>
-            <g className={styles.blink} key={`r-${blinkTick}`}>
-              <Pixels cells={eyeRPx} color={NAVY} />
-            </g>
-          </g>
-        </g>
-      </svg>
-    </span>
+    <img
+      src={LOGO_SRC}
+      width={size}
+      height={size}
+      alt='Sail logo'
+      className={`${styles.mark} ${className}`.trim()}
+    />
   )
 }
