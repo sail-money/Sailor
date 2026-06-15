@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'v*'
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -14,7 +16,7 @@ jobs:
       packages: write
     uses: ./.github/workflows/publish-npm-public-pkg.yaml
     with:
-      package-name: ${{ github.event_name == 'workflow_dispatch' && '@dev.sail.money/sailor' || '@sail.money/sailor' }}
+      package-name: ${{ (github.event_name == 'workflow_dispatch' || github.ref_type == 'branch') && '@dev.sail.money/sailor' || '@sail.money/sailor' }}
       dist-tag: 'latest'
-      build-number: ${{ github.event_name == 'workflow_dispatch' && github.run_number || 0 }}
+      build-number: ${{ (github.event_name == 'workflow_dispatch' || github.ref_type == 'branch') && github.run_number || 0 }}
     secrets: inherit
