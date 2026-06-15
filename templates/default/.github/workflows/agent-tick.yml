@@ -1,10 +1,35 @@
 name: Agent Tick
 
+# ─────────────────────────────────────────────────────────────────────────────
+# WHEN does your agent run? Two mechanisms — you almost certainly need to tune
+# the first one for your strategy.
+#
+#   1. schedule (cron, below) — a heartbeat / backstop. GitHub Actions cron is
+#      NON-PUNCTUAL: it drifts and is SKIPPED under load, so it is the wrong
+#      PRIMARY driver for anything latency-sensitive. Tune the cadence to your
+#      strategy's volatility:
+#        • LP / perps / liquidations  → minutes — but don't rely on cron for it;
+#          use an external trigger (#2). Here cron is only a safety net.
+#        • DCA / periodic rebalance    → daily.
+#        • treasury / slow rebalances  → hourly to daily.
+#      The default below (hourly) is a GENERIC PLACEHOLDER — change it.
+#
+#   2. workflow_dispatch — an on-demand trigger. Anything that can make an HTTP
+#      call can wake this job the instant a condition is met (a price band, an
+#      on-chain event, a webhook). Fire it from the CLI:  sailor trigger github
+#      This is how you get low-latency reaction that cron cannot give you.
+# ─────────────────────────────────────────────────────────────────────────────
+
 on:
   schedule:
-    # Every Monday at 09:00 UTC
-    - cron: "0 9 * * 1"
+    # Generic placeholder — hourly. TUNE THIS to your strategy (see above).
+    - cron: "0 * * * *"
   workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why this run fired (recorded in the run log for auditability)"
+        required: false
+        default: "manual"
 
 jobs:
   tick:
@@ -30,4 +55,6 @@ jobs:
           RPC_URL: ${{ secrets.RPC_URL }}
           SAIL_PASSPHRASE: ${{ secrets.SAIL_PASSPHRASE }}
           CHAIN_ID: ${{ vars.CHAIN_ID || '8453' }}
+          # Labels the run: the dispatch reason, or "scheduled" for cron runs.
+          SAIL_RUN_REASON: ${{ github.event.inputs.reason || 'scheduled' }}
         run: npx sailor run --once
