@@ -3,7 +3,8 @@ import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { encodeFunctionData, getAddress } from 'viem'
 import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi'
 import { sailDeployments } from '@sail/sdk/deployments'
-import { FluidBackground, GlassCard, Sai, SailButton } from '../shared'
+import { GlassCard, Sai, SailButton } from '../shared'
+import SailBackground from '../shared/SailBackground'
 import shared from '../shared/shared.module.css'
 import styles from './OnboardingWizard.module.css'
 import dashStyles from '../dashboard/Dashboard.module.css'
@@ -123,7 +124,7 @@ function OnboardingHeader({ onSkip }) {
 }
 
 export default function OnboardingWizard({ onboardState, onComplete, onSkip }) {
-  const { isConnected, address } = useAccount()
+  const { address } = useAccount()
   const [step, setStep] = useState('welcome')
   // Multi-chain: user selects one or more chains; default to Base
   const [selectedChainIds, setSelectedChainIds] = useState([onboardState?.chainId ?? 8453])
@@ -133,11 +134,12 @@ export default function OnboardingWizard({ onboardState, onComplete, onSkip }) {
   const [saltNonce] = useState(() => String(Date.now()))
 
 
-  // If the wallet is already connected when the user lands on welcome,
-  // advance to network so they can pick their chains — but no further.
-  useEffect(() => {
-    if (step === 'welcome' && isConnected) setStep('network')
-  }, [step, isConnected])
+  // Note: we intentionally do NOT auto-advance past the welcome screen when a
+  // wallet is already connected. The welcome screen is where the user chooses
+  // between the three entry paths (start setup / import / connect-to-dashboard);
+  // auto-advancing would force a connected user into the create flow and rob
+  // them of the import choice. Connected users still skip the connect *action*
+  // at the connect step (ConnectStep auto-continues when already connected).
 
   function toggleChain(chainId) {
     setSelectedChainIds(prev =>
@@ -151,8 +153,13 @@ export default function OnboardingWizard({ onboardState, onComplete, onSkip }) {
 
   return (
     <div className={styles.shell}>
-      <FluidBackground />
-      <OnboardingHeader onSkip={onSkip ?? onComplete} />
+      <SailBackground />
+      {/* The header's connect-and-leave shortcut is one of the three welcome-screen
+          entry points. Once the user has chosen "Start setup" (any step past
+          welcome), the header must NOT navigate away — connecting the wallet is
+          part of the flow and has to keep them in the wizard. So skip is only
+          wired on the welcome step. */}
+      <OnboardingHeader onSkip={step === 'welcome' ? (onSkip ?? onComplete) : undefined} />
       <main className={styles.stage}>
         <div key={step} className={styles.stageInner}>
           {step === 'welcome' && (
@@ -328,7 +335,7 @@ function NetworkCard({ net, selected, onToggle }) {
       type="button"
       className={`${styles.networkCard} ${selected ? styles.networkCardSelected : ''} ${!live ? styles.networkCardSoon : ''}`}
       onClick={() => live && onToggle(net.chainId)}
-      style={{ '--net-color': live ? net.color : 'rgba(255,255,255,0.18)' }}
+      style={{ '--net-color': live ? 'var(--accent-blue)' : 'rgba(255,255,255,0.18)' }}
       title={live ? undefined : 'Sail kernel coming soon'}
     >
       <span className={styles.networkDot} />
@@ -652,7 +659,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
           const err = errors[chainId]
           return (
             <div key={chainId} className={styles.chainDeployRow}>
-              <span className={styles.chainDeployDot} style={{ '--net-color': net?.color }} />
+              <span className={styles.chainDeployDot} style={{ '--net-color': 'var(--accent-blue)' }} />
               <span className={styles.chainDeployName}>{net?.name ?? `Chain ${chainId}`}</span>
               <span className={`${styles.chainDeployStatus} ${styles[`chainStatus_${status}`]}`}>
                 {status === 'pending' && '—'}
