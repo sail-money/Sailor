@@ -58,13 +58,32 @@ const CHAIN_RPC_ENV_KEYS = {
   11155111:['RPC_URL_11155111','SEPOLIA_RPC_URL'],
 }
 
-/** Resolve the RPC URL for a specific chain from the env. Falls back to generic RPC_URL. */
+// Mainnet chains the dashboard knows about. Used to discover which chains a
+// (deterministically-addressed) SMA is deployed on by probing each on-chain.
+const SUPPORTED_CHAIN_IDS = [1, 8453, 42161, 130, 84532]
+
+// Last-resort public RPC endpoints, keyed by chain id. Used for chain discovery
+// and read-only overviews when a project hasn't configured a per-chain RPC, so
+// a multi-chain SMA still surfaces every chain it lives on out of the box.
+const DEFAULT_RPC_URLS = {
+  1:     'https://eth.llamarpc.com',
+  8453:  'https://mainnet.base.org',
+  42161: 'https://arb1.arbitrum.io/rpc',
+  130:   'https://mainnet.unichain.org',
+  84532: 'https://sepolia.base.org',
+}
+
+/** Resolve the RPC URL for a specific chain from the env, with a public fallback. */
 function resolveRpcUrl(env, chainId) {
   const keys = CHAIN_RPC_ENV_KEYS[chainId] ?? [`RPC_URL_${chainId}`]
   for (const k of keys) {
     if (env[k]) return env[k]
   }
-  return env.RPC_URL ?? null
+  // A generic RPC_URL has no chain tag, so it only applies to the project's
+  // primary chain (CHAIN_ID). Using it for any other chain would query the
+  // wrong network — prefer a chain-correct public endpoint instead.
+  if (env.RPC_URL && Number(env.CHAIN_ID) === Number(chainId)) return env.RPC_URL
+  return DEFAULT_RPC_URLS[chainId] ?? env.RPC_URL ?? null
 }
 
 /**
@@ -149,6 +168,72 @@ export function startServer(sailDir, { port = PORT } = {}) {
       .then((data) => storeOverview(account.safe, account.chainId, data))
       .catch(() => {})
       .finally(() => overviewInFlight.delete(key))
+  }
+
+  // Cache of chains discovered on-chain per safe. Deployment topology rarely
+  // changes, so probing every supported chain on each overview poll would be
+  // wasteful — remember it for a few minutes.
+  const onchainChainsCache = new Map() // safeLower -> { at, chains: number[] }
+  const ONCHAIN_CHAINS_TTL_MS = 5 * 60_000
+
+  // Resolve every chain a given SMA is deployed on. Two layers:
+  //
+  //  1. On-disk evidence (instant): `account.deployedChains`, the active
+  //     chainId, the accounts registry, and the per-chain overview snapshots.
+  //     `deployedChains` is only populated when the SMA was created through the
+  //     browser flow with the full list in the payload — CLI/onboarding writes
+  //     and per-chain creates leave it unset — so the other records backfill it.
+  //
+  //  2. On-chain discovery: an SMA address is deterministic across chains, so
+  //     probe every supported chain for deployed bytecode and include any we
+  //     find. This surfaces chains that were never recorded locally (e.g. a
+  //     chain deployed from a different machine or before snapshots existed).
+  //     Best-effort and cached; failures are ignored.
+  const resolveDeployedChains = async (account) => {
+    const safeLower = account.safe.toLowerCase()
+    const chains = new Set()
+    if (Array.isArray(account.deployedChains)) {
+      for (const c of account.deployedChains) if (c != null) chains.add(Number(c))
+    }
+    if (account.chainId != null) chains.add(Number(account.chainId))
+    // Registry entries for the same safe (each carries its own chainId).
+    try {
+      const accounts = JSON.parse(fs.readFileSync(at('state/accounts.json'), 'utf-8'))
+      for (const a of accounts) {
+        if (a?.safe?.toLowerCase() === safeLower && a.chainId != null) chains.add(Number(a.chainId))
+      }
+    } catch { /* registry may not exist */ }
+    // Per-chain overview snapshots: state/overview/<safe>-<chainId>.json
+    try {
+      for (const f of fs.readdirSync(at('state/overview'))) {
+        const m = f.match(/^(.+)-(\d+)\.json$/)
+        if (m && m[1] === safeLower) chains.add(Number(m[2]))
+      }
+    } catch { /* directory may not exist */ }
+
+    // On-chain discovery across supported chains (cached).
+    const cached = onchainChainsCache.get(safeLower)
+    if (cached && Date.now() - cached.at < ONCHAIN_CHAINS_TTL_MS) {
+      for (const c of cached.chains) chains.add(c)
+    } else {
+      const env = parseEnvFile(at('.env.local'))
+      const found = await Promise.all(
+        SUPPORTED_CHAIN_IDS.map(async (cid) => {
+          const url = resolveRpcUrl(env, cid)
+          if (!url) return null
+          try {
+            const client = createPublicClient({ transport: http(url) })
+            const code = await client.getBytecode({ address: account.safe })
+            return code && code !== '0x' ? cid : null
+          } catch { return null }
+        })
+      )
+      const discovered = found.filter((c) => c != null)
+      onchainChainsCache.set(safeLower, { at: Date.now(), chains: discovered })
+      for (const c of discovered) chains.add(c)
+    }
+
+    return [...chains].filter((c) => Number.isFinite(c) && c > 0)
   }
 
   // Delete all cached overview entries (memory + disk) for a safe across all chains.
@@ -905,7 +990,6 @@ export function startServer(sailDir, { port = PORT } = {}) {
     try { deployment = getSailDeployment(chainId) } catch {}
     // Collect per-chain RPC URLs. Check both numeric (RPC_URL_8453) and named
     // (BASE_RPC_URL) aliases so projects using either format show as configured.
-    const SUPPORTED_CHAIN_IDS = [8453, 42161, 130, 84532]
     const rpcByChain = {}
     for (const cid of SUPPORTED_CHAIN_IDS) {
       const url = resolveRpcUrl(env, cid)
@@ -1259,7 +1343,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
     if (!account?.safe) { res.json([]); return }
 
-    const deployedChains = account.deployedChains ?? [account.chainId]
+    const deployedChains = await resolveDeployedChains(account)
 
     const results = await Promise.all(
       deployedChains.map(async (cid) => {

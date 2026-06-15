@@ -17,6 +17,7 @@ const CHAIN_NAMES = {
   1: 'ethereum',
   42161: 'arbitrum',
   8453: 'base',
+  130: 'unichain',
   10: 'optimism',
   137: 'polygon',
 }
@@ -24,6 +25,7 @@ const EXPLORER_ADDRESS = {
   arbitrum: (a) => `https://arbiscan.io/address/${a}`,
   ethereum: (a) => `https://etherscan.io/address/${a}`,
   base:     (a) => `https://basescan.org/address/${a}`,
+  unichain: (a) => `https://uniscan.xyz/address/${a}`,
   optimism: (a) => `https://optimistic.etherscan.io/address/${a}`,
   polygon:  (a) => `https://polygonscan.com/address/${a}`,
 }
@@ -31,6 +33,7 @@ const EXPLORER_TX = {
   arbitrum: (h) => `https://arbiscan.io/tx/${h}`,
   ethereum: (h) => `https://etherscan.io/tx/${h}`,
   base:     (h) => `https://basescan.org/tx/${h}`,
+  unichain: (h) => `https://uniscan.xyz/tx/${h}`,
   optimism: (h) => `https://optimistic.etherscan.io/tx/${h}`,
   polygon:  (h) => `https://polygonscan.com/tx/${h}`,
 }
