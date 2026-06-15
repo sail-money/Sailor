@@ -37,42 +37,63 @@ type MandateDraft = {
 };
 
 /**
- * Query the kernel's live permission set for `account.safe`.
- * Returns a lowercased Set of registered permission addresses, or `null` when
- * the RPC or project context is unavailable (callers fall back to local state).
+ * The chain a mandate operation targets. A multi-chain SMA has the same address
+ * on every chain but an independent permission set per chain, so reconciliation,
+ * the local-store filter, and the written snapshot must all key off the SAME
+ * chain — the active one from ProjectContext (env CHAIN_ID / config), not the
+ * SMA's primary `account.chainId`. Falls back to account.chainId when there's no
+ * project context (then on-chain reconciliation is skipped).
  */
-async function fetchOnChainPermissions(account: StoredAccount): Promise<Set<string> | null> {
+function resolveActiveChain(account: StoredAccount): { chainId: number; kernel: Address | null } {
   try {
     const project = new ProjectContext();
-    const rpcUrl =
-      getRpcUrl(project.chainId) ?? getChainById(project.chainId).rpcUrls.default.http[0];
-    const pc = createPublicClient({
-      chain: getChainById(project.chainId),
-      transport: http(rpcUrl),
-    });
+    return { chainId: project.chainId, kernel: project.contracts.kernel };
+  } catch {
+    return { chainId: account.chainId, kernel: null };
+  }
+}
+
+/**
+ * Query the kernel's live permission set for `safe` on `chainId`.
+ * Returns a lowercased Set of registered permission addresses, or `null` when
+ * the RPC or kernel is unavailable (callers fall back to local state).
+ */
+async function fetchOnChainPermissions(
+  safe: Address,
+  chainId: number,
+  kernel: Address,
+): Promise<Set<string> | null> {
+  try {
+    const rpcUrl = getRpcUrl(chainId) ?? getChainById(chainId).rpcUrls.default.http[0];
+    const pc = createPublicClient({ chain: getChainById(chainId), transport: http(rpcUrl) });
     const onChain = (await pc.readContract({
-      address: project.contracts.kernel,
+      address: kernel,
       abi: SailKernelAbi,
       functionName: "getPermissions",
-      args: [account.safe as Address],
+      args: [safe],
     })) as Address[];
     return new Set(onChain.map((a) => a.toLowerCase()));
   } catch {
-    // RPC unavailable or project not initialised — fall back to local state only.
+    // RPC unavailable or kernel not reachable — fall back to local state only.
     return null;
   }
 }
 
 /**
- * Permissions tracked for the account's chain, annotated with whether the store
+ * Permissions tracked for the active chain, annotated with whether the store
  * shows them registered on this specific SMA and whether the on-chain kernel
- * still lists them (reconciliation against live state).
+ * still lists them (reconciliation against live state). Both the local-store
+ * filter and the reconciliation key off the SAME `chainId`.
  */
-async function trackedPermissionsFor(account: StoredAccount): Promise<TrackedPermission[]> {
+async function trackedPermissionsFor(
+  account: StoredAccount,
+  chainId: number,
+  kernel: Address | null,
+): Promise<TrackedPermission[]> {
   const store = new MandateStore();
   const local: TrackedPermission[] = store
     .list()
-    .filter((m) => m.chainId === account.chainId)
+    .filter((m) => m.chainId === chainId)
     .map((m) => {
       const attachment = m.attachments?.find(
         (a) => a.sma.toLowerCase() === account.safe.toLowerCase(),
@@ -88,7 +109,7 @@ async function trackedPermissionsFor(account: StoredAccount): Promise<TrackedPer
   // Reconcile with live on-chain state: a locally-attached permission may have
   // been revoked on-chain (via `sailor mandate revoke` or externally).
   // mandates.json is kept as a historical record; revokedOnChain flags the delta.
-  const onChain = await fetchOnChainPermissions(account);
+  const onChain = kernel ? await fetchOnChainPermissions(account.safe as Address, chainId, kernel) : null;
   if (onChain !== null) {
     for (const p of local) {
       if (p.registeredOnSma && !onChain.has(p.address.toLowerCase())) {
@@ -123,7 +144,8 @@ export async function mandatePrepare(): Promise<void> {
     throw new Error('No account found at .sail/account.json.\nRun "sailor onboard --new-sma" first.');
   }
 
-  const permissions = await trackedPermissionsFor(account);
+  const { chainId, kernel } = resolveActiveChain(account);
+  const permissions = await trackedPermissionsFor(account, chainId, kernel);
   if (permissions.length === 0) {
     printNoPermissionsGuidance();
     return;
@@ -144,7 +166,7 @@ export async function mandatePrepare(): Promise<void> {
   const store = new MandateStore();
   const draft: MandateDraft = {
     account: account.safe,
-    chainId: account.chainId,
+    chainId,
     permissions: permissions
       .filter((p) => !p.revokedOnChain)
       .map((p) => {
@@ -170,7 +192,8 @@ export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
     throw new Error('No account found at .sail/account.json.\nRun "sailor onboard --new-sma" first.');
   }
 
-  const permissions = await trackedPermissionsFor(account);
+  const { chainId, kernel } = resolveActiveChain(account);
+  const permissions = await trackedPermissionsFor(account, chainId, kernel);
   if (permissions.length === 0) {
     printNoPermissionsGuidance();
     return;
@@ -224,7 +247,7 @@ export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
   // a single EIP-712 signing step.
   const storedMandate: StoredMandate = {
     safe: account.safe,
-    chainId: account.chainId,
+    chainId,
     signedAt: new Date().toISOString(),
     signature: "",
     registeredOnChain: true,
@@ -235,6 +258,12 @@ export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
   const existing: StoredMandate[] = existingRaw
     ? Array.isArray(existingRaw) ? existingRaw : [existingRaw]
     : [];
-  writeJsonFile(sailPath("mandate.json"), [...existing, storedMandate]);
+  // mandate.json is chain-scoped: one entry per (safe, chainId). Replace the
+  // entry for this SMA on this chain rather than appending, so re-signing
+  // doesn't leave stale duplicates and other chains' entries are preserved.
+  const deduped = existing.filter(
+    (m) => !(m.safe?.toLowerCase() === account.safe.toLowerCase() && m.chainId === chainId),
+  );
+  writeJsonFile(sailPath("mandate.json"), [...deduped, storedMandate]);
   console.log(`\n✓ Saved to .sail/mandate.json — agent is ready to run.`);
 }
