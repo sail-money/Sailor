@@ -19,7 +19,7 @@ import {
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { checkContractExists } from "../lib/contract-check.js";
 import { readJsonFile, sailPath } from "../lib/io.js";
-import { resolveKeyPath } from "../lib/keys.js";
+import { keyExists, resolveKeyPath } from "../lib/keys.js";
 import { IPERMISSION_ABI } from "../lib/permission-resolver.js";
 import { ProjectContext } from "../lib/project.js";
 import type { StoredAccount } from "../lib/state.js";
@@ -155,6 +155,13 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
   }
   const chainIdMatches = chainIdOnChain === null ? null : chainIdOnChain === chainId;
 
+  // Passphrase readiness: a local agent keystore that nothing can unlock
+  // non-interactively (SAIL_PASSPHRASE unset) is the #1 reason `sailor run` works
+  // locally but the CI cron fails. Flag it here, before any gas is spent.
+  const managerKeystorePresent = keyExists("manager", stored?.safe);
+  const passphraseSet = Boolean(process.env.SAIL_PASSPHRASE);
+  const passphraseGap = managerKeystorePresent && !passphraseSet;
+
   let ownerBal: BalanceInfo | null = null;
   let managerBal: BalanceInfo | null = null;
   try {
@@ -178,6 +185,7 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
             owner: ownerAddr ? { address: ownerAddr, ...(ownerBal ?? {}) } : null,
             manager: managerAddr ? { address: managerAddr, ...(managerBal ?? {}) } : null,
           },
+          passphrase: { keystorePresent: managerKeystorePresent, envSet: passphraseSet },
           account: safe,
           saltNonce: stored?.saltNonce ?? null,
           permissions,
@@ -250,6 +258,13 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
   if (managerBal && !managerBal.funded) {
     console.log(
       '  → The manager (agent) pays gas. Fund it before "sailor run" or dispatches fail.',
+    );
+  }
+  if (passphraseGap) {
+    console.log(
+      "  ⚠ SAIL_PASSPHRASE is not set, but an agent keystore exists.\n" +
+        '    "sailor run" will prompt interactively; CI and the scheduled cron will fail to unlock it.\n' +
+        "    Add SAIL_PASSPHRASE to .sail/.env.local (the dashboard does this automatically when it creates the key).",
     );
   }
 

@@ -37,6 +37,29 @@ function parseEnvFile(file) {
   return out
 }
 
+/**
+ * Upserts the `SAIL_PASSPHRASE` line in a `.sail/.env.local` file, preserving
+ * every other key, and guarantees the file ends up mode 0600 — including when it
+ * already existed (writeFileSync's mode is ignored for an existing file, so we
+ * chmod explicitly). This is what lets a browser-only operator's `sailor run`
+ * (local or the CI cron) unlock the keystore the dashboard just created.
+ *
+ * Inline copy of persistPassphrase() in packages/cli/src/lib/io.ts — the CLI is
+ * TypeScript and cannot be imported across the package/language boundary, so the
+ * two carry identical logic. Keep them in sync.
+ */
+function persistPassphrase(envPath, passphrase) {
+  let content = ''
+  if (fs.existsSync(envPath)) {
+    content = fs.readFileSync(envPath, 'utf-8').replace(/^SAIL_PASSPHRASE=.*\n?/m, '')
+  }
+  const trimmed = content.trimEnd()
+  content = `${trimmed}${trimmed.length > 0 ? '\n' : ''}SAIL_PASSPHRASE=${passphrase}\n`
+  fs.mkdirSync(path.dirname(envPath), { recursive: true })
+  fs.writeFileSync(envPath, content, { mode: 0o600 })
+  fs.chmodSync(envPath, 0o600)
+}
+
 const CHAIN_NAMES = {
   1: 'ethereum',
   10: 'optimism',
@@ -523,7 +546,11 @@ export function startServer(sailDir, { port = PORT } = {}) {
       const keyring = LocalKeyring.fromPrivateKey(privateKey)
       const keystore = await keyring.exportKeystore(password)
       fs.mkdirSync(at('keys'), { recursive: true })
-      fs.writeFileSync(managerKeyPath(safe), `${JSON.stringify(keystore, null, 2)}\n`)
+      fs.writeFileSync(managerKeyPath(safe), `${JSON.stringify(keystore, null, 2)}\n`, { mode: 0o600 })
+      fs.chmodSync(managerKeyPath(safe), 0o600)
+      // Persist the passphrase so `sailor run` (local + CI cron) can unlock this
+      // key non-interactively — the CLI reads SAIL_PASSPHRASE from .sail/.env.local.
+      persistPassphrase(at('.env.local'), password)
 
       // Record the creation (address only — never the secret) in the activity log.
       try {
@@ -1040,7 +1067,9 @@ export function startServer(sailDir, { port = PORT } = {}) {
       if (chainId) existing.CHAIN_ID = String(chainId)
       const content = Object.entries(existing).map(([k, v]) => `${k}=${v}`).join('\n') + '\n'
       fs.mkdirSync(sailDir, { recursive: true })
-      fs.writeFileSync(envPath, content)
+      // 0600: .env.local can hold SAIL_PASSPHRASE (preserved across rewrites), matching the CLI.
+      fs.writeFileSync(envPath, content, { mode: 0o600 })
+      fs.chmodSync(envPath, 0o600)
       res.json({ ok: true })
     } catch (err) {
       res.status(500).json({ error: String(err) })
@@ -1065,7 +1094,11 @@ export function startServer(sailDir, { port = PORT } = {}) {
       const keyring = LocalKeyring.fromPrivateKey(privateKey)
       const keystore = await keyring.exportKeystore(passphrase)
       fs.mkdirSync(at('keys'), { recursive: true })
-      fs.writeFileSync(managerKeyPath, `${JSON.stringify(keystore, null, 2)}\n`)
+      fs.writeFileSync(managerKeyPath, `${JSON.stringify(keystore, null, 2)}\n`, { mode: 0o600 })
+      fs.chmodSync(managerKeyPath, 0o600)
+      // Persist the passphrase so `sailor run` (local + CI cron) can unlock this
+      // key non-interactively — the CLI reads SAIL_PASSPHRASE from .sail/.env.local.
+      persistPassphrase(at('.env.local'), passphrase)
       res.json({ address: keyring.address, existed: false })
     } catch (err) {
       res.status(500).json({ error: String(err) })

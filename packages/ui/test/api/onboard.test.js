@@ -1,3 +1,6 @@
+import fs from 'node:fs'
+import path from 'node:path'
+import { LocalKeyring } from '@sail/sdk'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { loadFixture } from '../helpers/fixture.js'
 
@@ -49,6 +52,32 @@ describe('POST /api/onboard/generate-key', () => {
     expect(second.status).toBe(200)
     expect(second.body.existed).toBe(true)
     expect(second.body.address).toBe(first.body.address)
+  })
+
+  it('persists SAIL_PASSPHRASE to .env.local @ 0600 and the value unlocks the keystore', async () => {
+    const passphrase = 'test-pass-1234'
+    const res = await fix.api.post('/api/onboard/generate-key').send({ passphrase })
+    expect(res.status).toBe(200)
+
+    // The passphrase the dashboard used is now in .env.local, mode 0600 — so
+    // `sailor run` (which reads SAIL_PASSPHRASE from there) works with no extra step.
+    const envPath = path.join(fix.sailDir, '.env.local')
+    const env = fs.readFileSync(envPath, 'utf-8')
+    expect(env).toContain(`SAIL_PASSPHRASE=${passphrase}`)
+    expect(fs.statSync(envPath).mode & 0o777).toBe(0o600)
+
+    // The keystore itself is 0600.
+    const ksPath = path.join(fix.sailDir, 'keys/manager.json')
+    expect(fs.statSync(ksPath).mode & 0o777).toBe(0o600)
+
+    // Round-trip: the persisted value actually decrypts the written keystore and
+    // yields the same address — exactly what loadManagerSigner does in `sailor run`.
+    const persisted = env.match(/^SAIL_PASSPHRASE=(.*)$/m)[1]
+    const keyring = await LocalKeyring.fromKeystore(
+      JSON.parse(fs.readFileSync(ksPath, 'utf-8')),
+      persisted,
+    )
+    expect(keyring.address.toLowerCase()).toBe(res.body.address.toLowerCase())
   })
 })
 

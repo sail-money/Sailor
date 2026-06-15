@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { LocalKeyring } from "@sail/sdk";
-import { checksum, confirm, fileExists, prompt, promptHidden, readJsonFile, sailPath, writeJsonFile } from "../lib/io.js";
+import { checksum, confirm, fileExists, persistPassphrase, prompt, promptHidden, readJsonFile, sailPath, writeJsonFile } from "../lib/io.js";
 import { keyExists, keyPath, loadKeyring, normalizeRole, resolveKeyPath, roleLabel, ROLES } from "../lib/keys.js";
 import type { StoredAccount } from "../lib/state.js";
 
@@ -37,7 +37,7 @@ export async function keysGenerate(): Promise<void> {
 
   const keyring = LocalKeyring.generate();
   const keystore = await keyring.exportKeystore(password);
-  writeJsonFile(keyPath(role), keystore);
+  writeJsonFile(keyPath(role), keystore, 0o600);
 
   const label = role === "manager" ? "Agent wallet" : "Mandate signer";
   console.log(`\n${label} key saved. Address: ${checksum(keyring.address)}`);
@@ -51,16 +51,7 @@ export async function keysGenerate(): Promise<void> {
       "\nSave passphrase to .sail/.env.local for non-interactive use? (required for CI/GitHub Actions)",
     );
     if (save) {
-      const envPath = sailPath(".env.local");
-      let content = "";
-      if (fs.existsSync(envPath)) {
-        content = fs.readFileSync(envPath, "utf-8");
-        // Remove any existing SAIL_PASSPHRASE line
-        content = content.replace(/^SAIL_PASSPHRASE=.*\n?/m, "");
-      }
-      content = content.trimEnd() + (content.length > 0 ? "\n" : "") + `SAIL_PASSPHRASE=${password}\n`;
-      fs.mkdirSync(path.dirname(envPath), { recursive: true });
-      fs.writeFileSync(envPath, content, { mode: 0o600 }); // owner-readable only
+      persistPassphrase(sailPath(".env.local"), password);
       console.log("✓ SAIL_PASSPHRASE saved to .sail/.env.local (mode 0600)");
       console.log("  sailor run will now work non-interactively.");
     } else {

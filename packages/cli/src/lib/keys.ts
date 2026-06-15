@@ -119,7 +119,29 @@ export async function loadManagerSigner(safe?: string): Promise<LocalKeyring> {
         'No agent wallet found.\nRun "sailor keys generate" and choose "agent wallet".',
       );
     }
-    return LocalKeyring.fromKeystore(keystore, passphrase);
+    try {
+      return await LocalKeyring.fromKeystore(keystore, passphrase);
+    } catch {
+      // The keystore exists and a passphrase was supplied, but it didn't decrypt.
+      // Say exactly that — not the generic "Invalid password" — so an operator
+      // knows to fix SAIL_PASSPHRASE rather than suspect a corrupt key.
+      throw new Error(
+        "SAIL_PASSPHRASE does not match this keystore.\n" +
+          "Check the value in .sail/.env.local (or the SAIL_PASSPHRASE CI secret) — " +
+          "it must be the passphrase the agent wallet was encrypted with.",
+      );
+    }
+  }
+  // No SAIL_PASSPHRASE. When stdin is not a TTY (CI, the Monday cron, piped
+  // input) we cannot prompt, so a present-but-unreadable keystore would otherwise
+  // fall through to a misleading "Invalid password". Fail with the real cause.
+  if (process.stdin.isTTY !== true && keyExists("manager", safe)) {
+    throw new Error(
+      "Agent keystore found but SAIL_PASSPHRASE is not set.\n" +
+        "If you created the key in the dashboard, add SAIL_PASSPHRASE to .sail/.env.local, " +
+        'or run "sailor keys generate".\n' +
+        "For CI, set the SAIL_PASSPHRASE GitHub Actions secret.",
+    );
   }
   return loadKeyring("manager", safe);
 }

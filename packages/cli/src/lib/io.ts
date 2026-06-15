@@ -25,10 +25,22 @@ export function readJsonFile<T>(filePath: string): T | null {
   }
 }
 
-/** Writes JSON, creating the parent directory (e.g. `.sail/keys/`) if needed. */
-export function writeJsonFile(filePath: string, data: unknown): void {
+/**
+ * Writes JSON, creating the parent directory (e.g. `.sail/keys/`) if needed.
+ *
+ * Pass `mode` (e.g. `0o600`) for secret files like keystores — it is applied on
+ * create AND re-chmodded afterwards, because `writeFileSync`'s `mode` is ignored
+ * when the file already exists. Omit it for non-secret files (account.json,
+ * mandates, config) so they keep the default umask.
+ */
+export function writeJsonFile(filePath: string, data: unknown, mode?: number): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`);
+  fs.writeFileSync(
+    filePath,
+    `${JSON.stringify(data, null, 2)}\n`,
+    mode !== undefined ? { mode } : undefined,
+  );
+  if (mode !== undefined) fs.chmodSync(filePath, mode);
 }
 
 export function fileExists(filePath: string): boolean {
@@ -97,6 +109,29 @@ export function parseEnvFile(filePath: string): Record<string, string> {
     out[key] = value;
   }
   return out;
+}
+
+/**
+ * Upserts the `SAIL_PASSPHRASE` line in a `.sail/.env.local`-style file,
+ * preserving every other key, and guarantees the file ends up mode 0600 (owner
+ * read/write only) — including when it already existed, where `writeFileSync`'s
+ * `mode` is ignored, so we `chmod` explicitly.
+ *
+ * This is the keystore passphrase the CLI/CI read via `SAIL_PASSPHRASE`. The UI
+ * server (packages/ui/server.js) carries an inline JS copy of this exact logic
+ * because it cannot import this TS module across the package/language boundary —
+ * keep the two in sync.
+ */
+export function persistPassphrase(envPath: string, passphrase: string): void {
+  let content = "";
+  if (fs.existsSync(envPath)) {
+    content = fs.readFileSync(envPath, "utf-8").replace(/^SAIL_PASSPHRASE=.*\n?/m, "");
+  }
+  const trimmed = content.trimEnd();
+  content = `${trimmed}${trimmed.length > 0 ? "\n" : ""}SAIL_PASSPHRASE=${passphrase}\n`;
+  fs.mkdirSync(path.dirname(envPath), { recursive: true });
+  fs.writeFileSync(envPath, content, { mode: 0o600 });
+  fs.chmodSync(envPath, 0o600);
 }
 
 // ── Address helpers ───────────────────────────────────────────────────────────
