@@ -1,66 +1,63 @@
 ---
 name: sail-ci
-description: Automate the agent on a schedule with GitHub Actions — exporting the encrypted keystore, committing the right files, configuring secrets, and driving the workflow with the gh CLI. Use when the user wants the agent to run on a schedule, in CI, or unattended after sailor run --once has been confirmed working.
+description: Run the agent unattended — cloud (GitHub Actions cron + workflow_dispatch), a local OS service (sailor service install), or on-demand via the trigger seam (sailor trigger github) — with cadence guidance and the committed-keystore trust model. Use after sailor run --once works.
 ---
 
-# Sail CI — GitHub Actions automation
+# Sail CI — automating the agent
 
-The scaffolded workflow at `.github/workflows/agent-tick.yml` runs `npx sailor run --once` on a cron schedule (default: every Monday 09:00 UTC — edit the `cron` line to the user's cadence; `workflow_dispatch` allows manual runs). It uses `npm ci`, copies `ci-keystore.json` to `.sail/keys/manager.json`, and unlocks it with `SAIL_PASSPHRASE`. `CHAIN_ID` comes from the repository variable `CHAIN_ID` (default `8453`). No private key ever appears in the workflow or in secrets.
+Confirm `sailor run --once` works first. Three hosts run the same loop; pick by latency, privacy, and ops:
 
-Confirm `sailor run --once` works locally before automating.
+- **Cloud** — GitHub Actions cron + `workflow_dispatch`. Zero infra; cron drifts (see Cadence).
+- **Local daemon** — `sailor service install`. Private, no committed keys, lower latency, no GitHub — you run the host.
+- **Event-driven** — an external system fires a run via the trigger seam (a keeper/watcher on a price move or deposit). The direction, not yet built; today the seam is `sailor trigger github`.
 
-## 1. Export the keystore
+## Cadence
+
+Match the interval to volatility: **LP / perp → minutes; DCA / rebalance → daily; treasury → hourly–daily.** Actions cron is a *heartbeat/backstop* that drifts and skips under load — not low-latency; for that, use an external trigger or the local daemon.
+
+## Cloud: GitHub Actions
+
+`.github/workflows/agent-tick.yml` runs `npx sailor run --once` on cron (default hourly `0 * * * *`, a generic placeholder — tune `cron` to your strategy per Cadence above; `workflow_dispatch` enables manual/external runs), via `npm ci`. `CHAIN_ID` comes from the repo variable (default `8453`).
+
+1. **Export** — `sailor keys export-ci` writes the geth-v3 encrypted `ci-keystore.json` (raw key never exposed) and allowlists it in `.gitignore`.
+2. **Commit** the non-secret files (`npm install` first for the lockfile):
 
 ```bash
-sailor keys export-ci
-```
-
-Copies the encrypted agent wallet to `ci-keystore.json` in the project root and adds a `!ci-keystore.json` allowlist entry to `.gitignore`. The keystore is geth v3 encrypted (scrypt + aes-128-ctr); the raw private key is never exposed — safe to commit.
-
-## 2. Commit the required files
-
-CI needs these non-secret files in the repo:
-
-```bash
-npm install                  # generate package-lock.json if it doesn't exist
 git add ci-keystore.json package-lock.json .sail/account.json .sail/config.json .sail/mandate.json
 git commit -m "chore: add CI keystore and sail state" && git push
 ```
 
-`package-lock.json` is required by `npm ci`. `.sail/account.json`, `.sail/config.json`, and `.sail/mandate.json` contain only public addresses and flags — no secrets. The `.gitignore` already has `!` exceptions for all of these.
-
-## 3. Add the two repository secrets
-
-GitHub → Settings → Secrets and variables → Actions:
-
-- `SAIL_PASSPHRASE` — the passphrase that encrypts the agent wallet
-- `RPC_URL` — the RPC endpoint
-
-(If the chain is not Base, also set the repository **variable** `CHAIN_ID` to the right chain id.)
-
-## 4. Install and authenticate the gh CLI
-
-Required to manage the workflow from the terminal (trigger runs, check logs, add secrets without the browser):
-
-- macOS: `brew install gh`
-- Windows: `winget install --id GitHub.cli` or `scoop install gh`
-- Linux: https://github.com/cli/cli/blob/trunk/docs/install_linux.md
-
-Authenticate with the `workflow` scope — without it, `gh` cannot trigger or inspect Actions runs:
+3. **Secrets** (Settings → Secrets and variables → Actions): `SAIL_PASSPHRASE`, `RPC_URL`. If not Base, set the repo **variable** `CHAIN_ID`.
+4. **Drive with `gh`** (needs the `workflow` scope — `gh auth login --scopes workflow`):
 
 ```bash
-gh auth login --scopes workflow
-gh auth status                            # confirm workflow scope is listed
+gh secret set SAIL_PASSPHRASE && gh secret set RPC_URL
+gh workflow run agent-tick.yml          # manual run
+gh run list --workflow agent-tick.yml   # history
+gh run view --log                       # latest logs
 ```
 
-## 5. Drive it
+## On-demand / external trigger
 
 ```bash
-gh secret set SAIL_PASSPHRASE             # prompts for the value
-gh secret set RPC_URL
-gh workflow run agent-tick.yml            # manual trigger
-gh run list --workflow agent-tick.yml     # run history
-gh run view --log                         # logs of the latest run
+sailor trigger github                   # fire workflow_dispatch — the same job cron runs
+#   --reason <text>  --ref <branch>  --workflow <file>  --repo <owner/repo>  --json
 ```
 
-A failing run's logs show the same stderr the local runner produces (`reverted: <txHash>`, `skipped: no registered permission…`) — debug with the sail-transactions skill.
+Wakes the agent between cron ticks — the seam keepers, watchers, or your backend call.
+
+## Local daemon
+
+```bash
+sailor service install --interval 300   # launchd/systemd/Task Scheduler; restarts on crash
+sailor service status | stop | uninstall
+sailor service logs -f                  # .sail/agent.log
+```
+
+`--project`/`--chain` scope it; `--force` overrides a TCC path or unresolved passphrase.
+
+## Keys & trust
+
+Cloud commits only the **encrypted** keystore; `SAIL_PASSPHRASE` is a secret, never committed (the same value the dashboard stores locally at `0600`). Whoever triggers or submits, the on-chain **mandate is the backstop**, bounding the manager regardless of host — choose cloud vs local with that in mind.
+
+A failing run's logs show the same stderr as the local runner (`reverted: <txHash>`, `skipped: no registered permission…`) — debug with the sail-transactions skill.
