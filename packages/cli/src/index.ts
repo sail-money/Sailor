@@ -34,6 +34,16 @@ import { type RotateSignerOptions, rotateSigner } from "./commands/rotate-signer
 import { ownerConnect, ownerShow } from "./commands/owner.js";
 import { runCommand } from "./commands/run.js";
 import { scan } from "./commands/scan.js";
+import {
+  type ServiceInstallOptions,
+  type ServiceLogsOptions,
+  type ServiceOptions,
+  serviceInstall,
+  serviceLogs,
+  serviceStatus,
+  serviceStop,
+  serviceUninstall,
+} from "./commands/service.js";
 import { type TriggerGithubOptions, triggerGithub } from "./commands/trigger.js";
 import { sessionPause, sessionResume } from "./commands/session.js";
 import { stationStart, stationStatus, stationStop } from "./commands/station.js";
@@ -381,5 +391,46 @@ program
   .option("--verify", "Verify each kernel is deployed via eth_getCode (one RPC call per chain)")
   .option("--json", "Emit machine-readable JSON")
   .action(actionWith<ChainsOptions>(chainsCommand));
+
+const service = program
+  .command("service")
+  .description(
+    "Run the agent unattended as a local OS service (launchd/systemd/Task Scheduler).\n" +
+      "One execution host among several — it runs the loop directly, and composes with\n" +
+      "the external-trigger seam (`sailor trigger github`) and the cloud cron job.",
+  );
+service
+  .command("install")
+  .description("Install + start the agent as a local service that restarts on crash")
+  .option("--interval <s>", "Loop interval in seconds (sets SAILOR_INTERVAL in the unit)")
+  .option("--project <path>", "Project root (must contain .sail/; default: current directory)")
+  .option("--chain <id>", "Chain ID to run on")
+  .option("--force", "Proceed despite a TCC-protected path or unresolved passphrase (with warning)")
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<ServiceInstallOptions>(serviceInstall));
+service
+  .command("status")
+  .description("Show whether the agent service is installed and running")
+  .option("--project <path>", "Project root (default: current directory)")
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<ServiceOptions>(serviceStatus));
+service
+  .command("stop")
+  .description("Stop the service without removing it")
+  .option("--project <path>", "Project root (default: current directory)")
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<ServiceOptions>(serviceStop));
+service
+  .command("uninstall")
+  .description("Stop and remove the service unit entirely")
+  .option("--project <path>", "Project root (default: current directory)")
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<ServiceOptions>(serviceUninstall));
+service
+  .command("logs")
+  .description("Show the agent log (.sail/agent.log); -f to follow")
+  .option("--project <path>", "Project root (default: current directory)")
+  .option("-f, --follow", "Follow the log (tail -f)")
+  .action(actionWith<ServiceLogsOptions>(serviceLogs));
 
 program.parse(process.argv);
