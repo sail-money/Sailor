@@ -48,14 +48,17 @@
   gap: var(--s2, 8px);
 }
 .chainCard {
-  border: 1px solid var(--hairline, rgba(255,255,255,0.10));
-  border-radius: var(--r-3, 6px);
-  background: var(--surface-800, #1E1F24);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 3px;
+  /* sail-card surface — matches the other dashboard panels */
+  background:
+    radial-gradient(120% 60% at 50% 0%, rgba(25, 144, 255, 0.06), transparent 55%),
+    #04060b;
   overflow: hidden;
 }
 .chainCardActive {
   border-color: rgba(25,144,255,0.28);
-  background: linear-gradient(180deg, rgba(25,144,255,0.05) 0%, rgba(25,144,255,0.01) 100%), var(--surface-800, #1E1F24);
+  background: linear-gradient(180deg, rgba(25,144,255,0.05) 0%, rgba(25,144,255,0.01) 100%), #04060b;
 }
 .chainCardHead {
   display: flex;
@@ -211,7 +214,7 @@
   display: inline-flex; align-items: center; gap: 7px;
   font-family: 'DM Sans', sans-serif; font-size: var(--t-sm, 13.5px); font-weight: 600;
   color: var(--text-secondary);
-  background: var(--surface-800, #1E1F24);
+  background: #04060b;
   border: 1px solid var(--hairline, rgba(255,255,255,0.10));
   border-radius: var(--r-2, 2px); padding: 9px 13px; cursor: pointer;
   transition: color 180ms var(--ease-apple), border-color 180ms var(--ease-apple), background 180ms var(--ease-apple), transform 180ms var(--ease-apple);
@@ -219,7 +222,7 @@
 .chainChip:hover { border-color: rgba(25,144,255,0.4); transform: translateY(-1px); }
 .chainChipActive, .chainChipActive:hover {
   color: #fff; border-color: rgba(25,144,255,0.55);
-  background: linear-gradient(180deg, rgba(25,144,255,0.10) 0%, rgba(25,144,255,0.02) 100%), var(--surface-800, #1E1F24);
+  background: linear-gradient(180deg, rgba(25,144,255,0.10) 0%, rgba(25,144,255,0.02) 100%), #04060b;
 }
 .chainTag {
   font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 8.5px; font-weight: 600;
@@ -246,7 +249,7 @@
   padding: var(--s3, 12px) var(--s4, 16px);
   text-align: left;
   cursor: pointer;
-  background: var(--surface-800, #1E1F24);
+  background: #04060b;
   border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10));
   border-radius: var(--r-3, 2px);
   transition:
@@ -264,7 +267,7 @@
   border-color: rgba(25, 144, 255, 0.55);
   background:
     linear-gradient(180deg, rgba(25, 144, 255, 0.08) 0%, rgba(25, 144, 255, 0.02) 100%),
-    var(--surface-800, #1E1F24);
+    #04060b;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
     0 18px 48px -28px rgba(25, 144, 255, 0.55);
@@ -343,7 +346,7 @@
 .field {
   display: flex; align-items: center; gap: var(--s2, 8px);
   height: 46px; padding: 0 var(--s3, 12px);
-  background: var(--surface-800, #1E1F24);
+  background: #04060b;
   border: 1px solid var(--hairline, rgba(255,255,255,0.12));
   border-radius: var(--r-2, 2px);
   transition: border-color 160ms var(--ease-apple), box-shadow 160ms var(--ease-apple);
