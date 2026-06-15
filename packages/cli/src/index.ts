@@ -34,6 +34,7 @@ import { type RotateSignerOptions, rotateSigner } from "./commands/rotate-signer
 import { ownerConnect, ownerShow } from "./commands/owner.js";
 import { runCommand } from "./commands/run.js";
 import { scan } from "./commands/scan.js";
+import { type TriggerGithubOptions, triggerGithub } from "./commands/trigger.js";
 import { sessionPause, sessionResume } from "./commands/session.js";
 import { stationStart, stationStatus, stationStop } from "./commands/station.js";
 import { status } from "./commands/status.js";
@@ -318,9 +319,17 @@ program
   .description("Run the agent execution loop (use --once for a single tick)")
   .option("--once", "Run a single tick then exit")
   .option("--chain <chainId>", "Chain ID to run on (overrides CHAIN_ID env and .env.local)")
-  .action(async (opts: { once?: boolean; chain?: string }) => {
+  .option(
+    "--reason <text>",
+    "Label why this run fired (observability only; also read from SAIL_RUN_REASON)",
+  )
+  .action(async (opts: { once?: boolean; chain?: string; reason?: string }) => {
     try {
-      await runCommand({ once: opts.once, chain: opts.chain ? Number(opts.chain) : undefined });
+      await runCommand({
+        once: opts.once,
+        chain: opts.chain ? Number(opts.chain) : undefined,
+        reason: opts.reason,
+      });
     } catch (err) {
       console.error(`Error: ${(err as Error).message}`);
       closePrompts();
@@ -328,6 +337,19 @@ program
     }
     closePrompts();
   });
+
+const trigger = program
+  .command("trigger")
+  .description("Wake the agent on demand from an external system");
+trigger
+  .command("github")
+  .description("Fire the agent's GitHub Actions workflow_dispatch (the same job the cron runs)")
+  .option("--workflow <file>", "Workflow file to dispatch", "agent-tick.yml")
+  .option("--ref <branch>", "Git ref to run the workflow on", "main")
+  .option("--reason <text>", "Why this run fired — recorded as the workflow's reason input")
+  .option("--repo <owner/repo>", "Override the repository (default: from the git origin remote)")
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<TriggerGithubOptions>(triggerGithub));
 
 const session = program.command("session").description("Control the agent session");
 session
