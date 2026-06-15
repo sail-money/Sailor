@@ -44,3 +44,89 @@ jobs:
         run: pnpm --filter sailor build
       - name: Init smoke test
         run: pnpm run init:check
+
+  # The "does the thing we ship actually work for a fresh user" gate. Unlike
+  # init-smoke (fast, in-tree, file-existence only), this packs the PUBLISHABLE
+  # tarball and exercises it off-monorepo as a real npm user: pack → init into a
+  # temp dir outside the repo → npm install (npm, not pnpm) → typecheck → assert
+  # `npx sailor` is the real CLI. Catches dependency desync, non-portable file:
+  # paths, leaked monorepo tsconfig hacks, dropped `files` entries, and a stripped
+  # dotfile — none of which the in-repo pnpm typecheck or init-smoke can see.
+  scaffold-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      # Real dist the tarball ships (SDK + CLI + UI).
+      - name: Build
+        run: pnpm build
+      # Pack the publishable artifact under the PUBLISHED name so the scaffold's
+      # `@sail.money/sailor/sdk` subpath import resolves exactly as it will for a
+      # real user. Mirrors the publish workflow's `npm pkg delete private` +
+      # `npm pkg set name`. The package.json edit is transient (CI workspace only)
+      # and reverted with `git checkout` — nothing is committed.
+      - name: Pack publishable artifact
+        id: pack
+        run: |
+          npm pkg delete private
+          npm pkg set name="@sail.money/sailor"
+          TGZ=$(npm pack --pack-destination "$RUNNER_TEMP" 2>/dev/null | tail -1)
+          git checkout -- package.json
+          echo "tgz=$RUNNER_TEMP/$TGZ" >> "$GITHUB_OUTPUT"
+      # Install the packed CLI into a throwaway prefix and scaffold from ITS bin,
+      # exercising packageRoot() in a published layout + the _gitignore→.gitignore
+      # restore + the emit-time tsconfig strip.
+      - name: Scaffold off-monorepo from the packed CLI
+        run: |
+          npm install -g --prefix "$RUNNER_TEMP/cli" "${{ steps.pack.outputs.tgz }}"
+          mkdir -p "$RUNNER_TEMP/scaffold"
+          cd "$RUNNER_TEMP/scaffold"
+          "$RUNNER_TEMP/cli/bin/sailor" init
+      # The scaffold pins `@sail.money/sailor: ^<cliVersion>`, which is not on npm
+      # until that version publishes. Point the dep at the local pack so the gate
+      # tests the exact build under review without waiting for a release.
+      - name: Point SDK dep at the local pack
+        run: |
+          cd "$RUNNER_TEMP/scaffold"
+          node -e "const p=require('./package.json'); p.devDependencies['@sail.money/sailor']='file:${{ steps.pack.outputs.tgz }}'; require('fs').writeFileSync('package.json', JSON.stringify(p,null,2)+'\n')"
+      # npm (NOT pnpm) — matches a real user. Fails on workspace:*, a non-portable
+      # file: path, or any unresolvable specifier.
+      - name: npm install (fresh user)
+        run: cd "$RUNNER_TEMP/scaffold" && npm install
+      # Resolves @sail.money/sailor/sdk via NodeNext against the installed package.
+      # A leaked monorepo tsconfig path hack or an undeclared import fails here.
+      - name: Typecheck the scaffold
+        run: cd "$RUNNER_TEMP/scaffold" && npm run typecheck
+      # `agent-tick.yml` runs `npx sailor`. Assert it resolves to the real CLI via
+      # the local bin — not the unrelated `sailor` (ascii-art toy) on the registry.
+      - name: Assert npx sailor is the real CLI
+        run: |
+          cd "$RUNNER_TEMP/scaffold"
+          test -x node_modules/.bin/sailor || { echo "no local sailor bin — npx would fetch the wrong package"; exit 1; }
+          # Relative path, not a bare specifier — the package's `exports` only
+          # expose ./sdk, so `require('@sail.money/sailor/package.json')` would be
+          # blocked (ERR_PACKAGE_PATH_NOT_EXPORTED).
+          EXPECTED=$(node -p "require('./node_modules/@sail.money/sailor/package.json').version")
+          GOT=$(npx --no-install sailor --version)
+          echo "expected=$EXPECTED got=$GOT"
+          test "$GOT" = "$EXPECTED"
+      # Prove the bin + imports load: `run --once` must fail for a RUNTIME reason
+      # (no account/RPC/chain), never a module-resolution error.
+      - name: Assert sailor run resolves (runtime failure, not module-resolution)
+        run: |
+          cd "$RUNNER_TEMP/scaffold"
+          OUT=$(npx --no-install sailor run --once 2>&1 || true)
+          echo "$OUT"
+          if echo "$OUT" | grep -qiE "cannot find module|err_module_not_found|cannot find package"; then
+            echo "FAIL: module resolution error — the scaffold cannot load the CLI/SDK"
+            exit 1
+          fi
+          echo "OK: loaded; any failure above is a runtime guard, not module resolution"
