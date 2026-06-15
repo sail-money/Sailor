@@ -61,6 +61,7 @@ const SAFE_CHAIN_PREFIX = {
   ethereum: 'eth',
   arbitrum: 'arb1',
   base: 'base',
+  unichain: 'unichain',
   optimism: 'oeth',
   polygon: 'matic',
 }
@@ -70,8 +71,10 @@ const CHAIN_NAMES = {
   1: 'ethereum',
   42161: 'arbitrum',
   8453: 'base',
+  130: 'unichain',
   10: 'optimism',
   137: 'polygon',
+  84532: 'base sepolia',
 }
 function safeAppUrl(network, address) {
   const prefix = SAFE_CHAIN_PREFIX[network] ?? 'eth'
@@ -82,6 +85,7 @@ function explorerUrl(network, address) {
     arbitrum: `https://arbiscan.io/address/${address}`,
     ethereum: `https://etherscan.io/address/${address}`,
     base: `https://basescan.org/address/${address}`,
+    unichain: `https://uniscan.xyz/address/${address}`,
     optimism: `https://optimistic.etherscan.io/address/${address}`,
     polygon: `https://polygonscan.com/address/${address}`,
   }
@@ -161,6 +165,7 @@ const SIGNING_CHAIN_NAMES = {
   137: 'Polygon',
   8453: 'Base',
   42161: 'Arbitrum One',
+  130: 'Unichain',
   84532: 'Base Sepolia',
 }
 
