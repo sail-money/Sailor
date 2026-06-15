@@ -158,7 +158,7 @@
   backdrop-filter: blur(40px) saturate(180%);
   -webkit-backdrop-filter: blur(40px) saturate(180%);
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 1px 0 rgba(255, 255, 255, 0.016) inset,
     0 28px 72px -28px rgba(0, 0, 0, 0.85),
     0 2px 12px rgba(0, 0, 0, 0.3);
   opacity: 0;
@@ -279,7 +279,7 @@
   justify-content: center;
   color: rgba(255, 255, 255, 0.6);
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.016);
   border-radius: 2px;
   cursor: pointer;
   transition: color 200ms, background 200ms, border-color 200ms, transform 220ms var(--ease-apple);
@@ -463,8 +463,8 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #5fd28a;
-  box-shadow: 0 0 6px rgba(95, 210, 138, 0.7);
+  background: #1990ff;
+  box-shadow: 0 0 6px rgba(25, 144, 255, 0.7);
 }
 .lastUpdatedText {
   color: var(--text-secondary);
@@ -509,7 +509,7 @@
   backdrop-filter: blur(40px) saturate(180%);
   -webkit-backdrop-filter: blur(40px) saturate(180%);
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 1px 0 rgba(255, 255, 255, 0.016) inset,
     0 28px 72px -28px rgba(0, 0, 0, 0.85),
     0 2px 12px rgba(0, 0, 0, 0.3);
   opacity: 0;
@@ -743,8 +743,8 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #5fd28a;
-  box-shadow: 0 0 6px rgba(95, 210, 138, 0.7);
+  background: #1990ff;
+  box-shadow: 0 0 6px rgba(25, 144, 255, 0.7);
 }
 
 .profileText {
@@ -963,7 +963,7 @@
   border: 1px solid rgba(25, 144, 255, 0.38);
   border-radius: 2px;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.016),
     0 12px 36px -22px rgba(25, 144, 255, 0.55);
   cursor: pointer;
   transition:
@@ -1218,12 +1218,12 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  color: #6fdda1;
+  color: #1990ff;
   font-weight: 600;
   padding: 3px 10px;
   border-radius: 2px;
-  background: rgba(95, 210, 138, 0.10);
-  box-shadow: inset 0 0 0 0.5px rgba(95, 210, 138, 0.22);
+  background: rgba(25, 144, 255, 0.10);
+  box-shadow: inset 0 0 0 0.5px rgba(25, 144, 255, 0.22);
 }
 .heroSep {
   width: 3px;
@@ -1448,7 +1448,7 @@
               transform 220ms var(--ease-apple);
 }
 .nftCard:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.016);
   border-color: rgba(255, 255, 255, 0.18);
   transform: translateY(-1px);
 }
@@ -1723,7 +1723,7 @@
   color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
   padding: 2px 6px;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.016);
   border-radius: 2px;
   min-width: 18px;
   text-align: center;
@@ -1766,7 +1766,7 @@
   text-align: left;
   font-family: inherit;
   color: inherit;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.016);
   border: 1px solid var(--hairline);
   border-radius: 2px;
   backdrop-filter: blur(40px) saturate(200%);
@@ -2197,12 +2197,12 @@
 }
 
 .pnlPos {
-  color: #6fdda1;
+  color: #1990ff;
 }
 .mPnlPct.pnlPos {
-  color: #6fdda1;
-  background: rgba(95, 210, 138, 0.10);
-  border: 1px solid rgba(95, 210, 138, 0.30);
+  color: #1990ff;
+  background: rgba(25, 144, 255, 0.10);
+  border: 1px solid rgba(25, 144, 255, 0.30);
 }
 
 .pnlNeg {
@@ -2445,7 +2445,7 @@
   font-size: 11px;
   font-weight: 500;
   color: var(--text-tertiary);
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.016);
   padding: 2px 7px;
   border-radius: 2px;
   min-width: 20px;
@@ -2538,7 +2538,7 @@
 
 .pageNum:hover:not(.pageNumActive) {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.016);
 }
 
 .pageNumActive {
@@ -3050,7 +3050,7 @@
   font-weight: 600;
   letter-spacing: 0;
   color: var(--text-tertiary);
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.016);
   border: 1px solid var(--hairline);
   border-radius: 50%;
   font-variant-numeric: tabular-nums;
@@ -3612,7 +3612,7 @@
   padding: 10px 0;
   font-family: 'DM Sans', sans-serif;
   font-size: 13.5px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid rgba(255, 255, 255, 0.016);
 }
 .uiDetailList .uiDetailListItem:first-child { border-top: none; padding-top: 6px; }
 .uiDetailListTitle {
@@ -3920,25 +3920,45 @@
 }
 .mandatesSectionHead {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 0 4px;
+  padding: 0 4px 12px;
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.07));
 }
 .mandatesSectionTitle {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
   margin: 0;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 17px;
-  font-weight: 500;
-  letter-spacing: -0.005em;
-  color: var(--text-primary);
+  /* Instrument-panel label: mono, uppercase, wide tracking (design manual §4). */
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
 }
-.mandatesSectionTitle svg { color: var(--text-tertiary); }
+/* Blue index badge — sharp corners (≤3px ceiling, design manual §5). */
+.mandatesSectionTitle svg {
+  box-sizing: border-box;
+  width: 26px;
+  height: 26px;
+  padding: 5px;
+  border-radius: 2px;
+  background: var(--accent-blue);
+  color: #fff;
+  flex-shrink: 0;
+}
+.sectionNum {
+  color: var(--accent-blue);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
 .mandatesSectionMeta {
-  font-size: 12.5px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--text-tertiary);
 }
 .mandateList {
@@ -3956,8 +3976,11 @@
   align-items: center;
   gap: 16px;
   padding: 18px 24px;
-  border-radius: 2px;
-  background: rgba(25, 144, 255, 0.04);
+  border-radius: 3px;
+  /* Opaque base (over the animated field) keeping the blue "add" dashed border. */
+  background:
+    linear-gradient(rgba(25, 144, 255, 0.04), rgba(25, 144, 255, 0.04)),
+    #04060b;
   border: 1.5px dashed rgba(25, 144, 255, 0.28);
   cursor: pointer;
   text-align: left;
@@ -3968,7 +3991,9 @@
               transform 220ms var(--ease-apple, cubic-bezier(0.32, 0.72, 0, 1));
 }
 .newMandateTile:hover {
-  background: rgba(25, 144, 255, 0.08);
+  background:
+    linear-gradient(rgba(25, 144, 255, 0.08), rgba(25, 144, 255, 0.08)),
+    #04060b;
   border-color: rgba(25, 144, 255, 0.50);
   transform: translateY(-1px);
 }
@@ -4028,7 +4053,7 @@
   line-height: 1.55;
   color: var(--text-tertiary);
   background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.016);
   border-radius: 2px;
 }
 .localFootnote code {
@@ -4134,7 +4159,7 @@
   align-items: start;
   gap: 14px;
   padding: 10px 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid rgba(255, 255, 255, 0.016);
   border-radius: 2px;
   margin: 0 -10px;
   transition: background 0.15s;
@@ -4256,7 +4281,7 @@
   gap: 12px;
   margin-top: 14px;
   padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid rgba(255, 255, 255, 0.016);
 }
 .mandateSummaryFootMeta {
   font-size: 12px;
@@ -4315,9 +4340,9 @@
 }
 .smaBadge svg { color: var(--text-tertiary); }
 .smaBadgeWarn {
-  border-color: rgba(255, 184, 0, 0.4);
-  background: rgba(255, 184, 0, 0.08);
-  color: #ffce5a;
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.016);
+  color: rgba(255, 255, 255, 0.62);
   text-transform: none;
 }
 .smaBadgeBtn {
@@ -4401,8 +4426,10 @@
 .signersSection { margin-top: 28px; display: flex; flex-direction: column; gap: 14px; }
 .signerGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 14px;
+  /* Three equal columns — cards size to a third of the row (room for a third
+     card), rather than stretching to fill. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
 }
 .signersOffline {
   padding: 18px;
@@ -4420,42 +4447,86 @@
   margin: 0;
 }
 .signerCard {
+  position: relative;
   display: flex;
   flex-direction: column;
   padding: 18px;
-  border-radius: 2px;
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg);
+  border-radius: 3px;
+  /* Sail terminal-panel surface — opaque so the animated field never bleeds through. */
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background:
+    radial-gradient(120% 60% at 50% 0%, rgba(25, 144, 255, 0.06), transparent 55%),
+    #04060b;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.016),
+    0 40px 120px -50px rgba(0, 0, 0, 0.9),
+    0 0 80px -40px rgba(25, 144, 255, 0.25);
   transition: border-color 0.18s ease;
 }
 .signerCard:hover { border-color: var(--glass-border-strong); }
 .signerCardWarn {
-  border-color: rgba(255, 184, 0, 0.42);
-  background: rgba(255, 184, 0, 0.06);
+  /* Warning is shown by the grey pill, not an amber card (manual §3). */
+  border-color: rgba(255, 255, 255, 0.14);
+  background:
+    radial-gradient(120% 60% at 50% 0%, rgba(25, 144, 255, 0.06), transparent 55%),
+    #04060b;
 }
 .signerCardCrit {
   border-color: rgba(255, 86, 86, 0.5);
-  background: rgba(255, 86, 86, 0.07);
+  background:
+    linear-gradient(rgba(255, 86, 86, 0.07), rgba(255, 86, 86, 0.07)),
+    radial-gradient(120% 60% at 50% 0%, rgba(25, 144, 255, 0.06), transparent 55%),
+    #04060b;
 }
 .signerCardHead {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 12px;
+  /* On narrow (3-up) cards the status pill drops to its own line instead of
+     colliding with the role + Active tag. */
+  flex-wrap: wrap;
+  row-gap: 8px;
+  margin-bottom: 14px;
+}
+.signerRoleWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+/* "Active" status tag, sitting right beside the role title — no square dot. */
+.activeTag {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #1990ff;
+  padding: 2px 8px;
+  border-radius: 2px;
+  border: 1px solid rgba(25, 144, 255, 0.35);
+  background: rgba(25, 144, 255, 0.10);
 }
 .signerRole {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.01em;
-  color: var(--text-secondary);
+  color: var(--text-primary);
 }
 .signerBalance {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+/* Ethereum mark sits centred against the big mono figure. */
+.ethGlyph {
+  display: inline-flex;
+  align-self: center;
+  flex-shrink: 0;
 }
 .signerBalanceNum {
+  /* Data is always mono so figures align and feel measured (manual §4). */
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 28px;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -4463,6 +4534,7 @@
   font-variant-numeric: tabular-nums;
 }
 .signerBalanceUnit {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 14px;
   font-weight: 600;
   color: var(--text-tertiary);
@@ -4546,11 +4618,12 @@
   margin-top: 10px;
   padding: 9px 11px;
   border-radius: 2px;
-  background: rgba(255, 184, 0, 0.1);
-  border: 1px solid rgba(255, 184, 0, 0.28);
+  /* Warning = grey, never amber (manual §3). */
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   font-size: 12px;
   line-height: 1.4;
-  color: #ffce5a;
+  color: rgba(255, 255, 255, 0.62);
 }
 .signerCardCrit .signerTopUp {
   background: rgba(255, 86, 86, 0.12);
@@ -4568,21 +4641,24 @@
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.01em;
+  white-space: nowrap;
   border: 1px solid var(--glass-border);
   color: var(--text-secondary);
 }
 .balancePillDot {
   width: 6px;
   height: 6px;
-  border-radius: 50%;
+  /* Status glyphs are 2px squares, never round dots (design manual §7). */
+  border-radius: 2px;
   background: var(--text-tertiary);
 }
+/* Positive = blue, never green (manual §3). */
 .balancePill_ok {
-  color: #5fe0a0;
-  border-color: rgba(95, 224, 160, 0.32);
-  background: rgba(95, 224, 160, 0.08);
+  color: #1990ff;
+  border-color: rgba(25, 144, 255, 0.42);
+  background: rgba(25, 144, 255, 0.10);
 }
-.balancePill_ok .balancePillDot { background: #5fe0a0; }
+.balancePill_ok .balancePillDot { background: #1990ff; }
 .balancePill_low {
   color: #ffce5a;
   border-color: rgba(255, 184, 0, 0.36);
@@ -4818,20 +4894,21 @@
   display: inline-flex;
   gap: 2px;
   padding: 3px;
-  margin-bottom: 14px;
-  border-radius: 2px;
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 .activityFilterBtn {
   appearance: none;
   border: 0;
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   font: inherit;
   font-size: 12px;
   font-weight: 600;
-  padding: 5px 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 6px 16px;
   border-radius: 2px;
   cursor: pointer;
   transition: background 0.16s var(--ease-apple, ease), color 0.16s ease;
@@ -4839,9 +4916,8 @@
 .activityFilterBtn:hover { color: var(--text-primary); }
 .activityFilterBtnActive,
 .activityFilterBtnActive:hover {
-  background: var(--glass-bg-strong);
-  color: var(--text-primary);
-  box-shadow: var(--glass-inset);
+  background: var(--accent-blue);
+  color: #fff;
 }
 
 /* Actor tag preceding the action label in each row. */
@@ -4896,13 +4972,13 @@
   margin-top: 14px;
   padding: 12px 14px;
   border-radius: 2px;
-  background: rgba(251, 191, 36, 0.08);
-  border: 1px solid rgba(251, 191, 36, 0.22);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.14);
 }
 .ghSetupIcon {
   font-size: 14px;
   line-height: 1.4;
-  color: rgba(251, 191, 36, 0.9);
+  color: rgba(255, 255, 255, 0.62);
   flex-shrink: 0;
 }
 .ghSetupBody {
@@ -4926,13 +5002,13 @@
 .ghSetupLink {
   font-size: 11px;
   font-weight: 600;
-  color: rgba(251, 191, 36, 0.85);
+  color: rgba(255, 255, 255, 0.62);
   text-decoration: none;
   white-space: nowrap;
   flex-shrink: 0;
   align-self: center;
 }
-.ghSetupLink:hover { color: rgba(251, 191, 36, 1); text-decoration: underline; }
+.ghSetupLink:hover { color: rgba(255, 255, 255, 0.85); text-decoration: underline; }
 
 /* ── Activity timeline tick cards ────────────────────────────────────────── */
 .tickList { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; }
@@ -5013,15 +5089,15 @@
   width: 100%;
   padding: 8px 0;
   border-radius: 2px;
-  border: 1px solid rgba(251,191,36,0.35);
-  background: rgba(251,191,36,0.08);
-  color: rgba(251,191,36,0.9);
+  border: 1px solid rgba(25, 144, 255, 0.45);
+  background: rgba(25, 144, 255, 0.12);
+  color: #4dabff;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition: background 150ms, border-color 150ms;
 }
-.signerFundBtn:hover:not(:disabled) { background: rgba(251,191,36,0.14); border-color: rgba(251,191,36,0.5); }
+.signerFundBtn:hover:not(:disabled) { background: rgba(25, 144, 255, 0.2); border-color: rgba(25, 144, 255, 0.7); }
 .signerFundBtn:disabled { opacity: 0.5; cursor: not-allowed; }
 .signerCardCrit .signerFundBtn {
   border-color: rgba(255,86,86,0.4);
@@ -5083,3 +5159,13 @@
 }
 .chainSection .mandatesSection { padding: 0; }
 .chainSection .signersSection { margin-top: 24px; }
+
+/* TRIAL: faint CRT scanlines on the wallet cards (full sail-card texture). */
+.signerCard::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.016) 0 1px, transparent 1px 4px);
+}

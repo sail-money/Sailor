@@ -4,11 +4,11 @@ import { MandateSigningFlow } from '../signing/Signing'
 import { ConnectButton, useConnectModal } from '@rainbow-me/rainbowkit'
 import { useAccount, useDisconnect } from 'wagmi'
 import {
-  FluidBackground,
   MandateStatus,
   Sai,
   SailButton,
 } from '../shared'
+import SailBackground from '../shared/SailBackground'
 import shared from '../shared/shared.module.css'
 import styles from './Dashboard.module.css'
 import agentStyles from './SharedLayout.module.css'
@@ -251,7 +251,7 @@ function fmtEth(eth) {
 
 const BALANCE_STATUS = {
   ok: { label: 'Funded' },
-  low: { label: 'Low' },
+  low: { label: 'Low gas balance' },
   critical: { label: 'Empty' },
 }
 
@@ -560,7 +560,14 @@ function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSi
       }`}
     >
       <header className={styles.signerCardHead}>
-        <span className={styles.signerRole}>{role.label}</span>
+        <span className={styles.signerRoleWrap}>
+          <span className={styles.signerRole}>{role.label}</span>
+          {!balanceLoading && isActiveManager && (
+            <span className={styles.activeTag} title="Registered as this SMA's delegated signer on-chain">
+              Active
+            </span>
+          )}
+        </span>
         {/* While balances hydrate we can't vouch for a status — show a single
             muted "Reading…" pill instead of a (possibly wrong) state badge. */}
         {balanceLoading ? (
@@ -570,25 +577,16 @@ function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSi
           </span>
         ) : (
           <>
-            {isActiveManager && (
-              <span
-                className={styles.balancePill}
-                style={{ color: '#34d399' }}
-                title="Registered as this SMA's delegated signer on-chain"
-              >
-                <span className={styles.balancePillDot} aria-hidden style={{ background: '#34d399' }} />
-                Active
-              </span>
-            )}
-            {/* Owner EOA that is also the delegated manager — tag instead of a
+            {/* The manager card's own "Active" moved beside the title (above).
+                Owner EOA that is also the delegated manager — tag instead of a
                 duplicate manager card. */}
             {isOwnerActiveManager ? (
               <span
                 className={styles.balancePill}
-                style={{ color: '#34d399' }}
+                style={{ color: '#1990FF' }}
                 title="This EOA is also registered as the SMA's delegated manager on-chain"
               >
-                <span className={styles.balancePillDot} aria-hidden style={{ background: '#34d399' }} />
+                <span className={styles.balancePillDot} aria-hidden style={{ background: '#1990FF' }} />
                 Active manager
               </span>
             ) : isOwnerManager ? (
@@ -624,6 +622,9 @@ function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSi
       </header>
 
       <div className={styles.signerBalance}>
+        {!unconfigured && (
+          <span className={styles.ethGlyph} aria-hidden><EthGlyph /></span>
+        )}
         {unconfigured ? (
           <span className={styles.signerBalanceNum} style={{ opacity: 0.4 }}>—</span>
         ) : balanceLoading ? (
@@ -1034,16 +1035,19 @@ function ActivityChainFilter({ deployedChains, chainFilter, onChainFilterChange 
  * Live activity feed — groups agent ticks into collapsible summary cards,
  * keeps owner/lifecycle events as individual rows.
  */
-function LiveActivityFeed({ events, positions, network, permToChain = new Map(), chainFilter = 'all' }) {
+function LiveActivityFeed({ events, positions, network, permToChain = new Map(), chainFilter = 'all', actorFilter = 'all' }) {
   const INITIAL_VISIBLE = 8
-  const [filter, setFilter] = useState('all')
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE)
+
+  // The actor switcher now lives in the section header; reset paging when
+  // either filter changes so a narrowed view starts from the top.
+  useEffect(() => { setVisibleCount(INITIAL_VISIBLE) }, [actorFilter, chainFilter])
 
   const allItems = groupActivityItems(events, permToChain)
 
   const filtered = allItems.filter((item) => {
-    const actorMatch = filter === 'all'
-      || (item.kind === 'tick' ? filter === 'agent' : activityActor(item.event) === filter)
+    const actorMatch = actorFilter === 'all'
+      || (item.kind === 'tick' ? actorFilter === 'agent' : activityActor(item.event) === actorFilter)
     const chainMatch = chainFilter === 'all'
       || (item.kind === 'tick'
         ? item.chainIds?.has(Number(chainFilter))
@@ -1054,29 +1058,13 @@ function LiveActivityFeed({ events, positions, network, permToChain = new Map(),
   const rows = filtered.slice(0, visibleCount)
   const hasMore = filtered.length > visibleCount
 
-  const handleFilterChange = (key) => { setFilter(key); setVisibleCount(INITIAL_VISIBLE) }
-
   const emptyLabel = [
-    filter !== 'all' ? filter : null,
+    actorFilter !== 'all' ? actorFilter : null,
     chainFilter !== 'all' ? (CHAIN_NAMES[Number(chainFilter)] ?? chainFilter) : null,
   ].filter(Boolean).join(' · ')
 
   return (
     <>
-      <div className={styles.activityFilter} role="tablist" aria-label="Filter by actor">
-        {ACTIVITY_FILTERS.map((f) => (
-          <button
-            key={f.key}
-            type="button"
-            role="tab"
-            aria-selected={filter === f.key}
-            className={`${styles.activityFilterBtn} ${filter === f.key ? styles.activityFilterBtnActive : ''}`}
-            onClick={() => handleFilterChange(f.key)}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
       {rows.length === 0 ? (
         <div className={styles.emptyAgents}>
           <p className={styles.emptyAgentsBody}>No {emptyLabel ? `${emptyLabel} ` : ''}activity yet.</p>
@@ -1213,7 +1201,7 @@ export default function Dashboard() {
 
   if (!onboardChecked) return (
     <div className={`${shared.pageShell} ${styles.shell}`}>
-      <FluidBackground />
+      <SailBackground />
     </div>
   )
   // Show onboarding whenever there's no SMA and no wallet connected — even if a
@@ -1278,6 +1266,7 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
   const [revokeTarget, setRevokeTarget] = useState(null)
   const [revokeContext, setRevokeContext] = useState(null) // { sma, kernel, chainId } for multi-chain revoke
   const [activityChainFilter, setActivityChainFilter] = useState('all')
+  const [activityActorFilter, setActivityActorFilter] = useState('all')
   const [safeNames, setSafeNames] = useState({})
   const [editingName, setEditingName] = useState(false)
   const [nameInput, setNameInput] = useState('')
@@ -1399,7 +1388,7 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
 
   return (
     <div className={`${shared.pageShell} ${styles.shell}`}>
-      <FluidBackground />
+      <SailBackground />
 
       {/* ── Top bar — kept minimal. The brand mascot anchors the left,
           and the right cluster is just notifications + wallet identity.
@@ -1653,6 +1642,7 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                   <header className={styles.mandatesSectionHead}>
                     <h2 className={styles.mandatesSectionTitle}>
                       <DocGlyph />
+                      <span className={styles.sectionNum}>01 /</span>
                       Your Mandates
                     </h2>
                     <span className={styles.mandatesSectionMeta}>
@@ -1696,7 +1686,8 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                   <header className={styles.mandatesSectionHead}>
                     <h2 className={styles.mandatesSectionTitle}>
                       <KeyGlyph />
-                      Accounts Details
+                      <span className={styles.sectionNum}>02 /</span>
+                      Your Wallets
                     </h2>
                     <span className={styles.mandatesSectionMeta}>
                       {overview?.onchain
@@ -1736,13 +1727,28 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
             <section className={agentStyles.card}>
               <header className={agentStyles.cardHead}>
                 <div className={agentStyles.cardHeadText}>
-                  <h2 className={agentStyles.cardTitle}>
+                  <h2 className={styles.mandatesSectionTitle}>
                     <ClockGlyph />
-                    Recent activity
+                    <span className={styles.sectionNum}>03 /</span>
+                    Recent Activity
                   </h2>
                   <p className={agentStyles.cardSub}>
                     Click any event to see the agent's reasoning and evidence.
                   </p>
+                </div>
+                <div className={styles.activityFilter} role="tablist" aria-label="Filter by actor">
+                  {ACTIVITY_FILTERS.map((f) => (
+                    <button
+                      key={f.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={activityActorFilter === f.key}
+                      className={`${styles.activityFilterBtn} ${activityActorFilter === f.key ? styles.activityFilterBtnActive : ''}`}
+                      onClick={() => setActivityActorFilter(f.key)}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
                 </div>
               </header>
 
@@ -1759,6 +1765,7 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                   network={realNetwork}
                   permToChain={permToChain}
                   chainFilter={activityChainFilter}
+                  actorFilter={activityActorFilter}
                 />
               ) : (
                 <div className={styles.emptyAgents}>
@@ -2367,6 +2374,19 @@ function PencilIcon() {
   return (
     <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M11.5 2.5a1.414 1.414 0 0 1 2 2L5 13H3v-2L11.5 2.5z" />
+    </svg>
+  )
+}
+/* Ethereum diamond — single accent hue at varied opacities (design manual §3). */
+function EthGlyph() {
+  return (
+    <svg viewBox="0 0 32 32" width="20" height="20" aria-hidden>
+      <path d="M16 3 7.8 16.6 16 12.9Z" fill="#1990ff" />
+      <path d="M16 3 24.2 16.6 16 12.9Z" fill="#1990ff" opacity="0.55" />
+      <path d="M16 20.2 7.8 16.6 16 12.9Z" fill="#1990ff" opacity="0.8" />
+      <path d="M16 20.2 24.2 16.6 16 12.9Z" fill="#1990ff" opacity="0.4" />
+      <path d="M16 29 7.8 18.2 16 21.7Z" fill="#1990ff" />
+      <path d="M16 29 24.2 18.2 16 21.7Z" fill="#1990ff" opacity="0.55" />
     </svg>
   )
 }
