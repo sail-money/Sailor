@@ -17,7 +17,7 @@ Match the interval to volatility: **LP / perp → minutes; DCA / rebalance → d
 
 ## Cloud: GitHub Actions
 
-`.github/workflows/agent-tick.yml` runs `npx sailor run --once` on cron (default Mon 09:00 UTC — edit `cron`; `workflow_dispatch` enables manual/external runs), via `npm ci`. `CHAIN_ID` comes from the repo variable (default `8453`).
+`.github/workflows/agent-tick.yml` runs `npx sailor run --once` on cron (default hourly `0 * * * *`, a generic placeholder — tune `cron` to your strategy per Cadence above; `workflow_dispatch` enables manual/external runs), via `npm ci`. `CHAIN_ID` comes from the repo variable (default `8453`).
 
 1. **Export** — `sailor keys export-ci` writes the geth-v3 encrypted `ci-keystore.json` (raw key never exposed) and allowlists it in `.gitignore`.
 2. **Commit** the non-secret files (`npm install` first for the lockfile):
