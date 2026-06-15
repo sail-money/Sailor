@@ -139,7 +139,11 @@ async function loadAgent(): Promise<Agent> {
  * outcome to .sail/activity.jsonl. A denied or failing dispatch is logged and
  * skipped — it never stops the loop.
  */
-export async function runCommand(opts: { once?: boolean; chain?: number }): Promise<void> {
+export async function runCommand(opts: {
+  once?: boolean;
+  chain?: number;
+  reason?: string;
+}): Promise<void> {
   const once = opts.once === true;
 
   // ── Load required local state ──────────────────────────────────────────────
@@ -163,6 +167,11 @@ export async function runCommand(opts: { once?: boolean; chain?: number }): Prom
   for (const [k, v] of Object.entries(env)) {
     if (v && !process.env[k]) process.env[k] = v;
   }
+
+  // Observability label for WHY this run fired: --reason flag > SAIL_RUN_REASON
+  // (shell or .env.local, injected above) > "manual". Recorded in the run header
+  // and every tick_start event; it does NOT affect execution.
+  const runReason = opts.reason ?? process.env.SAIL_RUN_REASON ?? "manual";
 
   // CHAIN_ID resolution order: --chain flag > shell env > .env.local > config.json chainId.
   const configChainId = readJsonFile<{ chainId?: number }>(sailPath("config.json"))?.chainId;
@@ -336,7 +345,7 @@ export async function runCommand(opts: { once?: boolean; chain?: number }): Prom
 
   // ── One tick: agent.tick → preview → execute → log ───────────────────────────
   async function runTick(): Promise<void> {
-    appendActivity({ ts: nowIso(), actor: "agent", type: "tick_start", chainId });
+    appendActivity({ ts: nowIso(), actor: "agent", type: "tick_start", chainId, reason: runReason });
 
     // Fetch the current block once per tick. Real block number + timestamp are used
     // in the off-chain evaluate() probe so time- or block-gated permissions get
@@ -578,6 +587,7 @@ export async function runCommand(opts: { once?: boolean; chain?: number }): Prom
   console.log(`Account: ${accountAddr}`);
   console.log(`Chain: ${chainName} (${chainId})`);
   console.log(once ? "Mode: single tick (--once)" : `Interval: ${intervalSec}s`);
+  console.log(`Reason: ${runReason}`);
   console.log("Press Ctrl+C to stop");
   console.log("");
 
