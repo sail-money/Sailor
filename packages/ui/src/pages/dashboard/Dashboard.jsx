@@ -503,6 +503,7 @@ function SignersPanel({ overview, sma, onAddSigner, onRotateSigner }) {
           key={s.address ? `${s.role}:${s.address}` : s.role}
           signer={s}
           network={overview.network}
+          chainId={overview.chainId}
           loading={balancesLoading}
           onAddSigner={onAddSigner}
           onRotateSigner={onRotateSigner}
@@ -512,7 +513,7 @@ function SignersPanel({ overview, sma, onAddSigner, onRotateSigner }) {
   )
 }
 
-function SignerCard({ signer, network, loading, onAddSigner, onRotateSigner }) {
+function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSigner }) {
   const [copied, setCopied] = useState(false)
   const [fundOpen, setFundOpen] = useState(false)
   const role = signer.role === 'sma'
@@ -719,6 +720,7 @@ function SignerCard({ signer, network, loading, onAddSigner, onRotateSigner }) {
         onClose={() => setFundOpen(false)}
         signer={signer}
         network={network}
+        chainId={chainId}
       />
     </article>
   )
