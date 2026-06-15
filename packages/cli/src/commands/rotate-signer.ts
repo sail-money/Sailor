@@ -605,7 +605,7 @@ function promoteManagerKeystore(newManager: Address, say: (fn: () => void) => vo
     writeJsonFile(`${activeTarget}.${Date.now()}.bak`, displaced, 0o600);
   }
 
-  writeJsonFile(activeTarget, stored);
+  writeJsonFile(activeTarget, stored, 0o600);
   say(() =>
     console.log(`  Agent wallet keystore for ${newManager} is now active (.sail/keys/manager.json).`),
   );
