@@ -7,7 +7,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@sail/sdk": "workspace:*",
     "viem": "^2.21.0"
   },
   "devDependencies": {

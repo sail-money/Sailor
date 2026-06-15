@@ -59,6 +59,23 @@ function writeIfMissing(file: string, content: string): void {
   if (!fs.existsSync(file)) fs.writeFileSync(file, content, "utf-8");
 }
 
+/**
+ * The running CLI's own version, read from its package manifest (the same source
+ * `sailor --version` uses). Scaffolds pin `@sail.money/sailor` to this so the SDK
+ * the agent imports via the `@sail.money/sailor/sdk` subpath always matches the
+ * CLI that generated the project.
+ */
+function cliVersion(): string {
+  try {
+    const pkg = JSON.parse(
+      fs.readFileSync(path.join(packageRoot(), "package.json"), "utf-8"),
+    ) as { version?: string };
+    return pkg.version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
 function scaffoldProjectWorkspace(dest: string, name: string, options: InitOptions): void {
   // chainId is null when no --chain flag is provided. Stage 1 of AGENTS.md handles
   // chain selection conversationally — the assistant asks the user which chain to use
@@ -234,10 +251,18 @@ export async function initCommand(
     writeIfMissing(path.join(dest, "docs", "PERMISSION_MODEL.md"), fs.readFileSync(permModelSrc, "utf-8"));
   }
 
-  // Patch package.json: set name and resolve @sail/sdk.
-  // The template uses `workspace:*` (pnpm monorepo protocol) which is invalid
-  // outside the Sailor monorepo. When installed as an npm package, resolve it to
-  // the SDK bundled alongside the CLI in the same package installation.
+  // Patch package.json: set the project name and inject the Sailor CLI as a
+  // devDependency pinned to the version that generated this scaffold.
+  //
+  // `@sail.money/sailor` ships the SDK at the `@sail.money/sailor/sdk` subpath the
+  // agent code imports. It is injected here (rather than carried in the template)
+  // because templates/default is itself a pnpm workspace member — a literal
+  // version placeholder in its manifest would be an unresolvable specifier that
+  // breaks the monorepo's own `pnpm install`. It is a *dev*Dependency because the
+  // SDK imports are type-only and the agent runs via `npx sailor`, so the package
+  // is only needed for typecheck + editor/agent DX, never at runtime. Pinning it
+  // to the running CLI's own version keeps the SDK in lockstep with the CLI that
+  // created the project; a caret range lets compatible patch/minor updates flow.
   const pkgPath = path.join(dest, "package.json");
   if (fs.existsSync(pkgPath)) {
     const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as Record<
@@ -245,20 +270,30 @@ export async function initCommand(
       Record<string, string>
     >;
     pkg.name = name as never;
-    const deps = pkg.dependencies ?? {};
-    if (deps["@sail/sdk"] === "workspace:*") {
-      // Resolve to the SDK installed alongside this CLI package.
-      // packageRoot() = …/node_modules/@sail-money/sailor → SDK is at packages/sdk
-      // relative to the monorepo root, but when distributed only packages/cli/dist
-      // and packages/ui/dist are shipped. Point at the dist that IS present.
-      const sdkPath = path.join(pkgRoot, "packages", "sdk");
-      deps["@sail/sdk"] = fs.existsSync(sdkPath)
-        ? `file:${sdkPath}`
-        : // Fallback: SDK not bundled — user must install it manually.
-          "0.1.0";
-    }
-    pkg.dependencies = deps;
+    const devDeps = pkg.devDependencies ?? {};
+    devDeps["@sail.money/sailor"] = `^${cliVersion()}`;
+    pkg.devDependencies = devDeps;
     fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
+  }
+
+  // Strip the monorepo-only tsconfig path mapping from the emitted project.
+  // In-repo, templates/default/tsconfig.json maps `@sail.money/sailor/sdk` to the
+  // SDK source (`../../packages/sdk/src/index.ts`) so the monorepo's own template
+  // typecheck resolves without an install — but that relative path does not exist
+  // in a scaffolded project. There, the subpath must resolve via normal NodeNext
+  // resolution against the installed `@sail.money/sailor` devDependency, so we
+  // drop the `paths` mapping (and the `baseUrl` that only exists to anchor it).
+  const tsconfigPath = path.join(dest, "tsconfig.json");
+  if (fs.existsSync(tsconfigPath)) {
+    const tsconfig = JSON.parse(fs.readFileSync(tsconfigPath, "utf-8")) as {
+      compilerOptions?: Record<string, unknown>;
+    };
+    const co = tsconfig.compilerOptions;
+    if (co && "paths" in co) {
+      delete co.paths;
+      delete co.baseUrl;
+      fs.writeFileSync(tsconfigPath, `${JSON.stringify(tsconfig, null, 2)}\n`);
+    }
   }
 
   scaffoldProjectWorkspace(dest, name, options);
