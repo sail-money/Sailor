@@ -124,7 +124,7 @@ function OnboardingHeader({ onSkip }) {
 }
 
 export default function OnboardingWizard({ onboardState, onComplete, onSkip }) {
-  const { isConnected, address } = useAccount()
+  const { address } = useAccount()
   const [step, setStep] = useState('welcome')
   // Multi-chain: user selects one or more chains; default to Base
   const [selectedChainIds, setSelectedChainIds] = useState([onboardState?.chainId ?? 8453])
@@ -134,11 +134,12 @@ export default function OnboardingWizard({ onboardState, onComplete, onSkip }) {
   const [saltNonce] = useState(() => String(Date.now()))
 
 
-  // If the wallet is already connected when the user lands on welcome,
-  // advance to network so they can pick their chains — but no further.
-  useEffect(() => {
-    if (step === 'welcome' && isConnected) setStep('network')
-  }, [step, isConnected])
+  // Note: we intentionally do NOT auto-advance past the welcome screen when a
+  // wallet is already connected. The welcome screen is where the user chooses
+  // between the three entry paths (start setup / import / connect-to-dashboard);
+  // auto-advancing would force a connected user into the create flow and rob
+  // them of the import choice. Connected users still skip the connect *action*
+  // at the connect step (ConnectStep auto-continues when already connected).
 
   function toggleChain(chainId) {
     setSelectedChainIds(prev =>
@@ -153,7 +154,12 @@ export default function OnboardingWizard({ onboardState, onComplete, onSkip }) {
   return (
     <div className={styles.shell}>
       <SailBackground />
-      <OnboardingHeader onSkip={onSkip ?? onComplete} />
+      {/* The header's connect-and-leave shortcut is one of the three welcome-screen
+          entry points. Once the user has chosen "Start setup" (any step past
+          welcome), the header must NOT navigate away — connecting the wallet is
+          part of the flow and has to keep them in the wizard. So skip is only
+          wired on the welcome step. */}
+      <OnboardingHeader onSkip={step === 'welcome' ? (onSkip ?? onComplete) : undefined} />
       <main className={styles.stage}>
         <div key={step} className={styles.stageInner}>
           {step === 'welcome' && (
