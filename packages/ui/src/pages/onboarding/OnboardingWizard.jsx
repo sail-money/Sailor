@@ -435,7 +435,7 @@ function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTo
             {loading ? 'Generating…' : 'Generate key'}
           </SailButton>
           <p className={styles.fineprint}>
-            If set, save this passphrase — your agent needs it as <code>SAIL_PASSPHRASE</code>.
+            If set, it's saved to <code>.sail/.env.local</code> (mode 0600) so your agent can unlock the key unattended.
           </p>
         </>
       ) : (
@@ -454,8 +454,11 @@ function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTo
           </div>
           {passphrase && (
             <div className={styles.passphraseReminder}>
-              <span style={{ opacity: 0.6, fontSize: 12 }}>Remember:</span>{' '}
-              <code style={{ fontSize: 12 }}>SAIL_PASSPHRASE=&quot;{passphrase}&quot;</code>
+              <span style={{ opacity: 0.6, fontSize: 12 }}>
+                Saved locally to <code>.sail/.env.local</code> (0600, gitignored). For CI, add this same
+                value as the <code>SAIL_PASSPHRASE</code> GitHub Actions secret — don't commit{' '}
+                <code>.env.local</code>.
+              </span>
             </div>
           )}
           <SailButton fullWidth onClick={() => onDone(generated)}>Continue →</SailButton>

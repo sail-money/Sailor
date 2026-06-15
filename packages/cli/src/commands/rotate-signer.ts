@@ -555,19 +555,19 @@ async function resolveNewManager(
   if (fileExists(target)) {
     const backup = `${target}.${Date.now()}.bak`;
     const existing = readJsonFile<unknown>(target);
-    if (existing) writeJsonFile(backup, existing);
+    if (existing) writeJsonFile(backup, existing, 0o600);
     say(() => console.log(`  Backed up the old agent keystore → ${backup}`));
   }
 
   const keyring = Keyring.generate();
   const keystore = await keyring.exportKeystore(password);
-  writeJsonFile(target, keystore);
+  writeJsonFile(target, keystore, 0o600);
 
   // Persist a copy under the manager-specific path so future `--to <addr>`
   // rotations back to this key can promote it without re-entering the password.
   const perManagerPath = managerKeystorePath(keyring.address);
   mkdirSync(sailPath("keys", "managers"), { recursive: true });
-  writeJsonFile(perManagerPath, keystore);
+  writeJsonFile(perManagerPath, keystore, 0o600);
 
   say(() =>
     console.log(
@@ -599,10 +599,10 @@ function promoteManagerKeystore(newManager: Address, say: (fn: () => void) => vo
   const displaced = readJsonFile<{ address?: string }>(activeTarget);
   if (displaced?.address) {
     const snapshotPath = managerKeystorePath(displaced.address);
-    if (readJsonFile<unknown>(snapshotPath) === null) writeJsonFile(snapshotPath, displaced);
+    if (readJsonFile<unknown>(snapshotPath) === null) writeJsonFile(snapshotPath, displaced, 0o600);
   } else if (displaced) {
     // No address field — not a recognizable keystore; keep a .bak rather than overwrite.
-    writeJsonFile(`${activeTarget}.${Date.now()}.bak`, displaced);
+    writeJsonFile(`${activeTarget}.${Date.now()}.bak`, displaced, 0o600);
   }
 
   writeJsonFile(activeTarget, stored);
