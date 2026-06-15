@@ -59,20 +59,26 @@ function writeIfMissing(file: string, content: string): void {
   if (!fs.existsSync(file)) fs.writeFileSync(file, content, "utf-8");
 }
 
+const CANONICAL_PKG = "@sail.money/sailor";
+
 /**
- * The running CLI's own version, read from its package manifest (the same source
- * `sailor --version` uses). Scaffolds pin `@sail.money/sailor` to this so the SDK
- * the agent imports via the `@sail.money/sailor/sdk` subpath always matches the
- * CLI that generated the project.
+ * Name and version of the running CLI, read from its package manifest.
+ * When installed from the dev org (@dev.sail.money/sailor) the name differs
+ * from the canonical published name — callers use this to emit an npm alias
+ * so the scaffolded project resolves from the same registry/org the user
+ * already has configured, while keeping the import path canonical.
  */
-function cliVersion(): string {
+function cliPackageInfo(): { name: string; version: string } {
   try {
     const pkg = JSON.parse(
       fs.readFileSync(path.join(packageRoot(), "package.json"), "utf-8"),
-    ) as { version?: string };
-    return pkg.version ?? "0.0.0";
+    ) as { name?: string; version?: string };
+    return {
+      name: pkg.name ?? CANONICAL_PKG,
+      version: pkg.version ?? "0.0.0",
+    };
   } catch {
-    return "0.0.0";
+    return { name: CANONICAL_PKG, version: "0.0.0" };
   }
 }
 
@@ -271,7 +277,13 @@ export async function initCommand(
     >;
     pkg.name = name as never;
     const devDeps = pkg.devDependencies ?? {};
-    devDeps["@sail.money/sailor"] = `^${cliVersion()}`;
+    const { name: cliName, version: cliVer } = cliPackageInfo();
+    // Use npm alias syntax when the installed package comes from a non-canonical
+    // org (e.g. @dev.sail.money/sailor) so the scaffolded project resolves from
+    // the same registry the user already has configured. The dep key stays as the
+    // canonical name so all `@sail.money/sailor/sdk` imports work unchanged.
+    devDeps[CANONICAL_PKG] =
+      cliName === CANONICAL_PKG ? `^${cliVer}` : `npm:${cliName}@^${cliVer}`;
     pkg.devDependencies = devDeps;
     fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
   }
