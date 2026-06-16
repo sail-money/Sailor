@@ -124,7 +124,7 @@ function OnboardingHeader({ onSkip }) {
 }
 
 export default function OnboardingWizard({ onboardState, onComplete, onSkip }) {
-  const { address } = useAccount()
+  const { isConnected, address } = useAccount()
   const [step, setStep] = useState('welcome')
   // Multi-chain: user selects one or more chains; default to Base
   const [selectedChainIds, setSelectedChainIds] = useState([onboardState?.chainId ?? 8453])
@@ -134,12 +134,11 @@ export default function OnboardingWizard({ onboardState, onComplete, onSkip }) {
   const [saltNonce] = useState(() => String(Date.now()))
 
 
-  // Note: we intentionally do NOT auto-advance past the welcome screen when a
-  // wallet is already connected. The welcome screen is where the user chooses
-  // between the three entry paths (start setup / import / connect-to-dashboard);
-  // auto-advancing would force a connected user into the create flow and rob
-  // them of the import choice. Connected users still skip the connect *action*
-  // at the connect step (ConnectStep auto-continues when already connected).
+  // If the wallet is already connected when the user lands on welcome,
+  // advance to network so they can pick their chains — but no further.
+  useEffect(() => {
+    if (step === 'welcome' && isConnected) setStep('network')
+  }, [step, isConnected])
 
   function toggleChain(chainId) {
     setSelectedChainIds(prev =>
@@ -154,12 +153,7 @@ export default function OnboardingWizard({ onboardState, onComplete, onSkip }) {
   return (
     <div className={styles.shell}>
       <SailBackground />
-      {/* The header's connect-and-leave shortcut is one of the three welcome-screen
-          entry points. Once the user has chosen "Start setup" (any step past
-          welcome), the header must NOT navigate away — connecting the wallet is
-          part of the flow and has to keep them in the wizard. So skip is only
-          wired on the welcome step. */}
-      <OnboardingHeader onSkip={step === 'welcome' ? (onSkip ?? onComplete) : undefined} />
+      <OnboardingHeader onSkip={onSkip ?? onComplete} />
       <main className={styles.stage}>
         <div key={step} className={styles.stageInner}>
           {step === 'welcome' && (
@@ -328,17 +322,45 @@ function NetworkStep({ selected, onToggle, onBack, onDone, progressIndex, progre
   )
 }
 
+function ChainLogo({ chainId, color }) {
+  if ([1, 11155111].includes(chainId)) return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden className={styles.networkLogo}>
+      <polygon points="10,2 16.5,10 10,12.5 3.5,10" fill={color}/>
+      <polygon points="10,14 16.5,11 10,18 3.5,11" fill={color} opacity="0.55"/>
+    </svg>
+  )
+  if ([8453, 84532].includes(chainId)) return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden className={styles.networkLogo}>
+      <circle cx="10" cy="10" r="8" fill={color}/>
+      <circle cx="10" cy="10" r="3.5" fill="#04060b"/>
+    </svg>
+  )
+  if ([42161, 421614].includes(chainId)) return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden className={styles.networkLogo}>
+      <path d="M10 2L17.5 17H2.5L10 2Z" fill={color}/>
+      <path d="M10 9L13 16H7L10 9Z" fill="#04060b"/>
+    </svg>
+  )
+  if ([130, 1301].includes(chainId)) return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden className={styles.networkLogo}>
+      <path d="M4 3v9a6 6 0 0012 0V3" stroke={color} strokeWidth="2.5" strokeLinecap="square"/>
+    </svg>
+  )
+  return <span className={styles.networkDot} style={{ background: color }} />
+}
+
 function NetworkCard({ net, selected, onToggle }) {
   const live = LIVE_CHAIN_IDS.has(net.chainId)
+  const netColor = live ? net.color : 'rgba(255,255,255,0.18)'
   return (
     <button
       type="button"
       className={`${styles.networkCard} ${selected ? styles.networkCardSelected : ''} ${!live ? styles.networkCardSoon : ''}`}
       onClick={() => live && onToggle(net.chainId)}
-      style={{ '--net-color': live ? 'var(--accent-blue)' : 'rgba(255,255,255,0.18)' }}
+      style={{ '--net-color': netColor }}
       title={live ? undefined : 'Sail kernel coming soon'}
     >
-      <span className={styles.networkDot} />
+      <ChainLogo chainId={net.chainId} color={live ? net.color : 'rgba(255,255,255,0.25)'} />
       <span className={styles.networkName}>{net.name}</span>
       <span className={styles.networkDesc}>{live ? net.description : 'Coming soon'}</span>
       {live && (
@@ -442,7 +464,7 @@ function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTo
             {loading ? 'Generating…' : 'Generate key'}
           </SailButton>
           <p className={styles.fineprint}>
-            If set, it's saved to <code>.sail/.env.local</code> (mode 0600) so your agent can unlock the key unattended.
+            If set, save this passphrase — your agent needs it as <code>SAIL_PASSPHRASE</code>.
           </p>
         </>
       ) : (
@@ -461,11 +483,8 @@ function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTo
           </div>
           {passphrase && (
             <div className={styles.passphraseReminder}>
-              <span style={{ opacity: 0.6, fontSize: 12 }}>
-                Saved locally to <code>.sail/.env.local</code> (0600, gitignored). For CI, add this same
-                value as the <code>SAIL_PASSPHRASE</code> GitHub Actions secret — don't commit{' '}
-                <code>.env.local</code>.
-              </span>
+              <span style={{ opacity: 0.6, fontSize: 12 }}>Remember:</span>{' '}
+              <code style={{ fontSize: 12 }}>SAIL_PASSPHRASE=&quot;{passphrase}&quot;</code>
             </div>
           )}
           <SailButton fullWidth onClick={() => onDone(generated)}>Continue →</SailButton>
@@ -662,7 +681,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
           const err = errors[chainId]
           return (
             <div key={chainId} className={styles.chainDeployRow}>
-              <span className={styles.chainDeployDot} style={{ '--net-color': 'var(--accent-blue)' }} />
+              <span className={styles.chainDeployDot} style={{ '--net-color': '#1990FF' }} />
               <span className={styles.chainDeployName}>{net?.name ?? `Chain ${chainId}`}</span>
               <span className={`${styles.chainDeployStatus} ${styles[`chainStatus_${status}`]}`}>
                 {status === 'pending' && '—'}
