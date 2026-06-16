@@ -61,7 +61,7 @@ The path from nothing to a running agent follows the protocol lifecycle:
 1. **Deploy your SMA** — `sailor onboard --new-sma` creates the SMA on-chain. `sailor account predict` computes the deterministic address in advance. The same owner, permission signer, manager, and salt produce the same SMA address on every supported chain.
 2. **Author your permissions** — describe what the agent may do. Permission contracts encode the bounds: tokens, amounts, venues, call targets. Author them in the scaffolded Foundry workspace.
 3. **Simulate, deploy, and sign your mandate** — `sailor mandate simulate` probes a permission off-chain before authorizing it. `sailor mandate deploy --attach` deploys and registers it on-chain. `sailor mandate sign` builds and signs the registration payload against live on-chain state.
-4. **Run** — `sailor run` executes the agent locally on a schedule, or via the GitHub Actions workflow the scaffold provides.
+4. **Run** — `sailor run` executes the agent loop. Three execution hosts compose: run it locally on a schedule, install it as a local OS service (`sailor service install` — launchd/systemd/Task Scheduler) that restarts on crash, or let the GitHub Actions cron workflow the scaffold provides run it. `sailor trigger github` fires that workflow on demand.
 5. **Operate** — `sailor doctor` checks kernel health and gas balances; `sailor chains` lists supported chains and deployment addresses; `sailor session pause` instantly revokes dispatch rights without touching Safe custody.
 
 Run `npx sailor init my-agent`, open the scaffolded folder in Claude Code, Cursor, or any AI coding assistant, and say **"start"**.
@@ -149,6 +149,12 @@ sailor mandate attach      # register an already-deployed permission on an SMA
 sailor run --once          # single tick — confirm it works before automating
 sailor run                 # start the agent (continuous)
 sailor keys export-ci      # copy encrypted agent wallet to ci-keystore.json for CI
+
+# Unattended execution
+sailor service install     # run as a local OS daemon (launchd/systemd/Task Scheduler), restarts on crash
+sailor service status      # whether the service is installed and running
+sailor service logs -f     # follow the agent log (.sail/agent.log)
+sailor trigger github      # fire the agent's GitHub Actions workflow on demand
 
 # Dashboard
 sailor ui start            # prints the per-project dashboard URL
@@ -326,8 +332,8 @@ Published to the public npm registry under the `@sail.money` scope.
 
 | Trigger | Package | Version | dist-tag |
 |---|---|---|---|
-| Tag push (`v*`) | `@sail.money/sailor` | `1.1.0` | `latest` |
-| Manual dispatch | `@dev.sail.money/sailor` | `1.1.0-42` | `dev` |
+| Tag push (`v*`) | `@sail.money/sailor` | `1.2.0` | `latest` |
+| Manual dispatch | `@dev.sail.money/sailor` | `1.2.0-42` | `dev` |
 
 ```bash
 npm install @sail.money/sailor                # latest stable (tag push)
@@ -387,7 +393,7 @@ Either way, `@sail.money/sailor/sdk` imports work unchanged.
 
 ## State of the project
 
-Sailor is functional and published as [`@sail.money/sailor`](https://www.npmjs.com/package/@sail.money/sailor) on npm (v1.1.0). The SDK, CLI, keystore, mandate flows, agent runner, and dashboard are implemented and have been exercised end to end.
+Sailor is functional and published as [`@sail.money/sailor`](https://www.npmjs.com/package/@sail.money/sailor) on npm (v1.2.0). The SDK, CLI, keystore, mandate flows, agent runner, and dashboard are implemented and have been exercised end to end.
 
 The Sail Protocol trusted core is deployed on six chains — Ethereum, Base, Arbitrum, Unichain, Base Sepolia, and Eth Sepolia — via CREATE2, with every core contract at the same address on every chain. All six run the selective dispatch model with zero fees and are bootstrapped with a genesis allowlist so `createAccount` is usable immediately. These deployments are under an ongoing external audit by [Octane Security](https://octane.security) and are not final — do not use them with funds you are not prepared to lose.
 
