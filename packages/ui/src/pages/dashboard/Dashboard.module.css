@@ -4084,7 +4084,7 @@
   display: flex;
   flex-direction: column;
   padding: 22px 24px 18px;
-  border-radius: 3px;
+  border-radius: 2px;
   /* Sail terminal-panel surface — matches the wallet cards (.signerCard). */
   border: 1px solid rgba(255, 255, 255, 0.14);
   background:

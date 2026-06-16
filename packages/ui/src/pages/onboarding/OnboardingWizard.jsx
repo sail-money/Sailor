@@ -349,7 +349,7 @@ function NetworkCard({ net, selected, onToggle }) {
       title={live ? undefined : 'Sail kernel coming soon'}
     >
       <span className={styles.networkLogo}>
-        <ChainGlyph chainId={net.chainId} size={20} color={live ? net.color : 'rgba(255,255,255,0.25)'} />
+        <ChainGlyph chainId={net.chainId} size={20} color={live ? undefined : 'rgba(255,255,255,0.25)'} />
       </span>
       <span className={styles.networkName}>{net.name}</span>
       <span className={styles.networkDesc}>{live ? net.description : 'Coming soon'}</span>
