@@ -3,7 +3,7 @@ import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { encodeFunctionData, getAddress } from 'viem'
 import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi'
 import { sailDeployments } from '@sail/sdk/deployments'
-import { GlassCard, Sai, SailButton } from '../shared'
+import { ChainGlyph, GlassCard, Sai, SailButton } from '../shared'
 import SailBackground from '../shared/SailBackground'
 import shared from '../shared/shared.module.css'
 import styles from './OnboardingWizard.module.css'
@@ -328,6 +328,16 @@ function NetworkStep({ selected, onToggle, onBack, onDone, progressIndex, progre
   )
 }
 
+// Sharp, square-capped check — the "precise · dark · electric" selection mark,
+// a deliberate replacement for the soft Unicode tick.
+function BrandCheck() {
+  return (
+    <svg viewBox="0 0 14 14" width="9" height="9" fill="none" aria-hidden>
+      <path d="M2.5 7.4 L5.7 10.5 L11.5 3.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="square" strokeLinejoin="miter" />
+    </svg>
+  )
+}
+
 function NetworkCard({ net, selected, onToggle }) {
   const live = LIVE_CHAIN_IDS.has(net.chainId)
   return (
@@ -335,15 +345,17 @@ function NetworkCard({ net, selected, onToggle }) {
       type="button"
       className={`${styles.networkCard} ${selected ? styles.networkCardSelected : ''} ${!live ? styles.networkCardSoon : ''}`}
       onClick={() => live && onToggle(net.chainId)}
-      style={{ '--net-color': live ? 'var(--accent-blue)' : 'rgba(255,255,255,0.18)' }}
+      style={{ '--net-color': live ? net.color : 'rgba(255,255,255,0.18)' }}
       title={live ? undefined : 'Sail kernel coming soon'}
     >
-      <span className={styles.networkDot} />
+      <span className={styles.networkLogo}>
+        <ChainGlyph chainId={net.chainId} size={20} color={live ? undefined : 'rgba(255,255,255,0.25)'} />
+      </span>
       <span className={styles.networkName}>{net.name}</span>
       <span className={styles.networkDesc}>{live ? net.description : 'Coming soon'}</span>
       {live && (
         <span className={`${styles.networkCheck} ${selected ? styles.networkCheckOn : ''}`}>
-          {selected ? '✓' : ''}
+          {selected && <BrandCheck />}
         </span>
       )}
     </button>

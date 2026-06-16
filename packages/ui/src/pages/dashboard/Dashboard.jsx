@@ -4,6 +4,7 @@ import { MandateSigningFlow } from '../signing/Signing'
 import { ConnectButton, useConnectModal } from '@rainbow-me/rainbowkit'
 import { useAccount, useDisconnect } from 'wagmi'
 import {
+  ChainGlyph,
   MandateStatus,
   Sai,
   SailButton,
@@ -286,7 +287,10 @@ function ChainSection({ chainOverview, liveMandates, sma, onNewMandate, onAddSig
   return (
     <div className={styles.chainSection}>
       <div className={styles.chainSectionHeader}>
-        <span className={styles.chainSectionBadge}>{chainName}</span>
+        <span className={styles.chainSectionBadge}>
+          <ChainGlyph chainId={chainId} size={14} />
+          {chainName}
+        </span>
         {chainOverview.onchainError && (
           <span className={styles.chainSectionMeta}>RPC unavailable</span>
         )}
@@ -1525,10 +1529,13 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                 {overview?.sma && (
                   <div className={styles.smaBadges}>
                     {(deployedChains.length > 0
-                      ? deployedChains.map((id) => CHAIN_NAMES[id]).filter(Boolean)
-                      : overview.network ? [overview.network] : []
-                    ).map((n) => (
-                      <span key={n} className={styles.smaBadge}>{n}</span>
+                      ? deployedChains.map((id) => ({ id, name: CHAIN_NAMES[id] })).filter((c) => c.name)
+                      : overview.network ? [{ id: overview.chainId, name: overview.network }] : []
+                    ).map((c) => (
+                      <span key={c.name} className={styles.smaBadge}>
+                        {c.id != null && <ChainGlyph chainId={c.id} size={13} />}
+                        {c.name}
+                      </span>
                     ))}
                     <MandateStatus status={agentRunning ? 'active' : 'paused'} kind="agent" />
                     {agentSource && (

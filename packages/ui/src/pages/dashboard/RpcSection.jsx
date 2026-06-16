@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import styles from './RpcSection.module.css'
-import { InfoTip } from '../shared'
+import { ChainGlyph, InfoTip } from '../shared'
 import { getOnboardState, saveConfig } from '../../data/sailorClient'
 
 const RPC_TIP = "An RPC is the connection your dashboard uses to read the blockchain and broadcast transactions — like a phone line to the network. Sail talks to the chain directly through it; there's no Sail server in between. A free Alchemy/Infura key (or a public endpoint) works."
@@ -130,6 +130,7 @@ function ChainRow({ chainId, rpcUrl, isActive, onSaved }) {
       <div className={styles.chainCardHead}>
         <div className={styles.chainMeta}>
           <span className={styles.chainName}>
+            <ChainGlyph chainId={chainId} size={16} />
             {chain?.name ?? `Chain ${chainId}`}
             {chain?.kind === 'testnet' && <span className={styles.chainTag}>testnet</span>}
             {isActive && <span className={styles.chainTagActive}>active</span>}
