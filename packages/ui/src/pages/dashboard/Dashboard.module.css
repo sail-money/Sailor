@@ -4372,16 +4372,31 @@
   gap: 8px;
 }
 .mandateRow {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 14px;
   padding: 14px 16px;
   border-radius: 2px;
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg);
-  transition: border-color 0.18s ease, background 0.18s ease;
+  /* Sail terminal-panel surface — matches the wallet/mandate cards. Lighter
+     shadow than .signerCard since these stack as a dense list. */
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background:
+    radial-gradient(120% 60% at 50% 0%, rgba(25, 144, 255, 0.06), transparent 55%),
+    #04060b;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.016);
+  transition: border-color 0.18s ease;
 }
 .mandateRow:hover { border-color: var(--glass-border-strong); }
+/* faint CRT scanlines, matching the other cards */
+.mandateRow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.016) 0 1px, transparent 1px 4px);
+}
 .mandateRowUnknown { opacity: 0.85; }
 .mandateRowIcon {
   display: inline-flex;
