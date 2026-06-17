@@ -557,8 +557,8 @@ export async function attachMandate(
   // Compute the registration fee ONCE — the single source of truth shared by the
   // disclosure, the balance preflight, the tx `value`, and the activity log, so
   // every number is provably the same as what the kernel charges.
-  // estimateMandateRegistrationFee sums estimatePermissionFee (the exact tx
-  // value) per permission and works on both the legacy and flat-fee governance.
+  // estimateMandateRegistrationFee reads the flat permissionRegistrationFee and
+  // applies it per permission (fee × N) — exactly the kernel's charge.
   const feeEstimate = await estimateMandateRegistrationFee(
     publicClient,
     project.contracts.governance,

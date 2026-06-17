@@ -78,8 +78,8 @@ export {
   assertFeeAffordable,
   describeMandateFee,
   estimateMandateRegistrationFee,
-  estimatePermissionFee,
   feeShortfall,
+  readPermissionRegistrationFee,
 } from "./fees.js";
 export type { MandateFeeEstimate, PermissionFee } from "./fees.js";
 export type { FetchLifiQuoteParams, LifiSwapQuote } from "./lifi.js";

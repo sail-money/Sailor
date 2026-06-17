@@ -11,9 +11,9 @@ export type RegistrationGate = {
 };
 
 /**
- * Build the pre-sign registration gate from a mandate fee ESTIMATE — the same
- * per-permission `estimatePermissionFee` sum that is sent as the tx `value`, so
- * the disclosed/preflighted/charged/recorded numbers are provably identical.
+ * Build the pre-sign registration gate from a mandate fee ESTIMATE — the flat
+ * `permissionRegistrationFee × N` that is sent as the tx `value`, so the
+ * disclosed/preflighted/charged/recorded numbers are provably identical.
  *
  * When `agentBalanceWei` is provided this preflights the signer's balance and
  * THROWS a typed `RegistrationFeeError` (from `assertFeeAffordable`) before any

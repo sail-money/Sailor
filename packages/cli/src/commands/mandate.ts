@@ -35,16 +35,16 @@ type TrackedPermission = {
 };
 
 /**
- * The registration fee disclosed at sign time, estimated live at prepare time
- * from the SAME per-permission charge the kernel applies (sum of
- * estimatePermissionFee). Covers only the not-yet-registered permissions — the
- * ones that will actually be charged on sign. Optional: omitted when the fee
- * can't be estimated (no RPC) or when there is nothing new to register.
+ * The registration fee disclosed at sign time, read live at prepare time from
+ * the SAME flat charge the kernel applies (permissionRegistrationFee × N).
+ * Covers only the not-yet-registered permissions — the ones that will actually
+ * be charged on sign. Optional: omitted when the fee can't be read (no RPC) or
+ * when there is nothing new to register.
  */
 type DraftRegistrationFee = {
-  /** Per-permission fee (wei) when uniform across permissions; omitted otherwise. */
+  /** Flat per-permission fee (wei); the kernel charges this for each permission. */
   perPermissionWei?: string;
-  /** Per-permission fee in ETH when uniform; omitted otherwise. */
+  /** Flat per-permission fee in ETH. */
   perPermissionEth?: string;
   /** Total fee (wei) for this mandate = sum of the per-permission charges. */
   totalWei: string;
@@ -79,11 +79,11 @@ type MandateDraft = {
 };
 
 /**
- * Estimate the live mandate registration fee for `permissionAddresses` on
- * `chainId` — the SUM of the exact per-permission charge (estimatePermissionFee,
- * the same value sent as the tx value). Returns null when it can't be estimated
- * (no RPC) so callers degrade gracefully instead of breaking. Pass only the
- * not-yet-registered permissions, since those are the ones actually charged.
+ * Read the live mandate registration fee for `permissionAddresses` on `chainId`
+ * — the flat permissionRegistrationFee × N, the same value sent as the tx value.
+ * Returns null when it can't be read (no RPC) so callers degrade gracefully
+ * instead of breaking. Pass only the not-yet-registered permissions, since those
+ * are the ones actually charged.
  */
 async function liveMandateFee(
   chainId: number,
@@ -104,15 +104,13 @@ async function liveMandateFee(
   }
 }
 
-/** Build the draft fee block from an estimate, with the uniform per-permission
- *  rate filled in only when every permission is charged the same amount. */
+/** Build the draft fee block from a flat estimate. Every permission is charged
+ *  the same flat fee, so the per-permission rate is always included. */
 function draftFeeFromEstimate(estimate: MandateFeeEstimate): DraftRegistrationFee {
-  const fees = estimate.perPermission.map((p) => p.feeWei);
-  const uniform = fees.length > 0 && fees.every((f) => f === fees[0]);
+  const perFeeWei = estimate.perPermission[0]?.feeWei ?? 0n;
   return {
-    ...(uniform
-      ? { perPermissionWei: fees[0].toString(), perPermissionEth: formatEther(fees[0]) }
-      : {}),
+    perPermissionWei: perFeeWei.toString(),
+    perPermissionEth: formatEther(perFeeWei),
     totalWei: estimate.totalWei.toString(),
     totalEth: formatEther(estimate.totalWei),
     permissionCount: estimate.perPermission.length,
@@ -327,8 +325,8 @@ export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
 
   // Disclose the registration fee BEFORE the user confirms. Only the
   // not-yet-registered permissions incur a fee now (already-registered ones were
-  // paid for when they were first registered) — the same set and the same
-  // per-permission charge (estimatePermissionFee) the attach tx will send.
+  // paid for when they were first registered) — the same set and the same flat
+  // per-permission charge (permissionRegistrationFee) the attach tx will send.
   // Best-effort, so a missing fee never blocks confirmation.
   if (unregistered.length > 0) {
     const estimate = await liveMandateFee(chainId, unregistered.map((p) => p.address));

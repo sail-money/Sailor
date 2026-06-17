@@ -22,7 +22,7 @@ import {
   SailKernelAbi,
   buildRegisterPermissionTypedData,
   detectKernelCapabilities,
-  estimatePermissionFee,
+  readPermissionRegistrationFee,
   getSailDeployment,
   sailKernelDomain,
 } from "@sail/sdk";
@@ -618,8 +618,9 @@ async function runDeployClone(
     if ((err as Error).message.startsWith("Security:")) throw err;
   }
 
-  // Fee charged by the kernel on registration (0 on zero-fee chains like Unichain).
-  const fee = await estimatePermissionFee(publicClient, project.contracts.governance, clone);
+  // Flat fee charged by the kernel on registration (0 on zero-fee chains like
+  // Unichain). One permission registered here → a single flat fee.
+  const fee = await readPermissionRegistrationFee(publicClient, project.contracts.governance);
 
   // The selective kernel's registerPermission takes a deadline; deployAndAttach
   // forwards whatever deadline the owner signed over. Conjunctive kernels (no

@@ -50,15 +50,9 @@ test("registrationGate: rejects via a TYPED error BEFORE signing when underfunde
   assert.equal(caught.requiredWei, 30_000_000_000_000n);
 });
 
-test("registrationGate: disclosure reflects DIFFERING per-permission fees", () => {
-  const estimate: MandateFeeEstimate = {
-    totalWei: 2022n,
-    perPermission: [
-      { permission: A, feeWei: 1002n },
-      { permission: B, feeWei: 1020n },
-    ],
-  };
-  const gate = registrationGate({ estimate });
-  assert.equal(gate.totalFeeWei, 2022n);
-  assert.equal(gate.disclosure, "Registration fee: 0.000000000000002022 ETH for 2 permissions");
+test("registrationGate: discloses the flat fee × N total", () => {
+  // Flat model: every permission is charged the same governance scalar.
+  const gate = registrationGate({ estimate: uniformEstimate(2) });
+  assert.equal(gate.totalFeeWei, 20_000_000_000_000n);
+  assert.equal(gate.disclosure, "Registration fee: 0.00002 ETH (2 permissions × 0.00001 ETH)");
 });
