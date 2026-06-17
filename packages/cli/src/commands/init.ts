@@ -3,33 +3,8 @@ import path from "node:path";
 import { chains } from "@sail/sdk";
 import { scaffoldFoundryWorkspace } from "../lib/foundry.js";
 import { packageRoot } from "../lib/packagePaths.js";
-
-const TEMPLATE_COPY_EXCLUDES = new Set([
-  "node_modules",
-  "dist",
-  "out",
-  "cache",
-  "broadcast",
-  ".git",
-]);
-
-function copyDirSync(src: string, dest: string): void {
-  fs.mkdirSync(dest, { recursive: true });
-  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
-    if (TEMPLATE_COPY_EXCLUDES.has(entry.name)) continue;
-    const srcPath = path.join(src, entry.name);
-    // Underscore-prefixed → dot-prefixed: npm strips dot-files (.gitignore,
-    // .env.local) from package tarballs even inside `files`-listed directories.
-    // Templates ship them as _gitignore / _env.local; restore the real name here.
-    const destName = entry.name.startsWith("_") ? `.${entry.name.slice(1)}` : entry.name;
-    const destPath = path.join(dest, destName);
-    if (entry.isDirectory()) {
-      copyDirSync(srcPath, destPath);
-    } else {
-      fs.copyFileSync(srcPath, destPath);
-    }
-  }
-}
+import { copyDirSync, writeIfMissing } from "../lib/template.js";
+import { updateCommand } from "./update.js";
 
 type InitOptions = {
   chain?: string;
@@ -54,10 +29,6 @@ This folder is the local workspace for one Sailor agent deployment.
 AI coding agents should read the project's \`AGENTS.md\` and this folder's \`config.json\`
 before changing strategy code or running commands that touch funds.
 `;
-
-function writeIfMissing(file: string, content: string): void {
-  if (!fs.existsSync(file)) fs.writeFileSync(file, content, "utf-8");
-}
 
 const CANONICAL_PKG = "@sail.money/sailor";
 const DEV_PKG = "@dev.sail.money/sailor";
@@ -231,7 +202,8 @@ export async function initCommand(
   }
 
   if (inPlace && fs.existsSync(path.join(dest, ".sail", "config.json"))) {
-    throw new Error(`Already initialized — .sail/config.json exists`);
+    await updateCommand();
+    return;
   }
 
   copyDirSync(templateSrc, dest);
