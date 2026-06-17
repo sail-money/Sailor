@@ -4,6 +4,7 @@ import { FluidBackground, GlassCard, Sai, SailButton } from '../shared'
 import PageHeader from '../shared/PageHeader'
 import shared from '../shared/shared.module.css'
 import styles from './RewardsPage.module.css'
+import RewardMessages from './RewardMessagesPanel'
 import { useSailorAccounts, useSailorAccount } from '../../hooks/useSailorData'
 import {
   ERC20_REWARDS_ABI,
@@ -122,6 +123,7 @@ export default function RewardsPage() {
       <main className={styles.main}>
         {!firstSma ? <NoSmaState /> : (
           <div className={styles.grid}>
+            <RewardMessages weeks={weeks} decimals={balance?.decimals} symbol={balance?.symbol} />
             <BalanceCard configured={configured} balance={balance} />
             <WeeklyCard loading={loading} weeks={weeks} balance={balance} configured={configured} />
             <AboutCard />
