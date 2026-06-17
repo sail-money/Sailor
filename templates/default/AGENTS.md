@@ -1,5 +1,7 @@
 This guide is for agents operating a scaffolded Sailor project. (Contributors to the Sailor codebase: see AGENTS.md at the monorepo root.)
 
+> **This is a standalone project, not a clone of the Sailor repo.** `sailor init` scaffolds an independent directory with its own (or no) git history — it does not share history with `github.com/sail-money/Sailor`. Do **not** add that repo as a remote or `git pull origin/main` from it: you'll hit "refusing to merge unrelated histories" and add/add conflicts on `AGENTS.md`, `README.md`, `package.json`, `.gitignore`, and `docs/`. To update the tooling, bump the `@sail.money/sailor` dependency (`npm i @sail.money/sailor@latest`), not by pulling the source repo.
+
 ---
 
 Sail Protocol is infrastructure for onchain Separately Managed Accounts run by AI agents. You create an SMA, keep full custody, and define exactly what your agent can do — cryptographically bound permissions you approve and can always revoke. The agent executes within those bounds on every transaction. It cannot exceed them.

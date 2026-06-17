@@ -12,7 +12,7 @@ import { capabilities } from "./commands/capabilities.js";
 import { type ChainsOptions, chainsCommand } from "./commands/chains.js";
 import { doctor } from "./commands/doctor.js";
 import { initCommand } from "./commands/init.js";
-import { keysExportCi, keysGenerate, keysShow } from "./commands/keys.js";
+import { type KeysGenerateOptions, keysExportCi, keysGenerate, keysShow } from "./commands/keys.js";
 import {
   type AttachOptions,
   type DeployCloneOptions,
@@ -108,10 +108,11 @@ program
   .option("--template <name>", "Template to scaffold from (default: default)")
   .option("--chain <id>", "Default EVM chain id written to .sail/config.json and .env.example")
   .option("--rpc-url <url>", "Default RPC_URL written to .sail/.env.local")
+  .option("--force", "Re-initialize even if already initialized (overwrites scaffold files; keys/ and state/ are preserved)")
   .action(
     async (
       name: string | undefined,
-      opts: { template?: string; chain?: string; rpcUrl?: string },
+      opts: { template?: string; chain?: string; rpcUrl?: string; force?: boolean },
     ) => {
       try {
         await initCommand(name, opts);
@@ -138,7 +139,10 @@ const keys = program.command("keys").description("Manage local signing keys");
 keys
   .command("generate")
   .description("Generate and encrypt an agent wallet or mandate signer key")
-  .action(action(keysGenerate));
+  .option("--type <role>", "Key role: agent-wallet (manager) or mandate-signer (non-interactive)")
+  .option("--passphrase <value>", "Encryption passphrase (else SAIL_PASSPHRASE, else stdin, else prompt)")
+  .option("--force", "Overwrite an existing key without prompting")
+  .action(actionWith<KeysGenerateOptions>(keysGenerate));
 keys.command("show").description("Show the address of each stored key").action(action(keysShow));
 keys
   .command("export-ci")

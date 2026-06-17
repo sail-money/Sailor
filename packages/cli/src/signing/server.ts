@@ -12,8 +12,10 @@ import type {
   SigningTxRequest,
   SigningTypedDataRequest,
 } from "@sail/sdk";
-import type { Address, Hex } from "viem";
+import { SailKernelAbi, getSailDeployment } from "@sail/sdk";
+import { type Address, type Hex, createPublicClient, getAddress, http, isAddress } from "viem";
 import { WebSocket, WebSocketServer } from "ws";
+import { getRpcUrl } from "../lib/chain.js";
 import { appendActivity, nowIso } from "../lib/io.js";
 import { type StoredAccount, upsertAccountInList } from "../lib/state.js";
 
@@ -391,9 +393,43 @@ export class SigningServer {
    * from the previously-active account.json, so writing it first would drop the
    * prior SMA.
    */
+  /**
+   * Read the SMA's true permissionSigner + manager from the kernel, so a saved
+   * account never records the owner as a placeholder manager (which desyncs
+   * account.json from chain). Returns null if unregistered or the RPC read fails.
+   */
+  private async readKernelSigners(
+    safe: string,
+    chainId: number,
+  ): Promise<{ permissionSigner: Address; manager: Address } | null> {
+    try {
+      if (!isAddress(safe)) return null;
+      const rpcUrl = getRpcUrl(chainId);
+      const kernel = getSailDeployment(chainId)?.kernel;
+      if (!rpcUrl || !kernel) return null;
+      const client = createPublicClient({ transport: http(rpcUrl) });
+      const registered = await client.readContract({
+        address: kernel as Address,
+        abi: SailKernelAbi,
+        functionName: "registered",
+        args: [getAddress(safe)],
+      });
+      if (!registered) return null;
+      const configs = (await client.readContract({
+        address: kernel as Address,
+        abi: SailKernelAbi,
+        functionName: "configs",
+        args: [getAddress(safe)],
+      })) as [Address, Address, Address, boolean];
+      return { permissionSigner: getAddress(configs[0]), manager: getAddress(configs[1]) };
+    } catch {
+      return null;
+    }
+  }
+
   private handleSaveAccount(req: IncomingMessage, res: ServerResponse): void {
     this.readBody(req)
-      .then((body) => {
+      .then(async (body) => {
         const parsed = (body ? JSON.parse(body) : {}) as Partial<StoredAccount>;
         const { safe, owner, permissionSigner, manager, chainId, createdAtBlock } = parsed;
         if (!safe || !owner || !chainId) {
@@ -401,11 +437,13 @@ export class SigningServer {
           res.end(JSON.stringify({ error: "safe, owner, and chainId are required" }));
           return;
         }
+        // Prefer the kernel's true signer/manager over the owner placeholder.
+        const onchain = await this.readKernelSigners(safe, chainId);
         const record: StoredAccount = {
           safe,
           owner,
-          permissionSigner: permissionSigner ?? owner,
-          manager: manager ?? owner,
+          permissionSigner: onchain?.permissionSigner ?? permissionSigner ?? owner,
+          manager: onchain?.manager ?? manager ?? owner,
           chainId,
           createdAtBlock: createdAtBlock ?? "0",
         };
