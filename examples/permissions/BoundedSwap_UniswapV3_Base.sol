@@ -13,7 +13,6 @@ pragma solidity 0.8.26;
 //     • tokenIn  must equal FIXED_TOKEN_IN
 //     • tokenOut must be in ALLOWED_TOKENS_OUT
 //     • amountIn ≤ MAX_AMOUNT_IN
-//     • amountOutMinimum ≥ amountIn × MIN_BPS / 10 000  (slippage floor — see caveat below)
 //   approve(address,uint256)  selector 0x095ea7b3
 //     • target must be FIXED_TOKEN_IN (the ERC-20 being approved)
 //     • spender must be SWAP_ROUTER
@@ -22,15 +21,24 @@ pragma solidity 0.8.26;
 // AGENT-ENFORCED / NOT BOUNDED HERE (off-chain — can change without redeploying this contract):
 //   • fee tier, sqrtPriceLimitX96, recipient address
 //   • swap frequency / cadence
-//   • real (cross-denomination) slippage — see MIN_BPS caveat in evaluate()
+//   • slippage — see the note below
+//
+// SLIPPAGE IS NOT BOUNDED ON-CHAIN HERE — AND CANNOT BE, without a price oracle:
+//   `amountOutMinimum` (output token) and `amountIn` (input token) are denominated in DIFFERENT
+//   tokens. Comparing them as a ratio — the pattern an earlier version of this example shipped —
+//   is meaningless for any pair whose tokens differ in price or decimals (e.g. USDC→WETH): the
+//   check is either trivially satisfied or trivially failed, giving false confidence while
+//   protecting nothing. So this permission deliberately does NOT constrain `amountOutMinimum`.
+//   Real slippage protection must be computed OFF-CHAIN from a live quote (e.g. the Quoter or a
+//   price feed) and passed in as `amountOutMinimum` on each swap — the router reverts if the
+//   output falls below it. Your agent owns choosing a tight, fresh value per call; this contract
+//   only caps the input spend (MAX_AMOUNT_IN).
 //
 // VERIFY BEFORE USE:
 //   • Confirm SwapRouter02 address on your chain (Base default shown above; verified on Basescan).
 //   • Selector 0x04e45aaf = exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))
 //     on SwapRouter02 (verified via `cast sig`). The OLDER SwapRouter's exactInputSingle (the
 //     deadline variant) is 0x414bf389 — a different selector; do not confuse the two.
-//   • Confirm that amountOutMinimum slippage floor fits your price-impact expectations for the
-//     chosen pool. Large amountIn values may trigger price impact beyond MIN_BPS.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {IPermission, Context} from "@sail/interfaces/IPermission.sol";
@@ -42,8 +50,6 @@ contract BoundedSwap_UniswapV3_Base is IPermission {
     address public immutable FIXED_TOKEN_IN;
     mapping(address => bool) public isAllowedTokenOut;
     uint256 public immutable MAX_AMOUNT_IN;
-    /// @dev Slippage floor in basis points. 9 900 = allow at most 1% slippage.
-    uint256 public immutable MIN_BPS;
 
     bytes4 private constant SEL_EXACT_INPUT_SINGLE = 0x04e45aaf;
     bytes4 private constant SEL_APPROVE            = 0x095ea7b3;
@@ -62,21 +68,18 @@ contract BoundedSwap_UniswapV3_Base is IPermission {
     /// @param fixedTokenIn    The one token the agent is allowed to sell
     /// @param allowedTokensOut  Tokens the agent may receive
     /// @param maxAmountIn     Per-call spend cap in fixedTokenIn base units
-    /// @param minBps          Minimum amountOutMinimum as fraction of amountIn ×10 000
-    ///                        e.g. 9900 → require amountOutMinimum ≥ 99% of amountIn
-    ///                        (denominated in fixedTokenIn units, not USD — set per your pair)
+    /// @dev No slippage parameter: slippage cannot be bounded on-chain without a price oracle
+    ///      (see the header note). Pass a tight `amountOutMinimum`, computed off-chain from a
+    ///      live quote, on each swap — the router enforces it by reverting.
     constructor(
         address swapRouter,
         address fixedTokenIn,
         address[] memory allowedTokensOut,
-        uint256 maxAmountIn,
-        uint256 minBps
+        uint256 maxAmountIn
     ) {
-        require(minBps <= 10_000, "minBps > 10000");
         SWAP_ROUTER    = swapRouter;
         FIXED_TOKEN_IN = fixedTokenIn;
         MAX_AMOUNT_IN  = maxAmountIn;
-        MIN_BPS        = minBps;
         for (uint256 i = 0; i < allowedTokensOut.length; i++) {
             isAllowedTokenOut[allowedTokensOut[i]] = true;
         }
@@ -92,11 +95,10 @@ contract BoundedSwap_UniswapV3_Base is IPermission {
             if (p.tokenIn != FIXED_TOKEN_IN)         return false;
             if (!isAllowedTokenOut[p.tokenOut])      return false;
             if (p.amountIn > MAX_AMOUNT_IN)          return false;
-            // Slippage floor: amountOutMinimum ≥ amountIn × MIN_BPS / 10 000.
-            // WARNING: compares tokenOut against tokenIn base units. For same-price/same-decimal
-            // pairs this maps to a slippage %. For cross-price pairs (e.g. USDC→WETH) it is
-            // trivially satisfied — real slippage is enforced by the agent off-chain, not here.
-            if (p.amountOutMinimum < (p.amountIn * MIN_BPS) / 10_000) return false;
+            // amountOutMinimum is intentionally NOT checked here — it is denominated in the
+            // output token, so a ratio against amountIn (input token) bounds nothing real for a
+            // cross-price pair (see header). The router enforces the off-chain-computed
+            // amountOutMinimum the agent passes in.
             return true;
         }
 
