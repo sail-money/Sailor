@@ -27,12 +27,14 @@ import type { StoredAccount } from "../lib/state.js";
 // "Low gas" is chain-relative: an L1 dispatch can cost 100× an L2 one, so a
 // balance that is comfortable on Base would be near-empty on Ethereum. A single
 // flat threshold over-warns on L2 (a fraction of a cent of gas trips it) — so
-// gate on the chain's class. Mainnets that bill L1-style gas get the high bar;
-// L2s and testnets get a much lower one.
+// gate on how the chain prices gas, not on mainnet-vs-testnet. Chains that bill
+// L1-style gas get the high bar (including Ethereum Sepolia, an L1 testnet);
+// L2s — mainnet and testnet alike (Base, Base Sepolia, Arbitrum, Unichain) —
+// get a much lower one.
 const LOW_GAS_THRESHOLD_L1_WEI = 5_000_000_000_000_000n; // ~0.005 ETH — a few L1 dispatches
 const LOW_GAS_THRESHOLD_L2_WEI = 200_000_000_000_000n; //  ~0.0002 ETH — many L2 dispatches
 
-/** Chains that price gas like Ethereum L1; everything else is treated as an L2. */
+/** Chains that price gas like Ethereum L1 (mainnet + Sepolia); everything else is an L2. */
 const L1_GAS_CHAINS = new Set<number>([1, 11155111]);
 
 function lowGasThresholdWei(chainId: number): bigint {

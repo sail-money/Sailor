@@ -156,18 +156,15 @@ function fail(err: unknown, json = false): never {
 /**
  * Tell the operator where to approve the request — BEFORE the long blocking wait
  * on the signature. In human mode this prints the dashboard station URL. In
- * --json mode it emits a single `waiting_for_signature` record and flushes stdout
- * immediately: scripted/redirected callers otherwise never see the URL, because
- * stdout is block-buffered when piped and the process then blocks for minutes
- * inside requestSignature(). Emitting + flushing up front guarantees it lands.
+ * --json mode it emits a single `waiting_for_signature` record up front. The
+ * write happens before requestSignature() is awaited, so stdout drains as the
+ * event loop yields into the wait — scripted/redirected callers see the URL
+ * instead of nothing while the command blocks for minutes.
  */
 function announceSigningUrl(json: boolean): void {
   const url = signingPageUrl(undefined, projectPort(process.cwd()));
   if (json) {
     process.stdout.write(`${JSON.stringify({ status: "waiting_for_signature", url })}\n`);
-    // Best-effort flush so the line is visible before the blocking signature wait.
-    const anyStdout = process.stdout as unknown as { _flush?: () => void };
-    anyStdout._flush?.();
   } else {
     console.log(`\n→ Open the Sailor dashboard to approve signing requests:\n  ${url}\n`);
   }
