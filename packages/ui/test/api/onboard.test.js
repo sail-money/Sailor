@@ -136,4 +136,26 @@ describe('POST /api/onboard/complete', () => {
     })
     expect(res.status).toBe(400)
   })
+
+  it('syncs the chosen chain into config.json so the stage machine reads it (FUNC-2)', async () => {
+    // Reproduce the audit scenario: config.json.chainId starts null.
+    const f = loadFixture('fresh', { 'config.json': JSON.stringify({ name: 'demo', chainId: null }) })
+    try {
+      const res = await f.api.post('/api/onboard/complete').send({
+        safe: '0x8E637d9573Ad81B60cb93edA78b9C827860950a4',
+        owner: '0x7f8c6DB60b46F7eCBA131b882fBea1Fed4F5f4F5',
+        manager: '0xa6D478146f03E9473582aCe099c67e3CbB5EC2BE',
+        chainId: 42161,
+      })
+      expect(res.status).toBe(200)
+      // config.json on disk now carries the chosen chain (no longer null).
+      const config = JSON.parse(fs.readFileSync(path.join(f.sailDir, 'config.json'), 'utf-8'))
+      expect(config.chainId).toBe(42161)
+      // The stage machine reads it back as the active chain.
+      const state = await f.api.get('/api/onboard/state')
+      expect(state.body.chainId).toBe(42161)
+    } finally {
+      f.cleanup()
+    }
+  })
 })

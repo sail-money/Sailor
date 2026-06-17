@@ -23,6 +23,15 @@ against the protocol's real ABI, and confirm what it enforces before deploying.
 
 You own what you deploy.
 
+## Bound `Context.value` on every value-carrying call
+
+For any call that can carry native asset (ETH), the value actually leaving the account is the
+call's `msg.value` — exposed to your permission as `Context.value` (`ctx.value`) — **not** the
+calldata amount. A permission that bounds only a calldata `amount`/`amountIn` leaves the real
+spend uncapped. So: **every value-carrying call must explicitly bound `Context.value`**, and where
+the calldata also declares an amount, assert `amount == ctx.value` so the two cannot drift. See
+`BoundedSwapNative_UniswapV3_Base.sol` for the worked native-ETH example.
+
 ---
 
 ## Examples
@@ -35,6 +44,7 @@ off-chain agent code — these do *not* hold on-chain). Read both before deployi
 |---|---|---|---|---|
 | `BoundedSwap_UniswapV3_Base.sol` | Uniswap Swap | V3 SwapRouter02 | Base | Full decode |
 | `BoundedSwap_UniswapV4_Unichain.sol` | Uniswap Swap | V4 Universal Router | Unichain | Partial decode — see header |
+| `BoundedSwapNative_UniswapV3_Base.sol` | Uniswap Swap (native ETH) | V3 SwapRouter02 | Base | Full decode — bounds `Context.value` (native spend) |
 | `BoundedBorrow_AaveV3_Arbitrum.sol` | Aave Borrow | V3 Pool | Arbitrum | Full decode |
 | `BoundedSupply_AaveV3_Arbitrum.sol` | Aave Supply | V3 Pool | Arbitrum | Full decode |
 | `BoundedVault_ERC4626_Base.sol` | ERC-4626 Vault deposit/withdraw | EIP-4626 standard | Base (any EVM) | Full decode |

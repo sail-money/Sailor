@@ -1,5 +1,9 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { loadFixture } from '../helpers/fixture.js'
+
+const readConfig = (sailDir) => JSON.parse(fs.readFileSync(path.join(sailDir, 'config.json'), 'utf-8'))
 
 describe('GET /api/account', () => {
   let fix
@@ -57,6 +61,40 @@ describe('POST /api/account (register new SMA)', () => {
 
     const active = await fix.api.get('/api/account')
     expect(active.body.safe.toLowerCase()).toBe(newSafe.toLowerCase())
+  })
+})
+
+describe('POST /api/account/switch — multichain chainId sync (FUNC-2)', () => {
+  let fix
+  const SMA_A = '0x8E637d9573Ad81B60cb93edA78b9C827860950a4' // chain 8453 (active)
+  const SMA_B = '0x2222222222222222222222222222222222222222' // chain 42161
+  beforeEach(() => {
+    // Two SMAs on different chains; active SMA (and config) start on 8453.
+    fix = loadFixture('onboarded', {
+      'config.json': JSON.stringify({ version: 1, name: 'multichain', chainId: 8453 }),
+      'state/accounts.json': JSON.stringify([
+        { safe: SMA_A, owner: '0x7f8c6DB60b46F7eCBA131b882fBea1Fed4F5f4F5', chainId: 8453, name: 'On Base' },
+        { safe: SMA_B, owner: '0x7f8c6DB60b46F7eCBA131b882fBea1Fed4F5f4F5', chainId: 42161, name: 'On Arbitrum' },
+      ]),
+    })
+  })
+  afterEach(() => fix.cleanup())
+
+  it('switching to an SMA on another chain moves config.json.chainId with it', async () => {
+    expect(readConfig(fix.sailDir).chainId).toBe(8453)
+
+    const res = await fix.api.post('/api/account/switch').send({ safe: SMA_B })
+    expect(res.status).toBe(200)
+    expect(res.body.active.chainId).toBe(42161)
+
+    // config.json followed the active SMA — the stage machine / CLI no longer go stale.
+    expect(readConfig(fix.sailDir).chainId).toBe(42161)
+    const state = await fix.api.get('/api/onboard/state')
+    expect(state.body.chainId).toBe(42161)
+
+    // Switching back restores it.
+    await fix.api.post('/api/account/switch').send({ safe: SMA_A })
+    expect(readConfig(fix.sailDir).chainId).toBe(8453)
   })
 })
 

@@ -24,19 +24,35 @@ import { IPERMISSION_ABI } from "../lib/permission-resolver.js";
 import { ProjectContext } from "../lib/project.js";
 import type { StoredAccount } from "../lib/state.js";
 
-/** Native balance, considered enough to submit a few dispatches, in wei (~0.0005 ETH). */
-const LOW_GAS_THRESHOLD_WEI = 500_000_000_000_000n;
+// "Low gas" is chain-relative: an L1 dispatch can cost 100× an L2 one, so a
+// balance that is comfortable on Base would be near-empty on Ethereum. A single
+// flat threshold over-warns on L2 (a fraction of a cent of gas trips it) — so
+// gate on the chain's class. Mainnets that bill L1-style gas get the high bar;
+// L2s and testnets get a much lower one.
+const LOW_GAS_THRESHOLD_L1_WEI = 5_000_000_000_000_000n; // ~0.005 ETH — a few L1 dispatches
+const LOW_GAS_THRESHOLD_L2_WEI = 200_000_000_000_000n; //  ~0.0002 ETH — many L2 dispatches
+
+/** Chains that price gas like Ethereum L1; everything else is treated as an L2. */
+const L1_GAS_CHAINS = new Set<number>([1, 11155111]);
+
+function lowGasThresholdWei(chainId: number): bigint {
+  return L1_GAS_CHAINS.has(chainId) ? LOW_GAS_THRESHOLD_L1_WEI : LOW_GAS_THRESHOLD_L2_WEI;
+}
 
 type BalanceInfo = { address: Address; wei: string; eth: string; funded: boolean; low: boolean };
 
-async function nativeBalance(pc: PublicClient, address: Address): Promise<BalanceInfo> {
+async function nativeBalance(
+  pc: PublicClient,
+  address: Address,
+  chainId: number,
+): Promise<BalanceInfo> {
   const wei = await pc.getBalance({ address });
   return {
     address,
     wei: wei.toString(),
     eth: formatEther(wei),
     funded: wei > 0n,
-    low: wei > 0n && wei < LOW_GAS_THRESHOLD_WEI,
+    low: wei > 0n && wei < lowGasThresholdWei(chainId),
   };
 }
 
@@ -165,8 +181,8 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
   let ownerBal: BalanceInfo | null = null;
   let managerBal: BalanceInfo | null = null;
   try {
-    if (ownerAddr) ownerBal = await nativeBalance(pc, ownerAddr);
-    if (managerAddr) managerBal = await nativeBalance(pc, managerAddr);
+    if (ownerAddr) ownerBal = await nativeBalance(pc, ownerAddr, chainId);
+    if (managerAddr) managerBal = await nativeBalance(pc, managerAddr, chainId);
   } catch {
     // Balance reads are best-effort; a failure shouldn't abort the preflight.
   }

@@ -159,6 +159,21 @@ export function startServer(sailDir, { port = PORT } = {}) {
 
   const at = (name) => path.join(sailDir, name)
 
+  // Persist the active chain into config.json. The onboarding stage machine keys
+  // off config.json.chainId, so SMA creation must write it through — otherwise it
+  // stays null and the stage machine misclassifies on resume. Merges into any
+  // existing config; creates the file if absent.
+  const syncConfigChainId = (chainId) => {
+    if (chainId == null) return
+    try {
+      const config = (() => { try { return JSON.parse(fs.readFileSync(at('config.json'), 'utf-8')) } catch { return {} } })()
+      if (Number(config.chainId) === Number(chainId)) return
+      config.chainId = Number(chainId)
+      fs.mkdirSync(sailDir, { recursive: true })
+      fs.writeFileSync(at('config.json'), `${JSON.stringify(config, null, 2)}\n`)
+    } catch { /* best-effort: never block SMA creation on a config write */ }
+  }
+
   // ── Per-SMA-per-chain overview cache ────────────────────────────────────
   // Keyed by `${safe}-${chainId}` so multi-chain SMAs get independent snapshots.
   const overviewCacheByAccount = new Map() // `${safeLower}-${chainId}` -> { at, data }
@@ -334,6 +349,8 @@ export function startServer(sailDir, { port = PORT } = {}) {
 
       // Make the new SMA the active one.
       fs.writeFileSync(at('account.json'), `${JSON.stringify(record, null, 2)}\n`)
+      // Keep config.json.chainId in step with the active SMA's chain (stage machine reads it).
+      syncConfigChainId(chainId)
       res.json({ ok: true })
     } catch (err) {
       res.status(500).json({ error: String(err) })
@@ -368,6 +385,9 @@ export function startServer(sailDir, { port = PORT } = {}) {
       const target = accounts.find((a) => a.safe.toLowerCase() === safe.toLowerCase())
       if (!target) { res.status(404).json({ error: 'SMA not found in accounts list' }); return }
       fs.writeFileSync(at('account.json'), `${JSON.stringify(target, null, 2)}\n`)
+      // Switching to an SMA on a different chain must move config.json.chainId too,
+      // or the stage machine / CLI active chain goes stale (multichain case).
+      syncConfigChainId(target.chainId)
       res.json({ ok: true, active: target })
     } catch (err) {
       res.status(500).json({ error: String(err) })
@@ -1012,7 +1032,13 @@ export function startServer(sailDir, { port = PORT } = {}) {
       const ks = JSON.parse(fs.readFileSync(managerKeyPath, 'utf-8'))
       managerAddress = ks?.address ? getAddress(`0x${String(ks.address).replace(/^0x/, '')}`) : null
     } catch {}
-    const chainId = config?.chainId ?? 8453
+    // Prefer config.json.chainId, but fall back to the active account.json when
+    // config hasn't been synced yet (defends against a stale config.chainId:null
+    // after browser onboarding). config still wins when explicitly set.
+    const accountChainId = (() => {
+      try { return JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))?.chainId ?? null } catch { return null }
+    })()
+    const chainId = config?.chainId ?? accountChainId ?? 8453
     let deployment = null
     try { deployment = getSailDeployment(chainId) } catch {}
     // Collect per-chain RPC URLs. Check both numeric (RPC_URL_8453) and named
@@ -1251,6 +1277,10 @@ export function startServer(sailDir, { port = PORT } = {}) {
         fs.writeFileSync(listPath, `${JSON.stringify(existing, null, 2)}\n`)
       } catch {}
       fs.writeFileSync(at('account.json'), `${JSON.stringify(record, null, 2)}\n`)
+      // Sync the chosen chain into config.json. The onboarding stage machine keys
+      // off config.json.chainId; leaving it null after SMA creation caused stage
+      // misclassification on resume.
+      syncConfigChainId(chainId)
       res.json({ ok: true, account: record })
     } catch (err) {
       res.status(500).json({ error: String(err) })

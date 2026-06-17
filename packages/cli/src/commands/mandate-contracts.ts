@@ -153,6 +153,26 @@ function fail(err: unknown, json = false): never {
   process.exit(1);
 }
 
+/**
+ * Tell the operator where to approve the request — BEFORE the long blocking wait
+ * on the signature. In human mode this prints the dashboard station URL. In
+ * --json mode it emits a single `waiting_for_signature` record and flushes stdout
+ * immediately: scripted/redirected callers otherwise never see the URL, because
+ * stdout is block-buffered when piped and the process then blocks for minutes
+ * inside requestSignature(). Emitting + flushing up front guarantees it lands.
+ */
+function announceSigningUrl(json: boolean): void {
+  const url = signingPageUrl(undefined, projectPort(process.cwd()));
+  if (json) {
+    process.stdout.write(`${JSON.stringify({ status: "waiting_for_signature", url })}\n`);
+    // Best-effort flush so the line is visible before the blocking signature wait.
+    const anyStdout = process.stdout as unknown as { _flush?: () => void };
+    anyStdout._flush?.();
+  } else {
+    console.log(`\n→ Open the Sailor dashboard to approve signing requests:\n  ${url}\n`);
+  }
+}
+
 function publicClientFor(project: ProjectContext): PublicClient {
   return createPublicClient({
     chain: getChainById(project.chainId),
@@ -216,12 +236,8 @@ async function runDeploy(
   const chainId = project.chainId;
   const publicClient = publicClientFor(project);
 
-  say(() => {
-    console.log(
-      `\n→ Open the Sailor dashboard to approve signing requests:\n  ${signingPageUrl(channel, projectPort(process.cwd()))}\n`,
-    );
-    console.log(`Pushing deploy request for "${contractName}"…`);
-  });
+  announceSigningUrl(json);
+  say(() => console.log(`Pushing deploy request for "${contractName}"…`));
 
   const response = await channel.requestSignature({
     type: "transaction",
@@ -432,6 +448,22 @@ function parseAddressList(csv: string | undefined, flag: string): Address[] {
 
 export async function mandateDeployClone(options: DeployCloneOptions): Promise<void> {
   const project = requireProject();
+  // Availability gate FIRST — before any signing server is spawned or gas spent.
+  // No standalone clone templates are deployed against the current kernel on any
+  // chain (standaloneTemplates is empty for all six). Erroring here, ahead of
+  // createSigningChannel, also avoids leaving an orphaned ephemeral signing
+  // server bound to a port for a command that cannot proceed.
+  const templateMap = project.deployment.standaloneTemplates ?? {};
+  if (Object.keys(templateMap).length === 0) {
+    fail(
+      new Error(
+        `deploy-clone is unavailable on chain ${project.chainId}: no clone templates are ` +
+          `deployed against this kernel (${project.deployment.kernel}) yet. ` +
+          `Deploy your permission directly with \`sailor mandate deploy\` instead.`,
+      ),
+      options.json,
+    );
+  }
   const channel = await createSigningChannel(process.cwd());
   try {
     await channel.start();
@@ -530,8 +562,8 @@ async function runDeployClone(
     console.log(`  predicted clone: ${clone}`);
     console.log(`  SMA:             ${sma}`);
     for (const d of spec.describe(initParams)) console.log(`  ${d.label}: ${d.value}`);
-    console.log(`\n→ Open the Sailor dashboard to approve signing requests:\n  ${signingPageUrl(channel, projectPort(process.cwd()))}\n`);
   });
+  announceSigningUrl(json);
 
   // Owner signs RegisterPermission for the PREDICTED clone address.
   const nonce = (await publicClient.readContract({
@@ -725,11 +757,7 @@ async function runAttach(
 
   const publicClient = publicClientFor(project);
 
-  if (!json) {
-    console.log(
-      `\n→ Open the Sailor dashboard to approve signing requests:\n  ${signingPageUrl(channel, projectPort(process.cwd()))}\n`,
-    );
-  }
+  announceSigningUrl(json);
 
   const txHash = await attachToSma(
     project,
@@ -827,10 +855,8 @@ async function runRevoke(
   say(() => {
     console.log(`\nRevoking ${targets.length} permission(s) from ${sma}:`);
     for (const p of targets) console.log(`  ${nameFor(p) ?? p}  ${p}`);
-    console.log(
-      `\n→ Open the Sailor dashboard to approve signing requests:\n  ${signingPageUrl(channel, projectPort(process.cwd()))}\n`,
-    );
   });
+  announceSigningUrl(json);
 
   const response = await channel.requestSignature({
     type: "typed-data",
@@ -1059,21 +1085,27 @@ export function mandateTemplates(options: { json?: boolean }): void {
   );
 }
 
-export function mandateContractsList(): void {
+export function mandateContractsList(options: { json?: boolean } = {}): void {
   const store = new MandateStore();
   const mandates = store.list();
-  if (mandates.length === 0) {
-    console.log('No permission contracts deployed yet. Use "sailor mandate deploy".');
-    return;
-  }
-  for (const m of mandates) {
-    console.log(m.name, `(chain ${m.chainId})`);
-    console.log("  Address: ", m.address);
-    console.log("  Deployed:", m.deployedAt);
-    if (m.attachments?.length) {
-      console.log("  Registered on:", m.attachments.map((a) => a.sma).join(", "));
-    }
-  }
+  emit(
+    !!options.json,
+    () => {
+      if (mandates.length === 0) {
+        console.log('No permission contracts deployed yet. Use "sailor mandate deploy".');
+        return;
+      }
+      for (const m of mandates) {
+        console.log(m.name, `(chain ${m.chainId})`);
+        console.log("  Address: ", m.address);
+        console.log("  Deployed:", m.deployedAt);
+        if (m.attachments?.length) {
+          console.log("  Registered on:", m.attachments.map((a) => a.sma).join(", "));
+        }
+      }
+    },
+    { status: "ok", mandates },
+  );
 }
 
 // ── update ───────────────────────────────────────────────────────────────────

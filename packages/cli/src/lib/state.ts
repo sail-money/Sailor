@@ -106,7 +106,10 @@ export type StoredMandate = {
   safe: string;
   chainId: number;
   signedAt: string;
-  signature: string;          // "" for open mandate model (no local EIP-712 signing)
+  // Optional legacy field. Registration authority is on-chain (via mandateAttach),
+  // not a local EIP-712 signature — new writes omit it. Retained as optional so
+  // older mandate.json files that carry it still parse.
+  signature?: string;
   registeredOnChain: boolean;
   permissions: StoredMandatePermission[];
 };
