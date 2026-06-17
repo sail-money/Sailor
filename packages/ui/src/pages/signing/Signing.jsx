@@ -704,9 +704,11 @@ function PermissionRow({ item }) {
   )
 }
 
-/* Factual disclosure of the per-permission registration fee, shown at sign time.
-   The values are read live from governance by `sailor mandate prepare` and
-   embedded in the draft, so this component only renders them. */
+/* Factual disclosure of the registration fee, shown at sign time. The total is
+   estimated live by `sailor mandate prepare` from the same per-permission charge
+   the kernel applies and embedded in the draft, so this only renders it. The
+   per-permission breakdown is shown only when the fee is uniform across
+   permissions (perPermissionEth present). */
 function RegistrationFeeNote({ fee }) {
   return (
     <div style={{
@@ -726,9 +728,14 @@ function RegistrationFeeNote({ fee }) {
         <span style={{ fontSize: 14, color: 'var(--text-primary, #fff)', fontWeight: 600 }}>
           {fee.totalEth} ETH
         </span>
-        {fee.permissionCount > 1 && (
+        {fee.permissionCount > 1 && fee.perPermissionEth && (
           <span style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
             {fee.permissionCount} permissions × {fee.perPermissionEth} ETH
+          </span>
+        )}
+        {fee.permissionCount > 1 && !fee.perPermissionEth && (
+          <span style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
+            for {fee.permissionCount} permissions
           </span>
         )}
       </span>

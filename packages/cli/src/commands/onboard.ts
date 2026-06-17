@@ -23,9 +23,8 @@ import {
   buildRegisterPermissionTypedData,
   buildSafeSetupInitializer,
   detectKernelCapabilities,
-  estimatePermissionFee,
+  estimateMandateRegistrationFee,
   getSailDeployment,
-  readPermissionRegistrationFee,
   sailKernelDomain,
 } from "@sail/sdk";
 import {
@@ -555,30 +554,26 @@ export async function attachMandate(
     deadline: registrationDeadline,
   });
 
-  // Before asking the owner to sign, disclose the per-permission registration
-  // fee (read LIVE from governance) and preflight the agent's balance, so an
-  // underfunded signer fails early instead of after a wasted signature / revert.
-  // Resilient: a governance without permissionRegistrationFee (pre-launch) skips
-  // the disclosure rather than blocking the existing registration flow.
-  try {
-    const perPermissionFeeWei = await readPermissionRegistrationFee(
-      publicClient,
-      project.contracts.governance,
-    );
-    const agentBalanceWei = await publicClient.getBalance({
-      address: agentSigner.viemAccount.address,
-    });
-    const gate = registrationGate({
-      perPermissionFeeWei,
-      permissionCount: 1,
-      agentBalanceWei,
-    });
-    say(() => console.log(gate.disclosure));
-  } catch (err) {
-    // Re-throw the preflight rejection so the user sees it; swallow read errors
-    // (e.g. legacy governance without permissionRegistrationFee).
-    if ((err as Error).message?.startsWith("Insufficient ETH")) throw err;
-  }
+  // Compute the registration fee ONCE — the single source of truth shared by the
+  // disclosure, the balance preflight, the tx `value`, and the activity log, so
+  // every number is provably the same as what the kernel charges.
+  // estimateMandateRegistrationFee sums estimatePermissionFee (the exact tx
+  // value) per permission and works on both the legacy and flat-fee governance.
+  const feeEstimate = await estimateMandateRegistrationFee(
+    publicClient,
+    project.contracts.governance,
+    [templateAddress],
+  );
+  const fee = feeEstimate.totalWei;
+
+  // Preflight + disclose BEFORE asking the owner to sign, so an underfunded
+  // signer fails early (via a typed RegistrationFeeError) instead of after a
+  // wasted signature / on-chain revert.
+  const agentBalanceWei = await publicClient.getBalance({
+    address: agentSigner.viemAccount.address,
+  });
+  const gate = registrationGate({ estimate: feeEstimate, agentBalanceWei });
+  say(() => console.log(gate.disclosure));
 
   say(() => console.log(`\nPushing signing request for "${template.label}" permission…`));
   say(() =>
@@ -636,13 +631,6 @@ export async function attachMandate(
     // Re-throw security errors; ignore recovery failures (e.g. unsupported sig format).
     if ((err as Error).message.startsWith("Security:")) throw err;
   }
-
-  say(() => console.log("Estimating permission fee…"));
-  const fee = await estimatePermissionFee(
-    publicClient,
-    project.contracts.governance,
-    templateAddress,
-  );
 
   say(() => console.log(`Submitting mandate registration (agent pays gas; fee ${fee} wei)…`));
   const walletClient = createWalletClient({

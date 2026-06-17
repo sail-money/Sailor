@@ -74,13 +74,14 @@ export {
   signRegisterPermission,
 } from "./eip712.js";
 export {
-  assertRegistrationFeeAffordable,
-  describeRegistrationFee,
+  RegistrationFeeError,
+  assertFeeAffordable,
+  describeMandateFee,
+  estimateMandateRegistrationFee,
   estimatePermissionFee,
-  readPermissionRegistrationFee,
-  registrationFeeShortfall,
-  totalRegistrationFee,
+  feeShortfall,
 } from "./fees.js";
+export type { MandateFeeEstimate, PermissionFee } from "./fees.js";
 export type { FetchLifiQuoteParams, LifiSwapQuote } from "./lifi.js";
 export {
   DEFAULT_SLIPPAGE,

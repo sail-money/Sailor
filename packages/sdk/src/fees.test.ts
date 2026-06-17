@@ -2,98 +2,133 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Address, PublicClient } from "viem";
 import {
-  assertRegistrationFeeAffordable,
-  describeRegistrationFee,
-  readPermissionRegistrationFee,
-  registrationFeeShortfall,
-  totalRegistrationFee,
+  RegistrationFeeError,
+  assertFeeAffordable,
+  describeMandateFee,
+  estimateMandateRegistrationFee,
+  estimatePermissionFee,
+  feeShortfall,
 } from "./fees.js";
 
 // Run with: npx tsx --test packages/sdk/src/fees.test.ts
-// (the SDK's `test` script globs src/**/*.test.ts via tsx --test.)
+// (the SDK's `test` script globs *.test.ts via tsx --test.)
 
 const GOVERNANCE = "0x7A478118715791728BDE3bc7A4D7ECfdEB89C6EC" as Address;
+const PERM_A = "0x1111111111111111111111111111111111111111" as Address;
+const PERM_B = "0x2222222222222222222222222222222222222222" as Address;
 
-// Per-permission fees the same code must surface unchanged: the test deployment
-// (0.00001 ETH) and a higher prod-like value (0.0005 ETH). Nothing is hardcoded:
-// every figure below derives from whatever the chain returns.
 const TEST_FEE = 10_000_000_000_000n; // 0.00001 ETH
 const PROD_FEE = 500_000_000_000_000n; // 0.0005 ETH
 
-/** Minimal PublicClient stub whose `permissionRegistrationFee` read is fixed. */
-function clientReturning(fee: bigint): PublicClient {
+/**
+ * Stub a PublicClient for a FLAT-fee governance: the legacy views revert, so
+ * estimatePermissionFee falls back to the flat permissionRegistrationFee — i.e.
+ * every permission is charged `fee`, uniformly.
+ */
+function flatGovernanceClient(fee: bigint): PublicClient {
   return {
     readContract: async ({ functionName }: { functionName: string }) => {
-      assert.equal(functionName, "permissionRegistrationFee");
-      return fee;
+      if (functionName === "permissionRegistrationFee") return fee;
+      throw new Error(`legacy view ${functionName} not present`);
     },
+    getBytecode: async () => "0x",
   } as unknown as PublicClient;
 }
 
-test("totalRegistrationFee: fee × N for several N", () => {
-  assert.equal(totalRegistrationFee(TEST_FEE, 0), 0n);
-  assert.equal(totalRegistrationFee(TEST_FEE, 1), TEST_FEE);
-  assert.equal(totalRegistrationFee(TEST_FEE, 3), 30_000_000_000_000n);
-  assert.equal(totalRegistrationFee(TEST_FEE, 5), 50_000_000_000_000n);
-  assert.equal(totalRegistrationFee(PROD_FEE, 4), 2_000_000_000_000_000n);
+/**
+ * Stub a LEGACY-fee governance: fee = min(baseFee,cap) + min(byteLen*rate,cap),
+ * so the per-permission fee VARIES with each permission's bytecode length. Here
+ * baseFee=1000, rate=2/byte, cap huge; PERM_A has 1 byte, PERM_B has 10 bytes.
+ */
+function legacyGovernanceClient(): PublicClient {
+  const bytecodeByAddr: Record<string, string> = {
+    [PERM_A.toLowerCase()]: "0xaa", // 1 byte
+    [PERM_B.toLowerCase()]: "0xaabbccddeeff00112233", // 10 bytes
+  };
+  return {
+    readContract: async ({ functionName }: { functionName: string }) => {
+      if (functionName === "baseFee") return 1000n;
+      if (functionName === "complexityRate") return 2n;
+      if (functionName === "MAX_PERMISSION_FEE_WEI") return 1_000_000_000_000_000n;
+      throw new Error(`unexpected view ${functionName}`);
+    },
+    getBytecode: async ({ address }: { address: Address }) => bytecodeByAddr[address.toLowerCase()],
+  } as unknown as PublicClient;
+}
+
+test("estimatePermissionFee: reads the live flat value (not hardcoded)", async () => {
+  assert.equal(await estimatePermissionFee(flatGovernanceClient(TEST_FEE), GOVERNANCE, PERM_A), TEST_FEE);
+  assert.equal(await estimatePermissionFee(flatGovernanceClient(PROD_FEE), GOVERNANCE, PERM_A), PROD_FEE);
 });
 
-test("totalRegistrationFee: rejects invalid counts", () => {
-  assert.throws(() => totalRegistrationFee(TEST_FEE, -1), /non-negative integer/);
-  assert.throws(() => totalRegistrationFee(TEST_FEE, 1.5), /non-negative integer/);
+test("estimatePermissionFee: legacy model varies per permission bytecode", async () => {
+  const pc = legacyGovernanceClient();
+  // baseFee 1000 + byteLen*2
+  assert.equal(await estimatePermissionFee(pc, GOVERNANCE, PERM_A), 1000n + 1n * 2n);
+  assert.equal(await estimatePermissionFee(pc, GOVERNANCE, PERM_B), 1000n + 10n * 2n);
 });
 
-test("describeRegistrationFee: factual cost copy, singular vs plural", () => {
+test("estimateMandateRegistrationFee: total is the SUM of per-permission charges (flat)", async () => {
+  const est = await estimateMandateRegistrationFee(flatGovernanceClient(TEST_FEE), GOVERNANCE, [
+    PERM_A,
+    PERM_B,
+  ]);
+  assert.equal(est.totalWei, TEST_FEE * 2n);
+  assert.equal(est.perPermission.length, 2);
+  assert.equal(est.perPermission[0].feeWei, TEST_FEE);
+  assert.equal(est.perPermission[1].feeWei, TEST_FEE);
+});
+
+test("estimateMandateRegistrationFee: sums DIFFERING per-permission fees (legacy)", async () => {
+  const est = await estimateMandateRegistrationFee(legacyGovernanceClient(), GOVERNANCE, [PERM_A, PERM_B]);
+  assert.equal(est.perPermission[0].feeWei, 1002n);
+  assert.equal(est.perPermission[1].feeWei, 1020n);
+  assert.equal(est.totalWei, 2022n); // NOT a flat value × 2
+});
+
+test("describeMandateFee: uniform fees show the N × fee breakdown", async () => {
+  const est = await estimateMandateRegistrationFee(flatGovernanceClient(TEST_FEE), GOVERNANCE, [
+    PERM_A,
+    PERM_B,
+    PERM_A,
+  ]);
   assert.equal(
-    describeRegistrationFee(TEST_FEE, 3),
+    describeMandateFee(est),
     "Registration fee: 0.00003 ETH (3 permissions × 0.00001 ETH)",
   );
+});
+
+test("describeMandateFee: non-uniform fees state the true total without a fake rate", async () => {
+  const est = await estimateMandateRegistrationFee(legacyGovernanceClient(), GOVERNANCE, [PERM_A, PERM_B]);
+  assert.equal(describeMandateFee(est), "Registration fee: 0.000000000000002022 ETH for 2 permissions");
+});
+
+test("describeMandateFee: zero permissions does not say 'N × fee'", () => {
   assert.equal(
-    describeRegistrationFee(TEST_FEE, 1),
-    "Registration fee: 0.00001 ETH (1 permission × 0.00001 ETH)",
+    describeMandateFee({ totalWei: 0n, perPermission: [] }),
+    "Registration fee: 0 ETH (no new permissions to register)",
   );
 });
 
-test("readPermissionRegistrationFee: reads the live value, not a constant", async () => {
-  // Two different chains return two different fees; the same call surfaces both.
-  const testValue = await readPermissionRegistrationFee(clientReturning(TEST_FEE), GOVERNANCE);
-  const prodValue = await readPermissionRegistrationFee(clientReturning(PROD_FEE), GOVERNANCE);
-  assert.equal(testValue, TEST_FEE);
-  assert.equal(prodValue, PROD_FEE);
-  assert.notEqual(testValue, prodValue);
-
-  // And both render correctly downstream — proving nothing is hardcoded.
-  assert.equal(
-    describeRegistrationFee(testValue, 2),
-    "Registration fee: 0.00002 ETH (2 permissions × 0.00001 ETH)",
-  );
-  assert.equal(
-    describeRegistrationFee(prodValue, 2),
-    "Registration fee: 0.001 ETH (2 permissions × 0.0005 ETH)",
-  );
+test("feeShortfall: 0 when affordable, positive shortfall otherwise", () => {
+  assert.equal(feeShortfall(30_000_000_000_000n, 30_000_000_000_000n), 0n);
+  assert.equal(feeShortfall(1n, 30_000_000_000_000n), 30_000_000_000_000n - 1n);
 });
 
-test("registrationFeeShortfall: 0 when affordable, positive shortfall otherwise", () => {
-  // Exactly enough for 3 permissions.
-  assert.equal(registrationFeeShortfall(30_000_000_000_000n, TEST_FEE, 3), 0n);
-  // More than enough.
-  assert.equal(registrationFeeShortfall(1_000_000_000_000_000n, TEST_FEE, 3), 0n);
-  // Short by one permission's worth.
-  assert.equal(registrationFeeShortfall(20_000_000_000_000n, TEST_FEE, 3), 10_000_000_000_000n);
+test("assertFeeAffordable: passes when sufficient", () => {
+  assert.doesNotThrow(() => assertFeeAffordable(30_000_000_000_000n, 30_000_000_000_000n));
 });
 
-test("assertRegistrationFeeAffordable: passes when sufficient", () => {
-  assert.doesNotThrow(() => assertRegistrationFeeAffordable(30_000_000_000_000n, TEST_FEE, 3));
-  assert.doesNotThrow(() => assertRegistrationFeeAffordable(TEST_FEE, TEST_FEE, 1));
-});
-
-test("assertRegistrationFeeAffordable: rejects when balance < total fee", () => {
-  assert.throws(
-    () => assertRegistrationFeeAffordable(0n, TEST_FEE, 3),
-    /Insufficient ETH for the 0.00003 ETH registration fee/,
-  );
-  assert.throws(
-    () => assertRegistrationFeeAffordable(20_000_000_000_000n, TEST_FEE, 3),
-    /Insufficient ETH for the 0.00003 ETH registration fee/,
-  );
+test("assertFeeAffordable: throws a TYPED RegistrationFeeError when short", () => {
+  let caught: unknown;
+  try {
+    assertFeeAffordable(0n, 30_000_000_000_000n);
+  } catch (err) {
+    caught = err;
+  }
+  assert.ok(caught instanceof RegistrationFeeError, "must be a RegistrationFeeError instance");
+  assert.equal((caught as RegistrationFeeError).requiredWei, 30_000_000_000_000n);
+  assert.equal((caught as RegistrationFeeError).balanceWei, 0n);
+  // The block must key off the TYPE, not the message wording.
+  assert.match((caught as Error).message, /registration fee/i);
 });

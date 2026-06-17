@@ -1,9 +1,9 @@
 import {
+  type MandateFeeEstimate,
   SailKernelAbi,
-  describeRegistrationFee,
+  describeMandateFee,
+  estimateMandateRegistrationFee,
   getSailDeployment,
-  readPermissionRegistrationFee,
-  totalRegistrationFee,
 } from "@sail/sdk";
 import { http, type Address, createPublicClient, formatEther } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
@@ -35,24 +35,39 @@ type TrackedPermission = {
 };
 
 /**
- * The per-permission registration fee disclosed at sign time, read live from
- * governance at prepare time. Optional: omitted when the fee can't be read
- * (no RPC, or a governance that predates the flat permissionRegistrationFee).
+ * The registration fee disclosed at sign time, estimated live at prepare time
+ * from the SAME per-permission charge the kernel applies (sum of
+ * estimatePermissionFee). Covers only the not-yet-registered permissions — the
+ * ones that will actually be charged on sign. Optional: omitted when the fee
+ * can't be estimated (no RPC) or when there is nothing new to register.
  */
 type DraftRegistrationFee = {
-  /** Per-permission fee (wei) as a decimal string. */
-  perPermissionWei: string;
-  /** Per-permission fee formatted in ETH. */
-  perPermissionEth: string;
-  /** Total fee (wei) for this mandate = perPermission × permissionCount. */
+  /** Per-permission fee (wei) when uniform across permissions; omitted otherwise. */
+  perPermissionWei?: string;
+  /** Per-permission fee in ETH when uniform; omitted otherwise. */
+  perPermissionEth?: string;
+  /** Total fee (wei) for this mandate = sum of the per-permission charges. */
   totalWei: string;
   /** Total fee formatted in ETH. */
   totalEth: string;
-  /** Number of permissions the fee covers. */
+  /** Number of not-yet-registered permissions the fee covers. */
   permissionCount: number;
   /** One-line factual cost disclosure for the UI. */
   disclosure: string;
 };
+
+/**
+ * The permissions a sign/attach will actually be CHARGED for: tracked, not
+ * revoked on-chain, and not yet registered on this SMA. `mandate prepare` and
+ * `mandate sign` MUST use this same selection so their disclosed fee counts
+ * agree (re-preparing a mandate with some permissions already registered must
+ * not overstate the total).
+ */
+export function chargeablePermissions<T extends { revokedOnChain?: boolean; registeredOnSma: boolean }>(
+  tracked: T[],
+): T[] {
+  return tracked.filter((p) => !p.revokedOnChain && !p.registeredOnSma);
+}
 
 /** The simple draft the UI reads to display the SMA's permission set. */
 type MandateDraft = {
@@ -64,19 +79,45 @@ type MandateDraft = {
 };
 
 /**
- * Read the live per-permission registration fee from governance for `chainId`.
- * Returns null when unavailable (no RPC, or a governance that predates the flat
- * permissionRegistrationFee) so callers degrade gracefully instead of breaking.
+ * Estimate the live mandate registration fee for `permissionAddresses` on
+ * `chainId` — the SUM of the exact per-permission charge (estimatePermissionFee,
+ * the same value sent as the tx value). Returns null when it can't be estimated
+ * (no RPC) so callers degrade gracefully instead of breaking. Pass only the
+ * not-yet-registered permissions, since those are the ones actually charged.
  */
-async function liveRegistrationFee(chainId: number): Promise<bigint | null> {
+async function liveMandateFee(
+  chainId: number,
+  permissionAddresses: string[],
+): Promise<MandateFeeEstimate | null> {
+  if (permissionAddresses.length === 0) return { totalWei: 0n, perPermission: [] };
   try {
     const deployment = getSailDeployment(chainId);
     const rpcUrl = getRpcUrl(chainId) ?? getChainById(chainId).rpcUrls.default.http[0];
     const pc = createPublicClient({ chain: getChainById(chainId), transport: http(rpcUrl) });
-    return await readPermissionRegistrationFee(pc, deployment.governance);
+    return await estimateMandateRegistrationFee(
+      pc,
+      deployment.governance,
+      permissionAddresses as Address[],
+    );
   } catch {
     return null;
   }
+}
+
+/** Build the draft fee block from an estimate, with the uniform per-permission
+ *  rate filled in only when every permission is charged the same amount. */
+function draftFeeFromEstimate(estimate: MandateFeeEstimate): DraftRegistrationFee {
+  const fees = estimate.perPermission.map((p) => p.feeWei);
+  const uniform = fees.length > 0 && fees.every((f) => f === fees[0]);
+  return {
+    ...(uniform
+      ? { perPermissionWei: fees[0].toString(), perPermissionEth: formatEther(fees[0]) }
+      : {}),
+    totalWei: estimate.totalWei.toString(),
+    totalEth: formatEther(estimate.totalWei),
+    permissionCount: estimate.perPermission.length,
+    disclosure: describeMandateFee(estimate),
+  };
 }
 
 /**
@@ -215,22 +256,17 @@ export async function mandatePrepare(): Promise<void> {
       return { address: p.address, label: p.label, explanation };
     });
 
-  // Read the per-permission registration fee LIVE from governance and embed the
-  // total (fee × N) so the UI can disclose the cost at sign time. Best-effort:
-  // if the fee can't be read the draft still writes, just without the fee block.
+  // Estimate the registration fee LIVE for the permissions that will actually be
+  // charged on sign — the not-yet-registered ones — so the count matches
+  // `sailor mandate sign` and the browser screen never overstates the total when
+  // re-preparing a mandate with some permissions already registered. Best-effort:
+  // if it can't be estimated the draft still writes, just without the fee block.
+  // Skipped entirely when nothing new is to be registered (no "0 permissions").
   let registrationFee: DraftRegistrationFee | undefined;
-  const perPermissionFeeWei = await liveRegistrationFee(chainId);
-  if (perPermissionFeeWei !== null) {
-    const count = draftPermissions.length;
-    const totalWei = totalRegistrationFee(perPermissionFeeWei, count);
-    registrationFee = {
-      perPermissionWei: perPermissionFeeWei.toString(),
-      perPermissionEth: formatEther(perPermissionFeeWei),
-      totalWei: totalWei.toString(),
-      totalEth: formatEther(totalWei),
-      permissionCount: count,
-      disclosure: describeRegistrationFee(perPermissionFeeWei, count),
-    };
+  const unregisteredAddresses = chargeablePermissions(permissions).map((p) => p.address);
+  if (unregisteredAddresses.length > 0) {
+    const estimate = await liveMandateFee(chainId, unregisteredAddresses);
+    if (estimate !== null) registrationFee = draftFeeFromEstimate(estimate);
   }
 
   const draft: MandateDraft = {
@@ -283,18 +319,21 @@ export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
   );
 
   // Exclude revoked-on-chain entries from the confirmation: they are no longer
-  // active regardless of what the local store says.
+  // active regardless of what the local store says. The chargeable subset (the
+  // not-yet-registered ones) is the SAME selection `mandate prepare` uses, so
+  // the disclosed fee counts agree.
   const activePermissions = permissions.filter((p) => !p.revokedOnChain);
-  const unregistered = activePermissions.filter((p) => !p.registeredOnSma);
+  const unregistered = chargeablePermissions(permissions);
 
-  // Disclose the per-permission registration fee BEFORE the user confirms.
-  // Only the not-yet-registered permissions incur a fee now (already-registered
-  // ones were paid for when they were first registered). Read live from
-  // governance; best-effort, so a missing fee never blocks confirmation.
+  // Disclose the registration fee BEFORE the user confirms. Only the
+  // not-yet-registered permissions incur a fee now (already-registered ones were
+  // paid for when they were first registered) — the same set and the same
+  // per-permission charge (estimatePermissionFee) the attach tx will send.
+  // Best-effort, so a missing fee never blocks confirmation.
   if (unregistered.length > 0) {
-    const perPermissionFeeWei = await liveRegistrationFee(chainId);
-    if (perPermissionFeeWei !== null) {
-      console.log(`\n${describeRegistrationFee(perPermissionFeeWei, unregistered.length)}`);
+    const estimate = await liveMandateFee(chainId, unregistered.map((p) => p.address));
+    if (estimate !== null) {
+      console.log(`\n${describeMandateFee(estimate)}`);
       console.log("  Paid by the agent wallet on registration, per permission.");
     }
   }
