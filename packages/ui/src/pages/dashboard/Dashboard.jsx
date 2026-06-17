@@ -1412,6 +1412,16 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
         </button>
 
         <div className={styles.topActionsPill}>
+          {/* Pure hash-nav link to the isolated $SAIL rewards page. No import of
+              rewards code — the dashboard has zero dependency on that module. */}
+          <button
+            type="button"
+            className={styles.rewardsLink}
+            onClick={() => { window.location.hash = '#/rewards' }}
+            aria-label="View $SAIL rewards"
+          >
+            $SAIL
+          </button>
           <NotificationsBell
             pending={pending}
             draft={draft}

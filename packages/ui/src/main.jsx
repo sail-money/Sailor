@@ -10,6 +10,7 @@ import Dashboard from './pages/dashboard/Dashboard'
 import AgentPage from './pages/dashboard/AgentPage'
 import MandatePage from './pages/dashboard/MandatePage'
 import JournalPage from './pages/dashboard/JournalPage'
+import RewardsPage from './pages/rewards/RewardsPage'
 import { wagmiConfig } from './wagmi'
 import './styles/globals.css'
 
@@ -101,6 +102,7 @@ function Router() {
       />
     )
   }
+  else if (route.startsWith('/rewards')) page = <RewardsPage key={route} />
   else if (route.startsWith('/dashboard')) page = <Dashboard key={route} />
   else page = <Dashboard key={route} />
 
