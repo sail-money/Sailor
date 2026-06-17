@@ -25,6 +25,7 @@ import {
   detectKernelCapabilities,
   estimatePermissionFee,
   getSailDeployment,
+  readPermissionRegistrationFee,
   sailKernelDomain,
 } from "@sail/sdk";
 import {
@@ -35,6 +36,7 @@ import {
   createPublicClient,
   createWalletClient,
   encodeFunctionData,
+  formatEther,
   getAddress,
   isAddress,
   parseEventLogs,
@@ -47,6 +49,7 @@ import { appendActivity, checksum, nowIso, prompt, sailPath, writeJsonFile } fro
 import { keyExists } from "../lib/keys.js";
 import { emit } from "../lib/output.js";
 import { ProjectContext, loadManagerSigner } from "../lib/project.js";
+import { registrationGate } from "../lib/registration-fee.js";
 import { type StoredAccount, upsertAccountInList } from "../lib/state.js";
 import { type SigningChannel, createSigningChannel, signingPageUrl } from "../signing/client.js";
 import { projectPort } from "../lib/packagePaths.js";
@@ -552,6 +555,31 @@ export async function attachMandate(
     deadline: registrationDeadline,
   });
 
+  // Before asking the owner to sign, disclose the per-permission registration
+  // fee (read LIVE from governance) and preflight the agent's balance, so an
+  // underfunded signer fails early instead of after a wasted signature / revert.
+  // Resilient: a governance without permissionRegistrationFee (pre-launch) skips
+  // the disclosure rather than blocking the existing registration flow.
+  try {
+    const perPermissionFeeWei = await readPermissionRegistrationFee(
+      publicClient,
+      project.contracts.governance,
+    );
+    const agentBalanceWei = await publicClient.getBalance({
+      address: agentSigner.viemAccount.address,
+    });
+    const gate = registrationGate({
+      perPermissionFeeWei,
+      permissionCount: 1,
+      agentBalanceWei,
+    });
+    say(() => console.log(gate.disclosure));
+  } catch (err) {
+    // Re-throw the preflight rejection so the user sees it; swallow read errors
+    // (e.g. legacy governance without permissionRegistrationFee).
+    if ((err as Error).message?.startsWith("Insufficient ETH")) throw err;
+  }
+
   say(() => console.log(`\nPushing signing request for "${template.label}" permission…`));
   say(() =>
     console.log(
@@ -680,6 +708,9 @@ export async function attachMandate(
     sma: smaAddress,
     txHash,
     chainId: project.chainId,
+    // Registration fee actually paid by the agent for this permission.
+    fee: fee.toString(),
+    feeEth: formatEther(fee),
   });
   return txHash;
 }

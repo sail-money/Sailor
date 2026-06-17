@@ -39,6 +39,7 @@ import {
   encodeAbiParameters,
   encodeDeployData,
   encodeFunctionData,
+  formatEther,
   getAddress,
   getCreate2Address,
   isAddress,
@@ -680,6 +681,9 @@ async function runDeployClone(
     sma,
     txHash,
     chainId: project.chainId,
+    // Registration fee actually paid by the agent for this permission.
+    fee: fee.toString(),
+    feeEth: formatEther(fee),
   });
 
   emit(json, () => {}, {

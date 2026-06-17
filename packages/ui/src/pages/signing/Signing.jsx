@@ -704,6 +704,38 @@ function PermissionRow({ item }) {
   )
 }
 
+/* Factual disclosure of the per-permission registration fee, shown at sign time.
+   The values are read live from governance by `sailor mandate prepare` and
+   embedded in the draft, so this component only renders them. */
+function RegistrationFeeNote({ fee }) {
+  return (
+    <div style={{
+      marginTop: 4,
+      marginBottom: 4,
+      padding: '10px 12px',
+      borderRadius: 2,
+      background: 'var(--glass-bg)',
+      border: '1px solid var(--glass-border)',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'baseline',
+      gap: 8,
+    }}>
+      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Registration fee</span>
+      <span style={{ textAlign: 'right' }}>
+        <span style={{ fontSize: 14, color: 'var(--text-primary, #fff)', fontWeight: 600 }}>
+          {fee.totalEth} ETH
+        </span>
+        {fee.permissionCount > 1 && (
+          <span style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
+            {fee.permissionCount} permissions × {fee.perPermissionEth} ETH
+          </span>
+        )}
+      </span>
+    </div>
+  )
+}
+
 export function MandateSigningFlow({ draft, embedded = false }) {
   const { isConnected, chainId: walletChainId } = useAccount()
   const { signTypedDataAsync } = useSignTypedData()
@@ -837,6 +869,8 @@ export function MandateSigningFlow({ draft, embedded = false }) {
               <PermissionRow key={i} item={it} />
             ))}
           </ul>
+
+          {draft.registrationFee && <RegistrationFeeNote fee={draft.registrationFee} />}
 
           {errorMsg && (
             <p style={{ color: '#ff6b6b', fontSize: 13, margin: '8px 0' }}>{errorMsg}</p>

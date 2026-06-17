@@ -73,7 +73,14 @@ export {
   sailKernelDomain,
   signRegisterPermission,
 } from "./eip712.js";
-export { estimatePermissionFee } from "./fees.js";
+export {
+  assertRegistrationFeeAffordable,
+  describeRegistrationFee,
+  estimatePermissionFee,
+  readPermissionRegistrationFee,
+  registrationFeeShortfall,
+  totalRegistrationFee,
+} from "./fees.js";
 export type { FetchLifiQuoteParams, LifiSwapQuote } from "./lifi.js";
 export {
   DEFAULT_SLIPPAGE,

@@ -73,7 +73,10 @@ addresses remain. This file is the source of truth this guide mirrors.
 | `packages/cli/src/commands/onboard.ts` | SMA creation + permission registration flow |
 | `packages/cli/src/commands/mandate-contracts.ts` | Deploy / attach / revoke permission contracts |
 | `packages/cli/src/lib/mandates.ts` | `MandateStore` — `.sail/state/mandates.json` source of truth |
+| `packages/sdk/src/fees.ts` | `readPermissionRegistrationFee` (live governance read) + per-permission fee math/disclosure/preflight |
 | `packages/ui/server.js` | Local API + WebSocket proxy; signing station relay |
+
+Per-permission registration fee (read live from governance, surfaced at sign time / activity / preflight): see `templates/default/.agents/skills/sail-mandates/SKILL.md` → "Registration fee".
 
 ## Build
 

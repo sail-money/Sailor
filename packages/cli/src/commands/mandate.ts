@@ -1,5 +1,11 @@
-import { SailKernelAbi } from "@sail/sdk";
-import { http, type Address, createPublicClient } from "viem";
+import {
+  SailKernelAbi,
+  describeRegistrationFee,
+  getSailDeployment,
+  readPermissionRegistrationFee,
+  totalRegistrationFee,
+} from "@sail/sdk";
+import { http, type Address, createPublicClient, formatEther } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { confirm, readJsonFile, sailPath, writeJsonFile } from "../lib/io.js";
 import { MandateStore } from "../lib/mandates.js";
@@ -28,13 +34,50 @@ type TrackedPermission = {
   revokedOnChain?: boolean;
 };
 
+/**
+ * The per-permission registration fee disclosed at sign time, read live from
+ * governance at prepare time. Optional: omitted when the fee can't be read
+ * (no RPC, or a governance that predates the flat permissionRegistrationFee).
+ */
+type DraftRegistrationFee = {
+  /** Per-permission fee (wei) as a decimal string. */
+  perPermissionWei: string;
+  /** Per-permission fee formatted in ETH. */
+  perPermissionEth: string;
+  /** Total fee (wei) for this mandate = perPermission × permissionCount. */
+  totalWei: string;
+  /** Total fee formatted in ETH. */
+  totalEth: string;
+  /** Number of permissions the fee covers. */
+  permissionCount: number;
+  /** One-line factual cost disclosure for the UI. */
+  disclosure: string;
+};
+
 /** The simple draft the UI reads to display the SMA's permission set. */
 type MandateDraft = {
   account: string;
   chainId: number;
   permissions: Array<{ address: string; label: string; explanation?: PermissionExplanation }>;
   createdAt: string;
+  registrationFee?: DraftRegistrationFee;
 };
+
+/**
+ * Read the live per-permission registration fee from governance for `chainId`.
+ * Returns null when unavailable (no RPC, or a governance that predates the flat
+ * permissionRegistrationFee) so callers degrade gracefully instead of breaking.
+ */
+async function liveRegistrationFee(chainId: number): Promise<bigint | null> {
+  try {
+    const deployment = getSailDeployment(chainId);
+    const rpcUrl = getRpcUrl(chainId) ?? getChainById(chainId).rpcUrls.default.http[0];
+    const pc = createPublicClient({ chain: getChainById(chainId), transport: http(rpcUrl) });
+    return await readPermissionRegistrationFee(pc, deployment.governance);
+  } catch {
+    return null;
+  }
+}
 
 /**
  * The chain a mandate operation targets. A multi-chain SMA has the same address
@@ -164,19 +207,41 @@ export async function mandatePrepare(): Promise<void> {
   }
 
   const store = new MandateStore();
+  const draftPermissions = permissions
+    .filter((p) => !p.revokedOnChain)
+    .map((p) => {
+      const mandate = store.find(p.address);
+      const explanation = explainPermission(p.label, mandate?.sourcePath) ?? undefined;
+      return { address: p.address, label: p.label, explanation };
+    });
+
+  // Read the per-permission registration fee LIVE from governance and embed the
+  // total (fee × N) so the UI can disclose the cost at sign time. Best-effort:
+  // if the fee can't be read the draft still writes, just without the fee block.
+  let registrationFee: DraftRegistrationFee | undefined;
+  const perPermissionFeeWei = await liveRegistrationFee(chainId);
+  if (perPermissionFeeWei !== null) {
+    const count = draftPermissions.length;
+    const totalWei = totalRegistrationFee(perPermissionFeeWei, count);
+    registrationFee = {
+      perPermissionWei: perPermissionFeeWei.toString(),
+      perPermissionEth: formatEther(perPermissionFeeWei),
+      totalWei: totalWei.toString(),
+      totalEth: formatEther(totalWei),
+      permissionCount: count,
+      disclosure: describeRegistrationFee(perPermissionFeeWei, count),
+    };
+  }
+
   const draft: MandateDraft = {
     account: account.safe,
     chainId,
-    permissions: permissions
-      .filter((p) => !p.revokedOnChain)
-      .map((p) => {
-        const mandate = store.find(p.address);
-        const explanation = explainPermission(p.label, mandate?.sourcePath) ?? undefined;
-        return { address: p.address, label: p.label, explanation };
-      }),
+    permissions: draftPermissions,
     createdAt: new Date().toISOString(),
+    ...(registrationFee ? { registrationFee } : {}),
   };
   writeJsonFile(sailPath("mandate-draft.json"), draft);
+  if (registrationFee) console.log(`\n${registrationFee.disclosure}`);
   console.log("\nDraft written to .sail/mandate-draft.json for the UI to display.");
 }
 
@@ -220,6 +285,20 @@ export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
   // Exclude revoked-on-chain entries from the confirmation: they are no longer
   // active regardless of what the local store says.
   const activePermissions = permissions.filter((p) => !p.revokedOnChain);
+  const unregistered = activePermissions.filter((p) => !p.registeredOnSma);
+
+  // Disclose the per-permission registration fee BEFORE the user confirms.
+  // Only the not-yet-registered permissions incur a fee now (already-registered
+  // ones were paid for when they were first registered). Read live from
+  // governance; best-effort, so a missing fee never blocks confirmation.
+  if (unregistered.length > 0) {
+    const perPermissionFeeWei = await liveRegistrationFee(chainId);
+    if (perPermissionFeeWei !== null) {
+      console.log(`\n${describeRegistrationFee(perPermissionFeeWei, unregistered.length)}`);
+      console.log("  Paid by the agent wallet on registration, per permission.");
+    }
+  }
+
   const proceed = opts.yes || await confirm(
     `Confirm these ${activePermissions.length} permission(s) are authorized for your SMA?`,
   );
@@ -228,7 +307,6 @@ export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
     return;
   }
 
-  const unregistered = activePermissions.filter((p) => !p.registeredOnSma);
   if (unregistered.length === 0) {
     console.log(`\n✓ Confirmed ${activePermissions.length} permission(s) for ${account.safe}.`);
   } else {
