@@ -217,7 +217,7 @@ function checkSkills(errors) {
       errors.push(`templates/default/.agents/skills/${d}: missing SKILL.md`);
       continue;
     }
-    const fm = readFileSync(skillFile, "utf-8").match(/^---\n([\s\S]*?)\n---/);
+    const fm = readFileSync(skillFile, "utf-8").match(/^---\r?\n([\s\S]*?)\r?\n---/);
     if (!fm) {
       errors.push(`${rel(skillFile)}: missing YAML frontmatter`);
       continue;
