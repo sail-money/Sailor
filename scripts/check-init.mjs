@@ -75,7 +75,7 @@ try {
     ".agents/skills/sail-transactions/SKILL.md",
     ".agents/skills/sail-mandates/SKILL.md",
     ".agents/skills/sail-mandates/references/approvals.md",
-    ".agents/skills/sail-ci/SKILL.md",
+    ".agents/skills/sail-automation/SKILL.md",
     ".agents/skills/sail-extend/SKILL.md",
   ];
   for (const rel of mustExist) {

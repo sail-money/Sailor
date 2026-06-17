@@ -64,7 +64,7 @@ Detailed procedures live in skills. If your tooling does not auto-discover skill
 | sail-servers | Starting, stopping, or health-checking the dashboard or signing station | `.agents/skills/sail-servers/SKILL.md` |
 | sail-transactions | Building dispatches or any EVM transaction for the agent | `.agents/skills/sail-transactions/SKILL.md` |
 | sail-mandates | Designing, authoring, testing, deploying, or authorizing permission contracts | `.agents/skills/sail-mandates/SKILL.md` |
-| sail-ci | Automating the agent on a schedule via GitHub Actions | `.agents/skills/sail-ci/SKILL.md` |
+| sail-automation | Automating the agent — GitHub Actions, self-hosted runner, Docker, or local daemon | `.agents/skills/sail-automation/SKILL.md` |
 | sail-extend | Notifications or a custom dashboard, once the agent is live | `.agents/skills/sail-extend/SKILL.md` |
 
 ## Invariants — apply to every turn
