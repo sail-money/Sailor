@@ -10,10 +10,12 @@ write your own.
 ## Permissions are only as strong as the protocol is on-chain
 
 A permission is evaluated by the kernel on every dispatch — but it can only see what happens
-on-chain. For venues with off-chain order matching (e.g. Polymarket, Hyperliquid), a permission
-can constrain deposits, withdrawals, and sub-accounts, but NOT the orders your agent signs
-off-chain. Prefer fully on-chain venues — Uniswap, Aave, GMX, Synthetix, Limitless — where every
-action passes through the kernel and your bounds actually hold.
+on-chain. For venues with off-chain order matching (e.g. Polymarket, Limitless, Hyperliquid), a
+permission can constrain deposits, withdrawals, approvals, and treasury flows, but NOT the orders
+your agent signs off-chain. Prefer fully on-chain venues — Uniswap, Aave, GMX, Synthetix — where
+every action passes through the kernel and your bounds actually hold. For an off-chain-CLOB venue,
+bound the funding flow instead and accept that the trade itself is agent-enforced — see
+`BoundedLimitless_Base.sol`.
 
 ## Permissions are protocol- and version-specific
 
@@ -51,7 +53,7 @@ off-chain agent code — these do *not* hold on-chain). Read both before deployi
 | `BoundedStake_Venice_Base.sol` | Venice (VVV) staking | sVVV staking | Base | Full decode |
 | `BoundedTransfer_ERC20_Ethereum.sol` | ERC-20 Transfer | — | Ethereum (any EVM) | Full decode |
 | `BoundedPerp_GMXv2_Arbitrum.sol` | GMX Perpetuals | V2 ExchangeRouter | Arbitrum | Reference pattern — verify selector/struct/router against live GMX ABI (see header) |
-| `BoundedBet_Limitless_Base.sol` | Limitless Prediction | CTF Exchange | Base | UNVERIFIED ABI — see header |
+| `BoundedLimitless_Base.sol` | Limitless Prediction (off-chain CLOB) | Polymarket fork | Base | Bounds treasury→trader funding; bet is off-chain (see header) |
 | `BoundedApproveAndCallBatch.sol` | Atomic approve→call→reset | Sail `IBatchPermission` | Any selective kernel | Full decode — batch-only (see note below) |
 
 The `interfaces/` directory holds `IPermission.sol` (single-call permissions) and
