@@ -16,6 +16,27 @@ const _thisFile = (() => {
   try { return fileURLToPath(import.meta.url) } catch { return __filename }
 })()
 
+/** Read the installed package version by walking up to the nearest package.json. */
+function readPackageVersion() {
+  let dir = path.dirname(_thisFile)
+  for (let i = 0; i < 6; i++) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf-8'))
+      if (pkg?.version) return String(pkg.version)
+    } catch { /* keep walking up */ }
+    const parent = path.dirname(dir)
+    if (parent === dir) break
+    dir = parent
+  }
+  return null
+}
+
+// The version this server process started with. If the on-disk package is later
+// upgraded (npm i @sail.money/sailor@latest) the running process keeps serving
+// stale assets/code until restarted — so /api/version compares this snapshot
+// against the live on-disk version and the dashboard prompts a reload.
+const RUNNING_VERSION = readPackageVersion()
+
 // ── Overview helpers ─────────────────────────────────────────────────────────
 
 /** Minimal `.env`-style parser for `.sail/.env.local` (RPC_URL, KERNEL_ADDRESS…). */
@@ -107,6 +128,39 @@ function resolveRpcUrl(env, chainId) {
   // wrong network — prefer a chain-correct public endpoint instead.
   if (env.RPC_URL && Number(env.CHAIN_ID) === Number(chainId)) return env.RPC_URL
   return DEFAULT_RPC_URLS[chainId] ?? env.RPC_URL ?? null
+}
+
+/**
+ * Read the SMA's true on-chain permissionSigner + manager from the kernel.
+ * The browser save paths used to default both to the owner address, which
+ * desynced .sail/account.json from chain reality (audit: a Safe's real manager
+ * differed from the recorded owner). Returns null if the SMA isn't registered
+ * or the RPC read fails, so callers fall back to whatever they were given.
+ */
+async function readKernelSigners(safe, chainId, rpcUrl) {
+  try {
+    if (!rpcUrl || !isAddress(safe)) return null
+    const kernel = getSailDeployment(Number(chainId))?.kernel
+    if (!kernel) return null
+    // Bounded timeout: this runs inline on the SMA-save request, so a slow or
+    // rate-limited RPC must not stall the save. On timeout we fall back to the
+    // caller's values rather than block.
+    const client = createPublicClient({ transport: http(rpcUrl, { timeout: 4000 }) })
+    const registered = await client.readContract({
+      address: kernel, abi: SailKernelAbi, functionName: 'registered', args: [getAddress(safe)],
+    })
+    if (!registered) return null
+    const configs = await client.readContract({
+      address: kernel, abi: SailKernelAbi, functionName: 'configs', args: [getAddress(safe)],
+    })
+    const [permissionSigner, manager] = configs
+    return { permissionSigner: getAddress(permissionSigner), manager: getAddress(manager) }
+  } catch (err) {
+    // RPC failure — fall back to caller-provided values, but surface why the
+    // account may record owner-as-manager so a desync isn't fully silent.
+    console.warn(`[account] on-chain signer read failed for ${safe} on chain ${chainId}; using provided values: ${err instanceof Error ? err.message.split('\n')[0] : String(err)}`)
+    return null
+  }
 }
 
 /**
@@ -313,7 +367,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
   })
 
   // POST /api/account — persist a newly deployed SMA from the browser signing flow.
-  app.post('/api/account', (req, res) => {
+  app.post('/api/account', async (req, res) => {
     const { safe, owner, permissionSigner, manager, chainId, createdAtBlock, deployedChains } = req.body ?? {}
     if (!safe || !owner || !chainId) {
       res.status(400).json({ error: 'safe, owner, and chainId are required' })
@@ -321,7 +375,19 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
     try {
       fs.mkdirSync(at('state'), { recursive: true })
-      const record = { safe, owner, permissionSigner: permissionSigner ?? owner, manager: manager ?? owner, chainId, createdAtBlock: createdAtBlock ?? '0' }
+      // Source of truth for the SMA's signer/manager is the kernel, not the owner.
+      // Defaulting these to `owner` (the old behavior) desynced account.json from
+      // chain — read them on-chain and prefer that; fall back to body, then owner.
+      const env = parseEnvFile(at('.env.local'))
+      const onchain = await readKernelSigners(safe, chainId, resolveRpcUrl(env, Number(chainId)))
+      const record = {
+        safe,
+        owner,
+        permissionSigner: onchain?.permissionSigner ?? permissionSigner ?? owner,
+        manager: onchain?.manager ?? manager ?? owner,
+        chainId,
+        createdAtBlock: createdAtBlock ?? '0',
+      }
       // A multichain SMA (same address deployed across chains) carries the full
       // list so the dashboard's per-chain panels + switcher show every chain.
       if (Array.isArray(deployedChains) && deployedChains.length > 0) record.deployedChains = deployedChains
@@ -1249,8 +1315,11 @@ export function startServer(sailDir, { port = PORT } = {}) {
           createdAtBlock = (await client.getBlockNumber()).toString()
         }
       } catch {}
+      // Prefer the kernel's true manager/permissionSigner over local guesses.
+      // Falls back to the request body, then the local keystore, then owner.
+      const onchain = await readKernelSigners(safe, chainId, resolveRpcUrl(parseEnvFile(at('.env.local')), Number(chainId)))
       const managerKeyPath = at('keys/manager.json')
-      let resolvedManager = manager
+      let resolvedManager = onchain?.manager ?? manager
       if (!resolvedManager) {
         try {
           const ks = JSON.parse(fs.readFileSync(managerKeyPath, 'utf-8'))
@@ -1260,7 +1329,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
       const record = {
         safe: getAddress(safe),
         owner: getAddress(owner),
-        permissionSigner: getAddress(owner),
+        permissionSigner: onchain?.permissionSigner ?? getAddress(owner),
         manager: getAddress(resolvedManager),
         chainId,
         createdAtBlock,
@@ -1498,13 +1567,19 @@ export function startServer(sailDir, { port = PORT } = {}) {
     const perSmaPath = managerKeyPath(account.safe)
     const legacyPerSmaPath = legacyManagerKeyPath(account.safe)
     const flatManagerPath = at('keys/manager.json')
-    for (const p of [perSmaPath, legacyPerSmaPath, flatManagerPath]) {
+    // Resolve the SAME way `sailor run` does (resolveKeyPath): the active SMA's
+    // own keystore wins; the legacy flat keys/manager.json is only the fallback
+    // when this SMA has no per-SMA key. Unioning all three (the old behavior)
+    // surfaced a key belonging to a DIFFERENT SMA as this SMA's "local key", and
+    // invented a local key when none on disk applies to the active SMA (audit #10).
+    const activeKeyPath =
+      [perSmaPath, legacyPerSmaPath].find((p) => fs.existsSync(p)) ??
+      (fs.existsSync(flatManagerPath) ? flatManagerPath : null)
+    if (activeKeyPath) {
       try {
-        if (fs.existsSync(p)) {
-          const ks = JSON.parse(fs.readFileSync(p, 'utf-8'))
-          if (ks?.address) {
-            localManagerAddrs.add(getAddress(`0x${String(ks.address).replace(/^0x/, '')}`))
-          }
+        const ks = JSON.parse(fs.readFileSync(activeKeyPath, 'utf-8'))
+        if (ks?.address) {
+          localManagerAddrs.add(getAddress(`0x${String(ks.address).replace(/^0x/, '')}`))
         }
       } catch {
         /* ignore bad/missing keystore */
@@ -1676,6 +1751,14 @@ export function startServer(sailDir, { port = PORT } = {}) {
     return result
   }
 
+  // GET /api/version — running (process-start) vs installed (live on-disk) version.
+  // `stale: true` means the package was upgraded under a running `sailor ui`, so
+  // the dashboard is serving old assets/code; the client prompts a restart/reload.
+  app.get('/api/version', (_req, res) => {
+    const installed = readPackageVersion()
+    res.json({ running: RUNNING_VERSION, installed, stale: Boolean(RUNNING_VERSION && installed && installed !== RUNNING_VERSION) })
+  })
+
   // Serve the built UI if available. SERVE_DIST=1 is the explicit flag set by
   // `sailor ui start`, but we also auto-detect: if index.html exists next to
   // this server file (or at SAILOR_UI_DIST), serve it without the flag so that
@@ -1683,8 +1766,18 @@ export function startServer(sailDir, { port = PORT } = {}) {
   const distDir = process.env.SAILOR_UI_DIST ?? path.join(path.dirname(_thisFile), 'dist')
   const hasUiDist = fs.existsSync(path.join(distDir, 'index.html'))
   if (process.env.SERVE_DIST === '1' || hasUiDist) {
-    app.use(express.static(distDir))
-    app.get('*', (_req, res) => res.sendFile(path.join(distDir, 'index.html')))
+    // Asset files are content-hashed → safe to cache. index.html is NOT hashed,
+    // so it must revalidate every load; otherwise the browser keeps an old index
+    // that points at stale asset hashes after an upgrade.
+    app.use(express.static(distDir, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('index.html')) res.setHeader('Cache-Control', 'no-cache')
+      },
+    }))
+    app.get('*', (_req, res) => {
+      res.setHeader('Cache-Control', 'no-cache')
+      res.sendFile(path.join(distDir, 'index.html'))
+    })
   }
 
   const httpServer = app.listen(port, () => {

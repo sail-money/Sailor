@@ -5,34 +5,102 @@ import { checksum, confirm, fileExists, persistPassphrase, prompt, promptHidden,
 import { keyExists, keyPath, loadKeyring, normalizeRole, resolveKeyPath, roleLabel, ROLES } from "../lib/keys.js";
 import type { StoredAccount } from "../lib/state.js";
 
+export type KeysGenerateOptions = {
+  /** Key role: "agent-wallet"/"manager" or "mandate-signer"/"permissionSigner". */
+  type?: string;
+  /** Passphrase to encrypt the key (else SAIL_PASSPHRASE, else stdin, else prompt). */
+  passphrase?: string;
+  /** Overwrite an existing key without prompting. */
+  force?: boolean;
+};
+
+/** Read all of stdin (used when a passphrase is piped in for unattended use). */
+function readStdin(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let data = "";
+    process.stdin.setEncoding("utf8");
+    process.stdin.on("data", (c) => {
+      data += c;
+    });
+    process.stdin.on("end", () => resolve(data));
+    process.stdin.on("error", reject);
+  });
+}
+
 /**
  * `sailor keys generate` — creates a random key for a role and stores it
  * encrypted at .sail/keys/<role>.json. The private key is never printed.
+ *
+ * Works interactively (prompts) and non-interactively for agent/CI use: pass
+ * `--type` and supply the passphrase via `--passphrase`, the `SAIL_PASSPHRASE`
+ * env var, or stdin. In non-interactive mode an existing key requires `--force`.
  */
-export async function keysGenerate(): Promise<void> {
-  const roleInput = await prompt("Which key? (agent wallet / mandate signer)", "agent wallet");
-  const role = normalizeRole(roleInput);
-  if (!role) {
-    throw new Error(`Unknown key role: "${roleInput}". Choose "agent wallet" or "mandate signer".`);
-  }
+export async function keysGenerate(options: KeysGenerateOptions = {}): Promise<void> {
+  const interactive = process.stdin.isTTY === true;
 
-  if (fileExists(keyPath(role))) {
-    const overwrite = await confirm(
-      `A ${roleLabel(role)} key already exists at .sail/keys/${role}.json. Overwrite it?`,
+  // ── Role ───────────────────────────────────────────────────────────────────
+  let role = options.type ? normalizeRole(options.type) : null;
+  if (options.type && !role) {
+    throw new Error(
+      `Unknown --type "${options.type}". Use "agent-wallet" (manager) or "mandate-signer".`,
     );
-    if (!overwrite) {
-      console.log("Aborted — existing key left untouched.");
-      return;
+  }
+  if (!role) {
+    if (!interactive) {
+      throw new Error(
+        'Non-interactive: pass --type <agent-wallet|mandate-signer> (no TTY to prompt on).',
+      );
+    }
+    const roleInput = await prompt("Which key? (agent wallet / mandate signer)", "agent wallet");
+    role = normalizeRole(roleInput);
+    if (!role) {
+      throw new Error(`Unknown key role: "${roleInput}". Choose "agent wallet" or "mandate signer".`);
     }
   }
 
-  const password = await promptHidden("Set a password to encrypt the key");
+  // ── Overwrite guard ──────────────────────────────────────────────────────────
+  if (fileExists(keyPath(role))) {
+    if (!options.force) {
+      if (!interactive) {
+        throw new Error(
+          `A ${roleLabel(role)} key already exists at .sail/keys/${role}.json. Pass --force to overwrite.`,
+        );
+      }
+      const overwrite = await confirm(
+        `A ${roleLabel(role)} key already exists at .sail/keys/${role}.json. Overwrite it?`,
+      );
+      if (!overwrite) {
+        console.log("Aborted — existing key left untouched.");
+        return;
+      }
+    }
+  }
+
+  // ── Passphrase resolution ─────────────────────────────────────────────────────
+  // Priority: --passphrase > SAIL_PASSPHRASE > piped stdin > interactive prompt.
+  let password = options.passphrase ?? process.env.SAIL_PASSPHRASE ?? "";
+  let promptedInteractively = false;
+  if (!password && !interactive) {
+    password = (await readStdin()).trim();
+    if (!password) {
+      throw new Error(
+        "No passphrase provided. Pass --passphrase, set SAIL_PASSPHRASE, or pipe it on stdin.",
+      );
+    }
+  }
+  if (!password && interactive) {
+    password = await promptHidden("Set a password to encrypt the key");
+    promptedInteractively = true;
+  }
   if (password.length < 8) {
     throw new Error("Password must be at least 8 characters.");
   }
-  const confirmation = await promptHidden("Confirm password");
-  if (password !== confirmation) {
-    throw new Error("Passwords do not match.");
+  // Only ask to confirm a freshly typed password — a supplied one is authoritative.
+  if (promptedInteractively) {
+    const confirmation = await promptHidden("Confirm password");
+    if (password !== confirmation) {
+      throw new Error("Passwords do not match.");
+    }
   }
 
   const keyring = LocalKeyring.generate();
@@ -43,20 +111,25 @@ export async function keysGenerate(): Promise<void> {
   console.log(`\n${label} key saved. Address: ${checksum(keyring.address)}`);
   console.log(`Encrypted keystore written to .sail/keys/${role}.json`);
 
-  // Offer to persist the passphrase to .sail/.env.local for non-interactive use.
-  // This lets `sailor run` work in CI and automated environments without needing
-  // to export the passphrase in the shell. The file is gitignored by default.
+  // Persist the passphrase to .sail/.env.local so `sailor run` works
+  // non-interactively (CI/GitHub Actions/cron). The file is gitignored by default.
   if (role === "manager") {
-    const save = await confirm(
-      "\nSave passphrase to .sail/.env.local for non-interactive use? (required for CI/GitHub Actions)",
-    );
-    if (save) {
+    if (interactive && !options.passphrase) {
+      const save = await confirm(
+        "\nSave passphrase to .sail/.env.local for non-interactive use? (required for CI/GitHub Actions)",
+      );
+      if (save) {
+        persistPassphrase(sailPath(".env.local"), password);
+        console.log("✓ SAIL_PASSPHRASE saved to .sail/.env.local (mode 0600)");
+        console.log("  sailor run will now work non-interactively.");
+      } else {
+        console.log("\nTo run non-interactively, add this to .sail/.env.local:");
+        console.log(`  SAIL_PASSPHRASE=<your-passphrase>`);
+      }
+    } else {
+      // Non-interactive (agent/CI): persist automatically so setup completes unattended.
       persistPassphrase(sailPath(".env.local"), password);
       console.log("✓ SAIL_PASSPHRASE saved to .sail/.env.local (mode 0600)");
-      console.log("  sailor run will now work non-interactively.");
-    } else {
-      console.log("\nTo run non-interactively, add this to .sail/.env.local:");
-      console.log(`  SAIL_PASSPHRASE=<your-passphrase>`);
     }
   }
 }

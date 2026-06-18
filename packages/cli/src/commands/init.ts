@@ -9,6 +9,7 @@ type InitOptions = {
   chain?: string;
   rpcUrl?: string;
   template?: string;
+  force?: boolean;
 };
 
 // No default chain — Stage 1 of onboarding asks the user which chain they want.
@@ -196,12 +197,16 @@ export async function initCommand(
     throw new Error(`Directory must be inside the current working directory`);
   }
 
-  if (!inPlace && fs.existsSync(dest)) {
-    throw new Error(`Directory already exists: ${dest}`);
+  if (!inPlace && fs.existsSync(dest) && !options.force) {
+    throw new Error(`Directory already exists: ${dest}\nPass --force to scaffold into it anyway (existing files with the same name are overwritten).`);
   }
 
-  if (inPlace && fs.existsSync(path.join(dest, ".sail", "config.json"))) {
-    throw new Error("This project is already initialized. Run `sailor update` to re-sync template files.");
+  if (inPlace && fs.existsSync(path.join(dest, ".sail", "config.json")) && !options.force) {
+    throw new Error(
+      "This project is already initialized.\n" +
+        "Run `sailor update` to re-sync template files, or `sailor init --force` to re-initialize " +
+        "(overwrites scaffold files; your .sail/keys/ and .sail/state/ are left in place).",
+    );
   }
 
   copyDirSync(templateSrc, dest);
