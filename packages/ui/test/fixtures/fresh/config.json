@@ -4,7 +4,7 @@
   "chainId": 8453,
   "stateDir": ".sail/state",
   "contracts": {
-    "kernel": "0xbEd6F78c6d89547Fb9B43d599621dd80ce57F154",
-    "mandateFactory": "0xc3FFb7128bc95B5e3a3268f6E168c331FF13fE07"
+    "kernel": "0x3E4C45D34Ea49DB66a78dd965B005f91d483C13F",
+    "mandateFactory": "0x7c1714C2B7CF7ED2AAAEbdb615692A9c1F3eb46f"
   }
 }

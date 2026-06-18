@@ -6,8 +6,11 @@ import type { DispatchModel } from "./capabilities.js";
  * Mainnets: Ethereum (1), Base (8453), Arbitrum (42161), Unichain (130).
  * Testnets: Base Sepolia (84532), Eth Sepolia (11155111).
  *
- * All six chains were redeployed via CREATE2 (global salt, gitCommit 1199b33)
- * so every core contract lands at the same address on every chain.
+ * Core contracts deploy via CREATE2 (global salt, version create2-safe-2026-06-17)
+ * through factory 0x4e59b44847b379578588920cA78FbF26c0B4956C so every core
+ * contract lands at the same address on every chain. Live on 8453, 42161, 130,
+ * 84532, 11155111 (2026-06-17); Ethereum mainnet (1) is pending (safe batch
+ * prepared, awaiting execution) but shares these addresses once deployed.
  */
 export type SailChainId = 1 | 8453 | 42161 | 130 | 84532 | 11155111;
 
@@ -92,36 +95,56 @@ export type SailDeployment = {
 const zero = "0x0000000000000000000000000000000000000000" as Address;
 
 /**
- * CREATE2-deterministic core addresses — identical on every chain (gitCommit 1199b33,
- * deployment mode: create2-global-salt, factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C).
+ * CREATE2-deterministic core addresses — identical on every chain (version
+ * create2-safe-2026-06-17, deployment mode: create2-global-salt, factory:
+ * 0x4e59b44847b379578588920cA78FbF26c0B4956C).
  *
  * Because kernel, safeModuleEnabler, and standardFeePolicy are the same on every chain,
  * SailKernel.createAccount produces the same SMA address with the same owner/manager/salt
  * on every supported chain — enabling true cross-chain deterministic SMA deployment.
  */
-const CREATE2_KERNEL = "0x02ABC18B65A328de2e749F56ba79ACF2718a6659" as Address;
-const CREATE2_GOVERNANCE = "0x7A478118715791728BDE3bc7A4D7ECfdEB89C6EC" as Address;
-const CREATE2_TIMELOCK = "0xE48Ba8DB6d748adafD13155c3590f62e58a77f56" as Address;
-const CREATE2_SAFE_MODULE_ENABLER = "0x7897Cb53a4be4a2eaAf46D60573C4Fd83b33fE1F" as Address;
-const CREATE2_MANDATE_FACTORY = "0x14EDd6c2a56EfC0d71E215ab13094B9AF90543d2" as Address;
-const CREATE2_STANDARD_FEE_POLICY = "0xe7B5901b839cFFDEd9D4108A22712C8BfdA1D80D" as Address;
-const CREATE2_TREASURY = "0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6" as Address;
+export const CREATE2_FACTORY = "0x4e59b44847b379578588920cA78FbF26c0B4956C" as Address;
+export const CREATE2_SAFE_PROXY_FACTORY = "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67" as Address;
+export const CREATE2_OWNER = "0x152a32c851d317Cd54F1E6423377d7D58Dd3DE8C" as Address;
+export const CREATE2_KERNEL = "0x3E4C45D34Ea49DB66a78dd965B005f91d483C13F" as Address;
+export const CREATE2_GOVERNANCE = "0xCBC9DcC44485250c6C8D3597E5CD45beCb858c7b" as Address;
+export const CREATE2_TIMELOCK = "0xC1E5F9A581D4100Aa949f80204540a33aD97A7b6" as Address;
+export const CREATE2_SAFE_MODULE_ENABLER = "0x7897Cb53a4be4a2eaAf46D60573C4Fd83b33fE1F" as Address;
+export const CREATE2_MANDATE_FACTORY = "0x7c1714C2B7CF7ED2AAAEbdb615692A9c1F3eb46f" as Address;
+export const CREATE2_STANDARD_FEE_POLICY = "0x9a73C8E1BC4772959cB0c40Fd1d37234d6743819" as Address;
+
+/** Canonical core contract addresses — single source of truth for tooling and docs. */
+export const sailCoreAddresses = {
+  create2Factory: CREATE2_FACTORY,
+  safeProxyFactory: CREATE2_SAFE_PROXY_FACTORY,
+  owner: CREATE2_OWNER,
+  governance: CREATE2_GOVERNANCE,
+  timelock: CREATE2_TIMELOCK,
+  kernel: CREATE2_KERNEL,
+  mandateFactory: CREATE2_MANDATE_FACTORY,
+  standardFeePolicy: CREATE2_STANDARD_FEE_POLICY,
+  safeModuleEnabler: CREATE2_SAFE_MODULE_ENABLER,
+} as const;
+
+/** Flat per-permission registration fee at genesis (wei). Read live on-chain at sign time. */
+export const INITIAL_PERMISSION_REGISTRATION_FEE_WEI = 10_000_000_000_000n;
 
 export const sailDeployments: Record<SailChainId, SailDeployment> = {
   // ── Ethereum mainnet ─────────────────────────────────────────────────────────
   1: {
-    // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33).
-    // allowlistBootstrapped=true (genesis bootstrap), zero fees, 48h timelock.
+    // CREATE2 deterministic deploy (create2-safe-2026-06-17). PENDING — safe batch
+    // prepared (deployments/1/safe-deploy-batch.json), awaiting execution. Shares
+    // the same core addresses as live chains once deployed.
     chainId: 1,
-    blockNumber: 25280925,
-    deployer: CREATE2_TREASURY,
+    blockNumber: 0,
+    deployer: CREATE2_OWNER,
     governance: CREATE2_GOVERNANCE,
     timelock: CREATE2_TIMELOCK,
     kernel: CREATE2_KERNEL,
     mandateFactory: CREATE2_MANDATE_FACTORY,
     standardFeePolicy: CREATE2_STANDARD_FEE_POLICY,
     safeModuleEnabler: CREATE2_SAFE_MODULE_ENABLER,
-    treasury: CREATE2_TREASURY,
+    treasury: CREATE2_OWNER,
     maxPermissionFeeWei: 1_000_000_000_000_000n,
     initialBaseFee: 0n,
     initialComplexityRate: 0n,
@@ -131,19 +154,17 @@ export const sailDeployments: Record<SailChainId, SailDeployment> = {
   },
   // ── Base mainnet ─────────────────────────────────────────────────────────────
   8453: {
-    // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33). Supersedes
-    // 0x6319d3dfDDe3804ba93D65752b00c52bFb05a1ab (SAIL-405 redeploy).
-    // allowlistBootstrapped=true, zero fees, 48h timelock.
+    // CREATE2 deterministic deploy (create2-safe-2026-06-17). Live, bootstrapped.
     chainId: 8453,
-    blockNumber: 47115338,
-    deployer: CREATE2_TREASURY,
+    blockNumber: 0,
+    deployer: CREATE2_OWNER,
     governance: CREATE2_GOVERNANCE,
     timelock: CREATE2_TIMELOCK,
     kernel: CREATE2_KERNEL,
     mandateFactory: CREATE2_MANDATE_FACTORY,
     standardFeePolicy: CREATE2_STANDARD_FEE_POLICY,
     safeModuleEnabler: CREATE2_SAFE_MODULE_ENABLER,
-    treasury: CREATE2_TREASURY,
+    treasury: CREATE2_OWNER,
     maxPermissionFeeWei: 1_000_000_000_000_000n,
     initialBaseFee: 0n,
     initialComplexityRate: 0n,
@@ -153,19 +174,17 @@ export const sailDeployments: Record<SailChainId, SailDeployment> = {
   },
   // ── Arbitrum mainnet ─────────────────────────────────────────────────────────
   42161: {
-    // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33). Supersedes
-    // 0x2716B12832DED0EF5688519c5Fe069EFc0374E02 (SAIL-405 redeploy).
-    // allowlistBootstrapped=true, zero fees, 48h timelock.
+    // CREATE2 deterministic deploy (create2-safe-2026-06-17). Live, bootstrapped.
     chainId: 42161,
-    blockNumber: 471736462,
-    deployer: CREATE2_TREASURY,
+    blockNumber: 0,
+    deployer: CREATE2_OWNER,
     governance: CREATE2_GOVERNANCE,
     timelock: CREATE2_TIMELOCK,
     kernel: CREATE2_KERNEL,
     mandateFactory: CREATE2_MANDATE_FACTORY,
     standardFeePolicy: CREATE2_STANDARD_FEE_POLICY,
     safeModuleEnabler: CREATE2_SAFE_MODULE_ENABLER,
-    treasury: CREATE2_TREASURY,
+    treasury: CREATE2_OWNER,
     maxPermissionFeeWei: 1_000_000_000_000_000n,
     initialBaseFee: 0n,
     initialComplexityRate: 0n,
@@ -175,46 +194,37 @@ export const sailDeployments: Record<SailChainId, SailDeployment> = {
   },
   // ── Unichain mainnet ─────────────────────────────────────────────────────────
   130: {
-    // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33). Supersedes
-    // 0xD985029960a9B7C2E7E38e102C448b8b8539B156 (SAIL-406 deploy).
-    // NOTE: knownTemplates and standaloneTemplates from SAIL-406 were deployed
-    // against the old kernel 0xD985029... and are now invalid. They must be
-    // redeployed against the new kernel 0x02ABC1... and re-populated here.
+    // CREATE2 deterministic deploy (create2-safe-2026-06-17). Live, bootstrapped.
     chainId: 130,
-    blockNumber: 50271704,
-    deployer: CREATE2_TREASURY,
+    blockNumber: 0,
+    deployer: CREATE2_OWNER,
     governance: CREATE2_GOVERNANCE,
     timelock: CREATE2_TIMELOCK,
     kernel: CREATE2_KERNEL,
     mandateFactory: CREATE2_MANDATE_FACTORY,
     standardFeePolicy: CREATE2_STANDARD_FEE_POLICY,
     safeModuleEnabler: CREATE2_SAFE_MODULE_ENABLER,
-    treasury: CREATE2_TREASURY,
+    treasury: CREATE2_OWNER,
     maxPermissionFeeWei: 1_000_000_000_000_000n,
     initialBaseFee: 0n,
     initialComplexityRate: 0n,
     dispatchModel: "selective",
-    // Templates cleared: the SAIL-406 shared + standalone templates were deployed
-    // against the old kernel (0xD985029...) and are invalid against the new one.
-    // Re-populate after redeploying templates against 0x02ABC1...
     knownTemplates: [],
     standaloneTemplates: {},
   },
   // ── Base Sepolia (testnet) ───────────────────────────────────────────────────
   84532: {
-    // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33). Supersedes
-    // 0xf1D0F4C9893612627409948BAa9d82a01a373799 (SAIL-405 redeploy).
-    // allowlistBootstrapped=true, zero fees, 48h timelock.
+    // CREATE2 deterministic deploy (create2-safe-2026-06-17). Live, bootstrapped.
     chainId: 84532,
-    blockNumber: 42625843,
-    deployer: CREATE2_TREASURY,
+    blockNumber: 0,
+    deployer: CREATE2_OWNER,
     governance: CREATE2_GOVERNANCE,
     timelock: CREATE2_TIMELOCK,
     kernel: CREATE2_KERNEL,
     mandateFactory: CREATE2_MANDATE_FACTORY,
     standardFeePolicy: CREATE2_STANDARD_FEE_POLICY,
     safeModuleEnabler: CREATE2_SAFE_MODULE_ENABLER,
-    treasury: CREATE2_TREASURY,
+    treasury: CREATE2_OWNER,
     maxPermissionFeeWei: 1_000_000_000_000_000n,
     initialBaseFee: 0n,
     initialComplexityRate: 0n,
@@ -224,18 +234,17 @@ export const sailDeployments: Record<SailChainId, SailDeployment> = {
   },
   // ── Eth Sepolia (testnet) ────────────────────────────────────────────────────
   11155111: {
-    // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33).
-    // allowlistBootstrapped=true, zero fees, 48h timelock.
+    // CREATE2 deterministic deploy (create2-safe-2026-06-17). Live, bootstrapped.
     chainId: 11155111,
-    blockNumber: 11023571,
-    deployer: CREATE2_TREASURY,
+    blockNumber: 0,
+    deployer: CREATE2_OWNER,
     governance: CREATE2_GOVERNANCE,
     timelock: CREATE2_TIMELOCK,
     kernel: CREATE2_KERNEL,
     mandateFactory: CREATE2_MANDATE_FACTORY,
     standardFeePolicy: CREATE2_STANDARD_FEE_POLICY,
     safeModuleEnabler: CREATE2_SAFE_MODULE_ENABLER,
-    treasury: CREATE2_TREASURY,
+    treasury: CREATE2_OWNER,
     maxPermissionFeeWei: 1_000_000_000_000_000n,
     initialBaseFee: 0n,
     initialComplexityRate: 0n,
