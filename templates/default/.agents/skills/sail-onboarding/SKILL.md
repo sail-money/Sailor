@@ -9,6 +9,8 @@ description: Walks the agent through setting up a new Sailor project or resuming
 
 The published package is **`@sail.money/sailor`** — always use the scoped name with the registry. The bare name `sailor` is a different, unrelated npm package; never `npx sailor@<version>` or `npm i sailor`. Install it (`npm i -g @sail.money/sailor`, or as a project dep), after which the `sailor` bin works bare (`sailor <command>`) and `npx sailor <command>` resolves the installed bin. Every `sailor …` command in these skills assumes it is installed. Confirm the toolchain up front and pin a recent version — `npx @sail.money/sailor@latest --version` — because an old cached `npx` build can be missing newer commands (e.g. `mandate simulate`); if a documented command reports "unknown command", you are on a stale version, not hitting a missing feature.
 
+After upgrading the CLI, run `sailor update` from the project root to pull in updated skills, `AGENTS.md`, `Dockerfile`, and other tooling files. User files (`src/`, `mandates/`, `.sail/`, `package.json`) are never touched.
+
 Stage machine keyed off `.sail/`. Read the state, enter at the right stage, never re-run completed stages.
 
 ## Determine where the user is

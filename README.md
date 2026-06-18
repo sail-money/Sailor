@@ -62,7 +62,7 @@ The path from nothing to a running agent follows the protocol lifecycle:
 2. **Author your permissions** — describe what the agent may do. Permission contracts encode the bounds: tokens, amounts, venues, call targets. Author them in the scaffolded Foundry workspace.
 3. **Simulate, deploy, and sign your mandate** — `sailor mandate simulate` probes a permission off-chain before authorizing it. `sailor mandate deploy --attach` deploys and registers it on-chain. `sailor mandate sign` builds and signs the registration payload against live on-chain state.
 4. **Run** — `sailor run` executes the agent loop. Three execution hosts compose: run it locally on a schedule, install it as a local OS service (`sailor service install` — launchd/systemd/Task Scheduler) that restarts on crash, or let the GitHub Actions cron workflow the scaffold provides run it. `sailor trigger github` fires that workflow on demand.
-5. **Operate** — `sailor doctor` checks kernel health and gas balances; `sailor chains` lists supported chains and deployment addresses; `sailor session pause` instantly revokes dispatch rights without touching Safe custody.
+5. **Operate** — `sailor doctor` checks kernel health and gas balances; `sailor chains` lists supported chains and deployment addresses; `sailor session pause` instantly revokes dispatch rights without touching Safe custody. After a CLI upgrade, `sailor update` resyncs agent tooling files (skills, `AGENTS.md`, `Dockerfile`) without touching user code or runtime state.
 
 Run `npx sailor init my-agent`, open the scaffolded folder in Claude Code, Cursor, or any AI coding assistant, and say **"start"**.
 
@@ -158,6 +158,9 @@ sailor trigger github      # fire the agent's GitHub Actions workflow on demand
 
 # Dashboard
 sailor ui start            # prints the per-project dashboard URL
+
+# Maintenance
+sailor update              # re-sync skills, AGENTS.md, and tooling files after a CLI upgrade
 ```
 
 `sailor run` writes reverted transactions to stderr as `reverted: <txHash> (gas used: N)`; successful dispatches are appended to `.sail/activity.jsonl`.

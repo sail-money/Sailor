@@ -9,7 +9,11 @@ on:
   workflow_dispatch:
 
 jobs:
+  tests:
+    uses: ./.github/workflows/tests.yml
+
   sailor:
+    needs: tests
     permissions:
       id-token: write
       contents: read

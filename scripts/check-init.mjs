@@ -2,18 +2,13 @@
 /**
  * `sailor init` smoke test.
  *
- * Scaffolds a fresh project from the in-tree CLI bundle into a temp dir and
- * asserts the scaffold succeeded. This exists to catch the class of regression
- * the doc-drift gate structurally cannot — e.g. `packageRoot()` resolving to a
- * `bin.sailor` package that ships no `templates/`, which made `init` fail from a
- * monorepo checkout with "Template ... not found. Available: none".
+ * PASS 1 — fresh init: scaffolds a new project and asserts expected files exist.
  *
- * It runs the REAL built bundle from a monorepo layout, which is exactly the
- * in-tree path that broke before. Pure Node + child_process; the only build
- * dependency is the CLI bundle (`pnpm --filter sailor build`).
+ * Template files are read live from disk (not bundled), so no rebuild is needed
+ * between runs — the in-tree templates/default/ IS the "latest version".
  *
  * Run:  node scripts/check-init.mjs   (CI builds the CLI first)
- * Exit: 0 = scaffold OK, 1 = failure (prints what was missing).
+ * Exit: 0 = all passes OK, 1 = failure (prints what went wrong).
  */
 
 import { execFileSync } from "node:child_process";
@@ -65,6 +60,9 @@ try {
     "foundry.toml",
     "mandates",
     "AGENTS.md",
+    "CLAUDE.md",
+    "Dockerfile",
+    ".dockerignore",
     ".sail/contracts/interfaces/IPermission.sol",
     ".sail/contracts/interfaces/IBatchPermission.sol",
     "test/BoundedCallPermission.t.sol",
@@ -75,7 +73,11 @@ try {
     ".agents/skills/sail-transactions/SKILL.md",
     ".agents/skills/sail-mandates/SKILL.md",
     ".agents/skills/sail-mandates/references/approvals.md",
-    ".agents/skills/sail-ci/SKILL.md",
+    ".agents/skills/sail-automation/SKILL.md",
+    ".agents/skills/sail-automation/references/docker-vm.md",
+    ".agents/skills/sail-automation/references/github-actions.md",
+    ".agents/skills/sail-automation/references/local-daemon.md",
+    ".agents/skills/sail-automation/references/self-hosted-runner.md",
     ".agents/skills/sail-extend/SKILL.md",
   ];
   for (const rel of mustExist) {
@@ -94,9 +96,10 @@ try {
     fail(`package.json still has "@sail/sdk": "workspace:*" — init did not resolve it`);
   }
 
-  // Regression guard: an absolute path outside the cwd must be REJECTED, not
-  // silently nested into `<cwd>/<abs path>`. (Pre-fix, `path.join` swallowed the
-  // leading slash and scaffolded a bogus nested tree while printing success.)
+  // ── Regression guard: absolute path outside cwd ───────────────────────────
+  // An absolute path outside the cwd must be REJECTED, not silently nested into
+  // `<cwd>/<abs path>`. (Pre-fix, `path.join` swallowed the leading slash and
+  // scaffolded a bogus nested tree while printing success.)
   const outside = path.join(os.tmpdir(), "sailor-init-outside", "agent");
   let rejected = false;
   try {

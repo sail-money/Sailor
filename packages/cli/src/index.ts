@@ -12,6 +12,7 @@ import { capabilities } from "./commands/capabilities.js";
 import { type ChainsOptions, chainsCommand } from "./commands/chains.js";
 import { doctor } from "./commands/doctor.js";
 import { initCommand } from "./commands/init.js";
+import { updateCommand } from "./commands/update.js";
 import { type KeysGenerateOptions, keysExportCi, keysGenerate, keysShow } from "./commands/keys.js";
 import {
   type AttachOptions,
@@ -122,6 +123,11 @@ program
       }
     },
   );
+
+program
+  .command("update")
+  .description("Re-sync agent tooling files (skills, AGENTS.md, Dockerfile) from the latest template")
+  .action(action(updateCommand));
 
 const ui = program.command("ui").description("Manage the local Sailor dashboard");
 ui.command("start")
