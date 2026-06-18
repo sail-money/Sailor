@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { SigningResponse, SigningTxRequest, SigningTypedDataRequest } from "@sail/sdk";
 import type { Address } from "viem";
-import { SigningServer } from "./server.js";
+import { SigningServer, reapStaleRuntimeState } from "./server.js";
 
 const RUNTIME_SERVER_FILE = join(".sail", "runtime", "server.json");
 
@@ -148,7 +148,7 @@ function readRuntimeServerState(projectRoot: string): RuntimeServerState | null 
  * Always uses the project dashboard port — the hash route distinguishes
  * the station view from the main dashboard.
  */
-export function signingPageUrl(_channel: SigningChannel, dashboardPort: number): string {
+export function signingPageUrl(_channel: SigningChannel | undefined, dashboardPort: number): string {
   return `http://localhost:${dashboardPort}/#/station`;
 }
 
@@ -173,9 +173,16 @@ export async function discoverDaemon(
 export async function createSigningChannel(
   projectRoot: string = process.cwd(),
 ): Promise<SigningChannel> {
+  // Clear any orphaned descriptor (crashed predecessor) before discovery so we
+  // neither route to a dead server nor refuse to advertise because of stale state.
+  reapStaleRuntimeState(projectRoot);
   const daemon = await discoverDaemon(projectRoot);
   if (daemon) return daemon;
-  // Ephemeral fallback: do not advertise, so it can't clobber a daemon's
-  // runtime state on a discovery race.
-  return new SigningServer({ projectRoot, advertise: false });
+  // Ephemeral fallback: advertise a discoverable runtime descriptor so the
+  // dashboard's /#/station page can find this server and display the pending
+  // request — otherwise the operator sees nothing to approve. Reaching this
+  // branch means no daemon was discoverable, so there is no daemon state to
+  // clobber; SigningServer.stop() removes the descriptor only if it still points
+  // at this process (pid-guarded), so a daemon that starts later is never evicted.
+  return new SigningServer({ projectRoot, advertise: true });
 }

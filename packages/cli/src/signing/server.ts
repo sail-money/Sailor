@@ -155,10 +155,18 @@ export class SigningServer {
     });
 
     this.httpServer = http;
-    if (this.advertise) this.writeRuntimeState();
+    if (this.advertise) {
+      // Clear any descriptor left behind by a crashed predecessor before claiming
+      // our own, so discovery never points at a dead server.
+      reapStaleRuntimeState(this.projectRoot);
+      this.writeRuntimeState();
+    }
 
+    // Reap the descriptor on every exit path, not just signals, so an interrupted
+    // or crashing process does not leave an orphaned server.json (and a port) behind.
     process.once("SIGINT", () => this.stop());
     process.once("SIGTERM", () => this.stop());
+    process.once("exit", () => this.stop());
   }
 
   stop(): void {
@@ -334,6 +342,30 @@ export class SigningServer {
     return join(this.projectRoot, ".sail", ...segments);
   }
 
+  /**
+   * Persist the active chain into config.json. The onboarding stage machine keys
+   * off config.json.chainId; leaving it null after SMA creation misclassifies the
+   * stage on resume. Best-effort — never blocks the account save on a config write.
+   */
+  private syncConfigChainId(chainId: number): void {
+    if (chainId == null) return;
+    try {
+      const path = this.sailFile("config.json");
+      let config: Record<string, unknown> = {};
+      try {
+        config = JSON.parse(readFileSync(path, "utf-8")) as Record<string, unknown>;
+      } catch {
+        /* no config yet — create it */
+      }
+      if (Number(config.chainId) === Number(chainId)) return;
+      config.chainId = Number(chainId);
+      mkdirSync(this.sailFile(), { recursive: true });
+      writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`);
+    } catch {
+      /* best-effort */
+    }
+  }
+
   /** Stream a JSON file back, or a fallback body when it is missing/invalid. */
   private sendJsonFile(
     res: ServerResponse,
@@ -381,6 +413,9 @@ export class SigningServer {
         upsertAccountInList(record, undefined, baseSailDir);
         mkdirSync(baseSailDir, { recursive: true });
         writeFileSync(this.sailFile("account.json"), `${JSON.stringify(record, null, 2)}\n`);
+        // Sync the chosen chain into config.json — the onboarding stage machine
+        // keys off config.json.chainId, so SMA creation must write it through.
+        this.syncConfigChainId(chainId);
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ ok: true }));
       })
@@ -698,6 +733,21 @@ export class SigningServer {
   }
 
   private writeRuntimeState(): void {
+    // Never clobber a descriptor that still points at a LIVE, different process.
+    // discoverDaemon() only falls back to an ephemeral when its ping missed; if a
+    // daemon's ping missed transiently, its server.json may still be present and
+    // valid. Overwriting it would make the running daemon undiscoverable once this
+    // ephemeral exits. In that rare case we simply don't advertise — the daemon's
+    // own descriptor (and the request that should have routed to it) stays intact.
+    const path = join(this.runtimeDir, SERVER_STATE_FILE);
+    if (existsSync(path)) {
+      try {
+        const existing = JSON.parse(readFileSync(path, "utf8")) as { pid?: number };
+        if (existing.pid != null && existing.pid !== process.pid && pidAlive(existing.pid)) return;
+      } catch {
+        /* malformed — safe to overwrite */
+      }
+    }
     if (!existsSync(this.runtimeDir)) mkdirSync(this.runtimeDir, { recursive: true });
     writeFileSync(
       join(this.runtimeDir, SERVER_STATE_FILE),
@@ -719,10 +769,45 @@ export class SigningServer {
   private removeRuntimeState(): void {
     const path = join(this.runtimeDir, SERVER_STATE_FILE);
     try {
-      if (existsSync(path)) unlinkSync(path);
+      if (!existsSync(path)) return;
+      // Only remove the descriptor if it still points at THIS process. A daemon
+      // (or another ephemeral) may have claimed it after us; deleting that would
+      // make a live server undiscoverable.
+      const state = JSON.parse(readFileSync(path, "utf8")) as { pid?: number };
+      if (state.pid != null && state.pid !== process.pid) return;
+      unlinkSync(path);
     } catch {
       /* ignore */
     }
+  }
+}
+
+/** True if a process with this pid is currently alive (signal 0 probes liveness). */
+function pidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    // EPERM means the process exists but we can't signal it — still alive.
+    return (err as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+/**
+ * Remove `.sail/runtime/server.json` if it describes a server whose process is
+ * no longer running — an orphan left by a crashed or killed signing server.
+ * Safe to call before claiming the descriptor: a live daemon's entry is kept.
+ */
+export function reapStaleRuntimeState(projectRoot: string = process.cwd()): void {
+  const path = join(projectRoot, RUNTIME_SUBDIR, SERVER_STATE_FILE);
+  try {
+    if (!existsSync(path)) return;
+    const state = JSON.parse(readFileSync(path, "utf8")) as { pid?: number };
+    if (state.pid != null && state.pid !== process.pid && !pidAlive(state.pid)) {
+      unlinkSync(path);
+    }
+  } catch {
+    /* ignore — a malformed descriptor is harmless; discovery re-pings anyway */
   }
 }
 

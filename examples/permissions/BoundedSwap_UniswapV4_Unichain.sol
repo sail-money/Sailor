@@ -19,11 +19,18 @@ pragma solidity 0.8.26;
 //     • tokenIn (from poolKey, derived by zeroForOne) must be FIXED_CURRENCY_IN
 //     • tokenOut must be in ALLOWED_CURRENCIES_OUT
 //     • amountIn ≤ MAX_AMOUNT_IN
-//     • amountOutMinimum ≥ amountIn × MIN_BPS / 10 000  (slippage floor — see caveat below)
 //
 // AGENT-ENFORCED / NOT BOUNDED HERE (off-chain — can change without redeploying this contract):
-//   • real (cross-denomination) slippage — see MIN_BPS caveat in evaluate()
+//   • slippage — see the note below
 //   • swap frequency / cadence
+//
+// SLIPPAGE IS NOT BOUNDED ON-CHAIN HERE — AND CANNOT BE, without a price oracle:
+//   `amountOutMinimum` (output currency) and `amountIn` (input currency) are denominated in
+//   DIFFERENT tokens. A ratio between them — the pattern an earlier version of this example
+//   shipped — bounds nothing real for any pair whose tokens differ in price or decimals. So this
+//   permission deliberately does NOT constrain `amountOutMinimum`. Compute it OFF-CHAIN from a
+//   live quote and pass it in per swap; the router reverts if the output falls below it. This
+//   contract only caps the input spend (MAX_AMOUNT_IN).
 //
 // DOCUMENTED LIMITATIONS (on-chain, but intentionally not constrained):
 //   • hookData is not inspected (hooks can alter swap behavior on-chain; if the
@@ -54,7 +61,6 @@ contract BoundedSwap_UniswapV4_Unichain is IPermission {
     address public immutable FIXED_CURRENCY_IN;
     mapping(address => bool) public isAllowedCurrencyOut;
     uint256 public immutable MAX_AMOUNT_IN;
-    uint256 public immutable MIN_BPS;
 
     // execute(bytes,bytes[],uint256) — with deadline
     bytes4 private constant SEL_EXECUTE_DEADLINE = 0x3593564c;
@@ -84,18 +90,18 @@ contract BoundedSwap_UniswapV4_Unichain is IPermission {
         bytes   hookData;   // not inspected — see limitations header
     }
 
+    /// @dev No slippage parameter: slippage cannot be bounded on-chain without a price oracle
+    ///      (see the header note). Pass a tight `amountOutMinimum`, computed off-chain from a
+    ///      live quote, on each swap — the router enforces it by reverting.
     constructor(
         address universalRouter,
         address fixedCurrencyIn,
         address[] memory allowedCurrenciesOut,
-        uint256 maxAmountIn,
-        uint256 minBps
+        uint256 maxAmountIn
     ) {
-        require(minBps <= 10_000, "minBps > 10000");
         UNIVERSAL_ROUTER  = universalRouter;
         FIXED_CURRENCY_IN = fixedCurrencyIn;
         MAX_AMOUNT_IN     = maxAmountIn;
-        MIN_BPS           = minBps;
         for (uint256 i = 0; i < allowedCurrenciesOut.length; i++) {
             isAllowedCurrencyOut[allowedCurrenciesOut[i]] = true;
         }
@@ -137,11 +143,10 @@ contract BoundedSwap_UniswapV4_Unichain is IPermission {
         if (tokenIn != FIXED_CURRENCY_IN)            return false;
         if (!isAllowedCurrencyOut[tokenOut])         return false;
         if (p.amountIn > MAX_AMOUNT_IN)              return false;
-        // Slippage floor: amountOutMinimum ≥ amountIn × MIN_BPS / 10 000.
-        // WARNING: compares tokenOut against tokenIn base units. For same-price/same-decimal
-        // pairs this maps to a slippage %. For cross-price pairs it is trivially satisfied —
-        // real slippage is enforced by the agent off-chain, not by this contract.
-        if (p.amountOutMinimum < (uint256(p.amountIn) * MIN_BPS) / 10_000) return false;
+        // amountOutMinimum is intentionally NOT checked — it is denominated in the output
+        // currency, so a ratio against amountIn (input currency) bounds nothing real for a
+        // cross-price pair (see header). The router enforces the off-chain-computed
+        // amountOutMinimum the agent passes in.
 
         return true;
     }

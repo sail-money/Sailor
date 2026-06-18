@@ -243,13 +243,13 @@ export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
   // Write .sail/mandate.json so `sailor run` can proceed.
   // Schema: StoredMandate — runner only gate-checks existence; actual permissions
   // are read from on-chain via readClient.mandate.list().
-  // signature is empty here because registration is done via mandateAttach, not
-  // a single EIP-712 signing step.
+  // No `signature` field: registration authority is on-chain (via mandateAttach),
+  // not a single local EIP-712 signing step. Emitting an empty string here falsely
+  // implied a missing/invalid signature, so it is omitted entirely.
   const storedMandate: StoredMandate = {
     safe: account.safe,
     chainId,
     signedAt: new Date().toISOString(),
-    signature: "",
     registeredOnChain: true,
     // Only include permissions that are currently active on-chain.
     permissions: activePermissions.map((p) => ({ template: p.label, params: {} })),

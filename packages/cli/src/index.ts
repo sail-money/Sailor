@@ -221,7 +221,7 @@ mandate
   .action(actionWith<AttachOptions>(mandateAttach));
 mandate
   .command("deploy-clone")
-  .description("Deploy + register a standalone clone permission (e.g. boundedApprove) via the signing UI")
+  .description("[currently unavailable — no clone templates deployed on any chain; use `mandate deploy`] Deploy + register a standalone clone permission via the signing UI")
   .requiredOption("--template <key>", "Standalone clone template key (e.g. boundedApprove)")
   .requiredOption("--sma <address>", "SMA to deploy the clone for and register it on")
   .option("--tokens <csv>", "Comma-separated allowed token addresses")
@@ -271,7 +271,8 @@ mandate
 mandate
   .command("list")
   .description("List permission contracts deployed from this project")
-  .action(action(async () => mandateContractsList()));
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<{ json?: boolean }>(mandateContractsList));
 
 program
   .command("onboard")
