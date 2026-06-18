@@ -1,25 +1,13 @@
-name: CI
+name: Tests
 
 on:
+  workflow_call:
   pull_request:
-  push:
     branches:
       - main
 
 jobs:
-  doc-drift:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      # Pure Node, reads source directly — no install/build needed. Fails if any
-      # doc references a `sailor` command or `client.*` method that no longer exists.
-      - name: Doc-drift check
-        run: node scripts/check-docs.mjs
-
-  init-smoke:
+  smoke:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,17 +21,17 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
       # SDK must be built first — esbuild resolves @sail/sdk via the workspace
-      # symlink, which points to packages/sdk/dist/index.js. Without building
-      # the SDK first, the CLI bundle step fails to resolve the import.
+      # symlink, which points to packages/sdk/dist/index.js.
       - name: Build SDK
         run: pnpm --filter @sail/sdk build
-      # The CLI bundle is all `init` needs (esbuild bundles its deps). Scaffolds
-      # from the monorepo checkout — exactly the in-tree path that regressed when
-      # packageRoot() resolved to a templates-less bin.sailor package.
       - name: Build CLI bundle
         run: pnpm --filter sailor build
+      - name: Docs check
+        run: pnpm run docs:check
       - name: Init smoke test
         run: pnpm run init:check
+      - name: Update smoke test
+        run: pnpm run update:check
 
   # The "does the thing we ship actually work for a fresh user" gate. Unlike
   # init-smoke (fast, in-tree, file-existence only), this packs the PUBLISHABLE
