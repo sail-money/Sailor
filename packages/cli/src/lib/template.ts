@@ -31,3 +31,19 @@ export function copyDirSync(src: string, dest: string): void {
 export function writeIfMissing(file: string, content: string): void {
   if (!fs.existsSync(file)) fs.writeFileSync(file, content, "utf-8");
 }
+
+export function copyDirSyncIfMissing(src: string, dest: string, added: string[] = [], base = dest): void {
+  fs.mkdirSync(dest, { recursive: true });
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    if (TEMPLATE_COPY_EXCLUDES.has(entry.name)) continue;
+    const srcPath = path.join(src, entry.name);
+    const destName = entry.name.startsWith("_") ? `.${entry.name.slice(1)}` : entry.name;
+    const destPath = path.join(dest, destName);
+    if (entry.isDirectory()) {
+      copyDirSyncIfMissing(srcPath, destPath, added, base);
+    } else if (!fs.existsSync(destPath)) {
+      fs.copyFileSync(srcPath, destPath);
+      added.push(path.relative(base, destPath));
+    }
+  }
+}

@@ -4,7 +4,6 @@ import { chains } from "@sail/sdk";
 import { scaffoldFoundryWorkspace } from "../lib/foundry.js";
 import { packageRoot } from "../lib/packagePaths.js";
 import { copyDirSync, writeIfMissing } from "../lib/template.js";
-import { updateCommand } from "./update.js";
 
 type InitOptions = {
   chain?: string;
@@ -202,8 +201,7 @@ export async function initCommand(
   }
 
   if (inPlace && fs.existsSync(path.join(dest, ".sail", "config.json"))) {
-    await updateCommand();
-    return;
+    throw new Error("This project is already initialized. Run `sailor update` to re-sync template files.");
   }
 
   copyDirSync(templateSrc, dest);

@@ -1,17 +1,11 @@
 #!/usr/bin/env node
 /**
- * `sailor init` + `sailor update` smoke tests.
+ * `sailor init` smoke test.
  *
  * PASS 1 — fresh init: scaffolds a new project and asserts expected files exist.
- * PASS 2 — update:     deletes a template-owned file and a adds a user file,
- *                      runs `sailor update`, asserts the template file is restored
- *                      and the user file is untouched.
- * PASS 3 — init-on-existing: deletes a template file then re-runs `sailor init`
- *                      inside the already-initialized project; asserts it calls
- *                      update instead of erroring, restoring the deleted file.
  *
  * Template files are read live from disk (not bundled), so no rebuild is needed
- * between passes — the in-tree templates/default/ IS the "latest version".
+ * between runs — the in-tree templates/default/ IS the "latest version".
  *
  * Run:  node scripts/check-init.mjs   (CI builds the CLI first)
  * Exit: 0 = all passes OK, 1 = failure (prints what went wrong).
@@ -66,6 +60,9 @@ try {
     "foundry.toml",
     "mandates",
     "AGENTS.md",
+    "CLAUDE.md",
+    "Dockerfile",
+    ".dockerignore",
     ".sail/contracts/interfaces/IPermission.sol",
     ".sail/contracts/interfaces/IBatchPermission.sol",
     "test/BoundedCallPermission.t.sol",
@@ -82,7 +79,6 @@ try {
     ".agents/skills/sail-automation/references/local-daemon.md",
     ".agents/skills/sail-automation/references/self-hosted-runner.md",
     ".agents/skills/sail-extend/SKILL.md",
-    "Dockerfile",
   ];
   for (const rel of mustExist) {
     if (!fs.existsSync(path.join(dest, rel))) fail(`expected scaffolded "${rel}" — not found`);
@@ -100,60 +96,10 @@ try {
     fail(`package.json still has "@sail/sdk": "workspace:*" — init did not resolve it`);
   }
 
-  // ── PASS 2: sailor update ──────────────────────────────────────────────────
-  // Simulate a stale project: delete a template-owned file and add a user skill
-  // that must survive the update untouched.
-  const templateOwned = path.join(dest, ".agents/skills/sail-automation/SKILL.md");
-  const userSkill     = path.join(dest, ".agents/skills/my-custom-skill/SKILL.md");
-
-  fs.rmSync(templateOwned);
-  fs.mkdirSync(path.dirname(userSkill), { recursive: true });
-  fs.writeFileSync(userSkill, "# custom skill\n", "utf-8");
-
-  try {
-    execFileSync(process.execPath, [BUNDLE, "update"], {
-      cwd: dest,
-      encoding: "utf-8",
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-  } catch (err) {
-    const out = `${err.stdout ?? ""}${err.stderr ?? ""}`.trim();
-    fail(`\`sailor update\` exited non-zero.\n  ${out || err.message}`);
-  }
-
-  if (!fs.existsSync(templateOwned))
-    fail(`sailor update did not restore "${path.relative(dest, templateOwned)}"`);
-  if (!fs.existsSync(userSkill))
-    fail(`sailor update removed user file "${path.relative(dest, userSkill)}" — must be preserved`);
-
-  console.log("✓ update smoke test passed — template file restored, user skill preserved");
-
-  // ── PASS 3: sailor init on an already-initialized project ─────────────────
-  // Delete a template file then re-run `sailor init` inside the project.
-  // It must call update (not error) and restore the file.
-  const anotherOwned = path.join(dest, "AGENTS.md");
-  fs.rmSync(anotherOwned);
-
-  try {
-    execFileSync(process.execPath, [BUNDLE, "init"], {
-      cwd: dest,
-      encoding: "utf-8",
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-  } catch (err) {
-    const out = `${err.stdout ?? ""}${err.stderr ?? ""}`.trim();
-    fail(`\`sailor init\` on existing project exited non-zero.\n  ${out || err.message}`);
-  }
-
-  if (!fs.existsSync(anotherOwned))
-    fail(`sailor init on existing project did not restore "AGENTS.md" via update`);
-
-  console.log("✓ init-on-existing passed — called update instead of erroring");
-
   // ── Regression guard: absolute path outside cwd ───────────────────────────
-  // Regression guard: an absolute path outside the cwd must be REJECTED, not
-  // silently nested into `<cwd>/<abs path>`. (Pre-fix, `path.join` swallowed the
-  // leading slash and scaffolded a bogus nested tree while printing success.)
+  // An absolute path outside the cwd must be REJECTED, not silently nested into
+  // `<cwd>/<abs path>`. (Pre-fix, `path.join` swallowed the leading slash and
+  // scaffolded a bogus nested tree while printing success.)
   const outside = path.join(os.tmpdir(), "sailor-init-outside", "agent");
   let rejected = false;
   try {

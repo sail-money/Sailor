@@ -1,19 +1,22 @@
 import fs from "node:fs";
 import path from "node:path";
 import { packageRoot } from "../lib/packagePaths.js";
-import { copyDirSync } from "../lib/template.js";
+import { copyDirSync, copyDirSyncIfMissing } from "../lib/template.js";
 
 // Files and directories from templates/default that are always re-synced on update.
-// Everything else in the template (src/, package.json, tsconfig.json, mandates/,
-// test/, .sail/, .gitignore) is user-space and is never touched.
+// User-space files (AGENTS.md, CLAUDE.md, Dockerfile, src/, package.json, etc.) are
+// never overwritten — they are seeded once via copyDirSyncIfMissing if missing.
 const UPDATE_PATHS = [
-  ".agents",     // all sail-* skills; user skills absent from the template are preserved
-  ".cursor",     // cursor IDE rules
-  "AGENTS.md",
-  "CLAUDE.md",
-  "Dockerfile",
-  ".env.example",
+  ".agents",       // all sail-* skills
+  ".cursor",       // cursor IDE rules
+  ".env.example",  // documents env vars; not meant to be edited directly
 ];
+
+// Paths removed or renamed in past template versions. Deleted on update if present.
+const STALE_PATHS = [
+  ".agents/skills/sail-ci", // renamed to sail-automation
+];
+
 
 export async function updateCommand(): Promise<void> {
   const dest = process.cwd();
@@ -28,8 +31,18 @@ export async function updateCommand(): Promise<void> {
     throw new Error(`Template directory not found at ${templateSrc}`);
   }
 
-  const updated: string[] = [];
+  // Prune stale paths from past template versions.
+  const removed: string[] = [];
+  for (const p of STALE_PATHS) {
+    const target = path.join(dest, p);
+    if (fs.existsSync(target)) {
+      fs.rmSync(target, { recursive: true, force: true });
+      removed.push(p);
+    }
+  }
 
+  // Always re-sync template-owned paths.
+  const updated: string[] = [];
   for (const p of UPDATE_PATHS) {
     const src = path.join(templateSrc, p);
     const dst = path.join(dest, p);
@@ -45,12 +58,29 @@ export async function updateCommand(): Promise<void> {
     updated.push(p);
   }
 
-  if (updated.length === 0) {
+  // Seed any template files that are missing from the project (user-space files).
+  const added: string[] = [];
+  copyDirSyncIfMissing(templateSrc, dest, added);
+
+  if (removed.length === 0 && updated.length === 0 && added.length === 0) {
     console.log("Nothing to update.");
     return;
   }
 
-  console.log(`\nUpdated from template:`);
-  for (const p of updated) console.log(`  ${p}`);
+  if (removed.length > 0) {
+    console.log(`\nRemoved stale files:`);
+    for (const p of removed) console.log(`  ${p}`);
+  }
+
+  if (updated.length > 0) {
+    console.log(`\nUpdated from template:`);
+    for (const p of updated) console.log(`  ${p}`);
+  }
+
+  if (added.length > 0) {
+    console.log(`\nAdded (new in template):`);
+    for (const p of added) console.log(`  ${p}`);
+  }
+
   console.log();
 }
