@@ -43,7 +43,6 @@ const SUPPORTED_NETWORKS = [
 const SETUP_STAGES = [
   {
     group: 'In this app',
-    color: 'rgba(255,255,255,0.75)',
     items: [
       { n: 1, name: 'Choose your network',  detail: 'Base, Arbitrum, Ethereum, Unichain…' },
       { n: 2, name: 'Connect your wallet',  detail: 'Becomes the owner of your SMA' },
@@ -53,7 +52,6 @@ const SETUP_STAGES = [
   },
   {
     group: 'In your terminal (with AI)',
-    color: 'rgba(255,255,255,0.35)',
     items: [
       { n: 5, name: 'Configure RPC & API keys', detail: 'Add to .sail/.env.local' },
       { n: 6, name: 'Fund agent key',           detail: 'Small ETH for gas' },
@@ -261,18 +259,26 @@ function WelcomeState({ onStart, onSkip }) {
       </header>
 
       <div className={styles.stageList}>
-        {SETUP_STAGES.map((group) => (
-          <div key={group.group} className={styles.stageGroup}>
-            <span className={styles.stageGroupLabel}>{group.group}</span>
-            {group.items.map((item) => (
-              <div key={item.n} className={styles.stageRow}>
-                <span className={styles.stageNum} style={{ color: group.color }}>{item.n}</span>
-                <span className={styles.stageBody}>
-                  <span className={styles.stageName} style={{ color: group.color }}>{item.name}</span>
-                  <span className={styles.stageDetail}>{item.detail}</span>
-                </span>
-              </div>
-            ))}
+        {SETUP_STAGES.map((group, gi) => (
+          <div
+            key={group.group}
+            className={`${styles.stageGroup} ${gi === 0 ? styles.stageGroupPrimary : styles.stageGroupMuted}`}
+          >
+            <span className={styles.stageGroupLabel}>
+              <span className={styles.stageGroupTick} aria-hidden />
+              {group.group}
+            </span>
+            <div className={styles.stageRows}>
+              {group.items.map((item) => (
+                <div key={item.n} className={styles.stageRow}>
+                  <span className={styles.stageNum} aria-hidden>{String(item.n).padStart(2, '0')}</span>
+                  <span className={styles.stageBody}>
+                    <span className={styles.stageName}>{item.name}</span>
+                    <span className={styles.stageDetail}>{item.detail}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         ))}
       </div>
