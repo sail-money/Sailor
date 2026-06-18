@@ -80,6 +80,18 @@ sailor mandate attach --address <PermissionOrName> --sma <SMA> --json   # BLOCKS
 
 Only now is the permission live. The owner (mandate signer) signs in the browser; the agent submits the registration and pays gas plus any registration fee. **Fund the agent wallet before attaching**, or this step fails with `gas required exceeds allowance`. The CLI verifies the signature came from the on-chain mandate signer — a wrong connected wallet is rejected. After confirmation it polls `getPermissions()` until the permission appears. Per-call model: attach every permission the strategy needs (bounded-approve alongside the protocol permission) in one signing session.
 
+## Registration fee
+
+Registering a permission charges a **per-permission fee**, paid on-chain by the agent wallet at the moment of registration. It is a public protocol parameter — `permissionRegistrationFee()` on `SailGovernance` — read **live from the chain**, never hardcoded: it is `0.00001 ETH` on test deployments and higher in production, and the same flow surfaces whichever value the connected chain returns.
+
+- **A mandate is a SET of permissions, so a mandate of N permissions costs `N × fee`.** Three permissions at `0.00001 ETH` each cost `0.00003 ETH` total.
+- **When it's charged:** once per permission, on registration (the `attach` / `deploy-clone` step). Already-registered permissions are not re-charged when you re-run `sailor mandate sign`. Revoking does not refund.
+- **Disclosure before signing:** `sailor mandate prepare` reads the live fee and records it in the draft, and `sailor mandate sign` prints `Registration fee: <total> ETH (<N> permissions × <fee> ETH)` before you confirm. The browser sign-time screen shows the same total.
+- **Preflight:** before requesting the owner's signature, the agent wallet's ETH balance is checked against the total fee; an underfunded wallet fails early with `Insufficient ETH for the <X> ETH registration fee` instead of an on-chain revert. **Fund the agent wallet before attaching.**
+- **Recorded:** each `permission_registered` activity entry carries the fee actually paid (`fee` in wei, `feeEth` formatted), so Recent Activity shows the real cost.
+
+The exact fee on the kernel transaction is computed by `estimatePermissionFee` (it models the deployed governance's fee formula); the figure disclosed and previewed is the governance `permissionRegistrationFee` parameter.
+
 ## Maintenance
 
 - `sailor mandate revoke --address <P> --sma <SMA> --json` (or `--all`) — owner signs `RevokePermissions` in the browser (BLOCKS); agent submits. Revocations are recorded to the activity log; `state/mandates.json` keeps the historical record.

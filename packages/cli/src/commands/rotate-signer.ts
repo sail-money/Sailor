@@ -26,7 +26,7 @@ import {
   SailKernelAbi,
   buildRegisterPermissionsBatchTypedData,
   buildSetManagerExecTransaction,
-  estimatePermissionFee,
+  readPermissionRegistrationFee,
   LocalKeyring as Keyring,
 } from "@sail/sdk";
 import {
@@ -424,11 +424,10 @@ async function reattachMandates(
     throw new Error(`Expected an EIP-712 signature response, got: ${response.status}`);
   }
 
-  // Sum the exact per-permission fees (0 on the zero-fee Base/Base-Sepolia deploys).
-  let fee = 0n;
-  for (const permission of permissions) {
-    fee += await estimatePermissionFee(publicClient, project.contracts.governance, permission);
-  }
+  // Flat fee × N (0 on the zero-fee Base/Base-Sepolia deploys). The kernel's
+  // batch registerPermissions requires msg.value >= flat fee × n.
+  const flatFee = await readPermissionRegistrationFee(publicClient, project.contracts.governance);
+  const fee = flatFee * BigInt(permissions.length);
 
   const agentSigner = await loadManagerSigner();
   const chain = getChainById(project.chainId);
