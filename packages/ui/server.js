@@ -142,7 +142,10 @@ async function readKernelSigners(safe, chainId, rpcUrl) {
     if (!rpcUrl || !isAddress(safe)) return null
     const kernel = getSailDeployment(Number(chainId))?.kernel
     if (!kernel) return null
-    const client = createPublicClient({ transport: http(rpcUrl) })
+    // Bounded timeout: this runs inline on the SMA-save request, so a slow or
+    // rate-limited RPC must not stall the save. On timeout we fall back to the
+    // caller's values rather than block.
+    const client = createPublicClient({ transport: http(rpcUrl, { timeout: 4000 }) })
     const registered = await client.readContract({
       address: kernel, abi: SailKernelAbi, functionName: 'registered', args: [getAddress(safe)],
     })
@@ -152,7 +155,10 @@ async function readKernelSigners(safe, chainId, rpcUrl) {
     })
     const [permissionSigner, manager] = configs
     return { permissionSigner: getAddress(permissionSigner), manager: getAddress(manager) }
-  } catch {
+  } catch (err) {
+    // RPC failure — fall back to caller-provided values, but surface why the
+    // account may record owner-as-manager so a desync isn't fully silent.
+    console.warn(`[account] on-chain signer read failed for ${safe} on chain ${chainId}; using provided values: ${err instanceof Error ? err.message.split('\n')[0] : String(err)}`)
     return null
   }
 }

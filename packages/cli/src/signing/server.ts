@@ -407,7 +407,9 @@ export class SigningServer {
       const rpcUrl = getRpcUrl(chainId);
       const kernel = getSailDeployment(chainId)?.kernel;
       if (!rpcUrl || !kernel) return null;
-      const client = createPublicClient({ transport: http(rpcUrl) });
+      // Bounded timeout: runs inline on the account-save request, so a slow RPC
+      // must not stall the save — fall back to provided values instead.
+      const client = createPublicClient({ transport: http(rpcUrl, { timeout: 4000 }) });
       const registered = await client.readContract({
         address: kernel as Address,
         abi: SailKernelAbi,
