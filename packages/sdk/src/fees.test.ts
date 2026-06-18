@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Address, PublicClient } from "viem";
+import { CREATE2_GOVERNANCE } from "./deployments.js";
 import {
   RegistrationFeeError,
   assertFeeAffordable,
@@ -12,7 +13,7 @@ import {
 
 // Run with: npx tsx --test packages/sdk/src/fees.test.ts
 
-const GOVERNANCE = "0x7A478118715791728BDE3bc7A4D7ECfdEB89C6EC" as Address;
+const GOVERNANCE = CREATE2_GOVERNANCE;
 const PERM_A = "0x1111111111111111111111111111111111111111" as Address;
 const PERM_B = "0x2222222222222222222222222222222222222222" as Address;
 const PERM_C = "0x3333333333333333333333333333333333333333" as Address;

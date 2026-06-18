@@ -42,8 +42,19 @@ export type {
   SailDeployment,
 } from "./deployments.js";
 export {
+  CREATE2_FACTORY,
+  CREATE2_GOVERNANCE,
+  CREATE2_KERNEL,
+  CREATE2_MANDATE_FACTORY,
+  CREATE2_OWNER,
+  CREATE2_SAFE_MODULE_ENABLER,
+  CREATE2_SAFE_PROXY_FACTORY,
+  CREATE2_STANDARD_FEE_POLICY,
+  CREATE2_TIMELOCK,
+  INITIAL_PERMISSION_REGISTRATION_FEE_WEI,
   getSailDeployment,
   normalizeDeployment,
+  sailCoreAddresses,
   sailDeployments,
 } from "./deployments.js";
 export type { DispatchModel, KernelCapabilities } from "./capabilities.js";

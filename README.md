@@ -403,19 +403,19 @@ Permission templates have not yet been deployed against the current kernel on an
 
 ## Deployments
 
-All core contracts are deployed at the same address on every supported chain via CREATE2 (commit `1199b33`, 2026-06-09). An SMA created with the same owner, permission signer, manager, fee policy, and salt has the same address on every supported chain.
+All core contracts are deployed at the same address on every supported chain via CREATE2 (version `create2-safe-2026-06-17`, deployed 2026-06-17). An SMA created with the same owner, permission signer, manager, fee policy, and salt has the same address on every supported chain. Live on Base, Arbitrum, Unichain, Base Sepolia, and Eth Sepolia; Ethereum mainnet is pending (Safe batch prepared, awaiting execution).
 
 ### Core addresses (identical on all 6 chains)
 
 | Contract | Address |
 |---|---|
-| SailKernel | `0x02ABC18B65A328de2e749F56ba79ACF2718a6659` |
-| SailGovernance | `0x7A478118715791728BDE3bc7A4D7ECfdEB89C6EC` |
-| TimelockController | `0xE48Ba8DB6d748adafD13155c3590f62e58a77f56` |
-| MandateFactory | `0x14EDd6c2a56EfC0d71E215ab13094B9AF90543d2` |
-| StandardFeePolicy | `0xe7B5901b839cFFDEd9D4108A22712C8BfdA1D80D` |
+| SailKernel | `0x3E4C45D34Ea49DB66a78dd965B005f91d483C13F` |
+| SailGovernance | `0xCBC9DcC44485250c6C8D3597E5CD45beCb858c7b` |
+| TimelockController | `0xC1E5F9A581D4100Aa949f80204540a33aD97A7b6` |
+| MandateFactory | `0x7c1714C2B7CF7ED2AAAEbdb615692A9c1F3eb46f` |
+| StandardFeePolicy | `0x9a73C8E1BC4772959cB0c40Fd1d37234d6743819` |
 | SafeModuleEnabler | `0x7897Cb53a4be4a2eaAf46D60573C4Fd83b33fE1F` |
-| Treasury | `0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6` |
+| Owner (governance / treasury) | `0x152a32c851d317Cd54F1E6423377d7D58Dd3DE8C` |
 
 These addresses are bundled in `@sail.money/sailor` and exposed via `getSailDeployment(chainId)` in the SDK. The Protocol repository is the canonical source of truth for deployment details — see [deployments/addresses.md](https://github.com/sail-money/Protocol/blob/main/deployments/addresses.md).
 

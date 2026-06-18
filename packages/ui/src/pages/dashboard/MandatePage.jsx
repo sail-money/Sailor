@@ -47,7 +47,7 @@ function explorerTx(network, hash) {
 // SailKernel protocol constants (from SailProtocol source)
 const GOVERNANCE = {
   maxPermissionsPerAccount: 10,
-  permissionRegistrationFeeEth: '0.001',
+  permissionRegistrationFeeEth: '0.00001',
   permissionGasCapK: 100,
   protocolCutBps: 0,
   MAX_PROTOCOL_CUT_BPS: 1000,
