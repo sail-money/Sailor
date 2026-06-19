@@ -798,7 +798,10 @@ async function runAttachBatch(
   store: MandateStore,
 ): Promise<void> {
   const json = !!options.json;
-  const permissions = parseAddressList(options.address, "--address");
+  // De-duplicate: a repeated address would otherwise be sent twice to
+  // registerPermissions (wasting gas / risking a revert). getAddress has already
+  // normalized casing, so a plain Set dedupes reliably.
+  const permissions = [...new Set(parseAddressList(options.address, "--address"))];
 
   const publicClient = publicClientFor(project);
 
