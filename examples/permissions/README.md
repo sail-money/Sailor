@@ -74,6 +74,9 @@ To deploy within a Sailor project (copy the .sol file to `mandates/` first):
 sailor mandate deploy --contract <Name> --args '[...]' --attach --sma <SMA>
 ```
 
+For several permissions, deploy each one (without `--attach`), then register them together in
+one signature: `sailor mandate attach --address <addr1>,<addr2> --sma <SMA>`.
+
 ## Verify before you authorize
 
 Prove a permission accepts the calls you want and rejects the ones you don't — before paying

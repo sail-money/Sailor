@@ -21,6 +21,7 @@ import {
   REGISTER_PERMISSION_TYPES_NO_DEADLINE,
   SailKernelAbi,
   buildRegisterPermissionTypedData,
+  buildRegisterPermissionsBatchTypedData,
   detectKernelCapabilities,
   estimatePermissionFee,
   getSailDeployment,
@@ -742,6 +743,15 @@ async function runAttach(
   const sma = getAddress(options.sma);
 
   const store = new MandateStore();
+
+  // `--address` accepts one entry (address or tracked name) or a comma-separated
+  // list of addresses. The single-entry path is unchanged; a list registers all
+  // of them in ONE signature via registerPermissions.
+  if (options.address.includes(",")) {
+    await runAttachBatch(project, channel, options, sma, store);
+    return;
+  }
+
   const tracked = store.find(options.address);
   const rawAddress = tracked?.address ?? options.address;
   if (!isAddress(rawAddress, { strict: false })) {
@@ -770,6 +780,39 @@ async function runAttach(
   emit(json, () => {}, {
     status: "ok",
     attached: { sma, mandate: mandateAddress, txHash },
+  });
+}
+
+/**
+ * Batch path for `mandate attach --address <a>,<b>,<c>`: registers every
+ * permission in ONE permission-signer signature via the kernel's
+ * `registerPermissions`. Comma-separated entries must be addresses (tracked-name
+ * resolution stays on the single-entry path). The shared batch txHash is recorded
+ * against each tracked permission.
+ */
+async function runAttachBatch(
+  project: ProjectContext,
+  channel: SigningChannel,
+  options: AttachOptions,
+  sma: Address,
+  store: MandateStore,
+): Promise<void> {
+  const json = !!options.json;
+  const permissions = parseAddressList(options.address, "--address");
+
+  const publicClient = publicClientFor(project);
+
+  announceSigningUrl(json);
+
+  const txHash = await attachBatchToSma(project, channel, publicClient, sma, permissions, json);
+
+  for (const permission of permissions) {
+    if (store.find(permission)) store.recordAttachment(permission, { sma, txHash });
+  }
+
+  emit(json, () => {}, {
+    status: "ok",
+    attached: permissions.map((mandate) => ({ sma, mandate, txHash })),
   });
 }
 
@@ -1008,6 +1051,157 @@ async function attachToSma(
       console.log("✓", `Permission present in getPermissions(${sma})`);
     }
   });
+  return txHash;
+}
+
+/**
+ * Register multiple permissions on an SMA in ONE permission-signer signature via
+ * the kernel's `registerPermissions`. Mirrors the proven batch pattern in
+ * `account rotate-signer` (rotate-signer.ts reattachMandates): the owner (mandate
+ * signer) signs the RegisterPermissions EIP-712 in the browser; the agent wallet
+ * submits and pays gas plus the summed registration fee. Returns the shared batch
+ * txHash so the caller can record each attachment.
+ */
+async function attachBatchToSma(
+  project: ProjectContext,
+  channel: SigningChannel,
+  publicClient: PublicClient,
+  sma: Address,
+  permissions: Address[],
+  json = false,
+): Promise<Hex> {
+  const say = (fn: () => void) => {
+    if (!json) fn();
+  };
+  const agentSigner = await loadManagerSigner();
+
+  const registered = await publicClient.readContract({
+    address: project.contracts.kernel,
+    abi: SailKernelAbi,
+    functionName: "registered",
+    args: [sma],
+  });
+  if (!registered) {
+    throw new Error(`SMA ${sma} is not registered with SailKernel; cannot register permissions.`);
+  }
+
+  const kernelConfig = (await publicClient.readContract({
+    address: project.contracts.kernel,
+    abi: SailKernelAbi,
+    functionName: "configs",
+    args: [sma],
+  })) as [Address, Address, Address, boolean];
+  const permissionSigner = kernelConfig[0];
+
+  // Batch registration (registerPermissions, with deadline) is the selective-kernel
+  // shape. All deployed kernels are selective; this is a loud guard, not a fallback —
+  // if the kernel is ever not selective, refuse rather than sign the wrong shape.
+  const caps = await detectKernelCapabilities(publicClient, project.contracts.kernel, {
+    chainId: project.chainId,
+  });
+  if (caps.dispatchModel !== "selective") {
+    throw new Error(
+      `Batch attach requires a selective kernel, but ${project.contracts.kernel} reports ` +
+        `dispatchModel="${caps.dispatchModel}". Attach permissions one at a time instead ` +
+        `(sailor mandate attach --address <one> --sma ${sma}).`,
+    );
+  }
+
+  const nonce = (await publicClient.readContract({
+    address: project.contracts.kernel,
+    abi: SailKernelAbi,
+    functionName: "signerNonces",
+    args: [sma],
+  })) as bigint;
+
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
+  const typedData = buildRegisterPermissionsBatchTypedData({
+    chainId: project.chainId,
+    kernel: project.contracts.kernel,
+    account: sma,
+    permissions,
+    nonce,
+    deadline,
+  });
+
+  say(() =>
+    console.log(
+      `\nAttaching ${permissions.length} permissions in one signature — the mandate signer (${permissionSigner}) signs in the browser…`,
+    ),
+  );
+  const response = await channel.requestSignature({
+    type: "typed-data",
+    kind: "register-permission",
+    title: `Authorize ${permissions.length} permissions`,
+    description: `Sign once to authorize ${permissions.length} permissions on your SMA. The agent submits the registration transaction and pays gas plus the registration fee.`,
+    chainId: project.chainId,
+    details: [
+      { label: "SMA", value: sma },
+      { label: "Permissions", value: String(permissions.length) },
+      { label: "Mandate signer", value: permissionSigner },
+    ],
+    typedData,
+  });
+
+  if (response.status === "rejected") {
+    throw new Error(`User rejected mandate authorization: ${response.reason ?? "no reason given"}`);
+  }
+  if (response.status !== "signature") {
+    throw new Error(`Expected an EIP-712 signature response, got: ${response.status}`);
+  }
+
+  // Sum the exact per-permission fees (0 on the zero-fee deploys).
+  let fee = 0n;
+  for (const permission of permissions) {
+    fee += await estimatePermissionFee(publicClient, project.contracts.governance, permission);
+  }
+
+  const chain = getChainById(project.chainId);
+  const walletClient = createWalletClient({
+    account: agentSigner.viemAccount,
+    chain,
+    transport: http(getRpcUrl(project.chainId)),
+  });
+
+  const registerData = encodeFunctionData({
+    abi: SailKernelAbi,
+    functionName: "registerPermissions",
+    args: [sma, permissions, deadline, response.signature],
+  });
+
+  say(() => console.log(`Submitting batch registration (agent pays gas; fee ${fee} wei)…`));
+  const txHash = await walletClient.sendTransaction({
+    to: project.contracts.kernel,
+    data: registerData,
+    value: fee,
+    account: agentSigner.viemAccount,
+    chain,
+  });
+  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+  if (receipt.status !== "success") {
+    throw new Error(`registerPermissions reverted (tx ${txHash})`);
+  }
+
+  for (const permission of permissions) {
+    const present = await pollForPermission(publicClient, project.contracts.kernel, sma, permission);
+    appendActivity({
+      ts: nowIso(),
+      actor: "agent",
+      type: "permission_registered",
+      permission,
+      sma,
+      txHash,
+      chainId: project.chainId,
+    });
+    say(() => {
+      if (!present) {
+        console.log(`⚠  ${permission} not yet visible in the permission set — verify on-chain.`);
+      } else {
+        console.log("✓", `${permission} present in getPermissions(${sma})`);
+      }
+    });
+  }
+
   return txHash;
 }
 
