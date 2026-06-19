@@ -217,8 +217,11 @@ mandate
   .action(actionWith<DeployOptions>(mandateDeploy));
 mandate
   .command("attach")
-  .description("Register an already-deployed permission on an SMA (EIP-712 RegisterPermission)")
-  .requiredOption("--address <mandateOrName>", "Permission address, or a name tracked locally")
+  .description("Register one or more already-deployed permissions on an SMA (EIP-712 RegisterPermission; a comma-separated list registers all in one signature)")
+  .requiredOption(
+    "--address <mandateOrName>",
+    "Permission address or locally-tracked name; or a comma-separated list of addresses to register together in one signature",
+  )
   .requiredOption("--sma <address>", "SMA to register the permission on")
   .option("--label <label>", "Human-readable label shown in the signing UI")
   .option("--json", "Emit machine-readable JSON")

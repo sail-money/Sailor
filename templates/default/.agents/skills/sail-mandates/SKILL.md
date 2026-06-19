@@ -65,6 +65,8 @@ sailor mandate deploy --contract <Name> --sma <SMA> --json   # BLOCKS — owner 
 
 The owner pays gas; the deployed address is read from the receipt and tracked in `.sail/state/mandates.json`. Add `--build` to run `forge build` first.
 
+When a strategy needs several permissions, **deploy all of them first** (don't `--attach` yet). Each deploy is its own owner-signed contract-creation transaction — those cannot be combined — but attaching them is a single signature (Gate 7), so deploy the full set, then attach it in one step.
+
 Constructor args: `--args '["0xToken","1000000"]'` (JSON array, inline, bash) or `--args-file args.json` (any shell — required on PowerShell). Full per-shell quoting rules: [references/constructor-args.md](references/constructor-args.md). Values are coerced to the constructor's ABI types (uint→bigint, etc.) and the array length is validated.
 
 ## Gate 6 — Simulate against must-pass AND must-fail samples
@@ -84,10 +86,13 @@ This is an off-chain `eth_call` — no gas, no signing. It reports what `evaluat
 ## Gate 7 — Attach (authorize)
 
 ```bash
-sailor mandate attach --address <PermissionOrName> --sma <SMA> --json   # BLOCKS — owner signs RegisterPermission EIP-712 in the browser
+sailor mandate attach --address <PermissionOrName> --sma <SMA> --json              # one permission, one signature
+sailor mandate attach --address <addr1>,<addr2>,<addr3> --sma <SMA> --json          # many permissions, ONE signature
 ```
 
-Only now is the permission live. The owner (mandate signer) signs in the browser; the agent submits the registration and pays gas plus any registration fee. **Fund the agent wallet before attaching**, or this step fails with `gas required exceeds allowance`. The CLI verifies the signature came from the on-chain mandate signer — a wrong connected wallet is rejected. After confirmation it polls `getPermissions()` until the permission appears. Per-call model: attach every permission the strategy needs (bounded-approve alongside the protocol permission) in one signing session.
+Only now is the permission live. The owner (mandate signer) signs in the browser; the agent submits the registration and pays gas plus any registration fee. **Fund the agent wallet before attaching**, or this step fails with `gas required exceeds allowance`. The CLI verifies the signature came from the on-chain mandate signer — a wrong connected wallet is rejected. After confirmation it polls `getPermissions()` until the permissions appear.
+
+When a strategy needs several permissions (e.g. a bounded-approve alongside the protocol permission), attach them all at once by passing a comma-separated list of addresses — the registration approvals collapse to a **single** browser signature via the kernel's `registerPermissions`. The earlier per-contract deploy approvals (Gate 5) are separate and unavoidable. A single permission attaches exactly as before with `--address <one>`.
 
 ## Maintenance
 
