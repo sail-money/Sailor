@@ -32,6 +32,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      packages: write
     uses: ./.github/workflows/publish-npm-public-pkg.yaml
     with:
       package-name: ${{ inputs.environment == 'prod' && '@sail.money/sailor' || '@dev.sail.money/sailor' }}
