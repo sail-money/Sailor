@@ -12,6 +12,10 @@ jobs:
 
   publish-npm:
     needs: tests
+    permissions:
+      id-token: write
+      contents: read
+      packages: write
     uses: ./.github/workflows/publish-npm.yml
     with:
       environment: ${{ github.ref_type == 'tag' && 'prod' || 'dev' }}
@@ -20,6 +24,10 @@ jobs:
 
   publish-github-packages:
     needs: tests
+    permissions:
+      id-token: write
+      contents: read
+      packages: write
     uses: ./.github/workflows/publish-github-packages.yml
     with:
       environment: ${{ github.ref_type == 'tag' && 'prod' || 'dev' }}
