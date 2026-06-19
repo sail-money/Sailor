@@ -36,6 +36,22 @@ sailor station stop --json    # SIGTERM, verified against the recorded URL first
 
 Signing-flow commands (`mandate deploy/attach/deploy-clone/revoke`, `onboard`, `account deploy-chain`, `account rotate-signer`, `owner connect`) push requests to a running station daemon if one exists, otherwise they spin up an ephemeral in-process signing server for the duration of the command. Starting a persistent station first means the owner connects their wallet once and approves a whole sequence of requests in the same browser tab — do this before any multi-step signing flow.
 
+## Docker installation
+
+If `.sail/config.json → installMode` is `"docker"`, prefix every command with `docker exec <containerName>` (read `containerName` from the same config):
+
+```bash
+docker exec agent sailor ui start
+docker exec agent sailor ui status
+docker exec agent sailor ui stop
+
+docker exec agent sailor station start --json
+docker exec agent sailor station status --json
+docker exec agent sailor station stop --json
+```
+
+The UI always binds to port **3334** in Docker (the image sets `ENV PORT=3334`). Project files at `/workspace` are your local directory — read and write them directly from local paths; only `sailor` commands need the `docker exec` prefix.
+
 ## Troubleshooting
 
 - Command stuck "waiting"? It is blocked on a browser signature — check `GET /config` `pendingCount`, and tell the user to open the station URL and approve. Signing requests time out after 10 minutes.

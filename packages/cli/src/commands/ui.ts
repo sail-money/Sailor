@@ -64,7 +64,7 @@ export async function uiCommand(): Promise<void> {
   const serverBundle = path.resolve(distDir, "server.cjs");
   const projectRoot = process.cwd();
   const sailDir = path.join(projectRoot, ".sail");
-  const port = await findFreePort(projectPort(projectRoot));
+  const port = await findFreePort(process.env.PORT ? Number(process.env.PORT) : projectPort(projectRoot));
 
   if (!fs.existsSync(serverBundle)) {
     throw new Error(`Server bundle not found at ${serverBundle}. Re-run the sailor build.`);

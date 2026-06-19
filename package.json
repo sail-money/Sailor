@@ -25,6 +25,7 @@
     "AGENTS.md"
   ],
   "scripts": {
+    "clean": "node scripts/clean.mjs",
     "build": "pnpm --filter @sail/sdk build && pnpm --filter sailor build && pnpm --filter sailor-ui build",
     "test": "pnpm --filter sailor-ui test",
     "test:ui": "pnpm --filter sailor-ui test:ui",

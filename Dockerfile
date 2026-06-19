@@ -7,15 +7,10 @@ RUN npm install -g pnpm@${PNPM_VERSION}
 
 WORKDIR /build
 COPY . .
-RUN pnpm install --frozen-lockfile
-# Build each package in order so Docker layer-caches each step independently
-# and so the SDK dist is written to disk before esbuild bundles the CLI.
-RUN pnpm --filter @sail/sdk build
-RUN pnpm --filter sailor    build
-RUN pnpm --filter sailor-ui build
+
 # Mirror what the CI publish workflow does: drop private flag, then pack.
 # npm pack respects the "files" field so only published paths are included.
-RUN npm pkg delete private
+RUN pnpm run build
 RUN npm pack --pack-destination /tmp
 
 # ── stage 2: runtime ──────────────────────────────────────────────────────────
@@ -36,7 +31,12 @@ ENV PORT=3334
 ENV SAILOR_STATION_PORT=3141
 ENV SAILOR_TEST_PORT=14333
 
-# UI dashboard
+# Signals to sailor init/update that commands run via docker exec.
+# Override SAILOR_CONTAINER_NAME to match your --name flag:
+#   docker run --name myproject -e SAILOR_CONTAINER_NAME=myproject ...
+ENV SAILOR_INSTALL_MODE=docker
+ENV SAILOR_CONTAINER_NAME=agent
+
 EXPOSE 3334
 # Station / signing daemon (only one process in Docker, always binds here)   
 EXPOSE 3141
