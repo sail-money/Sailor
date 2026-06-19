@@ -869,13 +869,16 @@ function DoneStep({ deployedSafes, onComplete }) {
     return `${net?.name ?? `Chain ${chainId}`}: ${safe}`
   }).join('\n')
   const primaryNet = SUPPORTED_NETWORKS.find(n => n.chainId === deployedSafes[0]?.chainId)
+  // Use the actual dashboard origin — the UI port can vary (3333–3999), so don't
+  // hardcode it in the copy. Falls back to the default if origin is unavailable.
+  const dashboardUrl = (typeof window !== 'undefined' && window.location?.origin) || 'http://localhost:3333'
 
   const aiPrompt = [
     `My Sail SMAs are deployed:`,
     chainSummary,
     '',
     'Please help me finish the setup — steps 5–8 from the Sail onboarding.',
-    'The Sailor UI is running at http://localhost:3333 — keep it open,',
+    'The Sailor UI is running at ' + dashboardUrl + ' — keep it open,',
     'some steps require approving transactions there.',
     '',
     '5. Configure RPC & API keys',
@@ -885,12 +888,12 @@ function DoneStep({ deployedSafes, onComplete }) {
     '   - SAIL_API_KEY: add SAIL_API_KEY=<your key from api.sail.money> to .sail/.env.local.',
     '',
     '6. Fund agent key',
-    '   - The agent address is shown on the dashboard (http://localhost:3333)',
+    '   - The agent address is shown on the dashboard (' + dashboardUrl + ')',
     '   - Send a small amount of ETH to it for gas',
     '',
     '7. Set permissions (mandate)',
     '   - Run: sailor mandate prepare',
-    '   - Then open http://localhost:3333 — the signing flow will appear automatically',
+    '   - Then open ' + dashboardUrl + ' — the signing flow will appear automatically',
     '',
     '8. Start the agent',
     '   - Run: sailor run',
