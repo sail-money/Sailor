@@ -9,13 +9,20 @@ import type { Address } from "@sail.money/sailor/sdk";
  * Tokens in the DCA basket.
  * ALLOWED_TOKENS[0] = USDC (input — what the agent spends)
  * ALLOWED_TOKENS[1] = WETH (output — what the agent accumulates)
+ *
+ * PLACEHOLDERS — replace with the operator's tokens for their chain. These are not
+ * "the supported tokens"; any valid ERC-20 on a supported chain works. Resolve and
+ * verify a token's address on-chain (symbol/decimals) before using it — see Gate 1 of
+ * the sail-mandates skill.
  */
 export const ALLOWED_TOKENS: Address[] = [
-  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // USDC on Base  (6 decimals)
-  "0x4200000000000000000000000000000000000006", // WETH on Base  (18 decimals)
+  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // USDC on Base  (6 decimals)  — placeholder
+  "0x4200000000000000000000000000000000000006", // WETH on Base  (18 decimals) — placeholder
 ];
 
 // ── Swap parameters ───────────────────────────────────────────────────────────
+// PLACEHOLDER VALUES — these encode this reference strategy, not the operator's.
+// Replace amounts, slippage, and fee tier with the operator's stated bounds.
 
 /** Amount of USDC to spend per swap (in USDC base units, 6 decimals). Default: 5 USDC. */
 export const SWAP_AMOUNT_USDC = 5_000_000n; // 5 USDC

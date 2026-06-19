@@ -43,7 +43,6 @@ const SUPPORTED_NETWORKS = [
 const SETUP_STAGES = [
   {
     group: 'In this app',
-    color: 'rgba(255,255,255,0.75)',
     items: [
       { n: 1, name: 'Choose your network',  detail: 'Base, Arbitrum, Ethereum, Unichain…' },
       { n: 2, name: 'Connect your wallet',  detail: 'Becomes the owner of your SMA' },
@@ -53,7 +52,6 @@ const SETUP_STAGES = [
   },
   {
     group: 'In your terminal (with AI)',
-    color: 'rgba(255,255,255,0.35)',
     items: [
       { n: 5, name: 'Configure RPC & API keys', detail: 'Add to .sail/.env.local' },
       { n: 6, name: 'Fund agent key',           detail: 'Small ETH for gas' },
@@ -261,18 +259,26 @@ function WelcomeState({ onStart, onSkip }) {
       </header>
 
       <div className={styles.stageList}>
-        {SETUP_STAGES.map((group) => (
-          <div key={group.group} className={styles.stageGroup}>
-            <span className={styles.stageGroupLabel}>{group.group}</span>
-            {group.items.map((item) => (
-              <div key={item.n} className={styles.stageRow}>
-                <span className={styles.stageNum} style={{ color: group.color }}>{item.n}</span>
-                <span className={styles.stageBody}>
-                  <span className={styles.stageName} style={{ color: group.color }}>{item.name}</span>
-                  <span className={styles.stageDetail}>{item.detail}</span>
-                </span>
-              </div>
-            ))}
+        {SETUP_STAGES.map((group, gi) => (
+          <div
+            key={group.group}
+            className={`${styles.stageGroup} ${gi === 0 ? styles.stageGroupPrimary : styles.stageGroupMuted}`}
+          >
+            <span className={styles.stageGroupLabel}>
+              <span className={styles.stageGroupTick} aria-hidden />
+              {group.group}
+            </span>
+            <div className={styles.stageRows}>
+              {group.items.map((item) => (
+                <div key={item.n} className={styles.stageRow}>
+                  <span className={styles.stageNum} aria-hidden>{String(item.n).padStart(2, '0')}</span>
+                  <span className={styles.stageBody}>
+                    <span className={styles.stageName}>{item.name}</span>
+                    <span className={styles.stageDetail}>{item.detail}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         ))}
       </div>
@@ -338,6 +344,47 @@ function BrandCheck() {
   )
 }
 
+// Square-shouldered padlock — the field glyph on the password inputs.
+function LockGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="square" strokeLinejoin="miter" aria-hidden>
+      <rect x="5" y="11" width="14" height="9" rx="1" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
+  )
+}
+
+// Show / hide password toggle glyph.
+function EyeGlyph({ off }) {
+  return off ? (
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+      <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+      <line x1="1" y1="1" x2="23" y2="23" />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
+// Local, display-only password-strength heuristic for the meter. It never leaves
+// the browser and makes no security guarantee — it only drives the visual bar.
+// level: 0 (empty) · 1 Weak · 2 Fair · 3 Good · 4 Strong.
+function passwordStrength(pw) {
+  if (!pw) return { level: 0, label: '' }
+  let points = 0
+  if (pw.length >= 8) points++
+  if (pw.length >= 12) points++
+  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) points++
+  if (/\d/.test(pw)) points++
+  if (/[^A-Za-z0-9]/.test(pw)) points++
+  const level = Math.min(4, Math.max(1, points))
+  return { level, label: ['', 'Weak', 'Fair', 'Good', 'Strong'][level] }
+}
+
 function NetworkCard({ net, selected, onToggle }) {
   const live = LIVE_CHAIN_IDS.has(net.chainId)
   return (
@@ -392,15 +439,23 @@ function ConnectStep({ onBack, onDone, progressIndex, progressTotal }) {
   )
 }
 
-/* ── Step 3: Generate delegated signer key ── */
+/* ── Step 3: Set a password, then generate the delegated signer key ── */
 function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTotal }) {
   const [passphrase, setPassphrase] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [reveal, setReveal] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [generated, setGenerated] = useState(existingAddress ?? null)
   const [copied, setCopied] = useState(false)
 
+  const strength = passwordStrength(passphrase)
+  const meets8 = passphrase.length >= 8
+  const matches = passphrase.length > 0 && passphrase === confirm
+  const canSubmit = meets8 && matches
+
   async function generate() {
+    if (!canSubmit) return
     setLoading(true)
     setError('')
     try {
@@ -430,31 +485,76 @@ function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTo
       <ProgressDots current={progressIndex} total={progressTotal} />
       <CardHeader
         kicker="STEP 3 OF 4"
-        title="Create agent key"
-        sub="A signing key your agent uses to execute trades. It never holds custody."
+        title="Set a password"
+        sub="Sail generates your agent's signing key and encrypts it on this device. This password unlocks it for every run. Sail never sees it."
         onBack={onBack}
       />
       {!generated ? (
         <>
-          <div className={styles.passphraseRow}>
-            <label className={styles.passphraseLabel}>
-              Passphrase <span style={{ opacity: 0.5 }}>(optional)</span>
-            </label>
-            <input
-              type="password"
-              className={styles.passphraseInput}
-              placeholder="Encrypts the key on disk"
-              value={passphrase}
-              onChange={(e) => setPassphrase(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') generate() }}
-            />
+          <div className={styles.pwField}>
+            <span className={styles.fieldLabel}>Password</span>
+            <div className={styles.inputWrap}>
+              <span className={styles.inputIcon} aria-hidden><LockGlyph /></span>
+              <input
+                type={reveal ? 'text' : 'password'}
+                className={styles.pwInput}
+                placeholder="Enter a password"
+                value={passphrase}
+                onChange={(e) => setPassphrase(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') generate() }}
+                autoComplete="new-password"
+                autoFocus
+              />
+              <button
+                type="button"
+                className={styles.revealBtn}
+                onClick={() => setReveal(v => !v)}
+                aria-label={reveal ? 'Hide password' : 'Show password'}
+              >
+                <EyeGlyph off={reveal} />
+              </button>
+            </div>
+            <div className={styles.strengthRow} data-level={strength.level}>
+              <span className={styles.strengthTrack}>
+                <span className={styles.strengthFill} style={{ width: `${(strength.level / 4) * 100}%` }} />
+              </span>
+              <span className={styles.strengthLabel}>{strength.label}</span>
+            </div>
           </div>
-          {error && <p style={{ color: '#ff6b6b', fontSize: 13, margin: '8px 0' }}>{error}</p>}
-          <SailButton fullWidth onClick={generate} disabled={loading}>
-            {loading ? 'Generating…' : 'Generate key'}
+
+          <div className={styles.pwField}>
+            <span className={styles.fieldLabel}>Confirm password</span>
+            <div className={styles.inputWrap}>
+              <span className={styles.inputIcon} aria-hidden><LockGlyph /></span>
+              <input
+                type={reveal ? 'text' : 'password'}
+                className={styles.pwInput}
+                placeholder="Re-enter your password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') generate() }}
+                autoComplete="new-password"
+              />
+            </div>
+          </div>
+
+          <ul className={styles.reqList}>
+            <li className={`${styles.reqItem} ${meets8 ? styles.reqMet : ''}`}>
+              <span className={styles.reqIcon} aria-hidden><BrandCheck /></span>
+              8 characters or more
+            </li>
+            <li className={`${styles.reqItem} ${matches ? styles.reqMet : ''}`}>
+              <span className={styles.reqIcon} aria-hidden><BrandCheck /></span>
+              Both entries match
+            </li>
+          </ul>
+
+          {error && <p className={styles.pwError}>{error}</p>}
+          <SailButton fullWidth onClick={generate} disabled={loading || !canSubmit}>
+            {loading ? 'Encrypting…' : 'Encrypt & continue →'}
           </SailButton>
-          <p className={styles.fineprint}>
-            If set, it's saved to <code>.sail/.env.local</code> (mode 0600) so your agent can unlock the key unattended.
+          <p className={`${styles.fineprint} ${styles.keygenNote}`}>
+            It's saved to <code>.sail/.env.local</code> (mode 0600) so your agent can unlock the key unattended.
           </p>
         </>
       ) : (

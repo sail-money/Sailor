@@ -143,7 +143,7 @@ sailor onboard --new-sma   # deploy SMA and optionally attach a mandate
 sailor mandate simulate    # probe a permission off-chain (no gas) before registering
 sailor mandate sign        # sign the mandate — reconciles against live on-chain state
 sailor mandate deploy      # deploy a Foundry-compiled permission contract
-sailor mandate attach      # register an already-deployed permission on an SMA
+sailor mandate attach      # register a deployed permission on an SMA (or a comma-separated list, in one signature)
 
 # Agent operation
 sailor run --once          # single tick — confirm it works before automating

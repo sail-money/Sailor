@@ -9,7 +9,16 @@ The lifecycle is an ordered set of gates. **The order is the correctness model**
 
 ## Gate 1 — Pin the strategy bounds with the user
 
-Establish, explicitly: tokens, amounts, venues, slippage, recipients. Philosophy: **every meaningful financial bound is enforced on-chain in Solidity**; only frequency/cadence lives in agent TypeScript. If a bound matters and it is not in a permission contract, it is not a bound.
+Every constraint a strategy needs is one of two kinds, and you must tell the operator which is which so they sign knowing what is enforced where:
+
+- **Safety bounds** — protect against loss or theft: amount caps, recipient allowlists, venue/router allowlists, slippage/min-out floors, LTV ceilings, and the like. These are enforced **on-chain in a permission contract, default-ON**. Dropping one requires an explicit, stated justification — never a silent omission. **If a bound matters and it is not in a permission contract, it is not a bound.**
+- **Strategy parameters** — express *how* the strategy runs, not a theft/loss surface: cadence/frequency, schedule, rebalance timing. These live in **agent logic** by nature — permissions are stateless, and these are not safety surfaces (the safety bounds hold regardless of timing). If the operator states one (e.g. a cadence), it is a required agent-side guard that must be **wired and confirmed before go-live** — not optional, never silently dropped — but do not try to push it on-chain.
+
+**Enumerate** from the operator's stated strategy *and* from what the protocol can express for the venues involved — do not work from a fixed checklist. Explain what each constraint protects against, classify it as a safety bound (on-chain) or a strategy parameter (agent-side), and say so to the operator.
+
+**Precedence.** Operator intent and the strategy's stated bounds outrank any example. If the operator asks for a constraint an example omits, include it — never let an example's shape narrow the mandate below what the operator requested.
+
+Examples are illustrations, not the supported set. Sail supports any token, venue, protocol, pool, or contract expressible as a permission — never treat an example's specific addresses as the only ones available. When the operator names something not in your examples, resolve it from authoritative sources (official docs, canonical lists, block explorers) and verify on-chain before binding a mandate to it. Caps are denominated in base units — a token decimals mismatch (USDC is 6, most ERC-20s are 18) silently mis-sizes every bound; confirm decimals on-chain before sizing caps.
 
 ## Gate 2 — Enumerate approvals and pick the execution model
 
@@ -56,6 +65,8 @@ sailor mandate deploy --contract <Name> --sma <SMA> --json   # BLOCKS — owner 
 
 The owner pays gas; the deployed address is read from the receipt and tracked in `.sail/state/mandates.json`. Add `--build` to run `forge build` first.
 
+When a strategy needs several permissions, **deploy all of them first** (don't `--attach` yet). Each deploy is its own owner-signed contract-creation transaction — those cannot be combined — but attaching them is a single signature (Gate 7), so deploy the full set, then attach it in one step.
+
 Constructor args: `--args '["0xToken","1000000"]'` (JSON array, inline, bash) or `--args-file args.json` (any shell — required on PowerShell). Full per-shell quoting rules: [references/constructor-args.md](references/constructor-args.md). Values are coerced to the constructor's ABI types (uint→bigint, etc.) and the array length is validated.
 
 ## Gate 6 — Simulate against must-pass AND must-fail samples
@@ -75,10 +86,13 @@ This is an off-chain `eth_call` — no gas, no signing. It reports what `evaluat
 ## Gate 7 — Attach (authorize)
 
 ```bash
-sailor mandate attach --address <PermissionOrName> --sma <SMA> --json   # BLOCKS — owner signs RegisterPermission EIP-712 in the browser
+sailor mandate attach --address <PermissionOrName> --sma <SMA> --json              # one permission, one signature
+sailor mandate attach --address <addr1>,<addr2>,<addr3> --sma <SMA> --json          # many permissions, ONE signature
 ```
 
-Only now is the permission live. The owner (mandate signer) signs in the browser; the agent submits the registration and pays gas plus any registration fee. **Fund the agent wallet before attaching**, or this step fails with `gas required exceeds allowance`. The CLI verifies the signature came from the on-chain mandate signer — a wrong connected wallet is rejected. After confirmation it polls `getPermissions()` until the permission appears. Per-call model: attach every permission the strategy needs (bounded-approve alongside the protocol permission) in one signing session.
+Only now is the permission live. The owner (mandate signer) signs in the browser; the agent submits the registration and pays gas plus any registration fee. **Fund the agent wallet before attaching**, or this step fails with `gas required exceeds allowance`. The CLI verifies the signature came from the on-chain mandate signer — a wrong connected wallet is rejected. After confirmation it polls `getPermissions()` until the permissions appear.
+
+When a strategy needs several permissions (e.g. a bounded-approve alongside the protocol permission), attach them all at once by passing a comma-separated list of addresses — the registration approvals collapse to a **single** browser signature via the kernel's `registerPermissions`. The earlier per-contract deploy approvals (Gate 5) are separate and unavoidable. A single permission attaches exactly as before with `--address <one>`.
 
 ## Maintenance
 
