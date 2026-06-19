@@ -19,7 +19,7 @@ import { getRpcUrl } from "../lib/chain.js";
 import { appendActivity, nowIso } from "../lib/io.js";
 import { type StoredAccount, upsertAccountInList } from "../lib/state.js";
 
-export const DEFAULT_SIGNING_PORT = 3141; // π — memorable, thematic
+export const DEFAULT_SIGNING_PORT = Number(process.env.SAILOR_STATION_PORT ?? 3141); // π — memorable, thematic
 const RUNTIME_SUBDIR = join(".sail", "runtime");
 const SERVER_STATE_FILE = "server.json";
 const REQUEST_SECRET_HEADER = "x-sailor-secret";

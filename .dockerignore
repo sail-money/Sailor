@@ -1,0 +1,12 @@
+.git
+node_modules
+packages/*/node_modules
+packages/cli/dist
+packages/sdk/dist
+packages/ui/dist
+.sail
+.env*
+evals
+.vscode
+.idea
+*.log
