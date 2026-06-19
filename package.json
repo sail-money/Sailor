@@ -1,7 +1,7 @@
 {
   "name": "sailor",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Operator toolkit for Sail Protocol",
   "bin": {
     "sailor": "packages/cli/dist/index.cjs"
