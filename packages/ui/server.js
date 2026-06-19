@@ -1182,6 +1182,14 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
     try {
       const passphrase = req.body?.passphrase ?? ''
+      // Enforce the minimum server-side too. The wizard requires 8+ chars, but
+      // this endpoint is the real gate — a direct call or any UI regression must
+      // not be able to write a weakly/empty-encrypted agent key. Matches the CLI
+      // `keys generate` minimum.
+      if (typeof passphrase !== 'string' || passphrase.length < 8) {
+        res.status(400).json({ error: 'Passphrase must be at least 8 characters.' })
+        return
+      }
       const privateKey = generatePrivateKey()
       const keyring = LocalKeyring.fromPrivateKey(privateKey)
       const keystore = await keyring.exportKeystore(passphrase)
