@@ -9,7 +9,16 @@ The lifecycle is an ordered set of gates. **The order is the correctness model**
 
 ## Gate 1 — Pin the strategy bounds with the user
 
-Establish, explicitly: tokens, amounts, venues, slippage, recipients. Philosophy: **every meaningful financial bound is enforced on-chain in Solidity**; only frequency/cadence lives in agent TypeScript. If a bound matters and it is not in a permission contract, it is not a bound.
+Every constraint a strategy needs is one of two kinds, and you must tell the operator which is which so they sign knowing what is enforced where:
+
+- **Safety bounds** — protect against loss or theft: amount caps, recipient allowlists, venue/router allowlists, slippage/min-out floors, LTV ceilings, and the like. These are enforced **on-chain in a permission contract, default-ON**. Dropping one requires an explicit, stated justification — never a silent omission. **If a bound matters and it is not in a permission contract, it is not a bound.**
+- **Strategy parameters** — express *how* the strategy runs, not a theft/loss surface: cadence/frequency, schedule, rebalance timing. These live in **agent logic** by nature — permissions are stateless, and these are not safety surfaces (the safety bounds hold regardless of timing). If the operator states one (e.g. a cadence), it is a required agent-side guard that must be **wired and confirmed before go-live** — not optional, never silently dropped — but do not try to push it on-chain.
+
+**Enumerate** from the operator's stated strategy *and* from what the protocol can express for the venues involved — do not work from a fixed checklist. Explain what each constraint protects against, classify it as a safety bound (on-chain) or a strategy parameter (agent-side), and say so to the operator.
+
+**Precedence.** Operator intent and the strategy's stated bounds outrank any example. If the operator asks for a constraint an example omits, include it — never let an example's shape narrow the mandate below what the operator requested.
+
+Examples are illustrations, not the supported set. Sail supports any token, venue, protocol, pool, or contract expressible as a permission — never treat an example's specific addresses as the only ones available. When the operator names something not in your examples, resolve it from authoritative sources (official docs, canonical lists, block explorers) and verify on-chain before binding a mandate to it. Caps are denominated in base units — a token decimals mismatch (USDC is 6, most ERC-20s are 18) silently mis-sizes every bound; confirm decimals on-chain before sizing caps.
 
 ## Gate 2 — Enumerate approvals and pick the execution model
 
