@@ -11,6 +11,10 @@ on:
         description: 'Git ref name (e.g. v1.2.3 for tags, main for branches)'
         type: string
         default: ''
+      skip-tests:
+        description: 'Skip the test job (set true when called from the orchestrator, which already ran tests)'
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       environment:
@@ -21,8 +25,8 @@ on:
 
 jobs:
   tests:
-    # Skipped when called from the orchestrator (workflow_call already ran tests).
-    if: github.event_name == 'workflow_dispatch'
+    # Skipped when called from the orchestrator (which passes skip-tests: true).
+    if: ${{ !inputs.skip-tests }}
     uses: ./.github/workflows/tests.yml
 
   publish:

@@ -18,8 +18,9 @@ jobs:
       packages: write
     uses: ./.github/workflows/publish-npm.yml
     with:
-      environment: ${{ github.ref_type == 'tag' && 'prod' || 'dev' }}
+      environment: ${{ github.event_name == 'push' && github.ref_type == 'tag' && 'prod' || 'dev' }}
       version: ${{ github.ref_name }}
+      skip-tests: true
     secrets: inherit
 
   publish-github-packages:
@@ -30,14 +31,16 @@ jobs:
       packages: write
     uses: ./.github/workflows/publish-github-packages.yml
     with:
-      environment: ${{ github.ref_type == 'tag' && 'prod' || 'dev' }}
+      environment: ${{ github.event_name == 'push' && github.ref_type == 'tag' && 'prod' || 'dev' }}
       version: ${{ github.ref_name }}
+      skip-tests: true
     secrets: inherit
 
   publish-docker:
     needs: tests
     uses: ./.github/workflows/publish-docker.yml
     with:
-      environment: ${{ github.ref_type == 'tag' && 'prod' || 'dev' }}
+      environment: ${{ github.event_name == 'push' && github.ref_type == 'tag' && 'prod' || 'dev' }}
       version: ${{ github.ref_name }}
+      skip-tests: true
     secrets: inherit
