@@ -170,28 +170,14 @@
 .progressDotActive { background: rgba(255,255,255,0.75); transform: scale(1.3); }
 
 /* ── Welcome stage list (setup roadmap) ── */
-.stageList { display: flex; flex-direction: column; gap: 22px; margin: 22px 0 24px; }
-.stageGroup { display: flex; flex-direction: column; gap: 10px; }
-.stageGroupLabel {
-  display: flex; align-items: center; gap: 9px;
-  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
-  font-size: 10px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.45);
-}
-/* 2px-square status glyph that opens each group label */
-.stageGroupTick {
-  width: 5px; height: 5px; flex-shrink: 0;
-  background: var(--accent-blue, #1990ff);
-  box-shadow: 0 0 8px -1px rgba(25, 144, 255, 0.7);
-}
-.stageGroupMuted .stageGroupTick { background: #4f739c; box-shadow: none; }
+.stageList { display: flex; flex-direction: column; margin: 22px 0 24px; }
 
 /* timeline spine threaded behind the step nodes */
-.stageRows { position: relative; display: flex; flex-direction: column; }
+.stageRows { position: relative; display: flex; flex-direction: column; gap: 6px; }
 .stageRows::before {
   content: '';
-  position: absolute; left: 13px; top: 18px; bottom: 18px; width: 1px;
-  background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.13) 16%, rgba(255, 255, 255, 0.13) 84%, transparent);
+  position: absolute; left: 13px; top: 20px; bottom: 22px; width: 1px;
+  background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.13) 10%, rgba(255, 255, 255, 0.13) 90%, transparent);
 }
 .stageRow { position: relative; display: flex; align-items: flex-start; gap: 14px; padding: 7px 0; }
 .stageNum {
@@ -200,25 +186,13 @@
   display: inline-flex; align-items: center; justify-content: center;
   font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
   font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums;
-  color: rgba(255, 255, 255, 0.5);
-  background: #04060b;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 2px;
-}
-.stageGroupPrimary .stageNum {
   color: var(--accent-blue-bright, #4dabff);
-  border-color: rgba(25, 144, 255, 0.4);
+  border: 1px solid rgba(25, 144, 255, 0.4);
+  border-radius: 2px;
   background: linear-gradient(rgba(25, 144, 255, 0.08), rgba(25, 144, 255, 0.03)), #04060b;
 }
-/* second half: a dimmer slate-blue tone — same hue, clearly secondary */
-.stageGroupMuted .stageNum {
-  color: #6c92c2;
-  border-color: rgba(79, 115, 156, 0.4);
-}
 .stageBody { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; padding-top: 3px; }
-.stageName { font-size: 13.5px; font-weight: 500; line-height: 1.3; color: rgba(255, 255, 255, 0.9); }
-.stageGroupMuted .stageName { color: rgba(255, 255, 255, 0.62); }
-.stageDetail { font-size: 11.5px; color: rgba(255, 255, 255, 0.4); line-height: 1.45; }
+.stageName { font-size: 14px; font-weight: 500; line-height: 1.3; color: rgba(255, 255, 255, 0.92); }
 
 /* ── Network selection ── */
 .networkSection { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
