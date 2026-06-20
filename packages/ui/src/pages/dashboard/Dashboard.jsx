@@ -258,7 +258,7 @@ const BALANCE_STATUS = {
 }
 
 const SIGNER_ROLE = {
-  manager: { label: 'Manager', sub: 'Pays gas for every dispatch.' },
+  manager: { label: 'Agent', sub: 'Pays gas for every dispatch.' },
   owner: { label: 'Owner', sub: 'Holds the Safe and signs mandates.' },
   permissionSigner: { label: 'Permission signer', sub: 'Authorizes which mandates apply.' },
 }
@@ -695,7 +695,7 @@ function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSi
           opens the modal to pick a new manager. */}
       {canRotate && (
         <button type="button" className={styles.signerRotateBtn} onClick={() => onRotateSigner()}>
-          Rotate manager
+          Rotate agent keys
         </button>
       )}
 

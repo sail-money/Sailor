@@ -213,13 +213,13 @@ export default function RotateSignerModal({
         body: JSON.stringify({ method, secret: needsSecret ? secret.trim() : undefined, password }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json?.error || 'Failed to prepare the new manager wallet.')
+      if (!res.ok) throw new Error(json?.error || 'Failed to prepare the new agent wallet.')
       setCreated(json)
       setSecret('')
       setPassword('')
       setStep('backup')
     } catch (err) {
-      setError(err?.message || 'Failed to prepare the new manager wallet.')
+      setError(err?.message || 'Failed to prepare the new agent wallet.')
     } finally {
       setBusy(false)
     }
@@ -237,15 +237,15 @@ export default function RotateSignerModal({
       if (!res.ok) {
         throw new Error(
           res.status === 404
-            ? 'Saved-manager listing needs an updated Sailor UI — restart it (sailor ui stop && sailor ui).'
-            : `Could not list saved managers (HTTP ${res.status}).`,
+            ? 'Saved-agent listing needs an updated Sailor UI — restart it (sailor ui stop && sailor ui).'
+            : `Could not list saved agents (HTTP ${res.status}).`,
         )
       }
       const json = await res.json().catch(() => null)
       setSavedSigners(Array.isArray(json?.signers) ? json.signers : [])
     } catch (err) {
       setSavedSigners([])
-      setError(err?.message || 'Could not list saved managers.')
+      setError(err?.message || 'Could not list saved agents.')
     } finally {
       setLoadingSaved(false)
     }
@@ -269,7 +269,7 @@ export default function RotateSignerModal({
     setError('')
     const chosen = selectableSaved.find((s) => s.address.toLowerCase() === selectedSaved.toLowerCase())
     if (!chosen) {
-      setError('Select a saved manager to rotate to.')
+      setError('Select a saved agent to rotate to.')
       return
     }
     setCreated({ address: chosen.address, revealed: null, fromSaved: true })
@@ -425,7 +425,7 @@ export default function RotateSignerModal({
       className={styles.overlay}
       role="dialog"
       aria-modal="true"
-      aria-label="Rotate manager"
+      aria-label="Rotate agent keys"
       onClick={pending ? undefined : onClose}
     >
       <GlassCard className={styles.card} onClick={(e) => e.stopPropagation()}>
@@ -435,7 +435,7 @@ export default function RotateSignerModal({
 
         {step === 'done' ? (
           <>
-            <h2 className={styles.title}>Manager rotated</h2>
+            <h2 className={styles.title}>Agent rotated</h2>
             <p className={styles.body}>
               <strong>{created?.address}</strong> is now this SMA&rsquo;s delegated signer.
               {mandateAddrs.length > 0
@@ -443,7 +443,7 @@ export default function RotateSignerModal({
                 : ' No mandates were attached, so none needed re-approval.'}
             </p>
             <p className={styles.body}>
-              Fund the new manager wallet so it can pay gas for dispatches, then restart your agent.
+              Fund the new agent wallet so it can pay gas for dispatches, then restart your agent.
             </p>
             <div className={styles.actions}>
               <SailButton onClick={onClose}>Done</SailButton>
@@ -452,17 +452,17 @@ export default function RotateSignerModal({
         ) : step === 'backup' ? (
           <>
             <h2 className={styles.title}>
-              {created?.revealed ? 'Back up the new manager' : 'New manager ready'}
+              {created?.revealed ? 'Back up the new agent' : 'New agent ready'}
             </h2>
             <p className={styles.body}>
               {created?.revealed
-                ? 'A fresh manager wallet was created and encrypted on disk. Save its private key now — it’s shown only once. Then rotate the SMA to it.'
+                ? 'A fresh agent wallet was created and encrypted on disk. Save its private key now — it’s shown only once. Then rotate the SMA to it.'
                 : created?.fromSaved
-                  ? 'This manager is already saved in this project. Rotate the SMA to it below — its keystore becomes this SMA’s active signer.'
-                  : 'Your manager wallet was imported and encrypted on disk. Rotate the SMA to it below.'}
+                  ? 'This agent is already saved in this project. Rotate the SMA to it below — its keystore becomes this SMA’s active signer.'
+                  : 'Your agent wallet was imported and encrypted on disk. Rotate the SMA to it below.'}
             </p>
             <div className={form.addrPanel}>
-              <span className={form.addrLabel}>New manager address</span>
+              <span className={form.addrLabel}>New agent address</span>
               <code className={form.addrValue}>{created?.address}</code>
             </div>
             {created?.revealed && (
@@ -514,19 +514,19 @@ export default function RotateSignerModal({
           </>
         ) : (
           <>
-            <h2 className={styles.title}>Rotate the manager?</h2>
+            <h2 className={styles.title}>Rotate the agent keys?</h2>
             <p className={styles.body}>
-              Rotate this SMA to a new delegated signer (manager) — the recovery path when the
-              current manager key is lost or compromised. Generate a fresh wallet, or import an
+              Rotate this SMA to a new delegated signer (agent) — the recovery path when the
+              current agent key is lost or compromised. Generate a fresh wallet, or import an
               existing one by private key or recovery phrase. Set a password to encrypt it on disk.
             </p>
             <dl className={styles.meta}>
               <div><dt>SMA</dt><dd>{sma}</dd></div>
-              {currentManager && <div><dt>Current manager</dt><dd>{currentManager}</dd></div>}
+              {currentManager && <div><dt>Current agent</dt><dd>{currentManager}</dd></div>}
               <div><dt>Attached mandates</dt><dd>{mandateAddrs.length}</dd></div>
             </dl>
 
-            <div className={form.segmented} role="tablist" aria-label="New manager source">
+            <div className={form.segmented} role="tablist" aria-label="New agent source">
               <button
                 type="button"
                 role="tab"
@@ -561,18 +561,18 @@ export default function RotateSignerModal({
                 Generates a fresh random key. You&rsquo;ll see the private key once, to back up.
               </p>
             ) : mode === 'saved' ? (
-              <div className={form.savedList} role="radiogroup" aria-label="Saved managers">
+              <div className={form.savedList} role="radiogroup" aria-label="Saved agents">
                 {loadingSaved ? (
-                  <p className={form.modeNote}>Loading saved managers…</p>
+                  <p className={form.modeNote}>Loading saved agents…</p>
                 ) : (savedSigners ?? []).length === 0 ? (
                   <p className={form.modeNote}>
-                    No saved managers in this project. Create a new wallet or import one.
+                    No saved agents in this project. Create a new wallet or import one.
                   </p>
                 ) : (
                   <>
                     {selectableSaved.length === 0 && (
                       <p className={form.modeNote}>
-                        The only saved manager is this SMA&rsquo;s current one. Create a new wallet or import one.
+                        The only saved agent is this SMA&rsquo;s current one. Create a new wallet or import one.
                       </p>
                     )}
                     {(savedSigners ?? []).map((s) => (
@@ -652,7 +652,7 @@ export default function RotateSignerModal({
               <button type="button" className={styles.cancel} onClick={onClose}>Cancel</button>
               {mode === 'saved' ? (
                 <SailButton onClick={useSavedManager} disabled={busy || !selectedSaved}>
-                  Use this manager
+                  Use this agent
                 </SailButton>
               ) : (
                 <SailButton onClick={provisionKey} disabled={busy}>
