@@ -102,6 +102,18 @@ npm install -g @sail.money/sailor
 sailor init my-agent
 ```
 
+### Docker (no Node.js required)
+
+Run sailor from a pre-built image — useful when you don't want to install Node.js or want an isolated environment:
+
+```bash
+mkdir my-agent && cd my-agent
+docker run -d --name agent -P -v "${PWD}:/workspace" sailmoney/sailor
+docker exec agent sailor init
+```
+
+Then open the folder in your AI coding assistant and say **"start"**. See the [Docker Hub](#docker-hub-publish-dockeryml) section below for full usage details.
+
 ---
 
 ## Quickstart
@@ -381,6 +393,57 @@ Or pin in `package.json`:
 ```
 
 Either way, `@sail.money/sailor/sdk` imports work unchanged.
+
+### Docker Hub (`publish-docker.yml`)
+
+A pre-built image is published to Docker Hub so you can run the CLI without installing Node.js locally. The image uses Alpine Linux and includes `tsx` (required to compile TypeScript agent code at runtime).
+
+| Trigger | Tag |
+|---|---|
+| Merge to `main` or manual dispatch | `sailmoney/sailor:dev` |
+| Tag push (`v*`) | `sailmoney/sailor:<version>` + `sailmoney/sailor:latest` |
+
+#### Starting the container
+
+Run this from your project root. `-P` publishes all exposed ports to random available host ports; use a fixed `-p <host>:3334` if you want a stable UI port.
+
+```bash
+docker run -d --name agent -P -v "${PWD}:/workspace" sailmoney/sailor
+```
+
+- `-d` — detached, runs in the background
+- `--name agent` — container name used in all `docker exec` calls
+- `-P` — maps container ports (UI: 3334, station: 3141) to random host ports
+- `-v "${PWD}:/workspace"` — mounts the current project into the container
+
+#### Running sailor commands
+
+All sailor commands run via `docker exec`:
+
+```bash
+docker exec agent sailor --version
+docker exec agent sailor init
+docker exec agent sailor ui start
+docker exec agent sailor run --once
+```
+
+Project files are on your **local filesystem** — read and write them directly from local paths. Only `sailor` commands need the `docker exec` prefix; the volume mount makes files accessible to both sides.
+
+#### Opening the dashboard
+
+The UI always binds to port **3334 inside the container**, but the host-side port depends on how `-P` mapped it. Resolve it before opening the browser:
+
+```bash
+docker port agent 3334
+# → 0.0.0.0:49201   (open http://localhost:49201 in the browser)
+```
+
+#### Stopping
+
+```bash
+docker stop agent    # stop the container
+docker start agent   # restart it later (project files and state are on the host)
+```
 
 ---
 

@@ -50,7 +50,17 @@ docker exec agent sailor station status --json
 docker exec agent sailor station stop --json
 ```
 
-The UI always binds to port **3334** in Docker (the image sets `ENV PORT=3334`). Project files at `/workspace` are your local directory — read and write them directly from local paths; only `sailor` commands need the `docker exec` prefix.
+The UI always binds to port **3334 inside the container** (the image sets `ENV PORT=3334`), but the host-side port depends on how the container was started. Before giving the user a URL, resolve the actual host port:
+
+```bash
+docker port <containerName> 3334
+# → 0.0.0.0:3334   (host port matches)
+# → 0.0.0.0:8080   (host port is different — use 8080 in the URL)
+```
+
+The URL to open in the browser is `http://localhost:<host-port>` where `<host-port>` is what `docker port` returned, not necessarily 3334. Never hard-code the port — always resolve it first.
+
+Project files at `/workspace` are your local directory — read and write them directly from local paths; only `sailor` commands need the `docker exec` prefix.
 
 ## Troubleshooting
 
