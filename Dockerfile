@@ -7,10 +7,12 @@ RUN npm install -g pnpm@${PNPM_VERSION}
 
 WORKDIR /build
 COPY . .
+RUN pnpm install --frozen-lockfile
 
 # Mirror what the CI publish workflow does: drop private flag, then pack.
 # npm pack respects the "files" field so only published paths are included.
 RUN pnpm run build
+RUN npm pkg delete private
 RUN npm pack --pack-destination /tmp
 
 # ── stage 2: runtime ──────────────────────────────────────────────────────────
