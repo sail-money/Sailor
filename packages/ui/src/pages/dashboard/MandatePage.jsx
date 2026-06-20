@@ -433,7 +433,7 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
           </article>
         </section>
 
-        {/* ── Manager endpoint ────────────────────────────────────
+        {/* ── Agent endpoint ────────────────────────────────────
             The actual runtime decision source for every agent under
             this mandate. Drafted by Claude (etc.), but the runtime
             choices come from this signed endpoint — not the AI that
@@ -444,7 +444,7 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
             <div className={styles.cardHeadText}>
               <h2 className={styles.cardTitle}>
                 <ManagerGlyph />
-                Manager endpoint
+                Agent endpoint
               </h2>
               <p className={styles.cardSub}>
                 Where dispatch decisions come from. Every recommendation is

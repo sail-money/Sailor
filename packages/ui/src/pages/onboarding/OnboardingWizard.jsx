@@ -41,24 +41,13 @@ const SUPPORTED_NETWORKS = [
 ]
 
 const SETUP_STAGES = [
-  {
-    group: 'In this app',
-    items: [
-      { n: 1, name: 'Choose your network',  detail: 'Base, Arbitrum, Ethereum, Unichain…' },
-      { n: 2, name: 'Connect your wallet',  detail: 'Becomes the owner of your SMA' },
-      { n: 3, name: 'Create agent key',     detail: 'Signs transactions on your behalf' },
-      { n: 4, name: 'Deploy your SMA',      detail: 'One-time gas payment, permanent account' },
-    ],
-  },
-  {
-    group: 'In your terminal (with AI)',
-    items: [
-      { n: 5, name: 'Configure RPC & API keys', detail: 'Add to .sail/.env.local' },
-      { n: 6, name: 'Fund agent key',           detail: 'Small ETH for gas' },
-      { n: 7, name: 'Set permissions',           detail: 'sailor mandate prepare → sign here' },
-      { n: 8, name: 'Start agent',               detail: 'sailor run' },
-    ],
-  },
+  { n: 1, name: 'Choose your networks' },
+  { n: 2, name: 'Connect your wallet' },
+  { n: 3, name: 'Set up your agent wallet and passphrase' },
+  { n: 4, name: 'Deploy your SMA' },
+  { n: 5, name: 'Configure your RPCs' },
+  { n: 6, name: 'Sign, monitor and revoke your permissions / mandates' },
+  { n: 7, name: 'Check your project activity' },
 ]
 
 // Steps that show progress dots (excludes welcome + done).
@@ -252,35 +241,22 @@ function WelcomeState({ onStart, onSkip }) {
         <Sai size={64} animate />
       </div>
       <header className={styles.cardHeader}>
-        <span className={styles.kicker}>WELCOME TO SAIL</span>
         <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
-          Your AI agent, on-chain.
+          Welcome to the Sail Dashboard
         </h1>
       </header>
 
       <div className={styles.stageList}>
-        {SETUP_STAGES.map((group, gi) => (
-          <div
-            key={group.group}
-            className={`${styles.stageGroup} ${gi === 0 ? styles.stageGroupPrimary : styles.stageGroupMuted}`}
-          >
-            <span className={styles.stageGroupLabel}>
-              <span className={styles.stageGroupTick} aria-hidden />
-              {group.group}
-            </span>
-            <div className={styles.stageRows}>
-              {group.items.map((item) => (
-                <div key={item.n} className={styles.stageRow}>
-                  <span className={styles.stageNum} aria-hidden>{String(item.n).padStart(2, '0')}</span>
-                  <span className={styles.stageBody}>
-                    <span className={styles.stageName}>{item.name}</span>
-                    <span className={styles.stageDetail}>{item.detail}</span>
-                  </span>
-                </div>
-              ))}
+        <div className={styles.stageRows}>
+          {SETUP_STAGES.map((item) => (
+            <div key={item.n} className={styles.stageRow}>
+              <span className={styles.stageNum} aria-hidden>{String(item.n).padStart(2, '0')}</span>
+              <span className={styles.stageBody}>
+                <span className={styles.stageName}>{item.name}</span>
+              </span>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       <div className={styles.welcomeCta}>
@@ -439,7 +415,7 @@ function ConnectStep({ onBack, onDone, progressIndex, progressTotal }) {
   )
 }
 
-/* ── Step 3: Set a password, then generate the delegated signer key ── */
+/* ── Step 3: Set a passphrase, then generate the delegated signer key ── */
 function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTotal }) {
   const [passphrase, setPassphrase] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -485,20 +461,20 @@ function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTo
       <ProgressDots current={progressIndex} total={progressTotal} />
       <CardHeader
         kicker="STEP 3 OF 4"
-        title="Set a password"
-        sub="Sail generates your agent's signing key and encrypts it on this device. This password unlocks it for every run. Sail never sees it."
+        title="Set a passphrase"
+        sub="Sail generates your agent's signing key and encrypts it on this device. This passphrase unlocks it for every run. Sail never sees it."
         onBack={onBack}
       />
       {!generated ? (
         <>
           <div className={styles.pwField}>
-            <span className={styles.fieldLabel}>Password</span>
+            <span className={styles.fieldLabel}>Passphrase</span>
             <div className={styles.inputWrap}>
               <span className={styles.inputIcon} aria-hidden><LockGlyph /></span>
               <input
                 type={reveal ? 'text' : 'password'}
                 className={styles.pwInput}
-                placeholder="Enter a password"
+                placeholder="Enter a passphrase"
                 value={passphrase}
                 onChange={(e) => setPassphrase(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') generate() }}
@@ -509,7 +485,7 @@ function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTo
                 type="button"
                 className={styles.revealBtn}
                 onClick={() => setReveal(v => !v)}
-                aria-label={reveal ? 'Hide password' : 'Show password'}
+                aria-label={reveal ? 'Hide passphrase' : 'Show passphrase'}
               >
                 <EyeGlyph off={reveal} />
               </button>
@@ -523,13 +499,13 @@ function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTo
           </div>
 
           <div className={styles.pwField}>
-            <span className={styles.fieldLabel}>Confirm password</span>
+            <span className={styles.fieldLabel}>Confirm passphrase</span>
             <div className={styles.inputWrap}>
               <span className={styles.inputIcon} aria-hidden><LockGlyph /></span>
               <input
                 type={reveal ? 'text' : 'password'}
                 className={styles.pwInput}
-                placeholder="Re-enter your password"
+                placeholder="Re-enter your passphrase"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') generate() }}
@@ -869,27 +845,31 @@ function DoneStep({ deployedSafes, onComplete }) {
     return `${net?.name ?? `Chain ${chainId}`}: ${safe}`
   }).join('\n')
   const primaryNet = SUPPORTED_NETWORKS.find(n => n.chainId === deployedSafes[0]?.chainId)
+  // Use the actual dashboard origin — the UI port can vary (3333–3999), so don't
+  // hardcode it in the copy. Falls back to the default if origin is unavailable.
+  const dashboardUrl = (typeof window !== 'undefined' && window.location?.origin) || 'http://localhost:3333'
 
   const aiPrompt = [
     `My Sail SMAs are deployed:`,
     chainSummary,
     '',
     'Please help me finish the setup — steps 5–8 from the Sail onboarding.',
-    'The Sailor UI is running at http://localhost:3333 — keep it open,',
+    'The Sailor UI is running at ' + dashboardUrl + ' — keep it open,',
     'some steps require approving transactions there.',
     '',
     '5. Configure RPC & API keys',
-    '   - Add to .sail/.env.local:',
-    '     RPC_URL=<your RPC endpoint for ' + (primaryNet?.name ?? 'the network') + '>',
-    '     SAIL_API_KEY=<your key from api.sail.money>',
+    '   - RPC: set it on the dashboard\'s RPC panel — it writes',
+    '     RPC_URL_<chainId> to .sail/.env.local for you. Fallback: add',
+    '     RPC_URL=<your RPC endpoint for ' + (primaryNet?.name ?? 'the network') + '> to .sail/.env.local directly.',
+    '   - SAIL_API_KEY: add SAIL_API_KEY=<your key from api.sail.money> to .sail/.env.local.',
     '',
     '6. Fund agent key',
-    '   - The agent address is shown on the dashboard (http://localhost:3333)',
+    '   - The agent address is shown on the dashboard (' + dashboardUrl + ')',
     '   - Send a small amount of ETH to it for gas',
     '',
     '7. Set permissions (mandate)',
     '   - Run: sailor mandate prepare',
-    '   - Then open http://localhost:3333 — the signing flow will appear automatically',
+    '   - Then open ' + dashboardUrl + ' — the signing flow will appear automatically',
     '',
     '8. Start the agent',
     '   - Run: sailor run',

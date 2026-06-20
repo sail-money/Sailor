@@ -58,7 +58,7 @@ Sail Protocol separates three authority roles. Sailor operates all of them:
 
 The path from nothing to a running agent follows the protocol lifecycle:
 
-1. **Deploy your SMA** — `sailor onboard --new-sma` creates the SMA on-chain. `sailor account predict` computes the deterministic address in advance. The same owner, permission signer, manager, and salt produce the same SMA address on every supported chain.
+1. **Deploy your SMA and agent wallet** — `sailor onboard --new-sma` creates the SMA on-chain. `sailor account predict` computes the deterministic address in advance. The same owner, permission signer, manager, and salt produce the same SMA address on every supported chain.
 2. **Author your permissions** — describe what the agent may do. Permission contracts encode the bounds: tokens, amounts, venues, call targets. Author them in the scaffolded Foundry workspace.
 3. **Simulate, deploy, and sign your mandate** — `sailor mandate simulate` probes a permission off-chain before authorizing it. `sailor mandate deploy --attach` deploys and registers it on-chain. `sailor mandate sign` builds and signs the registration payload against live on-chain state.
 4. **Run** — `sailor run` executes the agent loop. Three execution hosts compose: run it locally on a schedule, install it as a local OS service (`sailor service install` — launchd/systemd/Task Scheduler) that restarts on crash, or let the GitHub Actions cron workflow the scaffold provides run it. `sailor trigger github` fires that workflow on demand.
