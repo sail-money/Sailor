@@ -36,6 +36,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write      # required to sign attestations
+      attestations: write  # required to push attestations to Docker Hub
     steps:
       - uses: actions/checkout@v4
       - name: Login to Docker Hub
@@ -53,6 +55,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ vars.DOCKER_IMAGE }}:dev
+          sbom: true
+          provenance: mode=max
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -63,6 +67,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write      # required to sign attestations
+      attestations: write  # required to push attestations to Docker Hub
     steps:
       - uses: actions/checkout@v4
       - name: Extract version
@@ -87,5 +93,7 @@ jobs:
           tags: |
             ${{ vars.DOCKER_IMAGE }}:${{ steps.v.outputs.version }}
             ${{ vars.DOCKER_IMAGE }}:latest
+          sbom: true
+          provenance: mode=max
           cache-from: type=gha
           cache-to: type=gha,mode=max

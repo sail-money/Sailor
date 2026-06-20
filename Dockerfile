@@ -16,14 +16,19 @@ RUN npm pkg delete private
 RUN npm pack --pack-destination /tmp
 
 # ── stage 2: runtime ──────────────────────────────────────────────────────────
-FROM node:22-slim
+FROM node:24-slim
 
-# tsx is a runtime dep: the CLI shell-spawns it to compile user TypeScript agent code
-RUN npm install -g tsx
+# tsx is a runtime dep: the CLI shell-spawns it to compile user TypeScript agent code.
+# picomatch@^4.0.4 is pinned alongside to patch CVE-2026-33671 (ReDoS in 4.0.3).
+RUN npm install -g tsx picomatch@^4.0.4
 
 # Install sailor from the packed tarball (exact same files as npm publish)
 COPY --from=builder /tmp/sailor-*.tgz /tmp/sailor.tgz
 RUN npm install -g /tmp/sailor.tgz && rm /tmp/sailor.tgz
+
+# Drop root — the official node images ship a built-in 'node' user (UID 1000).
+# Global binaries in /usr/local/bin remain executable by all users.
+USER node
 
 # User agent projects are mounted here at runtime via -v $(pwd):/workspace
 WORKDIR /workspace
