@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       environment:
-        description: "'dev' → fungistudio/sailor:dev, 'prod' → fungistudio/sailor:<ver> + :latest"
+        description: "'dev' → <DOCKER_IMAGE>:dev, 'prod' → <DOCKER_IMAGE>:<ver> + :latest  (DOCKER_IMAGE repo variable)"
         type: string
         required: true
       version:
@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: "'dev' → fungistudio/sailor:dev, 'prod' → fungistudio/sailor:<ver> + :latest"
+        description: "'dev' → <DOCKER_IMAGE>:dev, 'prod' → <DOCKER_IMAGE>:<ver> + :latest  (DOCKER_IMAGE repo variable)"
         type: choice
         options: [dev, prod]
         default: dev
@@ -52,7 +52,7 @@ jobs:
         with:
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: fungistudio/sailor:dev
+          tags: ${{ vars.DOCKER_IMAGE }}:dev
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -85,7 +85,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            fungistudio/sailor:${{ steps.v.outputs.version }}
-            fungistudio/sailor:latest
+            ${{ vars.DOCKER_IMAGE }}:${{ steps.v.outputs.version }}
+            ${{ vars.DOCKER_IMAGE }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
