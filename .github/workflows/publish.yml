@@ -38,6 +38,10 @@ jobs:
 
   publish-docker:
     needs: tests
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     uses: ./.github/workflows/publish-docker.yml
     with:
       environment: ${{ github.event_name == 'push' && github.ref_type == 'tag' && 'prod' || 'dev' }}
