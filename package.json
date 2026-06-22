@@ -41,5 +41,11 @@
   },
   "dependencies": {
     "tsx": "^4.22.4"
+  },
+  "pnpm": {
+    "overrides": {
+      "qr": "0.5.5",
+      "sailor": "link:packages/cli"
+    }
   }
 }
