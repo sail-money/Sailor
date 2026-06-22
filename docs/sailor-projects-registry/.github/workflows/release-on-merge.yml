@@ -10,6 +10,7 @@ on:
     branches: [main]
     paths:
       - "projects/**"
+  workflow_dispatch: {} # allow manual re-runs (packages every project under projects/)
 
 permissions:
   contents: write
@@ -31,7 +32,10 @@ jobs:
           if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ]; then
             base="$(git rev-parse HEAD~1 || true)"
           fi
-          if [ -n "$base" ]; then
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            # Manual run: (re)package every project under projects/.
+            slugs=$(ls projects)
+          elif [ -n "$base" ]; then
             slugs=$(git diff --name-only "$base" HEAD -- 'projects/*' \
               | awk -F/ '{print $2}' | sort -u)
           else
@@ -52,7 +56,7 @@ jobs:
 
             # Next version: count existing releases tagged <slug>-v* and add 1.
             existing=$(gh release list --limit 200 \
-              | awk '{print $1}' | grep -E "^${slug}-v[0-9]+$" | wc -l | tr -d ' ')
+              | awk '{print $1}' | { grep -cE "^${slug}-v[0-9]+$" || true; } | tr -d ' ')
             next=$((existing + 1))
             tag="${slug}-v${next}"
             asset="${slug}.tar.gz"

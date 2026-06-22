@@ -2,7 +2,12 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { downloadAsset, getReleaseByTag, parseReleaseRef } from "../lib/github.js";
+import {
+  type ReleaseAsset,
+  downloadAsset,
+  getReleaseByTag,
+  parseReleaseRef,
+} from "../lib/github.js";
 import { prompt, readJsonFile } from "../lib/io.js";
 import { emit } from "../lib/output.js";
 import { scaffoldProjectWorkspace } from "../lib/project-scaffold.js";
@@ -25,10 +30,7 @@ export interface ReplicateOptions {
 }
 
 /** Pick the project archive asset: an explicitly named one, else first tar.gz/zip. */
-function pickAsset(
-  assets: Array<{ name: string; downloadUrl: string }>,
-  named?: string,
-): { name: string; downloadUrl: string } {
+function pickAsset(assets: ReleaseAsset[], named?: string): ReleaseAsset {
   if (named) {
     const hit = assets.find((a) => a.name === named);
     if (!hit) throw new Error(`Release has no asset named "${named}".`);
@@ -93,7 +95,15 @@ export async function replicate(
   // 3. Download + extract into a temp dir, then move the project root to target.
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-replicate-"));
   try {
-    const buf = await downloadAsset(asset.downloadUrl);
+    // Prefer the public browser_download_url — those hits increment the asset's
+    // download_count (the per-project metric). Fall back to the asset API URL,
+    // which works on private repos but does NOT increment the counter.
+    let buf: Buffer;
+    try {
+      buf = await downloadAsset(asset.downloadUrl);
+    } catch {
+      buf = await downloadAsset(asset.apiUrl);
+    }
     const archivePath = path.join(tmp, asset.name);
     fs.writeFileSync(archivePath, buf);
 
