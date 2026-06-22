@@ -5,7 +5,7 @@
     "outDir": "dist",
     "baseUrl": ".",
     "paths": {
-      "@sail/sdk": ["../sdk/src/index.ts"]
+      "@sail/sdk": ["../sdk/dist/index.d.ts"]
     }
   },
   "include": ["src"]

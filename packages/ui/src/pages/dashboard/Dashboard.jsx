@@ -14,6 +14,7 @@ import shared from '../shared/shared.module.css'
 import styles from './Dashboard.module.css'
 import agentStyles from './SharedLayout.module.css'
 import AIHandoffModal from './AIHandoffModal'
+import VersionWarning from './VersionWarning'
 import ProfileModal from './ProfileModal'
 import NotConnectedCard from '../shared/NotConnectedCard'
 import CreateSMAModal from './CreateSMAModal'
@@ -260,7 +261,7 @@ const BALANCE_STATUS = {
 }
 
 const SIGNER_ROLE = {
-  manager: { label: 'Manager', sub: 'Pays gas for every dispatch.' },
+  manager: { label: 'Agent', sub: 'Pays gas for every dispatch.' },
   owner: { label: 'Owner', sub: 'Holds the Safe and signs mandates.' },
   permissionSigner: { label: 'Permission signer', sub: 'Authorizes which mandates apply.' },
 }
@@ -697,7 +698,7 @@ function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSi
           opens the modal to pick a new manager. */}
       {canRotate && (
         <button type="button" className={styles.signerRotateBtn} onClick={() => onRotateSigner()}>
-          Rotate manager
+          Rotate agent keys
         </button>
       )}
 
@@ -1402,14 +1403,17 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
           first-class cards in the body, where they belong now that the
           SMA is the dashboard's primary subject. */}
       <header className={styles.header}>
-        <button
-          type="button"
-          className={styles.brand}
-          onClick={() => { window.location.hash = '#/dashboard' }}
-          aria-label="Go to dashboard"
-        >
-          <Sai size={48} animate />
-        </button>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <button
+            type="button"
+            className={styles.brand}
+            onClick={() => { window.location.hash = '#/dashboard' }}
+            aria-label="Go to dashboard"
+          >
+            <Sai size={48} animate />
+          </button>
+          <VersionWarning />
+        </div>
 
         <div className={styles.topActionsPill}>
           {/* Pure hash-nav link to the isolated $SAIL rewards page. No import of

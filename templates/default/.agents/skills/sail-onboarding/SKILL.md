@@ -7,7 +7,9 @@ description: Walks the agent through setting up a new Sailor project or resuming
 
 ## Running the CLI
 
-The project does not install `sailor` as a dependency, so invoke it with **`npx sailor <command>`** unless it is installed globally (`npm i -g @sail.money/sailor`, then `sailor` works bare). Every `sailor …` command in these skills assumes one of those. Confirm the toolchain up front and pin a recent version — `npx sailor@latest --version` — because an old cached `npx` build can be missing newer commands (e.g. `mandate simulate`); if a documented command reports "unknown command", you are on a stale version, not hitting a missing feature.
+The published package is **`@sail.money/sailor`** — always use the scoped name with the registry. The bare name `sailor` is a different, unrelated npm package; never `npx sailor@<version>` or `npm i sailor`. Install it (`npm i -g @sail.money/sailor`, or as a project dep), after which the `sailor` bin works bare (`sailor <command>`) and `npx sailor <command>` resolves the installed bin. Every `sailor …` command in these skills assumes it is installed. Confirm the toolchain up front and pin a recent version — `npx @sail.money/sailor@latest --version` — because an old cached `npx` build can be missing newer commands (e.g. `mandate simulate`); if a documented command reports "unknown command", you are on a stale version, not hitting a missing feature.
+
+After upgrading the CLI, run `sailor update` from the project root to pull in updated skills, `AGENTS.md`, `Dockerfile`, and other tooling files. User files (`src/`, `mandates/`, `.sail/`, `package.json`) are never touched.
 
 Stage machine keyed off `.sail/`. Read the state, enter at the right stage, never re-run completed stages.
 
@@ -18,7 +20,7 @@ Stage machine keyed off `.sail/`. Read the state, enter at the right stage, neve
 | `config.json` has `chainId: null` | Stage 0 — chain not chosen; ask which chain, write it to `config.json` |
 | No `account.json` | Stage 1 — SMA not deployed |
 | `account.json` exists, `state/mandates.json` empty or absent | SMA live, no permissions — hand off to **sail-mandates** |
-| `account.json` + tracked mandates | Fully onboarded — hand off to **sail-transactions** / running |
+| `account.json` + tracked mandates | SMA live with permissions — hand off to **sail-transactions** to run. Once the agent is live, the flow is not done: **offer Extend (stage 5 — notifications + a custom dashboard) by default**, unless the operator opts out, then hand off to **sail-extend**. The end state is "stage 5 offered," not "running" |
 
 Supported chains: Ethereum (1), Base (8453), Arbitrum (42161), Unichain (130), Base Sepolia (84532), Eth Sepolia (11155111). `sailor chains --json` lists them with kernel addresses.
 

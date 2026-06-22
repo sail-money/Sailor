@@ -12,7 +12,8 @@ import { capabilities } from "./commands/capabilities.js";
 import { type ChainsOptions, chainsCommand } from "./commands/chains.js";
 import { doctor } from "./commands/doctor.js";
 import { initCommand } from "./commands/init.js";
-import { keysExportCi, keysGenerate, keysShow } from "./commands/keys.js";
+import { updateCommand } from "./commands/update.js";
+import { type KeysGenerateOptions, keysExportCi, keysGenerate, keysShow } from "./commands/keys.js";
 import {
   type AttachOptions,
   type DeployCloneOptions,
@@ -108,10 +109,11 @@ program
   .option("--template <name>", "Template to scaffold from (default: default)")
   .option("--chain <id>", "Default EVM chain id written to .sail/config.json and .env.example")
   .option("--rpc-url <url>", "Default RPC_URL written to .sail/.env.local")
+  .option("--force", "Re-initialize even if already initialized (overwrites scaffold files; keys/ and state/ are preserved)")
   .action(
     async (
       name: string | undefined,
-      opts: { template?: string; chain?: string; rpcUrl?: string },
+      opts: { template?: string; chain?: string; rpcUrl?: string; force?: boolean },
     ) => {
       try {
         await initCommand(name, opts);
@@ -121,6 +123,11 @@ program
       }
     },
   );
+
+program
+  .command("update")
+  .description("Re-sync agent tooling files (skills, AGENTS.md, Dockerfile) from the latest template")
+  .action(action(updateCommand));
 
 const ui = program.command("ui").description("Manage the local Sailor dashboard");
 ui.command("start")
@@ -138,7 +145,10 @@ const keys = program.command("keys").description("Manage local signing keys");
 keys
   .command("generate")
   .description("Generate and encrypt an agent wallet or mandate signer key")
-  .action(action(keysGenerate));
+  .option("--type <role>", "Key role: agent-wallet (manager) or mandate-signer (non-interactive)")
+  .option("--passphrase <value>", "Encryption passphrase (else SAIL_PASSPHRASE, else stdin, else prompt)")
+  .option("--force", "Overwrite an existing key without prompting")
+  .action(actionWith<KeysGenerateOptions>(keysGenerate));
 keys.command("show").description("Show the address of each stored key").action(action(keysShow));
 keys
   .command("export-ci")
@@ -207,8 +217,11 @@ mandate
   .action(actionWith<DeployOptions>(mandateDeploy));
 mandate
   .command("attach")
-  .description("Register an already-deployed permission on an SMA (EIP-712 RegisterPermission)")
-  .requiredOption("--address <mandateOrName>", "Permission address, or a name tracked locally")
+  .description("Register one or more already-deployed permissions on an SMA (EIP-712 RegisterPermission; a comma-separated list registers all in one signature)")
+  .requiredOption(
+    "--address <mandateOrName>",
+    "Permission address or locally-tracked name; or a comma-separated list of addresses to register together in one signature",
+  )
   .requiredOption("--sma <address>", "SMA to register the permission on")
   .option("--label <label>", "Human-readable label shown in the signing UI")
   .option("--json", "Emit machine-readable JSON")

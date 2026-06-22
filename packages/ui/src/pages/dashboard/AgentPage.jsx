@@ -936,7 +936,7 @@ function AgentReadinessLine({ status, mandate, hasMpcWallet, lastRehearsalHoursA
       </div>
       <p className={styles.readinessAttribution}>
         Drafted in <strong>{mandate.aiName}</strong>. Runtime decisions come from
-        your manager endpoint at <code>{managerEndpoint.url}</code> — not from
+        your agent endpoint at <code>{managerEndpoint.url}</code> — not from
         {' '}{mandate.aiName}. Switching drafters doesn't change who runs the agent.
       </p>
     </div>

@@ -41,26 +41,13 @@ const SUPPORTED_NETWORKS = [
 ]
 
 const SETUP_STAGES = [
-  {
-    group: 'In this app',
-    color: 'rgba(255,255,255,0.75)',
-    items: [
-      { n: 1, name: 'Choose your network',  detail: 'Base, Arbitrum, Ethereum, Unichain…' },
-      { n: 2, name: 'Connect your wallet',  detail: 'Becomes the owner of your SMA' },
-      { n: 3, name: 'Create agent key',     detail: 'Signs transactions on your behalf' },
-      { n: 4, name: 'Deploy your SMA',      detail: 'One-time gas payment, permanent account' },
-    ],
-  },
-  {
-    group: 'In your terminal (with AI)',
-    color: 'rgba(255,255,255,0.35)',
-    items: [
-      { n: 5, name: 'Configure RPC & API keys', detail: 'Add to .sail/.env.local' },
-      { n: 6, name: 'Fund agent key',           detail: 'Small ETH for gas' },
-      { n: 7, name: 'Set permissions',           detail: 'sailor mandate prepare → sign here' },
-      { n: 8, name: 'Start agent',               detail: 'sailor run' },
-    ],
-  },
+  { n: 1, name: 'Choose your networks' },
+  { n: 2, name: 'Connect your wallet' },
+  { n: 3, name: 'Set up your agent wallet and passphrase' },
+  { n: 4, name: 'Deploy your SMA' },
+  { n: 5, name: 'Configure your RPCs' },
+  { n: 6, name: 'Sign, monitor and revoke your permissions / mandates' },
+  { n: 7, name: 'Check your project activity' },
 ]
 
 // Steps that show progress dots (excludes welcome + done).
@@ -254,27 +241,22 @@ function WelcomeState({ onStart, onSkip }) {
         <Sai size={64} animate />
       </div>
       <header className={styles.cardHeader}>
-        <span className={styles.kicker}>WELCOME TO SAIL</span>
         <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
-          Your AI agent, on-chain.
+          Welcome to the Sail Dashboard
         </h1>
       </header>
 
       <div className={styles.stageList}>
-        {SETUP_STAGES.map((group) => (
-          <div key={group.group} className={styles.stageGroup}>
-            <span className={styles.stageGroupLabel}>{group.group}</span>
-            {group.items.map((item) => (
-              <div key={item.n} className={styles.stageRow}>
-                <span className={styles.stageNum} style={{ color: group.color }}>{item.n}</span>
-                <span className={styles.stageBody}>
-                  <span className={styles.stageName} style={{ color: group.color }}>{item.name}</span>
-                  <span className={styles.stageDetail}>{item.detail}</span>
-                </span>
-              </div>
-            ))}
-          </div>
-        ))}
+        <div className={styles.stageRows}>
+          {SETUP_STAGES.map((item) => (
+            <div key={item.n} className={styles.stageRow}>
+              <span className={styles.stageNum} aria-hidden>{String(item.n).padStart(2, '0')}</span>
+              <span className={styles.stageBody}>
+                <span className={styles.stageName}>{item.name}</span>
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className={styles.welcomeCta}>
@@ -338,6 +320,47 @@ function BrandCheck() {
   )
 }
 
+// Square-shouldered padlock — the field glyph on the password inputs.
+function LockGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="square" strokeLinejoin="miter" aria-hidden>
+      <rect x="5" y="11" width="14" height="9" rx="1" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
+  )
+}
+
+// Show / hide password toggle glyph.
+function EyeGlyph({ off }) {
+  return off ? (
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+      <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+      <line x1="1" y1="1" x2="23" y2="23" />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
+// Local, display-only password-strength heuristic for the meter. It never leaves
+// the browser and makes no security guarantee — it only drives the visual bar.
+// level: 0 (empty) · 1 Weak · 2 Fair · 3 Good · 4 Strong.
+function passwordStrength(pw) {
+  if (!pw) return { level: 0, label: '' }
+  let points = 0
+  if (pw.length >= 8) points++
+  if (pw.length >= 12) points++
+  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) points++
+  if (/\d/.test(pw)) points++
+  if (/[^A-Za-z0-9]/.test(pw)) points++
+  const level = Math.min(4, Math.max(1, points))
+  return { level, label: ['', 'Weak', 'Fair', 'Good', 'Strong'][level] }
+}
+
 function NetworkCard({ net, selected, onToggle }) {
   const live = LIVE_CHAIN_IDS.has(net.chainId)
   return (
@@ -392,15 +415,23 @@ function ConnectStep({ onBack, onDone, progressIndex, progressTotal }) {
   )
 }
 
-/* ── Step 3: Generate delegated signer key ── */
+/* ── Step 3: Set a passphrase, then generate the delegated signer key ── */
 function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTotal }) {
   const [passphrase, setPassphrase] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [reveal, setReveal] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [generated, setGenerated] = useState(existingAddress ?? null)
   const [copied, setCopied] = useState(false)
 
+  const strength = passwordStrength(passphrase)
+  const meets8 = passphrase.length >= 8
+  const matches = passphrase.length > 0 && passphrase === confirm
+  const canSubmit = meets8 && matches
+
   async function generate() {
+    if (!canSubmit) return
     setLoading(true)
     setError('')
     try {
@@ -430,31 +461,76 @@ function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTo
       <ProgressDots current={progressIndex} total={progressTotal} />
       <CardHeader
         kicker="STEP 3 OF 4"
-        title="Create agent key"
-        sub="A signing key your agent uses to execute trades. It never holds custody."
+        title="Set a passphrase"
+        sub="Sail generates your agent's signing key and encrypts it on this device. This passphrase unlocks it for every run. Sail never sees it."
         onBack={onBack}
       />
       {!generated ? (
         <>
-          <div className={styles.passphraseRow}>
-            <label className={styles.passphraseLabel}>
-              Passphrase <span style={{ opacity: 0.5 }}>(optional)</span>
-            </label>
-            <input
-              type="password"
-              className={styles.passphraseInput}
-              placeholder="Encrypts the key on disk"
-              value={passphrase}
-              onChange={(e) => setPassphrase(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') generate() }}
-            />
+          <div className={styles.pwField}>
+            <span className={styles.fieldLabel}>Passphrase</span>
+            <div className={styles.inputWrap}>
+              <span className={styles.inputIcon} aria-hidden><LockGlyph /></span>
+              <input
+                type={reveal ? 'text' : 'password'}
+                className={styles.pwInput}
+                placeholder="Enter a passphrase"
+                value={passphrase}
+                onChange={(e) => setPassphrase(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') generate() }}
+                autoComplete="new-password"
+                autoFocus
+              />
+              <button
+                type="button"
+                className={styles.revealBtn}
+                onClick={() => setReveal(v => !v)}
+                aria-label={reveal ? 'Hide passphrase' : 'Show passphrase'}
+              >
+                <EyeGlyph off={reveal} />
+              </button>
+            </div>
+            <div className={styles.strengthRow} data-level={strength.level}>
+              <span className={styles.strengthTrack}>
+                <span className={styles.strengthFill} style={{ width: `${(strength.level / 4) * 100}%` }} />
+              </span>
+              <span className={styles.strengthLabel}>{strength.label}</span>
+            </div>
           </div>
-          {error && <p style={{ color: '#ff6b6b', fontSize: 13, margin: '8px 0' }}>{error}</p>}
-          <SailButton fullWidth onClick={generate} disabled={loading}>
-            {loading ? 'Generating…' : 'Generate key'}
+
+          <div className={styles.pwField}>
+            <span className={styles.fieldLabel}>Confirm passphrase</span>
+            <div className={styles.inputWrap}>
+              <span className={styles.inputIcon} aria-hidden><LockGlyph /></span>
+              <input
+                type={reveal ? 'text' : 'password'}
+                className={styles.pwInput}
+                placeholder="Re-enter your passphrase"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') generate() }}
+                autoComplete="new-password"
+              />
+            </div>
+          </div>
+
+          <ul className={styles.reqList}>
+            <li className={`${styles.reqItem} ${meets8 ? styles.reqMet : ''}`}>
+              <span className={styles.reqIcon} aria-hidden><BrandCheck /></span>
+              8 characters or more
+            </li>
+            <li className={`${styles.reqItem} ${matches ? styles.reqMet : ''}`}>
+              <span className={styles.reqIcon} aria-hidden><BrandCheck /></span>
+              Both entries match
+            </li>
+          </ul>
+
+          {error && <p className={styles.pwError}>{error}</p>}
+          <SailButton fullWidth onClick={generate} disabled={loading || !canSubmit}>
+            {loading ? 'Encrypting…' : 'Encrypt & continue →'}
           </SailButton>
-          <p className={styles.fineprint}>
-            If set, it's saved to <code>.sail/.env.local</code> (mode 0600) so your agent can unlock the key unattended.
+          <p className={`${styles.fineprint} ${styles.keygenNote}`}>
+            It's saved to <code>.sail/.env.local</code> (mode 0600) so your agent can unlock the key unattended.
           </p>
         </>
       ) : (
@@ -769,27 +845,31 @@ function DoneStep({ deployedSafes, onComplete }) {
     return `${net?.name ?? `Chain ${chainId}`}: ${safe}`
   }).join('\n')
   const primaryNet = SUPPORTED_NETWORKS.find(n => n.chainId === deployedSafes[0]?.chainId)
+  // Use the actual dashboard origin — the UI port can vary (3333–3999), so don't
+  // hardcode it in the copy. Falls back to the default if origin is unavailable.
+  const dashboardUrl = (typeof window !== 'undefined' && window.location?.origin) || 'http://localhost:3333'
 
   const aiPrompt = [
     `My Sail SMAs are deployed:`,
     chainSummary,
     '',
     'Please help me finish the setup — steps 5–8 from the Sail onboarding.',
-    'The Sailor UI is running at http://localhost:3333 — keep it open,',
+    'The Sailor UI is running at ' + dashboardUrl + ' — keep it open,',
     'some steps require approving transactions there.',
     '',
     '5. Configure RPC & API keys',
-    '   - Add to .sail/.env.local:',
-    '     RPC_URL=<your RPC endpoint for ' + (primaryNet?.name ?? 'the network') + '>',
-    '     SAIL_API_KEY=<your key from api.sail.money>',
+    '   - RPC: set it on the dashboard\'s RPC panel — it writes',
+    '     RPC_URL_<chainId> to .sail/.env.local for you. Fallback: add',
+    '     RPC_URL=<your RPC endpoint for ' + (primaryNet?.name ?? 'the network') + '> to .sail/.env.local directly.',
+    '   - SAIL_API_KEY: add SAIL_API_KEY=<your key from api.sail.money> to .sail/.env.local.',
     '',
     '6. Fund agent key',
-    '   - The agent address is shown on the dashboard (http://localhost:3333)',
+    '   - The agent address is shown on the dashboard (' + dashboardUrl + ')',
     '   - Send a small amount of ETH to it for gas',
     '',
     '7. Set permissions (mandate)',
     '   - Run: sailor mandate prepare',
-    '   - Then open http://localhost:3333 — the signing flow will appear automatically',
+    '   - Then open ' + dashboardUrl + ' — the signing flow will appear automatically',
     '',
     '8. Start the agent',
     '   - Run: sailor run',
