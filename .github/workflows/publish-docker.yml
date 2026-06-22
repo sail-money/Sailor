@@ -15,6 +15,11 @@ on:
         description: 'Skip the test job (set true when called from the orchestrator, which already ran tests)'
         type: boolean
         default: false
+    secrets:
+      DOCKERHUB_USERNAME:
+        required: true
+      DOCKERHUB_TOKEN:
+        required: true
   workflow_dispatch:
     inputs:
       environment:
@@ -44,6 +49,8 @@ jobs:
       attestations: write  # required to push attestations to Docker Hub
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Login to Docker Hub
         uses: docker/login-action@v4
         with:
@@ -67,7 +74,7 @@ jobs:
   publish-prod:
     needs: tests
     # always() prevents auto-skip when tests is skipped (workflow_call path).
-    if: always() && inputs.environment == 'prod' && (needs.tests.result == 'success' || needs.tests.result == 'skipped')
+    if: always() && inputs.environment == 'prod' && inputs.version != '' && (needs.tests.result == 'success' || needs.tests.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -75,6 +82,8 @@ jobs:
       attestations: write  # required to push attestations to Docker Hub
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Extract version
         id: v
         run: echo "version=${INPUT_VERSION#v}" >> $GITHUB_OUTPUT

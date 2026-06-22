@@ -6,6 +6,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   tests:
     uses: ./.github/workflows/tests.yml
@@ -21,7 +24,8 @@ jobs:
       environment: ${{ github.event_name == 'push' && github.ref_type == 'tag' && 'prod' || 'dev' }}
       version: ${{ github.ref_name }}
       skip-tests: true
-    secrets: inherit
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-github-packages:
     needs: tests
@@ -34,7 +38,6 @@ jobs:
       environment: ${{ github.event_name == 'push' && github.ref_type == 'tag' && 'prod' || 'dev' }}
       version: ${{ github.ref_name }}
       skip-tests: true
-    secrets: inherit
 
   publish-docker:
     needs: tests
@@ -47,4 +50,6 @@ jobs:
       environment: ${{ github.event_name == 'push' && github.ref_type == 'tag' && 'prod' || 'dev' }}
       version: ${{ github.ref_name }}
       skip-tests: true
-    secrets: inherit
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

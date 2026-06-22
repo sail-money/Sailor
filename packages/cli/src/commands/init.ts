@@ -72,7 +72,8 @@ function scaffoldProjectWorkspace(dest: string, name: string, options: InitOptio
   fs.mkdirSync(path.join(sailDir, "state"), { recursive: true });
 
   const installMode = process.env.SAILOR_INSTALL_MODE === "docker" ? "docker" : "local";
-  const containerName = process.env.SAILOR_CONTAINER_NAME ?? "agent";
+  const _rawContainerName = process.env.SAILOR_CONTAINER_NAME ?? "agent";
+  const containerName = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(_rawContainerName) ? _rawContainerName : "agent";
 
   fs.writeFileSync(
     path.join(sailDir, "config.json"),

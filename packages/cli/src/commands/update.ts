@@ -71,7 +71,8 @@ export async function updateCommand(): Promise<void> {
       [key: string]: unknown;
     };
     const newMode = process.env.SAILOR_INSTALL_MODE === "docker" ? "docker" : "local";
-    const containerName = process.env.SAILOR_CONTAINER_NAME ?? "agent";
+    const _rawContainerName = process.env.SAILOR_CONTAINER_NAME ?? "agent";
+    const containerName = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(_rawContainerName) ? _rawContainerName : "agent";
     if (config.installMode !== newMode) {
       const previousMode = config.installMode;
       const previousContainer = config.containerName as string | undefined;
@@ -95,7 +96,7 @@ export async function updateCommand(): Promise<void> {
       fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
     }
   } catch {
-    // config.json missing or unparseable — skip mode update
+    console.warn("Warning: could not update install mode in .sail/config.json");
   }
 
   if (removed.length === 0 && updated.length === 0 && added.length === 0) {

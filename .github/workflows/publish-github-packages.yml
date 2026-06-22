@@ -23,6 +23,9 @@ on:
         options: [dev, prod]
         default: dev
 
+permissions:
+  contents: read
+
 jobs:
   tests:
     # Skipped when called from the orchestrator (which passes skip-tests: true).

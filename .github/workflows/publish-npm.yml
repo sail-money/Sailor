@@ -15,6 +15,10 @@ on:
         description: 'Skip the test job (set true when called from the orchestrator, which already ran tests)'
         type: boolean
         default: false
+    secrets:
+      NPM_TOKEN:
+        description: 'npm publish token. When provided, used for authentication instead of OIDC.'
+        required: false
   workflow_dispatch:
     inputs:
       environment:
@@ -22,6 +26,9 @@ on:
         type: choice
         options: [dev, prod]
         default: dev
+
+permissions:
+  contents: read
 
 jobs:
   tests:
@@ -42,4 +49,5 @@ jobs:
       package-name: ${{ inputs.environment == 'prod' && '@sail.money/sailor' || '@dev.sail.money/sailor' }}
       dist-tag: latest
       build-number: ${{ inputs.environment != 'prod' && github.run_number || 0 }}
-    secrets: inherit
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
