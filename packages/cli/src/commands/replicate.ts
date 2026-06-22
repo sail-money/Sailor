@@ -11,6 +11,7 @@ import {
 import { prompt, readJsonFile } from "../lib/io.js";
 import { emit } from "../lib/output.js";
 import { scaffoldProjectWorkspace } from "../lib/project-scaffold.js";
+import { injectCoreReferenceAssets } from "../lib/reference-assets.js";
 import type { ShareManifest } from "../lib/share.js";
 
 /**
@@ -135,6 +136,11 @@ export async function replicate(
       /* preserveConfig */ true,
     );
 
+    // 6. Re-inject the core Sailor reference material that `share` strips
+    //    (examples, .agents/skills, AGENTS.md, docs) from the installed package,
+    //    so the replicated project is complete. Operator files are never clobbered.
+    const reAdded = injectCoreReferenceAssets(target);
+
     emit(
       options.json,
       () => {
@@ -142,6 +148,7 @@ export async function replicate(
           `\n✓ Replicated "${manifest.name}" into ${path.relative(process.cwd(), target) || "."}/`,
         );
         console.log(`  source: ${ref.repo}@${release.tag} (${asset.name}, ${asset.downloadUrl})`);
+        console.log(`  restored ${reAdded.length} core Sailor reference file(s) from the package`);
         console.log("\nNext — supply your own secrets (none were copied):");
         console.log(`  1. cd ${path.relative(process.cwd(), target) || "."}`);
         console.log("  2. Set RPC in .sail/.env.local (if not set above)");
@@ -154,6 +161,7 @@ export async function replicate(
         tag: release.tag,
         asset: asset.name,
         target,
+        restored: reAdded.length,
         manifest,
       },
     );

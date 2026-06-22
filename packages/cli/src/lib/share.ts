@@ -104,6 +104,31 @@ export function isSensitivePath(rel: string): boolean {
   return false;
 }
 
+/**
+ * Core Sailor reference material that `sailor init` injects identically into
+ * every project (and `replicate` re-injects from the installed package). Stripped
+ * from the published copy so a shared project carries only the operator's own
+ * work — strategy, custom mandates, config — not ~40 files of shared boilerplate.
+ */
+export const CORE_REUSE_PATHS: readonly string[] = [
+  "examples",
+  ".agents",
+  ".cursor",
+  "docs/PERMISSION_MODEL.md",
+  "AGENTS.md",
+  "CLAUDE.md",
+  ".sail/README.md",
+];
+
+/** True if a project-relative POSIX path is reusable core material (not published). */
+export function isCoreReusablePath(rel: string): boolean {
+  const p = rel.split(path.sep).join("/");
+  for (const s of CORE_REUSE_PATHS) {
+    if (p === s || p.startsWith(`${s}/`)) return true;
+  }
+  return false;
+}
+
 // ── Clean copy ──────────────────────────────────────────────────────────────
 
 /**
@@ -137,6 +162,7 @@ export function buildCleanCopy(srcRoot: string, destRoot: string): string[] {
       const abs = path.join(dir, entry.name);
       const rel = path.relative(srcRoot, abs);
       if (isSensitivePath(rel)) continue;
+      if (isCoreReusablePath(rel)) continue;
 
       const destAbs = path.join(destRoot, rel);
       if (entry.isDirectory()) {

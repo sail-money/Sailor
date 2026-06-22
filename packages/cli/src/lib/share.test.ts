@@ -11,6 +11,7 @@ import {
   buildCleanCopy,
   collectSensitiveValues,
   findMissingRequiredFiles,
+  isCoreReusablePath,
   isSensitivePath,
   sanitizeConfig,
   scanForSecrets,
@@ -104,8 +105,23 @@ function makeProject(): string {
   fs.writeFileSync(path.join(root, "src", "mandate.ts"), "export const params = {};");
   fs.writeFileSync(path.join(root, "mandates", "Perm.sol"), "contract Perm {}");
   fs.writeFileSync(path.join(root, "AGENTS.md"), "# guide");
+  // core reusable material that init injects into every project
+  fs.mkdirSync(path.join(root, "examples", "permissions"), { recursive: true });
+  fs.writeFileSync(path.join(root, "examples", "permissions", "Bounded.sol"), "contract B {}");
+  fs.mkdirSync(path.join(root, ".agents", "skills"), { recursive: true });
+  fs.writeFileSync(path.join(root, ".agents", "skills", "x.md"), "# skill");
+  fs.writeFileSync(path.join(root, "CLAUDE.md"), "# claude");
   return root;
 }
+
+test("isCoreReusablePath matches reusable core, not operator work", () => {
+  assert.equal(isCoreReusablePath("examples/permissions/Bounded.sol"), true);
+  assert.equal(isCoreReusablePath(".agents/skills/x.md"), true);
+  assert.equal(isCoreReusablePath("AGENTS.md"), true);
+  assert.equal(isCoreReusablePath("docs/PERMISSION_MODEL.md"), true);
+  assert.equal(isCoreReusablePath("src/agent.ts"), false);
+  assert.equal(isCoreReusablePath("mandates/Perm.sol"), false);
+});
 
 test("buildCleanCopy strips sensitive files, keeps strategy, sanitizes config", () => {
   const root = makeProject();
@@ -116,6 +132,11 @@ test("buildCleanCopy strips sensitive files, keeps strategy, sanitizes config", 
   assert.ok(files.includes("mandates/Perm.sol"));
   assert.ok(files.includes(".sail/config.json"));
   assert.ok(files.includes(".env.example"));
+  // core reusable material is stripped (re-injected by replicate)
+  assert.ok(!files.some((f) => f.startsWith("examples/")));
+  assert.ok(!files.some((f) => f.startsWith(".agents/")));
+  assert.ok(!files.includes("AGENTS.md"));
+  assert.ok(!files.includes("CLAUDE.md"));
   assert.ok(!files.some((f) => f.startsWith(".sail/keys")));
   assert.ok(!files.includes(".sail/account.json"));
   assert.ok(!files.includes(".sail/.env.local"));
