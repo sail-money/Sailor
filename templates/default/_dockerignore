@@ -1,0 +1,15 @@
+# Secrets and local state — never bake into the image.
+.sail/keys/
+.sail/runtime/
+.sail/state/
+.sail/.env.local
+.env
+.env.*
+!.env.example
+
+# Build outputs
+node_modules/
+out/
+cache/
+broadcast/
+dist/

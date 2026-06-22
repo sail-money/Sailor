@@ -525,8 +525,12 @@ export async function attachMandate(
   })) as bigint;
 
   // Detect the kernel's RegisterPermission shape so we use the right type string.
-  // Conjunctive kernels (Base 8453, Base Sepolia 84532) use noDeadline; selective
-  // kernels (Arbitrum 42161) use withDeadline. Falls back to false if detection fails.
+  // All currently-supported kernels are selective (see deployments.ts dispatchModel)
+  // and use the with-deadline RegisterPermission shape. We still detect the shape
+  // on-chain (detectKernelCapabilities) rather than assume it, so this stays correct
+  // if a kernel ever differs. The no-deadline path below is the legacy/conjunctive
+  // shape, retained only as a detection-driven fallback — not a live target on any
+  // of today's chains.
   let registerPermissionHasDeadline = false;
   try {
     const caps = await detectKernelCapabilities(publicClient, project.contracts.kernel, {

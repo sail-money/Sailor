@@ -64,7 +64,14 @@ sailor mandate deploy --contract <Name>            # prints the deployed address
 sailor mandate attach --address <deployedAddress> --sma <SMA>
 ```
 
-Both attach paths open the browser signing station so the owner authorizes the registration
+To attach several permissions, deploy each one first, then register them all in a single
+signature by passing a comma-separated list:
+
+```bash
+sailor mandate attach --address <addr1>,<addr2>,<addr3> --sma <SMA>
+```
+
+These attach commands open the browser signing station so the owner authorizes the registration
 (EIP-712 `RegisterPermission`); the agent submits the on-chain transaction.
 
 ## Prerequisites

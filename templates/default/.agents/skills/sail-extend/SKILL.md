@@ -1,11 +1,11 @@
 ---
 name: sail-extend
-description: Recipes for extending a live agent with notifications (Telegram, email) and a strategy-specific dashboard. Use when the agent is running and the user asks for run/transaction alerts, monitoring, or a custom view of their strategy.
+description: Recipes for extending a live agent with notifications (Telegram, email) and a strategy-specific dashboard. Use once the agent is live to offer and build run/transaction alerts, monitoring, or a custom view of the strategy — stage 5 of onboarding. Offer this proactively when the agent goes live, not only when the operator asks; the operator may opt out.
 ---
 
 # Sail extend — notifications and custom dashboards
 
-These are user-land code the assistant writes into this project on request — not Sailor features. Build them only once the agent is live.
+These are user-land code the assistant writes into this project — not Sailor features. Once the agent is live (stage 5 of onboarding), proactively offer the operator run/transaction notifications and a strategy-specific dashboard — one line on each — and build whatever they accept. Build only once the agent is live; the operator may decline, but the offer is not optional.
 
 ## Notifications
 

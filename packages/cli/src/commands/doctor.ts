@@ -108,6 +108,43 @@ async function probePassThrough(
   }
 }
 
+/** True if an RPC error looks like rate-limiting (HTTP 429 / "too many requests"). */
+function isRateLimit(err: unknown): boolean {
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return (
+    msg.includes("429") ||
+    msg.includes("rate limit") ||
+    msg.includes("too many requests") ||
+    (err as { status?: number } | null)?.status === 429
+  );
+}
+
+/**
+ * Report an RPC failure as a short, actionable message and exit — never let the
+ * raw viem error (request body, ABI args, docs URL) reach the user. Tailors the
+ * guidance to whether they're on a configured RPC or the rate-limited public
+ * fallback (no RPC_URL set).
+ */
+function rpcFailure(
+  err: unknown,
+  ctx: { chainId: number; rpcUrl: string; usingDefaultRpc: boolean; json: boolean },
+): never {
+  const reason = isRateLimit(err)
+    ? "rate-limited (HTTP 429)"
+    : (err instanceof Error ? err.message.split("\n")[0] : String(err));
+  const fix = ctx.usingDefaultRpc
+    ? "No RPC_URL is configured, so doctor used the public fallback — which throttles aggressively. Set a dedicated endpoint in .sail/.env.local:\n  RPC_URL=https://your-endpoint"
+    : "Check RPC_URL in .sail/.env.local (endpoint reachable, not rate-limited, serves this chain).";
+  if (ctx.json) {
+    console.log(
+      JSON.stringify({ status: "error", error: "rpc_unreachable", reason, chainId: ctx.chainId }),
+    );
+  } else {
+    console.error(`✗ Could not reach the RPC for chain ${ctx.chainId} — ${reason}.\n\n${fix}`);
+  }
+  process.exit(1);
+}
+
 /**
  * `sailor doctor` — read-only, gas-free preflight before dispatching:
  *  - detects the kernel's dispatch model (conjunctive vs selective),
@@ -119,12 +156,22 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
   const project = new ProjectContext();
   const chainId = project.chainId;
   const kernel = project.contracts.kernel;
-  const rpcUrl = getRpcUrl(chainId) ?? getChainById(chainId).rpcUrls.default.http[0];
+  const configuredRpc = getRpcUrl(chainId);
+  const rpcUrl = configuredRpc ?? getChainById(chainId).rpcUrls.default.http[0];
+  const usingDefaultRpc = !configuredRpc;
 
   const client = new SailorClient({ chainId, rpcUrl, kernel });
   const pc = createPublicClient({ chain: getChainById(chainId), transport: http(rpcUrl) });
 
-  const caps = await client.capabilities();
+  // First on-chain contact. If the RPC is unreachable or rate-limited (common on
+  // the public fallback when no RPC_URL is set), surface a one-line, actionable
+  // message instead of dumping the raw viem error (request body, ABI, docs link).
+  let caps: Awaited<ReturnType<typeof client.capabilities>>;
+  try {
+    caps = await client.capabilities();
+  } catch (err) {
+    rpcFailure(err, { chainId, rpcUrl, usingDefaultRpc, json: !!options.json });
+  }
 
   // Resolve the SMA: --account flag, else .sail/account.json.
   const stored = readJsonFile<StoredAccount>(sailPath("account.json"));
@@ -143,7 +190,12 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
   // introspectable; see `sailor mandate simulate` for sample-call target checks).
   let permsNoCode: Address[] = [];
   if (safe) {
-    const mandates = await client.mandate.list(safe);
+    let mandates: Awaited<ReturnType<typeof client.mandate.list>>;
+    try {
+      mandates = await client.mandate.list(safe);
+    } catch (err) {
+      rpcFailure(err, { chainId, rpcUrl, usingDefaultRpc, json: !!options.json });
+    }
     permissions = mandates.map((m) => getAddress(m.permission));
     if (permissions.length > 0) {
       const codeChecks = await Promise.all(permissions.map((p) => checkContractExists(pc, p)));
