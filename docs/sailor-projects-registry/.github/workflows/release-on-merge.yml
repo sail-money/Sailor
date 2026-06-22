@@ -1,0 +1,66 @@
+name: release-on-merge
+
+# When a project folder under projects/ changes on main (i.e. a `sailor share`
+# PR merges), package that folder as a .tar.gz and publish/update a release
+# tagged <slug>-v<n>. The release asset is what `sailor replicate` downloads,
+# and its download_count is the per-project metric.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "projects/**"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2 # need the previous commit to diff
+
+      - name: Determine changed project folders
+        id: changed
+        run: |
+          set -euo pipefail
+          base="${{ github.event.before }}"
+          # Fall back to the first parent if before is all-zeros (first push).
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ]; then
+            base="$(git rev-parse HEAD~1 || true)"
+          fi
+          if [ -n "$base" ]; then
+            slugs=$(git diff --name-only "$base" HEAD -- 'projects/*' \
+              | awk -F/ '{print $2}' | sort -u)
+          else
+            slugs=$(ls projects)
+          fi
+          echo "slugs<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$slugs" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Package and release each changed project
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r slug; do
+            [ -z "$slug" ] && continue
+            [ -d "projects/$slug" ] || continue
+
+            # Next version: count existing releases tagged <slug>-v* and add 1.
+            existing=$(gh release list --limit 200 \
+              | awk '{print $1}' | grep -E "^${slug}-v[0-9]+$" | wc -l | tr -d ' ')
+            next=$((existing + 1))
+            tag="${slug}-v${next}"
+            asset="${slug}.tar.gz"
+
+            tar -czf "$asset" -C "projects/$slug" .
+
+            gh release create "$tag" "$asset" \
+              --title "$slug v$next" \
+              --notes "Automated release of projects/$slug (sailor share). Download with: sailor replicate <asset-url>"
+            echo "Released $tag ($asset)"
+          done <<< "${{ steps.changed.outputs.slugs }}"

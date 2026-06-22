@@ -33,8 +33,10 @@ import { mandatePrepare, mandateSign, mandateSync } from "./commands/mandate.js"
 import { type OnboardOptions, onboard } from "./commands/onboard.js";
 import { ownerConnect, ownerShow } from "./commands/owner.js";
 import { type RotateSignerOptions, rotateSigner } from "./commands/rotate-signer.js";
+import { type ReplicateOptions, replicate } from "./commands/replicate.js";
 import { runCommand } from "./commands/run.js";
 import { scan } from "./commands/scan.js";
+import { type ShareOptions, share } from "./commands/share.js";
 import {
   type ServiceInstallOptions,
   type ServiceLogsOptions,
@@ -545,5 +547,40 @@ service
   .option("--project <path>", "Project root (default: current directory)")
   .option("-f, --follow", "Follow the log (tail -f)")
   .action(actionWith<ServiceLogsOptions>(serviceLogs));
+
+// ── Experimental (private) ─────────────────────────────────────────────────
+// `share` / `replicate` are gated behind SAILOR_EXPERIMENTAL=1 while the
+// community-registry feature is private. They stay invisible in --help until
+// the flag is set.
+if (process.env.SAILOR_EXPERIMENTAL === "1") {
+  program
+    .command("share")
+    .description("Publish a sanitized copy of this project to the community registry (opens a PR)")
+    .option("--repo <owner/repo>", "Registry repo (default: sail-money/sailor-projects)")
+    .option("--base <branch>", "Base branch to PR against", "main")
+    .option("--dry-run", "Build + scan the cleaned copy and show what would be published; no PR")
+    .option("--yes", "Skip the confirmation prompt (requires a complete .sail/share.json)")
+    .option("--json", "Emit machine-readable JSON")
+    .action(actionWith<ShareOptions>(share));
+
+  program
+    .command("replicate <url> [dir]")
+    .description("Download a published project's release asset and rebuild a local workspace")
+    .option("--rpc-url <url>", "RPC_URL to write into .sail/.env.local")
+    .option("--chain <id>", "Chain id to run on")
+    .option("--force", "Replicate into a non-empty target directory")
+    .option("--yes", "Non-interactive (skip prompts)")
+    .option("--json", "Emit machine-readable JSON")
+    .action(async (url: string, dir: string | undefined, opts: ReplicateOptions) => {
+      try {
+        await replicate(url, dir, opts);
+      } catch (err) {
+        console.error(`Error: ${(err as Error).message}`);
+        closePrompts();
+        process.exit(1);
+      }
+      closePrompts();
+    });
+}
 
 program.parse(process.argv);
