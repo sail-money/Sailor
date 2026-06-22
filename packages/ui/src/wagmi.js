@@ -24,7 +24,18 @@ export const chains = [
   baseSepolia, arbitrumSepolia, unichainSepolia, sepolia,
 ]
 
+// A real WalletConnect/Reown project id (https://dashboard.reown.com) is required for
+// the WalletConnect connector to authenticate with the relay and emit a `wc:` pairing URI.
+// The placeholder below lets the app boot but the relay will reject it, so no QR/link appears.
 const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'sailor-local-dev'
+
+if (import.meta.env.DEV && projectId === 'sailor-local-dev') {
+  console.warn(
+    '[wagmi] VITE_WALLETCONNECT_PROJECT_ID is not set — using a placeholder. ' +
+    'WalletConnect (e.g. connecting a Safe) will not produce a pairing link. ' +
+    'Add a real project id from https://dashboard.reown.com to packages/ui/.env.local',
+  )
+}
 
 export const wagmiConfig = getDefaultConfig({
   appName: 'Sailor',
