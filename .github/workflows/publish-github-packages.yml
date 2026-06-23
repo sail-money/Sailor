@@ -1,10 +1,10 @@
-name: Publish to npm
+name: Publish to GitHub Packages
 
 on:
   workflow_call:
     inputs:
       environment:
-        description: "'dev' for @dev.sail.money/sailor, 'prod' for @sail.money/sailor"
+        description: "'dev' for @sail-money/sailor-dev, 'prod' for @sail-money/sailor"
         type: string
         required: true
       version:
@@ -15,14 +15,10 @@ on:
         description: 'Skip the test job (set true when called from the orchestrator, which already ran tests)'
         type: boolean
         default: false
-    secrets:
-      NPM_TOKEN:
-        description: 'npm publish token. When provided, used for authentication instead of OIDC.'
-        required: false
   workflow_dispatch:
     inputs:
       environment:
-        description: "'dev' for @dev.sail.money/sailor, 'prod' for @sail.money/sailor"
+        description: "'dev' for @sail-money/sailor-dev, 'prod' for @sail-money/sailor"
         type: choice
         options: [dev, prod]
         default: dev
@@ -46,8 +42,9 @@ jobs:
       packages: write
     uses: ./.github/workflows/publish-npm-public-pkg.yaml
     with:
-      package-name: ${{ inputs.environment == 'prod' && '@sail.money/sailor' || '@dev.sail.money/sailor' }}
+      registry-url: 'https://npm.pkg.github.com'
+      package-name: ${{ inputs.environment == 'prod' && '@sail-money/sailor' || '@sail-money/sailor-dev' }}
       dist-tag: latest
       build-number: ${{ inputs.environment != 'prod' && github.run_number || 0 }}
     secrets:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}

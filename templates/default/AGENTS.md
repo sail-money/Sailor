@@ -77,7 +77,7 @@ Detailed procedures live in skills. If your tooling does not auto-discover skill
 
 | Skill | Load when | Path |
 |---|---|---|
-| sail-onboarding | New project setup, or resuming a partially set-up project | `.agents/skills/sail-onboarding/SKILL.md` |
+| sail-onboarding | New project setup, or resuming a partially set-up project, documentation of sailor commands | `.agents/skills/sail-onboarding/SKILL.md` |
 | sail-project-info | Any question about project, account, mandate, chain, or environment state | `.agents/skills/sail-project-info/SKILL.md` |
 | sail-servers | Starting, stopping, or health-checking the dashboard or signing station | `.agents/skills/sail-servers/SKILL.md` |
 | sail-transactions | Building dispatches or any EVM transaction for the agent | `.agents/skills/sail-transactions/SKILL.md` |

@@ -13,6 +13,8 @@ type ProjectConfigFile = {
   name?: string;
   chainId?: number;
   stateDir?: string;
+  installMode?: "local" | "docker";
+  containerName?: string;
   contracts?: {
     kernel?: string;
     governance?: string;

@@ -7,6 +7,42 @@ description: Walks the agent through setting up a new Sailor project or resuming
 
 ## Running the CLI
 
+**Determine the installation mode first** — read `.sail/config.json → installMode` before running any command:
+
+- `"local"` (or field absent) — `sailor` is on the PATH. Run commands directly: `sailor <command>`
+- `"docker"` — sailor runs in a container. Read `containerName` from the same config. Prefix every command:
+  `docker exec <containerName> sailor <command>`
+  Project files are on your **local filesystem** (mounted at `/workspace` inside the container) — read and write them normally from local paths. Do NOT use `docker exec` to read files; the volume mount makes them directly accessible.
+
+### Starting the Docker container
+
+If the container is not running, start it from the project root:
+
+```bash
+docker run -d --name agent -P -v "${PWD}:/workspace" sailmoney/sailor
+```
+
+- `-d` — detached, runs in the background
+- `--name agent` — names the container; use a different name with `-e SAILOR_CONTAINER_NAME=<name>` if needed
+- `-P` — publishes all exposed ports to random available host ports (UI: 3334, station: 3141)
+- `-v "${PWD}:/workspace"` — mounts the current project directory into the container
+
+After starting, resolve the host port before opening the UI in the browser:
+
+```bash
+docker port agent 3334
+# → 0.0.0.0:49201   (use 49201, not 3334, in the browser URL)
+```
+
+All `sailor` commands run via `docker exec`:
+
+```bash
+docker exec agent sailor --version
+docker exec agent sailor init
+docker exec agent sailor ui start
+docker exec agent sailor station start --json &
+```
+
 The published package is **`@sail.money/sailor`** — always use the scoped name with the registry. The bare name `sailor` is a different, unrelated npm package; never `npx sailor@<version>` or `npm i sailor`. Install it (`npm i -g @sail.money/sailor`, or as a project dep), after which the `sailor` bin works bare (`sailor <command>`) and `npx sailor <command>` resolves the installed bin. Every `sailor …` command in these skills assumes it is installed. Confirm the toolchain up front and pin a recent version — `npx @sail.money/sailor@latest --version` — because an old cached `npx` build can be missing newer commands (e.g. `mandate simulate`); if a documented command reports "unknown command", you are on a stale version, not hitting a missing feature.
 
 After upgrading the CLI, run `sailor update` from the project root to pull in updated skills, `AGENTS.md`, `Dockerfile`, and other tooling files. User files (`src/`, `mandates/`, `.sail/`, `package.json`) are never touched.
