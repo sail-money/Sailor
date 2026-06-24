@@ -15,6 +15,46 @@ function readState(projectRoot: string): UiState | null {
   try { return JSON.parse(fs.readFileSync(file, "utf-8")) as UiState; } catch { return null; }
 }
 
+/** The CLI's own installed version, read from its package manifest. */
+function installedCliVersion(): string | null {
+  try {
+    const pkg = JSON.parse(
+      fs.readFileSync(path.join(packageRoot(), "package.json"), "utf-8"),
+    ) as { version?: string };
+    return pkg.version ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Version handshake (F4). A running dashboard serves the version it booted with;
+ * if `npx sailor` upgrades the package mid-session, the still-running dashboard
+ * keeps serving the old assets/code, which surfaced as confusing connector
+ * errors at the seam. Query the dashboard's /api/version and warn — with a
+ * restart hint — when its running version differs from this CLI's. Best-effort:
+ * any error (unreachable, older server without the endpoint) is ignored.
+ */
+async function warnIfVersionSkew(port: number): Promise<void> {
+  const cli = installedCliVersion();
+  if (!cli) return;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/version`, {
+      signal: AbortSignal.timeout(500),
+    });
+    if (!res.ok) return;
+    const { running } = (await res.json()) as { running?: string };
+    if (running && running !== cli) {
+      console.warn(
+        `⚠ Version skew: the running dashboard is v${running}, but the installed CLI is v${cli}.\n` +
+          "  Restart it to load the new version:  sailor ui stop && sailor ui start",
+      );
+    }
+  } catch {
+    /* dashboard unreachable or no /api/version (older server) — ignore */
+  }
+}
+
 /**
  * Wait until something is listening on `port`, or `timeoutMs` elapses. The UI
  * server binds the port once it's ready, so a successful TCP connect is the
@@ -65,6 +105,7 @@ export async function uiCommand(): Promise<void> {
   const existing = readState(projectRoot);
   if (existing && isProcessAlive(existing.pid)) {
     console.log(`Sailor UI is already running (pid ${existing.pid}) at http://localhost:${existing.port}`);
+    await warnIfVersionSkew(existing.port);
     return;
   }
 
@@ -112,10 +153,11 @@ export async function uiCommand(): Promise<void> {
   console.log(`Stop it with: sailor ui stop`);
 }
 
-export function uiStatus(): void {
+export async function uiStatus(): Promise<void> {
   const state = readState(process.cwd());
   if (state && isProcessAlive(state.pid)) {
     console.log(`● running  http://localhost:${state.port}  (pid ${state.pid})`);
+    await warnIfVersionSkew(state.port);
   } else {
     if (state) fs.rmSync(path.join(process.cwd(), UI_STATE_FILE), { force: true });
     console.log("○ Sailor UI is not running");
