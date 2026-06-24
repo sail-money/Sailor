@@ -10,6 +10,19 @@ import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem
 
 const PORT = Number(process.env.PORT ?? 3334)
 
+// Allowed CORS origins for the local data server / signing-station relay.
+// Defaults to the local dashboard only. Operators exposing the station over a
+// tailnet or a custom HTTPS host (F8) can add origins via SAILOR_CORS_ORIGINS,
+// a comma-separated list — e.g. `SAILOR_CORS_ORIGINS=https://hermes.example.ts.net`.
+const DEFAULT_CORS_ORIGINS = ['http://localhost:3333']
+const CORS_ORIGINS = [
+  ...DEFAULT_CORS_ORIGINS,
+  ...(process.env.SAILOR_CORS_ORIGINS ?? '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean),
+]
+
 // Resolve the current file path in both ESM and esbuild CJS bundles.
 // import.meta.url is undefined in CJS bundles; __filename is the fallback.
 const _thisFile = (() => {
@@ -208,7 +221,7 @@ const OVERVIEW_TTL_MS = 10_000
  */
 export function startServer(sailDir, { port = PORT } = {}) {
   const app = express()
-  app.use(cors({ origin: 'http://localhost:3333' }))
+  app.use(cors({ origin: CORS_ORIGINS }))
   app.use(express.json())
 
   const at = (name) => path.join(sailDir, name)
