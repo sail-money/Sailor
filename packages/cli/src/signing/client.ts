@@ -148,7 +148,7 @@ function readRuntimeServerState(projectRoot: string): RuntimeServerState | null 
  * Always uses the project dashboard port — the hash route distinguishes
  * the station view from the main dashboard.
  */
-export function signingPageUrl(_channel: SigningChannel | undefined, dashboardPort: number): string {
+export function signingPageUrl(dashboardPort: number): string {
   return `http://localhost:${dashboardPort}/#/station`;
 }
 

@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import net from "node:net";
 import { sailPath } from "./io.js";
 
 /** Path to the agent PID file for a given chain (or legacy chain-agnostic). */
@@ -37,7 +38,18 @@ export function isProcessAlive(pid: number): boolean {
     // Signal 0 performs error checking without actually sending a signal.
     process.kill(pid, 0);
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    // EPERM means the process exists but we can't signal it — still alive.
+    return (err as NodeJS.ErrnoException).code === "EPERM";
   }
+}
+
+/** Resolves the first free TCP port at or above `from` (probes 127.0.0.1). */
+export function findFreePort(from: number): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.unref();
+    server.on("error", () => findFreePort(from + 1).then(resolve, reject));
+    server.listen(from, "127.0.0.1", () => server.close(() => resolve(from)));
+  });
 }

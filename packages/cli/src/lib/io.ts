@@ -141,8 +141,6 @@ export function checksum(address: string): Address {
   return getAddress(address);
 }
 
-export { isAddress };
-
 // ── SDK client ──────────────────────────────────────────────────────────────
 
 /** Builds a SailorClient for the given chain, reading RPC_URL from .sail/.env.local. */

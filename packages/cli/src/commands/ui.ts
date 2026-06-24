@@ -3,6 +3,7 @@ import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { cliDistDir, packageRoot, projectPort } from "../lib/packagePaths.js";
+import { findFreePort, isProcessAlive } from "../lib/process.js";
 
 const UI_STATE_FILE = path.join(".sail", "runtime", "ui.json");
 
@@ -12,19 +13,6 @@ function readState(projectRoot: string): UiState | null {
   const file = path.join(projectRoot, UI_STATE_FILE);
   if (!fs.existsSync(file)) return null;
   try { return JSON.parse(fs.readFileSync(file, "utf-8")) as UiState; } catch { return null; }
-}
-
-function isAlive(pid: number): boolean {
-  try { process.kill(pid, 0); return true; } catch { return false; }
-}
-
-function findFreePort(from: number): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.unref();
-    server.on("error", () => findFreePort(from + 1).then(resolve, reject));
-    server.listen(from, "127.0.0.1", () => server.close(() => resolve(from)));
-  });
 }
 
 /**
@@ -75,7 +63,7 @@ export async function uiCommand(): Promise<void> {
   }
 
   const existing = readState(projectRoot);
-  if (existing && isAlive(existing.pid)) {
+  if (existing && isProcessAlive(existing.pid)) {
     console.log(`Sailor UI is already running (pid ${existing.pid}) at http://localhost:${existing.port}`);
     return;
   }
@@ -103,7 +91,7 @@ export async function uiCommand(): Promise<void> {
   const deadline = Date.now() + READY_TIMEOUT_MS;
   let ready = false;
   while (Date.now() < deadline) {
-    if (!isAlive(child.pid!)) break;
+    if (!isProcessAlive(child.pid!)) break;
     if (await waitForPort(port, 500)) { ready = true; break; }
   }
   if (!ready) {
@@ -126,7 +114,7 @@ export async function uiCommand(): Promise<void> {
 
 export function uiStatus(): void {
   const state = readState(process.cwd());
-  if (state && isAlive(state.pid)) {
+  if (state && isProcessAlive(state.pid)) {
     console.log(`● running  http://localhost:${state.port}  (pid ${state.pid})`);
   } else {
     if (state) fs.rmSync(path.join(process.cwd(), UI_STATE_FILE), { force: true });
@@ -141,7 +129,7 @@ export function uiStop(): void {
     console.log("Sailor UI is not running.");
     return;
   }
-  if (!isAlive(state.pid)) {
+  if (!isProcessAlive(state.pid)) {
     fs.rmSync(path.join(projectRoot, UI_STATE_FILE), { force: true });
     console.log("Sailor UI is not running (stale state file removed).");
     return;

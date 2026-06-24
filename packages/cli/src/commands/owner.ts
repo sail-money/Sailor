@@ -37,7 +37,7 @@ export async function ownerConnect(options: { json?: boolean; timeout?: string }
       // project — so `waitForWallet` would never resolve. `#/station` exposes a
       // Connect button and relays `wallet-connected` to this daemon in any state.
       console.log("→ Open the Sailor dashboard and connect your wallet:");
-      console.log(`  ${signingPageUrl(channel, projectPort(projectRoot))}`);
+      console.log(`  ${signingPageUrl(projectPort(projectRoot))}`);
       if (channel.remote) console.log("  (using the running signing station)");
       console.log("\nWaiting for a wallet connection…");
     }

@@ -1,6 +1,6 @@
 import { type EncryptedKeystore, LocalKeyring } from "@sail/sdk";
 import { isAddress } from "viem";
-import { fileExists, promptHidden, readJsonFile, sailPath } from "./io.js";
+import { fileExists, parseEnvFile, promptHidden, readJsonFile, sailPath } from "./io.js";
 
 export const ROLES = ["manager", "permissionSigner"] as const;
 export type Role = (typeof ROLES)[number];
@@ -111,6 +111,16 @@ export async function loadKeyring(role: Role, safe?: string): Promise<LocalKeyri
  * and GitHub Actions where stdin is not a TTY.
  */
 export async function loadManagerSigner(safe?: string): Promise<LocalKeyring> {
+  // Populate SAIL_PASSPHRASE from .sail/.env.local if the caller hasn't already
+  // loaded it into the process env — lets mandate/onboard commands run headless.
+  if (!process.env.SAIL_PASSPHRASE) {
+    try {
+      const env = parseEnvFile(sailPath(".env.local"));
+      if (env.SAIL_PASSPHRASE) process.env.SAIL_PASSPHRASE = env.SAIL_PASSPHRASE;
+    } catch {
+      // .env.local absent or unreadable — fall through to prompt / TTY guard
+    }
+  }
   const passphrase = process.env.SAIL_PASSPHRASE;
   if (passphrase) {
     const keystore = readJsonFile<EncryptedKeystore>(resolveKeyPath("manager", safe));

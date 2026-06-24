@@ -44,9 +44,9 @@ import {
 } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { appendActivity, checksum, nowIso, prompt, sailPath, writeJsonFile } from "../lib/io.js";
-import { keyExists } from "../lib/keys.js";
+import { keyExists, loadManagerSigner } from "../lib/keys.js";
 import { emit } from "../lib/output.js";
-import { ProjectContext, loadManagerSigner } from "../lib/project.js";
+import { ProjectContext } from "../lib/project.js";
 import { type StoredAccount, upsertAccountInList } from "../lib/state.js";
 import { type SigningChannel, createSigningChannel, signingPageUrl } from "../signing/client.js";
 import { projectPort } from "../lib/packagePaths.js";
@@ -136,7 +136,7 @@ async function runOnboard(
 
   say(() =>
     console.log(
-      `\n→ Open the Sailor dashboard to approve signing requests:\n  ${signingPageUrl(channel, projectPort(process.cwd()))}\n`,
+      `\n→ Open the Sailor dashboard to approve signing requests:\n  ${signingPageUrl(projectPort(process.cwd()))}\n`,
     ),
   );
 
