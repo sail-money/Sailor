@@ -52,7 +52,8 @@ import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { appendActivity, nowIso } from "../lib/io.js";
 import { type DeployedMandate, MandateStore } from "../lib/mandates.js";
 import { emit } from "../lib/output.js";
-import { ProjectContext, loadManagerSigner } from "../lib/project.js";
+import { loadManagerSigner } from "../lib/keys.js";
+import { ProjectContext } from "../lib/project.js";
 import { type SigningChannel, createSigningChannel, signingPageUrl } from "../signing/client.js";
 import { attachMandate } from "./onboard.js";
 import { projectPort } from "../lib/packagePaths.js";
@@ -163,7 +164,7 @@ function fail(err: unknown, json = false): never {
  * instead of nothing while the command blocks for minutes.
  */
 function announceSigningUrl(json: boolean): void {
-  const url = signingPageUrl(undefined, projectPort(process.cwd()));
+  const url = signingPageUrl(projectPort(process.cwd()));
   if (json) {
     process.stdout.write(`${JSON.stringify({ status: "waiting_for_signature", url })}\n`);
   } else {
