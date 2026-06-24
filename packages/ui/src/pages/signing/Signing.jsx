@@ -827,6 +827,7 @@ export function MandateSigningFlow({ draft, embedded = false }) {
         </div>
       ) : (
         <>
+          <MandatePreviewSummary draft={draft} items={items} />
           <ul
             style={{
               listStyle: 'none',
@@ -889,6 +890,55 @@ export function MandateSigningFlow({ draft, embedded = false }) {
           {content}
         </div>
       </main>
+    </div>
+  )
+}
+
+/* ─────────── Mandate preview summary (F10) ───────────
+   A plain-language header shown before signing so the user — especially when an
+   LLM authored the setup — knows what they are authorizing: how many action
+   types, on which account/network, and the guarantees that bound it. The
+   permission rows below carry the per-permission detail; this is the recital. */
+function MandatePreviewSummary({ draft, items }) {
+  const networkName = (() => {
+    try { return getChain(draft.chainId).name } catch { return `Chain ${draft.chainId}` }
+  })()
+  const n = items.length
+  const acct = draft.account
+    ? `${draft.account.slice(0, 6)}…${draft.account.slice(-4)}`
+    : '—'
+
+  const factStyle = { display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 12.5 }
+  const dtStyle = { color: 'rgba(255,255,255,0.45)' }
+  const ddStyle = { color: 'rgba(255,255,255,0.85)', fontVariantNumeric: 'tabular-nums' }
+
+  return (
+    <div
+      style={{
+        border: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: 8,
+        padding: '12px 14px',
+        margin: '4px 0 12px',
+        background: 'rgba(255,255,255,0.02)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      }}
+    >
+      <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: 'rgba(255,255,255,0.92)' }}>
+        You're authorizing your agent to perform{' '}
+        <strong>{n} bounded action type{n === 1 ? '' : 's'}</strong> on{' '}
+        <strong>{networkName}</strong>. Each is constrained by the rules below.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={factStyle}><span style={dtStyle}>Account (SMA)</span><span style={ddStyle}>{acct}</span></div>
+        <div style={factStyle}><span style={dtStyle}>Network</span><span style={ddStyle}>{networkName}</span></div>
+      </div>
+      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <li style={{ fontSize: 12.5, color: 'rgba(120,220,160,0.95)' }}>✓ Revocable on-chain anytime from your dashboard</li>
+        <li style={{ fontSize: 12.5, color: 'rgba(120,220,160,0.95)' }}>✓ Sail never holds your keys or funds — you sign every authorization</li>
+        <li style={{ fontSize: 12.5, color: 'rgba(255,180,120,0.95)' }}>✗ The agent cannot act outside the permissions listed below</li>
+      </ul>
     </div>
   )
 }

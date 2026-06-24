@@ -43,6 +43,62 @@ import AIHandoffModal from './AIHandoffModal'
  * agents at once. Individual agents can be Stopped/Resumed via their
  * own AgentPage — that's a separate, reversible action.
  */
+/* ─────────── Capabilities at a glance (F11) ───────────
+   Renders the mandate's permissions as a plain-language "can do" list beside a
+   fixed "cannot do" list. The cannot side states the protocol's deny-by-default
+   guarantees — the trust-building half a flat permission list doesn't surface. */
+function CapabilitiesGlance({ mandate }) {
+  const active = (mandate?.permissionsAllowed ?? []).filter((p) => !p.revoked)
+  const CANNOT = [
+    'Move funds to any address outside the mandate’s allowlists',
+    'Exceed the per-transaction caps or slippage bounds set below',
+    'Trade tokens or call contracts that aren’t explicitly permitted',
+    'Act at all while the session is paused or the mandate is revoked',
+  ]
+  const colStyle = { display: 'flex', flexDirection: 'column', gap: 8 }
+  const itemStyle = { display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 13, lineHeight: 1.45 }
+  return (
+    <section className={styles.card}>
+      <header className={styles.cardHead}>
+        <div className={styles.cardHeadText}>
+          <h2 className={styles.cardTitle}>What this agent can — and cannot — do</h2>
+          <p className={styles.cardSub}>
+            A plain-language summary. The “cannot” side is enforced by the protocol’s
+            deny-by-default model: anything not permitted below is impossible, not merely discouraged.
+          </p>
+        </div>
+      </header>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 20 }}>
+        <div style={colStyle}>
+          <span style={{ fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase', color: 'rgba(120,220,160,0.95)' }}>Can do</span>
+          {active.length === 0 ? (
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', margin: 0 }}>No active permissions.</p>
+          ) : (
+            active.map((p) => (
+              <div key={p.id} style={itemStyle}>
+                <span aria-hidden style={{ color: 'rgba(120,220,160,0.95)' }}>✓</span>
+                <span>
+                  <span style={{ color: 'rgba(255,255,255,0.92)' }}>{p.label}</span>
+                  {p.sub && <span style={{ color: 'rgba(255,255,255,0.5)' }}> — {p.sub}</span>}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+        <div style={colStyle}>
+          <span style={{ fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase', color: 'rgba(255,180,120,0.95)' }}>Cannot do</span>
+          {CANNOT.map((line) => (
+            <div key={line} style={itemStyle}>
+              <span aria-hidden style={{ color: 'rgba(255,180,120,0.95)' }}>✗</span>
+              <span style={{ color: 'rgba(255,255,255,0.82)' }}>{line}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export default function MandatePage({ mandateId, onBack, onRevoke }) {
   const { mandate: liveMandate } = useSailorMandate()
   const { account } = useSailorAccount()
@@ -179,6 +235,12 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
             </footer>
           </blockquote>
         </section>
+
+        {/* ── Capabilities at a glance (F11) ───────────────────
+            A plain-language "can / cannot" summary above the detailed
+            permission list. The deny side is what builds trust: the
+            protocol enforces it by deny-by-default. */}
+        <CapabilitiesGlance mandate={mandate} />
 
         {/* ── Permissions ──────────────────────────────────────
             Comes right after the draft because permissions ARE the
