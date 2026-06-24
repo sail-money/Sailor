@@ -3,6 +3,7 @@ import OnboardingWizard from '../onboarding/OnboardingWizard'
 import { MandateSigningFlow } from '../signing/Signing'
 import { ConnectButton, useConnectModal } from '@rainbow-me/rainbowkit'
 import { useAccount, useDisconnect } from 'wagmi'
+import { explorerAddressUrl, explorerCodeUrl as libExplorerCodeUrl, explorerTxUrl } from '../../lib/explorer'
 import {
   ChainGlyph,
   MandateStatus,
@@ -83,18 +84,11 @@ function safeAppUrl(network, address) {
   return `https://app.safe.global/home?safe=${prefix}:${address}`
 }
 function explorerUrl(network, address) {
-  const map = {
-    arbitrum: `https://arbiscan.io/address/${address}`,
-    ethereum: `https://etherscan.io/address/${address}`,
-    base: `https://basescan.org/address/${address}`,
-    unichain: `https://uniscan.xyz/address/${address}`,
-    optimism: `https://optimistic.etherscan.io/address/${address}`,
-    polygon: `https://polygonscan.com/address/${address}`,
-  }
-  return map[network] ?? map.ethereum
+  // Chain-aware (F5); falls back to Etherscan only for genuinely unknown chains.
+  return explorerAddressUrl(network, address) ?? `https://etherscan.io/address/${address}`
 }
 function explorerCodeUrl(network, address) {
-  return `${explorerUrl(network, address)}#code`
+  return libExplorerCodeUrl(network, address) ?? `${explorerUrl(network, address)}#code`
 }
 
 function truncateAddr(addr) {
@@ -834,15 +828,9 @@ function LiveMandateCard({ mandate, network, addressByTemplate, onRevoke }) {
 }
 
 
-const TX_EXPLORER = {
-  arbitrum: (hash) => `https://arbiscan.io/tx/${hash}`,
-  ethereum: (hash) => `https://etherscan.io/tx/${hash}`,
-  base:     (hash) => `https://basescan.org/tx/${hash}`,
-  optimism: (hash) => `https://optimistic.etherscan.io/tx/${hash}`,
-  polygon:  (hash) => `https://polygonscan.com/tx/${hash}`,
-}
 function txUrl(network, hash) {
-  return (TX_EXPLORER[network] ?? TX_EXPLORER.ethereum)(hash)
+  // Chain-aware (F5); falls back to Etherscan only for genuinely unknown chains.
+  return explorerTxUrl(network, hash) ?? `https://etherscan.io/tx/${hash}`
 }
 
 const ACTIVITY_FILTERS = [

@@ -10,6 +10,7 @@ import shared from '../shared/shared.module.css'
 import styles from './AgentPage.module.css'
 import { useSailorAccount, useSailorMandate } from '../../hooks/useSailorData'
 import { useAccount } from 'wagmi'
+import { explorerTxUrl } from '../../lib/explorer'
 import ContractModal from './ContractModal'
 
 /**
@@ -517,6 +518,7 @@ export default function AgentPage({ agentId, onBack, onEdit, onRevoke }) {
         run={selectedRun}
         open={!!selectedRun}
         onClose={() => setRunId(null)}
+        chainId={account?.chainId}
       />
 
       <ContractModal
@@ -1140,7 +1142,7 @@ function ProviderEditButton({ aiName, disabled, onClick }) {
 }
 
 /* ─────────── Run detail drawer ─────────── */
-function RunDetailDrawer({ run, open, onClose }) {
+function RunDetailDrawer({ run, open, onClose, chainId }) {
   useEffect(() => {
     if (!open) return
     const onKey = (e) => { if (e.key === 'Escape') onClose?.() }
@@ -1184,7 +1186,7 @@ function RunDetailDrawer({ run, open, onClose }) {
                 } />
                 <DrawerRow k="Action" v={run.label} />
                 <DrawerRow k="Tx hash" v={
-                  <a className={styles.drawerLink} href={`https://arbiscan.io/tx/${run.txHash}`} target="_blank" rel="noreferrer">
+                  <a className={styles.drawerLink} href={explorerTxUrl(chainId, run.txHash) ?? undefined} target="_blank" rel="noreferrer">
                     {truncateTx(run.txHash)}
                     <ArrowOutIcon />
                   </a>

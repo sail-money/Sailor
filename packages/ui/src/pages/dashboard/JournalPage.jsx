@@ -7,7 +7,8 @@ import {
 } from '../shared'
 import shared from '../shared/shared.module.css'
 import styles from './JournalPage.module.css'
-import { useSailorActivity, useSailorMandate } from '../../hooks/useSailorData'
+import { useSailorAccount, useSailorActivity, useSailorMandate } from '../../hooks/useSailorData'
+import { explorerTxUrl } from '../../lib/explorer'
 
 /**
  * JournalPage — full-page detail for a single Decision Journal entry.
@@ -29,6 +30,7 @@ import { useSailorActivity, useSailorMandate } from '../../hooks/useSailorData'
 export default function JournalPage({ entryId, onBack }) {
   const { events } = useSailorActivity()
   const { mandate } = useSailorMandate()
+  const { account } = useSailorAccount()
 
   const entry = useMemo(
     () => events.find((e) => e.id === entryId) ?? events.find((_, i) => String(i) === entryId),
@@ -236,7 +238,7 @@ export default function JournalPage({ entryId, onBack }) {
                   <dd>
                     {k === 'Tx hash' ? (
                       <a
-                        href={`https://arbiscan.io/tx/${String(v).replace('…', '')}`}
+                        href={explorerTxUrl(account?.chainId, String(v).replace('…', '')) ?? undefined}
                         target="_blank"
                         rel="noreferrer"
                         className={styles.txLink}
