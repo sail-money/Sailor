@@ -379,8 +379,13 @@ const session = program.command("session").description("Control the agent sessio
 session
   .command("pause")
   .description("Pause the agent session (revoke dispatch rights)")
-  .action(action(sessionPause));
-session.command("resume").description("Resume a paused session").action(action(sessionResume));
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<{ json?: boolean }>(sessionPause));
+session
+  .command("resume")
+  .description("Resume a paused session")
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<{ json?: boolean }>(sessionResume));
 
 program
   .command("doctor")

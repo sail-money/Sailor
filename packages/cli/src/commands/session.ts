@@ -12,8 +12,12 @@ function requireAccount(): StoredAccount {
   return account;
 }
 
+interface SessionOptions {
+  json?: boolean;
+}
+
 /** `sailor session pause` — revokes the manager's dispatch rights. */
-export async function sessionPause(): Promise<void> {
+export async function sessionPause(opts: SessionOptions = {}): Promise<void> {
   const account = requireAccount();
   const signer = await loadAnySigner();
   const client = makeClient(account.chainId);
@@ -30,11 +34,12 @@ export async function sessionPause(): Promise<void> {
     updatedAt: new Date().toISOString(),
   };
   writeJsonFile(sailPath("session.json"), session);
-  console.log("Session paused — agent dispatch rights revoked.");
+  if (opts.json) console.log(JSON.stringify(session));
+  else console.log("Session paused — agent dispatch rights revoked.");
 }
 
 /** `sailor session resume` — re-enables the manager's dispatch rights. */
-export async function sessionResume(): Promise<void> {
+export async function sessionResume(opts: SessionOptions = {}): Promise<void> {
   const account = requireAccount();
   const signer = await loadAnySigner();
   const client = makeClient(account.chainId);
@@ -51,5 +56,6 @@ export async function sessionResume(): Promise<void> {
     updatedAt: new Date().toISOString(),
   };
   writeJsonFile(sailPath("session.json"), session);
-  console.log("Session resumed — agent dispatch rights restored.");
+  if (opts.json) console.log(JSON.stringify(session));
+  else console.log("Session resumed — agent dispatch rights restored.");
 }
