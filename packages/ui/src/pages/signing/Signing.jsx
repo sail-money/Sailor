@@ -451,7 +451,11 @@ function CreateSmaStep({ owner, managerAddress, chainId, onDone, progressIndex, 
       const { to, data } = await buildRes.json()
       if (!buildRes.ok) throw new Error(data?.error ?? 'Build failed')
       setPhase('wallet')
-      const hash = await sendTransactionAsync({ to, data })
+      // Pass the target chainId so wagmi resolves the configured viem chain object and
+      // switches the wallet if needed. Without it, viem's sendTransaction sees
+      // `chain: undefined` for the active chain (e.g. Base Sepolia 84532) and throws
+      // "Cannot read properties of undefined (reading 'length')". Mirrors FundGasModal. (F1)
+      const hash = await sendTransactionAsync({ to, data, chainId })
       setTxHash(hash)
       setPhase('confirming')
     } catch (err) {
