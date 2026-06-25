@@ -365,3 +365,126 @@ export async function signRegisterPermission(args: {
     },
   });
 }
+
+// ── Template configure() signing (version-adaptive: Protocol Octane #2/#8) ────
+
+/**
+ * ERC-5267 `eip712Domain()` — read a ConfigurablePermission template's live EIP-712
+ * domain so we sign against whatever schema is actually deployed.
+ */
+const TEMPLATE_EIP712_DOMAIN_ABI = [
+  {
+    type: "function",
+    name: "eip712Domain",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [
+      { name: "fields", type: "bytes1" },
+      { name: "name", type: "string" },
+      { name: "version", type: "string" },
+      { name: "chainId", type: "uint256" },
+      { name: "verifyingContract", type: "address" },
+      { name: "salt", type: "bytes32" },
+      { name: "extensions", type: "uint256[]" },
+    ],
+  },
+] as const;
+
+/** SailKernel `registrationEpoch(account, permission)` — the v2 epoch a config binds to. */
+const REGISTRATION_EPOCH_ABI = [
+  {
+    type: "function",
+    name: "registrationEpoch",
+    stateMutability: "view",
+    inputs: [
+      { name: "account", type: "address" },
+      { name: "permission", type: "address" },
+    ],
+    outputs: [{ type: "uint256" }],
+  },
+] as const;
+
+const CONFIGURE_FIELDS_V1 = [
+  { name: "account", type: "address" },
+  { name: "paramsHash", type: "bytes32" },
+  { name: "nonce", type: "uint256" },
+  { name: "deadline", type: "uint256" },
+] as const;
+const CONFIGURE_FIELDS_V2 = [...CONFIGURE_FIELDS_V1, { name: "epoch", type: "uint256" }] as const;
+
+/**
+ * Build the EIP-712 typed data for a ConfigurablePermission template's `configure()`,
+ * **adapting to whatever schema the deployed template reports** via ERC-5267
+ * `eip712Domain()`:
+ *   - domain version "1" (pre-epoch-binding templates): the legacy
+ *     `Configure(account, paramsHash, nonce, deadline)` struct, domain version "1".
+ *   - domain version "2" (Protocol PR #59, Octane #2/#8): adds `epoch`, read from
+ *     the kernel's `registrationEpoch(account, template)`, domain version "2".
+ *
+ * No flag day: the same call signs whichever is on-chain, so it works with the
+ * currently-deployed templates today and automatically with the epoch-binding
+ * templates once they redeploy.
+ *
+ * TODO(configure-flow): Sailor does not yet have a flow that *submits* a template
+ * `configure()` (the SDK `reconfigure`/`attach`/`replace` are notImplemented, and
+ * the launch attach path signs only RegisterPermission). This builder is the
+ * version-adaptive seam that flow will use — finish wiring it (CLI/UI →
+ * MandateFactory.attach configureSig, or configureDirect) once the epoch-binding
+ * templates are deployed, and add an end-to-end test against a live v2 template.
+ */
+export async function buildConfigureTypedData(args: {
+  publicClient: PublicClient;
+  /** SailKernel address (source of registrationEpoch for the v2 schema). */
+  kernel: Address;
+  /** The ConfigurablePermission template instance being configured. */
+  template: Address;
+  /** The SMA the config applies to. */
+  account: Address;
+  /** ABI-encoded config blob (from `sdk/src/templates/*` encoders). */
+  params: Hex;
+  /** Current `template.configNonces(account)`. */
+  nonce: bigint;
+  /** Signature deadline (unix seconds). */
+  deadline: bigint;
+}): Promise<SerializedTypedData> {
+  const [, name, version, chainId] = (await args.publicClient.readContract({
+    address: args.template,
+    abi: TEMPLATE_EIP712_DOMAIN_ABI,
+    functionName: "eip712Domain",
+  })) as [string, string, string, bigint, string, string, readonly bigint[]];
+
+  const isV2 = version === "2";
+  const message: Record<string, string | number | boolean | string[]> = {
+    account: args.account,
+    paramsHash: keccak256(args.params),
+    nonce: args.nonce.toString(),
+    deadline: args.deadline.toString(),
+  };
+
+  if (isV2) {
+    const epoch = (await args.publicClient.readContract({
+      address: args.kernel,
+      abi: REGISTRATION_EPOCH_ABI,
+      functionName: "registrationEpoch",
+      args: [args.account, args.template],
+    })) as bigint;
+    message.epoch = epoch.toString();
+  }
+
+  return {
+    domain: {
+      name,
+      version,
+      chainId: Number(chainId),
+      verifyingContract: args.template,
+    },
+    types: {
+      Configure: (isV2 ? CONFIGURE_FIELDS_V2 : CONFIGURE_FIELDS_V1) as unknown as Array<{
+        name: string;
+        type: string;
+      }>,
+    },
+    primaryType: "Configure",
+    message,
+  };
+}

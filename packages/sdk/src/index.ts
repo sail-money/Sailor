@@ -67,6 +67,7 @@ export {
   REGISTER_PERMISSION_TYPES,
   REGISTER_PERMISSION_TYPES_NO_DEADLINE,
   REGISTER_PERMISSIONS_BATCH_TYPES,
+  buildConfigureTypedData,
   buildDispatchSignature,
   buildRegisterPermissionTypedData,
   buildRegisterPermissionsBatchTypedData,
