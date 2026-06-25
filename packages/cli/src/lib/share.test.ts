@@ -79,6 +79,26 @@ test("isSensitivePath whitelists .sail/, strips backups/logs/variants, keeps .en
   assert.equal(isSensitivePath("src/agent.ts"), false);
 });
 
+test("buildCleanCopy strips Safe-tx JSON by shape, even with an innocent name", () => {
+  const root = makeProject();
+  // an operational tx batch named so it dodges the filename patterns
+  fs.writeFileSync(
+    path.join(root, "ops.json"),
+    JSON.stringify({
+      version: "1.0",
+      chainId: "8453",
+      meta: { name: "Rotate", createdFromSafeAddress: "0xabc" },
+      transactions: [{ to: "0xdef", value: "0", data: "0x0177a6ec0000" }],
+    }),
+  );
+  const dest = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-tx-"));
+  const files = buildCleanCopy(root, dest);
+  assert.ok(!files.includes("ops.json"), "Safe-tx JSON stripped by content");
+  assert.ok(files.includes("package.json") === false); // makeProject has none; sanity
+  fs.rmSync(root, { recursive: true, force: true });
+  fs.rmSync(dest, { recursive: true, force: true });
+});
+
 test("scanForSecrets catches a prefixed passphrase env (SAIL_PASSPHRASE=...)", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-pass-"));
   fs.writeFileSync(

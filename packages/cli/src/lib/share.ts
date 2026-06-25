@@ -157,6 +157,32 @@ export function sanitizeConfig(raw: string): string {
 }
 
 /**
+ * Detect a Safe / SMA transaction-batch JSON by SHAPE (not filename), so an
+ * operationally-named file can't slip through: these embed the operator's
+ * addresses (incl. inside raw `data` calldata) and ops prose, and are never
+ * reusable strategy. Matches Safe Transaction Builder exports and the
+ * single-tx variants `sailor` writes.
+ */
+export function looksLikeSafeTxJson(content: string): boolean {
+  let j: unknown;
+  try {
+    j = JSON.parse(content);
+  } catch {
+    return false;
+  }
+  if (!j || typeof j !== "object") return false;
+  const o = j as Record<string, unknown>;
+  const meta = o.meta as Record<string, unknown> | undefined;
+  if (meta && ("createdFromSafeAddress" in meta || "txBuilderVersion" in meta)) return true;
+  const txs = o.transactions;
+  if (Array.isArray(txs) && txs.length > 0) {
+    const t = txs[0] as Record<string, unknown>;
+    if (t && typeof t === "object" && "to" in t && ("data" in t || "value" in t)) return true;
+  }
+  return false;
+}
+
+/**
  * Copy `srcRoot` → `destRoot`, skipping build/VCS dirs and every sensitive
  * path, and sanitizing `.sail/config.json` on the way through. Returns the list
  * of project-relative files written (for the dry-run preview).
@@ -176,13 +202,22 @@ export function buildCleanCopy(srcRoot: string, destRoot: string): string[] {
       if (entry.isDirectory()) {
         walk(abs);
       } else if (entry.isFile()) {
+        const relPosix = rel.split(path.sep).join("/");
+        // Content-based strip: any Safe/SMA transaction-batch JSON, whatever it's named.
+        if (entry.name.endsWith(".json")) {
+          try {
+            if (looksLikeSafeTxJson(fs.readFileSync(abs, "utf-8"))) continue;
+          } catch {
+            /* unreadable — fall through to normal copy */
+          }
+        }
         fs.mkdirSync(path.dirname(destAbs), { recursive: true });
-        if (rel.split(path.sep).join("/") === ".sail/config.json") {
+        if (relPosix === ".sail/config.json") {
           fs.writeFileSync(destAbs, sanitizeConfig(fs.readFileSync(abs, "utf-8")));
         } else {
           fs.copyFileSync(abs, destAbs);
         }
-        written.push(rel.split(path.sep).join("/"));
+        written.push(relPosix);
       }
     }
   };
