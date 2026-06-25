@@ -37,6 +37,60 @@ export interface PullRequest {
   htmlUrl: string;
 }
 
+/** Login of the token's owner (`GET /user`). */
+export async function getViewerLogin(): Promise<string> {
+  const token = resolveToken();
+  const res = await fetch(`${GH_API}/user`, { headers: ghHeaders(token) });
+  if (!res.ok) throw await ghError(res, "reading the authenticated user");
+  return ((await res.json()) as { login: string }).login;
+}
+
+/** Whether the token can push to `repo` (collaborator/member with write). */
+export async function canPush(repo: string): Promise<boolean> {
+  const token = resolveToken();
+  const res = await fetch(`${GH_API}/repos/${repo}`, { headers: ghHeaders(token) });
+  if (!res.ok) return false;
+  const r = (await res.json()) as { permissions?: { push?: boolean; maintain?: boolean } };
+  return Boolean(r.permissions?.push || r.permissions?.maintain);
+}
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Ensure the token's owner has a fork of `baseRepo` (owner/name) and return the
+ * fork's `full_name` (`<login>/<name>`). Creates it if missing and polls until
+ * GitHub finishes provisioning it. This is what lets a public user — with no write
+ * access to the registry — open a cross-repo PR from their own fork.
+ */
+export async function ensureFork(baseRepo: string): Promise<string> {
+  const token = resolveToken();
+  const name = baseRepo.split("/")[1];
+  const login = await getViewerLogin();
+  const forkRepo = `${login}/${name}`;
+
+  const exists = async (): Promise<boolean> => {
+    const res = await fetch(`${GH_API}/repos/${forkRepo}`, { headers: ghHeaders(token) });
+    return res.ok;
+  };
+
+  if (!(await exists())) {
+    const res = await fetch(`${GH_API}/repos/${baseRepo}/forks`, {
+      method: "POST",
+      headers: ghHeaders(token),
+    });
+    if (!res.ok && res.status !== 202) throw await ghError(res, `forking ${baseRepo}`);
+    // Fork creation is async — poll until the repo is queryable (~up to 30s).
+    for (let i = 0; i < 15; i++) {
+      await sleep(2000);
+      if (await exists()) break;
+    }
+    if (!(await exists())) {
+      throw new Error(`Fork ${forkRepo} was requested but isn't ready yet — retry shortly.`);
+    }
+  }
+  return forkRepo;
+}
+
 /**
  * Open a pull request. Token must have `pull_requests: write` on `repo`.
  * `head` is the branch name (same-repo PR); `base` is the target branch.

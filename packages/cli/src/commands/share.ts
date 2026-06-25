@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { openPullRequest, resolveToken } from "../lib/github.js";
+import { canPush, ensureFork, openPullRequest, resolveToken } from "../lib/github.js";
 import { confirm, prompt, readJsonFile, sailPath, writeJsonFile } from "../lib/io.js";
 import { emit } from "../lib/output.js";
 import { packageRoot } from "../lib/packagePaths.js";
@@ -293,16 +293,21 @@ export async function share(options: ShareOptions = {}): Promise<void> {
     }
   }
 
-  // 4. Clone registry, stage the project folder on a fresh branch, push, open PR.
+  // 4. Decide the contribution path:
+  //    - write access to the registry  → push a branch directly + same-repo PR.
+  //    - no write access (public users) → fork the registry, push to the fork,
+  //      open a cross-repo PR. GitHub never lets outsiders push to your repo, so
+  //      the fork is the only way for an external contributor to submit.
   const token = resolveToken();
   const branch = `share/${manifest.slug}`;
   const registryDir = path.join(tmp, "registry");
-  const authUrl = `https://x-access-token:${token}@github.com/${repo}.git`;
+  const baseAuthUrl = `https://x-access-token:${token}@github.com/${repo}.git`;
 
+  // Always clone the base registry (read) so the branch shares its history.
   try {
-    git(["clone", "--depth", "1", "--branch", base, authUrl, registryDir], tmp);
+    git(["clone", "--depth", "1", "--branch", base, baseAuthUrl, registryDir], tmp);
   } catch {
-    git(["clone", "--depth", "1", authUrl, registryDir], tmp);
+    git(["clone", "--depth", "1", baseAuthUrl, registryDir], tmp);
   }
   git(["checkout", "-b", branch], registryDir);
 
@@ -323,13 +328,27 @@ export async function share(options: ShareOptions = {}): Promise<void> {
     ],
     registryDir,
   );
-  git(["push", "-u", "origin", branch], registryDir);
+
+  const direct = await canPush(repo);
+  let head = branch;
+  let pushTarget = repo;
+  if (direct) {
+    git(["push", "-u", "origin", branch], registryDir);
+  } else {
+    const fork = await ensureFork(repo);
+    pushTarget = fork;
+    const login = fork.split("/")[0];
+    head = `${login}:${branch}`; // cross-repo PR head
+    const forkAuthUrl = `https://x-access-token:${token}@github.com/${fork}.git`;
+    git(["remote", "add", "fork", forkAuthUrl], registryDir);
+    git(["push", "-u", "fork", branch], registryDir);
+  }
 
   const pr = await openPullRequest({
-    repo,
+    repo, // PR always lands on the registry
     title: manifest.summary || `Share ${manifest.name}`,
     body: renderPrBody(manifest),
-    head: branch,
+    head,
     base,
   });
 
@@ -342,6 +361,11 @@ export async function share(options: ShareOptions = {}): Promise<void> {
       console.log(`  ${pr.htmlUrl}`);
       console.log(`  project: projects/${manifest.slug}/ (${files.length} files)`);
       console.log(`  auto-redacted ${redactedCount} sensitive value(s) before publishing`);
+      console.log(
+        direct
+          ? "  pushed branch directly (you have write access)"
+          : `  via your fork ${pushTarget} (cross-repo PR)`,
+      );
       console.log("\nOn merge, registry CI publishes the tagged release for downloads + metrics.");
     },
     {
@@ -352,6 +376,8 @@ export async function share(options: ShareOptions = {}): Promise<void> {
       url: pr.htmlUrl,
       fileCount: files.length,
       redacted: redactedCount,
+      via: direct ? "direct" : "fork",
+      pushTarget,
     },
   );
 }
