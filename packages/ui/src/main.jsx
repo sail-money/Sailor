@@ -11,9 +11,16 @@ import AgentPage from './pages/dashboard/AgentPage'
 import MandatePage from './pages/dashboard/MandatePage'
 import JournalPage from './pages/dashboard/JournalPage'
 import { wagmiConfig } from './wagmi'
+import { useWalletLifecycle } from './hooks/useWalletLifecycle'
 import './styles/globals.css'
 
 const queryClient = new QueryClient()
+
+/** Headless: syncs wallet state with the injected provider (clears stale sessions). See F3. */
+function WalletLifecycle() {
+  useWalletLifecycle()
+  return null
+}
 
 function readRoute() {
   if (typeof window === 'undefined') return '/'
@@ -112,6 +119,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider>
+          <WalletLifecycle />
           <Router />
         </RainbowKitProvider>
       </QueryClientProvider>

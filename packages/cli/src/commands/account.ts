@@ -374,7 +374,7 @@ export async function accountDeployChain(options: DeployChainOptions): Promise<v
   try {
     await channel.start();
 
-    const stationUrl = signingPageUrl(channel, projectPort(process.cwd()));
+    const stationUrl = signingPageUrl(projectPort(process.cwd()));
     if (json) {
       console.log(
         JSON.stringify(

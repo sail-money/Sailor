@@ -4,11 +4,12 @@ import { getChain } from '@sail/sdk/chains'
 import { sailDeployments } from '@sail/sdk/deployments'
 import { zeroAddress } from 'viem'
 import { useAccount, usePublicClient, useSignTypedData, useSwitchChain } from 'wagmi'
-import { FluidBackground, GlassCard, Sai, RevealCalldata, SailButton } from '../shared'
+import { FluidBackground, GlassCard, Sai, RevealCalldata, SailButton, BadgeRow } from '../shared'
 import PageHeader from '../shared/PageHeader'
 import shared from '../shared/shared.module.css'
 import styles from './Signing.module.css'
 import { useSailorMandateDraft } from '../../hooks/useSailorData'
+import { explorerCodeUrl } from '../../lib/explorer'
 
 /**
  * Sign-in & onboarding flow.
@@ -451,7 +452,11 @@ function CreateSmaStep({ owner, managerAddress, chainId, onDone, progressIndex, 
       const { to, data } = await buildRes.json()
       if (!buildRes.ok) throw new Error(data?.error ?? 'Build failed')
       setPhase('wallet')
-      const hash = await sendTransactionAsync({ to, data })
+      // Pass the target chainId so wagmi resolves the configured viem chain object and
+      // switches the wallet if needed. Without it, viem's sendTransaction sees
+      // `chain: undefined` for the active chain (e.g. Base Sepolia 84532) and throws
+      // "Cannot read properties of undefined (reading 'length')". Mirrors FundGasModal. (F1)
+      const hash = await sendTransactionAsync({ to, data, chainId })
       setTxHash(hash)
       setPhase('confirming')
     } catch (err) {
@@ -590,23 +595,9 @@ const SIGNER_NONCES_ABI = [
 ]
 
 function ExplanationPanel({ ex }) {
-  const chip = (label, color) => (
-    <span style={{
-      display: 'inline-block', padding: '2px 8px', borderRadius: 3,
-      fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
-      background: color + '22', color, border: `1px solid ${color}44`,
-    }}>{label}</span>
-  )
-
   return (
     <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--glass-border)' }}>
-      {(ex.protocol || ex.chain) && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-          {ex.protocol && chip(ex.protocol, '#7eb8f7')}
-          {ex.chain && chip(ex.chain, '#9b8ff7')}
-          {ex.version && chip(ex.version, 'rgba(255,255,255,0.4)')}
-        </div>
-      )}
+      <BadgeRow items={[ex.protocol, ex.chain, ex.version]} />
       {ex.enforced?.length > 0 && (
         <div style={{ marginBottom: 8 }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5dde8b', marginBottom: 5 }}>
@@ -641,9 +632,12 @@ function ExplanationPanel({ ex }) {
   )
 }
 
-function PermissionRow({ item }) {
+function PermissionRow({ item, chainId }) {
   const [open, setOpen] = useState(false)
   const ex = item.permExplanation
+  // Link to the permission contract's verified source on the chain's explorer
+  // (Basescan/Etherscan/…) so the owner can read the code they're authorizing.
+  const codeUrl = item.address ? explorerCodeUrl(chainId, item.address) : null
 
   return (
     <li style={{
@@ -668,8 +662,19 @@ function PermissionRow({ item }) {
             {item.explanation}
           </div>
           {item.address && (
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', marginTop: 2, fontFamily: 'monospace' }}>
-              {item.address.slice(0, 6)}…{item.address.slice(-4)}
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', marginTop: 2, fontFamily: 'monospace', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span>{item.address.slice(0, 6)}…{item.address.slice(-4)}</span>
+              {codeUrl && (
+                <a
+                  href={codeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ color: '#7eb8f7', textDecoration: 'none' }}
+                >
+                  View code on scanner ↗
+                </a>
+              )}
             </div>
           )}
         </div>
@@ -796,9 +801,19 @@ export function MandateSigningFlow({ draft, embedded = false }) {
       const res = await fetch('/api/mandate-submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signature, signedAt: new Date().toISOString() }),
+        // Send the exact signed permissions (in order) + deadline so the server
+        // can submit registerPermissions on-chain with the matching message.
+        body: JSON.stringify({
+          signature,
+          signedAt: new Date().toISOString(),
+          permissions,
+          deadline: deadline.toString(),
+        }),
       })
-      if (!res.ok) throw new Error(`Submit failed (${res.status})`)
+      if (!res.ok) {
+        const detail = await res.json().catch(() => null)
+        throw new Error(detail?.error || `Submit failed (${res.status})`)
+      }
 
       setPhase('done')
     } catch (err) {
@@ -823,6 +838,7 @@ export function MandateSigningFlow({ draft, embedded = false }) {
         </div>
       ) : (
         <>
+          <MandatePreviewSummary draft={draft} items={items} />
           <ul
             style={{
               listStyle: 'none',
@@ -834,7 +850,7 @@ export function MandateSigningFlow({ draft, embedded = false }) {
             }}
           >
             {items.map((it, i) => (
-              <PermissionRow key={i} item={it} />
+              <PermissionRow key={i} item={it} chainId={draft.chainId} />
             ))}
           </ul>
 
@@ -885,6 +901,55 @@ export function MandateSigningFlow({ draft, embedded = false }) {
           {content}
         </div>
       </main>
+    </div>
+  )
+}
+
+/* ─────────── Mandate preview summary (F10) ───────────
+   A plain-language header shown before signing so the user — especially when an
+   LLM authored the setup — knows what they are authorizing: how many action
+   types, on which account/network, and the guarantees that bound it. The
+   permission rows below carry the per-permission detail; this is the recital. */
+function MandatePreviewSummary({ draft, items }) {
+  const networkName = (() => {
+    try { return getChain(draft.chainId).name } catch { return `Chain ${draft.chainId}` }
+  })()
+  const n = items.length
+  const acct = draft.account
+    ? `${draft.account.slice(0, 6)}…${draft.account.slice(-4)}`
+    : '—'
+
+  const factStyle = { display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 12.5 }
+  const dtStyle = { color: 'rgba(255,255,255,0.45)' }
+  const ddStyle = { color: 'rgba(255,255,255,0.85)', fontVariantNumeric: 'tabular-nums' }
+
+  return (
+    <div
+      style={{
+        border: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: 8,
+        padding: '12px 14px',
+        margin: '4px 0 12px',
+        background: 'rgba(255,255,255,0.02)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      }}
+    >
+      <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: 'rgba(255,255,255,0.92)' }}>
+        You're authorizing your agent to perform{' '}
+        <strong>{n} bounded action type{n === 1 ? '' : 's'}</strong> on{' '}
+        <strong>{networkName}</strong>. Each is constrained by the rules below.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={factStyle}><span style={dtStyle}>Account (SMA)</span><span style={ddStyle}>{acct}</span></div>
+        <div style={factStyle}><span style={dtStyle}>Network</span><span style={ddStyle}>{networkName}</span></div>
+      </div>
+      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <li style={{ fontSize: 12.5, color: 'rgba(120,220,160,0.95)' }}>✓ Revocable on-chain anytime from your dashboard</li>
+        <li style={{ fontSize: 12.5, color: 'rgba(120,220,160,0.95)' }}>✓ Sail never holds your keys or funds — you sign every authorization</li>
+        <li style={{ fontSize: 12.5, color: 'rgba(255,180,120,0.95)' }}>✗ The agent cannot act outside the permissions listed below</li>
+      </ul>
     </div>
   )
 }

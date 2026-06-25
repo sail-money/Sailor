@@ -1,6 +1,6 @@
 import { type EncryptedKeystore, LocalKeyring } from "@sail/sdk";
 import { isAddress } from "viem";
-import { fileExists, promptHidden, readJsonFile, sailPath } from "./io.js";
+import { fileExists, parseEnvFile, promptHidden, readJsonFile, sailPath } from "./io.js";
 
 export const ROLES = ["manager", "permissionSigner"] as const;
 export type Role = (typeof ROLES)[number];
@@ -86,14 +86,39 @@ export function keyExists(role: Role, safe?: string): boolean {
 }
 
 /**
- * Loads and decrypts a role key, prompting for its password.
- * Throws a clear, actionable error if the key is missing or the password is wrong.
+ * Loads and decrypts a role key.
+ *
+ * Honors `SAIL_PASSPHRASE` (injected from .sail/.env.local by the caller) so that
+ * every key-loading command — not just `sailor run` — works non-interactively in
+ * CI and automation. Only falls back to an interactive prompt when the env var is
+ * absent AND stdin is a TTY; on a non-TTY without the env var it fails with the
+ * real cause instead of a misleading "Invalid password" from an unanswerable
+ * prompt. (F6: previously this always prompted, so `sailor session resume`
+ * ignored SAIL_PASSPHRASE.)
  */
 export async function loadKeyring(role: Role, safe?: string): Promise<LocalKeyring> {
   const keystore = readJsonFile<EncryptedKeystore>(resolveKeyPath(role, safe));
   if (!keystore) {
     throw new Error(
       `No ${roleLabel(role)} found.\nRun "sailor keys generate" and choose "${roleLabel(role)}" first.`,
+    );
+  }
+  const passphrase = process.env.SAIL_PASSPHRASE;
+  if (passphrase) {
+    try {
+      return await LocalKeyring.fromKeystore(keystore, passphrase);
+    } catch {
+      throw new Error(
+        `SAIL_PASSPHRASE does not match the ${roleLabel(role)} keystore.\n` +
+          "Check the value in .sail/.env.local (or the SAIL_PASSPHRASE CI secret) — " +
+          "it must be the passphrase this key was encrypted with.",
+      );
+    }
+  }
+  if (process.stdin.isTTY !== true) {
+    throw new Error(
+      `${roleLabel(role)} keystore found but SAIL_PASSPHRASE is not set.\n` +
+        "Set SAIL_PASSPHRASE in .sail/.env.local (or as a CI secret) to run non-interactively.",
     );
   }
   const password = await promptHidden(`Password for ${roleLabel(role)} key`);
@@ -105,43 +130,19 @@ export async function loadKeyring(role: Role, safe?: string): Promise<LocalKeyri
 }
 
 /**
- * Loads the manager key for non-interactive use.
- * Reads SAIL_PASSPHRASE from the environment (injected from .sail/.env.local by
- * the caller) to skip the password prompt — required for `sailor run` in CI
- * and GitHub Actions where stdin is not a TTY.
+ * Loads the agent (manager) key. Injects SAIL_PASSPHRASE from .sail/.env.local
+ * when the caller hasn't, so mandate / onboard / run work headless, then defers
+ * to loadKeyring — the single loader that owns passphrase decrypt, the non-TTY
+ * guard, and the interactive prompt for every role.
  */
 export async function loadManagerSigner(safe?: string): Promise<LocalKeyring> {
-  const passphrase = process.env.SAIL_PASSPHRASE;
-  if (passphrase) {
-    const keystore = readJsonFile<EncryptedKeystore>(resolveKeyPath("manager", safe));
-    if (!keystore) {
-      throw new Error(
-        'No agent wallet found.\nRun "sailor keys generate" and choose "agent wallet".',
-      );
-    }
+  if (!process.env.SAIL_PASSPHRASE) {
     try {
-      return await LocalKeyring.fromKeystore(keystore, passphrase);
+      const env = parseEnvFile(sailPath(".env.local"));
+      if (env.SAIL_PASSPHRASE) process.env.SAIL_PASSPHRASE = env.SAIL_PASSPHRASE;
     } catch {
-      // The keystore exists and a passphrase was supplied, but it didn't decrypt.
-      // Say exactly that — not the generic "Invalid password" — so an operator
-      // knows to fix SAIL_PASSPHRASE rather than suspect a corrupt key.
-      throw new Error(
-        "SAIL_PASSPHRASE does not match this keystore.\n" +
-          "Check the value in .sail/.env.local (or the SAIL_PASSPHRASE CI secret) — " +
-          "it must be the passphrase the agent wallet was encrypted with.",
-      );
+      // .env.local absent or unreadable — loadKeyring handles prompt / TTY guard
     }
-  }
-  // No SAIL_PASSPHRASE. When stdin is not a TTY (CI, the Monday cron, piped
-  // input) we cannot prompt, so a present-but-unreadable keystore would otherwise
-  // fall through to a misleading "Invalid password". Fail with the real cause.
-  if (process.stdin.isTTY !== true && keyExists("manager", safe)) {
-    throw new Error(
-      "Agent keystore found but SAIL_PASSPHRASE is not set.\n" +
-        "If you created the key in the dashboard, add SAIL_PASSPHRASE to .sail/.env.local, " +
-        'or run "sailor keys generate".\n' +
-        "For CI, set the SAIL_PASSPHRASE GitHub Actions secret.",
-    );
   }
   return loadKeyring("manager", safe);
 }

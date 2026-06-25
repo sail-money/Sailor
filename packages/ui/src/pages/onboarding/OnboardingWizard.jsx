@@ -3,7 +3,7 @@ import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { encodeFunctionData, getAddress } from 'viem'
 import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi'
 import { sailDeployments } from '@sail/sdk/deployments'
-import { ChainGlyph, GlassCard, Sai, SailButton } from '../shared'
+import { ChainGlyph, GlassCard, InfoTip, Sai, SailButton } from '../shared'
 import SailBackground from '../shared/SailBackground'
 import shared from '../shared/shared.module.css'
 import styles from './OnboardingWizard.module.css'
@@ -284,7 +284,16 @@ function NetworkStep({ selected, onToggle, onBack, onDone, progressIndex, progre
       <CardHeader
         kicker="STEP 1 OF 4"
         title="Choose your networks"
-        sub="Same SMA address on every chain — deployed via CREATE2 with the same salt."
+        sub={
+          <>
+            Same{' '}
+            <Term word="SMA">
+              Smart Managed Account — a Safe smart contract that holds your funds. You stay the
+              owner; the agent can only act within the mandate you sign.
+            </Term>{' '}
+            address on every chain — deployed at a deterministic address so it’s identical everywhere.
+          </>
+        }
         onBack={onBack}
       />
       <div className={styles.networkSection}>
@@ -407,7 +416,20 @@ function ConnectStep({ onBack, onDone, progressIndex, progressTotal }) {
       <CardHeader
         kicker="STEP 2 OF 4"
         title="Connect your wallet"
-        sub="This wallet owns your SMA and signs mandates. It never executes trades."
+        sub={
+          <>
+            This wallet owns your{' '}
+            <Term word="SMA">
+              Smart Managed Account — the Safe that holds your funds; you remain the owner.
+            </Term>{' '}
+            and signs{' '}
+            <Term word="mandates">
+              A signed, on-chain set of permissions that bounds what the agent may do. Revocable
+              anytime from your dashboard.
+            </Term>
+            . It never executes trades.
+          </>
+        }
         onBack={onBack}
       />
       <SailButton fullWidth onClick={openConnectModal}>Connect wallet →</SailButton>
@@ -462,7 +484,17 @@ function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTo
       <CardHeader
         kicker="STEP 3 OF 4"
         title="Set a passphrase"
-        sub="Sail generates your agent's signing key and encrypts it on this device. This passphrase unlocks it for every run. Sail never sees it."
+        sub={
+          <>
+            Sail generates your{' '}
+            <Term word="agent wallet">
+              A signing key the agent uses to execute trades within the mandate. It’s encrypted on
+              this device and can never move funds outside the permissions you grant.
+            </Term>{' '}
+            and encrypts it on this device. This passphrase unlocks it for every run. Sail never
+            sees it.
+          </>
+        }
         onBack={onBack}
       />
       {!generated ? (
@@ -911,6 +943,18 @@ function DoneStep({ deployedSafes, onComplete }) {
 }
 
 /* ── Shared atoms ── */
+/* Inline glossary term (F13): the word followed by an InfoTip whose tooltip
+   defines it in plain language — lowers the DeFi-knowledge barrier without
+   cluttering the copy. */
+function Term({ word, children }) {
+  return (
+    <>
+      {word}
+      <InfoTip label={word}>{children}</InfoTip>
+    </>
+  )
+}
+
 function CardHeader({ kicker, title, sub, onBack }) {
   return (
     <header className={styles.cardHeader}>

@@ -24,6 +24,24 @@ export type SigningRequestKind =
   | "arbitrary-tx"; // Arbitrary transaction — the agent can request the owner to sign any calldata (e.g. admin calls on custom permissions)
 
 /** Fields shared by all signing request variants. */
+/**
+ * Natural-language summary of a permission being signed, parsed from the
+ * contract's comments (structured header → NatSpec → require messages). Lets the
+ * approval card explain what the contract enforces *before* the user signs —
+ * rather than approving an opaque deploy/registration.
+ */
+export type SigningExplanation = {
+  source?: string;
+  protocol?: string;
+  version?: string;
+  chain?: string;
+  target?: string;
+  /** Constraints enforced on-chain. */
+  enforced: string[];
+  /** Things left to agent code, not enforced on-chain. */
+  notEnforced: string[];
+};
+
 export type SigningRequestBase = {
   id: string;
   kind: SigningRequestKind;
@@ -34,6 +52,18 @@ export type SigningRequestBase = {
   chainId: number;
   /** Human-readable breakdown rendered in the card. */
   details: Array<{ label: string; value: string }>;
+  /** Optional NL summary of the permission, parsed from its contract comments. */
+  explanation?: SigningExplanation;
+  /**
+   * Optional per-permission NL summaries — used when one signature authorizes
+   * several permissions (batch register), so the card can list each with its own
+   * "what you're signing" breakdown.
+   */
+  permissions?: Array<{
+    label?: string;
+    address?: string;
+    explanation?: SigningExplanation;
+  }>;
   createdAt: number;
 };
 

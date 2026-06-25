@@ -3,6 +3,7 @@ import OnboardingWizard from '../onboarding/OnboardingWizard'
 import { MandateSigningFlow } from '../signing/Signing'
 import { ConnectButton, useConnectModal } from '@rainbow-me/rainbowkit'
 import { useAccount, useDisconnect } from 'wagmi'
+import { explorerAddressUrl, explorerCodeUrl as libExplorerCodeUrl, explorerTxUrl } from '../../lib/explorer'
 import {
   ChainGlyph,
   MandateStatus,
@@ -83,18 +84,11 @@ function safeAppUrl(network, address) {
   return `https://app.safe.global/home?safe=${prefix}:${address}`
 }
 function explorerUrl(network, address) {
-  const map = {
-    arbitrum: `https://arbiscan.io/address/${address}`,
-    ethereum: `https://etherscan.io/address/${address}`,
-    base: `https://basescan.org/address/${address}`,
-    unichain: `https://uniscan.xyz/address/${address}`,
-    optimism: `https://optimistic.etherscan.io/address/${address}`,
-    polygon: `https://polygonscan.com/address/${address}`,
-  }
-  return map[network] ?? map.ethereum
+  // Chain-aware (F5); falls back to Etherscan only for genuinely unknown chains.
+  return explorerAddressUrl(network, address) ?? `https://etherscan.io/address/${address}`
 }
 function explorerCodeUrl(network, address) {
-  return `${explorerUrl(network, address)}#code`
+  return libExplorerCodeUrl(network, address) ?? `${explorerUrl(network, address)}#code`
 }
 
 function truncateAddr(addr) {
@@ -266,6 +260,32 @@ const SIGNER_ROLE = {
 /**
  * Per-chain panel for multi-chain SMAs: shows mandates + account details for one chain.
  */
+// Build a mandate's permission list: prefer the on-chain set (source of truth),
+// enriched with local explanation/params from mandate.json (matched by address);
+// fall back to the local mandates' permissions when there is no on-chain data.
+// Ensures every registered permission shows even if mandate.json is partial.
+function buildMandatePermissions(overviewMandates, liveMandates, addressByTemplate) {
+  const liveByAddr = new Map()
+  for (const lm of liveMandates ?? []) {
+    for (const p of (lm.permissions ?? [])) {
+      const a = (p.address ?? addressByTemplate?.get(p.template))?.toLowerCase()
+      if (a) liveByAddr.set(a, p)
+    }
+  }
+  if ((overviewMandates ?? []).length > 0) {
+    return overviewMandates.map((m) => {
+      const live = liveByAddr.get(m.address?.toLowerCase())
+      return {
+        template: m.name ?? m.template ?? 'Unknown permission',
+        address: m.address,
+        params: live?.params,
+        explanation: live?.explanation,
+      }
+    })
+  }
+  return (liveMandates ?? []).flatMap((lm) => lm.permissions ?? [])
+}
+
 function ChainSection({ chainOverview, liveMandates, sma, onNewMandate, onAddSigner, onRotateSigner, onRevoke }) {
   const chainId = chainOverview.chainId
   const network = chainOverview.network ?? CHAIN_NAMES[chainId] ?? null
@@ -273,15 +293,17 @@ function ChainSection({ chainOverview, liveMandates, sma, onNewMandate, onAddSig
   const overviewMandates = chainOverview.mandates ?? []
   const addressByTemplate = new Map(overviewMandates.map((m) => [m.name ?? m.template, m.address]))
 
-  // Use live mandates from mandate.json when available. Otherwise synthesize one
-  // mandate card per on-chain permission so the format stays consistent across chains.
-  const displayMandates = liveMandates.length > 0
-    ? liveMandates
-    : overviewMandates.map((m) => ({
+  // One Mandate (the signed contract on this SMA) wrapping every on-chain
+  // permission, enriched with local mandate.json data. Driven by the on-chain
+  // set so all registered permissions show even when mandate.json is partial.
+  const displayMandates = (overviewMandates.length > 0 || liveMandates.length > 0)
+    ? [{
         chainId,
-        registeredOnChain: true,
-        permissions: [{ template: m.name ?? m.template ?? 'Unknown permission', params: {} }],
-      }))
+        registeredOnChain: overviewMandates.length > 0,
+        safe: sma?.address,
+        permissions: buildMandatePermissions(overviewMandates, liveMandates, addressByTemplate),
+      }]
+    : []
 
   const totalPerms = displayMandates.reduce((n, m) => n + (m.permissions ?? []).length, 0)
 
@@ -834,15 +856,9 @@ function LiveMandateCard({ mandate, network, addressByTemplate, onRevoke }) {
 }
 
 
-const TX_EXPLORER = {
-  arbitrum: (hash) => `https://arbiscan.io/tx/${hash}`,
-  ethereum: (hash) => `https://etherscan.io/tx/${hash}`,
-  base:     (hash) => `https://basescan.org/tx/${hash}`,
-  optimism: (hash) => `https://optimistic.etherscan.io/tx/${hash}`,
-  polygon:  (hash) => `https://polygonscan.com/tx/${hash}`,
-}
 function txUrl(network, hash) {
-  return (TX_EXPLORER[network] ?? TX_EXPLORER.ethereum)(hash)
+  // Chain-aware (F5); falls back to Etherscan only for genuinely unknown chains.
+  return explorerTxUrl(network, hash) ?? `https://etherscan.io/tx/${hash}`
 }
 
 const ACTIVITY_FILTERS = [
@@ -1668,25 +1684,30 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                     </span>
                   </header>
                   <div className={styles.mandateList}>
-                    {hasLiveMandate ? (() => {
+                    {(overviewMandates.length > 0 || hasLiveMandate) ? (() => {
                       const addressByTemplate = new Map(overviewMandates.map((m) => [m.name ?? m.template, m.address]))
-                      return activeLiveMandates.map((m, i) => (
+                      // Build the mandate's permission list from the ON-CHAIN set
+                      // (source of truth) when available, enriched with local
+                      // explanation/params from mandate.json by address. This keeps
+                      // ALL registered permissions visible even when mandate.json
+                      // only records a subset (e.g. some attached via the CLI) —
+                      // the partial local file must not shadow the on-chain truth.
+                      const permissions = buildMandatePermissions(overviewMandates, activeLiveMandates, addressByTemplate)
+                      const onchainMandate = {
+                        chainId: overview?.chainId,
+                        registeredOnChain: overviewMandates.length > 0,
+                        safe: overview?.sma?.address,
+                        permissions,
+                      }
+                      return (
                         <LiveMandateCard
-                          key={m.signedAt ?? i}
-                          mandate={m}
-                          network={realNetwork}
+                          mandate={onchainMandate}
+                          network={overview?.network ?? realNetwork}
                           addressByTemplate={addressByTemplate}
                           onRevoke={overview?.kernel && overview?.sma?.address ? setRevokeTarget : undefined}
                         />
-                      ))
-                    })() : overviewMandates.length > 0 ? (
-                      <AttachedMandatesPanel
-                        mandates={overviewMandates}
-                        network={overview?.network ?? realNetwork}
-                        onchain={overview?.onchain}
-                        onRevoke={overview?.kernel && overview?.sma?.address ? setRevokeTarget : undefined}
-                      />
-                    ) : (
+                      )
+                    })() : (
                       <NewMandateTile onClick={() => setHandoff({ variant: 'new', context: 'mandate' })} />
                     )}
                   </div>

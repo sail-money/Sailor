@@ -50,9 +50,11 @@ import {
 } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { appendActivity, nowIso } from "../lib/io.js";
+import { explainPermission } from "../lib/permission-explainer.js";
 import { type DeployedMandate, MandateStore } from "../lib/mandates.js";
 import { emit } from "../lib/output.js";
-import { ProjectContext, loadManagerSigner } from "../lib/project.js";
+import { loadManagerSigner } from "../lib/keys.js";
+import { ProjectContext } from "../lib/project.js";
 import { type SigningChannel, createSigningChannel, signingPageUrl } from "../signing/client.js";
 import { attachMandate } from "./onboard.js";
 import { projectPort } from "../lib/packagePaths.js";
@@ -163,7 +165,7 @@ function fail(err: unknown, json = false): never {
  * instead of nothing while the command blocks for minutes.
  */
 function announceSigningUrl(json: boolean): void {
-  const url = signingPageUrl(undefined, projectPort(process.cwd()));
+  const url = signingPageUrl(projectPort(process.cwd()));
   if (json) {
     process.stdout.write(`${JSON.stringify({ status: "waiting_for_signature", url })}\n`);
   } else {
@@ -216,7 +218,7 @@ async function runDeploy(
     );
   }
 
-  const { abi, bytecode, contractName, artifactPath } = resolveArtifact(options);
+  const { abi, bytecode, contractName, artifactPath, sourcePath } = resolveArtifact(options);
   let argsJson: string | undefined;
   if (options.argsFile) {
     const argsFilePath = resolve(options.argsFile);
@@ -237,6 +239,11 @@ async function runDeploy(
   announceSigningUrl(json);
   say(() => console.log(`Pushing deploy request for "${contractName}"…`));
 
+  // Parse the permission's own comments into a plain-language summary so the
+  // approval card can explain what the contract enforces *before* the owner
+  // signs the deploy — rather than approving opaque creation bytecode.
+  const explanation = explainPermission(contractName, sourcePath) ?? undefined;
+
   const response = await channel.requestSignature({
     type: "transaction",
     kind: "deploy-mandate",
@@ -252,6 +259,7 @@ async function runDeploy(
         value: argsJson ? argsJson : "(none)",
       },
     ],
+    explanation,
   });
 
   if (response.status === "rejected") {
@@ -275,6 +283,7 @@ async function runDeploy(
     address: deployed,
     txHash: response.txHash,
     chainId,
+    sourcePath,
     artifactPath,
     constructorArgs: parseArgsRaw(options.args),
     deployedAt: new Date().toISOString(),
@@ -1132,6 +1141,19 @@ async function attachBatchToSma(
       `\nAttaching ${permissions.length} permissions in one signature — the mandate signer (${permissionSigner}) signs in the browser…`,
     ),
   );
+  // Per-permission NL summaries so the approval card explains what each
+  // permission enforces before the owner signs (parsed from each contract's
+  // comments, resolved by address → tracked name/source).
+  const permStore = new MandateStore();
+  const permExplanations = permissions.map((addr) => {
+    const rec = permStore.find(addr);
+    return {
+      label: rec?.name ?? addr,
+      address: addr,
+      explanation: (rec ? explainPermission(rec.name, rec.sourcePath) : null) ?? undefined,
+    };
+  });
+
   const response = await channel.requestSignature({
     type: "typed-data",
     kind: "register-permission",
@@ -1143,6 +1165,7 @@ async function attachBatchToSma(
       { label: "Permissions", value: String(permissions.length) },
       { label: "Mandate signer", value: permissionSigner },
     ],
+    permissions: permExplanations,
     typedData,
   });
 
@@ -1327,6 +1350,7 @@ function resolveArtifact(options: DeployOptions): {
   bytecode: Hex;
   contractName: string;
   artifactPath: string;
+  sourcePath?: string;
 } {
   let artifactPath = options.artifact;
   let contractName = options.contract ?? options.name ?? "";
@@ -1368,7 +1392,21 @@ function resolveArtifact(options: DeployOptions): {
     contractName = m ? m[1] : "Mandate";
   }
 
-  return { abi, bytecode, contractName, artifactPath };
+  // The contract's .sol source path, so the NL explainer can find the comments
+  // even when the deploy --name differs from the source filename (F20). Foundry
+  // records it under metadata.settings.compilationTarget ({ "<src>": "<name>" }),
+  // with the AST's absolutePath as a fallback. Resolved to an absolute path.
+  let sourcePath: string | undefined;
+  const compilationTarget = artifact.metadata?.settings?.compilationTarget;
+  if (compilationTarget && typeof compilationTarget === "object") {
+    sourcePath = Object.keys(compilationTarget)[0];
+  }
+  sourcePath = sourcePath ?? artifact.ast?.absolutePath;
+  if (sourcePath && !sourcePath.startsWith("/")) {
+    sourcePath = resolve(projectRoot, sourcePath);
+  }
+
+  return { abi, bytecode, contractName, artifactPath, sourcePath };
 }
 
 function parseArgsRaw(argsJson?: string): string[] | undefined {

@@ -167,8 +167,10 @@ export async function mandatePrepare(): Promise<void> {
   const draft: MandateDraft = {
     account: account.safe,
     chainId,
+    // Only permissions not already registered on this SMA belong in the signing
+    // draft — re-registering an already-registered permission reverts on-chain.
     permissions: permissions
-      .filter((p) => !p.revokedOnChain)
+      .filter((p) => !p.revokedOnChain && !p.registeredOnSma)
       .map((p) => {
         const mandate = store.find(p.address);
         const explanation = explainPermission(p.label, mandate?.sourcePath) ?? undefined;

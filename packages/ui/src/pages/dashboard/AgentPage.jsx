@@ -8,8 +8,9 @@ import {
 } from '../shared'
 import shared from '../shared/shared.module.css'
 import styles from './AgentPage.module.css'
-import { useSailorAccount, useSailorMandate } from '../../hooks/useSailorData'
+import { useSailorAccount, useSailorAgentStatus, useSailorMandate, useSailorPositions } from '../../hooks/useSailorData'
 import { useAccount } from 'wagmi'
+import { explorerTxUrl } from '../../lib/explorer'
 import ContractModal from './ContractModal'
 
 /**
@@ -280,6 +281,11 @@ export default function AgentPage({ agentId, onBack, onEdit, onRevoke }) {
                 </SubSection>
               )}
 
+              {/* Agent activity strip (F12) — is the agent working or idle,
+                  what's the portfolio worth, and a sparkline of recent runs.
+                  Heartbeat + portfolio are live (/api/agent-status, /api/positions). */}
+              <AgentActivityStrip runs={view.runs} />
+
               {/* Activity — what this agent has been doing. Lives inside
                   the Agent card because it's the agent's own log of
                   events (deposits, simulations, permission checks). */}
@@ -517,6 +523,7 @@ export default function AgentPage({ agentId, onBack, onEdit, onRevoke }) {
         run={selectedRun}
         open={!!selectedRun}
         onClose={() => setRunId(null)}
+        chainId={account?.chainId}
       />
 
       <ContractModal
@@ -690,6 +697,105 @@ function StatusStat({ label, value, sub, tone, dot }) {
       </span>
       {sub && <span className={styles.statusCellSub}>{sub}</span>}
     </div>
+  )
+}
+
+/* ─────────── Agent activity strip (F12) ───────────
+   At-a-glance "is the agent working, and is it acting within bounds": a live
+   working/idle heartbeat (from /api/agent-status), the current portfolio value
+   (from /api/positions), and a sparkline of recent runs coloured by outcome.
+   Heartbeat and portfolio are real; the sparkline mirrors the Runs list below. */
+function _agoLabel(ms) {
+  if (ms == null) return '—'
+  const s = Math.round(ms / 1000)
+  if (s < 60) return `${s}s ago`
+  const m = Math.round(s / 60)
+  if (m < 60) return `${m}m ago`
+  const h = Math.round(m / 60)
+  if (h < 24) return `${h}h ago`
+  return `${Math.round(h / 24)}d ago`
+}
+
+function AgentActivityStrip({ runs = [] }) {
+  const { running, lastActivityMs } = useSailorAgentStatus()
+  const { positions, updatedAt } = useSailorPositions()
+
+  // "Working" if a process is alive AND it did something in the last 5 minutes;
+  // "idle" if alive but quiet; "stopped" otherwise.
+  const recent = lastActivityMs != null && lastActivityMs < 5 * 60_000
+  const state = running ? (recent ? 'working' : 'idle') : 'stopped'
+  const stateColor = state === 'working' ? 'rgba(120,220,160,0.95)'
+    : state === 'idle' ? 'rgba(255,200,120,0.95)'
+    : 'rgba(255,255,255,0.4)'
+  const stateLabel = state === 'working' ? 'Working' : state === 'idle' ? 'Idle' : 'Stopped'
+
+  const portfolioUsd = (positions ?? []).reduce((sum, p) => sum + (Number(p?.valueUsd) || 0), 0)
+  const hasPortfolio = (positions ?? []).length > 0
+
+  const spark = runs.slice(0, 16).reverse() // oldest → newest, left → right
+  const barColor = (s) => s === 'success' ? 'rgba(120,220,160,0.9)'
+    : s === 'failed' ? 'rgba(255,120,120,0.9)'
+    : 'rgba(255,200,120,0.9)'
+
+  const cell = { display: 'flex', flexDirection: 'column', gap: 3 }
+  const k = { fontSize: 11, letterSpacing: 0.4, textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }
+  const v = { fontSize: 14, color: 'rgba(255,255,255,0.92)', fontVariantNumeric: 'tabular-nums' }
+
+  return (
+    <SubSection title="Status" kicker="Live">
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 24,
+          alignItems: 'flex-end',
+          padding: '4px 0',
+        }}
+      >
+        <div style={cell}>
+          <span style={k}>Agent</span>
+          <span style={{ ...v, display: 'flex', alignItems: 'center', gap: 7 }}>
+            <span aria-hidden style={{ width: 8, height: 8, borderRadius: '50%', background: stateColor, boxShadow: state === 'working' ? `0 0 8px ${stateColor}` : 'none' }} />
+            {stateLabel}
+          </span>
+        </div>
+        <div style={cell}>
+          <span style={k}>Last activity</span>
+          <span style={v}>{_agoLabel(lastActivityMs)}</span>
+        </div>
+        <div style={cell}>
+          <span style={k}>Portfolio</span>
+          <span style={v}>
+            {hasPortfolio ? `$${portfolioUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '—'}
+          </span>
+        </div>
+        {spark.length > 0 && (
+          <div style={{ ...cell, flex: 1, minWidth: 160 }}>
+            <span style={k}>Recent runs</span>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 24 }} aria-hidden>
+              {spark.map((r, i) => (
+                <div
+                  key={r.id ?? i}
+                  title={`${r.label ?? 'run'} · ${r.status}${r.ago ? ` · ${r.ago}` : ''}`}
+                  style={{
+                    flex: 1,
+                    maxWidth: 10,
+                    height: r.status === 'pending' ? 10 : 20,
+                    borderRadius: 2,
+                    background: barColor(r.status),
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      {updatedAt && (
+        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', margin: '8px 0 0' }}>
+          Portfolio updated {_agoLabel(Date.now() - new Date(updatedAt).getTime())}
+        </p>
+      )}
+    </SubSection>
   )
 }
 
@@ -1140,7 +1246,7 @@ function ProviderEditButton({ aiName, disabled, onClick }) {
 }
 
 /* ─────────── Run detail drawer ─────────── */
-function RunDetailDrawer({ run, open, onClose }) {
+function RunDetailDrawer({ run, open, onClose, chainId }) {
   useEffect(() => {
     if (!open) return
     const onKey = (e) => { if (e.key === 'Escape') onClose?.() }
@@ -1184,7 +1290,7 @@ function RunDetailDrawer({ run, open, onClose }) {
                 } />
                 <DrawerRow k="Action" v={run.label} />
                 <DrawerRow k="Tx hash" v={
-                  <a className={styles.drawerLink} href={`https://arbiscan.io/tx/${run.txHash}`} target="_blank" rel="noreferrer">
+                  <a className={styles.drawerLink} href={explorerTxUrl(chainId, run.txHash) ?? undefined} target="_blank" rel="noreferrer">
                     {truncateTx(run.txHash)}
                     <ArrowOutIcon />
                   </a>

@@ -49,7 +49,7 @@ import { type TriggerGithubOptions, triggerGithub } from "./commands/trigger.js"
 import { sessionPause, sessionResume } from "./commands/session.js";
 import { stationStart, stationStatus, stationStop } from "./commands/station.js";
 import { status } from "./commands/status.js";
-import { uiCommand, uiStatus, uiStop } from "./commands/ui.js";
+import { type UiOptions, uiCommand, uiStatus, uiStop } from "./commands/ui.js";
 import { closePrompts } from "./lib/io.js";
 import { packageRoot } from "./lib/packagePaths.js";
 
@@ -132,7 +132,8 @@ program
 const ui = program.command("ui").description("Manage the local Sailor dashboard");
 ui.command("start")
   .description("Start the dashboard at localhost:3333 (default)")
-  .action(action(uiCommand));
+  .option("--expose <mode>", "Expose the dashboard over HTTPS on your tailnet (mode: tailscale)")
+  .action(actionWith<UiOptions>(uiCommand));
 ui.command("stop")
   .description("Stop the running dashboard")
   .action(() => uiStop());
@@ -379,8 +380,13 @@ const session = program.command("session").description("Control the agent sessio
 session
   .command("pause")
   .description("Pause the agent session (revoke dispatch rights)")
-  .action(action(sessionPause));
-session.command("resume").description("Resume a paused session").action(action(sessionResume));
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<{ json?: boolean }>(sessionPause));
+session
+  .command("resume")
+  .description("Resume a paused session")
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<{ json?: boolean }>(sessionResume));
 
 program
   .command("doctor")
