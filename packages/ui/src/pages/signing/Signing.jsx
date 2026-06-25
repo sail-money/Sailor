@@ -801,9 +801,19 @@ export function MandateSigningFlow({ draft, embedded = false }) {
       const res = await fetch('/api/mandate-submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signature, signedAt: new Date().toISOString() }),
+        // Send the exact signed permissions (in order) + deadline so the server
+        // can submit registerPermissions on-chain with the matching message.
+        body: JSON.stringify({
+          signature,
+          signedAt: new Date().toISOString(),
+          permissions,
+          deadline: deadline.toString(),
+        }),
       })
-      if (!res.ok) throw new Error(`Submit failed (${res.status})`)
+      if (!res.ok) {
+        const detail = await res.json().catch(() => null)
+        throw new Error(detail?.error || `Submit failed (${res.status})`)
+      }
 
       setPhase('done')
     } catch (err) {

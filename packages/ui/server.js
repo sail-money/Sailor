@@ -4,8 +4,8 @@ import { fileURLToPath } from 'node:url'
 import cors from 'cors'
 import express from 'express'
 import { WebSocket, WebSocketServer } from 'ws'
-import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, getSailDeployment } from '@sail/sdk'
-import { createPublicClient, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
+import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, estimatePermissionFee, getSailDeployment } from '@sail/sdk'
+import { createPublicClient, createWalletClient, defineChain, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
 
 const PORT = Number(process.env.PORT ?? 3334)
@@ -853,12 +853,15 @@ export function startServer(sailDir, { port = PORT } = {}) {
     res.json({ ok: true })
   })
 
-  // POST /api/mandate-submit { signature, signedAt } — combines the draft with
-  // the browser-produced signature into the canonical mandate.json shape (the
-  // same shape `sailor mandate sign` writes, so downstream code is path-agnostic),
-  // then deletes the draft. Returns the persisted mandate.
-  app.post('/api/mandate-submit', (req, res) => {
-    const { signature, signedAt } = req.body ?? {}
+  // POST /api/mandate-submit { signature, signedAt, permissions, deadline } —
+  // takes the browser-produced RegisterPermissions signature, SUBMITS the
+  // registration on-chain via the agent (manager) key, then writes the canonical
+  // mandate.json. (F18: previously this read the wrong draft shape — yielding an
+  // empty permission list — and never registered on-chain, so the rich-UI signing
+  // path silently produced a dead local stub. It now mirrors `sailor mandate
+  // attach`: the owner's signature + the agent submitting and paying gas.)
+  app.post('/api/mandate-submit', async (req, res) => {
+    const { signature, signedAt, permissions: signedAddrs, deadline } = req.body ?? {}
     if (!signature) {
       res.status(400).json({ error: 'missing signature' })
       return
@@ -870,17 +873,72 @@ export function startServer(sailDir, { port = PORT } = {}) {
       res.status(404).json({ error: 'no mandate draft to submit' })
       return
     }
+
+    const safe = draft.account
+    const chainId = draft.chainId
+    // Read BOTH draft shapes: `sailor mandate prepare` writes `permissions`
+    // (CLI), legacy writes `items`. (This mismatch was the F18 empty-list bug.)
+    const draftPerms = draft.permissions ?? draft.items ?? []
+    const permissionMeta = draftPerms.map((p) => ({
+      template: p.label ?? p.template ?? null,
+      address: p.address ?? p.template ?? null,
+      explanation: p.explanation ?? null,
+    }))
+
+    // Addresses to register, in the exact order the wallet signed them.
+    const addrs = (Array.isArray(signedAddrs) && signedAddrs.length
+      ? signedAddrs
+      : permissionMeta.map((p) => p.address)
+    ).filter(Boolean).map((a) => getAddress(a))
+
+    // ── Submit the registration on-chain (agent pays gas + fee) ──────────────
+    let txHash = null
+    try {
+      if (!deadline) throw new Error('missing deadline')
+      if (addrs.length === 0) throw new Error('no permissions to register')
+      const env = parseEnvFile(at('.env.local'))
+      const password = process.env.SAIL_PASSPHRASE || env.SAIL_PASSPHRASE
+      if (!password) throw new Error('SAIL_PASSPHRASE not set — cannot unlock the agent key')
+      const rpcUrl = env.RPC_URL || env.BASE_SEPOLIA_RPC_URL
+      if (!rpcUrl) throw new Error('RPC_URL not set in .sail/.env.local')
+      const deployment = getSailDeployment(Number(chainId))
+      if (!deployment?.kernel) throw new Error(`No SailKernel deployment for chain ${chainId}`)
+
+      const keyring = await LocalKeyring.fromKeystoreFile(at('keys/manager.json'), password)
+      const publicClient = createPublicClient({ transport: http(rpcUrl) })
+
+      // Sum the exact per-permission registration fees (0 for zero-fee deploys).
+      let fee = 0n
+      for (const a of addrs) fee += await estimatePermissionFee(publicClient, deployment.governance, a)
+
+      const chain = defineChain({
+        id: Number(chainId),
+        name: `chain-${chainId}`,
+        nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+        rpcUrls: { default: { http: [rpcUrl] } },
+      })
+      const walletClient = createWalletClient({ account: keyring.viemAccount, chain, transport: http(rpcUrl) })
+      const data = encodeFunctionData({
+        abi: SailKernelAbi,
+        functionName: 'registerPermissions',
+        args: [getAddress(safe), addrs, BigInt(deadline), signature],
+      })
+      txHash = await walletClient.sendTransaction({ to: deployment.kernel, data, value: fee, account: keyring.viemAccount, chain })
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
+      if (receipt.status !== 'success') throw new Error(`registerPermissions reverted (tx ${txHash})`)
+    } catch (err) {
+      res.status(500).json({ error: `On-chain registration failed: ${err?.message ?? String(err)}` })
+      return
+    }
+
     const mandate = {
-      safe: draft.account,
-      chainId: draft.chainId,
+      safe,
+      chainId,
       signedAt: signedAt || new Date().toISOString(),
       signature,
-      registeredOnChain: false,
-      permissions: (draft.items ?? []).map((it) => ({
-        template: it.template,
-        params: it.params,
-        explanation: it.explanation,
-      })),
+      registeredOnChain: true,
+      txHash,
+      permissions: permissionMeta,
     }
     try {
       fs.mkdirSync(sailDir, { recursive: true })
@@ -889,7 +947,12 @@ export function startServer(sailDir, { port = PORT } = {}) {
         const raw = JSON.parse(fs.readFileSync(at('mandate.json'), 'utf-8'))
         existing = Array.isArray(raw) ? raw : [raw]
       } catch { /* no existing mandate */ }
-      fs.writeFileSync(at('mandate.json'), `${JSON.stringify([...existing, mandate], null, 2)}\n`)
+      // Replace any prior record for this safe+chain instead of blindly appending
+      // duplicates (another half of the F18 bug).
+      const deduped = existing.filter(
+        (m) => !(m.safe?.toLowerCase() === safe?.toLowerCase() && m.chainId === chainId),
+      )
+      fs.writeFileSync(at('mandate.json'), `${JSON.stringify([...deduped, mandate], null, 2)}\n`)
       try {
         fs.rmSync(at('mandate-draft.json'))
       } catch {
