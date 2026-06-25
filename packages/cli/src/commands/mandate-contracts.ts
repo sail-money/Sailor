@@ -420,17 +420,24 @@ const CLONE_TEMPLATES: Record<string, CloneTemplateSpec> = {
 
 /**
  * Compute an EIP-1167 clone's CREATE2 address off-chain, matching
- * MandateFactory: the raw salt is namespaced by the submitter (msg.sender of
- * deployAndAttach) as keccak256(abi.encode(submitter, salt)).
+ * MandateFactory: the raw salt is namespaced by both the submitter (msg.sender
+ * of deployAndAttach) and the target account as
+ * keccak256(abi.encode(submitter, account, salt)). The account binding (Octane
+ * #18) gives each (caller, account) pair its own clone address space, so a
+ * shared relayer serving many accounts can't collide or pre-squat addresses.
  */
 function predictCloneAddress(
   impl: Address,
   factory: Address,
   submitter: Address,
+  account: Address,
   salt: Hex,
 ): Address {
   const namespacedSalt = keccak256(
-    encodeAbiParameters([{ type: "address" }, { type: "bytes32" }], [submitter, salt]),
+    encodeAbiParameters(
+      [{ type: "address" }, { type: "address" }, { type: "bytes32" }],
+      [submitter, account, salt],
+    ),
   );
   const initCode = concatHex([CLONE_INIT_PREFIX, impl, CLONE_INIT_SUFFIX]);
   return getCreate2Address({
@@ -551,9 +558,9 @@ async function runDeployClone(
   };
   const initData = spec.buildInitData(initParams);
 
-  // Deterministic-but-unique salt per (account, impl): namespaced by the
-  // submitter inside the factory. The agent submits, so predict with the agent
-  // address as msg.sender.
+  // Deterministic-but-unique salt per (account, impl): the factory namespaces it
+  // by (submitter, account). The agent submits, so predict with the agent address
+  // as msg.sender and the SMA as the account.
   const submitter = agentSigner.address as Address;
   const salt = keccak256(
     encodeAbiParameters(
@@ -561,7 +568,7 @@ async function runDeployClone(
       [sma, impl, BigInt(Math.floor(Date.now() / 1000))],
     ),
   );
-  const clone = predictCloneAddress(impl, project.contracts.mandateFactory, submitter, salt);
+  const clone = predictCloneAddress(impl, project.contracts.mandateFactory, submitter, sma, salt);
 
   say(() => {
     console.log(`\n${spec.label} clone (${options.template})`);
