@@ -13,11 +13,13 @@ Two distinct local servers. Both are per-project, both write state under `.sail/
 sailor ui start    # spawns a detached Express server, prints the URL, returns immediately
 sailor ui status   # ● running  http://localhost:<port>  (pid N)
 sailor ui stop     # SIGTERM via the pid file
+sailor ui start --expose tailscale   # also serve it on the tailnet over HTTPS (opt-in)
 ```
 
-- Port: deterministic per project — `3333 + (hash(projectPath) % 667)`, i.e. somewhere in 3333–3999, bumped to the next free port if taken. **Do not assume 3333** — always use the URL the command prints or read `.sail/runtime/ui.json` (`{ pid, port, startedAt }`).
+- Port: deterministic per project — `3333 + (hash(projectPath) % 667)`, i.e. somewhere in 3333–3999, bumped to the next free port if taken. **Do not assume 3333** — always use the URL the command prints or read `.sail/runtime/ui.json` (`{ pid, port, startedAt, exposed }`).
 - The server serves the pre-built React app (`SERVE_DIST=1`) and a local `/api` that reads `.sail/` state (`SAIL_DIR` env).
 - `ui start` does not block — no `&` needed.
+- `--expose tailscale` (optional): proxies the dashboard onto the operator's tailnet over HTTPS via `tailscale serve` (tailnet-private, never `funnel`). Requires `tailscale` installed + logged in, and Serve + HTTPS enabled for the tailnet (else the command prints the enable link). `ui stop` tears the proxy down. To allow extra browser origins, set `SAILOR_CORS_ORIGINS` (comma-separated; the local origin is always allowed).
 
 ## Signing station — `sailor station`
 
