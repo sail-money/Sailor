@@ -51,15 +51,57 @@ test("validateManifest passes a complete manifest", () => {
   assert.deepEqual(validateManifest(m), []);
 });
 
-test("isSensitivePath catches secrets and identity, keeps .env.example", () => {
+test("isSensitivePath whitelists .sail/, strips backups/logs/variants, keeps .env.example", () => {
   assert.equal(isSensitivePath(".sail/keys/manager.json"), true);
   assert.equal(isSensitivePath(".sail/account.json"), true);
+  assert.equal(isSensitivePath(".sail/account.json.bak"), true); // backup must not leak
+  assert.equal(isSensitivePath(".sail/cron-tick.log"), true); // logs must not leak
+  assert.equal(isSensitivePath(".sail/state/accounts.json"), true);
   assert.equal(isSensitivePath(".sail/.env.local"), true);
   assert.equal(isSensitivePath("ci-keystore.json"), true);
   assert.equal(isSensitivePath(".env"), true);
   assert.equal(isSensitivePath(".env.production"), true);
+  // Local config / OS junk / operational tx files:
+  assert.equal(isSensitivePath(".claude/settings.local.json"), true);
+  assert.equal(isSensitivePath(".vscode/launch.json"), true);
+  assert.equal(isSensitivePath(".DS_Store"), true);
+  assert.equal(isSensitivePath("ui/.DS_Store"), true);
+  assert.equal(isSensitivePath("rotate-manager.json"), true);
+  assert.equal(isSensitivePath("set-manager-new-sma.json"), true);
+  assert.equal(isSensitivePath("move-usdc-to-new-sma.json"), true);
+  assert.equal(isSensitivePath("withdraw-usdc.json"), true);
+  // Only these three .sail/ files ship; normal project files stay:
+  assert.equal(isSensitivePath(".sail/config.json"), false);
+  assert.equal(isSensitivePath(".sail/share.json"), false);
+  assert.equal(isSensitivePath(".sail/.gitkeep"), false);
   assert.equal(isSensitivePath(".env.example"), false);
+  assert.equal(isSensitivePath("package.json"), false);
   assert.equal(isSensitivePath("src/agent.ts"), false);
+});
+
+test("scanForSecrets catches a prefixed passphrase env (SAIL_PASSPHRASE=...)", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-pass-"));
+  fs.writeFileSync(
+    path.join(dir, "x.json"),
+    '"Bash(SAIL_PASSPHRASE=LoopingBase2026 npx sailor *)"',
+  );
+  const f = scanForSecrets(dir);
+  assert.ok(
+    f.some((x) => x.kind.includes("passphrase")),
+    "passphrase flagged",
+  );
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("autoRedact strips local home paths (laptop username)", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-home-"));
+  fs.writeFileSync(path.join(dir, "tick-cron.sh"), "cd /Users/ryuk/Desktop/Test2 || exit 1\n");
+  const r = autoRedact(dir, { addresses: [], rpcUrls: [] });
+  const out = fs.readFileSync(path.join(dir, "tick-cron.sh"), "utf-8");
+  assert.ok(!out.includes("/Users/ryuk"), "username path removed");
+  assert.ok(out.includes("$HOME/Desktop/Test2"), "replaced with $HOME");
+  assert.ok(r.some((x) => x.kind === "local home path"));
+  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test("sanitizeConfig blanks contracts and drops createdAt", () => {

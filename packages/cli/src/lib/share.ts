@@ -74,32 +74,40 @@ export function validateManifest(m: Partial<ShareManifest> | null): string[] {
 // ── Sensitive file map ────────────────────────────────────────────────────────
 
 /**
- * Project-relative paths that must NEVER be published. Authoritative mirror of
- * `templates/default/_gitignore` plus the sharer-identity files (account/mandate
- * carry the sharer's SMA address, owner, and signatures — strategy, not theirs).
- * Matched as exact files or directory prefixes.
+ * The ONLY files allowed to ship out of `.sail/`. Everything else under `.sail/`
+ * is stripped — a whitelist, not a blacklist, so backups (`account.json.bak`),
+ * logs (`cron-tick.log`), `keys/`, `runtime/`, `state/`, `.env.local`, wizard
+ * state, activity logs, and any future stray file can never leak by omission.
  */
-export const SENSITIVE_PATHS: readonly string[] = [
-  ".sail/keys",
-  ".sail/runtime",
-  ".sail/state",
-  ".sail/.env.local",
-  ".sail/.wizard-state.json",
-  ".sail/activity.jsonl",
-  ".sail/account.json",
-  ".sail/mandate.json",
-  ".sail/mandate-draft.json",
-  "ci-keystore.json",
-];
+export const SAIL_PUBLISHABLE: ReadonlySet<string> = new Set([
+  ".sail/config.json",
+  ".sail/share.json",
+  ".sail/.gitkeep",
+]);
 
 /** True if a project-relative POSIX path is sensitive and must be stripped. */
 export function isSensitivePath(rel: string): boolean {
   const p = rel.split(path.sep).join("/");
-  for (const s of SENSITIVE_PATHS) {
-    if (p === s || p.startsWith(`${s}/`)) return true;
+  // The .sail/ dir itself must be descended into to reach the publishable files.
+  if (p === ".sail") return false;
+  // Whitelist within .sail/: strip everything except the public manifests.
+  if (p.startsWith(".sail/")) {
+    return !SAIL_PUBLISHABLE.has(p);
   }
-  // .env and .env.* (real secrets) — but keep the .env.example template.
-  const base = p.split("/").pop() ?? "";
+  // Root-level encrypted CI keystore — tied to the sharer's wallet.
+  if (p === "ci-keystore.json") return true;
+  const seg = p.split("/");
+  const base = seg[seg.length - 1] ?? "";
+  // Local editor / agent config — may hold secrets (e.g. a passphrase in an
+  // allowed-command rule), tokens, or private notes. Never share.
+  if (seg.some((s) => s === ".claude" || s === ".vscode" || s === ".idea")) return true;
+  // OS / editor junk.
+  if (base === ".DS_Store" || base === "Thumbs.db" || base.endsWith(".swp")) return true;
+  // Operational Safe/SMA transaction files: created by the operator for one-off
+  // ops (rotate manager, move funds). Not reusable strategy, and they embed the
+  // operator's addresses (incl. in raw calldata) and prose like "0xAbc → 0xDef".
+  if (/(^|\/)(rotate-|set-manager|move-|withdraw-|fund-|transfer-).*\.json$/i.test(p)) return true;
+  // .env and .env.* (real secrets) anywhere — but keep the .env.example template.
   if ((base === ".env" || base.startsWith(".env.")) && base !== ".env.example") return true;
   return false;
 }
@@ -246,9 +254,13 @@ const SECRET_PATTERNS: Array<{ kind: string; re: RegExp }> = [
   { kind: "private-key (0x + 64 hex)", re: /\b0x[0-9a-fA-F]{64}\b/ },
   { kind: "rpc url with embedded key", re: /(RPC_URL|_RPC_URL)\s*[:=]\s*['"]?https?:\/\/\S+/i },
   {
+    // No leading \b so it also matches prefixed env names like SAIL_PASSPHRASE,
+    // MY_API_KEY, GH_ACCESS_TOKEN — that gap let a cleartext passphrase slip past.
     kind: "api key / secret / passphrase",
-    re: /\b(api[_-]?key|secret|passphrase|private[_-]?key|access[_-]?token)\b\s*[:=]\s*['"]?[A-Za-z0-9_\-./+]{12,}/i,
+    re: /(api[_-]?key|secret|passphrase|private[_-]?key|access[_-]?token|mnemonic)\s*[:=]\s*['"]?[A-Za-z0-9_\-./+]{8,}/i,
   },
+  { kind: "AWS access key id", re: /\bAKIA[0-9A-Z]{16}\b/ },
+  { kind: "private key PEM block", re: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },
 ];
 
 /** 12/24-word BIP-39-style mnemonic on a single line (lowercase words only). */
@@ -303,16 +315,6 @@ export interface SensitiveValues {
   rpcUrls: string[]; // full URLs
 }
 
-function addAddressesFrom(value: unknown, out: Set<string>): void {
-  if (typeof value === "string") {
-    if (/^0x[0-9a-fA-F]{40}$/.test(value)) out.add(value.toLowerCase());
-  } else if (Array.isArray(value)) {
-    for (const v of value) addAddressesFrom(v, out);
-  } else if (value && typeof value === "object") {
-    for (const v of Object.values(value)) addAddressesFrom(v, out);
-  }
-}
-
 /**
  * Gather the project's own identity + private endpoints from its live state, so
  * they can be redacted out of the files that ARE published (src, docs, comments).
@@ -322,26 +324,26 @@ export function collectSensitiveValues(projectRoot: string): SensitiveValues {
   const addresses = new Set<string>();
   const rpcUrls = new Set<string>();
 
-  const readJson = (rel: string): unknown => {
-    try {
-      return JSON.parse(fs.readFileSync(path.join(projectRoot, rel), "utf-8"));
-    } catch {
-      return null;
+  // Sweep EVERY file under .sail/ (account.json + .bak backups, mandate.json,
+  // state/*, accounts.json, logs, wizard state, …) for the sharer's addresses,
+  // so any SMA/owner/manager/signer that turns up in a published file is zeroed —
+  // even ones that only live in a backup or a second-account record.
+  const sailDir = path.join(projectRoot, ".sail");
+  if (fs.existsSync(sailDir)) {
+    for (const abs of listFilesRecursive(sailDir)) {
+      if (SCAN_SKIP_EXT.has(path.extname(abs).toLowerCase())) continue;
+      let raw: string;
+      try {
+        raw = fs.readFileSync(abs, "utf-8");
+      } catch {
+        continue;
+      }
+      if (raw.includes(" ")) continue;
+      for (const m of raw.match(/0x[0-9a-fA-F]{40}/g) ?? []) addresses.add(m.toLowerCase());
     }
-  };
-
-  // Every address in the identity/state files (SMA, owner, manager, signer,
-  // historical managers, deployed mandate + attachment addresses).
-  for (const rel of [
-    ".sail/account.json",
-    ".sail/mandate.json",
-    ".sail/state/accounts.json",
-    ".sail/state/mandates.json",
-  ]) {
-    addAddressesFrom(readJson(rel), addresses);
   }
 
-  // RPC URLs (and any other real values) from the env files.
+  // RPC URLs (and any inline addresses) from the env files.
   for (const rel of [".sail/.env.local", ".env", ".env.local"]) {
     let raw: string;
     try {
@@ -361,6 +363,8 @@ export function collectSensitiveValues(projectRoot: string): SensitiveValues {
     }
   }
 
+  // The zero address is a placeholder, never a secret — don't redact it.
+  addresses.delete(ZERO_ADDRESS.toLowerCase());
   return { addresses: [...addresses], rpcUrls: [...rpcUrls] };
 }
 
@@ -403,11 +407,21 @@ export function autoRedact(dir: string, values: SensitiveValues): Redaction[] {
     };
 
     for (const addr of knownAddrs) {
+      // 0x-prefixed occurrences → zero address.
       const re = new RegExp(escapeRegExp(addr), "gi");
       const m = content.match(re);
       if (m) {
         content = content.replace(re, ZERO_ADDRESS);
         bump("sma/owner/manager address", m.length);
+      }
+      // Bare (no 0x) occurrences — e.g. ABI-encoded calldata `a9059cbb…<addr>…`
+      // embeds the address without a prefix, so the above misses it. Zero the body.
+      const body = addr.slice(2);
+      const bare = new RegExp(body, "gi");
+      const bm = content.match(bare);
+      if (bm) {
+        content = content.replace(bare, "0".repeat(40));
+        bump("sma/owner/manager address (calldata)", bm.length);
       }
     }
     for (const url of knownRpcs) {
@@ -430,6 +444,21 @@ export function autoRedact(dir: string, values: SensitiveValues): Redaction[] {
     if (km) {
       content = content.replace(keyLike, ZERO_KEY);
       bump("private-key-shaped hex", km.length);
+    }
+    // Local machine paths leak the OS username ("laptop addresses"). Strip the
+    // home prefix to a portable placeholder: /Users/<u>/… and /home/<u>/… → $HOME,
+    // C:\Users\<u>\… → %USERPROFILE%.
+    const homeUnix = /\/(Users|home)\/[^/\s"'`)]+/g;
+    const hu = content.match(homeUnix);
+    if (hu) {
+      content = content.replace(homeUnix, "$HOME");
+      bump("local home path", hu.length);
+    }
+    const homeWin = /[A-Za-z]:\\Users\\[^\\\s"'`)]+/g;
+    const hw = content.match(homeWin);
+    if (hw) {
+      content = content.replace(homeWin, "%USERPROFILE%");
+      bump("local home path", hw.length);
     }
 
     if (Object.keys(tally).length > 0) {
