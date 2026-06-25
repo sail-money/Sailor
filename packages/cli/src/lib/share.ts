@@ -103,6 +103,29 @@ export function isSensitivePath(rel: string): boolean {
   if (seg.some((s) => s === ".claude" || s === ".vscode" || s === ".idea")) return true;
   // OS / editor junk.
   if (base === ".DS_Store" || base === "Thumbs.db" || base.endsWith(".swp")) return true;
+  // Credential / key files anywhere — these are pure secrets, never strategy.
+  // Always-strip: registry creds + key-material extensions + ssh keys.
+  if (
+    base === ".npmrc" ||
+    base === ".netrc" ||
+    base === ".pypirc" ||
+    /\.(pem|key|p12|pfx|keystore|asc|gpg)$/i.test(base) ||
+    /^id_(rsa|ed25519|ecdsa|dsa)/i.test(base)
+  ) {
+    return true;
+  }
+  // Keyword-named files (secret/mnemonic/seed/wallet/credentials/privateKey) —
+  // only as DATA files (.json/.txt/.yaml/.csv/.bak/no-ext), never source code,
+  // so e.g. `wallet-utils.ts` or `SeedVault.sol` stay.
+  const isData = /\.(json|txt|ya?ml|csv|bak|env|ini|conf)$/i.test(base) || !base.includes(".");
+  if (
+    isData &&
+    /(^|[._-])(secret|secrets|credentials?|mnemonic|seed|wallet|priv(ate)?[-_.]?keys?)([._-]|\.|$)/i.test(
+      base,
+    )
+  ) {
+    return true;
+  }
   // Operational Safe/SMA transaction files: created by the operator for one-off
   // ops (rotate manager, move funds). Not reusable strategy, and they embed the
   // operator's addresses (incl. in raw calldata) and prose like "0xAbc → 0xDef".
@@ -287,22 +310,54 @@ const SCAN_SKIP_EXT = new Set([
 
 const SECRET_PATTERNS: Array<{ kind: string; re: RegExp }> = [
   { kind: "private-key (0x + 64 hex)", re: /\b0x[0-9a-fA-F]{64}\b/ },
+  // Bare 64-hex private key (no 0x) assigned to a key-ish name.
+  {
+    kind: "bare 64-hex private key",
+    re: /(priv(ate)?[_-]?key|secret[_-]?key|signing[_-]?key)\s*["']?\s*[:=]\s*["']?[0-9a-fA-F]{64}\b/i,
+  },
   { kind: "rpc url with embedded key", re: /(RPC_URL|_RPC_URL)\s*[:=]\s*['"]?https?:\/\/\S+/i },
   {
     // No leading \b so it also matches prefixed env names like SAIL_PASSPHRASE,
-    // MY_API_KEY, GH_ACCESS_TOKEN — that gap let a cleartext passphrase slip past.
+    // MY_API_KEY, GH_ACCESS_TOKEN — and `["']?[:=]` so it also matches the JSON
+    // key form `"passphrase": "…"`, not just `KEY=…`.
     kind: "api key / secret / passphrase",
-    re: /(api[_-]?key|secret|passphrase|private[_-]?key|access[_-]?token|mnemonic)\s*[:=]\s*['"]?[A-Za-z0-9_\-./+]{8,}/i,
+    re: /(api[_-]?key|secret|passphrase|private[_-]?key|access[_-]?token|auth[_-]?token|mnemonic)["']?\s*[:=]\s*['"]?[A-Za-z0-9_\-./+]{8,}/i,
   },
+  // Provider token formats (high-confidence prefixes).
+  { kind: "GitHub token", re: /\b(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/ },
+  { kind: "Slack token", re: /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/ },
+  { kind: "Stripe secret key", re: /\bsk_(live|test)_[A-Za-z0-9]{16,}\b/ },
+  { kind: "Google API key", re: /\bAIza[0-9A-Za-z_\-]{35}\b/ },
+  { kind: "npm token", re: /\bnpm_[A-Za-z0-9]{36}\b/ },
+  { kind: "JWT", re: /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/ },
   { kind: "AWS access key id", re: /\bAKIA[0-9A-Z]{16}\b/ },
   { kind: "private key PEM block", re: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },
+  // Managed-provider RPC URL with an embedded key path (anywhere, not just RPC_URL=).
+  {
+    kind: "managed RPC url with key",
+    re: /https?:\/\/[^\s"'`]*\b(alchemy|infura|quiknode|quicknode|chainstack|ankr|blastapi|llamarpc|drpc|nodereal|getblock|tenderly)\b[^\s"'`]*\/[A-Za-z0-9_-]{12,}/i,
+  },
+  // Private LAN / loopback-with-port endpoints (host leakage).
+  {
+    kind: "local network address",
+    re: /\b(192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})\b/,
+  },
 ];
 
-/** 12/24-word BIP-39-style mnemonic on a single line (lowercase words only). */
+const BIP39_WORD = /^[a-z]{3,8}$/;
+/**
+ * BIP-39-style mnemonic: 12/24 lowercase words. Tolerates surrounding quotes,
+ * commas, and brackets so a phrase embedded in JSON (`["abandon","ability",…]`)
+ * or a quoted string is still caught, not just a bare space-separated line.
+ */
 function looksLikeMnemonic(line: string): boolean {
-  const words = line.trim().split(/\s+/);
+  const words = line
+    .replace(/["'[\],]/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
   if (words.length !== 12 && words.length !== 24) return false;
-  return words.every((w) => /^[a-z]{3,8}$/.test(w));
+  return words.every((w) => BIP39_WORD.test(w));
 }
 
 /**
@@ -373,7 +428,7 @@ export function collectSensitiveValues(projectRoot: string): SensitiveValues {
       } catch {
         continue;
       }
-      if (raw.includes(" ")) continue;
+      if (raw.includes("\u0000")) continue;
       for (const m of raw.match(/0x[0-9a-fA-F]{40}/g) ?? []) addresses.add(m.toLowerCase());
     }
   }
@@ -480,6 +535,16 @@ export function autoRedact(dir: string, values: SensitiveValues): Redaction[] {
       content = content.replace(keyLike, ZERO_KEY);
       bump("private-key-shaped hex", km.length);
     }
+    // Managed-provider RPC URLs hardcoded anywhere (not just RPC_URL=) — the host
+    // names a known provider and the path ends in a long key token. Conservative
+    // ({16,}) to avoid mangling provider doc links.
+    const providerRpc =
+      /https?:\/\/[^\s"'`)]*\b(alchemy|infura|quiknode|quicknode|chainstack|ankr|blastapi|llamarpc|drpc|nodereal|getblock|tenderly)\b[^\s"'`)]*\/[A-Za-z0-9_-]{16,}/gi;
+    const pm = content.match(providerRpc);
+    if (pm) {
+      content = content.replace(providerRpc, RPC_PLACEHOLDER);
+      bump("managed rpc url with key", pm.length);
+    }
     // Local machine paths leak the OS username ("laptop addresses"). Strip the
     // home prefix to a portable placeholder: /Users/<u>/… and /home/<u>/… → $HOME,
     // C:\Users\<u>\… → %USERPROFILE%.
@@ -504,6 +569,45 @@ export function autoRedact(dir: string, values: SensitiveValues): Redaction[] {
   }
 
   return redactions;
+}
+
+export interface ReviewSurface {
+  addresses: string[]; // distinct non-zero 0x40 addresses still present
+  binaries: string[]; // shipped files we can't scan/redact (images, db, etc.)
+}
+
+/**
+ * What a human must eyeball before publishing: every distinct non-zero address
+ * that survived redaction (we can't tell a personal cold-wallet/payout address
+ * from a public protocol contract — only the operator can), and every binary /
+ * non-text file we couldn't scan (a screenshot could show an SMA, a sqlite could
+ * hold anything). Computed over the CLEAN copy.
+ */
+export function reviewSurface(cleanDir: string): ReviewSurface {
+  const addresses = new Set<string>();
+  const binaries: string[] = [];
+  for (const abs of listFilesRecursive(cleanDir)) {
+    const rel = path.relative(cleanDir, abs).split(path.sep).join("/");
+    if (SCAN_SKIP_EXT.has(path.extname(abs).toLowerCase())) {
+      binaries.push(rel);
+      continue;
+    }
+    let content: string;
+    try {
+      content = fs.readFileSync(abs, "utf-8");
+    } catch {
+      binaries.push(rel);
+      continue;
+    }
+    if (content.includes("\u0000")) {
+      binaries.push(rel);
+      continue;
+    }
+    for (const m of content.match(/0x[0-9a-fA-F]{40}/g) ?? []) {
+      if (!/^0x0{40}$/i.test(m)) addresses.add(m);
+    }
+  }
+  return { addresses: [...addresses].sort(), binaries: binaries.sort() };
 }
 
 /** Build the PR markdown body from a manifest. */

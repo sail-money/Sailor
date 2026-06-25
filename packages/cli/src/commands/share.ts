@@ -13,6 +13,7 @@ import {
   collectSensitiveValues,
   findMissingRequiredFiles,
   renderPrBody,
+  reviewSurface,
   scanForSecrets,
   slugify,
   validateManifest,
@@ -166,6 +167,39 @@ export async function share(options: ShareOptions = {}): Promise<void> {
     );
   }
 
+  // 4b. Human review surface — the things only the operator can clear: addresses
+  //     that survived (a public protocol contract and a personal payout address
+  //     look identical to us) and binary files we can't scan (a screenshot could
+  //     show an SMA). Shown always; confirmed interactively before publishing.
+  const surface = reviewSurface(cleanDir);
+  const printSurface = (): void => {
+    if (surface.addresses.length > 0) {
+      console.log(`\n⚠ ${surface.addresses.length} address(es) remain — confirm each is a PUBLIC`);
+      console.log("  contract (token/router/pool), NOT a personal wallet/payout address:");
+      for (const a of surface.addresses) console.log(`    ${a}`);
+    }
+    if (surface.binaries.length > 0) {
+      console.log(`\n⚠ ${surface.binaries.length} binary/unscannable file(s) — review by hand`);
+      console.log("  (an image/db can leak an SMA or balances the scanner can't see):");
+      for (const b of surface.binaries) console.log(`    ${b}`);
+    }
+  };
+
+  // 4c. Interactive sign-off on the review surface before any publish/write.
+  if (
+    interactive &&
+    !options.dryRun &&
+    (surface.addresses.length > 0 || surface.binaries.length > 0)
+  ) {
+    printSurface();
+    const ok = await confirm("\nProceed? Confirm none of the above is sensitive");
+    if (!ok) {
+      fs.rmSync(tmp, { recursive: true, force: true });
+      console.log("Aborted.");
+      return;
+    }
+  }
+
   // 5a. Local mode — write a portable archive, no GitHub/token needed.
   if (options.local) {
     const out = path.resolve(process.cwd(), options.out ?? `${manifest.slug}.tar.gz`);
@@ -177,6 +211,7 @@ export async function share(options: ShareOptions = {}): Promise<void> {
           console.log(`\nDry run — would write ${files.length} files to ${out}\n`);
           for (const f of files) console.log(`  ${f}`);
           if (redactions.length > 0) console.log(`\nAuto-redacted ${redactedCount} value(s).`);
+          printSurface();
         },
         {
           status: "dry-run",
@@ -185,6 +220,7 @@ export async function share(options: ShareOptions = {}): Promise<void> {
           fileCount: files.length,
           files,
           redactions,
+          review: surface,
           manifest,
         },
       );
@@ -230,6 +266,7 @@ export async function share(options: ShareOptions = {}): Promise<void> {
           for (const r of redactions) console.log(`  ${r.file} — ${r.kind} ×${r.count}`);
         }
         console.log("\nNo secrets remain. No PR opened (--dry-run).");
+        printSurface();
       },
       {
         status: "dry-run",
@@ -238,6 +275,7 @@ export async function share(options: ShareOptions = {}): Promise<void> {
         fileCount: files.length,
         files,
         redactions,
+        review: surface,
         manifest,
       },
     );

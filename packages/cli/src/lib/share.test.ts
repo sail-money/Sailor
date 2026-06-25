@@ -13,6 +13,7 @@ import {
   findMissingRequiredFiles,
   isCoreReusablePath,
   isSensitivePath,
+  reviewSurface,
   sanitizeConfig,
   scanForSecrets,
   slugify,
@@ -110,6 +111,57 @@ test("scanForSecrets catches a prefixed passphrase env (SAIL_PASSPHRASE=...)", (
     f.some((x) => x.kind.includes("passphrase")),
     "passphrase flagged",
   );
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("isSensitivePath strips credential files but keeps source code", () => {
+  for (const p of [
+    ".npmrc",
+    "deploy.pem",
+    "id_rsa",
+    "mnemonic.txt",
+    "secrets.json",
+    "wallet.json",
+  ]) {
+    assert.equal(isSensitivePath(p), true, `${p} should be stripped`);
+  }
+  for (const p of ["src/wallet-utils.ts", "mandates/SeedVault.sol", "src/secretSauce.ts"]) {
+    assert.equal(isSensitivePath(p), false, `${p} should be kept`);
+  }
+});
+
+test("scanForSecrets catches provider tokens, JWT, JSON-key secret, managed RPC", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-tok-"));
+  fs.writeFileSync(path.join(dir, "a.txt"), `token=ghp_${"a".repeat(36)}`);
+  fs.writeFileSync(path.join(dir, "b.json"), '{ "passphrase": "Sup3rSecretValue" }');
+  fs.writeFileSync(
+    path.join(dir, "c.ts"),
+    'const u = "https://base-mainnet.g.alchemy.com/v2/abcd1234efgh5678ijkl";',
+  );
+  fs.writeFileSync(
+    path.join(dir, "d.txt"),
+    "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcDEFghiJKL",
+  );
+  const f = scanForSecrets(dir);
+  const kinds = f.map((x) => x.kind).join("|");
+  assert.ok(/GitHub token/.test(kinds), "gh token");
+  assert.ok(/passphrase/.test(kinds), "json-key secret");
+  assert.ok(/managed RPC/.test(kinds), "managed rpc");
+  assert.ok(/JWT/.test(kinds), "jwt");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("reviewSurface lists surviving non-zero addresses and binaries", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-surf-"));
+  fs.writeFileSync(
+    path.join(dir, "m.ts"),
+    `const T = "0x${"a".repeat(40)}"; const Z = "0x${"0".repeat(40)}";`,
+  );
+  fs.writeFileSync(path.join(dir, "shot.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2]));
+  const s = reviewSurface(dir);
+  assert.ok(s.addresses.includes(`0x${"a".repeat(40)}`), "non-zero addr surfaced");
+  assert.ok(!s.addresses.includes(`0x${"0".repeat(40)}`), "zero addr ignored");
+  assert.ok(s.binaries.includes("shot.png"), "binary surfaced");
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
