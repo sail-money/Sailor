@@ -1,6 +1,6 @@
 # sailor-projects registry — setup
 
-These files bootstrap the public registry repo (`sail-money/sailor-projects`) that
+These files bootstrap the public registry repo (`sail-money/Dock`) that
 `sailor share` opens PRs into and `sailor replicate` downloads from.
 
 ## Layout
@@ -25,7 +25,7 @@ projects/<slug>/        # one shared project per folder (added by `sailor share`
 Per-project download counts come from the release asset `download_count`:
 
 ```bash
-gh api repos/sail-money/sailor-projects/releases \
+gh api repos/sail-money/Dock/releases \
   --jq '.[] | "\(.tag_name): \(.assets[]?.download_count // 0)"'
 ```
 
@@ -35,6 +35,6 @@ payout ledger. For real rewards, front downloads with an authenticated proxy + D
 
 ## Setup steps
 
-1. Create the repo `sail-money/sailor-projects` (public).
+1. Create the repo `sail-money/Dock` (public).
 2. Copy `.github/` and an empty `projects/` into it; commit to `main`.
 3. Ensure the share token (`SAIL_GH_TOKEN`) has `contents: write` + `pull_requests: write`.

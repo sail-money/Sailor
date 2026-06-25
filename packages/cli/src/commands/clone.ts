@@ -15,14 +15,17 @@ import { injectCoreReferenceAssets } from "../lib/reference-assets.js";
 import type { ShareManifest } from "../lib/share.js";
 
 /**
- * `sailor replicate <release-url|owner/repo@tag> [dir]` — pull a published
- * project's release asset, extract it, and rebuild the local secret-bearing
- * workspace the template deliberately omits. It never injects secrets: it sets
- * up empty `.sail/{keys,runtime,state}` + env templates and points the user at
- * `sailor keys generate` / `sailor onboard` to supply their own.
+ * `sailor clone <source> [dir]` — recreate a shared project locally. `source`
+ * is either a release reference (owner/repo@tag, release/asset URL) or a path to
+ * a local archive produced by `sailor share --local`. The project is extracted,
+ * the secret-bearing workspace the template omits is rebuilt, and the core Sailor
+ * reference material `share` strips is re-injected from the installed package.
+ *
+ * It never injects secrets: it sets up empty `.sail/{keys,runtime,state}` + env
+ * templates and points the user at `sailor keys generate` / `sailor onboard`.
  */
 
-export interface ReplicateOptions {
+export interface CloneOptions {
   rpcUrl?: string;
   chain?: string;
   force?: boolean;
@@ -38,7 +41,7 @@ function pickAsset(assets: ReleaseAsset[], named?: string): ReleaseAsset {
     return hit;
   }
   const archive = assets.find((a) => a.name.endsWith(".tar.gz") || a.name.endsWith(".zip"));
-  if (!archive) throw new Error("Release has no .tar.gz or .zip asset to replicate.");
+  if (!archive) throw new Error("Release has no .tar.gz or .zip asset to clone.");
   return archive;
 }
 
@@ -66,60 +69,79 @@ function findProjectRoot(extractDir: string): string {
     const candidate = path.join(extractDir, e.name);
     if (fs.existsSync(path.join(candidate, ".sail"))) return candidate;
   }
-  throw new Error("Downloaded archive does not look like a Sailor project (no .sail/ found).");
+  throw new Error("Archive does not look like a Sailor project (no .sail/ found).");
 }
 
-export async function replicate(
+/** True if `input` points at an existing local archive file rather than a release ref. */
+function isLocalArchive(input: string): boolean {
+  return /\.(tar\.gz|tgz|zip)$/i.test(input) && fs.existsSync(input) && fs.statSync(input).isFile();
+}
+
+export async function clone(
   input: string | undefined,
   dir: string | undefined,
-  options: ReplicateOptions = {},
+  options: CloneOptions = {},
 ): Promise<void> {
   if (!input) {
-    throw new Error("Usage: sailor replicate <release-url|owner/repo@tag> [dir]");
+    throw new Error("Usage: sailor clone <release-url|owner/repo@tag|local-archive> [dir]");
   }
   const interactive = !options.yes && !options.json;
+  const local = isLocalArchive(input);
 
-  // 1. Resolve the release + asset.
-  const ref = parseReleaseRef(input);
-  const release = await getReleaseByTag(ref.repo, ref.tag);
-  const asset = pickAsset(release.assets, ref.asset);
+  // Resolve the archive: a local file, or a downloaded release asset.
+  let assetName: string;
+  let sourceLabel: string;
+  let release: Awaited<ReturnType<typeof getReleaseByTag>> | null = null;
+  let asset: ReleaseAsset | null = null;
+  let slug: string;
 
-  // 2. Decide the target dir. Default = slug derived from the tag.
-  const slug = ref.tag.replace(/-v\d+$/i, "");
-  const target = path.resolve(process.cwd(), dir ?? slug);
-  if (fs.existsSync(target) && fs.readdirSync(target).length > 0 && !options.force) {
-    throw new Error(
-      `Target "${target}" exists and is not empty. Pass --force to replicate into it.`,
-    );
+  if (local) {
+    assetName = path.basename(input);
+    sourceLabel = path.resolve(input);
+    slug = assetName.replace(/\.(tar\.gz|tgz|zip)$/i, "").replace(/-v\d+$/i, "");
+  } else {
+    const ref = parseReleaseRef(input);
+    release = await getReleaseByTag(ref.repo, ref.tag);
+    asset = pickAsset(release.assets, ref.asset);
+    assetName = asset.name;
+    sourceLabel = `${ref.repo}@${release.tag}`;
+    slug = ref.tag.replace(/-v\d+$/i, "");
   }
 
-  // 3. Download + extract into a temp dir, then move the project root to target.
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-replicate-"));
+  const target = path.resolve(process.cwd(), dir ?? slug);
+  if (fs.existsSync(target) && fs.readdirSync(target).length > 0 && !options.force) {
+    throw new Error(`Target "${target}" exists and is not empty. Pass --force to clone into it.`);
+  }
+
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-clone-"));
   try {
-    // Prefer the public browser_download_url — those hits increment the asset's
-    // download_count (the per-project metric). Fall back to the asset API URL,
-    // which works on private repos but does NOT increment the counter.
-    let buf: Buffer;
-    try {
-      buf = await downloadAsset(asset.downloadUrl);
-    } catch {
-      buf = await downloadAsset(asset.apiUrl);
+    const archivePath = path.join(tmp, assetName);
+    if (local) {
+      fs.copyFileSync(input, archivePath);
+    } else if (asset) {
+      // Prefer the public browser_download_url — those hits increment the asset's
+      // download_count (the per-project metric). Fall back to the asset API URL,
+      // which works on private repos but does NOT increment the counter.
+      let buf: Buffer;
+      try {
+        buf = await downloadAsset(asset.downloadUrl);
+      } catch {
+        buf = await downloadAsset(asset.apiUrl);
+      }
+      fs.writeFileSync(archivePath, buf);
     }
-    const archivePath = path.join(tmp, asset.name);
-    fs.writeFileSync(archivePath, buf);
 
     const extractDir = path.join(tmp, "x");
     extractArchive(archivePath, extractDir);
     const projectRoot = findProjectRoot(extractDir);
 
-    // 4. Validate it's a shared project.
     const manifest = readJsonFile<ShareManifest>(path.join(projectRoot, ".sail", "share.json"));
     if (!manifest) throw new Error("Archive is missing .sail/share.json — not a shared project.");
 
     fs.mkdirSync(target, { recursive: true });
     fs.cpSync(projectRoot, target, { recursive: true, force: true });
 
-    // 5. Rebuild the local workspace (keys/runtime/state + env templates).
+    // Rebuild the local workspace (keys/runtime/state + env templates).
     let chain = options.chain;
     let rpcUrl = options.rpcUrl;
     if (interactive && !chain && Array.isArray(manifest.chains) && manifest.chains.length > 0) {
@@ -136,18 +158,17 @@ export async function replicate(
       /* preserveConfig */ true,
     );
 
-    // 6. Re-inject the core Sailor reference material that `share` strips
-    //    (examples, .agents/skills, AGENTS.md, docs) from the installed package,
-    //    so the replicated project is complete. Operator files are never clobbered.
+    // Re-inject the core Sailor reference material that `share` strips, from the
+    // installed package, so the cloned project is complete. Operator files win.
     const reAdded = injectCoreReferenceAssets(target);
 
     emit(
       options.json,
       () => {
         console.log(
-          `\n✓ Replicated "${manifest.name}" into ${path.relative(process.cwd(), target) || "."}/`,
+          `\n✓ Cloned "${manifest.name}" into ${path.relative(process.cwd(), target) || "."}/`,
         );
-        console.log(`  source: ${ref.repo}@${release.tag} (${asset.name}, ${asset.downloadUrl})`);
+        console.log(`  source: ${sourceLabel} (${assetName})`);
         console.log(`  restored ${reAdded.length} core Sailor reference file(s) from the package`);
         console.log("\nNext — supply your own secrets (none were copied):");
         console.log(`  1. cd ${path.relative(process.cwd(), target) || "."}`);
@@ -157,9 +178,9 @@ export async function replicate(
       },
       {
         status: "ok",
-        repo: ref.repo,
-        tag: release.tag,
-        asset: asset.name,
+        source: sourceLabel,
+        local,
+        asset: assetName,
         target,
         restored: reAdded.length,
         manifest,

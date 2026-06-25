@@ -10,6 +10,7 @@ import {
 } from "./commands/account.js";
 import { capabilities } from "./commands/capabilities.js";
 import { type ChainsOptions, chainsCommand } from "./commands/chains.js";
+import { type CloneOptions, clone } from "./commands/clone.js";
 import { doctor } from "./commands/doctor.js";
 import { initCommand } from "./commands/init.js";
 import { type KeysGenerateOptions, keysExportCi, keysGenerate, keysShow } from "./commands/keys.js";
@@ -33,10 +34,8 @@ import { mandatePrepare, mandateSign, mandateSync } from "./commands/mandate.js"
 import { type OnboardOptions, onboard } from "./commands/onboard.js";
 import { ownerConnect, ownerShow } from "./commands/owner.js";
 import { type RotateSignerOptions, rotateSigner } from "./commands/rotate-signer.js";
-import { type ReplicateOptions, replicate } from "./commands/replicate.js";
 import { runCommand } from "./commands/run.js";
 import { scan } from "./commands/scan.js";
-import { type ShareOptions, share } from "./commands/share.js";
 import {
   type ServiceInstallOptions,
   type ServiceLogsOptions,
@@ -48,6 +47,7 @@ import {
   serviceUninstall,
 } from "./commands/service.js";
 import { sessionPause, sessionResume } from "./commands/session.js";
+import { type ShareOptions, share } from "./commands/share.js";
 import { signerStart, signerStatus, signerStop } from "./commands/signer.js";
 import { status } from "./commands/status.js";
 import { type TriggerGithubOptions, triggerGithub } from "./commands/trigger.js";
@@ -549,31 +549,37 @@ service
   .action(actionWith<ServiceLogsOptions>(serviceLogs));
 
 // ── Experimental (private) ─────────────────────────────────────────────────
-// `share` / `replicate` are gated behind SAILOR_EXPERIMENTAL=1 while the
+// `share` / `clone` are gated behind SAILOR_EXPERIMENTAL=1 while the
 // community-registry feature is private. They stay invisible in --help until
 // the flag is set.
 if (process.env.SAILOR_EXPERIMENTAL === "1") {
   program
     .command("share")
-    .description("Publish a sanitized copy of this project to the community registry (opens a PR)")
-    .option("--repo <owner/repo>", "Registry repo (default: sail-money/sailor-projects)")
+    .description(
+      "Share a sanitized copy of this project — opens a registry PR, or --local writes a .tar.gz",
+    )
+    .option("--repo <owner/repo>", "Registry repo (default: sail-money/Dock)")
     .option("--base <branch>", "Base branch to PR against", "main")
-    .option("--dry-run", "Build + scan the cleaned copy and show what would be published; no PR")
+    .option("--local", "Write a portable .tar.gz instead of opening a PR (no GitHub/token needed)")
+    .option("--out <path>", "Output archive path for --local (default: ./<slug>.tar.gz)")
+    .option("--dry-run", "Build + scan the cleaned copy and show what would be shared; no PR/file")
     .option("--yes", "Skip the confirmation prompt (requires a complete .sail/share.json)")
     .option("--json", "Emit machine-readable JSON")
     .action(actionWith<ShareOptions>(share));
 
   program
-    .command("replicate <url> [dir]")
-    .description("Download a published project's release asset and rebuild a local workspace")
+    .command("clone <source> [dir]")
+    .description(
+      "Recreate a shared project from a release ref/URL or a local .tar.gz, and rebuild the workspace",
+    )
     .option("--rpc-url <url>", "RPC_URL to write into .sail/.env.local")
     .option("--chain <id>", "Chain id to run on")
-    .option("--force", "Replicate into a non-empty target directory")
+    .option("--force", "Clone into a non-empty target directory")
     .option("--yes", "Non-interactive (skip prompts)")
     .option("--json", "Emit machine-readable JSON")
-    .action(async (url: string, dir: string | undefined, opts: ReplicateOptions) => {
+    .action(async (source: string, dir: string | undefined, opts: CloneOptions) => {
       try {
-        await replicate(url, dir, opts);
+        await clone(source, dir, opts);
       } catch (err) {
         console.error(`Error: ${(err as Error).message}`);
         closePrompts();

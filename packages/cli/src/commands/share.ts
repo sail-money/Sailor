@@ -19,20 +19,23 @@ import {
 } from "../lib/share.js";
 
 /**
- * `sailor share` — publish a sanitized copy of the current project to the
- * community registry as a PR. Strips all secrets + sharer identity, enforces
- * the compulsory metadata/contents gate, and (on merge) lets registry CI cut a
- * tagged release whose download_count is the per-project metric.
+ * `sailor share` — publish a sanitized copy of the current project. By default
+ * it opens a PR into the community registry; with `--local` it instead writes a
+ * portable .tar.gz so the project can be shared directly (no GitHub, no token)
+ * and cloned with `sailor clone <file>`. Either way it strips all secrets +
+ * sharer identity and enforces the compulsory metadata/contents gate.
  *
- * The GitHub token is read from the environment only (SAIL_GH_TOKEN /
- * GITHUB_TOKEN) — same contract as `sailor trigger github`.
+ * The GitHub token (PR mode only) is read from the environment only
+ * (SAIL_GH_TOKEN / GITHUB_TOKEN) — same contract as `sailor trigger github`.
  */
 
-const DEFAULT_REGISTRY = "sail-money/sailor-projects";
+const DEFAULT_REGISTRY = "sail-money/Dock";
 
 export interface ShareOptions {
   repo?: string;
   base?: string;
+  local?: boolean;
+  out?: string;
   dryRun?: boolean;
   yes?: boolean;
   json?: boolean;
@@ -161,6 +164,56 @@ export async function share(options: ShareOptions = {}): Promise<void> {
     throw new Error(
       `Refusing to share: possible secrets remain after auto-redaction:\n${lines.join("\n")}\nRemove or redact these manually, then try again.`,
     );
+  }
+
+  // 5a. Local mode — write a portable archive, no GitHub/token needed.
+  if (options.local) {
+    const out = path.resolve(process.cwd(), options.out ?? `${manifest.slug}.tar.gz`);
+    if (options.dryRun) {
+      fs.rmSync(tmp, { recursive: true, force: true });
+      emit(
+        options.json,
+        () => {
+          console.log(`\nDry run — would write ${files.length} files to ${out}\n`);
+          for (const f of files) console.log(`  ${f}`);
+          if (redactions.length > 0) console.log(`\nAuto-redacted ${redactedCount} value(s).`);
+        },
+        {
+          status: "dry-run",
+          mode: "local",
+          out,
+          fileCount: files.length,
+          files,
+          redactions,
+          manifest,
+        },
+      );
+      return;
+    }
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    execFileSync("tar", ["-czf", out, "-C", cleanDir, "."], {
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    fs.rmSync(tmp, { recursive: true, force: true });
+    emit(
+      options.json,
+      () => {
+        console.log(`\n✓ Wrote ${manifest.name} → ${path.relative(process.cwd(), out) || out}`);
+        console.log(`  ${files.length} files, auto-redacted ${redactedCount} sensitive value(s)`);
+        console.log(
+          `\nShare this file directly. Clone it with:\n  sailor clone ${path.basename(out)}`,
+        );
+      },
+      {
+        status: "ok",
+        mode: "local",
+        out,
+        slug: manifest.slug,
+        fileCount: files.length,
+        redacted: redactedCount,
+      },
+    );
+    return;
   }
 
   if (options.dryRun) {
