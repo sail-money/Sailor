@@ -10,6 +10,28 @@ import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem
 
 const PORT = Number(process.env.PORT ?? 3334)
 
+/**
+ * True for a browser Origin that points at the local machine — `localhost`, the
+ * IPv4 loopback, or the IPv6 loopback — on any port. Used to scope CORS.
+ *
+ * This is a local-only, single-user dev tool, and the dashboard's own port is no
+ * longer the fixed 3333: it's derived per project (projectPort → 3333–3999) and
+ * `sailor ui` may bump it again via findFreePort(), so pinning one origin would
+ * refuse legitimate cross-origin fetches from a dev session. We reflect any
+ * loopback origin instead. A missing Origin header (same-origin navigation, or a
+ * server-side proxy fetch like Vite's dev proxy) is allowed too. The match is
+ * exact, so a look-alike host such as `localhost.evil.com` is correctly refused.
+ */
+function isLoopbackOrigin(origin) {
+  if (!origin) return true
+  try {
+    const { hostname } = new URL(origin)
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]'
+  } catch {
+    return false
+  }
+}
+
 // Resolve the current file path in both ESM and esbuild CJS bundles.
 // import.meta.url is undefined in CJS bundles; __filename is the fallback.
 const _thisFile = (() => {
@@ -208,7 +230,11 @@ const OVERVIEW_TTL_MS = 10_000
  */
 export function startServer(sailDir, { port = PORT } = {}) {
   const app = express()
-  app.use(cors({ origin: 'http://localhost:3333' }))
+  // The dashboard's own /api fetches are same-origin (this server serves the
+  // built UI) or proxied by Vite in dev — neither needs CORS. This rule only
+  // matters for a browser dev session hitting the API directly on another
+  // localhost port, so allow any loopback origin rather than a fixed one.
+  app.use(cors({ origin: (origin, cb) => cb(null, isLoopbackOrigin(origin)) }))
   app.use(express.json())
 
   const at = (name) => path.join(sailDir, name)
@@ -1797,8 +1823,8 @@ export function startServer(sailDir, { port = PORT } = {}) {
   // to receive requests and send the owner's signed/rejected decisions. The
   // daemon authenticates that socket with the per-startup requestSecret, and
   // deliberately withholds the secret from cross-origin /config responses — so a
-  // page served here (port 3333), not by the daemon itself, can't open the
-  // socket directly. Rather than leak the secret into the browser (re-opening
+  // page served here (on the dashboard's own port), not by the daemon itself,
+  // can't open the socket directly. Rather than leak the secret into the browser (re-opening
   // the cross-origin-injection hole the daemon's secret closes), we relay the
   // socket through this server: it discovers the daemon, holds the secret
   // server-side, and pipes frames both ways. The browser only ever talks to its
@@ -1808,7 +1834,9 @@ export function startServer(sailDir, { port = PORT } = {}) {
   httpServer.on('upgrade', (req, socket, head) => {
     let pathname
     try {
-      pathname = new URL(req.url, `http://localhost:${PORT}`).pathname
+      // Base only resolves the relative req.url to extract its pathname; use the
+      // port this server actually bound rather than the module-level default.
+      pathname = new URL(req.url, `http://localhost:${port}`).pathname
     } catch {
       socket.destroy()
       return
