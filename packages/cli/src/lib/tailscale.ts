@@ -50,9 +50,16 @@ export function tailscaleServeUp(port: number): void {
     ["serve", "--bg", "--https=443", `http://127.0.0.1:${port}`],
     { encoding: "utf-8" },
   );
+  const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
   if (r.status !== 0) {
-    const detail = (r.stderr || r.stdout || "").trim() || `exit ${r.status ?? "?"}`;
-    throw new Error(detail);
+    throw new Error(out.trim() || `exit ${r.status ?? "?"}`);
+  }
+  // `tailscale serve` exits 0 even when Serve is disabled on the tailnet — it
+  // applies nothing and just prints an "enable" link. Treat that as a failure so
+  // the caller surfaces the link instead of falsely reporting the dashboard as
+  // exposed (F21).
+  if (/serve is not enabled/i.test(out)) {
+    throw new Error(out.trim());
   }
 }
 
