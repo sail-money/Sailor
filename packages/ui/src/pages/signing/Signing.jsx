@@ -4,11 +4,12 @@ import { getChain } from '@sail/sdk/chains'
 import { sailDeployments } from '@sail/sdk/deployments'
 import { zeroAddress } from 'viem'
 import { useAccount, usePublicClient, useSignTypedData, useSwitchChain } from 'wagmi'
-import { FluidBackground, GlassCard, Sai, RevealCalldata, SailButton } from '../shared'
+import { FluidBackground, GlassCard, Sai, RevealCalldata, SailButton, BadgeRow } from '../shared'
 import PageHeader from '../shared/PageHeader'
 import shared from '../shared/shared.module.css'
 import styles from './Signing.module.css'
 import { useSailorMandateDraft } from '../../hooks/useSailorData'
+import { explorerCodeUrl } from '../../lib/explorer'
 
 /**
  * Sign-in & onboarding flow.
@@ -594,23 +595,9 @@ const SIGNER_NONCES_ABI = [
 ]
 
 function ExplanationPanel({ ex }) {
-  const chip = (label, color) => (
-    <span style={{
-      display: 'inline-block', padding: '2px 8px', borderRadius: 3,
-      fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
-      background: color + '22', color, border: `1px solid ${color}44`,
-    }}>{label}</span>
-  )
-
   return (
     <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--glass-border)' }}>
-      {(ex.protocol || ex.chain) && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-          {ex.protocol && chip(ex.protocol, '#7eb8f7')}
-          {ex.chain && chip(ex.chain, '#9b8ff7')}
-          {ex.version && chip(ex.version, 'rgba(255,255,255,0.4)')}
-        </div>
-      )}
+      <BadgeRow items={[ex.protocol, ex.chain, ex.version]} />
       {ex.enforced?.length > 0 && (
         <div style={{ marginBottom: 8 }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5dde8b', marginBottom: 5 }}>
@@ -645,9 +632,12 @@ function ExplanationPanel({ ex }) {
   )
 }
 
-function PermissionRow({ item }) {
+function PermissionRow({ item, chainId }) {
   const [open, setOpen] = useState(false)
   const ex = item.permExplanation
+  // Link to the permission contract's verified source on the chain's explorer
+  // (Basescan/Etherscan/…) so the owner can read the code they're authorizing.
+  const codeUrl = item.address ? explorerCodeUrl(chainId, item.address) : null
 
   return (
     <li style={{
@@ -672,8 +662,19 @@ function PermissionRow({ item }) {
             {item.explanation}
           </div>
           {item.address && (
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', marginTop: 2, fontFamily: 'monospace' }}>
-              {item.address.slice(0, 6)}…{item.address.slice(-4)}
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', marginTop: 2, fontFamily: 'monospace', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span>{item.address.slice(0, 6)}…{item.address.slice(-4)}</span>
+              {codeUrl && (
+                <a
+                  href={codeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ color: '#7eb8f7', textDecoration: 'none' }}
+                >
+                  View code on scanner ↗
+                </a>
+              )}
             </div>
           )}
         </div>
@@ -839,7 +840,7 @@ export function MandateSigningFlow({ draft, embedded = false }) {
             }}
           >
             {items.map((it, i) => (
-              <PermissionRow key={i} item={it} />
+              <PermissionRow key={i} item={it} chainId={draft.chainId} />
             ))}
           </ul>
 

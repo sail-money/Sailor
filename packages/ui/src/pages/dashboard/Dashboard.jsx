@@ -267,15 +267,24 @@ function ChainSection({ chainOverview, liveMandates, sma, onNewMandate, onAddSig
   const overviewMandates = chainOverview.mandates ?? []
   const addressByTemplate = new Map(overviewMandates.map((m) => [m.name ?? m.template, m.address]))
 
-  // Use live mandates from mandate.json when available. Otherwise synthesize one
-  // mandate card per on-chain permission so the format stays consistent across chains.
+  // Use live mandates from mandate.json when available. Otherwise synthesize a
+  // SINGLE mandate (the signed contract on this SMA) that wraps every on-chain
+  // permission — one Mandate, permissions nested — rather than one card per
+  // permission. Keeps the model consistent whether or not mandate.json exists.
   const displayMandates = liveMandates.length > 0
     ? liveMandates
-    : overviewMandates.map((m) => ({
-        chainId,
-        registeredOnChain: true,
-        permissions: [{ template: m.name ?? m.template ?? 'Unknown permission', params: {} }],
-      }))
+    : overviewMandates.length > 0
+      ? [{
+          chainId,
+          registeredOnChain: true,
+          safe: sma?.address,
+          permissions: overviewMandates.map((m) => ({
+            template: m.name ?? m.template ?? 'Unknown permission',
+            address: m.address,
+            params: {},
+          })),
+        }]
+      : []
 
   const totalPerms = displayMandates.reduce((n, m) => n + (m.permissions ?? []).length, 0)
 
@@ -1667,14 +1676,31 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                           onRevoke={overview?.kernel && overview?.sma?.address ? setRevokeTarget : undefined}
                         />
                       ))
-                    })() : overviewMandates.length > 0 ? (
-                      <AttachedMandatesPanel
-                        mandates={overviewMandates}
-                        network={overview?.network ?? realNetwork}
-                        onchain={overview?.onchain}
-                        onRevoke={overview?.kernel && overview?.sma?.address ? setRevokeTarget : undefined}
-                      />
-                    ) : (
+                    })() : overviewMandates.length > 0 ? (() => {
+                      // No mandate.json yet: synthesize ONE Mandate (the signed
+                      // contract on this SMA) wrapping every on-chain permission,
+                      // so permissions are nested under a single mandate rather
+                      // than listed flat — same shape as the multi-chain path.
+                      const addressByTemplate = new Map(overviewMandates.map((m) => [m.name ?? m.template, m.address]))
+                      const onchainMandate = {
+                        chainId: overview?.chainId,
+                        registeredOnChain: true,
+                        safe: overview?.sma?.address,
+                        permissions: overviewMandates.map((m) => ({
+                          template: m.name ?? m.template ?? 'Unknown permission',
+                          address: m.address,
+                          params: {},
+                        })),
+                      }
+                      return (
+                        <LiveMandateCard
+                          mandate={onchainMandate}
+                          network={overview?.network ?? realNetwork}
+                          addressByTemplate={addressByTemplate}
+                          onRevoke={overview?.kernel && overview?.sma?.address ? setRevokeTarget : undefined}
+                        />
+                      )
+                    })() : (
                       <NewMandateTile onClick={() => setHandoff({ variant: 'new', context: 'mandate' })} />
                     )}
                   </div>

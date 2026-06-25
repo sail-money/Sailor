@@ -12,7 +12,7 @@ import layout from './SharedLayout.module.css'
 import styles from './MandatePage.module.css'
 import { useSailorAccount, useSailorMandate } from '../../hooks/useSailorData'
 import { useAccount } from 'wagmi'
-import { explorerTxUrl, explorerAddressUrl } from '../../lib/explorer'
+import { explorerTxUrl, explorerAddressUrl, explorerCodeUrl } from '../../lib/explorer'
 
 // SailKernel protocol constants (from SailProtocol source)
 const GOVERNANCE = {
@@ -376,13 +376,13 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
 
                       <div className={styles.permDetailActions}>
                         <a
-                          href={explorerAddressUrl(chainId, p.address)}
+                          href={explorerCodeUrl(chainId, p.address) ?? explorerAddressUrl(chainId, p.address)}
                           target="_blank"
                           rel="noreferrer"
                           className={styles.permActionGhost}
                           onClick={(e) => e.stopPropagation()}
                         >
-                          View on explorer
+                          View code on scanner
                           <ArrowOutIcon />
                         </a>
                         {!isRevoked && isActive && (

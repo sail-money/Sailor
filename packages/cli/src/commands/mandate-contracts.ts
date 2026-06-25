@@ -50,6 +50,7 @@ import {
 } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { appendActivity, nowIso } from "../lib/io.js";
+import { explainPermission } from "../lib/permission-explainer.js";
 import { type DeployedMandate, MandateStore } from "../lib/mandates.js";
 import { emit } from "../lib/output.js";
 import { loadManagerSigner } from "../lib/keys.js";
@@ -238,6 +239,11 @@ async function runDeploy(
   announceSigningUrl(json);
   say(() => console.log(`Pushing deploy request for "${contractName}"…`));
 
+  // Parse the permission's own comments into a plain-language summary so the
+  // approval card can explain what the contract enforces *before* the owner
+  // signs the deploy — rather than approving opaque creation bytecode.
+  const explanation = explainPermission(contractName) ?? undefined;
+
   const response = await channel.requestSignature({
     type: "transaction",
     kind: "deploy-mandate",
@@ -253,6 +259,7 @@ async function runDeploy(
         value: argsJson ? argsJson : "(none)",
       },
     ],
+    explanation,
   });
 
   if (response.status === "rejected") {
@@ -1133,6 +1140,19 @@ async function attachBatchToSma(
       `\nAttaching ${permissions.length} permissions in one signature — the mandate signer (${permissionSigner}) signs in the browser…`,
     ),
   );
+  // Per-permission NL summaries so the approval card explains what each
+  // permission enforces before the owner signs (parsed from each contract's
+  // comments, resolved by address → tracked name/source).
+  const permStore = new MandateStore();
+  const permExplanations = permissions.map((addr) => {
+    const rec = permStore.find(addr);
+    return {
+      label: rec?.name ?? addr,
+      address: addr,
+      explanation: (rec ? explainPermission(rec.name, rec.sourcePath) : null) ?? undefined,
+    };
+  });
+
   const response = await channel.requestSignature({
     type: "typed-data",
     kind: "register-permission",
@@ -1144,6 +1164,7 @@ async function attachBatchToSma(
       { label: "Permissions", value: String(permissions.length) },
       { label: "Mandate signer", value: permissionSigner },
     ],
+    permissions: permExplanations,
     typedData,
   });
 
