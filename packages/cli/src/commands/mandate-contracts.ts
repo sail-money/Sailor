@@ -218,7 +218,7 @@ async function runDeploy(
     );
   }
 
-  const { abi, bytecode, contractName, artifactPath } = resolveArtifact(options);
+  const { abi, bytecode, contractName, artifactPath, sourcePath } = resolveArtifact(options);
   let argsJson: string | undefined;
   if (options.argsFile) {
     const argsFilePath = resolve(options.argsFile);
@@ -242,7 +242,7 @@ async function runDeploy(
   // Parse the permission's own comments into a plain-language summary so the
   // approval card can explain what the contract enforces *before* the owner
   // signs the deploy — rather than approving opaque creation bytecode.
-  const explanation = explainPermission(contractName) ?? undefined;
+  const explanation = explainPermission(contractName, sourcePath) ?? undefined;
 
   const response = await channel.requestSignature({
     type: "transaction",
@@ -283,6 +283,7 @@ async function runDeploy(
     address: deployed,
     txHash: response.txHash,
     chainId,
+    sourcePath,
     artifactPath,
     constructorArgs: parseArgsRaw(options.args),
     deployedAt: new Date().toISOString(),
@@ -1349,6 +1350,7 @@ function resolveArtifact(options: DeployOptions): {
   bytecode: Hex;
   contractName: string;
   artifactPath: string;
+  sourcePath?: string;
 } {
   let artifactPath = options.artifact;
   let contractName = options.contract ?? options.name ?? "";
@@ -1390,7 +1392,21 @@ function resolveArtifact(options: DeployOptions): {
     contractName = m ? m[1] : "Mandate";
   }
 
-  return { abi, bytecode, contractName, artifactPath };
+  // The contract's .sol source path, so the NL explainer can find the comments
+  // even when the deploy --name differs from the source filename (F20). Foundry
+  // records it under metadata.settings.compilationTarget ({ "<src>": "<name>" }),
+  // with the AST's absolutePath as a fallback. Resolved to an absolute path.
+  let sourcePath: string | undefined;
+  const compilationTarget = artifact.metadata?.settings?.compilationTarget;
+  if (compilationTarget && typeof compilationTarget === "object") {
+    sourcePath = Object.keys(compilationTarget)[0];
+  }
+  sourcePath = sourcePath ?? artifact.ast?.absolutePath;
+  if (sourcePath && !sourcePath.startsWith("/")) {
+    sourcePath = resolve(projectRoot, sourcePath);
+  }
+
+  return { abi, bytecode, contractName, artifactPath, sourcePath };
 }
 
 function parseArgsRaw(argsJson?: string): string[] | undefined {
