@@ -170,6 +170,7 @@ sailor trigger github      # fire the agent's GitHub Actions workflow on demand
 
 # Dashboard
 sailor ui start            # prints the per-project dashboard URL
+sailor ui start --expose tailscale   # also expose it on your tailnet over HTTPS (see Dashboard section)
 
 # Maintenance
 sailor update              # re-sync skills, AGENTS.md, and tooling files after a CLI upgrade
@@ -261,6 +262,37 @@ sailor ui stop        # Stopped Sailor UI (pid 12345).
 Start-Job { sailor ui start }
 sailor ui status
 sailor ui stop
+```
+
+### Remote access over your tailnet (HTTPS) — optional
+
+The dashboard is local-only by default. To reach it from another device (e.g. a
+remote operator box), expose it over your [Tailscale](https://tailscale.com)
+tailnet on HTTPS:
+
+```bash
+sailor ui start --expose tailscale
+# → Sailor UI started at http://localhost:<port>
+# → Exposed on your tailnet at https://<node>.<tailnet>.ts.net/
+```
+
+It uses `tailscale serve` (tailnet-private), **never `funnel`** — only devices on
+your tailnet can reach it, not the public internet. `sailor ui stop` tears the
+tailnet proxy down along with the local server.
+
+Requirements:
+
+- `tailscale` installed and logged in (`tailscale up`).
+- Tailscale **Serve** enabled for your tailnet, plus **HTTPS certificates**
+  (admin console → DNS → Enable HTTPS). If Serve is disabled, the command prints
+  the enable link instead of reporting success.
+
+When exposed, the tailnet origin is added to the dashboard's CORS allowlist
+automatically. To allow additional origins (e.g. a custom HTTPS host in front of
+the station), set a comma-separated list — the local origin is always allowed:
+
+```bash
+SAILOR_CORS_ORIGINS=https://hermes.example.ts.net,https://another.host
 ```
 
 ---
