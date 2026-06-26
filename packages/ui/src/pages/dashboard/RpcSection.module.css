@@ -176,7 +176,7 @@
   height: 34px;
   padding: 0 16px;
   cursor: pointer;
-  transition: color 180ms var(--ease-apple), border-color 180ms var(--ease-apple), background 180ms var(--ease-apple), transform 180ms var(--ease-apple);
+  transition: color 180ms var(--ease-sail), border-color 180ms var(--ease-sail), background 180ms var(--ease-sail), transform 180ms var(--ease-sail);
 }
 .editBtn:hover {
   color: var(--text-primary);
@@ -217,7 +217,7 @@
   background: #04060b;
   border: 1px solid var(--hairline, rgba(255,255,255,0.10));
   border-radius: var(--r-2, 2px); padding: 9px 13px; cursor: pointer;
-  transition: color 180ms var(--ease-apple), border-color 180ms var(--ease-apple), background 180ms var(--ease-apple), transform 180ms var(--ease-apple);
+  transition: color 180ms var(--ease-sail), border-color 180ms var(--ease-sail), background 180ms var(--ease-sail), transform 180ms var(--ease-sail);
 }
 .chainChip:hover { border-color: rgba(25,144,255,0.4); transform: translateY(-1px); }
 .chainChipActive, .chainChipActive:hover {
@@ -253,10 +253,10 @@
   border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10));
   border-radius: var(--r-3, 2px);
   transition:
-    border-color 200ms var(--ease-apple),
-    background 200ms var(--ease-apple),
-    transform 200ms var(--ease-apple),
-    box-shadow 200ms var(--ease-apple);
+    border-color 200ms var(--ease-sail),
+    background 200ms var(--ease-sail),
+    transform 200ms var(--ease-sail),
+    box-shadow 200ms var(--ease-sail);
 }
 .optionRow:hover {
   border-color: rgba(25, 144, 255, 0.34);
@@ -283,7 +283,7 @@
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10));
   border-radius: var(--r-2, 2px);
-  transition: color 200ms var(--ease-apple), background 200ms var(--ease-apple), border-color 200ms var(--ease-apple);
+  transition: color 200ms var(--ease-sail), background 200ms var(--ease-sail), border-color 200ms var(--ease-sail);
 }
 .optionRowActive .optionTile {
   color: #fff;
@@ -322,7 +322,7 @@
   width: 18px; height: 18px; flex-shrink: 0;
   border: 1.5px solid rgba(255, 255, 255, 0.22);
   border-radius: var(--r-2, 2px);
-  transition: border-color 200ms var(--ease-apple), background 200ms var(--ease-apple);
+  transition: border-color 200ms var(--ease-sail), background 200ms var(--ease-sail);
 }
 .optionRadioOn {
   border-color: var(--accent-blue, #1990FF);
@@ -349,7 +349,7 @@
   background: #04060b;
   border: 1px solid var(--hairline, rgba(255,255,255,0.12));
   border-radius: var(--r-2, 2px);
-  transition: border-color 160ms var(--ease-apple), box-shadow 160ms var(--ease-apple);
+  transition: border-color 160ms var(--ease-sail), box-shadow 160ms var(--ease-sail);
 }
 .field:focus-within { border-color: rgba(25,144,255,0.6); box-shadow: 0 0 0 3px rgba(25,144,255,0.12); }
 .fieldIcon { display: inline-flex; color: var(--text-tertiary); flex-shrink: 0; }
@@ -375,7 +375,7 @@
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10));
   border-radius: var(--r-3, 2px);
-  transition: border-color 200ms var(--ease-apple), background 200ms var(--ease-apple);
+  transition: border-color 200ms var(--ease-sail), background 200ms var(--ease-sail);
 }
 .howTrigger:hover { border-color: rgba(25, 144, 255, 0.34); background: rgba(25, 144, 255, 0.04); }
 .howTriggerIcon { display: inline-flex; color: var(--accent-blue-bright, #4DABFF); flex-shrink: 0; }
@@ -387,7 +387,7 @@
 .howTrigger:hover .howTriggerText { color: var(--text-primary); }
 .howChevron {
   display: inline-flex; color: var(--text-tertiary); flex-shrink: 0;
-  transition: transform 280ms var(--ease-out-expo), color 200ms var(--ease-apple);
+  transition: transform 280ms var(--ease-out-expo), color 200ms var(--ease-sail);
 }
 .howChevronOpen { transform: rotate(180deg); color: var(--accent-blue-bright, #4DABFF); }
 .howPanel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 320ms var(--ease-out-expo); }
@@ -413,9 +413,9 @@
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: var(--t-micro, 10.5px); font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
   color: var(--accent-blue-bright, #4DABFF); text-decoration: none;
-  transition: color 200ms var(--ease-apple);
+  transition: color 200ms var(--ease-sail);
 }
-.howLink svg { transition: transform 200ms var(--ease-apple); }
+.howLink svg { transition: transform 200ms var(--ease-sail); }
 .howLink:hover { color: #fff; }
 .howLink:hover svg { transform: translate(2px, -2px); }
 
@@ -444,7 +444,7 @@
   border: 1px solid var(--accent-blue, #1990FF); border-radius: var(--r-2, 2px);
   height: 42px; padding: 0 20px; cursor: pointer;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 8px 22px -8px rgba(25,144,255,0.55);
-  transition: background 200ms var(--ease-apple), transform 200ms var(--ease-apple), box-shadow 200ms var(--ease-apple), opacity 200ms;
+  transition: background 200ms var(--ease-sail), transform 200ms var(--ease-sail), box-shadow 200ms var(--ease-sail), opacity 200ms;
 }
 .saveBtn:hover:not(:disabled) { background: var(--accent-blue-bright, #4DABFF); transform: translateY(-1px); }
 .saveBtn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
