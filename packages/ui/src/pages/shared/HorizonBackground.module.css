@@ -4,7 +4,7 @@
    keep it alive, and a faint DOT-MATRIX field (replacing the old
    crossed lines). All motion collapses under reduced-motion. */
 
-.fluidBg {
+.horizonBg {
   position: fixed;
   inset: 0;
   z-index: 0;
@@ -16,7 +16,7 @@
     #000000;
 }
 /* The horizon — a bright electric core that gently breathes. */
-.fluidBg::after {
+.horizonBg::after {
   content: '';
   position: absolute;
   left: 0;
@@ -33,7 +33,7 @@
   50%      { opacity: 0.64; }
 }
 
-.fluidBg > div {
+.horizonBg > div {
   position: absolute;
   will-change: transform;
   filter: blur(110px);
@@ -115,7 +115,7 @@
 }
 
 /* Frosted veil — softens the blobs into a smooth field. */
-.fluidFrost {
+.horizonFrost {
   position: fixed;
   inset: 0;
   z-index: 0;
@@ -127,7 +127,7 @@
 
 /* Dot-matrix field — fresh, technical, premium. Replaces the crossed
    lines. Faint white dots on a 30px grid, fading at the edges. */
-.fluidGrid {
+.horizonGrid {
   position: fixed;
   inset: 0;
   z-index: 0;
@@ -140,7 +140,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .fluidBg::after,
+  .horizonBg::after,
   .blob1, .blob2, .blob3, .blob4, .blob5 {
     animation: none;
   }

@@ -235,7 +235,7 @@
 }
 .viewActions > * { width: 100%; }
 
-/* Apple permission-dialog pattern in signing mode: equal-width
+/* Permission-dialog pattern in signing mode: equal-width
    destructive + primary, side-by-side. */
 .signActions {
   display: grid;

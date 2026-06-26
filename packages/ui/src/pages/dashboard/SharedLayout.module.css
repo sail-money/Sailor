@@ -44,10 +44,10 @@
   border-radius: 2px;
   cursor: pointer;
   transition:
-    color 200ms var(--ease-apple, ease),
-    background 200ms var(--ease-apple, ease),
-    border-color 200ms var(--ease-apple, ease),
-    transform 200ms var(--ease-apple, ease);
+    color 200ms var(--ease-sail, ease),
+    background 200ms var(--ease-sail, ease),
+    border-color 200ms var(--ease-sail, ease),
+    transform 200ms var(--ease-sail, ease);
 }
 .backBtn:hover {
   color: var(--text-primary);
@@ -72,10 +72,10 @@
   border-radius: 2px;
   cursor: pointer;
   transition:
-    color 200ms var(--ease-apple, ease),
-    background 200ms var(--ease-apple, ease),
-    border-color 200ms var(--ease-apple, ease),
-    transform 200ms var(--ease-apple, ease);
+    color 200ms var(--ease-sail, ease),
+    background 200ms var(--ease-sail, ease),
+    border-color 200ms var(--ease-sail, ease),
+    transform 200ms var(--ease-sail, ease);
 }
 .stopAllBtn:hover:not(:disabled) {
   color: #fff;
@@ -252,7 +252,7 @@
 .quickLink:hover .qlArrow { color: var(--accent-blue, #1990FF); }
 
 /* ── Section card (reused by Mandate / Agents / Journal) ──
-   Sui raised card: a flat #1E1F24-family surface on the true-black
+   Raised card: a flat #1E1F24-family surface on the true-black
    canvas, 12px corner, gray hairline border, faint white top rim.
    Blue is reserved for nodes and CTAs, not panel chrome. */
 .card {
@@ -659,7 +659,7 @@
   border-radius: var(--r-1, 3px);
   white-space: nowrap;
 }
-/* Sui single-accent discipline: kind tags are uniform gray mono
+/* Single-accent discipline: kind tags are uniform gray mono
    labels. Semantic state (success / reject / info / warn) is carried
    by the colored status mark to the left, not by the tag color. The
    error tag keeps a restrained red since it is a true alert. */

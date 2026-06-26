@@ -6,7 +6,7 @@
   -webkit-backdrop-filter: blur(14px) saturate(140%);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 380ms var(--ease-apple);
+  transition: opacity 380ms var(--ease-sail);
   z-index: 80;
 }
 
@@ -29,7 +29,7 @@
   display: flex;
   flex-direction: column;
   transform: translateX(105%);
-  transition: transform var(--duration-modal) var(--ease-apple);
+  transition: transform var(--duration-modal) var(--ease-sail);
   z-index: 90;
 }
 
@@ -41,9 +41,9 @@
    color the card uses in the list view. */
 .drawerTinted {
   transition:
-    transform var(--duration-modal) var(--ease-apple),
-    background 320ms var(--ease-apple),
-    border-color 320ms var(--ease-apple);
+    transform var(--duration-modal) var(--ease-sail),
+    background 320ms var(--ease-sail),
+    border-color 320ms var(--ease-sail);
 }
 .drawerTinted.listItem_claude {
   background: linear-gradient(180deg, rgba(204, 120, 92, 0.22) 0%, rgba(204, 120, 92, 0.10) 100%), rgba(8, 14, 28, 0.9);
@@ -104,7 +104,7 @@
   border: none;
   cursor: pointer;
   padding: 4px 0;
-  transition: color 200ms var(--ease-apple);
+  transition: color 200ms var(--ease-sail);
 }
 
 .back:hover { color: var(--text-primary); }
@@ -122,9 +122,9 @@
   border: 1px solid var(--glass-border);
   border-radius: 2px;
   cursor: pointer;
-  transition: color 220ms var(--ease-apple),
-              background 220ms var(--ease-apple),
-              transform 240ms var(--ease-apple);
+  transition: color 220ms var(--ease-sail),
+              background 220ms var(--ease-sail),
+              transform 240ms var(--ease-sail);
 }
 
 .close:hover {
@@ -158,10 +158,10 @@
   border: 1px solid var(--hairline);
   border-radius: 2px;
   cursor: pointer;
-  transition: background 280ms var(--ease-apple),
-              border-color 280ms var(--ease-apple),
-              transform 280ms var(--ease-apple),
-              box-shadow 280ms var(--ease-apple);
+  transition: background 280ms var(--ease-sail),
+              border-color 280ms var(--ease-sail),
+              transform 280ms var(--ease-sail),
+              box-shadow 280ms var(--ease-sail);
   color: var(--text-primary);
   font-family: 'DM Sans', sans-serif;
 }
@@ -215,7 +215,7 @@
   font-size: 13px;
   color: var(--ocean-light);
   letter-spacing: 0.01em;
-  transition: transform 240ms var(--ease-apple);
+  transition: transform 240ms var(--ease-sail);
 }
 
 /* Action chips — show what the AI can actually do, not the constraints */
@@ -335,7 +335,7 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
-  animation: detail-fade 380ms var(--ease-apple);
+  animation: detail-fade 380ms var(--ease-sail);
 }
 
 @keyframes detail-fade {
@@ -498,7 +498,7 @@
   border: none;
   cursor: pointer;
   padding: 4px 8px;
-  transition: color 200ms var(--ease-apple);
+  transition: color 200ms var(--ease-sail);
 }
 
 .rejectLink:hover { color: #ff8a8a; }

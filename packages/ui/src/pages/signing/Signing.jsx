@@ -4,7 +4,7 @@ import { getChain } from '@sail/sdk/chains'
 import { sailDeployments } from '@sail/sdk/deployments'
 import { zeroAddress } from 'viem'
 import { useAccount, usePublicClient, useSignTypedData, useSwitchChain } from 'wagmi'
-import { FluidBackground, GlassCard, Sai, RevealCalldata, SailButton, BadgeRow } from '../shared'
+import { HorizonBackground, GlassCard, Sai, RevealCalldata, SailButton, BadgeRow } from '../shared'
 import PageHeader from '../shared/PageHeader'
 import shared from '../shared/shared.module.css'
 import styles from './Signing.module.css'
@@ -42,7 +42,7 @@ export default function Signing() {
 function NoPendingFlow() {
   return (
     <div className={styles.shell}>
-      <FluidBackground />
+      <HorizonBackground />
       <HeaderBar state="welcome" />
       <main className={styles.stage}>
         <div className={styles.stageInner}>
@@ -112,7 +112,7 @@ function OnboardingFlow({ onboardState, addingNetwork }) {
 
   return (
     <div className={styles.shell}>
-      <FluidBackground />
+      <HorizonBackground />
       <HeaderBar state="welcome" />
       <main className={styles.stage}>
         <div key={step} className={styles.stageInner}>
@@ -894,7 +894,7 @@ export function MandateSigningFlow({ draft, embedded = false }) {
 
   return (
     <div className={styles.shell}>
-      <FluidBackground />
+      <HorizonBackground />
       <HeaderBar state={phase === 'done' ? 'confirming' : 'review'} />
       <main className={styles.stage}>
         <div className={styles.stageInner}>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import {
   BrandMark,
-  FluidBackground,
+  HorizonBackground,
   Sai,
   SailButton,
 } from '../shared'
@@ -59,7 +59,7 @@ export default function JournalPage({ entryId, onBack }) {
   if (!entry) {
     return (
       <div className={`${shared.pageShell} ${styles.shell}`}>
-        <FluidBackground />
+        <HorizonBackground />
         <main className={styles.notFound}>
           <Sai size={48} />
           <h1 className={styles.notFoundTitle}>Activity not found</h1>
@@ -82,7 +82,7 @@ export default function JournalPage({ entryId, onBack }) {
 
   return (
     <div className={`${shared.pageShell} ${styles.shell}`}>
-      <FluidBackground />
+      <HorizonBackground />
 
       <header className={styles.header}>
         <button

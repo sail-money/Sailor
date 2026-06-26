@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAccount, useChains, useDisconnect, useSendTransaction, useSignTypedData, useSwitchChain } from 'wagmi'
-import { FluidBackground, GlassCard, Sai, SailButton, BadgeRow } from '../shared'
+import { HorizonBackground, GlassCard, Sai, SailButton, BadgeRow } from '../shared'
 import PageHeader from '../shared/PageHeader'
 import ChainIcon from '../shared/ChainIcon'
 import NotConnectedCard from '../shared/NotConnectedCard'
@@ -129,7 +129,7 @@ export default function SigningStation() {
 
   return (
     <div className={styles.shell}>
-      <FluidBackground />
+      <HorizonBackground />
 
       <PageHeader
         eyebrow="Signing Station"

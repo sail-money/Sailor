@@ -3,7 +3,7 @@ import styles from './ConfirmDestructiveModal.module.css'
 
 /**
  * Single confirmation modal for destructive actions (Reject mandate,
- * Revoke permission, Revoke mandate, etc.). Apple HIG: any irreversible or impactful
+ * Revoke permission, Revoke mandate, etc.). any irreversible or impactful
  * action must surface a confirmation step that names the action and
  * explains the consequence.
  *

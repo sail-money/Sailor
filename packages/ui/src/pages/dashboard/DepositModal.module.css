@@ -159,10 +159,10 @@
   text-align: left;
   cursor: pointer;
   transition:
-    background 240ms var(--ease-apple),
-    border-color 240ms var(--ease-apple),
-    transform 240ms var(--ease-apple),
-    box-shadow 240ms var(--ease-apple);
+    background 240ms var(--ease-sail),
+    border-color 240ms var(--ease-sail),
+    transform 240ms var(--ease-sail),
+    box-shadow 240ms var(--ease-sail);
 }
 .methodCard:hover {
   background: rgba(255, 255, 255, 0.075);
@@ -249,7 +249,7 @@
 .methodCard > svg:last-child {
   flex-shrink: 0;
   color: rgba(255, 255, 255, 0.4);
-  transition: transform 220ms var(--ease-apple), color 220ms var(--ease-apple);
+  transition: transform 220ms var(--ease-sail), color 220ms var(--ease-sail);
 }
 .methodCard:hover > svg:last-child {
   transform: translateX(2px);
@@ -336,7 +336,7 @@
 }
 .amountInput::placeholder {
   color: rgba(255, 255, 255, 0.18);
-  transition: opacity 160ms var(--ease-apple);
+  transition: opacity 160ms var(--ease-sail);
 }
 /* Hide placeholder on focus so the caret doesn't overlap the "0" */
 .amountInput:focus::placeholder { color: transparent; }
