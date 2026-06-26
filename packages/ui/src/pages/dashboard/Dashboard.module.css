@@ -66,11 +66,11 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
     0 6px 24px -12px rgba(0, 0, 0, 0.5);
   transition:
-    color 200ms var(--ease-apple),
-    background 200ms var(--ease-apple),
-    border-color 200ms var(--ease-apple),
-    box-shadow 200ms var(--ease-apple),
-    transform 200ms var(--ease-apple);
+    color 200ms var(--ease-sail),
+    background 200ms var(--ease-sail),
+    border-color 200ms var(--ease-sail),
+    box-shadow 200ms var(--ease-sail),
+    transform 200ms var(--ease-sail);
 }
 .headerSafeBtn:hover {
   color: #fff;
@@ -81,7 +81,7 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.10),
     0 12px 36px -12px rgba(0, 0, 0, 0.7);
 }
-.headerSafeBtn > svg { width: 16px; height: 16px; color: var(--text-secondary); transition: color 200ms var(--ease-apple), transform 200ms var(--ease-apple); }
+.headerSafeBtn > svg { width: 16px; height: 16px; color: var(--text-secondary); transition: color 200ms var(--ease-sail), transform 200ms var(--ease-sail); }
 .headerSafeBtn:hover > svg { color: #fff; }
 .headerSafeBtn:hover > svg:last-child { transform: translate(1px, -1px); }
 
@@ -112,11 +112,11 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
     0 6px 24px -12px rgba(25, 144, 255, 0.40);
   transition:
-    color 200ms var(--ease-apple),
-    background 200ms var(--ease-apple),
-    border-color 200ms var(--ease-apple),
-    box-shadow 200ms var(--ease-apple),
-    transform 200ms var(--ease-apple);
+    color 200ms var(--ease-sail),
+    background 200ms var(--ease-sail),
+    border-color 200ms var(--ease-sail),
+    box-shadow 200ms var(--ease-sail),
+    transform 200ms var(--ease-sail);
 }
 .headerDebank:hover {
   color: #fff;
@@ -129,7 +129,7 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.10),
     0 12px 36px -12px rgba(25, 144, 255, 0.65);
 }
-.headerDebank svg { color: var(--ocean-light); transition: color 200ms var(--ease-apple), transform 200ms var(--ease-apple); }
+.headerDebank svg { color: var(--ocean-light); transition: color 200ms var(--ease-sail), transform 200ms var(--ease-sail); }
 .headerDebank:hover svg { color: #fff; }
 .headerDebank:hover svg:last-child { transform: translate(1px, -1px); }
 /* Slightly bigger glyph + arrow to match the larger pill. */
@@ -165,8 +165,8 @@
   pointer-events: none;
   visibility: hidden;
   transition:
-    opacity 220ms var(--ease-apple),
-    transform 240ms var(--ease-apple),
+    opacity 220ms var(--ease-sail),
+    transform 240ms var(--ease-sail),
     visibility 0s linear 320ms;
   z-index: 60;
 }
@@ -187,8 +187,8 @@
   pointer-events: auto;
   transform: translateX(-50%) translateY(0);
   transition:
-    opacity 220ms var(--ease-apple),
-    transform 240ms var(--ease-apple),
+    opacity 220ms var(--ease-sail),
+    transform 240ms var(--ease-sail),
     visibility 0s linear 0s;
 }
 @media (max-width: 720px) {
@@ -205,7 +205,7 @@
   margin: 0;
   cursor: pointer;
   border-radius: 2px;
-  transition: transform 220ms var(--ease-apple), filter 220ms var(--ease-apple);
+  transition: transform 220ms var(--ease-sail), filter 220ms var(--ease-sail);
 }
 
 .brand:hover {
@@ -227,7 +227,7 @@
   gap: 10px;
 }
 
-/* ───── Apple-coded top actions pill ───── */
+/* ───── Top actions pill ───── */
 .topActionsPill {
   position: relative;
   z-index: 1;
@@ -264,7 +264,7 @@
     0 1px 0 rgba(255, 255, 255, 0.22) inset,
     0 0 28px rgba(25, 144, 255, 0.45),
     0 2px 10px rgba(0, 0, 0, 0.28);
-  transition: background 220ms var(--ease-apple), box-shadow 220ms var(--ease-apple);
+  transition: background 220ms var(--ease-sail), box-shadow 220ms var(--ease-sail);
 }
 .depositBtn:hover {
   background: #2a9bff;
@@ -282,7 +282,7 @@
   border: 1px solid rgba(255, 255, 255, 0.016);
   border-radius: 2px;
   cursor: pointer;
-  transition: color 200ms, background 200ms, border-color 200ms, transform 220ms var(--ease-apple);
+  transition: color 200ms, background 200ms, border-color 200ms, transform 220ms var(--ease-sail);
 }
 .notifBtn:hover {
   color: #fff;
@@ -350,9 +350,9 @@
   border-radius: 2px;
   cursor: pointer;
   transition:
-    background 220ms var(--ease-apple),
-    border-color 220ms var(--ease-apple),
-    transform 220ms var(--ease-apple);
+    background 220ms var(--ease-sail),
+    border-color 220ms var(--ease-sail),
+    transform 220ms var(--ease-sail);
 }
 .avatarBtn:hover {
   background: rgba(255, 255, 255, 0.07);
@@ -419,7 +419,7 @@
   border: none;
   border-radius: 2px;
   cursor: pointer;
-  transition: color 200ms var(--ease-apple), background 200ms var(--ease-apple);
+  transition: color 200ms var(--ease-sail), background 200ms var(--ease-sail);
 }
 .viewToggleBtn:hover { color: var(--text-secondary); }
 .viewToggleActive {
@@ -516,8 +516,8 @@
   pointer-events: none;
   visibility: hidden;
   transition:
-    opacity 220ms var(--ease-apple),
-    transform 240ms var(--ease-apple),
+    opacity 220ms var(--ease-sail),
+    transform 240ms var(--ease-sail),
     visibility 0s linear 320ms;
   z-index: 60;
 }
@@ -537,8 +537,8 @@
   pointer-events: auto;
   transform: translateX(-50%) translateY(0);
   transition:
-    opacity 220ms var(--ease-apple),
-    transform 240ms var(--ease-apple),
+    opacity 220ms var(--ease-sail),
+    transform 240ms var(--ease-sail),
     visibility 0s linear 0s;
 }
 
@@ -624,9 +624,9 @@
   border-radius: 2px;
   cursor: pointer;
   transition:
-    color 200ms var(--ease-apple),
-    background 200ms var(--ease-apple),
-    border-color 200ms var(--ease-apple);
+    color 200ms var(--ease-sail),
+    background 200ms var(--ease-sail),
+    border-color 200ms var(--ease-sail);
 }
 .tooltipCopy:hover {
   color: #fff;
@@ -653,10 +653,10 @@
   cursor: pointer;
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  transition: background 240ms var(--ease-apple),
-              border-color 240ms var(--ease-apple),
-              box-shadow 320ms var(--ease-apple),
-              transform 240ms var(--ease-apple);
+  transition: background 240ms var(--ease-sail),
+              border-color 240ms var(--ease-sail),
+              box-shadow 320ms var(--ease-sail),
+              transform 240ms var(--ease-sail);
 }
 
 .pendingChip:hover {
@@ -726,10 +726,10 @@
   cursor: pointer;
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  transition: color 240ms var(--ease-apple),
-              background 240ms var(--ease-apple),
-              border-color 240ms var(--ease-apple),
-              transform 240ms var(--ease-apple);
+  transition: color 240ms var(--ease-sail),
+              background 240ms var(--ease-sail),
+              border-color 240ms var(--ease-sail),
+              transform 240ms var(--ease-sail);
 }
 
 .profileTrigger:hover {
@@ -754,7 +754,7 @@
 
 .profileChevron {
   color: var(--text-tertiary);
-  transition: transform 240ms var(--ease-apple), color 240ms var(--ease-apple);
+  transition: transform 240ms var(--ease-sail), color 240ms var(--ease-sail);
 }
 
 .profileTrigger:hover .profileChevron {
@@ -944,7 +944,7 @@
 
 /* ── Pending mandates banner ──
    Quiet but present. Single brand-accent surface, no scrim, no shouting.
-   Replaces the previous auto-opening modal. Apple HIG: unsolicited
+   Replaces the previous auto-opening modal. unsolicited
    modals are a last resort — banners are the right register for
    "you have work waiting." */
 .pendingBanner {
@@ -967,10 +967,10 @@
     0 12px 36px -22px rgba(25, 144, 255, 0.55);
   cursor: pointer;
   transition:
-    background 260ms var(--ease-apple),
-    border-color 260ms var(--ease-apple),
-    transform 260ms var(--ease-apple),
-    box-shadow 260ms var(--ease-apple);
+    background 260ms var(--ease-sail),
+    border-color 260ms var(--ease-sail),
+    transform 260ms var(--ease-sail),
+    box-shadow 260ms var(--ease-sail);
 }
 .pendingBanner:hover {
   background:
@@ -1042,7 +1042,7 @@
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.22),
     0 8px 20px -8px rgba(25, 144, 255, 0.7);
-  transition: background 220ms var(--ease-apple), transform 220ms var(--ease-apple);
+  transition: background 220ms var(--ease-sail), transform 220ms var(--ease-sail);
   flex-shrink: 0;
 }
 .pendingBanner:hover .pendingBannerCta {
@@ -1443,9 +1443,9 @@
   background: rgba(255, 255, 255, 0.025);
   border: 1px solid var(--hairline);
   border-radius: 2px;
-  transition: border-color 220ms var(--ease-apple),
-              background 220ms var(--ease-apple),
-              transform 220ms var(--ease-apple);
+  transition: border-color 220ms var(--ease-sail),
+              background 220ms var(--ease-sail),
+              transform 220ms var(--ease-sail);
 }
 .nftCard:hover {
   background: rgba(255, 255, 255, 0.016);
@@ -1613,7 +1613,7 @@
   display: flex;
   flex-direction: column;
   gap: 22px;
-  animation: section-arrive 380ms var(--ease-apple);
+  animation: section-arrive 380ms var(--ease-sail);
 }
 
 @keyframes section-arrive {
@@ -1646,9 +1646,9 @@
   border: none;
   border-radius: 2px;
   cursor: pointer;
-  transition: color 220ms var(--ease-apple),
-              background 280ms var(--ease-apple),
-              box-shadow 280ms var(--ease-apple);
+  transition: color 220ms var(--ease-sail),
+              background 280ms var(--ease-sail),
+              box-shadow 280ms var(--ease-sail);
 }
 
 .tab:hover:not(.tabActive) {
@@ -1698,10 +1698,10 @@
   cursor: pointer;
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  transition: color 220ms var(--ease-apple),
-              background 220ms var(--ease-apple),
-              border-color 220ms var(--ease-apple),
-              transform 220ms var(--ease-apple);
+  transition: color 220ms var(--ease-sail),
+              background 220ms var(--ease-sail),
+              border-color 220ms var(--ease-sail),
+              transform 220ms var(--ease-sail);
 }
 
 .chip:hover:not(.chipActive) {
@@ -1775,10 +1775,10 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.07),
     0 22px 50px -24px rgba(0, 0, 0, 0.6),
     0 2px 10px rgba(0, 0, 0, 0.22);
-  transition: transform 380ms var(--ease-apple),
-              border-color 380ms var(--ease-apple),
-              box-shadow 380ms var(--ease-apple),
-              background 380ms var(--ease-apple);
+  transition: transform 380ms var(--ease-sail),
+              border-color 380ms var(--ease-sail),
+              box-shadow 380ms var(--ease-sail),
+              background 380ms var(--ease-sail);
 }
 
 .mCardTop {
@@ -1847,10 +1847,10 @@
   border: 1px solid var(--hairline);
   border-radius: 2px;
   cursor: pointer;
-  transition: color 200ms var(--ease-apple),
-              background 200ms var(--ease-apple),
-              border-color 200ms var(--ease-apple),
-              transform 200ms var(--ease-apple);
+  transition: color 200ms var(--ease-sail),
+              background 200ms var(--ease-sail),
+              border-color 200ms var(--ease-sail),
+              transform 200ms var(--ease-sail);
 }
 .mBtn:hover:not(:disabled) {
   color: var(--text-primary);
@@ -1913,10 +1913,10 @@
   border: 1px solid var(--hairline);
   border-radius: 2px;
   cursor: pointer;
-  transition: color 200ms var(--ease-apple),
-              background 200ms var(--ease-apple),
-              border-color 200ms var(--ease-apple),
-              transform 200ms var(--ease-apple);
+  transition: color 200ms var(--ease-sail),
+              background 200ms var(--ease-sail),
+              border-color 200ms var(--ease-sail),
+              transform 200ms var(--ease-sail);
 }
 .mOverflowBtn:hover {
   color: var(--text-primary);
@@ -1938,7 +1938,7 @@
     0 18px 40px -12px rgba(0, 0, 0, 0.75);
   display: flex;
   flex-direction: column;
-  animation: mOverflowRise 200ms var(--ease-apple);
+  animation: mOverflowRise 200ms var(--ease-sail);
 }
 @keyframes mOverflowRise {
   from { opacity: 0; transform: translateY(4px) scale(0.98); }
@@ -1959,7 +1959,7 @@
   border: none;
   border-radius: 2px;
   cursor: pointer;
-  transition: background 180ms var(--ease-apple);
+  transition: background 180ms var(--ease-sail);
 }
 .mOverflowItemDanger:hover:not(:disabled) {
   background: var(--status-revoked-bg);
@@ -1985,9 +1985,9 @@
   border-radius: 2px;
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
-  transition: transform 220ms var(--ease-apple),
-              border-color 220ms var(--ease-apple),
-              background 220ms var(--ease-apple);
+  transition: transform 220ms var(--ease-sail),
+              border-color 220ms var(--ease-sail),
+              background 220ms var(--ease-sail);
 }
 .mRow:hover {
   transform: translateY(-1px);
@@ -2236,7 +2236,7 @@
   justify-content: center;
   width: 44px;
   height: 44px;
-  transition: filter 320ms var(--ease-apple), opacity 320ms var(--ease-apple);
+  transition: filter 320ms var(--ease-sail), opacity 320ms var(--ease-sail);
 }
 
 .mascotLive {
@@ -2277,10 +2277,10 @@
   cursor: pointer;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  transition: color 320ms var(--ease-apple),
-              border-color 320ms var(--ease-apple),
-              background 320ms var(--ease-apple),
-              transform 320ms var(--ease-apple);
+  transition: color 320ms var(--ease-sail),
+              border-color 320ms var(--ease-sail),
+              background 320ms var(--ease-sail),
+              transform 320ms var(--ease-sail);
 }
 
 .newCard:hover {
@@ -2295,7 +2295,7 @@
   font-weight: 300;
   line-height: 1;
   color: var(--ocean-light);
-  transition: transform 320ms var(--ease-apple);
+  transition: transform 320ms var(--ease-sail);
 }
 .newRow .newPlus {
   font-size: 22px;
@@ -2336,9 +2336,9 @@
   border: 1px dashed rgba(255, 255, 255, 0.14);
   border-radius: 2px;
   cursor: pointer;
-  transition: color 280ms var(--ease-apple),
-              border-color 280ms var(--ease-apple),
-              background 280ms var(--ease-apple);
+  transition: color 280ms var(--ease-sail),
+              border-color 280ms var(--ease-sail),
+              background 280ms var(--ease-sail);
 }
 .newRow:hover {
   color: var(--text-primary);
@@ -2420,10 +2420,10 @@
   cursor: pointer;
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  transition: color 220ms var(--ease-apple),
-              background 220ms var(--ease-apple),
-              border-color 220ms var(--ease-apple),
-              transform 220ms var(--ease-apple);
+  transition: color 220ms var(--ease-sail),
+              background 220ms var(--ease-sail),
+              border-color 220ms var(--ease-sail),
+              transform 220ms var(--ease-sail);
 }
 
 .historyChip:hover:not(.historyChipActive) {
@@ -2497,10 +2497,10 @@
   cursor: pointer;
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  transition: color 200ms var(--ease-apple),
-              background 200ms var(--ease-apple),
-              border-color 200ms var(--ease-apple),
-              transform 200ms var(--ease-apple);
+  transition: color 200ms var(--ease-sail),
+              background 200ms var(--ease-sail),
+              border-color 200ms var(--ease-sail),
+              transform 200ms var(--ease-sail);
 }
 
 .pageNav:hover:not(:disabled) {
@@ -2531,9 +2531,9 @@
   border-radius: 2px;
   cursor: pointer;
   font-variant-numeric: tabular-nums;
-  transition: color 200ms var(--ease-apple),
-              background 200ms var(--ease-apple),
-              border-color 200ms var(--ease-apple);
+  transition: color 200ms var(--ease-sail),
+              background 200ms var(--ease-sail),
+              border-color 200ms var(--ease-sail);
 }
 
 .pageNum:hover:not(.pageNumActive) {
@@ -2599,7 +2599,7 @@
 
 .tableRow {
   color: var(--text-secondary);
-  transition: background 200ms var(--ease-apple);
+  transition: background 200ms var(--ease-sail);
 }
 
 .tableRow:hover { background: rgba(255, 255, 255, 0.025); }
@@ -2703,8 +2703,8 @@
   border: 1px solid var(--glass-border);
   border-radius: 2px;
   cursor: pointer;
-  transition: background 260ms var(--ease-apple),
-              border-color 260ms var(--ease-apple);
+  transition: background 260ms var(--ease-sail),
+              border-color 260ms var(--ease-sail);
 }
 
 .toggleKnob {
@@ -2713,9 +2713,9 @@
   height: 16px;
   background: var(--text-tertiary);
   border-radius: 50%;
-  transition: transform 320ms var(--ease-apple),
-              background 260ms var(--ease-apple),
-              box-shadow 260ms var(--ease-apple);
+  transition: transform 320ms var(--ease-sail),
+              background 260ms var(--ease-sail),
+              box-shadow 260ms var(--ease-sail);
 }
 
 .toggleOn {
@@ -2766,7 +2766,7 @@
   justify-content: center;
   padding: 24px;
   z-index: 100;
-  animation: modal-overlay-fade 360ms var(--ease-apple);
+  animation: modal-overlay-fade 360ms var(--ease-sail);
 }
 
 .modalCard {
@@ -2778,7 +2778,7 @@
   align-items: center;
   text-align: center;
   gap: 14px;
-  animation: modal-scale-in var(--duration-modal) var(--ease-apple);
+  animation: modal-scale-in var(--duration-modal) var(--ease-sail);
   transform-origin: center;
 }
 
@@ -2837,7 +2837,7 @@
 
 /* ──────────────────────────────────────────────
    Dashboard view switcher · Agents | Custom UIs
-   Apple-style segmented control. A single rounded pill holds two
+   Segmented control. A single rounded pill holds two
    buttons; the active one floats above with a soft brand-blue
    highlight so it reads like a physical toggle.
    ────────────────────────────────────────────── */
@@ -2867,7 +2867,7 @@
   border: none;
   border-radius: 2px;
   cursor: pointer;
-  transition: color 200ms var(--ease-apple), background 200ms var(--ease-apple);
+  transition: color 200ms var(--ease-sail), background 200ms var(--ease-sail);
 }
 .dashSwitcherBtn:hover { color: var(--text-secondary); }
 .dashSwitcherBtnActive {
@@ -2945,7 +2945,7 @@
   border: 1px solid var(--hairline);
   border-radius: 2px;
   cursor: pointer;
-  transition: color 180ms var(--ease-apple), background 180ms var(--ease-apple), border-color 180ms var(--ease-apple);
+  transition: color 180ms var(--ease-sail), background 180ms var(--ease-sail), border-color 180ms var(--ease-sail);
 }
 .customUIsUtilityBtn:hover {
   color: var(--text-primary);
@@ -3007,9 +3007,9 @@
   backdrop-filter: blur(28px) saturate(160%);
   -webkit-backdrop-filter: blur(28px) saturate(160%);
   transition:
-    border-color 240ms var(--ease-apple),
-    transform 240ms var(--ease-apple),
-    box-shadow 240ms var(--ease-apple);
+    border-color 240ms var(--ease-sail),
+    transform 240ms var(--ease-sail),
+    box-shadow 240ms var(--ease-sail);
 }
 .flowStep:hover {
   transform: translateY(-1px);
@@ -3054,7 +3054,7 @@
   border: 1px solid var(--hairline);
   border-radius: 50%;
   font-variant-numeric: tabular-nums;
-  transition: color 200ms var(--ease-apple), background 200ms var(--ease-apple), border-color 200ms var(--ease-apple), box-shadow 200ms var(--ease-apple);
+  transition: color 200ms var(--ease-sail), background 200ms var(--ease-sail), border-color 200ms var(--ease-sail), box-shadow 200ms var(--ease-sail);
 }
 .flowStepBadge_active {
   color: #fff;
@@ -3090,7 +3090,7 @@
   border: 1px solid var(--hairline);
   color: var(--text-secondary);
   margin-bottom: 2px;
-  transition: color 240ms var(--ease-apple), background 240ms var(--ease-apple), border-color 240ms var(--ease-apple), transform 320ms var(--ease-apple);
+  transition: color 240ms var(--ease-sail), background 240ms var(--ease-sail), border-color 240ms var(--ease-sail), transform 320ms var(--ease-sail);
 }
 .flowStepIcon svg { width: 22px; height: 22px; }
 .flowStep_active .flowStepIcon {
@@ -3205,7 +3205,7 @@
   border: 1px solid var(--status-active-border);
   border-radius: 2px;
   cursor: pointer;
-  transition: color 200ms var(--ease-apple), background 200ms var(--ease-apple), border-color 200ms var(--ease-apple), transform 200ms var(--ease-apple);
+  transition: color 200ms var(--ease-sail), background 200ms var(--ease-sail), border-color 200ms var(--ease-sail), transform 200ms var(--ease-sail);
 }
 .flowAction:hover {
   color: #fff;
@@ -3235,7 +3235,7 @@
   border-color: rgba(25, 144, 255, 0.85);
   box-shadow: 0 10px 24px -8px rgba(25, 144, 255, 0.75);
 }
-.flowActionPrimary svg { transition: transform 200ms var(--ease-apple); }
+.flowActionPrimary svg { transition: transform 200ms var(--ease-sail); }
 .flowActionPrimary:hover svg { transform: translate(1px, -1px); }
 
 /* Step 1 preview — actual SMA + Agent names the user is about to
@@ -3250,7 +3250,7 @@
   background: rgba(0, 0, 0, 0.30);
   border: 1px solid var(--hairline);
   border-radius: 2px;
-  transition: border-color 220ms var(--ease-apple);
+  transition: border-color 220ms var(--ease-sail);
 }
 .flowPreviewDone {
   background: rgba(58, 200, 144, 0.06);
@@ -3321,7 +3321,7 @@
   border: 1px solid var(--status-active-border);
   border-radius: 2px;
   cursor: pointer;
-  transition: color 200ms var(--ease-apple), background 200ms var(--ease-apple), border-color 200ms var(--ease-apple), transform 200ms var(--ease-apple);
+  transition: color 200ms var(--ease-sail), background 200ms var(--ease-sail), border-color 200ms var(--ease-sail), transform 200ms var(--ease-sail);
 }
 .flowPreviewCopy:hover {
   color: #fff;
@@ -3420,7 +3420,7 @@
   color: inherit;
   font: inherit;
   cursor: pointer;
-  transition: background 220ms var(--ease-apple), border-color 220ms var(--ease-apple);
+  transition: background 220ms var(--ease-sail), border-color 220ms var(--ease-sail);
 }
 .uiLibItem::before {
   content: '';
@@ -3431,7 +3431,7 @@
   width: 2px;
   border-radius: 0 2px 2px 0;
   background: transparent;
-  transition: background 220ms var(--ease-apple);
+  transition: background 220ms var(--ease-sail);
 }
 .uiLibItem:hover {
   background: rgba(255, 255, 255, 0.04);
@@ -3494,7 +3494,7 @@
   border: 1px dashed rgba(255, 255, 255, 0.16);
   border-radius: 2px;
   cursor: pointer;
-  transition: color 180ms var(--ease-apple), background 180ms var(--ease-apple), border-color 180ms var(--ease-apple);
+  transition: color 180ms var(--ease-sail), background 180ms var(--ease-sail), border-color 180ms var(--ease-sail);
 }
 .customUIsLibraryAdd:hover {
   color: var(--ocean-light);
@@ -3555,9 +3555,9 @@
   border-radius: 2px;
   text-decoration: none;
   flex-shrink: 0;
-  transition: color 200ms var(--ease-apple), background 200ms var(--ease-apple), border-color 200ms var(--ease-apple);
+  transition: color 200ms var(--ease-sail), background 200ms var(--ease-sail), border-color 200ms var(--ease-sail);
 }
-.uiDetailOpen svg { transition: transform 200ms var(--ease-apple); }
+.uiDetailOpen svg { transition: transform 200ms var(--ease-sail); }
 .uiDetailOpen:hover {
   color: #fff;
   background: rgba(25, 144, 255, 0.22);
@@ -3673,12 +3673,258 @@
 /* Title row needs to host "Stop all agents" on the right alongside
    the SMA name. The agent page's .titleHeadRow lets the row wrap;
    we need a stronger flex with the destructive lever pinned right. */
+/* ── Identity card: SMA + Owner + Agent grouped together ── */
+.identityCard {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px 24px;
+  margin-bottom: 18px;
+  border-radius: 3px;
+  /* sail-card surface — fill + top bloom + hairline + soft depth */
+  background:
+    radial-gradient(120% 60% at 50% 0%, rgba(25, 144, 255, 0.06), transparent 55%),
+    #04060b;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+/* Two-column header: identity/purpose left, status chips right. */
+.identityHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.identityMain { flex: 1 1 440px; min-width: 0; }
+.identityStatus { display: flex; justify-content: flex-end; flex-shrink: 0; padding-top: 6px; }
+/* Status row — chains + agent state, right-aligned in the header. */
+.idStatusRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+/* Funds group — deposit + portfolio under one header, mirroring the Wallets
+   group's hairline divider so the card reads identity → funds → wallets. */
+.fundsGroup {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.fundsLabel {
+  display: block;
+  margin-bottom: 10px;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+/* Two equal cards side by side — deposit (in) and portfolio (review). */
+.fundsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: stretch;
+  max-width: 760px;
+}
+.fundCard {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px 18px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.10));
+  border-top-color: rgba(255, 255, 255, 0.16);
+}
+.fundCardLabel {
+  display: inline-flex;
+  align-items: center;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+/* Address row inside the deposit card — borderless (the card is the container)
+   to avoid the nested-box look; subtle fill on hover. */
+/* The SMA address carries the most weight on the card — it's where capital
+   lands — so it gets the one accent: a solid electric-blue field. */
+.fundAddr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 2px;
+  background: var(--accent-blue, #1990FF);
+  cursor: pointer;
+  text-align: left;
+  transition: background 150ms var(--ease-sail);
+}
+.fundAddr:hover { background: var(--accent-blue-bright, #4DABFF); }
+.fundAddrMono {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: #fff;
+}
+.fundAddrIcons { display: inline-flex; align-items: center; gap: 10px; color: rgba(255, 255, 255, 0.78); }
+.fundAddrIcon { display: inline-flex; align-items: center; color: inherit; transition: color 150ms var(--ease-sail); }
+.fundAddrIcon:hover { color: #fff; }
+.fundAddr svg { display: block; }
+/* "Deposit address" framing — eyebrow label + helper line around the address
+   pill so it reads as a fundable wallet, not just an identifier. */
+/* Portfolio card — the SMA holds funds, so the primary action reads like a
+   wallet entry point: big "View portfolio", DeBank as the destination, brand
+   mark on the right. */
+.portfolioCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  width: 100%;
+  padding: 16px 18px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.10));
+  border-top-color: rgba(255, 255, 255, 0.16);
+  text-decoration: none;
+  transition: border-color 150ms var(--ease-sail), background 150ms var(--ease-sail), transform 150ms var(--ease-sail);
+}
+.portfolioCard:hover {
+  background: rgba(255, 255, 255, 0.055);
+  border-color: rgba(255, 255, 255, 0.22);
+  border-top-color: rgba(255, 255, 255, 0.28);
+  transform: translateY(-1px);
+}
+.portfolioText { display: flex; flex-direction: column; gap: 5px; }
+.portfolioTitle {
+  font-family: 'Instrument Sans', 'DM Sans', sans-serif;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+.portfolioSub {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  transition: color 150ms var(--ease-sail);
+}
+.portfolioCard:hover .portfolioSub { color: var(--text-secondary); }
+.portfolioSub svg { width: 11px; height: 11px; opacity: 0.7; }
+.portfolioLogo { display: inline-flex; flex-shrink: 0; }
+/* Raster brand mark (DeBank) — slightly dimmed at rest, full on hover. */
+.portfolioImg {
+  display: block;
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  opacity: 0.85;
+  transition: opacity 150ms var(--ease-sail);
+}
+.portfolioCard:hover .portfolioImg { opacity: 1; }
+/* Wallets sub-group inside the SMA card — hairline divider + eyebrow label so
+   the identity (top) and the wallets (bottom) read as two clear tiers. */
+.idWalletsGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.idGroupLabel {
+  display: inline-flex;
+  align-items: center;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+/* One-line definition of the SMA, directly under the name. */
+.idDefn {
+  margin: 8px 0 2px;
+  max-width: 64ch;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+/* Header above the two wallets: terse label + the relationship sentence that
+   makes the Owner ⇄ Agent ⇄ account hierarchy explicit. */
+.idGroupHead {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.idRelation {
+  margin: 0;
+  max-width: 70ch;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+.idRelation strong { color: var(--text-secondary); font-weight: 600; }
+
+/* Per-chain switcher for a multi-chain SMA's mandates. */
+.chainSwitcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 16px;
+}
+.chainSwitchBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 150ms, background 150ms, color 150ms;
+}
+.chainSwitchBtn:hover { border-color: rgba(255, 255, 255, 0.20); color: var(--text-primary); }
+.chainSwitchBtnActive {
+  border-color: rgba(25, 144, 255, 0.5);
+  background: rgba(25, 144, 255, 0.10);
+  color: var(--text-primary);
+}
 .titleHeadFlex {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
+  margin-top: 0;
+}
+.titleNameGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 .titleNameBtn {
   display: inline-flex;
@@ -3690,6 +3936,101 @@
   cursor: text;
   color: inherit;
   min-width: 0;
+}
+
+/* Safe mark beside the name — the "manage account" affordance, with a hover
+   tooltip explaining the SMA is a Safe smart account. */
+.safeChip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 3px;
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.10));
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 150ms var(--ease-sail), background 150ms var(--ease-sail), color 150ms var(--ease-sail);
+}
+.safeChip:hover,
+.safeChip:focus-visible {
+  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+}
+.safeChipIcon { display: inline-flex; line-height: 0; }
+.safeChipIcon svg { display: block; width: 15px; height: 15px; }
+.safeChipPop {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: max-content;
+  max-width: 260px;
+  padding: 12px 14px;
+  border-radius: 3px;
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.14));
+  border-top-color: rgba(255, 255, 255, 0.18);
+  background: rgba(12, 18, 28, 0.97);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity 150ms var(--ease-sail), transform 150ms var(--ease-sail), visibility 150ms var(--ease-sail);
+  pointer-events: none;
+}
+/* Transparent bridge over the gap between the chip and the popover so moving
+   the cursor down doesn't drop out of the hover region before reaching the card. */
+.safeChipPop::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: 0;
+  right: 0;
+  height: 10px;
+}
+.safeChip:hover .safeChipPop,
+.safeChip:focus-within .safeChipPop {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.safeChipPopTitle {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.safeChipPopBody {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.safeChipPopLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-blue, #1990FF);
+}
+.safeChipPopLink svg { width: 11px; height: 11px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .safeChipPop { transition: none; }
 }
 .titleNameBtn svg {
   color: var(--text-tertiary);
@@ -3718,23 +4059,6 @@
 /* Bigger quick-link cards — the dashboard surfaces these at a higher
    visual altitude than the agent page does (they're the user's two
    external escape hatches: portfolio view + key custody). */
-.quickLinksLarge { gap: 14px; }
-.quickLinkLarge {
-  padding: 22px 24px;
-  gap: 18px;
-  border-radius: 2px;
-}
-.qlIconLarge {
-  width: 44px;
-  height: 44px;
-  border-radius: 2px;
-}
-.qlTitleLarge {
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: -0.005em;
-}
-
 /* ─────────────────────────────────────────────
    Dashboard canvas — wider than the agent page.
    The agent page is detail-oriented, comfortable at 880px.
@@ -3855,7 +4179,7 @@
    single View button stretches the full card width. */
 .mCardClickable {
   cursor: pointer;
-  transition: transform 220ms var(--ease-apple), box-shadow 220ms var(--ease-apple), border-color 220ms var(--ease-apple);
+  transition: transform 220ms var(--ease-sail), box-shadow 220ms var(--ease-sail), border-color 220ms var(--ease-sail);
 }
 .mCardClickable:hover {
   transform: translateY(-2px);
@@ -3950,11 +4274,6 @@
   color: #fff;
   flex-shrink: 0;
 }
-.sectionNum {
-  color: var(--accent-blue);
-  font-weight: 700;
-  letter-spacing: 0.1em;
-}
 .mandatesSectionMeta {
   font-size: 11px;
   letter-spacing: 0.12em;
@@ -3986,9 +4305,9 @@
   text-align: left;
   font-family: 'DM Sans', sans-serif;
   color: var(--text-primary);
-  transition: background 220ms var(--ease-apple, cubic-bezier(0.32, 0.72, 0, 1)),
-              border-color 220ms var(--ease-apple, cubic-bezier(0.32, 0.72, 0, 1)),
-              transform 220ms var(--ease-apple, cubic-bezier(0.32, 0.72, 0, 1));
+  transition: background 220ms var(--ease-sail, cubic-bezier(0.32, 0.72, 0, 1)),
+              border-color 220ms var(--ease-sail, cubic-bezier(0.32, 0.72, 0, 1)),
+              transform 220ms var(--ease-sail, cubic-bezier(0.32, 0.72, 0, 1));
 }
 .newMandateTile:hover {
   background:
@@ -4015,7 +4334,7 @@
   font-weight: 400;
   line-height: 1;
   flex-shrink: 0;
-  transition: background 220ms var(--ease-apple, cubic-bezier(0.32, 0.72, 0, 1));
+  transition: background 220ms var(--ease-sail, cubic-bezier(0.32, 0.72, 0, 1));
 }
 .newMandateTile:hover .newMandateTilePlus {
   background: rgba(25, 144, 255, 0.20);
@@ -4096,7 +4415,7 @@
     0 0 80px -40px rgba(25, 144, 255, 0.25);
   cursor: pointer;
   text-align: left;
-  transition: border-color 220ms var(--ease-apple), transform 220ms var(--ease-apple);
+  transition: border-color 220ms var(--ease-sail), transform 220ms var(--ease-sail);
 }
 .mandateSummary:hover {
   border-color: var(--glass-border-strong);
@@ -4303,6 +4622,7 @@
   color: var(--text-tertiary);
 }
 .mandateRevokeBtn {
+  -webkit-appearance: none;
   appearance: none;
   flex-shrink: 0;
   font: inherit;
@@ -4332,13 +4652,6 @@
 .mandateSummary:hover .mandateSummaryOpenHint { color: var(--ocean-light, #6ba3ff); }
 
 /* ────── SMA status badges (title block) ────── */
-.smaBadges {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-top: 12px;
-}
 .smaBadge {
   display: inline-flex;
   align-items: center;
@@ -4354,6 +4667,95 @@
   text-transform: capitalize;
 }
 .smaBadge svg { color: var(--text-tertiary); }
+
+/* Network selector — choose which chain the SMA view (wallets + mandates) focuses on. */
+.netSelect {
+  position: relative;
+  display: inline-flex;
+}
+.netSelectBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 10px;
+  border-radius: 2px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--text-secondary);
+  text-transform: capitalize;
+  cursor: pointer;
+  transition: border-color 140ms var(--ease-sail), color 140ms var(--ease-sail), background 140ms var(--ease-sail);
+}
+.netSelectBtn svg { color: var(--text-tertiary); }
+.netSelectBtn:hover,
+.netSelectBtn[aria-expanded='true'] {
+  border-color: rgba(255, 255, 255, 0.22);
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.04);
+}
+.netSelectChevron {
+  display: inline-flex;
+  margin-left: 1px;
+  transition: transform 140ms var(--ease-sail);
+}
+.netSelectBtn[aria-expanded='true'] .netSelectChevron { transform: rotate(180deg); }
+.netSelectMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  min-width: 180px;
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 3px;
+  border: 1px solid var(--glass-border);
+  border-top-color: rgba(255, 255, 255, 0.18);
+  background: rgba(12, 18, 28, 0.97);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  animation: netSelectIn 120ms var(--ease-sail) both;
+}
+@keyframes netSelectIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.netSelectOption {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  border: none;
+  border-radius: 2px;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-transform: capitalize;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms var(--ease-sail), color 120ms var(--ease-sail);
+}
+.netSelectOption svg { color: var(--text-tertiary); }
+.netSelectOption:hover { background: rgba(255, 255, 255, 0.06); color: var(--text-primary); }
+.netSelectOptionName { flex: 1; }
+.netSelectOptionActive { color: var(--text-primary); }
+.netSelectCheck { display: inline-flex; color: var(--accent-blue, #1990FF); }
+.netSelectCheck svg { color: var(--accent-blue, #1990FF); }
+
+@media (prefers-reduced-motion: reduce) {
+  .netSelectMenu { animation: none; }
+  .netSelectChevron { transition: none; }
+}
 .smaBadgeWarn {
   border-color: rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.016);
@@ -4456,9 +4858,10 @@
 .signersSection { margin-top: 28px; display: flex; flex-direction: column; gap: 14px; }
 .signerGrid {
   display: grid;
-  /* Three equal columns — cards size to a third of the row (room for a third
-     card), rather than stretching to fill. */
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* Fill the row: 1 card spans full width, 2 cards split it in half, a 3rd
+     (e.g. a second agent wallet) makes them shrink to thirds. auto-fit collapses
+     unused tracks so there's never a reserved empty slot. */
+  grid-template-columns: repeat(auto-fit, minmax(228px, 1fr));
   gap: 16px;
 }
 /* Collapse to 2-up on tablets and 1-up on phones so the cards never cram. */
@@ -4524,7 +4927,7 @@
      colliding with the role + Active tag. */
   flex-wrap: wrap;
   row-gap: 8px;
-  margin-bottom: 14px;
+  margin-bottom: 2px;
 }
 .signerRoleWrap {
   display: inline-flex;
@@ -4533,15 +4936,13 @@
   min-width: 0;
 }
 /* "Active" status tag, sitting right beside the role title — no square dot. */
-.activeTag {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: #1990ff;
-  padding: 2px 8px;
-  border-radius: 2px;
-  border: 1px solid rgba(25, 144, 255, 0.35);
-  background: rgba(25, 144, 255, 0.10);
+/* Right-side status zone of a wallet card header: Active indicator + balance pill. */
+.signerStatusGroup {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 .signerRole {
   font-size: 14px;
@@ -4619,6 +5020,7 @@
   align-items: center;
   gap: 8px;
   margin-top: 14px;
+  flex-wrap: wrap;
 }
 .signerAddrPill {
   display: inline-flex;
@@ -4651,6 +5053,25 @@
   transition: color 0.18s ease, border-color 0.18s ease;
 }
 .signerAddrOpen:hover { color: var(--ocean-light, #6ba3ff); border-color: var(--glass-border-strong); }
+/* Rotate keys — compact button beside the explorer link in the wallet footer. */
+.signerRotateBtnSm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 2px;
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 150ms, background 150ms, color 150ms;
+}
+.signerRotateBtnSm:hover { border-color: var(--glass-border-strong); background: rgba(255, 255, 255, 0.06); color: var(--text-primary); }
+.signerRotateBtnSm svg { flex-shrink: 0; }
 .signerTopUp {
   margin-top: 10px;
   padding: 9px 11px;
@@ -4749,7 +5170,7 @@
   display: inline-block;
   flex-shrink: 0;
   opacity: 0.6;
-  transition: transform 0.16s var(--ease-apple, ease), opacity 0.16s ease;
+  transition: transform 0.16s var(--ease-sail, ease), opacity 0.16s ease;
 }
 .agentRunningBadgeClickable:hover .agentSourceChevron { opacity: 1; }
 .agentSourceChevronOpen { transform: rotate(180deg); opacity: 1; }
@@ -4766,7 +5187,7 @@
   -webkit-backdrop-filter: var(--glass-blur-strong);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
   overflow: hidden;
-  animation: notifPanelIn 140ms var(--ease-apple, ease);
+  animation: notifPanelIn 140ms var(--ease-sail, ease);
 }
 .agentSourceRow {
   display: flex;
@@ -4807,7 +5228,7 @@
   -webkit-backdrop-filter: var(--glass-blur-strong);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5), var(--glass-inset);
   overflow: hidden;
-  animation: notifPanelIn 160ms var(--ease-apple, ease);
+  animation: notifPanelIn 160ms var(--ease-sail, ease);
 }
 @keyframes notifPanelIn {
   from { opacity: 0; transform: translateY(-6px); }
@@ -4936,6 +5357,7 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
 .activityFilterBtn {
+  -webkit-appearance: none;
   appearance: none;
   border: 0;
   background: transparent;
@@ -4948,7 +5370,7 @@
   padding: 6px 16px;
   border-radius: 2px;
   cursor: pointer;
-  transition: background 0.16s var(--ease-apple, ease), color 0.16s ease;
+  transition: background 0.16s var(--ease-sail, ease), color 0.16s ease;
 }
 .activityFilterBtn:hover { color: var(--text-primary); }
 .activityFilterBtnActive,
@@ -4983,6 +5405,7 @@
 
 /* Revoke action on an attached-mandate row. */
 .mandateRowRevoke {
+  -webkit-appearance: none;
   appearance: none;
   flex-shrink: 0;
   font: inherit;
@@ -5120,6 +5543,7 @@
 .tickPositionProto { font-size: 11px; color: rgba(255,255,255,0.3); }
 
 /* ── Fund agent button ───────────────────────────────────────────────────── */
+.signerTopUpTitle { display: block; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); margin-bottom: 2px; }
 .signerTopUpMsg { font-size: 12px; color: rgba(255,255,255,0.55); }
 .signerFundBtn {
   margin-top: 8px;
@@ -5146,20 +5570,6 @@
 
 .signerSpacer { flex: 1; }
 
-.signerRotateBtn {
-  margin-top: 8px;
-  width: 100%;
-  padding: 8px 0;
-  border-radius: 2px;
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.12));
-  background: transparent;
-  color: var(--text-secondary, rgba(255,255,255,0.7));
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 150ms, border-color 150ms, color 150ms;
-}
-.signerRotateBtn:hover { background: rgba(255,255,255,0.06); color: var(--text-primary, #fff); }
 
 /* ── Multi-chain section ──────────────────────────────────────────────────── */
 .chainSection {
