@@ -607,6 +607,13 @@ export async function attachMandate(
       { label: "Mandate signer", value: permissionSigner },
     ],
     explanation: permExplanation,
+    // Disclose the fee in the signing card so the owner sees what the agent
+    // will pay before signing. Only included when non-zero or when there is a
+    // fee to disclose (zero-fee chains pass 0 ETH, still informative).
+    registrationFee: {
+      totalEth: formatEther(fee),
+      permissionCount: 1,
+    },
     typedData,
   });
 

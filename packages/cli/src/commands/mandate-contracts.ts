@@ -611,6 +611,10 @@ async function runDeployClone(
     deadline,
   });
 
+  // Read the fee before pushing the signing request so it can be disclosed
+  // in the card before the owner signs.
+  const fee = await readPermissionRegistrationFee(publicClient, project.contracts.governance);
+
   const label = options.label ?? `${spec.label} (${options.template})`;
   say(() =>
     console.log(
@@ -630,6 +634,10 @@ async function runDeployClone(
       { label: "Mandate signer", value: permissionSigner },
       ...spec.describe(initParams),
     ],
+    registrationFee: {
+      totalEth: formatEther(fee),
+      permissionCount: 1,
+    },
     typedData,
   });
 
@@ -663,10 +671,6 @@ async function runDeployClone(
   } catch (err) {
     if ((err as Error).message.startsWith("Security:")) throw err;
   }
-
-  // Flat fee charged by the kernel on registration (0 on zero-fee chains like
-  // Unichain). One permission registered here → a single flat fee.
-  const fee = await readPermissionRegistrationFee(publicClient, project.contracts.governance);
 
   // The selective kernel's registerPermission takes a deadline; deployAndAttach
   // forwards whatever deadline the owner signed over. Conjunctive kernels (no
@@ -1166,6 +1170,10 @@ async function attachBatchToSma(
     };
   });
 
+  // Read fee before pushing the signing request so it can be disclosed in the card.
+  const flatFee = await readPermissionRegistrationFee(publicClient, project.contracts.governance);
+  const fee = flatFee * BigInt(permissions.length);
+
   const response = await channel.requestSignature({
     type: "typed-data",
     kind: "register-permission",
@@ -1178,6 +1186,11 @@ async function attachBatchToSma(
       { label: "Mandate signer", value: permissionSigner },
     ],
     permissions: permExplanations,
+    registrationFee: {
+      totalEth: formatEther(fee),
+      permissionCount: permissions.length,
+      ...(permissions.length > 1 ? { perPermissionEth: formatEther(flatFee) } : {}),
+    },
     typedData,
   });
 
@@ -1187,11 +1200,6 @@ async function attachBatchToSma(
   if (response.status !== "signature") {
     throw new Error(`Expected an EIP-712 signature response, got: ${response.status}`);
   }
-
-  // Flat fee × N (0 on the zero-fee deploys). The kernel's batch
-  // registerPermissions requires msg.value >= flat fee × n.
-  const flatFee = await readPermissionRegistrationFee(publicClient, project.contracts.governance);
-  const fee = flatFee * BigInt(permissions.length);
 
   const chain = getChainById(project.chainId);
   const walletClient = createWalletClient({

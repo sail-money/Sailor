@@ -280,6 +280,33 @@ function OperationCard({ request, chains, phase, onSign, onReject, otherActive }
         {request.type === 'transaction' && !request.to && <DetailRow label="Action" value="Deploys a new contract" mono={false} />}
       </div>
 
+      {request.registrationFee && (
+        <div style={{
+          marginTop: 4,
+          marginBottom: 4,
+          padding: '10px 12px',
+          borderRadius: 2,
+          background: 'var(--glass-bg)',
+          border: '1px solid var(--glass-border)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          gap: 8,
+        }}>
+          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Registration fee</span>
+          <span style={{ textAlign: 'right' }}>
+            <span style={{ fontSize: 14, color: 'var(--text-primary, #fff)', fontWeight: 600 }}>
+              {request.registrationFee.totalEth} ETH
+            </span>
+            {request.registrationFee.permissionCount > 1 && request.registrationFee.perPermissionEth && (
+              <span style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
+                {request.registrationFee.permissionCount} permissions × {request.registrationFee.perPermissionEth} ETH
+              </span>
+            )}
+          </span>
+        </div>
+      )}
+
       {done && (
         <div className={`${styles.banner} ${styles.ok}`}>
           Submitted —{' '}
