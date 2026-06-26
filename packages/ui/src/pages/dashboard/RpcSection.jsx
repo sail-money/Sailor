@@ -6,9 +6,15 @@ import { getOnboardState, saveConfig } from '../../data/sailorClient'
 const RPC_TIP = "An RPC is the connection your dashboard uses to read the blockchain and broadcast transactions — like a phone line to the network. Sail talks to the chain directly through it; there's no Sail server in between. A free Alchemy/Infura key (or a public endpoint) works."
 
 const CHAINS = [
+  { id: 1,     name: 'Ethereum',     kind: 'mainnet' },
   { id: 8453,  name: 'Base',         kind: 'mainnet' },
   { id: 42161, name: 'Arbitrum',     kind: 'mainnet' },
   { id: 130,   name: 'Unichain',     kind: 'mainnet' },
+  { id: 10,    name: 'Optimism',     kind: 'mainnet' },
+  { id: 56,    name: 'BNB',          kind: 'mainnet' },
+  { id: 480,   name: 'World',        kind: 'mainnet' },
+  { id: 999,   name: 'HyperEVM',     kind: 'mainnet' },
+  { id: 6342,  name: 'MegaETH',      kind: 'mainnet' },
   { id: 84532, name: 'Base Sepolia', kind: 'testnet' },
 ]
 
@@ -270,7 +276,7 @@ function ChainRow({ chainId, rpcUrl, isActive, onSaved }) {
   )
 }
 
-export default function RpcSection({ deployedChains }) {
+export default function RpcSection({ deployedChains, embedded = false }) {
   const [onboard, setOnboard] = useState(null)
 
   function load() {
@@ -295,17 +301,19 @@ export default function RpcSection({ deployedChains }) {
 
   return (
     <div className={styles.section}>
-      <div className={styles.head}>
-        <span className={styles.eyebrow}>
-          RPC / <InfoTip label="What is an RPC?">{RPC_TIP}</InfoTip>
-        </span>
-        <span className={`${styles.health} ${configuredCount > 0 ? styles.healthOk : styles.healthWarn}`}>
-          <span className={styles.healthDot} aria-hidden />
-          {configuredCount > 0
-            ? `${configuredCount} network${configuredCount > 1 ? 's' : ''} configured`
-            : 'No networks configured'}
-        </span>
-      </div>
+      {!embedded && (
+        <div className={styles.head}>
+          <span className={styles.eyebrow}>
+            RPC / <InfoTip label="What is an RPC?">{RPC_TIP}</InfoTip>
+          </span>
+          <span className={`${styles.health} ${configuredCount > 0 ? styles.healthOk : styles.healthWarn}`}>
+            <span className={styles.healthDot} aria-hidden />
+            {configuredCount > 0
+              ? `${configuredCount} network${configuredCount > 1 ? 's' : ''} configured`
+              : 'No networks configured'}
+          </span>
+        </div>
+      )}
 
       <div className={styles.chainList}>
         {chainIds.map((id) => (
