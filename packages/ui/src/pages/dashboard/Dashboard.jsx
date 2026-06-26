@@ -6,11 +6,13 @@ import { useAccount, useDisconnect } from 'wagmi'
 import { explorerAddressUrl, explorerCodeUrl as libExplorerCodeUrl, explorerTxUrl } from '../../lib/explorer'
 import {
   ChainGlyph,
+  InfoTip,
   MandateStatus,
   Sai,
   SailButton,
 } from '../shared'
 import SailBackground from '../shared/SailBackground'
+import debankIcon from '../shared/debank.png'
 import shared from '../shared/shared.module.css'
 import styles from './Dashboard.module.css'
 import agentStyles from './SharedLayout.module.css'
@@ -67,6 +69,7 @@ const SAFE_CHAIN_PREFIX = {
   unichain: 'unichain',
   optimism: 'oeth',
   polygon: 'matic',
+  binance: 'bnb',
 }
 // Maps a numeric chainId (from .sail/account.json) to the network key
 // used by the explorer/Safe URL helpers above.
@@ -77,7 +80,25 @@ const CHAIN_NAMES = {
   130: 'unichain',
   10: 'optimism',
   137: 'polygon',
+  56: 'binance',
+  480: 'world',
+  999: 'hyperevm',
+  6342: 'megaeth',
   84532: 'base sepolia',
+}
+// Proper-cased display labels for chains whose slug doesn't render cleanly under
+// CSS `text-transform: capitalize` (which only upper-cases the first letter, so
+// 'hyperevm' → 'Hyperevm'). The slug in CHAIN_NAMES stays lowercase because it's
+// also the key for the explorer/Safe lookups.
+const CHAIN_DISPLAY_NAMES = {
+  56: 'BNB',
+  480: 'World',
+  999: 'HyperEVM',
+  6342: 'MegaETH',
+}
+// User-facing chain label; falls back to the network slug for everything else.
+function chainDisplayName(chainId) {
+  return CHAIN_DISPLAY_NAMES[chainId] ?? CHAIN_NAMES[chainId]
 }
 function safeAppUrl(network, address) {
   const prefix = SAFE_CHAIN_PREFIX[network] ?? 'eth'
@@ -252,9 +273,9 @@ const BALANCE_STATUS = {
 }
 
 const SIGNER_ROLE = {
-  manager: { label: 'Agent', sub: 'Pays gas for every dispatch.' },
-  owner: { label: 'Owner', sub: 'Holds the Safe and signs mandates.' },
-  permissionSigner: { label: 'Permission signer', sub: 'Authorizes which mandates apply.' },
+  manager: { label: 'Agent', gasReason: 'Spends gas to submit every dispatch — keep it well funded.' },
+  owner: { label: 'Owner', gasReason: 'Only spends gas to deploy your SMA and register permissions.' },
+  permissionSigner: { label: 'Permission signer' },
 }
 
 /**
@@ -504,6 +525,9 @@ function SignersPanel({ overview, sma, onAddSigner, onRotateSigner }) {
       !displaySigners.some((s) => s.address?.toLowerCase() === wagmiAddress.toLowerCase())) {
     displaySigners = [...displaySigners, { role: 'owner', address: wagmiAddress, balanceEth: null, status: undefined }]
   }
+  // Owner first, then agent — matches the "owner sets the rules, agent executes" reading order.
+  const ROLE_ORDER = { owner: 0, manager: 1, permissionSigner: 2 }
+  displaySigners = [...displaySigners].sort((a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9))
 
   if (displaySigners.length === 0) {
     return (
@@ -540,12 +564,70 @@ function SignersPanel({ overview, sma, onAddSigner, onRotateSigner }) {
   )
 }
 
+function ChevronDownSm() {
+  return (
+    <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden>
+      <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+// Network selector for a multi-chain SMA — picking a chain focuses the SMA view
+// (wallets + mandates) on it by driving selectedChainId.
+function NetworkSelect({ chains, activeChainId, onSelect }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!open) return undefined
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey) }
+  }, [open])
+  const active = chains.find((c) => c.id === activeChainId) ?? chains[0]
+  return (
+    <div className={styles.netSelect} ref={ref}>
+      <button
+        type="button"
+        className={styles.netSelectBtn}
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`Network: ${active?.name}. Choose a network.`}
+      >
+        {active?.id != null && <ChainGlyph chainId={active.id} size={14} />}
+        <span className={styles.netSelectName}>{active?.name}</span>
+        <span className={styles.netSelectChevron} aria-hidden><ChevronDownSm /></span>
+      </button>
+      {open && (
+        <div className={styles.netSelectMenu} role="listbox">
+          {chains.map((c) => (
+            <button
+              key={c.name}
+              type="button"
+              role="option"
+              aria-selected={c.id === activeChainId}
+              className={`${styles.netSelectOption} ${c.id === activeChainId ? styles.netSelectOptionActive : ''}`}
+              onClick={() => { if (c.id != null) onSelect(Number(c.id)); setOpen(false) }}
+            >
+              {c.id != null && <ChainGlyph chainId={c.id} size={14} />}
+              <span className={styles.netSelectOptionName}>{c.name}</span>
+              {c.id === activeChainId && <span className={styles.netSelectCheck} aria-hidden><CheckSm /></span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSigner }) {
   const [copied, setCopied] = useState(false)
   const [fundOpen, setFundOpen] = useState(false)
   const role = signer.role === 'sma'
-    ? { label: 'SMA', sub: 'Holds your funds. Native ETH shown; tokens not counted.' }
-    : (SIGNER_ROLE[signer.role] ?? { label: signer.role, sub: '' })
+    ? { label: 'SMA' }
+    : (SIGNER_ROLE[signer.role] ?? { label: signer.role })
   const unconfigured = signer.status === 'unconfigured'
   const isLocal = signer.status === 'local'
   const isIdle = signer.status === 'idle'
@@ -588,16 +670,12 @@ function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSi
     >
       <header className={styles.signerCardHead}>
         <span className={styles.signerRoleWrap}>
-          <span className={styles.signerRole}>{role.label}</span>
-          {!balanceLoading && isActiveManager && (
-            <span className={styles.activeTag} title="Registered as this SMA's delegated signer on-chain">
-              Active
-            </span>
-          )}
+          <span className={styles.signerRole}>{role.label} gas balance</span>
         </span>
-        {/* While balances hydrate we can't vouch for a status — show a single
-            muted "Reading…" pill instead of a (possibly wrong) state badge. */}
-        {balanceLoading ? (
+        <span className={styles.signerStatusGroup}>
+          {/* While balances hydrate we can't vouch for a status — show a single
+              muted "Reading…" pill instead of a (possibly wrong) state badge. */}
+          {balanceLoading ? (
           <span className={`${styles.balancePill} ${styles.balancePillLoading}`}>
             <span className={styles.balancePillDot} aria-hidden />
             Reading…
@@ -645,7 +723,8 @@ function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSi
               </span>
             )}
           </>
-        )}
+          )}
+        </span>
       </header>
 
       <div className={styles.signerBalance}>
@@ -671,15 +750,15 @@ function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSi
           </>
         )}
       </div>
-      <p className={styles.signerSub}>
-        {unconfigured
-          ? 'No agent wallet assigned yet — create or import one to let your agent sign.'
-          : isLocal
-            ? 'Local key — not yet delegated.'
-            : isIdle
-              ? 'Known manager — not currently active on-chain.'
-              : role.sub}
-      </p>
+      {(unconfigured || isLocal || isIdle) && (
+        <p className={styles.signerSub}>
+          {unconfigured
+            ? 'No agent wallet assigned yet — create or import one to let your agent sign.'
+            : isLocal
+              ? 'Local key — not yet delegated.'
+              : 'Known manager — not currently active on-chain.'}
+        </p>
+      )}
 
       {unconfigured && (
         <SailButton fullWidth variant="secondary" onClick={onAddSigner}>
@@ -710,27 +789,27 @@ function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSi
           >
             <ArrowOutIcon />
           </a>
+          {/* Rotate sits beside the explorer link so both wallet cards stay
+              compact and uniform in height. */}
+          {canRotate && (
+            <button type="button" className={styles.signerRotateBtnSm} onClick={() => onRotateSigner()} title="Rotate agent keys">
+              <RotateIcon />
+              Rotate keys
+            </button>
+          )}
+          {signer.role === 'manager' && isIdle && onRotateSigner && (
+            <button type="button" className={styles.signerRotateBtnSm} onClick={() => onRotateSigner(signer.address)} title="Rotate to this key">
+              <RotateIcon />
+              Rotate to this
+            </button>
+          )}
         </footer>
-      )}
-
-      {/* Rotate button: on the active manager (incl. the owner-as-manager card),
-          opens the modal to pick a new manager. */}
-      {canRotate && (
-        <button type="button" className={styles.signerRotateBtn} onClick={() => onRotateSigner()}>
-          Rotate agent keys
-        </button>
-      )}
-
-      {/* On idle managers, open the modal with this address pre-selected. */}
-      {signer.role === 'manager' && isIdle && onRotateSigner && (
-        <button type="button" className={styles.signerRotateBtn} onClick={() => onRotateSigner(signer.address)}>
-          Rotate to this
-        </button>
       )}
 
       <div className={styles.signerSpacer} />
       {needsTopUp && (
         <div className={styles.signerTopUp}>
+          {role.gasReason && <span className={styles.signerTopUpTitle}>{role.gasReason}</span>}
           <span className={styles.signerTopUpMsg}>
             {isCritical ? 'Out of gas — agent is stalled.' : 'Running low — top up soon.'}
           </span>
@@ -760,7 +839,8 @@ function LiveMandateCard({ mandate, network, addressByTemplate, onRevoke }) {
   const status = mandate?.registeredOnChain ? 'active' : 'pending'
   const signed = mandate?.signedAt ? new Date(mandate.signedAt).toLocaleDateString() : ''
   const networkLabel = (() => {
-    const n = network ?? (mandate?.chainId ? CHAIN_NAMES[mandate.chainId] : null)
+    const disp = mandate?.chainId != null ? chainDisplayName(mandate.chainId) : null
+    const n = disp ?? network ?? (mandate?.chainId ? CHAIN_NAMES[mandate.chainId] : null)
     return n ? n.charAt(0).toUpperCase() + n.slice(1) : null
   })()
 
@@ -1005,7 +1085,7 @@ function AgentSourceBadge({ source, pid, pids }) {
       {open && (
         <div className={styles.agentSourcePanel}>
           {pids.map(({ chainId, pid: p }) => {
-            const chainLabel = chainId ? (CHAIN_NAMES[chainId] ?? `chain ${chainId}`) : 'unknown chain'
+            const chainLabel = chainId ? (chainDisplayName(chainId) ?? `chain ${chainId}`) : 'unknown chain'
             return (
               <div key={chainId ?? p} className={styles.agentSourceRow}>
                 <span className={styles.agentSourceChain}>{chainLabel}</span>
@@ -1021,19 +1101,20 @@ function AgentSourceBadge({ source, pid, pids }) {
 
 function ActivityChainFilter({ deployedChains, chainFilter, onChainFilterChange }) {
   if (deployedChains.length <= 1) return null
+  // Same chip style as the mandate switcher (glyph + name), kept as buttons.
   return (
-    <div className={styles.activityFilter} role="tablist" aria-label="Filter by chain" style={{ marginBottom: 14 }}>
+    <div className={styles.chainSwitcher} role="tablist" aria-label="Filter by chain" style={{ marginBottom: 14 }}>
       <button
         type="button"
         role="tab"
         aria-selected={chainFilter === 'all'}
-        className={`${styles.activityFilterBtn} ${chainFilter === 'all' ? styles.activityFilterBtnActive : ''}`}
+        className={`${styles.chainSwitchBtn} ${chainFilter === 'all' ? styles.chainSwitchBtnActive : ''}`}
         onClick={() => onChainFilterChange('all')}
       >
         All chains
       </button>
       {deployedChains.map((cid) => {
-        const name = CHAIN_NAMES[cid]
+        const name = chainDisplayName(cid)
         const label = name ? (name.charAt(0).toUpperCase() + name.slice(1)) : `Chain ${cid}`
         return (
           <button
@@ -1041,10 +1122,12 @@ function ActivityChainFilter({ deployedChains, chainFilter, onChainFilterChange 
             type="button"
             role="tab"
             aria-selected={chainFilter === String(cid)}
-            className={`${styles.activityFilterBtn} ${chainFilter === String(cid) ? styles.activityFilterBtnActive : ''}`}
+            className={`${styles.chainSwitchBtn} ${chainFilter === String(cid) ? styles.chainSwitchBtnActive : ''}`}
             onClick={() => onChainFilterChange(String(cid))}
+            title={label}
           >
-            {label}
+            <ChainGlyph chainId={cid} size={14} />
+            <span>{label}</span>
           </button>
         )
       })}
@@ -1081,7 +1164,7 @@ function LiveActivityFeed({ events, positions, network, permToChain = new Map(),
 
   const emptyLabel = [
     actorFilter !== 'all' ? actorFilter : null,
-    chainFilter !== 'all' ? (CHAIN_NAMES[Number(chainFilter)] ?? chainFilter) : null,
+    chainFilter !== 'all' ? (chainDisplayName(Number(chainFilter)) ?? chainFilter) : null,
   ].filter(Boolean).join(' · ')
 
   return (
@@ -1243,6 +1326,12 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
   // instead of waiting for its next poll — the server serves the target SMA's
   // cached snapshot instantly, so the switch feels immediate.
   const [refreshTick, setRefreshTick] = useState(0)
+  // Multi-chain: which deployed chain the SMA view (wallets + mandates) shows.
+  // null falls back to the first deployed chain.
+  const [selectedChainId, setSelectedChainId] = useState(null)
+  // Mandate section: "All chains" shows every chain's mandate at once; otherwise
+  // it follows the selected chain. Independent of the wallets' chain selector.
+  const [mandateAll, setMandateAll] = useState(false)
   const [addSignerOpen, setAddSignerOpen] = useState(false)
   const [rotateOpen, setRotateOpen] = useState(false)
   const [rotateTo, setRotateTo] = useState(null) // pre-selected manager address for rotation
@@ -1345,6 +1434,14 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
     return [...chains].filter((c) => Number.isFinite(c) && c > 0)
   })()
   const isMultiChain = deployedChains.length > 1
+  // The chain currently in view. For a single-chain SMA this is just `overview`;
+  // for multi-chain it's the switcher's selection (falling back to the first chain).
+  const activeChainId = selectedChainId != null && deployedChains.includes(Number(selectedChainId))
+    ? Number(selectedChainId)
+    : deployedChains[0]
+  const activeChainOv = isMultiChain
+    ? (chainOverviews.find((o) => Number(o.chainId) === activeChainId) ?? chainOverviews[0] ?? overview)
+    : overview
   const smaName = safeNames[activeAccount?.safe ?? 'live-sma'] ?? activeAccount?.name ?? sma?.name ?? 'My SMA'
   const currentSafeId = activeAccount?.safe ?? effectiveAccount?.safe ?? 'live-sma'
   const profileSafes = allAccounts.length > 0
@@ -1512,7 +1609,14 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                 weight, "Stop all agents" at the top-right as the
                 destructive global lever. Below: address pill (copy =
                 deposit UI) and created-date meta. */}
-            <section className={agentStyles.titleBlock}>
+            {/* ── Identity card: SMA + Owner + Agent grouped, each with an
+                info tooltip, so the three roles read as one connected unit. ── */}
+            <section className={styles.identityCard} aria-label="Account identity">
+              {/* Two-column header: identity + purpose on the left, status chips
+                  on the right — fills the wide card instead of left-stacking. */}
+              <div className={styles.identityHeader}>
+                <div className={styles.identityMain}>
+
               <div className={styles.titleHeadFlex}>
                 {editingName ? (
                   <input
@@ -1536,28 +1640,72 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                     }}
                   />
                 ) : (
-                  <button
-                    type="button"
-                    className={styles.titleNameBtn}
-                    onClick={() => { setNameInput(smaName); setEditingName(true) }}
-                    title="Click to rename"
-                  >
-                    <h1 className={agentStyles.title}>{smaName}</h1>
-                    <PencilIcon />
-                  </button>
+                  <div className={styles.titleNameGroup}>
+                    <button
+                      type="button"
+                      className={styles.titleNameBtn}
+                      onClick={() => { setNameInput(smaName); setEditingName(true) }}
+                      title="Click to rename"
+                    >
+                      <h1 className={agentStyles.title}>{smaName}</h1>
+                      <PencilIcon />
+                    </button>
+                    {/* The "manage account" action lives here as the Safe mark next
+                        to the rename pencil — hovering explains the SMA is a Safe;
+                        clicking opens it in the Safe app. */}
+                    <a
+                      className={styles.safeChip}
+                      href={safeUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      tabIndex={0}
+                      aria-label="This SMA is a Safe smart account — open it in the Safe app"
+                    >
+                      <span className={styles.safeChipIcon} aria-hidden><SafeMark /></span>
+                      <div className={styles.safeChipPop} role="tooltip">
+                        <span className={styles.safeChipPopTitle}>Safe smart account</span>
+                        <span className={styles.safeChipPopBody}>
+                          Your SMA is a self-custodial Safe — a smart-contract wallet you
+                          fully control, with the same address on every chain. Manage settings
+                          in the Safe app.
+                        </span>
+                        <span className={styles.safeChipPopLink}>Open in Safe <ArrowOutIcon /></span>
+                      </div>
+                    </a>
+                  </div>
                 )}
-                {overview?.sma && (
-                  <div className={styles.smaBadges}>
-                    {(deployedChains.length > 0
-                      ? deployedChains.map((id) => ({ id, name: CHAIN_NAMES[id] })).filter((c) => c.name)
-                      : overview.network ? [{ id: overview.chainId, name: overview.network }] : []
-                    ).map((c) => (
-                      <span key={c.name} className={styles.smaBadge}>
-                        {c.id != null && <ChainGlyph chainId={c.id} size={13} />}
-                        {c.name}
-                      </span>
-                    ))}
-                    <MandateStatus status={agentRunning ? 'active' : 'paused'} kind="agent" />
+              </div>
+
+              {/* Lead with plain language so a first-timer learns what the account
+                  IS before meeting the acronym; the formal definition lives in the ⓘ. */}
+              <p className={styles.idDefn}>
+                Your self-custodial wallet — it holds your funds, and your agent acts within the limits you set.
+              </p>
+                </div>
+                {/* Status chips, top-right, balance the identity block. */}
+                <div className={styles.identityStatus}>
+                {overview?.sma && (() => {
+                const chainList = deployedChains.length > 0
+                  ? deployedChains.map((id) => ({ id, name: chainDisplayName(id) })).filter((c) => c.name)
+                  : overview.network ? [{ id: overview.chainId, name: overview.network }] : []
+                return (
+                  <div className={styles.idStatusRow}>
+                    {chainList.length > 1 ? (
+                      // Multichain SMAs get a network selector — picking a chain
+                      // focuses the wallets + mandates on it (drives selectedChainId).
+                      <NetworkSelect
+                        chains={chainList}
+                        activeChainId={activeChainId}
+                        onSelect={setSelectedChainId}
+                      />
+                    ) : (
+                      chainList.map((c) => (
+                        <span key={c.name} className={styles.smaBadge}>
+                          {c.id != null && <ChainGlyph chainId={c.id} size={13} />}
+                          {c.name}
+                        </span>
+                      ))
+                    )}
                     {agentSource && (
                       <AgentSourceBadge
                         source={agentSource}
@@ -1566,192 +1714,212 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                       />
                     )}
                   </div>
-                )}
+                )
+              })()}
+                </div>
               </div>
 
-              <div className={agentStyles.addrRow}>
-                <button
-                  type="button"
-                  className={agentStyles.addrPill}
-                  onClick={copySma}
-                  aria-label="Copy SMA address"
-                  title={sma?.address}
-                >
-                  <span className={agentStyles.addrMono}>{truncateSma(sma?.address)}</span>
-                  <span className={agentStyles.addrIcon} aria-hidden>
-                    {copiedAddr ? <CheckSm /> : <CopyGlyph />}
-                  </span>
-                  <a
-                    href={explorerUrl(sma?.network, sma?.address)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className={agentStyles.addrOpen}
-                    onClick={(e) => e.stopPropagation()}
-                    aria-label="Open SMA on block explorer"
-                  >
-                    <ArrowOutIcon />
+              {/* Funds — deposit (money in) and portfolio (review) as two equal
+                  cards side by side, so the section uses the card's width. */}
+              <div className={styles.fundsGroup}>
+                <span className={styles.fundsLabel}>Funds</span>
+                <div className={styles.fundsGrid}>
+                  <div className={styles.fundCard}>
+                    <span className={styles.fundCardLabel}>
+                      SMA address
+                      <InfoTip label="SMA address">
+                        Send tokens here on any chain you've deployed to.
+                      </InfoTip>
+                    </span>
+                    <button
+                      type="button"
+                      className={styles.fundAddr}
+                      onClick={copySma}
+                      aria-label="Copy SMA address"
+                      title={sma?.address}
+                    >
+                      <span className={styles.fundAddrMono}>{truncateSma(sma?.address)}</span>
+                      <span className={styles.fundAddrIcons} aria-hidden>
+                        <span className={styles.fundAddrIcon}>{copiedAddr ? <CheckSm /> : <CopyGlyph />}</span>
+                        <a
+                          href={explorerUrl(sma?.network, sma?.address)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={styles.fundAddrIcon}
+                          onClick={(e) => e.stopPropagation()}
+                          aria-label="Open SMA on block explorer"
+                        >
+                          <ArrowOutIcon />
+                        </a>
+                      </span>
+                    </button>
+                  </div>
+                  <a className={styles.portfolioCard} href={debankUrl} target="_blank" rel="noreferrer">
+                    <span className={styles.portfolioText}>
+                      <span className={styles.portfolioTitle}>View portfolio</span>
+                      <span className={styles.portfolioSub}>Open DeBank <ArrowOutIcon /></span>
+                    </span>
+                    <span className={styles.portfolioLogo} aria-hidden>
+                      <img src={debankIcon} alt="" className={styles.portfolioImg} />
+                    </span>
                   </a>
-                </button>
+                </div>
               </div>
-            </section>
 
-            {/* ── Quick links ─────────────────────────────────────────
-                Bigger than on the agent page — the dashboard is where
-                most users will reach these, so they deserve presence. */}
-            <section className={`${agentStyles.quickLinks} ${styles.quickLinksLarge}`} aria-label="Quick links">
-              <a
-                className={`${agentStyles.quickLink} ${styles.quickLinkLarge}`}
-                href={debankUrl}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <span className={agentStyles.qlText}>
-                  <span className={`${agentStyles.qlTitle} ${styles.qlTitleLarge}`}>View portfolio</span>
-                  <span className={agentStyles.qlSub}>opens DeBank</span>
-                </span>
-                <span className={agentStyles.qlArrow} aria-hidden><ArrowOutIcon /></span>
-              </a>
-              <a
-                className={`${agentStyles.quickLink} ${styles.quickLinkLarge}`}
-                href={safeUrl}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <span className={agentStyles.qlText}>
-                  <span className={`${agentStyles.qlTitle} ${styles.qlTitleLarge}`}>Manage SMA</span>
-                  <span className={agentStyles.qlSub}>opens Safe</span>
-                </span>
-                <span className={agentStyles.qlArrow} aria-hidden><ArrowOutIcon /></span>
-              </a>
+              <div className={styles.idWalletsGroup}>
+                <div className={styles.idGroupHead}>
+                  <span className={styles.idGroupLabel}>
+                    Wallets
+                    <InfoTip label="How these wallets work">
+                      Two wallets act on this SMA: you — <strong>the owner</strong> — deploy it and
+                      register your permissions; your <strong>agent</strong> submits each dispatch
+                      within them, never beyond.
+                    </InfoTip>
+                  </span>
+                  <p className={styles.idRelation}>
+                    These wallets only hold gas to sign and submit transactions — your funds stay in the SMA.
+                  </p>
+                </div>
+                <SignersPanel
+                  overview={activeChainOv}
+                  sma={sma}
+                  onAddSigner={() => setAddSignerOpen(true)}
+                  onRotateSigner={activeChainOv?.kernel && activeChainOv?.sma?.address
+                    ? (addr) => {
+                        setRotateContext({
+                          sma: activeChainOv.sma.address,
+                          kernel: activeChainOv.kernel,
+                          chainId: activeChainOv.chainId,
+                          owner: activeChainOv.sma.owner,
+                          currentManager: activeChainOv.sma.manager,
+                          mandates: activeChainOv.mandates ?? [],
+                        })
+                        setRotateTo(addr ?? null)
+                        setRotateOpen(true)
+                      }
+                    : undefined}
+                />
+              </div>
             </section>
 
             {/* ── Mandates + Account Details ──────────────────────
                 Multi-chain SMAs get one section per deployed chain.
                 Single-chain SMAs get the original layout. */}
-            {isMultiChain && chainOverviews.length > 0 ? (
-              chainOverviews.map((chainOv) => {
-                const chainMandates = liveMandates.filter((m) =>
-                  (m.safe == null || m.safe.toLowerCase() === activeSafe) &&
-                  m.chainId === chainOv.chainId
+            {/* ── Your Mandates — ONE section. A multi-chain SMA filters per chain
+                with the switcher below, rather than repeating a section per chain. ── */}
+            {(() => {
+              // Build the mandate-card data for a single chain overview.
+              const buildForOverview = (ov, requireChainMatch) => {
+                const oms = ov?.mandates ?? []
+                const safeLower = ov?.sma?.address?.toLowerCase()
+                const live = liveMandates.filter((m) =>
+                  (m.safe == null || m.safe.toLowerCase() === safeLower) &&
+                  (!requireChainMatch || m.chainId === ov?.chainId)
                 )
-                return (
-                  <ChainSection
-                    key={chainOv.chainId}
-                    chainOverview={chainOv}
-                    liveMandates={chainMandates}
-                    sma={sma}
-                    onNewMandate={() => setHandoff({ variant: 'new', context: 'mandate' })}
-                    onAddSigner={() => setAddSignerOpen(true)}
-                    onRotateSigner={chainOv?.kernel && chainOv?.sma?.address
-                      ? (addr) => {
-                          setRotateContext({
-                            sma: chainOv.sma.address,
-                            kernel: chainOv.kernel,
-                            chainId: chainOv.chainId,
-                            owner: chainOv.sma.owner,
-                            currentManager: chainOv.sma.manager,
-                            mandates: chainOv.mandates ?? [],
-                          })
-                          setRotateTo(addr ?? null)
-                          setRotateOpen(true)
-                        }
-                      : undefined}
-                    onRevoke={chainOv?.kernel && chainOv?.sma?.address
-                      ? (target) => { setRevokeContext({ sma: chainOv.sma.address, kernel: chainOv.kernel, chainId: chainOv.chainId }); setRevokeTarget(target) }
-                      : undefined}
-                  />
-                )
-              })
-            ) : (
-              <>
+                const abt = new Map(oms.map((m) => [m.name ?? m.template, m.address]))
+                const perms = buildMandatePermissions(oms, live, abt)
+                return { ov, perms, abt, has: oms.length > 0 || live.length > 0 }
+              }
+              const renderCard = (b) => (
+                <LiveMandateCard
+                  key={b.ov?.chainId ?? 'single'}
+                  mandate={{
+                    chainId: b.ov?.chainId,
+                    registeredOnChain: (b.ov?.mandates?.length ?? 0) > 0,
+                    safe: b.ov?.sma?.address,
+                    permissions: b.perms,
+                  }}
+                  network={b.ov?.network ?? realNetwork}
+                  addressByTemplate={b.abt}
+                  onRevoke={b.ov?.kernel && b.ov?.sma?.address
+                    ? (target) => { setRevokeContext({ sma: b.ov.sma.address, kernel: b.ov.kernel, chainId: b.ov.chainId }); setRevokeTarget(target) }
+                    : undefined}
+                />
+              )
+
+              // Active (single) chain data — the default view.
+              const active = buildForOverview(activeChainOv, isMultiChain)
+              // All-chains data — one card per deployed chain that has a mandate.
+              const allBuilt = isMultiChain ? chainOverviews.map((ov) => buildForOverview(ov, true)).filter((b) => b.has) : []
+
+              const showAll = isMultiChain && mandateAll
+              const permCount = showAll
+                ? allBuilt.reduce((s, b) => s + b.perms.length, 0)
+                : active.perms.length
+              return (
                 <section className={styles.mandatesSection} aria-label="Your mandates">
                   <header className={styles.mandatesSectionHead}>
                     <h2 className={styles.mandatesSectionTitle}>
                       <DocGlyph />
-                      <span className={styles.sectionNum}>01 /</span>
                       Your Mandates
                     </h2>
                     <span className={styles.mandatesSectionMeta}>
-                      {overviewMandates.length > 0
-                        ? `${overviewMandates.length} permission${
-                            overviewMandates.length === 1 ? '' : 's'
-                          }${overview?.onchain ? ' · attached on-chain' : ''}`
-                        : hasLiveMandate
-                          ? `${activeLiveMandates.reduce((n, m) => n + (m.permissions ?? []).length, 0)} permission${
-                              activeLiveMandates.reduce((n, m) => n + (m.permissions ?? []).length, 0) === 1 ? '' : 's'
-                            } · live`
-                          : 'No permissions registered yet'}
+                      {permCount > 0
+                        ? `${permCount} permission${permCount === 1 ? '' : 's'}${!showAll && activeChainOv?.onchain ? ' · attached on-chain' : ''}`
+                        : 'No permissions registered yet'}
                     </span>
                   </header>
+                  {isMultiChain && (
+                    <div className={styles.chainSwitcher} role="tablist" aria-label="View mandates by chain">
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={mandateAll}
+                        className={`${styles.chainSwitchBtn} ${mandateAll ? styles.chainSwitchBtnActive : ''}`}
+                        onClick={() => setMandateAll(true)}
+                      >
+                        All chains
+                      </button>
+                      {deployedChains.map((cid) => {
+                        const nm = chainDisplayName(cid) ?? `Chain ${cid}`
+                        const label = nm.charAt(0).toUpperCase() + nm.slice(1)
+                        const isActive = !mandateAll && Number(cid) === activeChainId
+                        return (
+                          <button
+                            key={cid}
+                            type="button"
+                            role="tab"
+                            aria-selected={isActive}
+                            className={`${styles.chainSwitchBtn} ${isActive ? styles.chainSwitchBtnActive : ''}`}
+                            onClick={() => { setMandateAll(false); setSelectedChainId(Number(cid)) }}
+                            title={label}
+                          >
+                            <ChainGlyph chainId={cid} size={14} />
+                            <span>{label}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
                   <div className={styles.mandateList}>
-                    {(overviewMandates.length > 0 || hasLiveMandate) ? (() => {
-                      const addressByTemplate = new Map(overviewMandates.map((m) => [m.name ?? m.template, m.address]))
-                      // Build the mandate's permission list from the ON-CHAIN set
-                      // (source of truth) when available, enriched with local
-                      // explanation/params from mandate.json by address. This keeps
-                      // ALL registered permissions visible even when mandate.json
-                      // only records a subset (e.g. some attached via the CLI) —
-                      // the partial local file must not shadow the on-chain truth.
-                      const permissions = buildMandatePermissions(overviewMandates, activeLiveMandates, addressByTemplate)
-                      const onchainMandate = {
-                        chainId: overview?.chainId,
-                        registeredOnChain: overviewMandates.length > 0,
-                        safe: overview?.sma?.address,
-                        permissions,
-                      }
-                      return (
-                        <LiveMandateCard
-                          mandate={onchainMandate}
-                          network={overview?.network ?? realNetwork}
-                          addressByTemplate={addressByTemplate}
-                          onRevoke={overview?.kernel && overview?.sma?.address ? setRevokeTarget : undefined}
-                        />
-                      )
-                    })() : (
+                    {showAll ? (
+                      allBuilt.length > 0
+                        ? allBuilt.map(renderCard)
+                        : <NewMandateTile onClick={() => setHandoff({ variant: 'new', context: 'mandate' })} />
+                    ) : active.has ? (
+                      renderCard(active)
+                    ) : (
                       <NewMandateTile onClick={() => setHandoff({ variant: 'new', context: 'mandate' })} />
                     )}
                   </div>
                 </section>
-
-                <section className={styles.signersSection} aria-label="Accounts details">
-                  <header className={styles.mandatesSectionHead}>
-                    <h2 className={styles.mandatesSectionTitle}>
-                      <KeyGlyph />
-                      <span className={styles.sectionNum}>02 /</span>
-                      Your Wallets
-                    </h2>
-                    <span className={styles.mandatesSectionMeta}>
-                      {overview?.onchain
-                        ? 'live balances · refill when low'
-                        : 'Add RPC URL to enable balance tracking'}
-                    </span>
-                  </header>
-                  <SignersPanel
-                    overview={overview}
-                    sma={sma}
-                    onAddSigner={() => setAddSignerOpen(true)}
-                    onRotateSigner={overview?.kernel && overview?.sma?.address
-                      ? (addr) => {
-                          setRotateContext({
-                            sma: overview.sma.address,
-                            kernel: overview.kernel,
-                            chainId: overview.chainId,
-                            owner: overview.sma.owner,
-                            currentManager: overview.sma.manager,
-                            mandates: overview.mandates ?? [],
-                          })
-                          setRotateTo(addr ?? null)
-                          setRotateOpen(true)
-                        }
-                      : undefined}
-                  />
-                </section>
-              </>
-            )}
+              )
+            })()}
 
             {/* ── RPC / Network config ─────────────────────────────── */}
             <section className={agentStyles.card}>
-              <RpcSection deployedChains={deployedChains} />
+              <header className={agentStyles.cardHead}>
+                <div className={agentStyles.cardHeadText}>
+                  <h2 className={styles.mandatesSectionTitle}>
+                    <NetworkGlyph />
+                    Network RPCs
+                  </h2>
+                  <p className={agentStyles.cardSub}>
+                    The connection your dashboard uses to read chains and broadcast transactions.
+                  </p>
+                </div>
+              </header>
+              <RpcSection deployedChains={deployedChains} embedded />
             </section>
 
             {/* ── Recent activity / Decision Journal ─────────────── */}
@@ -1760,9 +1928,6 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                 <div className={agentStyles.cardHeadText}>
                   <h2 className={styles.mandatesSectionTitle}>
                     <ClockGlyph />
-                    {/* Numbered headers are a single-chain affordance; a multi-chain
-                        dashboard repeats per-chain sections, so numbering reads oddly. */}
-                    {!isMultiChain && <span className={styles.sectionNum}>03 /</span>}
                     Recent Activity
                   </h2>
                   <p className={agentStyles.cardSub}>
@@ -2097,7 +2262,7 @@ function SetupHero({ onCreate, onImport, ownerAddr, initialShowImport }) {
                   >
                     <span className={styles.importSafeAddr}>{truncateSma(s.safe)}</span>
                     <span className={styles.importSafeNet}>
-                      {CHAIN_NAMES[s.chainId] ?? `chain ${s.chainId}`}
+                      {chainDisplayName(s.chainId) ?? `chain ${s.chainId}`}
                     </span>
                   </button>
                 </li>
@@ -2320,6 +2485,22 @@ function ArrowOutIcon() {
     </svg>
   )
 }
+function RotateIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M13.2 8a5.2 5.2 0 1 1-1.5-3.66" />
+      <path d="M13.4 2.6V5.1h-2.5" />
+    </svg>
+  )
+}
+// Safe{Wallet} mark — official monochrome glyph (web3icons), tinted via currentColor.
+function SafeMark() {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+      <path d="M7.063 8.117c0-.583.472-1.055 1.055-1.055h7.76c.582 0 1.055-.472 1.055-1.055V4.055c0-.583-.473-1.055-1.055-1.055h-8.21c-.583 0-1.055.472-1.055 1.055V5.56c0 .583-.473 1.055-1.055 1.055H4.056A1.055 1.055 0 0 0 3 7.67v3.293c0 .583.475 1.031 1.058 1.031h1.951c.583 0 1.056-.472 1.056-1.055zm12.882 3.878h-1.952c-.583 0-1.055.472-1.055 1.055v2.833c0 .583-.472 1.055-1.055 1.055H8.118c-.583 0-1.055.472-1.055 1.055v1.952c0 .583.472 1.055 1.055 1.055h8.214a1.05 1.05 0 0 0 1.049-1.055v-1.566c0-.583.472-.996 1.055-.996h1.509c.582 0 1.055-.473 1.055-1.056v-3.29c0-.582-.473-1.042-1.055-1.042m-6.989-2.052h-1.874c-.61 0-1.107.496-1.107 1.107v1.874c0 .61.496 1.107 1.107 1.107h1.874c.61 0 1.107-.496 1.107-1.107V11.05c0-.61-.496-1.107-1.107-1.107" />
+    </svg>
+  )
+}
 function ArrowRightSm() {
   return (
     <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -2384,6 +2565,17 @@ function DocGlyph() {
       <path d="M4 2.5h5l3 3v8a.5.5 0 01-.5.5h-7.5a.5.5 0 01-.5-.5v-10a.5.5 0 01.5-.5z" />
       <path d="M9 2.5v3h3" />
       <path d="M5.6 9h5M5.6 11.4h5" />
+    </svg>
+  )
+}
+function NetworkGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="8" cy="8" r="2" />
+      <circle cx="3.2" cy="4" r="1.4" />
+      <circle cx="12.8" cy="4" r="1.4" />
+      <circle cx="8" cy="13.4" r="1.4" />
+      <path d="M4.4 4.9 6.4 6.6M11.6 4.9 9.6 6.6M8 10v2" />
     </svg>
   )
 }
