@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   BrandMark,
-  FluidBackground,
+  HorizonBackground,
   MandateStatus,
   Sai,
   SailButton,
@@ -155,7 +155,7 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
   if (!mandate) {
     return (
       <div className={`${shared.pageShell} ${styles.shell}`}>
-        <FluidBackground />
+        <HorizonBackground />
         <main className={styles.notFound}>
           <Sai size={48} />
           <h1 className={styles.notFoundTitle}>Mandate not found</h1>
@@ -171,7 +171,7 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
 
   return (
     <div className={`${shared.pageShell} ${styles.shell}`}>
-      <FluidBackground />
+      <HorizonBackground />
 
       <header className={styles.header}>
         <button

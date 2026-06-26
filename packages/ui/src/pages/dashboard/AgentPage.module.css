@@ -45,10 +45,10 @@
   border-radius: 2px;
   cursor: pointer;
   transition:
-    color 200ms var(--ease-apple),
-    background 200ms var(--ease-apple),
-    border-color 200ms var(--ease-apple),
-    transform 200ms var(--ease-apple);
+    color 200ms var(--ease-sail),
+    background 200ms var(--ease-sail),
+    border-color 200ms var(--ease-sail),
+    transform 200ms var(--ease-sail);
 }
 .backBtn:hover {
   color: var(--text-primary);
@@ -86,7 +86,7 @@
   letter-spacing: 0.004em;
   border-radius: 2px;
   cursor: pointer;
-  transition: background 200ms var(--ease-apple), color 200ms var(--ease-apple), border-color 200ms var(--ease-apple), transform 200ms var(--ease-apple);
+  transition: background 200ms var(--ease-sail), color 200ms var(--ease-sail), border-color 200ms var(--ease-sail), transform 200ms var(--ease-sail);
 }
 .headerPauseBtn {
   color: var(--status-warn);
@@ -129,7 +129,7 @@
   border: 1px solid var(--hairline);
   border-radius: 2px;
   cursor: pointer;
-  transition: color 200ms, background 200ms, border-color 200ms, transform 200ms var(--ease-apple);
+  transition: color 200ms, background 200ms, border-color 200ms, transform 200ms var(--ease-sail);
 }
 .headerBtn:hover:not(:disabled) {
   color: var(--text-primary);
@@ -168,10 +168,10 @@
   border-radius: 2px;
   cursor: pointer;
   transition:
-    color 200ms var(--ease-apple),
-    background 200ms var(--ease-apple),
-    border-color 200ms var(--ease-apple),
-    transform 200ms var(--ease-apple);
+    color 200ms var(--ease-sail),
+    background 200ms var(--ease-sail),
+    border-color 200ms var(--ease-sail),
+    transform 200ms var(--ease-sail);
 }
 .editBtnProvider:hover:not(:disabled) {
   background: color-mix(in srgb, var(--p-bg) 85%, white 6%);
@@ -250,7 +250,7 @@
   /* overflow visible so the L-curve connector that sits at left:-28px
      isn't clipped by the rounded card border. */
   overflow: visible;
-  transition: border-color 240ms var(--ease-apple), box-shadow 240ms var(--ease-apple);
+  transition: border-color 240ms var(--ease-sail), box-shadow 240ms var(--ease-sail);
 }
 .tierCardOpen {
   border-color: rgba(25, 144, 255, 0.22);
@@ -298,7 +298,7 @@
   color: inherit;
   font: inherit;
   cursor: pointer;
-  transition: background 180ms var(--ease-apple);
+  transition: background 180ms var(--ease-sail);
 }
 .tierCardHead:hover { background: rgba(255, 255, 255, 0.025); }
 
@@ -345,7 +345,7 @@
   border: 1px solid var(--hairline);
   border-radius: 50%;
   flex-shrink: 0;
-  transition: transform 240ms var(--ease-apple), color 180ms var(--ease-apple), background 180ms var(--ease-apple);
+  transition: transform 240ms var(--ease-sail), color 180ms var(--ease-sail), background 180ms var(--ease-sail);
 }
 .tierCardHead:hover .tierCardChevron {
   color: var(--text-primary);
@@ -358,7 +358,7 @@
   flex-direction: column;
   gap: 16px;
   padding: 4px 20px 20px;
-  animation: tierCardOpen 280ms var(--ease-apple);
+  animation: tierCardOpen 280ms var(--ease-sail);
 }
 @keyframes tierCardOpen {
   from { opacity: 0; transform: translateY(-4px); }
@@ -938,9 +938,9 @@
   border: 1px solid var(--hairline);
   border-radius: 2px;
   transition:
-    margin-left 220ms var(--ease-apple),
-    background 220ms var(--ease-apple),
-    border-color 220ms var(--ease-apple);
+    margin-left 220ms var(--ease-sail),
+    background 220ms var(--ease-sail),
+    border-color 220ms var(--ease-sail);
 }
 /* Progressive indentation — each step nests further than its parent
    so the hierarchy reads as a tree. The ChainConnector SVG (rendered
@@ -1004,7 +1004,7 @@
   border: none;
   border-radius: 2px;
   cursor: pointer;
-  transition: background 180ms var(--ease-apple), color 180ms var(--ease-apple);
+  transition: background 180ms var(--ease-sail), color 180ms var(--ease-sail);
 }
 .chainAddress:hover {
   background: rgba(255, 255, 255, 0.06);
@@ -1094,7 +1094,7 @@
   border: 1px solid var(--hairline);
   border-radius: 2px;
   cursor: pointer;
-  transition: background 200ms var(--ease-apple), border-color 200ms var(--ease-apple);
+  transition: background 200ms var(--ease-sail), border-color 200ms var(--ease-sail);
 }
 .copyAddress:hover {
   background: rgba(255, 255, 255, 0.07);
@@ -1125,7 +1125,7 @@
   border: 1px solid var(--status-active-border);
   border-radius: 2px;
   text-decoration: none;
-  transition: background 200ms var(--ease-apple), border-color 200ms var(--ease-apple), color 200ms var(--ease-apple);
+  transition: background 200ms var(--ease-sail), border-color 200ms var(--ease-sail), color 200ms var(--ease-sail);
 }
 .identityLink:hover {
   color: #fff;
@@ -1193,7 +1193,7 @@
   border: 1px solid var(--status-warn-border);
   border-radius: 2px;
   cursor: pointer;
-  transition: background 200ms var(--ease-apple), color 200ms var(--ease-apple), transform 200ms var(--ease-apple);
+  transition: background 200ms var(--ease-sail), color 200ms var(--ease-sail), transform 200ms var(--ease-sail);
 }
 .pauseBtn:hover:not(:disabled) {
   background: rgba(245, 165, 36, 0.18);
@@ -1224,7 +1224,7 @@
   border: 1px solid var(--status-revoked-border);
   border-radius: 2px;
   cursor: pointer;
-  transition: background 200ms var(--ease-apple), color 200ms var(--ease-apple), transform 200ms var(--ease-apple);
+  transition: background 200ms var(--ease-sail), color 200ms var(--ease-sail), transform 200ms var(--ease-sail);
 }
 .revokeBtn:hover:not(:disabled) {
   background: rgba(229, 72, 77, 0.18);
@@ -1336,7 +1336,7 @@
   background: rgba(255, 255, 255, 0.025);
   border: 1px solid var(--hairline);
   border-radius: 2px;
-  transition: background 220ms var(--ease-apple), border-color 220ms var(--ease-apple);
+  transition: background 220ms var(--ease-sail), border-color 220ms var(--ease-sail);
 }
 .hierTier_depth_0 { margin-left: 0; }
 .hierTier_depth_1 { margin-left: 16px; }
@@ -1501,7 +1501,7 @@
   border: 1px solid var(--hairline);
   border-radius: 2px;
   cursor: pointer;
-  transition: color 180ms var(--ease-apple), background 180ms var(--ease-apple), border-color 180ms var(--ease-apple);
+  transition: color 180ms var(--ease-sail), background 180ms var(--ease-sail), border-color 180ms var(--ease-sail);
 }
 .hierTierAddress:hover {
   background: rgba(255, 255, 255, 0.07);
@@ -1566,7 +1566,7 @@
   border: 1px solid var(--status-active-border);
   border-radius: 2px;
   text-decoration: none;
-  transition: background 200ms var(--ease-apple), color 200ms var(--ease-apple), border-color 200ms var(--ease-apple);
+  transition: background 200ms var(--ease-sail), color 200ms var(--ease-sail), border-color 200ms var(--ease-sail);
 }
 .sectionLink:hover {
   color: #fff;
@@ -1595,7 +1595,7 @@
   color: inherit;
   font: inherit;
   text-align: left;
-  transition: background 180ms var(--ease-apple);
+  transition: background 180ms var(--ease-sail);
 }
 .collapsibleTrigger:hover {
   background: rgba(255, 255, 255, 0.025);
@@ -1615,7 +1615,7 @@
   border: 1px solid var(--hairline);
   border-radius: 50%;
   flex-shrink: 0;
-  transition: transform 240ms var(--ease-apple), color 180ms var(--ease-apple), background 180ms var(--ease-apple);
+  transition: transform 240ms var(--ease-sail), color 180ms var(--ease-sail), background 180ms var(--ease-sail);
 }
 .collapsibleTrigger:hover .collapsibleChevron {
   color: var(--text-primary);
@@ -1667,7 +1667,7 @@
   border: 1px solid var(--hairline-strong);
   border-radius: 50%;
   cursor: help;
-  transition: color 180ms var(--ease-apple), background 180ms var(--ease-apple), border-color 180ms var(--ease-apple);
+  transition: color 180ms var(--ease-sail), background 180ms var(--ease-sail), border-color 180ms var(--ease-sail);
 }
 .sectionTitleHint:hover {
   color: var(--ocean-light);
@@ -1834,10 +1834,10 @@
   cursor: pointer;
   flex-shrink: 0;
   transition:
-    color 200ms var(--ease-apple),
-    background 200ms var(--ease-apple),
-    border-color 200ms var(--ease-apple),
-    transform 200ms var(--ease-apple);
+    color 200ms var(--ease-sail),
+    background 200ms var(--ease-sail),
+    border-color 200ms var(--ease-sail),
+    transform 200ms var(--ease-sail);
 }
 .specViewBtn:hover {
   color: var(--ocean-light);
@@ -2318,7 +2318,7 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
 }
-.linkOut svg { opacity: 0.85; transition: opacity 180ms, transform 180ms var(--ease-apple); }
+.linkOut svg { opacity: 0.85; transition: opacity 180ms, transform 180ms var(--ease-sail); }
 .linkOut:hover svg { opacity: 1; transform: translate(1px, -1px); }
 .linkOut:hover { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
 
@@ -2381,7 +2381,7 @@
   background: rgba(255, 255, 255, 0.035);
   border: 1px solid var(--hairline);
   border-radius: 2px;
-  transition: background 200ms var(--ease-apple), border-color 200ms var(--ease-apple);
+  transition: background 200ms var(--ease-sail), border-color 200ms var(--ease-sail);
 }
 .pageRow:hover {
   background: rgba(255, 255, 255, 0.07);
@@ -2436,7 +2436,7 @@
   border: 1px solid var(--status-active-border);
   border-radius: 2px;
   text-decoration: none;
-  transition: background 200ms var(--ease-apple), color 200ms var(--ease-apple);
+  transition: background 200ms var(--ease-sail), color 200ms var(--ease-sail);
 }
 .pageOpen:hover {
   color: #fff;
@@ -2590,7 +2590,7 @@
   border: 1px solid var(--hairline);
   border-radius: 2px;
   cursor: pointer;
-  transition: background 200ms var(--ease-apple), border-color 200ms var(--ease-apple), transform 200ms var(--ease-apple);
+  transition: background 200ms var(--ease-sail), border-color 200ms var(--ease-sail), transform 200ms var(--ease-sail);
 }
 .runRow:hover {
   background: rgba(255, 255, 255, 0.06);
@@ -2649,7 +2649,7 @@
   -webkit-backdrop-filter: var(--scrim-modal-blur);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 320ms var(--ease-apple);
+  transition: opacity 320ms var(--ease-sail);
 }
 .drawerScrimOpen { opacity: 1; pointer-events: auto; }
 .drawer {
@@ -2667,7 +2667,7 @@
   border-left: 1px solid var(--glass-border-strong);
   box-shadow: -32px 0 80px rgba(0, 0, 0, 0.55);
   transform: translateX(105%);
-  transition: transform var(--duration-modal) var(--ease-apple);
+  transition: transform var(--duration-modal) var(--ease-sail);
 }
 .drawerOpen { transform: translateX(0); }
 .drawerHead {
@@ -2703,7 +2703,7 @@
   border: 1px solid var(--hairline);
   border-radius: 50%;
   cursor: pointer;
-  transition: color 200ms, background 200ms, border-color 200ms, transform 240ms var(--ease-apple);
+  transition: color 200ms, background 200ms, border-color 200ms, transform 240ms var(--ease-sail);
 }
 .drawerClose:hover {
   color: var(--text-primary);
@@ -2754,7 +2754,7 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12.5px;
 }
-.drawerLink svg { opacity: 0.85; transition: opacity 180ms, transform 180ms var(--ease-apple); }
+.drawerLink svg { opacity: 0.85; transition: opacity 180ms, transform 180ms var(--ease-sail); }
 .drawerLink:hover svg { opacity: 1; transform: translate(1px, -1px); }
 .drawerLink:hover { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
 .drawerStatus {

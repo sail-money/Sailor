@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   BrandMark,
-  FluidBackground,
+  HorizonBackground,
   MandateStatus,
   Sai,
   SailButton,
@@ -72,7 +72,7 @@ export default function AgentPage({ agentId, onBack, onEdit, onRevoke }) {
   if (!mandate) {
     return (
       <div className={`${shared.pageShell} ${styles.shell}`}>
-        <FluidBackground />
+        <HorizonBackground />
         <main className={styles.notFound}>
           <Sai size={48} />
           <h1 className={styles.notFoundTitle}>Agent not found</h1>
@@ -93,7 +93,7 @@ export default function AgentPage({ agentId, onBack, onEdit, onRevoke }) {
 
   return (
     <div className={`${shared.pageShell} ${styles.shell}`}>
-      <FluidBackground />
+      <HorizonBackground />
 
       <header className={styles.header}>
         <button

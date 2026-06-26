@@ -303,7 +303,7 @@
   border: 1px solid var(--status-active-border);
   border-radius: 2px;
   cursor: pointer;
-  transition: background 200ms var(--ease-apple), border-color 200ms var(--ease-apple), color 200ms var(--ease-apple);
+  transition: background 200ms var(--ease-sail), border-color 200ms var(--ease-sail), color 200ms var(--ease-sail);
 }
 .netSelectBtn:hover,
 .netSelectBtnOpen {
@@ -339,7 +339,7 @@
 .netSelectCaret {
   color: currentColor;
   opacity: 0.7;
-  transition: transform 200ms var(--ease-apple);
+  transition: transform 200ms var(--ease-sail);
 }
 .netSelectCaretOpen { transform: rotate(180deg); }
 
@@ -359,7 +359,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: netMenuRise 200ms var(--ease-apple);
+  animation: netMenuRise 200ms var(--ease-sail);
 }
 /* Menu header: shows the current selection count plus a Reset link. */
 .netSelectMenuHeader {
@@ -389,7 +389,7 @@
   padding: 2px 6px;
   border-radius: 2px;
   cursor: pointer;
-  transition: color 180ms var(--ease-apple), background 180ms var(--ease-apple);
+  transition: color 180ms var(--ease-sail), background 180ms var(--ease-sail);
 }
 .netSelectMenuLink:hover {
   color: #fff;
@@ -425,7 +425,7 @@
   border: none;
   border-radius: 2px;
   cursor: pointer;
-  transition: background 160ms var(--ease-apple);
+  transition: background 160ms var(--ease-sail);
 }
 .netSelectOption:hover {
   background: rgba(255, 255, 255, 0.05);
@@ -466,7 +466,7 @@
   border: 1.5px solid rgba(255, 255, 255, 0.20);
   background: rgba(255, 255, 255, 0.03);
   color: transparent;
-  transition: background 160ms var(--ease-apple), border-color 160ms var(--ease-apple), color 160ms var(--ease-apple);
+  transition: background 160ms var(--ease-sail), border-color 160ms var(--ease-sail), color 160ms var(--ease-sail);
 }
 .netSelectCheckboxOn {
   background: var(--accent-blue);
@@ -544,7 +544,7 @@
   letter-spacing: 0.005em;
   padding: 6px 12px;
   cursor: pointer;
-  transition: color 180ms var(--ease-apple);
+  transition: color 180ms var(--ease-sail);
 }
 .linkBtn:hover { color: var(--text-primary); }
 
@@ -567,7 +567,7 @@
   justify-content: center;
   border-radius: 50%;
   background: radial-gradient(circle, rgba(25, 144, 255, 0.20) 0%, rgba(25, 144, 255, 0) 70%);
-  transition: background 380ms var(--ease-apple);
+  transition: background 380ms var(--ease-sail);
   margin: 12px 0 4px;
 }
 .confirmDone {

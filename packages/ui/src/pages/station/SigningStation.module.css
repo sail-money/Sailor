@@ -60,7 +60,7 @@
   border-radius: 2px;
   cursor: pointer;
   flex-shrink: 0;
-  transition: color 200ms, background 200ms, transform 200ms var(--ease-apple);
+  transition: color 200ms, background 200ms, transform 200ms var(--ease-sail);
 }
 .backBtn:hover {
   color: #fff;
@@ -108,7 +108,7 @@
   border: 1px solid var(--hairline);
   border-radius: 2px;
   cursor: pointer;
-  transition: color 200ms, background 200ms, border-color 200ms, transform 220ms var(--ease-apple);
+  transition: color 200ms, background 200ms, border-color 200ms, transform 220ms var(--ease-sail);
 }
 .notifBtn:hover {
   color: #fff;
@@ -142,9 +142,9 @@
   border-radius: 2px;
   cursor: pointer;
   transition:
-    background 220ms var(--ease-apple),
-    border-color 220ms var(--ease-apple),
-    transform 220ms var(--ease-apple);
+    background 220ms var(--ease-sail),
+    border-color 220ms var(--ease-sail),
+    transform 220ms var(--ease-sail);
 }
 .avatarBtn:hover {
   background: rgba(255, 255, 255, 0.07);

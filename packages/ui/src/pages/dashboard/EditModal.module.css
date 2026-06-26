@@ -11,7 +11,7 @@
   z-index: 100;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 360ms var(--ease-apple);
+  transition: opacity 360ms var(--ease-sail);
 }
 
 .overlayOpen {
@@ -32,9 +32,9 @@
   opacity: 0;
   transform: scale(0.94) translateY(10px);
   filter: blur(6px);
-  transition: opacity var(--duration-modal) var(--ease-apple),
-              transform var(--duration-modal) var(--ease-apple),
-              filter var(--duration-modal) var(--ease-apple);
+  transition: opacity var(--duration-modal) var(--ease-sail),
+              transform var(--duration-modal) var(--ease-sail),
+              filter var(--duration-modal) var(--ease-sail);
 }
 
 .cardOpen {
@@ -63,9 +63,9 @@
   border: 1px solid var(--glass-border);
   border-radius: 2px;
   cursor: pointer;
-  transition: color 220ms var(--ease-apple),
-              background 220ms var(--ease-apple),
-              transform 240ms var(--ease-apple);
+  transition: color 220ms var(--ease-sail),
+              background 220ms var(--ease-sail),
+              transform 240ms var(--ease-sail);
 }
 
 .close:hover {
@@ -154,7 +154,7 @@
     rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(25, 144, 255, 0.18);
   border-radius: 2px;
-  transition: border-color 200ms var(--ease-apple), background 200ms var(--ease-apple), box-shadow 200ms var(--ease-apple);
+  transition: border-color 200ms var(--ease-sail), background 200ms var(--ease-sail), box-shadow 200ms var(--ease-sail);
 }
 .renameField:focus-within {
   border-color: rgba(25, 144, 255, 0.55);
@@ -199,8 +199,8 @@
   background: rgba(255, 255, 255, 0.022);
   border: 1px solid var(--hairline);
   border-radius: 2px;
-  transition: border-color 280ms var(--ease-apple),
-              background 280ms var(--ease-apple);
+  transition: border-color 280ms var(--ease-sail),
+              background 280ms var(--ease-sail);
 }
 
 .field:hover {
@@ -264,8 +264,8 @@
     0 0 14px rgba(25, 144, 255, 0.55),
     0 2px 8px rgba(0, 0, 0, 0.3);
   cursor: pointer;
-  transition: transform 220ms var(--ease-apple),
-              box-shadow 240ms var(--ease-apple);
+  transition: transform 220ms var(--ease-sail),
+              box-shadow 240ms var(--ease-sail);
 }
 .range::-webkit-slider-thumb:hover { transform: scale(1.1); }
 .range::-webkit-slider-thumb:active {
@@ -341,9 +341,9 @@
   border: 1px solid var(--hairline);
   border-radius: 2px;
   cursor: pointer;
-  transition: background 220ms var(--ease-apple),
-              border-color 220ms var(--ease-apple),
-              color 220ms var(--ease-apple);
+  transition: background 220ms var(--ease-sail),
+              border-color 220ms var(--ease-sail),
+              color 220ms var(--ease-sail);
 }
 .actionRow:hover {
   background: rgba(255, 255, 255, 0.04);
@@ -368,10 +368,10 @@
   border: 1px solid var(--glass-border);
   border-radius: 2px;
   flex: 0 0 18px;
-  transition: background 220ms var(--ease-apple),
-              border-color 220ms var(--ease-apple),
-              color 220ms var(--ease-apple),
-              box-shadow 240ms var(--ease-apple);
+  transition: background 220ms var(--ease-sail),
+              border-color 220ms var(--ease-sail),
+              color 220ms var(--ease-sail),
+              box-shadow 240ms var(--ease-sail);
 }
 
 .checkboxOn {

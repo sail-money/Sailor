@@ -20,7 +20,7 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
-/* Apple-style scrollbars — thin, transparent track, only visible on hover */
+/* Scrollbars — thin, transparent track, only visible on hover */
 * {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.10) transparent;
@@ -104,7 +104,7 @@
     --ocean-pale:         #bdd3fe;
     --ocean-foam:         #eef4ff;
 
-    /* Sui surface ladder — flat raised cards, not frosted glass. */
+    /* Surface ladder — flat raised cards, not frosted glass. */
     --surface-900:        #111215;   /* nav capsule, dropdown panels */
     --surface-800:        #1E1F24;   /* raised cards */
     --surface-850:        #161719;   /* section panels (between the two) */
@@ -160,7 +160,7 @@
 
     /* ── Type scale (product) ──
        Fixed rem ladder, ~1.2 ratio. Product UI views at consistent
-       DPI, so headings don't fluid-scale. Mono labels live on the
+       DPI, so headings do not viewport-scale. Mono labels live on the
        low end; the SMA balance + page titles on the high end. */
     --t-micro:  10.5px;  /* mono field labels, status chips */
     --t-mono:   11.5px;  /* mono section eyebrows, addresses */
@@ -205,7 +205,7 @@
     --space-9: 96px;
     --section-padding: clamp(80px, 12vh, 160px);
 
-    /* Radius scale — Sui blueprint: SHARP. Minimal rounding only.
+    /* Radius scale — Blueprint: SHARP. Minimal rounding only.
        Everything is a crisp hairline-bordered rectangle. Status
        glyphs are tiny squares (2px), not dots. No pills anywhere. */
     --r-1: 0px;    /* tags, inner chips — fully square */
@@ -224,7 +224,7 @@
 
     /* Glass tokens — single source of truth (previously declared twice)
        Surface-bg uses the LCH-perceptual midnight + a tiny white veil for
-       Apple-style "lifted glass". Strong variants are used for modals,
+       soft "lifted glass". Strong variants are used for modals,
        which must be opaque enough to fully mask the underlying surface. */
     --glass-blur: blur(28px) saturate(160%);
     --glass-blur-strong: blur(40px) saturate(200%);
@@ -249,7 +249,7 @@
     --ease-spring: cubic-bezier(0.25, 0.46, 0.45, 0.94);
     --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
     --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
-    --ease-apple: cubic-bezier(0.32, 0.72, 0, 1);
+    --ease-sail: cubic-bezier(0.32, 0.72, 0, 1);
     --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
     --duration-fast: 200ms;
     --duration-normal: 400ms;
@@ -268,7 +268,7 @@
     --gradient-deep: linear-gradient(135deg, #07080c 0%, #082d60 50%, #0060b0 100%);
 }
 
-/* Sui renders all partner / provider logos in monochrome white. We
+/* All partner / provider logos render in monochrome white. We
    grayscale every brand glyph so the page holds its single-accent
    discipline (no provider orange/coral/green leaking in). */
 img[src*="/brands/"],

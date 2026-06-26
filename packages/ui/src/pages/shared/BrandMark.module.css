@@ -1,4 +1,4 @@
-/* Sui single-accent discipline: provider marks render monochrome on
+/* Single-accent discipline: provider marks render monochrome on
    a neutral sharp-cornered tile (no Claude orange / Cursor black /
    OpenAI white substrates leaking color into the page). */
 .disc {

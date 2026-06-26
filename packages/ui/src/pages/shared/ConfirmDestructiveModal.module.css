@@ -96,11 +96,11 @@
   border-radius: 999px;
   cursor: pointer;
   transition:
-    color 200ms var(--ease-apple),
-    background 200ms var(--ease-apple),
-    border-color 200ms var(--ease-apple),
-    transform 200ms var(--ease-apple),
-    filter 200ms var(--ease-apple);
+    color 200ms var(--ease-sail),
+    background 200ms var(--ease-sail),
+    border-color 200ms var(--ease-sail),
+    transform 200ms var(--ease-sail),
+    filter 200ms var(--ease-sail);
 }
 .btnDanger {
   color: #fff;

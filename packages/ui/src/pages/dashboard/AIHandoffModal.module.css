@@ -9,7 +9,7 @@
   justify-content: center;
   padding: 24px;
   z-index: 110;
-  animation: handoff-fade 360ms var(--ease-apple);
+  animation: handoff-fade 360ms var(--ease-sail);
 }
 
 @keyframes handoff-fade {
@@ -27,7 +27,7 @@
   align-items: center;
   text-align: center;
   gap: 14px;
-  animation: handoff-scale var(--duration-modal) var(--ease-apple);
+  animation: handoff-scale var(--duration-modal) var(--ease-sail);
   transform-origin: center;
 }
 
@@ -65,9 +65,9 @@
   border: 1px solid var(--glass-border);
   border-radius: 2px;
   cursor: pointer;
-  transition: color 200ms var(--ease-apple),
-              background 200ms var(--ease-apple),
-              transform 240ms var(--ease-apple);
+  transition: color 200ms var(--ease-sail),
+              background 200ms var(--ease-sail),
+              transform 240ms var(--ease-sail);
 }
 .close:hover {
   color: var(--text-primary);
@@ -121,10 +121,10 @@
   border-radius: 2px;
   padding: 7px 14px;
   cursor: pointer;
-  transition: background 220ms var(--ease-apple),
-              color 220ms var(--ease-apple),
-              border-color 220ms var(--ease-apple),
-              transform 220ms var(--ease-apple);
+  transition: background 220ms var(--ease-sail),
+              color 220ms var(--ease-sail),
+              border-color 220ms var(--ease-sail),
+              transform 220ms var(--ease-sail);
 }
 .copyBtn:hover {
   background: rgba(25, 144, 255, 0.18);
@@ -168,7 +168,7 @@
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.22),
     0 12px 28px -16px var(--po-shadow);
-  transition: transform 200ms var(--ease-apple), box-shadow 220ms var(--ease-apple), filter 220ms var(--ease-apple);
+  transition: transform 200ms var(--ease-sail), box-shadow 220ms var(--ease-sail), filter 220ms var(--ease-sail);
 }
 .providerOpenBtn:hover {
   transform: translateY(-1px);

@@ -15,11 +15,11 @@
   /* Sharp blueprint corners — the brand identity. No pills. */
   border-radius: var(--r-2, 2px);
   cursor: pointer;
-  transition: background 240ms var(--ease-apple),
-              color 240ms var(--ease-apple),
-              border-color 240ms var(--ease-apple),
-              box-shadow 280ms var(--ease-apple),
-              transform 240ms var(--ease-apple);
+  transition: background 240ms var(--ease-sail),
+              color 240ms var(--ease-sail),
+              border-color 240ms var(--ease-sail),
+              box-shadow 280ms var(--ease-sail),
+              transform 240ms var(--ease-sail);
 }
 .btn > * { position: relative; z-index: 1; }
 

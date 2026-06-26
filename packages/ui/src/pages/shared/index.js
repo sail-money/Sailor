@@ -1,6 +1,6 @@
 export { default as ConfirmDestructiveModal } from './ConfirmDestructiveModal'
 export { default as BrandMark } from './BrandMark'
-export { default as FluidBackground } from './FluidBackground'
+export { default as HorizonBackground } from './HorizonBackground'
 export { default as GlassCard } from './GlassCard'
 export { default as Sai } from './Sai'
 export { default as ConstraintPill } from './ConstraintPill'

@@ -764,9 +764,9 @@
   color: var(--text-primary);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.16);
-  transition: background 200ms var(--ease-apple, cubic-bezier(0.32, 0.72, 0, 1)),
-              border-color 200ms var(--ease-apple, cubic-bezier(0.32, 0.72, 0, 1)),
-              transform 200ms var(--ease-apple, cubic-bezier(0.32, 0.72, 0, 1));
+  transition: background 200ms var(--ease-sail, cubic-bezier(0.32, 0.72, 0, 1)),
+              border-color 200ms var(--ease-sail, cubic-bezier(0.32, 0.72, 0, 1)),
+              transform 200ms var(--ease-sail, cubic-bezier(0.32, 0.72, 0, 1));
 }
 .editBtn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.10);

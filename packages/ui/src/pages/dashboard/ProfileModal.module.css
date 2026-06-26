@@ -133,7 +133,7 @@
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  transition: color 180ms var(--ease-apple), background 180ms var(--ease-apple);
+  transition: color 180ms var(--ease-sail), background 180ms var(--ease-sail);
 }
 .identityAddress:hover {
   background: rgba(255, 255, 255, 0.06);
@@ -167,7 +167,7 @@
   border-radius: var(--r-2, 2px);
   cursor: pointer;
   white-space: nowrap;
-  transition: color 200ms var(--ease-apple), background 200ms var(--ease-apple), border-color 200ms var(--ease-apple);
+  transition: color 200ms var(--ease-sail), background 200ms var(--ease-sail), border-color 200ms var(--ease-sail);
 }
 .settingsPill:hover {
   color: #fff;
@@ -188,7 +188,7 @@
   border-radius: 999px;
   cursor: pointer;
   white-space: nowrap;
-  transition: color 200ms, background 200ms, border-color 200ms, transform 200ms var(--ease-apple);
+  transition: color 200ms, background 200ms, border-color 200ms, transform 200ms var(--ease-sail);
 }
 .disconnectPill:hover {
   color: #ff8a8a;
@@ -255,7 +255,7 @@
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
   /* Fade content as it approaches the top/bottom edges of the
-     scrollable area — Apple-style soft horizon. */
+     scrollable area — soft horizon. */
   mask-image: linear-gradient(180deg,
     transparent 0px,
     #000 14px,
@@ -275,7 +275,7 @@
 .smaList::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.18);
   border-radius: 999px;
-  transition: background 200ms var(--ease-apple);
+  transition: background 200ms var(--ease-sail);
 }
 .smaList::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.32); }
 /* All list items keep their natural height; the parent .smaList is
@@ -294,8 +294,8 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
   overflow: hidden;
-  transition: background 220ms var(--ease-apple),
-              border-color 220ms var(--ease-apple);
+  transition: background 220ms var(--ease-sail),
+              border-color 220ms var(--ease-sail);
 }
 .smaCard:hover {
   background: rgba(255, 255, 255, 0.05);
@@ -323,7 +323,7 @@
   background: transparent;
   border: none;
   cursor: pointer;
-  transition: background 220ms var(--ease-apple);
+  transition: background 220ms var(--ease-sail);
 }
 .smaRow:hover {
   background: rgba(255, 255, 255, 0.03);
@@ -375,7 +375,7 @@
   outline: none;
   caret-color: var(--accent-blue);
   box-shadow: 0 0 0 3px rgba(25, 144, 255, 0.12);
-  transition: border-color 160ms var(--ease-apple);
+  transition: border-color 160ms var(--ease-sail);
 }
 .smaPrimaryBadge {
   display: inline-flex;
@@ -404,9 +404,9 @@
   border-radius: 6px;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 200ms var(--ease-apple),
-              color 200ms var(--ease-apple),
-              background 200ms var(--ease-apple);
+  transition: opacity 200ms var(--ease-sail),
+              color 200ms var(--ease-sail),
+              background 200ms var(--ease-sail);
 }
 .smaCard:hover .smaRename,
 .smaRename:focus-visible {
@@ -476,7 +476,7 @@
   background: rgba(255, 255, 255, 0.04);
   border-radius: 8px;
   flex-shrink: 0;
-  transition: color 180ms var(--ease-apple), background 180ms var(--ease-apple);
+  transition: color 180ms var(--ease-sail), background 180ms var(--ease-sail);
 }
 .smaRow:hover .smaCopy {
   color: var(--text-primary);
@@ -516,10 +516,10 @@
   border-radius: 12px;
   text-decoration: none;
   transition:
-    color 200ms var(--ease-apple),
-    background 200ms var(--ease-apple),
-    border-color 200ms var(--ease-apple),
-    transform 200ms var(--ease-apple);
+    color 200ms var(--ease-sail),
+    background 200ms var(--ease-sail),
+    border-color 200ms var(--ease-sail),
+    transform 200ms var(--ease-sail);
 }
 .smaSafeLink:hover {
   color: #fff;
@@ -541,7 +541,7 @@
 }
 .smaSafeLink:hover .smaSafeLinkChain { color: rgba(255, 255, 255, 0.72); }
 .smaSafeLink svg {
-  transition: transform 200ms var(--ease-apple);
+  transition: transform 200ms var(--ease-sail);
 }
 .smaSafeLink:hover svg {
   transform: translate(1px, -1px);
@@ -572,10 +572,10 @@
   border-radius: 999px;
   cursor: pointer;
   transition:
-    color 200ms var(--ease-apple),
-    background 200ms var(--ease-apple),
-    border-color 200ms var(--ease-apple),
-    transform 200ms var(--ease-apple);
+    color 200ms var(--ease-sail),
+    background 200ms var(--ease-sail),
+    border-color 200ms var(--ease-sail),
+    transform 200ms var(--ease-sail);
 }
 .smaAction:hover:not(:disabled) {
   color: var(--text-primary);
@@ -753,9 +753,9 @@
   border-radius: 14px;
   cursor: pointer;
   transition:
-    background 220ms var(--ease-apple),
-    border-color 220ms var(--ease-apple),
-    transform 220ms var(--ease-apple);
+    background 220ms var(--ease-sail),
+    border-color 220ms var(--ease-sail),
+    transform 220ms var(--ease-sail);
 }
 .acctRow:hover {
   background: rgba(255, 255, 255, 0.06);
@@ -902,7 +902,7 @@
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.22),
     0 8px 18px -8px rgba(25, 144, 255, 0.7);
-  transition: background 200ms var(--ease-apple), transform 200ms var(--ease-apple);
+  transition: background 200ms var(--ease-sail), transform 200ms var(--ease-sail);
 }
 .noSMACta:hover {
   background: #2A9BFF;
@@ -1020,7 +1020,7 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.20),
     0 2px 8px rgba(0, 0, 0, 0.20);
   color: rgba(255, 255, 255, 0.92);
-  transition: transform 220ms var(--ease-apple), background 220ms var(--ease-apple), box-shadow 220ms var(--ease-apple);
+  transition: transform 220ms var(--ease-sail), background 220ms var(--ease-sail), box-shadow 220ms var(--ease-sail);
 }
 .actionBtn:hover .actionIcon {
   transform: translateY(-1px);
@@ -1090,7 +1090,7 @@
    ────────────────────────────────────────────────────────────── */
 
 /* Panel shell — sharp corners + faint blueprint wash welling up
-   from the top, matching the FluidBackground horizon. */
+   from the top, matching the horizon background. */
 .panel {
   border-radius: var(--r-4, 3px);
   border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10));
@@ -1145,7 +1145,7 @@
 }
 
 /* Divider between EOA + SMAs becomes a dotted hairline matching the
-   Sui mega-menu rule treatment. */
+   Mega-menu rule treatment. */
 .divider {
   background: none;
   border: none;
@@ -1153,7 +1153,7 @@
   border-top: 1px dashed var(--hairline, rgba(255, 255, 255, 0.12));
 }
 
-/* Section eyebrows — full Sui-style `LABEL/` rhythm. */
+/* Section eyebrows — full `LABEL/` rhythm. */
 .eoaLabel,
 .smasHead,
 .actionsHead {
@@ -1193,10 +1193,10 @@
   border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10));
   background: var(--surface-800, #1E1F24);
   transition:
-    border-color 220ms var(--ease-apple),
-    background 220ms var(--ease-apple),
-    box-shadow 220ms var(--ease-apple),
-    transform 220ms var(--ease-apple);
+    border-color 220ms var(--ease-sail),
+    background 220ms var(--ease-sail),
+    box-shadow 220ms var(--ease-sail),
+    transform 220ms var(--ease-sail);
 }
 .smaCard:hover {
   border-color: rgba(25, 144, 255, 0.40);
@@ -1341,10 +1341,10 @@
   border: 1px solid var(--hairline);
   color: var(--text-secondary);
   transition:
-    color 220ms var(--ease-apple),
-    background 220ms var(--ease-apple),
-    border-color 220ms var(--ease-apple),
-    transform 220ms var(--ease-apple);
+    color 220ms var(--ease-sail),
+    background 220ms var(--ease-sail),
+    border-color 220ms var(--ease-sail),
+    transform 220ms var(--ease-sail);
 }
 .smaAction:hover {
   color: #fff;
@@ -1361,8 +1361,8 @@
   border: 1px dashed var(--hairline, rgba(255, 255, 255, 0.18));
   background: rgba(255, 255, 255, 0.02);
   transition:
-    border-color 220ms var(--ease-apple),
-    background 220ms var(--ease-apple);
+    border-color 220ms var(--ease-sail),
+    background 220ms var(--ease-sail);
 }
 .createSmaRow:hover,
 .emptyCreate:hover {
