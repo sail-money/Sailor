@@ -66,6 +66,8 @@
 }
 .welcomeCard { max-width: 560px; padding: 40px 44px 28px; }
 .authCard    { max-width: 420px; padding: 36px 36px 28px; }
+/* Network step holds the most content (3-up chain grid) — give it room. */
+.networkStepCard { max-width: 560px; }
 
 /* ── Card content ── */
 .cardSai {
@@ -107,6 +109,9 @@
   max-width: 36ch;
 }
 .welcomeCard .cardSub { text-align: center; }
+/* Two-tier subtitle: a bright lead line carrying the key fact, with the
+   supporting detail muted beneath it (inherits cardSub's secondary color). */
+.cardSubLead { display: block; margin-bottom: 3px; color: var(--text-primary); font-weight: 500; }
 .cardTagline {
   margin-top: 6px;
   font-size: 15px;
@@ -118,6 +123,8 @@
   line-height: 1.55;
   color: var(--text-tertiary);
   text-align: center;
+  /* Always give text beneath a button room to breathe. */
+  margin-top: 16px;
 }
 .skipLink {
   display: block;
@@ -141,6 +148,30 @@
   margin: 26px 0 18px;
 }
 .welcomeCta > * { width: 100%; max-width: 360px; align-self: center; }
+
+/* ── Connect step: what this wallet does ── */
+.connectPoints {
+  list-style: none;
+  display: flex; flex-direction: column;
+  margin: 16px 0 22px; padding: 0;
+}
+.connectPoint {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 11px 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.connectPoint:first-child { border-top: none; }
+/* 2px status square — electric for the active roles, muted grey for the limit. */
+.connectGlyph {
+  margin-top: 6px; width: 6px; height: 6px; flex-shrink: 0;
+  border-radius: 1px;
+  background: var(--accent-blue-bright, #4dabff);
+  box-shadow: 0 0 8px -1px rgba(77, 171, 255, 0.7);
+}
+.connectGlyphMuted { background: rgba(255, 255, 255, 0.32); box-shadow: none; }
+.connectBody { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.connectName { font-size: 14px; font-weight: 500; line-height: 1.3; color: rgba(255, 255, 255, 0.92); }
+.connectDetail { font-size: 12.5px; line-height: 1.45; color: var(--text-secondary); }
 
 /* ── Back button ── */
 .backBtn {
@@ -169,38 +200,13 @@
 .progressDotDone   { background: rgba(255,255,255,0.35); }
 .progressDotActive { background: rgba(255,255,255,0.75); transform: scale(1.3); }
 
-/* ── Welcome stage list (setup roadmap) ── */
-.stageList { display: flex; flex-direction: column; margin: 22px 0 24px; }
-
-/* timeline spine threaded behind the step nodes */
-.stageRows { position: relative; display: flex; flex-direction: column; gap: 6px; }
-.stageRows::before {
-  content: '';
-  position: absolute; left: 13px; top: 20px; bottom: 22px; width: 1px;
-  background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.13) 10%, rgba(255, 255, 255, 0.13) 90%, transparent);
-}
-.stageRow { position: relative; display: flex; align-items: flex-start; gap: 14px; padding: 7px 0; }
-.stageNum {
-  position: relative; z-index: 1;
-  width: 26px; height: 26px; flex-shrink: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
-  font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums;
-  color: var(--accent-blue-bright, #4dabff);
-  border: 1px solid rgba(25, 144, 255, 0.4);
-  border-radius: 2px;
-  background: linear-gradient(rgba(25, 144, 255, 0.08), rgba(25, 144, 255, 0.03)), #04060b;
-}
-.stageBody { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; padding-top: 3px; }
-.stageName { font-size: 14px; font-weight: 500; line-height: 1.3; color: rgba(255, 255, 255, 0.92); }
-
 /* ── Network selection ── */
 .networkSection { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
 .networkGroupLabel {
   font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
   color: rgba(255,255,255,0.3); padding: 4px 2px 2px;
 }
-.networkGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.networkGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .networkCard {
   display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
   padding: 10px 12px; border-radius: 2px;
@@ -220,7 +226,8 @@
 .networkCheckOn {
   border-color: var(--net-color, rgba(255,255,255,0.6));
   background: var(--net-color, rgba(255,255,255,0.4));
-  color: #fff;
+  /* ink picked per-chain so the check stays legible on light brands (white/gold) */
+  color: var(--net-ink, #fff);
   /* rationed electric glow — only on the active selection */
   box-shadow: 0 0 12px -2px var(--net-color, rgba(255,255,255,0.4));
 }
@@ -351,28 +358,6 @@
   background: rgba(251,191,36,0.07); border: 1px solid rgba(251,191,36,0.18);
   font-size: 12px; color: rgba(255,255,255,0.7); margin-bottom: 14px; line-height: 1.5;
 }
-
-/* ── Done step ── */
-.doneNextSteps {
-  display: flex; flex-direction: column; gap: 8px;
-  padding: 12px 14px; border-radius: 2px;
-  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
-  margin-bottom: 14px;
-}
-.doneNextLabel { font-size: 10px; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase; color: rgba(255,255,255,0.3); }
-.donePromptText {
-  font-size: 11px; color: rgba(255,255,255,0.55); line-height: 1.6; margin: 0;
-  white-space: pre-wrap; word-break: break-word;
-  font-family: 'SF Mono', 'Fira Code', monospace;
-  max-height: 180px; overflow-y: auto;
-}
-.doneCopyBtn {
-  align-self: flex-start; font-size: 11px; font-weight: 600;
-  color: rgba(255,255,255,0.45); background: none;
-  border: 1px solid rgba(255,255,255,0.12); border-radius: 2px;
-  padding: 3px 10px; cursor: pointer; transition: color 150ms, border-color 150ms;
-}
-.doneCopyBtn:hover { color: rgba(255,255,255,0.75); border-color: rgba(255,255,255,0.22); }
 
 
 @media (max-width: 720px) {
