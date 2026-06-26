@@ -8,7 +8,7 @@ import {
   estimateMandateRegistrationFee,
   feeShortfall,
   readPermissionRegistrationFee,
-} from "./fees.js";
+} from "../fees.js";
 
 // Run with: npx tsx --test packages/sdk/src/fees.test.ts
 
