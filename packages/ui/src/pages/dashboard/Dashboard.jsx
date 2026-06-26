@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import OnboardingWizard from '../onboarding/OnboardingWizard'
-import { MandateSigningFlow } from '../signing/Signing'
 import { ConnectButton, useConnectModal } from '@rainbow-me/rainbowkit'
 import { useAccount, useDisconnect } from 'wagmi'
 import { explorerAddressUrl, explorerCodeUrl as libExplorerCodeUrl, explorerTxUrl } from '../../lib/explorer'
@@ -381,61 +380,6 @@ function ChainSection({ chainOverview, liveMandates, sma, onNewMandate, onAddSig
         />
       </section>
     </div>
-  )
-}
-
-/**
- * The mandates (IPermission contracts) currently attached to the SMA on-chain.
- * Each row is one registered permission; the name comes from the local deploy
- * history when known, otherwise we show the address honestly rather than guess.
- */
-function AttachedMandatesPanel({ mandates, network, onchain, onRevoke }) {
-  return (
-    <div className={styles.mandateRows}>
-      {mandates.map((m) => (
-        <MandateRow key={m.address} mandate={m} network={network} onRevoke={onRevoke} />
-      ))}
-      <div className={styles.mandateRowsFoot}>
-        {onchain
-          ? `Reflecting the kernel's live permission set${network ? ` on ${network}` : ''}.`
-          : 'Last known set — on-chain confirmation unavailable.'}
-      </div>
-    </div>
-  )
-}
-
-function MandateRow({ mandate, network, onRevoke }) {
-  const name = mandate.name ?? mandate.template ?? 'Unrecognized permission'
-  const known = !!(mandate.name ?? mandate.template)
-  return (
-    <article className={`${styles.mandateRow} ${known ? '' : styles.mandateRowUnknown}`}>
-      <span className={styles.mandateRowIcon} aria-hidden>
-        {known ? <CheckMark /> : <DocGlyph />}
-      </span>
-      <span className={styles.mandateRowBody}>
-        <span className={styles.mandateRowName}>{name}</span>
-        <span className={styles.mandateRowAddr}>{mandate.address}</span>
-      </span>
-      {onRevoke && (
-        <button
-          type="button"
-          className={styles.mandateRowRevoke}
-          onClick={() => onRevoke(mandate)}
-          aria-label={`Revoke ${name}`}
-        >
-          Revoke
-        </button>
-      )}
-      <a
-        className={styles.mandateRowOpen}
-        href={explorerUrl(network ?? mandate.network, mandate.address)}
-        target="_blank"
-        rel="noreferrer"
-        aria-label="Open permission contract on block explorer"
-      >
-        <ArrowOutIcon />
-      </a>
-    </article>
   )
 }
 
@@ -1354,7 +1298,7 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
   const { mandates: liveMandates } = useSailorMandate(refreshTick)
   const { events: liveActivity } = useSailorActivity(refreshTick)
   const { positions: livePositions } = useSailorPositions(refreshTick)
-  const { running: agentRunning, pid: agentPid, pids: agentPids, source: agentSource, githubActions } = useSailorAgentStatus()
+  const { running: agentRunning, pid: agentPid, pids: agentPids, source: agentSource } = useSailorAgentStatus()
   const { pending } = useSailorPending()
 
   const [justCreatedAccount, setJustCreatedAccount] = useState(() => {
@@ -1367,7 +1311,6 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
   // starts from a clean "create or import" state instead of silently binding to
   // whatever Safe happens to be associated with the wallet.
   const [copiedAddr, setCopiedAddr] = useState(false)
-  const [stopping, setStopping] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [createSMAOpen, setCreateSMAOpen] = useState(false)
@@ -1480,21 +1423,6 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
 
   const safeUrl = sma ? safeAppUrl(sma.network, sma.address) : '#'
   const debankUrl = sma ? `https://debank.com/profile/${sma.address}` : '#'
-
-  async function stopAgent() {
-    setStopping(true)
-    try {
-      await fetch('/api/agent-status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'stop' }),
-      })
-    } catch {
-      // agent-status poll will reconcile
-    } finally {
-      setStopping(false)
-    }
-  }
 
   function copySma() {
     if (!sma) return
@@ -2141,25 +2069,6 @@ function ScanningHero() {
   )
 }
 
-/* ────────── Connect wallet hero ────────── */
-function ConnectWalletHero() {
-  return (
-    <section className={styles.noSMAHero}>
-      <div className={styles.noSMAMascot} aria-hidden>
-        <Sai size={64} animate />
-      </div>
-      <h2 className={styles.noSMATitle}>Connect your wallet</h2>
-      <p className={styles.noSMASub}>
-        Connect the owner wallet you used when running <code>sailor init</code> to view your SMA and mandates.
-      </p>
-      <div className={styles.noSMACta}>
-        <ConnectButton showBalance={false} />
-      </div>
-      <p className={styles.noSMAFine}>Self-custody. Sail never holds your keys.</p>
-    </section>
-  )
-}
-
 /* ────────── Setup hero (wallet connected, no .sail/account.json yet) ──────────
    The SMA section starts empty: the user either creates their first SMA or
    imports an existing Safe. Import discovers the Safes the connected wallet
@@ -2541,21 +2450,6 @@ function DotSm() {
   return (
     <svg viewBox="0 0 14 14" width="8" height="8" aria-hidden>
       <circle cx="7" cy="7" r="3.2" fill="currentColor" />
-    </svg>
-  )
-}
-function StopIcon() {
-  return (
-    <svg viewBox="0 0 14 14" width="11" height="11" fill="currentColor" aria-hidden>
-      <rect x="3.5" y="3.5" width="7" height="7" rx="1.2" />
-    </svg>
-  )
-}
-function ShieldGlyphSm() {
-  return (
-    <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M8 2l5 2v4.5c0 3-2.2 5.4-5 6-2.8-.6-5-3-5-6V4l5-2z" />
-      <path d="M5.8 8.2l1.7 1.7L10.4 7" />
     </svg>
   )
 }
