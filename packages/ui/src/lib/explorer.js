@@ -30,6 +30,10 @@ const EXPLORER_BY_ID = Object.fromEntries(
 const EXPLORER_SUPPLEMENT = {
   10: { name: 'Optimistic Etherscan', url: 'https://optimistic.etherscan.io' },
   137: { name: 'Polygonscan', url: 'https://polygonscan.com' },
+  56: { name: 'BscScan', url: 'https://bscscan.com' },
+  480: { name: 'Worldscan', url: 'https://worldscan.org' },
+  999: { name: 'HyperEVM Scan', url: 'https://hyperevmscan.io' }, // best-effort — confirm
+  6342: { name: 'MegaExplorer', url: 'https://megaexplorer.xyz' }, // best-effort — confirm
 }
 
 // Network name/slug (as produced by the server's CHAIN_NAMES) -> chainId.
@@ -42,6 +46,10 @@ const NAME_TO_ID = {
   unichain: 130,
   optimism: 10,
   polygon: 137,
+  binance: 56,
+  world: 480,
+  hyperevm: 999,
+  megaeth: 6342,
   'base sepolia': 84532,
   'eth sepolia': 11155111,
   'ethereum sepolia': 11155111,
