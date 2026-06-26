@@ -1,56 +1,112 @@
-import type { Address, PublicClient } from "viem";
+import { type Address, type PublicClient, formatEther } from "viem";
 import { SailGovernanceAbi } from "./abis/SailGovernance.js";
 
-function min(a: bigint, b: bigint): bigint {
-  return a < b ? a : b;
+/**
+ * Read the live FLAT per-permission registration fee (wei) from governance —
+ * `permissionRegistrationFee()`, the single scalar the kernel's
+ * `_calcPermissionFee()` returns for EVERY charging path (registerPermission,
+ * replacePermission, and the batch / deployAndAttach variants).
+ *
+ * This is THE single source of truth for the registration fee. The kernel
+ * charges `fee × N` for N permissions, bounded by MAX_PERMISSION_FEE_WEI
+ * (0.001 ETH) and refunding any excess; there is NO bytecode/size-based
+ * component in the live contracts (that "variable" formula existed only in
+ * stale protocol docs describing an abandoned design). Underpaying reverts with
+ * InsufficientFee(required, provided).
+ */
+export async function readPermissionRegistrationFee(
+  publicClient: PublicClient,
+  governance: Address,
+): Promise<bigint> {
+  return publicClient.readContract({
+    address: governance,
+    abi: SailGovernanceAbi,
+    functionName: "permissionRegistrationFee",
+  }) as Promise<bigint>;
+}
+
+/** The flat fee a single permission is charged on registration. */
+export type PermissionFee = {
+  permission: Address;
+  feeWei: bigint;
+};
+
+/** The total registration fee for a mandate, with the per-permission breakdown. */
+export type MandateFeeEstimate = {
+  /** Total wei the kernel will require = flat fee × number of permissions. */
+  totalWei: bigint;
+  /** The flat fee attributed to each permission (uniform), in the order given. */
+  perPermission: PermissionFee[];
+};
+
+/**
+ * The TOTAL registration fee for a mandate of `permissions`: the flat
+ * `permissionRegistrationFee` read ONCE and applied per permission (`fee × N`) —
+ * exactly what the kernel charges (it requires `msg.value >= fee × n` for a
+ * batch, flat per permission; excess is refunded).
+ *
+ * Single source of truth: disclosure, preflight, the tx `value`, and the
+ * activity record all derive from this, so they are provably the same number
+ * and provably the number the kernel will require.
+ */
+export async function estimateMandateRegistrationFee(
+  publicClient: PublicClient,
+  governance: Address,
+  permissions: Address[],
+): Promise<MandateFeeEstimate> {
+  const flatFeeWei = await readPermissionRegistrationFee(publicClient, governance);
+  const perPermission = permissions.map((permission) => ({ permission, feeWei: flatFeeWei }));
+  const totalWei = flatFeeWei * BigInt(permissions.length);
+  return { totalWei, perPermission };
 }
 
 /**
- * Estimate the exact fee (in wei) the kernel charges to register a permission.
+ * Plain-language disclosure of a mandate's flat registration fee, e.g.
+ * `"Registration fee: 0.00003 ETH (3 permissions × 0.00001 ETH)"`.
  *
- * The deployed Base / Base-Sepolia governance uses the LEGACY model:
- *
- *   fee = min(baseFee, cap) + min(byteLength * complexityRate, cap), capped at cap
- *
- * where byteLength is the deployed permission's runtime bytecode length and
- * cap = MAX_PERMISSION_FEE_WEI. Newer governance may instead expose a flat
- * permissionRegistrationFee(); if the legacy views are missing we fall back to
- * that. The fee must be sent exactly: underpaying reverts with InsufficientFee,
- * and overpaying (e.g. sending the cap) needlessly ties up the agent's balance.
+ * Factual cost statement only — no price/value framing.
  */
-export async function estimatePermissionFee(
-  publicClient: PublicClient,
-  governance: Address,
-  permission: Address,
-): Promise<bigint> {
-  try {
-    const [baseFee, complexityRate, cap, code] = await Promise.all([
-      publicClient.readContract({
-        address: governance,
-        abi: SailGovernanceAbi,
-        functionName: "baseFee",
-      }) as Promise<bigint>,
-      publicClient.readContract({
-        address: governance,
-        abi: SailGovernanceAbi,
-        functionName: "complexityRate",
-      }) as Promise<bigint>,
-      publicClient.readContract({
-        address: governance,
-        abi: SailGovernanceAbi,
-        functionName: "MAX_PERMISSION_FEE_WEI",
-      }) as Promise<bigint>,
-      publicClient.getBytecode({ address: permission }),
-    ]);
-    const byteLength = code ? BigInt((code.length - 2) / 2) : 0n;
-    const fee = min(baseFee, cap) + min(byteLength * complexityRate, cap);
-    return min(fee, cap);
-  } catch {
-    // Newer governance: flat fee.
-    return publicClient.readContract({
-      address: governance,
-      abi: SailGovernanceAbi,
-      functionName: "permissionRegistrationFee",
-    }) as Promise<bigint>;
+export function describeMandateFee(estimate: MandateFeeEstimate): string {
+  const count = estimate.perPermission.length;
+  if (count === 0) return "Registration fee: 0 ETH (no new permissions to register)";
+  const noun = count === 1 ? "permission" : "permissions";
+  const perFeeWei = estimate.perPermission[0].feeWei; // flat — identical for every permission
+  return `Registration fee: ${formatEther(estimate.totalWei)} ETH (${count} ${noun} × ${formatEther(perFeeWei)} ETH)`;
+}
+
+/** Thrown when a signer cannot cover the registration fee. A typed error so the
+ *  preflight block can't be silently disabled by re-wording a message string. */
+export class RegistrationFeeError extends Error {
+  /** Total fee required (wei). */
+  readonly requiredWei: bigint;
+  /** Signer balance available (wei). */
+  readonly balanceWei: bigint;
+  constructor(message: string, requiredWei: bigint, balanceWei: bigint) {
+    super(message);
+    this.name = "RegistrationFeeError";
+    this.requiredWei = requiredWei;
+    this.balanceWei = balanceWei;
+  }
+}
+
+/** Shortfall (wei) between `balanceWei` and the total fee, or `0n` if covered. */
+export function feeShortfall(balanceWei: bigint, totalFeeWei: bigint): bigint {
+  return balanceWei >= totalFeeWei ? 0n : totalFeeWei - balanceWei;
+}
+
+/**
+ * Throw a {@link RegistrationFeeError} when `balanceWei` cannot cover the total
+ * registration fee. Call this BEFORE prompting the owner to sign so an
+ * underfunded signer fails early rather than after a wasted signature or an
+ * on-chain revert. Scoped to the fee itself — gas is a separate concern.
+ */
+export function assertFeeAffordable(balanceWei: bigint, totalFeeWei: bigint): void {
+  if (balanceWei < totalFeeWei) {
+    throw new RegistrationFeeError(
+      `Insufficient ETH for the ${formatEther(totalFeeWei)} ETH registration fee; ` +
+        `signer balance is ${formatEther(balanceWei)} ETH.`,
+      totalFeeWei,
+      balanceWei,
+    );
   }
 }

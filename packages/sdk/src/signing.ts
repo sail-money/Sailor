@@ -64,6 +64,20 @@ export type SigningRequestBase = {
     address?: string;
     explanation?: SigningExplanation;
   }>;
+  /**
+   * Registration fee the agent wallet will pay on-chain for this signing.
+   * Absent when no fee is charged (zero-fee chains) or when the fee couldn't
+   * be read. Passed from the CLI so the signing card can disclose it before
+   * the owner signs.
+   */
+  registrationFee?: {
+    /** Total fee in ETH (formatted string, e.g. "0.00003"). */
+    totalEth: string;
+    /** Number of permissions the total covers. */
+    permissionCount: number;
+    /** Flat per-permission fee in ETH, present when count > 1. */
+    perPermissionEth?: string;
+  };
   createdAt: number;
 };
 

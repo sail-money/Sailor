@@ -104,7 +104,7 @@ If `deploy-chain` refuses with an address mismatch, the SMA was deployed against
 ## Gas requirements
 
 - Owner wallet: SMA deployment, mandate signing (EIP-712), any additional-chain deployment.
-- Agent wallet: `mandate deploy`, `mandate attach`, `mandate revoke`, and every dispatch submission once the agent runs, plus permission registration fees on fee-charging chains.
+- Agent wallet: `mandate deploy`, `mandate attach`, `mandate revoke`, and every dispatch submission once the agent runs, plus permission registration fees on fee-charging chains. The registration fee is a **per-permission flat charge** (`permissionRegistrationFee()` on `SailGovernance`, read live — currently `0` on this deploy). A mandate of N permissions costs `N × fee` on top of gas; fund the agent wallet for the full amount before attaching. The fee is disclosed at sign time (`Registration fee: X ETH`) and recorded in the activity log. An underfunded agent wallet fails early with `Insufficient ETH for the X ETH registration fee` rather than reverting on-chain.
 
 `sailor doctor` — read-only preflight: kernel dispatch model, permission health, RPC reachability, gas balances in both wallets. Do not proceed to Stage 3 with a failing doctor.
 
