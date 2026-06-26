@@ -228,7 +228,9 @@ function activityDetail(e) {
     return e.name ?? truncateAddr(e.address ?? e.permission)
   }
   if (e.type === 'permission_registered' || e.type === 'permission_revoked') {
-    return e.name ?? truncateAddr(e.permission)
+    const base = e.name ?? truncateAddr(e.permission)
+    if (e.type === 'permission_registered' && e.feeEth) return `${base} · fee ${e.feeEth} ETH`
+    return base
   }
   if (e.permission) return truncateAddr(e.permission)
   return e.reason ?? e.msg ?? ''

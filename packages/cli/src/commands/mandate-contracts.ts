@@ -23,8 +23,8 @@ import {
   buildRegisterPermissionTypedData,
   buildRegisterPermissionsBatchTypedData,
   detectKernelCapabilities,
-  estimatePermissionFee,
   getSailDeployment,
+  readPermissionRegistrationFee,
   sailKernelDomain,
 } from "@sail/sdk";
 import {
@@ -40,6 +40,7 @@ import {
   encodeAbiParameters,
   encodeDeployData,
   encodeFunctionData,
+  formatEther,
   getAddress,
   getCreate2Address,
   isAddress,
@@ -663,8 +664,9 @@ async function runDeployClone(
     if ((err as Error).message.startsWith("Security:")) throw err;
   }
 
-  // Fee charged by the kernel on registration (0 on zero-fee chains like Unichain).
-  const fee = await estimatePermissionFee(publicClient, project.contracts.governance, clone);
+  // Flat fee charged by the kernel on registration (0 on zero-fee chains like
+  // Unichain). One permission registered here → a single flat fee.
+  const fee = await readPermissionRegistrationFee(publicClient, project.contracts.governance);
 
   // The selective kernel's registerPermission takes a deadline; deployAndAttach
   // forwards whatever deadline the owner signed over. Conjunctive kernels (no
@@ -726,6 +728,9 @@ async function runDeployClone(
     sma,
     txHash,
     chainId: project.chainId,
+    // Registration fee actually paid by the agent for this permission.
+    fee: fee.toString(),
+    feeEth: formatEther(fee),
   });
 
   emit(json, () => {}, {
@@ -1183,11 +1188,10 @@ async function attachBatchToSma(
     throw new Error(`Expected an EIP-712 signature response, got: ${response.status}`);
   }
 
-  // Sum the exact per-permission fees (0 on the zero-fee deploys).
-  let fee = 0n;
-  for (const permission of permissions) {
-    fee += await estimatePermissionFee(publicClient, project.contracts.governance, permission);
-  }
+  // Flat fee × N (0 on the zero-fee deploys). The kernel's batch
+  // registerPermissions requires msg.value >= flat fee × n.
+  const flatFee = await readPermissionRegistrationFee(publicClient, project.contracts.governance);
+  const fee = flatFee * BigInt(permissions.length);
 
   const chain = getChainById(project.chainId);
   const walletClient = createWalletClient({
@@ -1225,6 +1229,9 @@ async function attachBatchToSma(
       sma,
       txHash,
       chainId: project.chainId,
+      // Each permission in the batch is charged the same flat fee.
+      fee: flatFee.toString(),
+      feeEth: formatEther(flatFee),
     });
     say(() => {
       if (!present) {

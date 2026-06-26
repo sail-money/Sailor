@@ -23,7 +23,7 @@ import {
   buildRegisterPermissionTypedData,
   buildSafeSetupInitializer,
   detectKernelCapabilities,
-  estimatePermissionFee,
+  estimateMandateRegistrationFee,
   getSailDeployment,
   sailKernelDomain,
 } from "@sail/sdk";
@@ -35,6 +35,7 @@ import {
   createPublicClient,
   createWalletClient,
   encodeFunctionData,
+  formatEther,
   getAddress,
   isAddress,
   parseEventLogs,
@@ -49,6 +50,7 @@ import { MandateStore } from "../lib/mandates.js";
 import { explainPermission } from "../lib/permission-explainer.js";
 import { emit } from "../lib/output.js";
 import { ProjectContext } from "../lib/project.js";
+import { registrationGate } from "../lib/registration-fee.js";
 import { type StoredAccount, upsertAccountInList } from "../lib/state.js";
 import { type SigningChannel, createSigningChannel, signingPageUrl } from "../signing/client.js";
 import { projectPort } from "../lib/packagePaths.js";
@@ -558,6 +560,27 @@ export async function attachMandate(
     deadline: registrationDeadline,
   });
 
+  // Compute the registration fee ONCE — the single source of truth shared by the
+  // disclosure, the balance preflight, the tx `value`, and the activity log, so
+  // every number is provably the same as what the kernel charges.
+  // estimateMandateRegistrationFee reads the flat permissionRegistrationFee and
+  // applies it per permission (fee × N) — exactly the kernel's charge.
+  const feeEstimate = await estimateMandateRegistrationFee(
+    publicClient,
+    project.contracts.governance,
+    [templateAddress],
+  );
+  const fee = feeEstimate.totalWei;
+
+  // Preflight + disclose BEFORE asking the owner to sign, so an underfunded
+  // signer fails early (via a typed RegistrationFeeError) instead of after a
+  // wasted signature / on-chain revert.
+  const agentBalanceWei = await publicClient.getBalance({
+    address: agentSigner.viemAccount.address,
+  });
+  const gate = registrationGate({ estimate: feeEstimate, agentBalanceWei });
+  say(() => console.log(gate.disclosure));
+
   say(() => console.log(`\nPushing signing request for "${template.label}" permission…`));
   say(() =>
     console.log(
@@ -623,13 +646,6 @@ export async function attachMandate(
     if ((err as Error).message.startsWith("Security:")) throw err;
   }
 
-  say(() => console.log("Estimating permission fee…"));
-  const fee = await estimatePermissionFee(
-    publicClient,
-    project.contracts.governance,
-    templateAddress,
-  );
-
   say(() => console.log(`Submitting mandate registration (agent pays gas; fee ${fee} wei)…`));
   const walletClient = createWalletClient({
     account: agentSigner.viemAccount,
@@ -694,6 +710,9 @@ export async function attachMandate(
     sma: smaAddress,
     txHash,
     chainId: project.chainId,
+    // Registration fee actually paid by the agent for this permission.
+    fee: fee.toString(),
+    feeEth: formatEther(fee),
   });
   return txHash;
 }

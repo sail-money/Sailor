@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import cors from 'cors'
 import express from 'express'
 import { WebSocket, WebSocketServer } from 'ws'
-import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, estimatePermissionFee, getSailDeployment } from '@sail/sdk'
+import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, getSailDeployment, readPermissionRegistrationFee } from '@sail/sdk'
 import { createPublicClient, createWalletClient, defineChain, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
 
@@ -907,9 +907,10 @@ export function startServer(sailDir, { port = PORT } = {}) {
       const keyring = await LocalKeyring.fromKeystoreFile(at('keys/manager.json'), password)
       const publicClient = createPublicClient({ transport: http(rpcUrl) })
 
-      // Sum the exact per-permission registration fees (0 for zero-fee deploys).
-      let fee = 0n
-      for (const a of addrs) fee += await estimatePermissionFee(publicClient, deployment.governance, a)
+      // Flat fee × N (0 for zero-fee deploys). The kernel's batch
+      // registerPermissions requires msg.value >= flat fee × n.
+      const flatFee = await readPermissionRegistrationFee(publicClient, deployment.governance)
+      const fee = flatFee * BigInt(addrs.length)
 
       const chain = defineChain({
         id: Number(chainId),
@@ -926,6 +927,28 @@ export function startServer(sailDir, { port = PORT } = {}) {
       txHash = await walletClient.sendTransaction({ to: deployment.kernel, data, value: fee, account: keyring.viemAccount, chain })
       const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
       if (receipt.status !== 'success') throw new Error(`registerPermissions reverted (tx ${txHash})`)
+
+      // Record each registration in the activity log so the fee actually paid
+      // surfaces in Recent Activity — the station path otherwise writes only
+      // mandate.json and its registrations never appeared. Each permission in
+      // the batch is charged the same flat fee.
+      const feeEth = formatEther(flatFee)
+      for (const addr of addrs) {
+        const meta = permissionMeta.find((p) => p.address && getAddress(p.address) === addr)
+        const ev = {
+          ts: new Date().toISOString(),
+          actor: 'agent',
+          type: 'permission_registered',
+          permission: addr,
+          ...(meta?.template ? { name: meta.template } : {}),
+          sma: safe,
+          txHash,
+          chainId,
+          fee: flatFee.toString(),
+          feeEth,
+        }
+        try { fs.appendFileSync(at('activity.jsonl'), `${JSON.stringify(ev)}\n`) } catch { /* activity log is best-effort */ }
+      }
     } catch (err) {
       res.status(500).json({ error: `On-chain registration failed: ${err?.message ?? String(err)}` })
       return

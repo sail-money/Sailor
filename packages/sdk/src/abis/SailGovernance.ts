@@ -1,9 +1,10 @@
 /**
- * SailGovernance ABI — only the views needed to estimate the permission
- * registration fee. The deployed Base/Base-Sepolia governance uses the legacy
- * fee model: baseFee + byteLength * complexityRate, capped at
- * MAX_PERMISSION_FEE_WEI. Newer governance may expose a flat
- * permissionRegistrationFee() instead; estimatePermissionFee falls back to it.
+ * SailGovernance ABI — the views needed to read the permission registration fee.
+ * The kernel charges a FLAT fee: `permissionRegistrationFee()` per permission
+ * (total = fee × n), bounded by MAX_PERMISSION_FEE_WEI, excess refunded. The
+ * baseFee / complexityRate views below describe an abandoned bytecode-size-based
+ * design that never shipped in the live contracts; they are retained only for
+ * back-compat and are not used to compute the fee.
  */
 export const SailGovernanceAbi = [
   {

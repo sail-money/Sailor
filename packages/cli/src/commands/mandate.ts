@@ -1,5 +1,11 @@
-import { SailKernelAbi } from "@sail/sdk";
-import { http, type Address, createPublicClient } from "viem";
+import {
+  type MandateFeeEstimate,
+  SailKernelAbi,
+  describeMandateFee,
+  estimateMandateRegistrationFee,
+  getSailDeployment,
+} from "@sail/sdk";
+import { http, type Address, createPublicClient, formatEther } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { confirm, readJsonFile, sailPath, writeJsonFile } from "../lib/io.js";
 import { MandateStore } from "../lib/mandates.js";
@@ -28,13 +34,89 @@ type TrackedPermission = {
   revokedOnChain?: boolean;
 };
 
+/**
+ * The registration fee disclosed at sign time, read live at prepare time from
+ * the SAME flat charge the kernel applies (permissionRegistrationFee × N).
+ * Covers only the not-yet-registered permissions — the ones that will actually
+ * be charged on sign. Optional: omitted when the fee can't be read (no RPC) or
+ * when there is nothing new to register.
+ */
+type DraftRegistrationFee = {
+  /** Flat per-permission fee (wei); the kernel charges this for each permission. */
+  perPermissionWei?: string;
+  /** Flat per-permission fee in ETH. */
+  perPermissionEth?: string;
+  /** Total fee (wei) for this mandate = sum of the per-permission charges. */
+  totalWei: string;
+  /** Total fee formatted in ETH. */
+  totalEth: string;
+  /** Number of not-yet-registered permissions the fee covers. */
+  permissionCount: number;
+  /** One-line factual cost disclosure for the UI. */
+  disclosure: string;
+};
+
+/**
+ * The permissions a sign/attach will actually be CHARGED for: tracked, not
+ * revoked on-chain, and not yet registered on this SMA. `mandate prepare` and
+ * `mandate sign` MUST use this same selection so their disclosed fee counts
+ * agree (re-preparing a mandate with some permissions already registered must
+ * not overstate the total).
+ */
+export function chargeablePermissions<T extends { revokedOnChain?: boolean; registeredOnSma: boolean }>(
+  tracked: T[],
+): T[] {
+  return tracked.filter((p) => !p.revokedOnChain && !p.registeredOnSma);
+}
+
 /** The simple draft the UI reads to display the SMA's permission set. */
 type MandateDraft = {
   account: string;
   chainId: number;
   permissions: Array<{ address: string; label: string; explanation?: PermissionExplanation }>;
   createdAt: string;
+  registrationFee?: DraftRegistrationFee;
 };
+
+/**
+ * Read the live mandate registration fee for `permissionAddresses` on `chainId`
+ * — the flat permissionRegistrationFee × N, the same value sent as the tx value.
+ * Returns null when it can't be read (no RPC) so callers degrade gracefully
+ * instead of breaking. Pass only the not-yet-registered permissions, since those
+ * are the ones actually charged.
+ */
+async function liveMandateFee(
+  chainId: number,
+  permissionAddresses: string[],
+): Promise<MandateFeeEstimate | null> {
+  if (permissionAddresses.length === 0) return { totalWei: 0n, perPermission: [] };
+  try {
+    const deployment = getSailDeployment(chainId);
+    const rpcUrl = getRpcUrl(chainId) ?? getChainById(chainId).rpcUrls.default.http[0];
+    const pc = createPublicClient({ chain: getChainById(chainId), transport: http(rpcUrl) });
+    return await estimateMandateRegistrationFee(
+      pc,
+      deployment.governance,
+      permissionAddresses as Address[],
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** Build the draft fee block from a flat estimate. Every permission is charged
+ *  the same flat fee, so the per-permission rate is always included. */
+function draftFeeFromEstimate(estimate: MandateFeeEstimate): DraftRegistrationFee {
+  const perFeeWei = estimate.perPermission[0]?.feeWei ?? 0n;
+  return {
+    perPermissionWei: perFeeWei.toString(),
+    perPermissionEth: formatEther(perFeeWei),
+    totalWei: estimate.totalWei.toString(),
+    totalEth: formatEther(estimate.totalWei),
+    permissionCount: estimate.perPermission.length,
+    disclosure: describeMandateFee(estimate),
+  };
+}
 
 /**
  * The chain a mandate operation targets. A multi-chain SMA has the same address
@@ -164,21 +246,37 @@ export async function mandatePrepare(): Promise<void> {
   }
 
   const store = new MandateStore();
+  // Only permissions not already registered on this SMA belong in the signing
+  // draft — re-registering an already-registered permission reverts on-chain.
+  const chargeable = chargeablePermissions(permissions);
+  const draftPermissions = chargeable.map((p) => {
+    const mandate = store.find(p.address);
+    const explanation = explainPermission(p.label, mandate?.sourcePath) ?? undefined;
+    return { address: p.address, label: p.label, explanation };
+  });
+
+  // Estimate the registration fee LIVE for the permissions that will actually be
+  // charged on sign — the chargeable ones — so the count matches `sailor mandate
+  // sign` and the browser screen never overstates the total when re-preparing a
+  // mandate with some permissions already registered. Best-effort: if it can't be
+  // estimated the draft still writes, just without the fee block. Skipped
+  // entirely when nothing new is to be registered (no "0 permissions").
+  let registrationFee: DraftRegistrationFee | undefined;
+  const unregisteredAddresses = chargeable.map((p) => p.address);
+  if (unregisteredAddresses.length > 0) {
+    const estimate = await liveMandateFee(chainId, unregisteredAddresses);
+    if (estimate !== null) registrationFee = draftFeeFromEstimate(estimate);
+  }
+
   const draft: MandateDraft = {
     account: account.safe,
     chainId,
-    // Only permissions not already registered on this SMA belong in the signing
-    // draft — re-registering an already-registered permission reverts on-chain.
-    permissions: permissions
-      .filter((p) => !p.revokedOnChain && !p.registeredOnSma)
-      .map((p) => {
-        const mandate = store.find(p.address);
-        const explanation = explainPermission(p.label, mandate?.sourcePath) ?? undefined;
-        return { address: p.address, label: p.label, explanation };
-      }),
+    permissions: draftPermissions,
     createdAt: new Date().toISOString(),
+    ...(registrationFee ? { registrationFee } : {}),
   };
   writeJsonFile(sailPath("mandate-draft.json"), draft);
+  if (registrationFee) console.log(`\n${registrationFee.disclosure}`);
   console.log("\nDraft written to .sail/mandate-draft.json for the UI to display.");
 }
 
@@ -220,8 +318,25 @@ export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
   );
 
   // Exclude revoked-on-chain entries from the confirmation: they are no longer
-  // active regardless of what the local store says.
+  // active regardless of what the local store says. The chargeable subset (the
+  // not-yet-registered ones) is the SAME selection `mandate prepare` uses, so
+  // the disclosed fee counts agree.
   const activePermissions = permissions.filter((p) => !p.revokedOnChain);
+  const unregistered = chargeablePermissions(permissions);
+
+  // Disclose the registration fee BEFORE the user confirms. Only the
+  // not-yet-registered permissions incur a fee now (already-registered ones were
+  // paid for when they were first registered) — the same set and the same flat
+  // per-permission charge (permissionRegistrationFee) the attach tx will send.
+  // Best-effort, so a missing fee never blocks confirmation.
+  if (unregistered.length > 0) {
+    const estimate = await liveMandateFee(chainId, unregistered.map((p) => p.address));
+    if (estimate !== null) {
+      console.log(`\n${describeMandateFee(estimate)}`);
+      console.log("  Paid by the agent wallet on registration, per permission.");
+    }
+  }
+
   const proceed = opts.yes || await confirm(
     `Confirm these ${activePermissions.length} permission(s) are authorized for your SMA?`,
   );
@@ -230,7 +345,6 @@ export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
     return;
   }
 
-  const unregistered = activePermissions.filter((p) => !p.registeredOnSma);
   if (unregistered.length === 0) {
     console.log(`\n✓ Confirmed ${activePermissions.length} permission(s) for ${account.safe}.`);
   } else {
