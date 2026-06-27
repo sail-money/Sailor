@@ -1,6 +1,6 @@
 # Sailor launch-readiness — gated on the Protocol relaunch
 
-The Octane-hardening batch (Protocol `main`: PRs #52–#59 + #64) changes contract
+The Octane-hardening batch (Protocol `main`: PRs #52–#59, #64, #69–#71) changes contract
 **addresses**, one kernel **function signature**, and a template EIP-712 **schema**.
 None of it is live yet (fresh launch, no deployed accounts), but the Sailor side
 must be updated **in lockstep with the relaunch deploy**. This is the consolidated
@@ -27,6 +27,14 @@ signature** over the `RegisterAccount` EIP-712 digest (verified via `checkSignat
   3. submit via the **Safe's `execTransaction`** (so `msg.sender == Safe`), not the owner EOA.
 Prefer the single-tx `createAccount` path wherever possible — it registers via the
 internal `_registerAccount` and is unaffected by #53.
+**#69 constraint on the `ownerSig`:** the kernel now rejects the Safe `v==1`
+approved-hash shortcut (`ApprovedHashSignatureNotAllowed`). Build the `ownerSig` as a
+real **EOA ECDSA** signature over the digest, or — for contract / nested-Safe owners —
+the Safe **`v==0`** contract-signature path, for which `checkSignatures` is given the
+EIP-712 preimage (`0x1901 ‖ domainSeparator ‖ structHash`) as `data`. Do **not** use
+`buildApprovedHashSignature` for this `ownerSig`. (Its existing use in
+`buildSetManagerExecTransaction` — a Safe `execTransaction` signature, not the kernel
+`checkSignatures` arg — is unaffected.)
 
 ## 3. Sync the SDK ABIs to the redeployed contracts — `packages/sdk/src/abis/*`  (BLOCKER)
 - `SailKernel.ts`: `registerAccount` → 6-arg (see §2).
@@ -46,10 +54,27 @@ unconfigured template fails `_configCurrent` (epoch guard) → every dispatch de
   3. take this PR out of draft and merge.
 
 ## 5. Re-activate `deploy-clone` when standalone clone templates redeploy  (only if used)
-`predictCloneAddress` already uses the 3-arg `(submitter, account, salt)` salt
-(merged, Sailor #170) to match Protocol #58. Dormant until standalone clone templates
-are redeployed and re-added to `deployments.ts` `standaloneTemplates`. No action unless
-that path is part of launch (the launch set is shared multi-tenant).
+Dormant until standalone clone templates are redeployed and re-added to
+`deployments.ts` `standaloneTemplates`. No action unless that path is part of launch
+(the launch set is shared multi-tenant). **Before re-enabling**, the local
+`predictCloneAddress` mirror at `packages/cli/src/commands/mandate-contracts.ts:430`
+(called ~:572) must be corrected to match the on-chain salt:
+- **#71** changed the salt to `keccak256(abi.encode(msg.sender, account, salt,
+  keccak256(initData)))` — the mirror must fold `keccak256(initData)` too, or it will
+  predict the wrong clone address and `registerPermission` will fail.
+- Fix the pre-existing field-count divergence in the same mirror at the same time, and
+  thread `initData` through the call site (:572) and any SDK helper.
+The kernel ABI is unchanged by #71 (the salt lives entirely in the untrusted factory),
+so no SDK ABI edit is required — only the address-prediction mirror.
+
+## 5b. Read signer nonces just-in-time after a revoke  (#70 — verify, likely already OK)
+`revokeSession` now advances `signerNonces` by a full **epoch** (`nonce + 1 +
+NONCE_EPOCH_INCREMENT`), not `+1`, so the kill switch invalidates any signer op
+pre-signed before the revoke. Signer ops verify the nonce by **exact equality**, so the
+SDK/CLI must read `signerNonces[account]` **fresh on-chain immediately before signing**
+each signer op (RevokeSession/ActivateSession/RegisterPermission/etc.) and never cache or
+precompute "current + 1". Confirm the signer-op builders read live nonce; this is the
+expected pattern already, so this is a verification item, not a known break.
 
 ## 6. Already merged — verify post-relaunch
 - `session pause/resume` honour `SAIL_PASSPHRASE` + `--json` (F6).
@@ -57,11 +82,14 @@ that path is part of launch (the launch set is shared multi-tenant).
 
 ## 7. Acceptance test (testnet, after §1–§4)
 End-to-end: deploy SMA → `registerAccount` via owner-sig + Safe `execTransaction` →
-`configure` a shared template (v2 epoch path) → dispatch within bounds → revoke →
-confirm a dispatch pre-signed before the revoke is rejected (epoch bump). Run the full
-Sailor suite against the relaunch addresses.
+`configure` a shared template (v2 epoch path) → dispatch within bounds → `revokeSession`
+→ confirm both a **dispatch** and an **`ActivateSession`** pre-signed before the revoke
+are rejected (manager/batch + signer epoch bumps, #70) → re-activate by signing the
+fresh signer nonce. If the registerAccount rework (§2) is in scope, also assert an
+`ownerSig` built as a `v==1` approved-hash is rejected (#69) while an ECDSA owner sig
+succeeds. Run the full Sailor suite against the relaunch addresses.
 
 ---
-_Sources: Protocol PRs #52–#59, #64. This file lives on the configure-signer PR so all_
+_Sources: Protocol PRs #52–#59, #64, #69–#71. This file lives on the configure-signer PR so all_
 _launch-gated Sailor follow-ups are tracked in one place; remove or move to an issue once_
 _the relaunch is complete._
