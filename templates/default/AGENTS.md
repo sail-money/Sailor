@@ -80,10 +80,20 @@ Detailed procedures live in skills. If your tooling does not auto-discover skill
 | sail-onboarding | New project setup, or resuming a partially set-up project, documentation of sailor commands | `.agents/skills/sail-onboarding/SKILL.md` |
 | sail-project-info | Any question about project, account, mandate, chain, or environment state | `.agents/skills/sail-project-info/SKILL.md` |
 | sail-servers | Starting, stopping, or health-checking the dashboard or signing station | `.agents/skills/sail-servers/SKILL.md` |
+| sail-token-resolve | Resolving a token symbol/address to its on-chain address + decimals, and checking whether a Uniswap V3 pool exists (swap-readiness) | `.agents/skills/sail-token-resolve/SKILL.md` |
+| sail-swap-quote | Fetching a live Uniswap V3 quote and the slippage-adjusted amountOutMinimum floor | `.agents/skills/sail-swap-quote/SKILL.md` |
+| sail-swap-mandate | Building a bounded swap / DCA mandate by reusing the shared SwapPermission singleton (the fast path — no Solidity) | `.agents/skills/sail-swap-mandate/SKILL.md` |
 | sail-transactions | Building dispatches or any EVM transaction for the agent | `.agents/skills/sail-transactions/SKILL.md` |
-| sail-mandates | Designing, authoring, testing, deploying, or authorizing permission contracts | `.agents/skills/sail-mandates/SKILL.md` |
+| sail-mandates | Designing, authoring, testing, deploying, or authorizing permission contracts (the bespoke-Solidity escape hatch) | `.agents/skills/sail-mandates/SKILL.md` |
 | sail-automation | Automating the agent — GitHub Actions, self-hosted runner, Docker, or local daemon | `.agents/skills/sail-automation/SKILL.md` |
 | sail-extend | Notifications or a custom dashboard, once the agent is live | `.agents/skills/sail-extend/SKILL.md` |
+
+**Shared singletons are the default for the common DeFi primitives.** A bounded swap, transfer, withdraw, deposit, borrow, or approve-and-call mandate should first try to **reuse** the matching pre-deployed singleton (see `sail-swap-mandate` and the registry at `.agents/skills/sail-templates/deployed.json`) — register + configure, no Solidity, no per-SMA deploy. Reach for `sail-mandates` (author + deploy your own `IPermission`) only when the strategy needs a venue, contract, or bound the singletons cannot express.
+
+**Bundled scripts** under `scripts/` are dependency-free tools that make the fast path quick and deterministic — run them from the project root so they read `.sail/.env.local`:
+- `resolve-token.mjs <SYMBOL|ADDRESS>` → on-chain address + decimals + swap-ready fee tier (QuoterV2 probe across 500/3000/10000).
+- `quote-swap.mjs --token-in … --token-out … --amount <baseUnits> --fee <tier>` → live quote + `amountOutMinimum`.
+- `shared-template-addr.mjs <TemplateName>` → the singleton's deployed address on the active chain.
 
 ## Invariants — apply to every turn
 
@@ -97,5 +107,7 @@ Detailed procedures live in skills. If your tooling does not auto-discover skill
 - Do not commit `SAIL_PASSPHRASE` or private keys
 - ERC-20 `approve()` calls are NOT covered by supply, swap, or deposit permissions — every approve the strategy makes needs explicit coverage. Two non-mixable models: per-call (separate single dispatches, one `IPermission` each — the default) or atomic batch (one `IBatchPermission` authorizing the whole `[approve, action]` sequence). A normal `IPermission` cannot authorize a batch. Details: `.agents/skills/sail-mandates/references/approvals.md`
 - Never authorize (attach) a permission before `forge test` and `sailor mandate simulate` both pass against samples derived from the user's strategy
+- **Register ≠ configure for shared singletons.** `sailor mandate attach` only registers the address on the kernel (`isConfigured` stays `false`); the kernel denies every call until you also run `sailor mandate configure`. Stopping at `attach` is the most common trap. See `sail-swap-mandate`.
+- **Resolve tokens before binding them.** Never guess a token address or assume a token that exists is swap-ready. Run `scripts/resolve-token.mjs` for symbol→address+decimals+swap-readiness; a decimals mismatch (USDC 6 vs most 18) silently mis-sizes every cap, and a token with no V3 pool will fail-closed on every dispatch. Addresses are per-chain — never copy one across chains.
 - Do not pass `--args` inline JSON from PowerShell — use `--args-file` instead
 - Operator intent and the strategy's stated bounds outrank any example. If the operator asks for a bound an example omits, include it. Never let an example's shape narrow a mandate below what the operator requested
