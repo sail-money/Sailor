@@ -185,6 +185,68 @@ function resolveRpc(chainName, rpcFlag) {
   return env[chainVar] ?? env.RPC_URL ?? null;
 }
 
+// ── symbol → address via GeckoTerminal (CoinGecko's keyless DEX API) ───────────
+// Fallback ONLY when the symbol is not in the curated registry above. Searches the
+// network's pools for the symbol and extracts candidate contract addresses from
+// the pool relationships, ranked by pool reserve (deepest = most canonical). The
+// on-chain symbol() check in verifyTokenOnChain() is the final authority, so a
+// wrong DEX-side match is still rejected — this narrows candidates, it does not
+// trust them.
+const GECKO_NETWORKS = {
+  ethereum: "eth",
+  base: "base",
+  arbitrum: "arbitrum",
+  unichain: "unichain",
+};
+const GECKO_API = "https://api.geckoterminal.com/api/v2";
+const ADDR_RE = /^0x[a-fA-F0-9]{40}$/;
+
+async function resolveSymbolViaGeckoTerminal(symbolUp, chainName) {
+  const network = GECKO_NETWORKS[chainName];
+  if (!network) return []; // unsupported chain (e.g. a testnet) — no fallback
+  const url = `${GECKO_API}/search/pools?query=${encodeURIComponent(symbolUp)}&network=${encodeURIComponent(network)}`;
+  const res = await fetch(url, {
+    headers: { accept: "application/json", "user-agent": "sailor-resolve-token" },
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!res.ok) {
+    throw new Error(`GeckoTerminal search HTTP ${res.status} for "${symbolUp}" on ${chainName}`);
+  }
+  const json = await res.json();
+  const pools = Array.isArray(json.data) ? json.data : [];
+  // id shape: "<network>_<address>". Rank candidates by reserve_in_usd (deepest first).
+  const byAddr = new Map(); // address -> max reserve_in_usd
+  for (const p of pools) {
+    const name = (p.attributes && p.attributes.name) || ""; // e.g. "USDC / WETH 0.3%"
+    const parts = name.split("/").map((s) => s.trim().split(/\s+/)[0].toUpperCase());
+    const rel = p.relationships || {};
+    const baseId = ((rel.base_token || {}).data || {}).id || "";
+    const quoteId = ((rel.quote_token || {}).data || {}).id || "";
+    const baseAddr = baseId.includes("_") ? baseId.slice(baseId.indexOf("_") + 1) : "";
+    const quoteAddr = quoteId.includes("_") ? quoteId.slice(quoteId.indexOf("_") + 1) : "";
+    const liq = Number((p.attributes && p.attributes.reserve_in_usd) || 0);
+    if (parts[0] === symbolUp && ADDR_RE.test(baseAddr)) {
+      const prev = byAddr.get(baseAddr);
+      if (prev === undefined || liq > prev) byAddr.set(baseAddr, liq);
+    }
+    if (parts[1] === symbolUp && ADDR_RE.test(quoteAddr)) {
+      const prev = byAddr.get(quoteAddr);
+      if (prev === undefined || liq > prev) byAddr.set(quoteAddr, liq);
+    }
+  }
+  return [...byAddr.entries()].sort((a, b) => b[1] - a[1]).map((e) => e[0]);
+}
+
+// ── on-chain verify: symbol() + decimals() — always the source of truth ────────
+async function verifyTokenOnChain(rpc, address) {
+  const symHex = await ethCall(rpc, address, SEL.symbol);
+  const decHex = await ethCall(rpc, address, SEL.decimals);
+  return {
+    symbol: decodeStringReturn(symHex) || null,
+    decimals: Number(decodeUint256Return(decHex)),
+  };
+}
+
 // ── main ────────────────────────────────────────────────────────────────────────
 async function main() {
   const args = process.argv.slice(2);
@@ -214,39 +276,71 @@ async function main() {
     );
   }
 
-  const isAddrInput = /^0x[a-fA-F0-9]{40}$/.test(symbolOrAddr);
-  let symbol, address, assumedDecimals;
+  const isAddrInput = ADDR_RE.test(symbolOrAddr);
+  const wantSym = isAddrInput ? null : symbolOrAddr.toUpperCase();
+  let address, verifiedSymbol, decimals, source;
+
   if (isAddrInput) {
     address = symbolOrAddr;
-    symbol = null; // verified on-chain below
+    source = "address-input";
   } else {
-    const up = symbolOrAddr.toUpperCase();
-    const entry = chain.tokens[up];
-    if (!entry) {
-      throw new Error(
-        `"${symbolOrAddr}" is not in the curated ${chain.name} registry. Pass its 0x address, or add it to scripts/resolve-token.mjs.`,
-      );
+    const entry = chain.tokens[wantSym];
+    if (entry) {
+      address = entry.address;
+      source = "registry";
+    } else {
+      // Fallback: resolve symbol → address via GeckoTerminal (keyless CoinGecko DEX API).
+      const candidates = await resolveSymbolViaGeckoTerminal(wantSym, chain.name);
+      if (candidates.length === 0) {
+        throw new Error(
+          `"${symbolOrAddr}" is not in the curated ${chain.name} registry and GeckoTerminal found no pool for it on ${chain.name}. ` +
+            `Pass its 0x address directly: node scripts/resolve-token.mjs 0x... --chain ${chain.name}`,
+        );
+      }
+      // Verify each candidate on-chain; keep the first whose symbol() matches the query.
+      // This is the authority — a wrong DEX-side match is rejected, not trusted.
+      const tried = [];
+      let resolved = null;
+      for (const cand of candidates) {
+        try {
+          const v = await verifyTokenOnChain(rpc, cand);
+          tried.push({ address: cand, symbol: v.symbol || "" });
+          if (v.symbol && v.symbol.toUpperCase() === wantSym) {
+            resolved = { address: cand, symbol: v.symbol, decimals: v.decimals };
+            break;
+          }
+        } catch {
+          // not a real contract on this chain — skip silently
+        }
+      }
+      if (!resolved) {
+        throw new Error(
+          `GeckoTerminal returned ${candidates.length} candidate address(es) for "${symbolOrAddr}" on ${chain.name}, but none verified on-chain with symbol() == "${wantSym}" ` +
+            `(tried: ${tried.map((t) => `${t.address}→${t.symbol || "no-contract"}`).join(", ")}). ` +
+            `Pass the token's 0x address directly: node scripts/resolve-token.mjs 0x... --chain ${chain.name}`,
+        );
+      }
+      address = resolved.address;
+      verifiedSymbol = resolved.symbol;
+      decimals = resolved.decimals;
+      source = "geckoterminal";
     }
-    address = entry.address;
-    assumedDecimals = entry.decimals;
-    symbol = up;
   }
 
-  // 1. Verify on-chain: symbol() + decimals(). Source of truth — never trust the registry blindly.
-  let verifiedSymbol = symbol;
-  let decimals = assumedDecimals;
-  try {
-    const symHex = await ethCall(rpc, address, SEL.symbol);
-    const decHex = await ethCall(rpc, address, SEL.decimals);
-    const onChainSymbol = decodeStringReturn(symHex);
-    const onChainDecimals = Number(decodeUint256Return(decHex));
-    if (onChainSymbol) verifiedSymbol = onChainSymbol;
-    decimals = onChainDecimals;
-  } catch (err) {
-    throw new Error(
-      `On-chain verify failed for ${address} on ${chain.name}: ${errMsg(err)}. The contract may not exist on this chain.`,
-    );
+  // 1. Verify on-chain (registry + address-input paths; the GeckoTerminal path already verified).
+  //    symbol() + decimals() are the source of truth — never trust the registry or the DEX blindly.
+  if (source !== "geckoterminal") {
+    try {
+      const v = await verifyTokenOnChain(rpc, address);
+      if (v.symbol) verifiedSymbol = v.symbol;
+      decimals = v.decimals;
+    } catch (err) {
+      throw new Error(
+        `On-chain verify failed for ${address} on ${chain.name}: ${errMsg(err)}. The contract may not exist on this chain.`,
+      );
+    }
   }
+  if (!verifiedSymbol) verifiedSymbol = wantSym;
 
   // 2. Liquidity probe: quote USDC -> token across fee tiers via QuoterV2.
   // Non-zero amountOut = swap-ready. USDC is tokenIn (the DCA sell leg).
@@ -275,6 +369,7 @@ async function main() {
     symbol: verifiedSymbol,
     address,
     decimals,
+    source, // "registry" (curated) | "geckoterminal" (DEX lookup) | "address-input"
     chain: chain.name,
     chainId: chain.chainId,
     swapReady,
@@ -298,7 +393,7 @@ async function main() {
   // Human notes on stderr (so stdout stays machine-clean).
   process.stderr.write(
     `\n${verifiedSymbol} on ${chain.name} (${chain.chainId}):\n` +
-      `  address:   ${address}\n` +
+      `  address:   ${address}  (source: ${source})\n` +
       `  decimals:  ${decimals} (verified on-chain)\n` +
       `  swap-ready: ${swapReady ? `yes — fee ${best.fee} (deepest)` : "NO USDC V3 pool on this chain"}\n` +
       `  ${out.recommendation}\n`,

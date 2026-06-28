@@ -1,13 +1,13 @@
 ---
 name: sail-token-resolve
-description: Resolve a token the user named by symbol or address to its on-chain metadata (address, decimals) and determine whether it is swap-ready on the active chain — i.e. whether a live Uniswap V3 pool exists. Use BEFORE building any swap mandate or quoting a swap. Runs the bundled `scripts/resolve-token.mjs` (no dependencies, no gas).
+description: Resolve a token the user named by symbol or address to its on-chain metadata (address, decimals) and determine whether it is swap-ready on the active chain — i.e. whether a live Uniswap V3 pool exists. Use BEFORE building any swap mandate or quoting a swap. Resolves ANY symbol — a curated registry first, then a keyless CoinGecko (GeckoTerminal) DEX lookup — and always re-verifies symbol()+decimals() on-chain. Runs the bundled `scripts/resolve-token.mjs` (no dependencies, no gas, no API key).
 ---
 
 # sail-token-resolve — token → address + swap-readiness
 
-The user will name tokens by symbol ("WETH", "LINK") far more often than by
+The user will name tokens by symbol ("WETH", "LINK", "WBTC") far more often than by
 address. Never guess an address, and never assume a token that exists is also
-swap-ready. This skill resolves the symbol to a verified on-chain address +
+swap-ready. This skill resolves **any** symbol to a verified on-chain address +
 decimals, then probes Uniswap V3 liquidity to flag swap-readiness.
 
 **"token exists" ≠ "token is swap-ready."** A token can have a valid contract on
@@ -40,6 +40,7 @@ node scripts/resolve-token.mjs 0x4200000000000000000000000000000000000006
   "symbol": "WETH",
   "address": "0x4200…0006",
   "decimals": 18,            // verified on-chain via decimals()
+  "source": "registry",      // "registry" (curated) | "geckoterminal" (DEX lookup) | "address-input"
   "chain": "unichain", "chainId": 130,
   "swapReady": true,
   "feeTier": 3000,           // deepest pool across 500/3000/10000
@@ -50,9 +51,17 @@ node scripts/resolve-token.mjs 0x4200000000000000000000000000000000000006
 
 ## How it works
 
-1. **Curated registry** (instant) — common tokens per chain (USDC/WETH/UNI/LINK/…).
-2. **On-chain verify** — calls `symbol()` + `decimals()` via eth_call. Source of
-   truth; never trust the registry's decimals blindly (a 6-vs-18 mismatch silently
+1. **Symbol → address** (two layers):
+   - **Curated registry** (instant, offline) — common tokens per chain
+     (USDC/WETH/UNI/LINK/MORPHO/…). Fast path, no network.
+   - **DEX lookup via GeckoTerminal** (CoinGecko's keyless DEX API) — for any symbol NOT
+     curated. Searches the chain's pools for the symbol, extracts candidate contract
+     addresses ranked by pool liquidity (deepest = most canonical), then keeps the first
+     candidate whose on-chain `symbol()` matches the query. No API key, no signup. The DEX
+     result only *narrows candidates* — the on-chain `symbol()` check is the authority, so a
+     wrong DEX-side match is rejected, never trusted.
+2. **On-chain verify** — calls `symbol()` + `decimals()` via eth_call. Source of truth;
+   never trust the registry's or the DEX's decimals blindly (a 6-vs-18 mismatch silently
    mis-sizes every cap).
 3. **Liquidity probe** — quotes USDC→token across fee tiers 500/3000/10000 via
    QuoterV2. Picks the tier with the highest `amountOut` (deepest pool). A revert
@@ -77,3 +86,10 @@ node scripts/resolve-token.mjs 0x4200000000000000000000000000000000000006
   Resolve and verify separately per chain; never copy an address across chains.
 - **`getPool` is unreliable** on some forks — this skill trusts a non-zero
   QuoterV2 quote as the go/no-go signal, never the V3 factory's `getPool`.
+- **Symbol ambiguity (DEX lookup path).** When a symbol isn't curated, the
+  GeckoTerminal fallback picks the address from the deepest pool whose on-chain
+  `symbol()` matches. A scam token can share a real token's symbol; the liquidity
+  ranking favours the canonical one, but for an obscure symbol you should glance at
+  the `source` (`geckoterminal`) and the resolved address before wiring it into a
+  mandate. If the wrong variant is picked, pass the intended contract's `0x` address
+  directly — address-input bypasses the DEX lookup entirely.
