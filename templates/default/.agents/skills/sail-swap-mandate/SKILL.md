@@ -54,6 +54,60 @@ The shipped CLI splits the shared-template flow into **two steps**:
 
 You must do both. Stopping at `attach` is the single most common trap.
 
+## ⚠️ Approve coverage — the hidden precondition (read this too)
+
+`SwapPermission` authorizes the swap **call** only. The router pulls `tokenIn` via an ERC-20
+allowance, and the `approve(router, amount)` that establishes that allowance is a **separate
+transaction this permission does not cover** — same rule as every protocol permission (see
+[`sail-mandates/references/approvals.md`](../sail-mandates/references/approvals.md)). A swap
+dispatched with no/insufficient allowance reverts inside the router and the tick fails. This is
+not an edge case: **every** bounded swap needs the allowance put in place somehow. Decide how at
+mandate-build time, not when the first tick reverts.
+
+Two production models. Pick based on who swaps:
+
+**Model 1 — atomic batch (the default for any agent that swaps on its own: DCA, rebalancer,
+treasury).** Register the shared **`ApproveAndCallBatchPermission`** singleton instead of
+`SwapPermission`, and dispatch each tick as one `dispatchBatch` of exactly three calls:
+
+```
+[0] approve(router, amountIn)        on tokenIn
+[1] exactInputSingle(…) / swapExactTokensForTokens(…)   recipient = SMA
+[2] approve(router, 0)               same token, same spender — strict reset
+```
+
+The allowance exists **only for the lifetime of the batch** and is reset to zero before the
+transaction completes — so there is never a lingering approval to exploit, no per-tick owner
+signature, and the approved amount is bounded by the per-token `maxApprovalAmount` cap (set it
+equal to your `maxAmountPerTx`). The batch template binds the consuming call's target to the
+approved spender, the consumed asset to the approved token, and (with `requireRecipientIsAccount`)
+the output recipient to the SMA — the same funds-can't-leave guarantees `SwapPermission` gives,
+plus atomic approve/consume/reset. Resolve the singleton the same way as `SwapPermission`:
+
+```bash
+node scripts/shared-template-addr.mjs ApproveAndCallBatchPermission
+# → 0x5709B869Bd133A630e05A60566136B78Ed07c1e8   (on unichain)
+```
+
+It is deployed on Base, Arbitrum, Unichain, Sepolia, and Base Sepolia against the current kernel.
+Batch dispatch requires the **selective** kernel's `dispatchBatch` — all six bundled chains are
+selective (confirm with `sailor doctor`); conjunctive kernels cannot use this model. At runtime the
+agent returns one `Dispatch` whose `calls.length == 3`; the runner routes it through
+`dispatch.batch` automatically. **Pre-batch allowance must be zero** (the template enforces it and
+self-resets), so never combine this with a standing approve.
+
+**Model 2 — `SwapPermission` + owner pre-approve (one-off / owner-managed).** Keep `SwapPermission`
+and have the owner send a one-time `approve(router, amount)` as an owner tx in the browser, then
+let `SwapPermission` gate each swap. Only viable when the owner is in the loop. For a recurring
+strategy the allowance is consumed over time, so approve a bounded horizon
+(`maxAmountPerTx × N ticks`) and re-approve when it runs low — **never `type(uint256).max`**: an
+infinite approve forfeits the cap's protection for every future tick and blocks the batch model
+above (which requires a zero pre-batch allowance).
+
+> **Decision rule:** if the agent dispatches swaps autonomously, use **Model 1** (the batch). If a
+> human owner places the allowance per session and the agent only swaps within it, `SwapPermission`
+> alone (Model 2) is fine. A swap-only mandate with no plan for the allowance is incomplete.
+
 ## The flow
 
 ### 1. Resolve the singleton address for your chain
@@ -171,8 +225,20 @@ The agent must re-quote via `sail-swap-quote` close to dispatch time and embed t
 floor `amountOutMinimum` in the swap calldata — the on-chain `maxSlippageBps`
 bound enforces it regardless.
 
+**Match the tick's dispatch shape to your approve model.** Under Model 1 (batch) the agent returns
+one `Dispatch` whose `calls` is the 3-element `[approve(router, amountIn), swap, approve(router, 0)]`
+— it must NOT pre-approve out of band (the batch requires a zero pre-batch allowance). Under Model 2
+(`SwapPermission` + owner pre-approve) the agent emits a plain single-call swap dispatch but MUST
+first read `token.allowance(SMA, router)` and **stall (not self-approve)** when it is below
+`amountIn` — `approve()` is an owner-side action the agent cannot take on its own. A swap mandate
+that silently assumes a nonzero allowance is the failure this guard prevents.
+
 ## When NOT to use this
 
+- **The agent must swap autonomously and you don't want a standing/router allowance** →
+  `SwapPermission` leaves the `approve(router)` uncovered, so a recurring agent will stall the
+  first time the router can't pull `tokenIn`. Use the shared **`ApproveAndCallBatchPermission`**
+  instead (see "Approve coverage" above): atomic `[approve, swap, reset]`, no lingering allowance.
 - **The token has no oracle and you need manipulation resistance** → this template's
   oracle-disabled mode only catches *honest mistakes*, not MEV/flash-loan attacks.
   Prefer a bespoke permission or the (not-yet-deployed) `SwapPermissionNoOracle`
