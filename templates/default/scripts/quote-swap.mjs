@@ -16,6 +16,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve as resolvePath } from "node:path";
 
 const CHAINS = {
+  ethereum: { chainId: 1, quoterV2: "0x61fFE014bA17989E743c5F6cB21bF9697530B21e" },
   unichain: { chainId: 130, quoterV2: "0x385a5cf5f83e99f7bb2852b6a19c3538b9fa7658" },
   base: { chainId: 8453, quoterV2: "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a" },
   arbitrum: { chainId: 42161, quoterV2: "0x61fFE014bA17989E743c5F6cB21bF9697530B21e" },
@@ -91,10 +92,14 @@ function resolveChain(chainFlag) {
   if (id) for (const [name, c] of Object.entries(CHAINS)) if (String(c.chainId) === String(id)) return { name, ...c };
   throw new Error(`Could not resolve chain. Pass --chain <${Object.keys(CHAINS).join("|")}>.`);
 }
-function resolveRpc(chainName, rpcFlag) {
+function resolveRpc(chain, rpcFlag) {
   if (rpcFlag) return rpcFlag;
   const env = readSailEnv();
-  return env[`${chainName.toUpperCase().replace("-", "_")}_RPC_URL`] ?? env.RPC_URL ?? null;
+  // Mirror resolve-token.mjs / packages/cli getRpcUrl(): named var, then chainId-keyed
+  // var (RPC_URL_8453 — written by the UI / used by multi-chain projects), then generic.
+  const nameVar = `${chain.name.toUpperCase().replace("-", "_")}_RPC_URL`;
+  const idVar = `RPC_URL_${chain.chainId}`;
+  return env[nameVar] ?? env[idVar] ?? env.RPC_URL ?? null;
 }
 
 function parseArgs(argv) {
@@ -139,7 +144,7 @@ async function main() {
   for (const k of need) if (a[k] === undefined) throw new Error(`Missing --${k.replace(/([A-Z])/g, "-$1").toLowerCase()}`);
 
   const chain = resolveChain(a.chain);
-  const rpc = resolveRpc(chain.name, a.rpc);
+  const rpc = resolveRpc(chain, a.rpc);
   if (!rpc) throw new Error(`No RPC for ${chain.name}. Pass --rpc or set RPC_URL in .sail/.env.local.`);
 
   const tokenIn = a.tokenIn;

@@ -1,117 +1,174 @@
 ---
 name: sail-token-resolve
-description: Resolve a token the user named by symbol or address to its on-chain metadata (address, decimals) and determine whether it is swap-ready on the active chain — i.e. whether a live Uniswap V3 pool exists. Use BEFORE building any swap mandate or quoting a swap. Resolves ANY symbol — a curated registry first, then a keyless CoinGecko (GeckoTerminal) DEX lookup — and always re-verifies symbol()+decimals() on-chain. Runs the bundled `scripts/resolve-token.mjs` (no dependencies, no gas, no API key).
+description: Resolve the tokens a user names by symbol or address into on-chain metadata (address, decimals) AND a cross-chain, cross-DEX liquidity map — which Sail chain and which protocol (Uniswap V3/V4, Sushiswap, PancakeSwap, Aerodrome…) actually hold liquidity, how deep each pool is, and whether the leg is swap-ready. Use BEFORE building any swap/DCA/LP/lending mandate, or whenever a user says "a portfolio of X and Y" / "DCA into A, B, C" / "can I swap X here?". Pass every symbol at once. Resolves ANY symbol — curated registry → keyless GeckoTerminal DEX index → on-chain symbol()+decimals() — and recommends which chain to act on. Runs the bundled `scripts/resolve-token.mjs` (no dependencies, no gas, no API key).
 ---
 
-# sail-token-resolve — token → address + swap-readiness
+# sail-token-resolve — tokens → addresses + where the liquidity lives
 
-The user will name tokens by symbol ("WETH", "LINK", "WBTC") far more often than by
-address. Never guess an address, and never assume a token that exists is also
-swap-ready. This skill resolves **any** symbol to a verified on-chain address +
-decimals, then probes Uniswap V3 liquidity to flag swap-readiness.
+Users name tokens by symbol ("WETH", "UNI", "HYPE", "MORPHO") far more often than by
+address, and they think in *portfolios* ("a DCA of USDC, UNI and MORPHO"), not single
+legs. This skill takes **one or many** symbols and, for each, returns: the verified
+on-chain **address + decimals** per chain, a **liquidity venue map** (which chain, which
+DEX/protocol, which pool, how deep), whether it is **swap-ready**, and a **recommendation**
+when there's a discrepancy — liquidity split across chains, no pool on your chain but a deep
+one elsewhere, or no pool on any Sail chain at all.
 
-**"token exists" ≠ "token is swap-ready."** A token can have a valid contract on
-a chain with zero V3 liquidity. Swap-ready means QuoterV2 returns a non-zero
-quote for USDC→token.
+**"token exists" ≠ "token is swap-ready."** A token can have a valid contract with zero
+routable liquidity. Swap-ready (on-chain confirmed) means Uniswap V3 QuoterV2 returns a
+non-zero USDC→token quote — Sail's executable fast-path route.
 
 ## When to load
 
-- The user names a token by symbol and you need its address/decimals for a mandate.
+- The user names one or more tokens and you need addresses/decimals for a mandate.
+- A user describes a **portfolio / DCA / basket** — resolve every symbol in one call.
 - Before `sail-swap-quote` or `sail-swap-mandate` — both consume this skill's output.
-- Whenever the user asks "can I swap X here?" or "does X have a pool?"
+- Whenever the user asks "can I swap X here?", "where's the best liquidity for X?", or
+  "which chain should I use for this strategy?"
 
 ## Run it
 
 ```bash
-# From the project root (it reads .sail/.env.local for RPC + chain):
-node scripts/resolve-token.mjs WETH
-node scripts/resolve-token.mjs LINK --chain unichain
-node scripts/resolve-token.mjs 0x4200000000000000000000000000000000000006
+# From the project root (reads .sail/.env.local for RPCs + chain):
+node scripts/resolve-token.mjs WETH                    # single token, configured chain(s)
+node scripts/resolve-token.mjs LINK --chain unichain   # force one chain
+node scripts/resolve-token.mjs 0x4200…0006 --chain base # address input
+node scripts/resolve-token.mjs USDC UNI HYPE MORPHO    # PORTFOLIO → rich JSON
+node scripts/resolve-token.mjs UNI --all-chains --json # scan every Sail mainnet
 ```
 
-`--chain` and `--rpc` force a single chain. Without them, the script resolves the
-project's chain from `.sail/.env.local` (`CHAIN_ID`) / `.sail/config.json` — **unless
-the project wires multiple chains** (per-chain `BASE_RPC_URL` / `RPC_URL_8453`-style
-vars in `.sail/.env.local`), in which case it resolves the symbol on **every
-configured chain at once** and emits a JSON array (one entry per chain). Output is
-JSON on stdout (human notes on stderr).
+Flags: `--chain <ethereum|unichain|base|arbitrum>` forces one chain; `--rpc <url>` overrides
+the endpoint; `--all-chains` maps every Sail mainnet (even ones without an RPC configured —
+those use GeckoTerminal-only data) so you can recommend "put your SMA on chain Y"; `--json`
+forces the rich per-token map for a single token.
 
-## Multi-chain projects
+## Output shapes (pick the right consumer)
 
-When `.sail/.env.local` configures more than one chain (e.g. `RPC_URL_130` +
-`RPC_URL_8453` for a Unichain+Base project), a bare `resolve-token.mjs WETH` returns
-an **array** — one result object per chain — so you can see the token's address,
-decimals, and swap-readiness on each side-by-side:
+| Invocation | stdout shape |
+|---|---|
+| 1 symbol, single configured chain / `--chain` | **bare object** — `{address, decimals, feeTier, swapReady, quote, venues[], …}` (the shape `sail-swap-quote` / `sail-swap-mandate` expect) |
+| 1 symbol, ≥2 configured chains | **array** of bare objects (one per chain) |
+| ≥2 symbols | **portfolio**: `{ tokens: [tokenWrapper…], summary }` |
+| 1 symbol + `--json`/`--all-chains` | **token wrapper** (see below) |
 
-```json
-[
-  { "chain": "unichain", "chainId": 130, "address": "0x4200…0006", "decimals": 18, "swapReady": true, "feeTier": 3000, … },
-  { "chain": "base",     "chainId": 8453, "address": "0x4200…0006", "decimals": 18, "swapReady": true, "feeTier": 500,  … }
-]
-```
+A **token wrapper** is:
 
-A chain where the token has no pool (or no contract) yields an entry with an `error`
-field rather than aborting the whole call — the other chains still resolve. Pass
-`--chain <name>` to collapse to a single-chain object (the shape downstream skills
-like `sail-swap-quote` expect).
-
-## What it returns
-
-```json
+```jsonc
 {
-  "symbol": "WETH",
-  "address": "0x4200…0006",
-  "decimals": 18,            // verified on-chain via decimals()
-  "source": "registry",      // "registry" (curated) | "geckoterminal" (DEX lookup) | "address-input"
-  "chain": "unichain", "chainId": 130,
-  "swapReady": true,
-  "feeTier": 3000,           // deepest pool across 500/3000/10000
-  "quote": { "tokenIn": "USDC", "amountIn": "25000000", "amountOut": "…" },
-  "recommendation": "Swap-ready on unichain (deepest pool fee 3000). Hand to quote-swap.mjs…"
+  "query": "UNI",
+  "chains": {                       // keyed by chain name; each value is a bare per-chain object
+    "base":     { "address": "0x…", "decimals": 18, "swapReady": true, "feeTier": 10000,
+                  "venues": [ … ], "bestVenue": { … }, "onchainVerified": true, … },
+    "unichain": { … }
+  },
+  "chainsWithLiquidity": ["unichain","base","arbitrum"],
+  "onSailChain": true,
+  "crossChain": { "action": "route", "deepestChain": "base", "note": "…human guidance…" }
 }
+```
+
+A **venue** (inside `venues[]`, sorted deepest-first, capped at 8; `venuesTotal` is the full
+count) is:
+
+```jsonc
+{ "protocol": "uniswap-v3",      // uniswap-v3 | uniswap-v4 | uniswap-v2 | sushiswap | pancakeswap | aerodrome | other
+  "dexId": "uniswap-v3-base",    // raw GeckoTerminal id
+  "pool": "0x…", "feeTier": 500, // basis points (500 = 0.05%); null if the pool has no fee in its name
+  "pairedSymbol": "USDC", "pairedToken": "0x…",
+  "liquidityUsd": 8645941, "volume24hUsd": 22333927,
+  "sailRoutable": true,          // Sail's fast path can route it (see below)
+  "quoteVerified": true }        // a live on-chain QuoterV2 quote confirmed THIS venue
 ```
 
 ## How it works
 
-1. **Symbol → address** (two layers):
-   - **Curated registry** (instant, offline) — common tokens per chain
-     (USDC/WETH/UNI/LINK/MORPHO/…). Fast path, no network.
-   - **DEX lookup via GeckoTerminal** (CoinGecko's keyless DEX API) — for any symbol NOT
-     curated. Searches the chain's pools for the symbol, extracts candidate contract
-     addresses ranked by pool liquidity (deepest = most canonical), then keeps the first
-     candidate whose on-chain `symbol()` matches the query. No API key, no signup. The DEX
-     result only *narrows candidates* — the on-chain `symbol()` check is the authority, so a
-     wrong DEX-side match is rejected, never trusted.
-2. **On-chain verify** — calls `symbol()` + `decimals()` via eth_call. Source of truth;
-   never trust the registry's or the DEX's decimals blindly (a 6-vs-18 mismatch silently
-   mis-sizes every cap).
-3. **Liquidity probe** — quotes USDC→token across fee tiers 500/3000/10000 via
-   QuoterV2. Picks the tier with the highest `amountOut` (deepest pool). A revert
-   or zero at all tiers ⇒ not swap-ready.
+1. **Symbol → address** (two layers): curated registry (instant, offline) → GeckoTerminal
+   search (keyless CoinGecko DEX index) for anything not curated. Candidates are ranked by
+   pool liquidity; the on-chain `symbol()` check is the final authority (a wrong DEX-side
+   match is rejected, not trusted).
+2. **On-chain verify** — `symbol()` + `decimals()` via eth_call on every chain that has an
+   RPC. This is the source of truth (`decimalsSource: "onchain"`). On an `--all-chains` scan
+   of a chain with no RPC, metadata falls back to GeckoTerminal (`decimalsSource:
+   "geckoterminal-unverified"`) — flag this to the user before wiring it into a mandate.
+3. **Liquidity venue map** — `GET /networks/{net}/tokens/{addr}/pools` returns every pool
+   GeckoTerminal indexes, across **all DEXes** (Uniswap V3/V4, Sushiswap, PancakeSwap,
+   Aerodrome, …), with the protocol, pool address, fee tier and USD depth. One call per token
+   per chain.
+4. **Swap-readiness (on-chain confirmed)** — quotes USDC→token across fee tiers 500/3000/10000
+   via Uniswap V3 QuoterV2 and marks the matching venue `quoteVerified: true`. This is the only
+   *executable* signal; everything else in `venues[]` is informational.
 
-## The two outcomes that matter
+## `sailRoutable` — what Sail's fast path can actually swap
 
-- **`swapReady: true`** → hand the `(address, decimals, feeTier)` to
-  [`sail-swap-quote`](../sail-swap-quote/SKILL.md) for an exact quote, then to
-  [`sail-swap-mandate`](../sail-swap-mandate/SKILL.md).
-- **`swapReady: false`** → the token has no USDC V3 pool on this chain. Tell the
-  user; suggest re-running with `--chain base|arbitrum` to locate liquidity on
-  another Sail chain, or configure the leg as "held" (agent skips it until a pool
-  appears). Do **not** build a swap mandate for a non-swap-ready token — it would
-  fail-closed on every dispatch.
+Sail's `sail-swap-mandate` fast path routes through **Uniswap V3** (everywhere) and the
+**Uniswap V4** Universal Router (on Unichain). Those venues are marked `sailRoutable: true`.
+Sushiswap, PancakeSwap, Aerodrome (and Uniswap V2) are detected and surfaced so you can see
+*where the liquidity really is*, but they're `sailRoutable: false` — Sail can't route them via
+the fast path. If the only liquidity is on a non-routable DEX, the token needs a custom mandate
+(`sail-mandates`) or should be held. (Pools with absurd fees — >10% — are spam and are never
+marked routable.)
+
+## How to present results to the user
+
+Read `crossChain.action` (per token) and the portfolio `summary`, then advise:
+
+- **`route`** — swap-ready on a configured chain. If it's routable on **more than one**
+  configured chain, surface both with their depths and ask which to use (or pick by where the
+  rest of the basket lives). Hand the chosen chain's bare object to `sail-swap-quote`.
+- **`suggest-sma`** — no routable pool on the configured chain(s), but a deep one on another
+  Sail chain. Tell the user and **recommend deploying an SMA on that chain** for this leg
+  (e.g. "MORPHO has no Uniswap pool on Base; the deep pool is Uniswap V3 on Unichain — consider
+  an SMA on Unichain"). Don't silently drop it.
+- **`manual-address`** — liquidity exists but only on a DEX Sail can't fast-route (e.g. only on
+  Aerodrome). Offer a custom mandate via `sail-mandates`, or hold the leg.
+- **`hold-skip`** — no pool on any scanned Sail chain (the token may live on a non-Sail chain,
+  e.g. a HyperEVM-only asset). Recommend holding/dropping it from the strategy.
+
+Always show the resolved **address + decimals + the chain/protocol/depth** you're acting on, so
+the user can sanity-check before anything is signed.
+
+## Worked example — "create a DCA strategy of USDC, UNI, HYPE and MORPHO"
+
+```bash
+node scripts/resolve-token.mjs USDC UNI HYPE MORPHO --all-chains
+```
+
+A typical read of the result:
+- **USDC** — the quote asset; swap-ready everywhere (`feeTier: null`, it *is* USDC).
+- **UNI** — `route`; routable on Unichain/Base/Arbitrum. Pick by depth or by where the basket
+  concentrates.
+- **HYPE** — `route` only on **Unichain** (a real ~$4M Uniswap V3 USDC pool); absent/illiquid
+  elsewhere. Tell the user HYPE is a Unichain-only leg here.
+- **MORPHO** — `route` on **Base** (Uniswap V3 USDC pool); on other chains it exists but has no
+  routable USDC pool. If the project is configured for Base, good; if not, `suggest-sma`.
+
+Then, for each `route`/chosen-chain leg, hand `(address, decimals, feeTier)` to
+[`sail-swap-quote`](../sail-swap-quote/SKILL.md) → [`sail-swap-mandate`](../sail-swap-mandate/SKILL.md).
 
 ## Important
 
 - **Decimals are critical** — 25 USDC = `25_000_000` (6 dec); 1 WETH =
-  `1_000_000_000_000_000_000` (18 dec). Every cap in a mandate is base units.
-- **Addresses are per-chain** — WETH on Unichain ≠ WETH on Base ≠ WETH on Arbitrum.
-  Resolve and verify separately per chain; never copy an address across chains.
-- **`getPool` is unreliable** on some forks — this skill trusts a non-zero
-  QuoterV2 quote as the go/no-go signal, never the V3 factory's `getPool`.
-- **Symbol ambiguity (DEX lookup path).** When a symbol isn't curated, the
-  GeckoTerminal fallback picks the address from the deepest pool whose on-chain
-  `symbol()` matches. A scam token can share a real token's symbol; the liquidity
-  ranking favours the canonical one, but for an obscure symbol you should glance at
-  the `source` (`geckoterminal`) and the resolved address before wiring it into a
-  mandate. If the wrong variant is picked, pass the intended contract's `0x` address
-  directly — address-input bypasses the DEX lookup entirely.
+  `1_000_000_000_000_000_000` (18 dec). Every cap in a mandate is base units. Trust
+  `decimalsSource: "onchain"`; treat `geckoterminal-unverified` as provisional.
+- **Addresses are per-chain** — WETH on Unichain ≠ WETH on Base ≠ WETH on Arbitrum. Resolve and
+  verify separately per chain; never copy an address across chains.
+- **`getPool` is unreliable** on some forks — swap-readiness trusts a non-zero QuoterV2 quote,
+  never the V3 factory's `getPool`.
+- **Symbol ambiguity / scam collisions.** When a symbol isn't curated, the deepest-pool
+  candidate whose on-chain `symbol()` matches is used. A scam token can share a real symbol; the
+  liquidity ranking favours the canonical one, but for an obscure symbol glance at the resolved
+  `address` and `source` before wiring it in — or pass the intended contract's `0x` address
+  directly (address-input bypasses the DEX lookup). Also sanity-check a venue's `volume24hUsd`
+  against its `liquidityUsd`: a huge pool with near-zero volume is inflated/non-trading, and a
+  big pool whose `pairedSymbol` is a look-alike (e.g. a "HYPE/BASEDHYPE" pool) is a *different*
+  asset — depth there does not make *your* token swap-ready.
+- **`bestVenue` is USDC-relevant, not the biggest pool.** It's the deepest *Sail-routable,
+  USDC-paired* pool (the one a USDC DCA would route through), so it can be smaller than the
+  largest pool in `venues[]` (which may be a WETH or look-alike pair).
+- **Missing venues ≠ no liquidity.** A chain can be `swapReady: true` (from the on-chain
+  QuoterV2 probe) yet show empty `venues[]` with `venuesError` set if GeckoTerminal rate-limited
+  that call. Trust `swapReady`; to repopulate the venue map for one chain, re-run
+  `node scripts/resolve-token.mjs <SYM> --chain <name> --json`.
+- **Rate limits** — GeckoTerminal is keyless and rate-limited; the script throttles and caches
+  calls. A big `--all-chains` portfolio takes a moment. Set `GECKO_MIN_SPACING_MS` to tune the
+  spacing. A transient GeckoTerminal failure on one chain sets `venuesError` and leaves
+  `swapReady` intact (it's from the on-chain probe) — it never aborts the whole run.
