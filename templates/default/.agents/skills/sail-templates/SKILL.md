@@ -1,0 +1,138 @@
+---
+name: sail-templates
+description: Registry + reuse guide for Sail's shared permission templates (Protocol/contracts/templates). Load this when you need to know which permission primitives are available as reusable templates and want to gate an SMA's mandate by REUSING a configurable singleton — deploy once per chain, then register + configure per SMA (no per-SMA deploy). Covers swap (oracle-gated and no-oracle), borrow, transfer, deposit, withdraw, and approve-and-call-batch. Seven exist in source; six are deployed today; addresses live in deployed.json.
+compatibility: Node 18+; a Sailor project (`@sail/sdk`, `sailor` CLI); read access to the workspace `Protocol/contracts/templates/` (or set SAIL_PROTOCOL_DIR).
+metadata:
+  workspace: sailor-harness
+  classification: generic
+  status: draft
+  origin: Protocol/contracts/templates source contracts
+---
+
+# Sail shared permission templates — registry & reuse
+
+`Protocol/contracts/templates/` holds seven **shared permission templates** — reusable
+`IPermission` patterns covering the most common DeFi primitives. Each extends
+`ConfigurablePermission`, which means it is a **configurable singleton**:
+
+> Deploy the contract **once per chain**. Every SMA then reuses that single address via
+> **register + configure** — its own routers / tokens / caps live in the singleton's
+> `mapping(address => …)`. **No per-SMA deploy, no per-SMA audit, minimal gas.**
+
+> **Deployment status (2026-06-23, by `0xB01dCE…815B6`):** **six of seven** templates are live
+> on Base, Arbitrum, Unichain, Sepolia, and Base Sepolia, all bound to the current CREATE2
+> kernel `0x02ABC18B65A328de2e749F56ba79ACF2718a6659`. Live addresses are in
+> [`deployed.json`](deployed.json) (keyed by chainId → contract name). Ethereum mainnet
+> (chainId 1) is not yet deployed. **`SwapPermissionNoOracle` exists in source but is NOT
+> deployed on any chain** — its skill is reference-only until the singleton is deployed and
+> recorded; the catalog reports it as "not yet on any tracked chain".
+
+> ⚠️ **Audit scope.** These are marked *"UNAUDITED EXAMPLE — NOT PART OF THE TRUSTED CORE"* in
+> source. The kernel runs them safely (staticcall + gas cap + fail-closed) but does not verify
+> their internal logic. Always `sailor mandate simulate` against your SMA before authorizing.
+
+> ⚠️ **CRITICAL — "register" ≠ "configure" in the shipped CLI.** A shared template is useless
+> until it is both **registered** on the kernel AND **configured** per-account. The shipped
+> `sailor mandate attach` does **only the register** half (it submits `RegisterPermission` and
+> nothing more). A registered-but-unconfigured singleton has `isConfigured == false` and the
+> kernel **denies every call**. Today the configure step is done separately via
+> `configureDirect` (see the reuse flow below). A combined `sailor mandate use` / `configure`
+> command is proposed but not yet shipped — see the proposal linked in Notes.
+
+## The seven templates
+
+| Primitive | Contract | Deployed? | Skill |
+|---|---|---|---|
+| DEX swap (oracle band) | `SwapPermission` | ✅ 6 chains | [`sail-template-swap`](../sail-template-swap/SKILL.md) |
+| DEX swap (no oracle) | `SwapPermissionNoOracle` | ❌ not deployed | [`sail-template-swap-no-oracle`](../sail-template-swap-no-oracle/SKILL.md) (reference-only) |
+| Lending borrow | `BorrowPermission` | ✅ 6 chains | [`sail-template-borrow`](../sail-template-borrow/SKILL.md) |
+| Transfer (allowlist) | `TransferPermission` | ✅ 6 chains | [`sail-template-transfer`](../sail-template-transfer/SKILL.md) |
+| Vault/lending deposit | `DepositPermission` | ✅ 6 chains | [`sail-template-deposit`](../sail-template-deposit/SKILL.md) |
+| Withdraw to fixed addr | `WithdrawPermission` | ✅ 6 chains | [`sail-template-withdraw`](../sail-template-withdraw/SKILL.md) |
+| Approve+call batch | `ApproveAndCallBatchPermission` | ✅ 6 chains | [`sail-template-approve-batch`](../sail-template-approve-batch/SKILL.md) |
+
+Authoritative config tuples + enforced invariants (from source):
+[references/config-schemas.md](references/config-schemas.md).
+
+### One source of truth per concern
+
+This hub is canonical for everything shared; each spoke skill carries only what's unique to its
+primitive (selectors, invariants, config blob, probe cases) and defers the rest here. When
+something changes, edit it in ONE place:
+
+| Concern | Lives in | Spokes do |
+|---|---|---|
+| Which templates exist | source contracts, auto-detected by [`catalog.mjs`](catalog.mjs) | — |
+| Deployed addresses (per chain) | [`deployed.json`](deployed.json) | link here |
+| Register → configure → simulate flow | [references/reuse-flow.md](references/reuse-flow.md) | link here, don't restate |
+| Config tuples + invariants | [references/config-schemas.md](references/config-schemas.md) | quote only their own tuple |
+
+So a change to the CLI flow (e.g. when `sailor mandate use` ships) is a single edit to
+`reuse-flow.md`, not seven spoke edits. The deliberately-fuller [`sail-template-swap`](../sail-template-swap/SKILL.md)
+is the worked-example exemplar; the other spokes stay thin.
+
+## Step 1 — see what exists / deployment status
+
+The list is auto-detected from source; deployment status comes from `deployed.json`:
+
+```bash
+node SKILLS/sail-templates/catalog.mjs              # all templates
+node SKILLS/sail-templates/catalog.mjs --chain 8453 # status on one chain
+node SKILLS/sail-templates/catalog.mjs --json       # machine-readable
+```
+
+(The catalog warns if a new source contract appears with no curated metadata — a signal to
+add it here and write a skill.)
+
+## Step 2 — the reuse flow (per template)
+
+> The on-chain **intended** design is one signed call (`MandateFactory.attach`) that registers
+> the address on the kernel and writes the per-account config together. The **shipped** CLI
+> does not implement that combined call yet, so today these are two separate steps. The flow
+> below describes what actually works now; the "intended one-step" path is noted where it
+> applies and tracked in the proposal linked under Notes.
+
+1. **Deploy once per chain** (one-time, Protocol team / `DeploySharedTemplates`) → record the
+   address in `deployed.json`. (Already done for six of seven.)
+2. **Build the config blob** for your SMA (per-primitive skill gives the exact params).
+3. **Register** the singleton address on the SMA's kernel (this does NOT configure it):
+   ```bash
+   sailor mandate attach --address <DEPLOYED_ADDRESS> --sma <SMA> --label "<primitive>"
+   ```
+   A comma-separated `--address` list registers several in one signature (`attachBatch`).
+4. **Configure** the per-account bounds — this is the step that makes the permission actually
+   allow calls. Today, drive `configureDirect(account, <config blob>)` as an owner transaction
+   (the owner is the `permissionSigner`), pre-flighted with `cast call` against the live RPC.
+   See [references/reuse-flow.md](references/reuse-flow.md) for the exact encoding gotcha and
+   the signing-station path. *(Intended future: `sailor mandate use` / `configure` does this
+   in one step — not yet shipped.)*
+5. **Simulate** off-chain (no gas) — prove allowed calls pass and bad ones fail:
+   ```bash
+   sailor mandate simulate --address <DEPLOYED_ADDRESS> --sma <SMA> --calls ./probe.json
+   ```
+6. **Reconfigure** later (new caps / allowlists) via `configure`/`configureDirect` on the same
+   singleton — same address, no re-register. (On-chain `MandateFactory.reconfigure` is the
+   intended batch path for this.)
+
+Full mechanics (EIP-712 sigs, `configure`/`configureDirect`, `attachBatch`, `replace`,
+`detach`, and the register-vs-configure split): [references/reuse-flow.md](references/reuse-flow.md).
+
+## When NOT to use these
+
+No shared template covers: **perps** (GMX, Gains, Synthetix), **prediction markets** (Azuro,
+Limitless), or the **LI.FI aggregator**. For those, author a bespoke `IPermission` via
+`sailor mandate deploy` — see [`sail-lifi-swap`](../sail-lifi-swap/SKILL.md) for the
+custody-bound aggregator pattern and [`sail-pendle`](../sail-pendle/SKILL.md) for Pendle.
+
+## Notes
+
+- Each chain has its own kernel; a template address is only valid with its chain's kernel.
+- Caps/amounts are in **base units**. Size them with `sail-pyth-prices` / `uniswap-v3-quote`.
+- The config encoder must match each contract's `_applyConfig` decode exactly — use the SDK
+  builder under `@sail/sdk/templates` **only after** verifying its param tuple equals the
+  source blob in `config-schemas.md` (the SDK builders track a previously-deployed set and may
+  differ from these source contracts).
+- **CLI gap & proposal:** the missing combined register+configure command (`sailor mandate use`
+  / `configure`) and configure-time security defaults are specified in
+  `projects/sail_templates_test/docs/shared-template-cli-improvement-proposal.md`. Until it
+  ships, treat `sailor mandate attach` as register-only and configure separately.

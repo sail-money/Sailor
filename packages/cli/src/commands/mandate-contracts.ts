@@ -181,6 +181,20 @@ function publicClientFor(project: ProjectContext): PublicClient {
   }).extend(publicActions) as PublicClient;
 }
 
+/**
+ * Human label for a shared permission singleton, looked up by address in the
+ * SDK's pre-audited `knownTemplates` for the chain. Returns undefined when the
+ * address isn't a known template (callers fall back to the raw address).
+ */
+function knownTemplateLabel(chainId: number, address: Address): string | undefined {
+  try {
+    const known = getSailDeployment(chainId).knownTemplates ?? [];
+    return known.find((t) => t.address.toLowerCase() === address.toLowerCase())?.label;
+  } catch {
+    return undefined;
+  }
+}
+
 // ── deploy ───────────────────────────────────────────────────────────────────
 
 export async function mandateDeploy(options: DeployOptions): Promise<void> {
@@ -800,7 +814,19 @@ async function runAttach(
     label,
     json,
   );
-  if (tracked) store.recordAttachment(mandateAddress, { sma, txHash });
+  // Track the permission before recording the attachment: a bare `--address`
+  // (e.g. a shared permission singleton, never deployed from this project) has no
+  // store record, so `recordAttachment` would silently no-op and the permission
+  // would never appear in `mandate prepare`/`sign`. ensureTracked preserves any
+  // richer record already present (deploy-time sourcePath, etc.).
+  store.ensureTracked({
+    name: label,
+    address: mandateAddress,
+    txHash,
+    chainId: project.chainId,
+    deployedAt: new Date().toISOString(),
+  });
+  store.recordAttachment(mandateAddress, { sma, txHash });
 
   emit(json, () => {}, {
     status: "ok",
@@ -835,7 +861,16 @@ async function runAttachBatch(
   const txHash = await attachBatchToSma(project, channel, publicClient, sma, permissions, json);
 
   for (const permission of permissions) {
-    if (store.find(permission)) store.recordAttachment(permission, { sma, txHash });
+    // Track each address (shared singletons included) so it surfaces in
+    // `mandate prepare`/`sign`; ensureTracked keeps any existing richer record.
+    store.ensureTracked({
+      name: knownTemplateLabel(project.chainId, permission) ?? permission,
+      address: permission,
+      txHash,
+      chainId: project.chainId,
+      deployedAt: new Date().toISOString(),
+    });
+    store.recordAttachment(permission, { sma, txHash });
   }
 
   emit(json, () => {}, {

@@ -851,7 +851,7 @@ async function main() {
   const configured = configuredChains();
   const configuredNames = configured.map((c) => c.name);
 
-  // ── legacy single-token path (back-compat with sail-swap-quote / sail-swap-mandate)
+  // ── legacy single-token path (back-compat with sail-swap-quote / sail-template-swap)
   // One token, no --json/--all-chains → today's bare object or array.
   const richMode = tokens.length >= 2 || jsonMode || allChains;
   if (!richMode) {

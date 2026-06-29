@@ -63,7 +63,7 @@ is the most common reason a legitimate swap gets rejected.
 
 1. **Show the user** the `human.price` line before they approve the mandate.
 2. **Record `amountOutMinimum`** as the floor the agent's dispatch logic must
-   respect. Hand the full quote to [`sail-swap-mandate`](../sail-swap-mandate/SKILL.md)
+   respect. Hand the full quote to [`sail-template-swap`](../sail-template-swap/SKILL.md)
    — the mandate's `maxSlippageBps` bound is the on-chain enforcement of this.
 3. **Re-quote at dispatch time** — pool state moves; a quote taken minutes ago may
    no longer match.

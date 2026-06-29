@@ -21,7 +21,7 @@ non-zero USDC→token quote — Sail's executable fast-path route.
 
 - The user names one or more tokens and you need addresses/decimals for a mandate.
 - A user describes a **portfolio / DCA / basket** — resolve every symbol in one call.
-- Before `sail-swap-quote` or `sail-swap-mandate` — both consume this skill's output.
+- Before `sail-swap-quote` or `sail-template-swap` — both consume this skill's output.
 - Whenever the user asks "can I swap X here?", "where's the best liquidity for X?", or
   "which chain should I use for this strategy?"
 
@@ -45,7 +45,7 @@ forces the rich per-token map for a single token.
 
 | Invocation | stdout shape |
 |---|---|
-| 1 symbol, single configured chain / `--chain` | **bare object** — `{address, decimals, feeTier, swapReady, quote, venues[], …}` (the shape `sail-swap-quote` / `sail-swap-mandate` expect) |
+| 1 symbol, single configured chain / `--chain` | **bare object** — `{address, decimals, feeTier, swapReady, quote, venues[], …}` (the shape `sail-swap-quote` / `sail-template-swap` expect) |
 | 1 symbol, ≥2 configured chains | **array** of bare objects (one per chain) |
 | ≥2 symbols | **portfolio**: `{ tokens: [tokenWrapper…], summary }` |
 | 1 symbol + `--json`/`--all-chains` | **token wrapper** (see below) |
@@ -99,7 +99,7 @@ count) is:
 
 ## `sailRoutable` — what Sail's fast path can actually swap
 
-Sail's `sail-swap-mandate` fast path routes through **Uniswap V3** (everywhere) and the
+Sail's `sail-template-swap` fast path routes through **Uniswap V3** (everywhere) and the
 **Uniswap V4** Universal Router (on Unichain). Those venues are marked `sailRoutable: true`.
 Sushiswap, PancakeSwap, Aerodrome (and Uniswap V2) are detected and surfaced so you can see
 *where the liquidity really is*, but they're `sailRoutable: false` — Sail can't route them via
@@ -142,7 +142,7 @@ A typical read of the result:
   routable USDC pool. If the project is configured for Base, good; if not, `suggest-sma`.
 
 Then, for each `route`/chosen-chain leg, hand `(address, decimals, feeTier)` to
-[`sail-swap-quote`](../sail-swap-quote/SKILL.md) → [`sail-swap-mandate`](../sail-swap-mandate/SKILL.md).
+[`sail-swap-quote`](../sail-swap-quote/SKILL.md) → [`sail-template-swap`](../sail-template-swap/SKILL.md).
 
 ## Important
 
