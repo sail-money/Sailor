@@ -29,9 +29,31 @@ node scripts/resolve-token.mjs LINK --chain unichain
 node scripts/resolve-token.mjs 0x4200000000000000000000000000000000000006
 ```
 
-`--chain` and `--rpc` override the project's active chain/RPC (else read from
-`.sail/.env.local` / `.sail/config.json`). Output is one JSON object on stdout
-(human notes on stderr).
+`--chain` and `--rpc` force a single chain. Without them, the script resolves the
+project's chain from `.sail/.env.local` (`CHAIN_ID`) / `.sail/config.json` — **unless
+the project wires multiple chains** (per-chain `BASE_RPC_URL` / `RPC_URL_8453`-style
+vars in `.sail/.env.local`), in which case it resolves the symbol on **every
+configured chain at once** and emits a JSON array (one entry per chain). Output is
+JSON on stdout (human notes on stderr).
+
+## Multi-chain projects
+
+When `.sail/.env.local` configures more than one chain (e.g. `RPC_URL_130` +
+`RPC_URL_8453` for a Unichain+Base project), a bare `resolve-token.mjs WETH` returns
+an **array** — one result object per chain — so you can see the token's address,
+decimals, and swap-readiness on each side-by-side:
+
+```json
+[
+  { "chain": "unichain", "chainId": 130, "address": "0x4200…0006", "decimals": 18, "swapReady": true, "feeTier": 3000, … },
+  { "chain": "base",     "chainId": 8453, "address": "0x4200…0006", "decimals": 18, "swapReady": true, "feeTier": 500,  … }
+]
+```
+
+A chain where the token has no pool (or no contract) yields an entry with an `error`
+field rather than aborting the whole call — the other chains still resolve. Pass
+`--chain <name>` to collapse to a single-chain object (the shape downstream skills
+like `sail-swap-quote` expect).
 
 ## What it returns
 

@@ -178,11 +178,32 @@ function resolveChain(chainFlag) {
   );
 }
 
-function resolveRpc(chainName, rpcFlag) {
+function resolveRpc(chain, rpcFlag) {
   if (rpcFlag) return rpcFlag;
   const env = readSailEnv();
-  const chainVar = `${chainName.toUpperCase().replace("-", "_")}_RPC_URL`;
-  return env[chainVar] ?? env.RPC_URL ?? null;
+  // Mirrors packages/cli/src/lib/chain.ts getRpcUrl():
+  //   1. named chain var (UNICHAIN_RPC_URL)
+  //   2. chainId-keyed var (RPC_URL_130) — written by the UI's save-config
+  //   3. generic RPC_URL (single-chain fallback)
+  const nameVar = `${chain.name.toUpperCase().replace("-", "_")}_RPC_URL`;
+  const idVar = `RPC_URL_${chain.chainId}`;
+  return env[nameVar] ?? env[idVar] ?? env.RPC_URL ?? null;
+}
+
+// All chains with a chain-SPECIFIC RPC configured in .sail/.env.local (named or
+// chainId-keyed). Generic RPC_URL does NOT count — it is one endpoint for one
+// chain, not a per-chain wiring. Used to detect multi-chain projects so a symbol
+// can be resolved on every active chain at once.
+function detectConfiguredChains() {
+  const env = readSailEnv();
+  const out = [];
+  for (const [name, cfg] of Object.entries(CHAINS)) {
+    const nameVar = `${name.toUpperCase().replace("-", "_")}_RPC_URL`;
+    const idVar = `RPC_URL_${cfg.chainId}`;
+    const rpc = env[nameVar] ?? env[idVar] ?? null;
+    if (rpc) out.push({ name, ...cfg, rpc });
+  }
+  return out;
 }
 
 // ── symbol → address via GeckoTerminal (CoinGecko's keyless DEX API) ───────────
@@ -247,35 +268,11 @@ async function verifyTokenOnChain(rpc, address) {
   };
 }
 
-// ── main ────────────────────────────────────────────────────────────────────────
-async function main() {
-  const args = process.argv.slice(2);
-  if (args.length === 0 || args.includes("-h") || args.includes("--help")) {
-    process.stderr.write(
-      "Usage: node scripts/resolve-token.mjs <SYMBOL|ADDRESS> [--chain unichain|base|arbitrum] [--rpc URL]\n",
-    );
-    process.exit(args.length === 0 ? 1 : 0);
-  }
-
-  let symbolOrAddr = null;
-  let chainFlag = null;
-  let rpcFlag = null;
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i];
-    if (a === "--chain") chainFlag = args[++i];
-    else if (a === "--rpc") rpcFlag = args[++i];
-    else if (!symbolOrAddr) symbolOrAddr = a;
-  }
-  if (!symbolOrAddr) throw new Error("Pass a token symbol or address as the first argument.");
-
-  const chain = resolveChain(chainFlag);
-  const rpc = resolveRpc(chain.name, rpcFlag);
-  if (!rpc) {
-    throw new Error(
-      `No RPC for chain "${chain.name}". Pass --rpc <url> or set RPC_URL / ${chain.name.toUpperCase()}_RPC_URL in .sail/.env.local.`,
-    );
-  }
-
+// ── per-chain resolution (shared by single- and multi-chain modes) ─────────────
+// Resolves symbolOrAddr on ONE chain: symbol→address (registry → GeckoTerminal
+// fallback), on-chain symbol()+decimals() verify, then the USDC liquidity probe.
+// Returns the result object; callers decide single vs array output.
+async function resolveOnChain(symbolOrAddr, chain, rpc) {
   const isAddrInput = ADDR_RE.test(symbolOrAddr);
   const wantSym = isAddrInput ? null : symbolOrAddr.toUpperCase();
   let address, verifiedSymbol, decimals, source;
@@ -327,7 +324,7 @@ async function main() {
     }
   }
 
-  // 1. Verify on-chain (registry + address-input paths; the GeckoTerminal path already verified).
+  // Verify on-chain (registry + address-input paths; the GeckoTerminal path already verified).
   //    symbol() + decimals() are the source of truth — never trust the registry or the DEX blindly.
   if (source !== "geckoterminal") {
     try {
@@ -342,14 +339,13 @@ async function main() {
   }
   if (!verifiedSymbol) verifiedSymbol = wantSym;
 
-  // 2. Liquidity probe: quote USDC -> token across fee tiers via QuoterV2.
+  // Liquidity probe: quote USDC -> token across fee tiers via QuoterV2.
   // Non-zero amountOut = swap-ready. USDC is tokenIn (the DCA sell leg).
   const tokenIn = chain.usdc;
-  const tokenOut = address;
   let best = null; // { fee, amountOut }
-  let tried = [];
+  const tried = [];
   for (const fee of FEE_TIERS) {
-    const data = encodeQuoteCall(tokenIn, tokenOut, PROBE_AMOUNT_USDC, fee);
+    const data = encodeQuoteCall(tokenIn, address, PROBE_AMOUNT_USDC, fee);
     let amountOut = 0n;
     let ok = true;
     try {
@@ -365,7 +361,7 @@ async function main() {
   }
 
   const swapReady = best !== null;
-  const out = {
+  return {
     symbol: verifiedSymbol,
     address,
     decimals,
@@ -387,17 +383,82 @@ async function main() {
       ? `Swap-ready on ${chain.name} (deepest pool fee ${best.fee}). Hand to quote-swap.mjs for an exact quote + amountOutMinimum.`
       : `No USDC V3 pool on ${chain.name} for ${verifiedSymbol}. If the token exists on another Sail chain, re-run with --chain <base|arbitrum> to locate liquidity; otherwise configure as a held leg.`,
   };
+}
 
+function emitSingle(out) {
   process.stdout.write(JSON.stringify(out, null, 2) + "\n");
-
-  // Human notes on stderr (so stdout stays machine-clean).
   process.stderr.write(
-    `\n${verifiedSymbol} on ${chain.name} (${chain.chainId}):\n` +
-      `  address:   ${address}  (source: ${source})\n` +
-      `  decimals:  ${decimals} (verified on-chain)\n` +
-      `  swap-ready: ${swapReady ? `yes — fee ${best.fee} (deepest)` : "NO USDC V3 pool on this chain"}\n` +
+    `\n${out.symbol} on ${out.chain} (${out.chainId}):\n` +
+      `  address:   ${out.address}  (source: ${out.source})\n` +
+      `  decimals:  ${out.decimals} (verified on-chain)\n` +
+      `  swap-ready: ${out.swapReady ? `yes — fee ${out.feeTier} (deepest)` : "NO USDC V3 pool on this chain"}\n` +
       `  ${out.recommendation}\n`,
   );
+}
+
+// ── main ────────────────────────────────────────────────────────────────────────
+async function main() {
+  const args = process.argv.slice(2);
+  if (args.length === 0 || args.includes("-h") || args.includes("--help")) {
+    process.stderr.write(
+      "Usage: node scripts/resolve-token.mjs <SYMBOL|ADDRESS> [--chain unichain|base|arbitrum] [--rpc URL]\n",
+    );
+    process.exit(args.length === 0 ? 1 : 0);
+  }
+
+  let symbolOrAddr = null;
+  let chainFlag = null;
+  let rpcFlag = null;
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === "--chain") chainFlag = args[++i];
+    else if (a === "--rpc") rpcFlag = args[++i];
+    else if (!symbolOrAddr) symbolOrAddr = a;
+  }
+  if (!symbolOrAddr) throw new Error("Pass a token symbol or address as the first argument.");
+
+  // ── dispatch ────────────────────────────────────────────────────────────────
+  // `--chain`/`--rpc` forces a single chain. Otherwise, if the project wires
+  // multiple chains (chain-specific RPC vars in .sail/.env.local), resolve the
+  // symbol on EVERY configured chain so all are visible in one call.
+  const multi = !chainFlag && !rpcFlag ? detectConfiguredChains() : [];
+
+  if (!chainFlag && !rpcFlag && multi.length >= 2) {
+    const results = [];
+    for (const entry of multi) {
+      try {
+        results.push(await resolveOnChain(symbolOrAddr, entry, entry.rpc));
+      } catch (err) {
+        results.push({ chain: entry.name, chainId: entry.chainId, error: errMsg(err) });
+      }
+    }
+    process.stdout.write(JSON.stringify(results, null, 2) + "\n");
+    process.stderr.write(
+      `\nResolved "${symbolOrAddr}" on ${multi.length} configured chains:\n` +
+        results
+          .map((r) =>
+            r.error
+              ? `  ${r.chain} (${r.chainId}): FAILED — ${r.error}`
+              : `  ${r.chain} (${r.chainId}): ${r.address}  dec ${r.decimals}, source ${r.source}, ${
+                  r.swapReady ? `swap-ready fee ${r.feeTier}` : "no USDC V3 pool"
+                }`,
+          )
+          .join("\n") +
+        "\n  (output is a JSON array — one entry per chain; pass --chain <name> for a single chain.)\n",
+    );
+    return;
+  }
+
+  // Single-chain path.
+  const chain = resolveChain(chainFlag);
+  const rpc = resolveRpc(chain, rpcFlag);
+  if (!rpc) {
+    throw new Error(
+      `No RPC for chain "${chain.name}". Pass --rpc <url> or set RPC_URL / ${chain.name.toUpperCase()}_RPC_URL / RPC_URL_${chain.chainId} in .sail/.env.local.`,
+    );
+  }
+  const out = await resolveOnChain(symbolOrAddr, chain, rpc);
+  emitSingle(out);
 }
 
 function errMsg(e) {
