@@ -18,10 +18,15 @@ abi.encode(address[] routers, address[] tokensIn, address[] tokensOut,
            address priceOracle, uint256 maxPriceAgeSec)
 ```
 Selectors: `0x414bf389` (V3 `exactInputSingle` w/ deadline), `0x04e45aaf` (V3-02 no deadline),
-`0x38ed1739` (V2 `swapExactTokensForTokens`). Invariants: `target ∈ routers`;
-`tokenIn`/`path[0] ∈ tokensIn`; `tokenOut`/`path[last] ∈ tokensOut`;
-`recipient`/`to == account`; `amountIn ≤ maxAmountPerTx`; oracle slippage band when
-`priceOracle != 0 && maxSlippageBps != 0`. V2 intermediate hops are NOT checked.
+`0x38ed1739` (V2 `swapExactTokensForTokens`). Invariants: `value == 0` (native value rejected);
+`target ∈ routers`; `tokenIn`/`path[0] ∈ tokensIn`; `tokenOut`/`path[last] ∈ tokensOut`;
+`recipient`/`to == account`; `amountIn ≤ maxAmountPerTx`; **oracle slippage band ALWAYS enforced**.
+The oracle is **mandatory** (contract `v2`): `_applyConfig` reverts `OracleRequired` if
+`priceOracle == 0`, `MissingPriceAge` if `maxPriceAgeSec == 0`, and `SlippageBpsTooLarge` if
+`maxSlippageBps > 9_999`. `maxSlippageBps == 0` ⇒ zero tolerance (strictest), NOT a bypass.
+`priceOracle` is an `IOracle` adapter (`getPrice(base,quote) → (price, dec, updatedAt)`), not a raw
+feed; dust trades whose floor truncates to 0 are denied. V2 intermediate hops are NOT checked.
+(For no-oracle tokens use `SwapPermissionNoOracle`.)
 
 ## SwapPermissionNoOracle
 ```

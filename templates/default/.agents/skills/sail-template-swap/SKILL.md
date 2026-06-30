@@ -1,6 +1,6 @@
 ---
 name: sail-template-swap
-description: Gate an SMA's DEX swaps by REUSING the shared SwapPermission singleton (Protocol/contracts/templates/SwapPermission.sol) — register + configure, no per-SMA deploy. Use for a bounded swap / DCA mandate on Uniswap V3, V3-02, or V2 with router + token-in/out allowlists, a per-tx cap, and optional oracle slippage band. For the LI.FI aggregator use sail-lifi-swap; for Pendle use sail-pendle. NOTE: `sailor mandate attach` only registers — you must also configure per-account (see steps).
+description: Gate an SMA's DEX swaps by REUSING the shared SwapPermission singleton (Protocol/contracts/templates/SwapPermission.sol) — register + configure, no per-SMA deploy. Use for a bounded swap / DCA mandate on Uniswap V3, V3-02, or V2 with router + token-in/out allowlists, a per-tx cap, and a MANDATORY oracle slippage band (priceOracle is required — for no-oracle tokens use sail-template-swap-no-oracle). For the LI.FI aggregator use sail-lifi-swap; for Pendle use sail-pendle. NOTE: `sailor mandate attach` only registers — you must also configure per-account (see steps).
 compatibility: A Sailor project (`@sail/sdk`, `sailor` CLI). Requires SwapPermission deployed on the target chain (recorded in sail-templates/deployed.json); run sail-templates first.
 metadata:
   workspace: sailor-harness
@@ -10,9 +10,9 @@ metadata:
 ---
 
 # sail-template-swap — bounded DEX swap via the shared singleton
-
 Reuse the shared **`SwapPermission`** singleton instead of authoring/deploying a swap contract.
 Register its address on the SMA and `configure()` your routers, token allowlists, cap, and
+
 slippage. Family overview + flow: [`sail-templates`](../sail-templates/SKILL.md).
 
 ## What it enforces (per account, from source)
@@ -25,10 +25,20 @@ Supported selectors (any other ⇒ `false`):
 | `0x04e45aaf` | `exactInputSingle((tokenIn,tokenOut,fee,recipient,amountIn,amountOutMinimum,sqrtPriceLimitX96))` | Uniswap V3 SwapRouter02 |
 | `0x38ed1739` | `swapExactTokensForTokens(amountIn,amountOutMin,path[],to,deadline)` | Uniswap V2 Router |
 
-Invariants: `target ∈ routers`; `tokenIn`/`path[0] ∈ tokensIn`; `tokenOut`/`path[last] ∈
-tokensOut`; `recipient`/`to == SMA` (funds can't leave the account); `amountIn ≤
-maxAmountPerTx`; oracle band when `priceOracle != 0 && maxSlippageBps != 0`:
-`amountOutMin ≥ amountIn × price/10^dec × (10_000 − maxSlippageBps)/10_000`.
+Invariants: `ctx.value == 0` (native value rejected — ERC-20→ERC-20 only); `target ∈ routers`;
+`tokenIn`/`path[0] ∈ tokensIn`; `tokenOut`/`path[last] ∈ tokensOut`; `recipient`/`to == SMA`
+(funds can't leave the account); `amountIn ≤ maxAmountPerTx`; **oracle band ALWAYS enforced**
+(the oracle is mandatory — see below): `amountOutMin ≥ amountIn × price/10^dec ×
+(10_000 − maxSlippageBps)/10_000`. Dust trades whose computed floor truncates to `0` are
+**denied** (fail-closed).
+
+> **⛔ The oracle is MANDATORY (contract `v2`, hardened in PR #45).** `_applyConfig` reverts
+> `OracleRequired()` if `priceOracle == 0` and `MissingPriceAge()` if `maxPriceAgeSec == 0`.
+> There is **no oracle-disabled mode** on this template — for tokens with no oracle use the
+> separate [`SwapPermissionNoOracle`](../sail-template-swap-no-oracle/SKILL.md) (live-pool
+> hallucination band). `maxSlippageBps == 0` is **NOT** a bypass — it means zero tolerance
+> (exact-out-or-better), the strictest valid setting. `maxSlippageBps > 9_999` reverts
+> `SlippageBpsTooLarge`.
 
 > **V2 intermediate hops are NOT checked** — only `path[0]`/`path[last]`. Restrict to V3 or
 > ensure any plausible intermediate token is acceptable.
@@ -62,18 +72,19 @@ abi.encode(address[] routers, address[] tokensIn, address[] tokensOut,
 | `routers` | DEX routers the agent may call |
 | `tokensIn` / `tokensOut` | sell-side / buy-side allowlists (multiple out ⇒ portfolio DCA) |
 | `maxAmountPerTx` | per-swap cap, base units (e.g. `25_000_000` = 25 USDC) |
-| `maxSlippageBps` | e.g. `100` = 1%. `0` disables the oracle check (explicit opt-out) |
-| `priceOracle` | `address(0)` disables the oracle check |
-| `maxPriceAgeSec` | must be `> 0` when `priceOracle` is set |
+| `maxSlippageBps` | e.g. `100` = 1%. `0` = zero tolerance (strictest), NOT a bypass. Must be `≤ 9_999`. |
+| `priceOracle` | **REQUIRED, non-zero.** An `IOracle` adapter exposing `getPrice(tokenIn, tokenOut) → (price, dec, updatedAt)` — **not** a raw Chainlink/Pyth feed. `0` reverts `OracleRequired`. |
+| `maxPriceAgeSec` | **REQUIRED, `> 0`** (oracle staleness bound). `0` reverts `MissingPriceAge`. |
 
 Size the cap and slippage floor with `uniswap-v3-quote` / `sail-pyth-prices`. The SDK
 `boundedSwapTemplate` encoder matches this tuple — fine to use after a quick verify.
 
 ### Worked example — single-leg USDC → WETH
 
-Concrete params for a 25-USDC-per-swap, 1%-slippage, oracle-disabled DCA leg. These are the
-values you hand to `boundedSwapTemplate.encoder.encode(...)` to produce the `configureDirect`
-blob (step 3b) — they are **not** an args-file for a CLI command:
+Concrete params for a 25-USDC-per-swap, 1%-slippage DCA leg. These are the values you hand to
+`boundedSwapTemplate.encoder.encode(...)` to produce the `configureDirect` blob (step 3b) — they
+are **not** an args-file for a CLI command. `priceOracle` must be a **real, non-zero `IOracle`
+adapter** for this pair on this chain (`0x0` reverts):
 
 ```json
 {
@@ -82,10 +93,17 @@ blob (step 3b) — they are **not** an args-file for a CLI command:
   "tokensOut":      ["0x4200000000000000000000000000000000000006"],
   "maxAmountPerTx": "25000000",
   "maxSlippageBps": 100,
-  "priceOracle":    "0x0000000000000000000000000000000000000000",
-  "maxPriceAgeSec": 0
+  "priceOracle":    "0x9d84C11626d13C5DC9540fA12A3Ff7B85Ac3c1B9",
+  "maxPriceAgeSec": 3600
 }
 ```
+
+> The `priceOracle` above is the **default Unichain USDC/WETH `IOracle` adapter** — a verified
+> Uniswap V3 30-min TWAP (`UniV3TwapOracle`, pool `0x65081C…DBcF1`, 0.05% tier). It serves the
+> USDC↔WETH pair both directions and reverts `UnsupportedPair` for anything else. `catalog.mjs`
+> lists it under **IOracle adapters**; on other chains/pairs you must supply your own adapter
+> (`address(0)` reverts). Because it's a live TWAP, `updatedAt` is always current — `maxPriceAgeSec`
+> just needs to be a few minutes (e.g. `3600`).
 
 | Field | From | Notes |
 |---|---|---|
@@ -93,9 +111,9 @@ blob (step 3b) — they are **not** an args-file for a CLI command:
 | `tokensIn` | `resolve-token` | sell-side allowlist (usually just USDC) |
 | `tokensOut` | `resolve-token` | buy-side allowlist; **multiple ⇒ portfolio DCA** |
 | `maxAmountPerTx` | user's per-swap size, **base units** (string) | `"25000000"` = 25 USDC (6 dec) |
-| `maxSlippageBps` | `quote-swap`'s recommendation | `100` = 1%. `0` disables the on-chain check (testing only) |
-| `priceOracle` | `0x0` to disable, or a Pyth/Chainlink feed | when set, `maxPriceAgeSec` must be `> 0` |
-| `maxPriceAgeSec` | seconds | oracle staleness bound; `0` when the oracle is disabled |
+| `maxSlippageBps` | `quote-swap`'s recommendation | `100` = 1%. `0` = zero tolerance (strictest), not a bypass. `≤ 9_999`. |
+| `priceOracle` | an `IOracle` adapter for the chain (Pyth/Chainlink-backed) | **REQUIRED, non-zero.** Must expose `getPrice(tokenIn,tokenOut)` — not the raw feed contract. |
+| `maxPriceAgeSec` | seconds | **REQUIRED, `> 0`** — staleness bound. e.g. `3600` = 1h. |
 
 > **Caps are base units.** A decimals mismatch (USDC is 6, most tokens 18) silently mis-sizes
 > every bound. `resolve-token` verified decimals on-chain — use that value, never a guess.
@@ -110,6 +128,9 @@ blob (step 3b) — they are **not** an args-file for a CLI command:
 
 1. **Address:** `node SKILLS/sail-templates/catalog.mjs --chain <id>` → `SwapPermission`
    address. Not deployed yet? Deploy the singleton once and record it in `deployed.json`.
+   *(The catalog also prints any non-canonical **TEST instances** under a `⚠️ TEST` flag — e.g.
+   the verified Unichain `v2` test instance `0xDe30B1AdCdf46939303022aD41A3dDFaF8c2e644`. Use those
+   for end-to-end testing only; register the canonical singleton for production.)*
 2. **Confirm the spec with the user** (sell/buy tokens, per-swap cap, slippage, router/fee
    tier, recipient = SMA) — print the explainer's humanReadable + warnings. No gas before
    approval.
@@ -120,9 +141,14 @@ blob (step 3b) — they are **not** an args-file for a CLI command:
    **b. Configure** the per-account bounds — this is what makes the permission live. Encode the
    blob (`abi.encode(routers[], tokensIn[], tokensOut[], maxAmountPerTx, maxSlippageBps,
    priceOracle, maxPriceAgeSec)` — **flat params, no wrapper**; the SDK `boundedSwapTemplate`
-   encoder matches this tuple), pre-flight with `cast call <SWAP_PERMISSION>
-   "configureDirect(address,bytes)" <SMA> <blob> --from <owner>`, then send `configureDirect`
-   as an owner tx through the signing station. Verify `isConfigured(<SMA>) == true`.
+   encoder matches this tuple). `configureDirect` requires `msg.sender == permissionSigner`
+   (`kernel.configs(<SMA>)` — the owner only when they collapse to the same address), so pre-flight
+   and send from that signer: `cast call <SWAP_PERMISSION> "configureDirect(address,bytes)" <SMA>
+   <blob> --from <permissionSigner>`, then send the `configureDirect` tx through the signing
+   station. The call **reverts** on `priceOracle == 0` (`OracleRequired`), `maxPriceAgeSec == 0`
+   (`MissingPriceAge`), or `maxSlippageBps > 9_999` (`SlippageBpsTooLarge`) — so the pre-flight
+   `cast call` is the cheapest place to catch a bad blob. Verify `isConfigured(<SMA>) == true`.
+   *(The signed `configure(account, params, deadline, sig)` path uses EIP-712 domain `("SwapPermission","2")`.)*
    *(Intended future: `sailor mandate use`/`configure` does register+configure in one step —
    not yet shipped.)*
 4. **Simulate** — prove an allowed swap passes and a bad one (wrong recipient / over-cap /
@@ -159,16 +185,20 @@ plain single-call swap and MUST read `allowance(SMA, router)` and **stall (not s
 it is below `amountIn`.
 
 ## When NOT to use this
-- **Token has no oracle and you need manipulation resistance** → this template's oracle-disabled
-  mode only catches honest mistakes, not MEV/flash-loan attacks. See
-  [`sail-template-swap-no-oracle`](../sail-template-swap-no-oracle/SKILL.md) (hallucination guard,
-  not yet deployed) or author a bespoke permission.
+- **Token has no `IOracle` adapter** → this template REQUIRES a non-zero oracle and will not
+  configure without one. Use [`sail-template-swap-no-oracle`](../sail-template-swap-no-oracle/SKILL.md)
+  (live-pool hallucination band — catches honest mistakes, NOT MEV/flash-loan attacks) or author a
+  bespoke permission. There is no oracle-off mode on `SwapPermission`.
 - **Aggregator (LI.FI) or opaque calldata** → the mandate can't inspect the route; use
   [`sail-lifi-swap`](../sail-lifi-swap/SKILL.md) or [`sail-mandates`](../sail-mandates/SKILL.md).
 - **`SwapPermission` not deployed on your chain** (e.g. Ethereum mainnet) → deploy the singleton and
   record it in `deployed.json`, or author your own via [`sail-mandates`](../sail-mandates/SKILL.md).
 
 ## Notes
-- `maxSlippageBps = 0` removes slippage protection — testing only.
+- The oracle is **mandatory** and the band is **always** enforced; `maxSlippageBps = 0` is the
+  strictest setting (zero tolerance), not a way to disable the check.
+- `priceOracle` must be an `IOracle` adapter (`getPrice(tokenIn,tokenOut) → (price, dec, updatedAt)`),
+  not a raw Chainlink/Pyth feed; it must return a meaningful `updatedAt` or evaluate fails closed.
+- Native value is rejected (`ctx.value != 0 ⇒ deny`) — ERC-20→ERC-20 only.
 - Unaudited example — step 4 is mandatory.
 - `recipient = SMA` is non-negotiable and enforced in the contract, not just config.

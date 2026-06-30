@@ -125,6 +125,18 @@ function statusFor(deployed, name) {
   return rows.sort((a, b) => a.chainId - b.chainId);
 }
 
+// Non-canonical test instances (deployed.json `testInstances`): NOT registered singletons.
+function testInstancesFor(deployed, name) {
+  const rows = [];
+  for (const [chainId, map] of Object.entries(deployed.testInstances ?? {})) {
+    const entry = map?.[name];
+    if (!entry) continue;
+    const e = typeof entry === "string" ? { address: entry } : entry;
+    rows.push({ chainId: Number(chainId), name: CHAIN_NAMES[chainId] ?? `chain ${chainId}`, ...e });
+  }
+  return rows.sort((a, b) => a.chainId - b.chainId);
+}
+
 function main() {
   const protocolDir = findProtocolDir();
   if (!protocolDir) {
@@ -139,10 +151,20 @@ function main() {
     ...t,
     ...(META[t.name] ?? { primitive: "(uncurated — see source)", skill: null, config: "(see source)" }),
     deployments: statusFor(deployed, t.name).filter((r) => !onlyChain || r.chainId === Number(onlyChain)),
+    testInstances: testInstancesFor(deployed, t.name).filter((r) => !onlyChain || r.chainId === Number(onlyChain)),
   }));
 
+  // IOracle adapters usable as `priceOracle` in SwapPermission config (deployed.json `oracles`).
+  const oracles = [];
+  for (const [chainId, byLabel] of Object.entries(deployed.oracles ?? {})) {
+    if (onlyChain && Number(chainId) !== Number(onlyChain)) continue;
+    for (const [label, o] of Object.entries(byLabel ?? {})) {
+      oracles.push({ chainId: Number(chainId), name: CHAIN_NAMES[chainId] ?? `chain ${chainId}`, label, ...o });
+    }
+  }
+
   if (hasFlag("--json")) {
-    console.log(JSON.stringify({ protocolDir, templates: catalog }, null, 2));
+    console.log(JSON.stringify({ protocolDir, templates: catalog, oracles }, null, 2));
     return;
   }
 
@@ -167,6 +189,24 @@ function main() {
       }
     } else {
       console.log("   deployed:  not yet on any tracked chain (record in deployed.json once deployed)");
+    }
+    if (t.testInstances && t.testInstances.length) {
+      console.log("   ⚠️ TEST instances (NOT registered singletons — testing only):");
+      for (const ti of t.testInstances) {
+        const ver = ti.contractVersion ? ` [${ti.contractVersion}]` : "";
+        console.log(`     ${ti.name} (${ti.chainId}): ${ti.address}${ver}`);
+        if (ti.note) console.log(`       ↳ ${ti.note}`);
+      }
+    }
+    console.log("");
+  }
+  if (oracles.length) {
+    console.log("━━ IOracle adapters (usable as SwapPermission `priceOracle`) ━━");
+    for (const o of oracles) {
+      const pairs = (o.pairs ?? []).map((p) => p.label ?? `${p.base}/${p.quote}`).join(", ");
+      console.log(`   ${o.label} (${o.name} ${o.chainId}): ${o.address}${o.default ? "  [default]" : ""}`);
+      console.log(`     kind: ${o.kind ?? "?"}${o.twapWindowSec ? `, twap=${o.twapWindowSec}s` : ""}, decimals: ${o.priceDecimals ?? "?"}, pairs: ${pairs || "?"}`);
+      if (o.note) console.log(`     ↳ ${o.note}`);
     }
     console.log("");
   }

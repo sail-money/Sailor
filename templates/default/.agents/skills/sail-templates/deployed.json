@@ -24,7 +24,7 @@
       "ApproveAndCallBatchPermission": "0x5709B869Bd133A630e05A60566136B78Ed07c1e8",
       "BorrowPermission": "0xabD86E04d17cbEb90582D6a51c3D1C1Fc73f8950",
       "DepositPermission": "0xb52680Cb9dFfe5B92a4C5B0C831116D002Ba3150",
-      "SwapPermission": "0xb4111e5247afE602F63d0b5db24B19b5f96535B1",
+      "SwapPermission": "0xDe30B1AdCdf46939303022aD41A3dDFaF8c2e644",
       "TransferPermission": "0xb1ED08A2912380A3Bf2d609a10b5AC52A13DD1b2",
       "WithdrawPermission": "0x6E3cab201C06a4682e22aC1ba1a88F944FF489De"
     },
@@ -43,6 +43,48 @@
       "SwapPermission": "0x0eCef4e92CfAD090c7f35aCA7A3A563851e3b6Da",
       "TransferPermission": "0x5dA4741Bb60BC123e2a0512dD56467b73bF4cac6",
       "WithdrawPermission": "0xE567C026eAf4d0b64F6E232F5f904E4caAe859d8"
+    }
+  },
+  "_testInstancesComment": "NON-canonical instances deployed for testing only — NOT the registered production singletons in `chains`. Keyed chainId -> contract -> {address, ...}. catalog.mjs surfaces these with a TEST flag; do not use them for production registration.",
+  "testInstances": {
+    "130": {
+      "SwapPermission": {
+        "address": "0xDe30B1AdCdf46939303022aD41A3dDFaF8c2e644",
+        "deployedBy": "0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6",
+        "tx": "0x4a4d06758264be2f4b2b60b1103908a7ef4edb373a562686cf9856015e46c35c",
+        "deployedAt": "2026-06-30",
+        "contractVersion": "v2 (EIP712 domain \"2\"; oracle-mandatory #45 + epoch-binding #59)",
+        "verified": "https://uniscan.xyz/address/0xde30b1adcdf46939303022ad41a3ddfaf8c2e644",
+        "incompatibleWithLiveKernel": true,
+        "note": "WARNING: built from CURRENT Protocol source (v2) but the LIVE Unichain kernel 0x02ABC…6659 (deployed 2026-06-23) is a pre-#59 \"v1\" snapshot WITHOUT registrationEpoch. configureDirect/configure call kernel.registrationEpoch and therefore ALWAYS REVERT against the live kernel — this instance cannot be configured on-chain as-is. The canonical chains.130.SwapPermission (0xb4111e…535B1) is the matching v1 (EIP712 domain \"1\", no epoch binding). v2 allow/deny logic + this oracle were verified on a fork against a v2-compatible mock kernel (1 allow + 6 deny). To use v2 on Unichain, redeploy the v2 kernel+templates together; otherwise keep using the v1 canonical set."
+      }
+    }
+  },
+  "_oraclesComment": "IOracle adapters (getPrice(base,quote)) usable as `priceOracle` in SwapPermission config. SwapPermission requires a non-zero IOracle adapter. Keyed chainId -> label. `pairs` lists the directional token pairs each adapter serves (both directions); any other pair reverts. catalog.mjs surfaces these so the swap skill can pick a default oracle.",
+  "oracles": {
+    "130": {
+      "UniV3TwapOracle-USDC-WETH": {
+        "address": "0x9d84C11626d13C5DC9540fA12A3Ff7B85Ac3c1B9",
+        "kind": "uniswap-v3-twap",
+        "pool": "0x65081CB48d74A32e9CCfED75164b8c09972DBcF1",
+        "poolFeeTier": 500,
+        "twapWindowSec": 1800,
+        "priceDecimals": 18,
+        "pairs": [
+          { "base": "0x078D782b760474a361dDA0AF3839290b0EF57AD6", "quote": "0x4200000000000000000000000000000000000006", "label": "USDC/WETH" }
+        ],
+        "tokens": {
+          "USDC": "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+          "WETH": "0x4200000000000000000000000000000000000006"
+        },
+        "deployedBy": "0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6",
+        "tx": "0x3ca0d7232b623afda5e53c6d2319f4c3bbdc00a28b924c9f1d994bd3abfc2b3c",
+        "deployedAt": "2026-06-30",
+        "verified": "https://uniscan.xyz/address/0x9d84c11626d13c5dc9540fa12a3ff7b85ac3c1b9",
+        "source": "sail-templates/oracles/UniV3TwapOracle.sol",
+        "default": true,
+        "note": "Default priceOracle for the USDC<->WETH pair on Unichain. Live 30-min TWAP from the 0.05% V3 pool (cardinality 2000); updatedAt = block.timestamp, so it is always fresh against maxPriceAgeSec. Manipulation resistance scales with pool liquidity + window; reads a single pool. Use with maxPriceAgeSec >= a few minutes."
+      }
     }
   }
 }
