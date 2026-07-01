@@ -21,7 +21,6 @@
  * owner = permissionSigner = manager, which is fine for a testnet acceptance run.
  */
 import { http, createPublicClient, createWalletClient, encodeFunctionData, pad } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
 import * as viemChains from "viem/chains";
 import { buildRegisterAccountTypedData } from "./dist/eip712.js";
 import {
@@ -35,18 +34,32 @@ import { buildRegisterAccountExecTransaction } from "./dist/safe.js";
 
 const CHAIN_ID = Number(process.env.CHAIN_ID ?? 84532);
 const RPC = process.env.RPC_URL ?? process.env.BASE_SEPOLIA_RPC_URL;
+if (!RPC) throw new Error("Set RPC_URL (and optionally CHAIN_ID).");
+
+// Key source: a raw DEPLOYER_PRIVATE_KEY, or an encrypted keystore file (KEYSTORE +
+// SAIL_PASSPHRASE) — the latter keeps the private key off the command line/transcript.
 const PK = process.env.DEPLOYER_PRIVATE_KEY;
-if (!RPC || !PK) throw new Error("Set RPC_URL and DEPLOYER_PRIVATE_KEY (and optionally CHAIN_ID).");
+const KEYSTORE = process.env.KEYSTORE;
+const PASSPHRASE = process.env.SAIL_PASSPHRASE;
+const keyring = PK
+  ? LocalKeyring.fromPrivateKey(PK)
+  : KEYSTORE && PASSPHRASE
+    ? await LocalKeyring.fromKeystoreFile(KEYSTORE, PASSPHRASE)
+    : (() => {
+        throw new Error("Set DEPLOYER_PRIVATE_KEY, or KEYSTORE + SAIL_PASSPHRASE.");
+      })();
 
 const dep = getSailDeployment(CHAIN_ID);
 const chain = Object.values(viemChains).find((c) => c?.id === CHAIN_ID);
 if (!chain) throw new Error(`No viem chain def for chainId ${CHAIN_ID}`);
 
-const account = privateKeyToAccount(PK);
-const me = account.address;
+const me = keyring.address;
 const publicClient = createPublicClient({ chain, transport: http(RPC) });
-const walletClient = createWalletClient({ account, chain, transport: http(RPC) });
-const keyring = LocalKeyring.fromPrivateKey(PK);
+const walletClient = createWalletClient({
+  account: keyring.viemAccount,
+  chain,
+  transport: http(RPC),
+});
 
 const client = new SailorClient({
   rpcUrl: RPC,
