@@ -246,22 +246,23 @@ export async function mandatePrepare(): Promise<void> {
   }
 
   const store = new MandateStore();
-  const draftPermissions = permissions
-    .filter((p) => !p.revokedOnChain)
-    .map((p) => {
-      const mandate = store.find(p.address);
-      const explanation = explainPermission(p.label, mandate?.sourcePath) ?? undefined;
-      return { address: p.address, label: p.label, explanation };
-    });
+  // Only permissions not already registered on this SMA belong in the signing
+  // draft — re-registering an already-registered permission reverts on-chain.
+  const chargeable = chargeablePermissions(permissions);
+  const draftPermissions = chargeable.map((p) => {
+    const mandate = store.find(p.address);
+    const explanation = explainPermission(p.label, mandate?.sourcePath) ?? undefined;
+    return { address: p.address, label: p.label, explanation };
+  });
 
   // Estimate the registration fee LIVE for the permissions that will actually be
-  // charged on sign — the not-yet-registered ones — so the count matches
-  // `sailor mandate sign` and the browser screen never overstates the total when
-  // re-preparing a mandate with some permissions already registered. Best-effort:
-  // if it can't be estimated the draft still writes, just without the fee block.
-  // Skipped entirely when nothing new is to be registered (no "0 permissions").
+  // charged on sign — the chargeable ones — so the count matches `sailor mandate
+  // sign` and the browser screen never overstates the total when re-preparing a
+  // mandate with some permissions already registered. Best-effort: if it can't be
+  // estimated the draft still writes, just without the fee block. Skipped
+  // entirely when nothing new is to be registered (no "0 permissions").
   let registrationFee: DraftRegistrationFee | undefined;
-  const unregisteredAddresses = chargeablePermissions(permissions).map((p) => p.address);
+  const unregisteredAddresses = chargeable.map((p) => p.address);
   if (unregisteredAddresses.length > 0) {
     const estimate = await liveMandateFee(chainId, unregisteredAddresses);
     if (estimate !== null) registrationFee = draftFeeFromEstimate(estimate);

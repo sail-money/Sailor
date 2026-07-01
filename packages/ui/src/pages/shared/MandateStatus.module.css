@@ -11,9 +11,9 @@
   text-transform: uppercase;
   border-radius: var(--r-1, 3px);
   background: transparent;
-  transition: color 240ms var(--ease-apple),
-              background 240ms var(--ease-apple),
-              border-color 240ms var(--ease-apple);
+  transition: color 240ms var(--ease-sail),
+              background 240ms var(--ease-sail),
+              border-color 240ms var(--ease-sail);
 }
 
 .dot {
@@ -27,7 +27,7 @@
 
 /* Status pills use the semantic palette. Active = brand blue, expired
    = neutral, revoked = restrained red. Each state must read at a glance
-   from across the dashboard — Apple HIG: status communicated by color
+   from across the dashboard — status communicated by color
    AND form (the breathing dot on active is the only animated one). */
 .active {
   color: var(--accent-blue-bright, #4DABFF);

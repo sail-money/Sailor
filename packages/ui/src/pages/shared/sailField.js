@@ -23,8 +23,7 @@ export default function createSailBackground(opts = {}) {
 
   const VERT = 'attribute vec2 a_pos; void main(){ gl_Position = vec4(a_pos,0.0,1.0); }'
 
-  const FRAG = [
-    'precision highp float;',
+  const FRAG_BODY = [
     'uniform float u_time;',
     'uniform vec2  u_res;',
     'uniform float u_grid;',
@@ -84,8 +83,16 @@ export default function createSailBackground(opts = {}) {
   canvas.style.cssText = `${position}z-index:${zIndex};opacity:${opacity};pointer-events:none;display:block;`
   container.appendChild(canvas)
 
-  const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl')
-  if (!gl) return { canvas, destroy: () => canvas.remove() }
+  // Explicit attrs: Safari composites a transparent WebGL canvas more reliably
+  // when alpha + premultipliedAlpha are stated outright.
+  const glOpts = { alpha: true, premultipliedAlpha: true, antialias: true, depth: false, stencil: false }
+  const gl = canvas.getContext('webgl', glOpts) || canvas.getContext('experimental-webgl', glOpts)
+  if (!gl) { console.warn('[sailField] WebGL unavailable'); return { canvas, destroy: () => canvas.remove() } }
+
+  // Some GPUs (notably older iOS Safari) have no highp in fragment shaders, which
+  // makes a highp shader fail to compile → blank canvas. Fall back to mediump.
+  const hpf = gl.getShaderPrecisionFormat && gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT)
+  const FRAG = `precision ${hpf && hpf.precision > 0 ? 'highp' : 'mediump'} float;\n` + FRAG_BODY
 
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
 
@@ -133,6 +140,10 @@ export default function createSailBackground(opts = {}) {
     last = ts
     if (!start) start = ts
     const t = reduce ? 6.0 : (ts - start) / 1000
+    // Clear to transparent each frame — Safari can present a blank/garbage buffer
+    // on the first frames without an explicit clear.
+    gl.clearColor(0, 0, 0, 0)
+    gl.clear(gl.COLOR_BUFFER_BIT)
     gl.uniform1f(uTime, t)
     gl.uniform2f(uRes, canvas.width, canvas.height)
     gl.uniform1f(uGrid, GRID)

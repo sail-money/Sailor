@@ -1,13 +1,32 @@
-import type { Chain } from "viem";
-import { arbitrum, base, baseSepolia, mainnet, sepolia, unichain } from "viem/chains";
+import { defineChain, type Chain } from "viem";
+import { arbitrum, base, baseSepolia, bsc, mainnet, optimism, sepolia, unichain, worldchain } from "viem/chains";
 import { chains } from "@sail/sdk";
 import { parseEnvFile, sailPath } from "./io.js";
+
+// Not (yet) published in viem/chains — defined here from the Sail Protocol deployment data.
+const hyperevm = defineChain({
+  id: 999,
+  name: "HyperEVM",
+  nativeCurrency: { name: "HYPE", symbol: "HYPE", decimals: 18 },
+  rpcUrls: { default: { http: ["https://rpc.hyperliquid.xyz/evm"] } },
+});
+const megaeth = defineChain({
+  id: 4326,
+  name: "MegaETH",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: { default: { http: ["https://carrot.megaeth.com/rpc"] } },
+});
 
 const CHAINS: Record<number, Chain> = {
   1: mainnet,
   8453: base,
   42161: arbitrum,
+  10: optimism,
   130: unichain,
+  56: bsc,
+  480: worldchain,
+  999: hyperevm,
+  4326: megaeth,
   84532: baseSepolia,
   11155111: sepolia,
 };
@@ -17,7 +36,7 @@ export function getChainById(chainId: number): Chain {
   const chain = CHAINS[chainId];
   if (!chain) {
     throw new Error(
-      `Unsupported chainId: ${chainId}. Supported: 1 (Ethereum), 8453 (Base), 42161 (Arbitrum), 130 (Unichain), 84532 (Base Sepolia), 11155111 (Eth Sepolia)`,
+      `Unsupported chainId: ${chainId}. Supported: 1 (Ethereum), 8453 (Base), 42161 (Arbitrum), 10 (Optimism), 130 (Unichain), 56 (BSC), 480 (World Chain), 999 (HyperEVM), 4326 (MegaETH), 84532 (Base Sepolia), 11155111 (Eth Sepolia)`,
     );
   }
   return chain;

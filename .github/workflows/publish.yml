@@ -1,26 +1,55 @@
-name: Publish to GitHub Packages
+name: Publish
 
 on:
   push:
-    branches:
-      - main
+    tags: ['v*']
+    branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   tests:
     uses: ./.github/workflows/tests.yml
 
-  sailor:
+  publish-npm:
     needs: tests
     permissions:
       id-token: write
       contents: read
       packages: write
-    uses: ./.github/workflows/publish-npm-public-pkg.yaml
+    uses: ./.github/workflows/publish-npm.yml
     with:
-      registry-url: 'https://npm.pkg.github.com'
-      package-name: ${{ github.event_name == 'workflow_dispatch' && '@sail-money/sailor-dev' || '@sail-money/sailor' }}
-      dist-tag: 'latest'
-      build-number: ${{ github.run_number }}
+      environment: ${{ github.event_name == 'push' && github.ref_type == 'tag' && 'prod' || 'dev' }}
+      version: ${{ github.ref_name }}
+      skip-tests: true
     secrets:
-      NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-github-packages:
+    needs: tests
+    permissions:
+      id-token: write
+      contents: read
+      packages: write
+    uses: ./.github/workflows/publish-github-packages.yml
+    with:
+      environment: ${{ github.event_name == 'push' && github.ref_type == 'tag' && 'prod' || 'dev' }}
+      version: ${{ github.ref_name }}
+      skip-tests: true
+
+  publish-docker:
+    needs: tests
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/publish-docker.yml
+    with:
+      environment: ${{ github.event_name == 'push' && github.ref_type == 'tag' && 'prod' || 'dev' }}
+      version: ${{ github.ref_name }}
+      skip-tests: true
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

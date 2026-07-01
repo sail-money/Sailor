@@ -4,11 +4,24 @@ import { fileURLToPath } from 'node:url'
 import cors from 'cors'
 import express from 'express'
 import { WebSocket, WebSocketServer } from 'ws'
-import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, getSailDeployment } from '@sail/sdk'
-import { createPublicClient, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
+import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, getSailDeployment, readPermissionRegistrationFee } from '@sail/sdk'
+import { createPublicClient, createWalletClient, defineChain, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
 
 const PORT = Number(process.env.PORT ?? 3334)
+
+// Allowed CORS origins for the local data server / signing-station relay.
+// Defaults to the local dashboard only. Operators exposing the station over a
+// tailnet or a custom HTTPS host (F8) can add origins via SAILOR_CORS_ORIGINS,
+// a comma-separated list — e.g. `SAILOR_CORS_ORIGINS=https://hermes.example.ts.net`.
+const DEFAULT_CORS_ORIGINS = ['http://localhost:3333']
+const CORS_ORIGINS = [
+  ...DEFAULT_CORS_ORIGINS,
+  ...(process.env.SAILOR_CORS_ORIGINS ?? '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean),
+]
 
 // Resolve the current file path in both ESM and esbuild CJS bundles.
 // import.meta.url is undefined in CJS bundles; __filename is the fallback.
@@ -83,12 +96,17 @@ function persistPassphrase(envPath, passphrase) {
 
 const CHAIN_NAMES = {
   1: 'ethereum',
-  10: 'optimism',
-  137: 'polygon',
   8453: 'base',
   42161: 'arbitrum',
-  84532: 'base-sepolia',
+  10: 'optimism',
   130: 'unichain',
+  56: 'bsc',
+  480: 'world',
+  999: 'hyperevm',
+  4326: 'megaeth',
+  84532: 'base-sepolia',
+  11155111: 'eth-sepolia',
+  137: 'polygon',
 }
 
 // Named env-var aliases the CLI uses (e.g. BASE_RPC_URL), alongside the
@@ -97,14 +115,19 @@ const CHAIN_RPC_ENV_KEYS = {
   1:       ['RPC_URL_1',       'ETH_MAINNET_RPC_URL'],
   8453:    ['RPC_URL_8453',    'BASE_RPC_URL'],
   42161:   ['RPC_URL_42161',   'ARBITRUM_RPC_URL'],
+  10:      ['RPC_URL_10',      'OPTIMISM_RPC_URL'],
   130:     ['RPC_URL_130',     'UNICHAIN_RPC_URL'],
+  56:      ['RPC_URL_56',      'BSC_RPC_URL'],
+  480:     ['RPC_URL_480',     'WORLD_RPC_URL'],
+  999:     ['RPC_URL_999',     'HYPEREVM_RPC_URL'],
+  4326:    ['RPC_URL_4326',    'MEGAETH_RPC_URL'],
   84532:   ['RPC_URL_84532',   'BASE_SEPOLIA_RPC_URL'],
   11155111:['RPC_URL_11155111','SEPOLIA_RPC_URL'],
 }
 
 // Mainnet chains the dashboard knows about. Used to discover which chains a
 // (deterministically-addressed) SMA is deployed on by probing each on-chain.
-const SUPPORTED_CHAIN_IDS = [1, 8453, 42161, 130, 84532]
+const SUPPORTED_CHAIN_IDS = [1, 8453, 42161, 10, 130, 56, 480, 999, 4326, 84532]
 
 // Last-resort public RPC endpoints, keyed by chain id. Used for chain discovery
 // and read-only overviews when a project hasn't configured a per-chain RPC, so
@@ -113,7 +136,12 @@ const DEFAULT_RPC_URLS = {
   1:     'https://eth.llamarpc.com',
   8453:  'https://mainnet.base.org',
   42161: 'https://arb1.arbitrum.io/rpc',
+  10:    'https://mainnet.optimism.io',
   130:   'https://mainnet.unichain.org',
+  56:    'https://bsc-dataseed.binance.org',
+  480:   'https://worldchain-mainnet.g.alchemy.com/public',
+  999:   'https://rpc.hyperliquid.xyz/evm',
+  4326:  'https://carrot.megaeth.com/rpc',
   84532: 'https://sepolia.base.org',
 }
 
@@ -208,7 +236,7 @@ const OVERVIEW_TTL_MS = 10_000
  */
 export function startServer(sailDir, { port = PORT } = {}) {
   const app = express()
-  app.use(cors({ origin: 'http://localhost:3333' }))
+  app.use(cors({ origin: CORS_ORIGINS }))
   app.use(express.json())
 
   const at = (name) => path.join(sailDir, name)
@@ -840,12 +868,15 @@ export function startServer(sailDir, { port = PORT } = {}) {
     res.json({ ok: true })
   })
 
-  // POST /api/mandate-submit { signature, signedAt } — combines the draft with
-  // the browser-produced signature into the canonical mandate.json shape (the
-  // same shape `sailor mandate sign` writes, so downstream code is path-agnostic),
-  // then deletes the draft. Returns the persisted mandate.
-  app.post('/api/mandate-submit', (req, res) => {
-    const { signature, signedAt } = req.body ?? {}
+  // POST /api/mandate-submit { signature, signedAt, permissions, deadline } —
+  // takes the browser-produced RegisterPermissions signature, SUBMITS the
+  // registration on-chain via the agent (manager) key, then writes the canonical
+  // mandate.json. (F18: previously this read the wrong draft shape — yielding an
+  // empty permission list — and never registered on-chain, so the rich-UI signing
+  // path silently produced a dead local stub. It now mirrors `sailor mandate
+  // attach`: the owner's signature + the agent submitting and paying gas.)
+  app.post('/api/mandate-submit', async (req, res) => {
+    const { signature, signedAt, permissions: signedAddrs, deadline } = req.body ?? {}
     if (!signature) {
       res.status(400).json({ error: 'missing signature' })
       return
@@ -857,17 +888,95 @@ export function startServer(sailDir, { port = PORT } = {}) {
       res.status(404).json({ error: 'no mandate draft to submit' })
       return
     }
+
+    const safe = draft.account
+    const chainId = draft.chainId
+    // Read BOTH draft shapes: `sailor mandate prepare` writes `permissions`
+    // (CLI), legacy writes `items`. (This mismatch was the F18 empty-list bug.)
+    const draftPerms = draft.permissions ?? draft.items ?? []
+    const permissionMeta = draftPerms.map((p) => ({
+      template: p.label ?? p.template ?? null,
+      address: p.address ?? p.template ?? null,
+      explanation: p.explanation ?? null,
+    }))
+
+    // Addresses to register, in the exact order the wallet signed them.
+    const addrs = (Array.isArray(signedAddrs) && signedAddrs.length
+      ? signedAddrs
+      : permissionMeta.map((p) => p.address)
+    ).filter(Boolean).map((a) => getAddress(a))
+
+    // ── Submit the registration on-chain (agent pays gas + fee) ──────────────
+    let txHash = null
+    try {
+      if (!deadline) throw new Error('missing deadline')
+      if (addrs.length === 0) throw new Error('no permissions to register')
+      const env = parseEnvFile(at('.env.local'))
+      const password = process.env.SAIL_PASSPHRASE || env.SAIL_PASSPHRASE
+      if (!password) throw new Error('SAIL_PASSPHRASE not set — cannot unlock the agent key')
+      const rpcUrl = env.RPC_URL || env.BASE_SEPOLIA_RPC_URL
+      if (!rpcUrl) throw new Error('RPC_URL not set in .sail/.env.local')
+      const deployment = getSailDeployment(Number(chainId))
+      if (!deployment?.kernel) throw new Error(`No SailKernel deployment for chain ${chainId}`)
+
+      const keyring = await LocalKeyring.fromKeystoreFile(at('keys/manager.json'), password)
+      const publicClient = createPublicClient({ transport: http(rpcUrl) })
+
+      // Flat fee × N (0 for zero-fee deploys). The kernel's batch
+      // registerPermissions requires msg.value >= flat fee × n.
+      const flatFee = await readPermissionRegistrationFee(publicClient, deployment.governance)
+      const fee = flatFee * BigInt(addrs.length)
+
+      const chain = defineChain({
+        id: Number(chainId),
+        name: `chain-${chainId}`,
+        nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+        rpcUrls: { default: { http: [rpcUrl] } },
+      })
+      const walletClient = createWalletClient({ account: keyring.viemAccount, chain, transport: http(rpcUrl) })
+      const data = encodeFunctionData({
+        abi: SailKernelAbi,
+        functionName: 'registerPermissions',
+        args: [getAddress(safe), addrs, BigInt(deadline), signature],
+      })
+      txHash = await walletClient.sendTransaction({ to: deployment.kernel, data, value: fee, account: keyring.viemAccount, chain })
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
+      if (receipt.status !== 'success') throw new Error(`registerPermissions reverted (tx ${txHash})`)
+
+      // Record each registration in the activity log so the fee actually paid
+      // surfaces in Recent Activity — the station path otherwise writes only
+      // mandate.json and its registrations never appeared. Each permission in
+      // the batch is charged the same flat fee.
+      const feeEth = formatEther(flatFee)
+      for (const addr of addrs) {
+        const meta = permissionMeta.find((p) => p.address && getAddress(p.address) === addr)
+        const ev = {
+          ts: new Date().toISOString(),
+          actor: 'agent',
+          type: 'permission_registered',
+          permission: addr,
+          ...(meta?.template ? { name: meta.template } : {}),
+          sma: safe,
+          txHash,
+          chainId,
+          fee: flatFee.toString(),
+          feeEth,
+        }
+        try { fs.appendFileSync(at('activity.jsonl'), `${JSON.stringify(ev)}\n`) } catch { /* activity log is best-effort */ }
+      }
+    } catch (err) {
+      res.status(500).json({ error: `On-chain registration failed: ${err?.message ?? String(err)}` })
+      return
+    }
+
     const mandate = {
-      safe: draft.account,
-      chainId: draft.chainId,
+      safe,
+      chainId,
       signedAt: signedAt || new Date().toISOString(),
       signature,
-      registeredOnChain: false,
-      permissions: (draft.items ?? []).map((it) => ({
-        template: it.template,
-        params: it.params,
-        explanation: it.explanation,
-      })),
+      registeredOnChain: true,
+      txHash,
+      permissions: permissionMeta,
     }
     try {
       fs.mkdirSync(sailDir, { recursive: true })
@@ -876,7 +985,12 @@ export function startServer(sailDir, { port = PORT } = {}) {
         const raw = JSON.parse(fs.readFileSync(at('mandate.json'), 'utf-8'))
         existing = Array.isArray(raw) ? raw : [raw]
       } catch { /* no existing mandate */ }
-      fs.writeFileSync(at('mandate.json'), `${JSON.stringify([...existing, mandate], null, 2)}\n`)
+      // Replace any prior record for this safe+chain instead of blindly appending
+      // duplicates (another half of the F18 bug).
+      const deduped = existing.filter(
+        (m) => !(m.safe?.toLowerCase() === safe?.toLowerCase() && m.chainId === chainId),
+      )
+      fs.writeFileSync(at('mandate.json'), `${JSON.stringify([...deduped, mandate], null, 2)}\n`)
       try {
         fs.rmSync(at('mandate-draft.json'))
       } catch {

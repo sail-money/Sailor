@@ -3,7 +3,7 @@ import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { encodeFunctionData, getAddress } from 'viem'
 import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi'
 import { sailDeployments } from '@sail/sdk/deployments'
-import { ChainGlyph, GlassCard, Sai, SailButton } from '../shared'
+import { ChainGlyph, GlassCard, InfoTip, Sai, SailButton } from '../shared'
 import SailBackground from '../shared/SailBackground'
 import shared from '../shared/shared.module.css'
 import styles from './OnboardingWizard.module.css'
@@ -33,21 +33,14 @@ const SUPPORTED_NETWORKS = [
   { chainId: 42161,  name: 'Arbitrum One',   group: 'mainnet', description: 'Low-fee Ethereum L2.', color: '#28a0f0' },
   { chainId: 1,      name: 'Ethereum',       group: 'mainnet', description: 'The original chain.', color: '#627eea' },
   { chainId: 130,    name: 'Unichain',       group: 'mainnet', description: 'Uniswap-native L2.', color: '#ff007a' },
+  { chainId: 10,     name: 'Optimism',       group: 'mainnet', description: 'OP Stack L2.', color: '#ff0420' },
+  { chainId: 56,     name: 'BNB Smart Chain', group: 'mainnet', description: 'High-throughput BNB chain.', color: '#f3ba2f' },
+  { chainId: 480,    name: 'World Chain',    group: 'mainnet', description: 'Worldcoin L2.', color: '#dfe3e8' },
+  { chainId: 999,    name: 'HyperEVM',       group: 'mainnet', description: 'Hyperliquid EVM.', color: '#50d2c1' },
+  { chainId: 6342,   name: 'MegaETH',        group: 'mainnet', description: 'Real-time EVM.', color: '#ffffff' },
   // ── Testnets ──
   { chainId: 84532,    name: 'Base Sepolia',     group: 'testnet', description: 'Free to experiment.', color: '#0052ff' },
-  { chainId: 421614,   name: 'Arbitrum Sepolia', group: 'testnet', description: 'Arbitrum test network.', color: '#28a0f0' },
   { chainId: 11155111, name: 'Ethereum Sepolia', group: 'testnet', description: 'Ethereum test network.', color: '#627eea' },
-  { chainId: 1301,     name: 'Unichain Sepolia', group: 'testnet', description: 'Unichain test network.', color: '#ff007a' },
-]
-
-const SETUP_STAGES = [
-  { n: 1, name: 'Choose your networks' },
-  { n: 2, name: 'Connect your wallet' },
-  { n: 3, name: 'Set up your agent wallet and passphrase' },
-  { n: 4, name: 'Deploy your SMA' },
-  { n: 5, name: 'Configure your RPCs' },
-  { n: 6, name: 'Sign, monitor and revoke your permissions / mandates' },
-  { n: 7, name: 'Check your project activity' },
 ]
 
 // Steps that show progress dots (excludes welcome + done).
@@ -244,20 +237,10 @@ function WelcomeState({ onStart, onSkip }) {
         <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
           Welcome to the Sail Dashboard
         </h1>
+        <p className={styles.cardSub}>
+          Set up your SMA, scope what your agent can do, and monitor every on-chain action — all from one place.
+        </p>
       </header>
-
-      <div className={styles.stageList}>
-        <div className={styles.stageRows}>
-          {SETUP_STAGES.map((item) => (
-            <div key={item.n} className={styles.stageRow}>
-              <span className={styles.stageNum} aria-hidden>{String(item.n).padStart(2, '0')}</span>
-              <span className={styles.stageBody}>
-                <span className={styles.stageName}>{item.name}</span>
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
 
       <div className={styles.welcomeCta}>
         <SailButton fullWidth onClick={onStart}>Start setup →</SailButton>
@@ -276,15 +259,25 @@ function WelcomeState({ onStart, onSkip }) {
 function NetworkStep({ selected, onToggle, onBack, onDone, progressIndex, progressTotal }) {
   const mainnets = SUPPORTED_NETWORKS.filter(n => n.group === 'mainnet')
   const testnets = SUPPORTED_NETWORKS.filter(n => n.group === 'testnet')
-  const names = selected.map(id => SUPPORTED_NETWORKS.find(n => n.chainId === id)?.name).filter(Boolean)
 
   return (
-    <GlassCard className={styles.authCard}>
+    <GlassCard className={`${styles.authCard} ${styles.networkStepCard}`}>
       <ProgressDots current={progressIndex} total={progressTotal} />
       <CardHeader
         kicker="STEP 1 OF 4"
         title="Choose your networks"
-        sub="Same SMA address on every chain — deployed via CREATE2 with the same salt."
+        sub={
+          <>
+            <span className={styles.cardSubLead}>
+              Same SMA address on every chain.{' '}
+              <InfoTip label="What is an SMA?">
+                Separately Managed Account — a self-custodial Safe that holds your capital. You stay
+                the owner; the agent can only act within the mandate you set.
+              </InfoTip>
+            </span>
+            Deployed at a deterministic address, so it’s identical everywhere.
+          </>
+        }
         onBack={onBack}
       />
       <div className={styles.networkSection}>
@@ -304,10 +297,20 @@ function NetworkStep({ selected, onToggle, onBack, onDone, progressIndex, progre
       <SailButton fullWidth onClick={onDone} disabled={selected.length === 0}>
         {selected.length === 0
           ? 'Select at least one network'
-          : `Continue with ${names.join(' + ')} →`}
+          : 'Continue →'}
       </SailButton>
     </GlassCard>
   )
+}
+
+// Pick a check-mark ink that stays legible on the chain's brand colour: dark
+// ink on light brands (white World/MegaETH, gold BNB), white on dark ones.
+function checkInk(hex) {
+  if (typeof hex !== 'string' || hex[0] !== '#') return '#fff'
+  let h = hex.slice(1)
+  if (h.length === 3) h = h.split('').map(c => c + c).join('')
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16)
+  return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#04060b' : '#fff'
 }
 
 // Sharp, square-capped check — the "precise · dark · electric" selection mark,
@@ -368,7 +371,7 @@ function NetworkCard({ net, selected, onToggle }) {
       type="button"
       className={`${styles.networkCard} ${selected ? styles.networkCardSelected : ''} ${!live ? styles.networkCardSoon : ''}`}
       onClick={() => live && onToggle(net.chainId)}
-      style={{ '--net-color': live ? net.color : 'rgba(255,255,255,0.18)' }}
+      style={{ '--net-color': live ? net.color : 'rgba(255,255,255,0.18)', '--net-ink': live ? checkInk(net.color) : '#fff' }}
       title={live ? undefined : 'Sail kernel coming soon'}
     >
       <span className={styles.networkLogo}>
@@ -407,10 +410,48 @@ function ConnectStep({ onBack, onDone, progressIndex, progressTotal }) {
       <CardHeader
         kicker="STEP 2 OF 4"
         title="Connect your wallet"
-        sub="This wallet owns your SMA and signs mandates. It never executes trades."
+        sub="This wallet sits at the center of your setup."
         onBack={onBack}
       />
-      <SailButton fullWidth onClick={openConnectModal}>Connect wallet →</SailButton>
+      <ul className={styles.connectPoints}>
+        <li className={styles.connectPoint}>
+          <span className={styles.connectGlyph} aria-hidden />
+          <span className={styles.connectBody}>
+            <span className={styles.connectName}>
+              Owns your{' '}
+              <Term word="SMA">
+                Separately Managed Account — the self-custodial Safe that holds your capital; you
+                remain the owner.
+              </Term>
+            </span>
+            <span className={styles.connectDetail}>The Safe that holds your funds — you stay the owner.</span>
+          </span>
+        </li>
+        <li className={styles.connectPoint}>
+          <span className={styles.connectGlyph} aria-hidden />
+          <span className={styles.connectBody}>
+            <span className={styles.connectName}>
+              Governs your agent{' '}
+              <InfoTip label="What is a mandate?">
+                A mandate is the on-chain set of permission contracts registered to your account that
+                define what the agent may do. Revocable anytime from your dashboard.
+              </InfoTip>
+            </span>
+            <span className={styles.connectDetail}>Signs the mandates that scope what it can do.</span>
+          </span>
+        </li>
+        <li className={styles.connectPoint}>
+          <span className={styles.connectGlyph} aria-hidden />
+          <span className={styles.connectBody}>
+            <span className={styles.connectName}>Never trades for you</span>
+            <span className={styles.connectDetail}>The agent does the trading — always within the mandate you set.</span>
+          </span>
+        </li>
+      </ul>
+      <SailButton fullWidth onClick={openConnectModal}>
+        Connect wallet →
+      </SailButton>
+      <p className={styles.fineprint}>Self-custody. Sail never holds your keys.</p>
     </GlassCard>
   )
 }
@@ -462,7 +503,14 @@ function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTo
       <CardHeader
         kicker="STEP 3 OF 4"
         title="Set a passphrase"
-        sub="Sail generates your agent's signing key and encrypts it on this device. This passphrase unlocks it for every run. Sail never sees it."
+        sub={
+          <>
+            <span className={styles.cardSubLead}>
+              Sail generates your agent wallet and encrypts it on this device.
+            </span>
+            This passphrase unlocks it for every run — Sail never sees it.
+          </>
+        }
         onBack={onBack}
       />
       {!generated ? (
@@ -526,7 +574,11 @@ function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTo
           </ul>
 
           {error && <p className={styles.pwError}>{error}</p>}
-          <SailButton fullWidth onClick={generate} disabled={loading || !canSubmit}>
+          <SailButton
+            fullWidth
+            onClick={generate}
+            disabled={loading || !canSubmit}
+          >
             {loading ? 'Encrypting…' : 'Encrypt & continue →'}
           </SailButton>
           <p className={`${styles.fineprint} ${styles.keygenNote}`}>
@@ -750,7 +802,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
           const err = errors[chainId]
           return (
             <div key={chainId} className={styles.chainDeployRow}>
-              <span className={styles.chainDeployDot} style={{ '--net-color': 'var(--accent-blue)' }} />
+              <ChainGlyph chainId={chainId} size={18} />
               <span className={styles.chainDeployName}>{net?.name ?? `Chain ${chainId}`}</span>
               <span className={`${styles.chainDeployStatus} ${styles[`chainStatus_${status}`]}`}>
                 {status === 'pending' && '—'}
@@ -839,47 +891,10 @@ function Detail({ label, value, mono = true }) {
 
 /* ── Step 5: Done ── */
 function DoneStep({ deployedSafes, onComplete }) {
-  const [copied, setCopied] = useState(false)
-  const chainSummary = deployedSafes.map(({ chainId, safe }) => {
-    const net = SUPPORTED_NETWORKS.find(n => n.chainId === chainId)
-    return `${net?.name ?? `Chain ${chainId}`}: ${safe}`
-  }).join('\n')
-  const primaryNet = SUPPORTED_NETWORKS.find(n => n.chainId === deployedSafes[0]?.chainId)
-  // Use the actual dashboard origin — the UI port can vary (3333–3999), so don't
-  // hardcode it in the copy. Falls back to the default if origin is unavailable.
-  const dashboardUrl = (typeof window !== 'undefined' && window.location?.origin) || 'http://localhost:3333'
-
-  const aiPrompt = [
-    `My Sail SMAs are deployed:`,
-    chainSummary,
-    '',
-    'Please help me finish the setup — steps 5–8 from the Sail onboarding.',
-    'The Sailor UI is running at ' + dashboardUrl + ' — keep it open,',
-    'some steps require approving transactions there.',
-    '',
-    '5. Configure RPC & API keys',
-    '   - RPC: set it on the dashboard\'s RPC panel — it writes',
-    '     RPC_URL_<chainId> to .sail/.env.local for you. Fallback: add',
-    '     RPC_URL=<your RPC endpoint for ' + (primaryNet?.name ?? 'the network') + '> to .sail/.env.local directly.',
-    '   - SAIL_API_KEY: add SAIL_API_KEY=<your key from api.sail.money> to .sail/.env.local.',
-    '',
-    '6. Fund agent key',
-    '   - The agent address is shown on the dashboard (' + dashboardUrl + ')',
-    '   - Send a small amount of ETH to it for gas',
-    '',
-    '7. Set permissions (mandate)',
-    '   - Run: sailor mandate prepare',
-    '   - Then open ' + dashboardUrl + ' — the signing flow will appear automatically',
-    '',
-    '8. Start the agent',
-    '   - Run: sailor run',
-  ].filter(l => l !== null).join('\n')
-
-  function copy() {
-    navigator?.clipboard?.writeText(aiPrompt)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1800)
-  }
+  const chains = deployedSafes
+    .map(({ chainId }) => SUPPORTED_NETWORKS.find(n => n.chainId === chainId)?.name)
+    .filter(Boolean)
+    .join(' + ')
 
   return (
     <GlassCard className={styles.welcomeCard}>
@@ -887,30 +902,35 @@ function DoneStep({ deployedSafes, onComplete }) {
         <Sai size={64} animate />
       </div>
       <header className={styles.cardHeader}>
-        <span className={styles.kicker}>STEPS 1–4 COMPLETE</span>
+        <span className={styles.kicker}>SETUP COMPLETE</span>
         <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
-          {deployedSafes.length === 1 ? 'SMA deployed.' : `${deployedSafes.length} SMAs deployed.`}
+          You’re all set.
         </h1>
         <p className={`${shared.italicMannerism} ${styles.cardTagline}`}>
-          {deployedSafes.map(({ chainId }) => SUPPORTED_NETWORKS.find(n => n.chainId === chainId)?.name).join(' + ')}.
-          Continue in your terminal with AI.
+          {chains ? `Your SMA is live on ${chains}.` : 'Your SMA is live.'}
         </p>
       </header>
-      <div className={styles.doneNextSteps}>
-        <span className={styles.doneNextLabel}>Remaining steps (5–8) — copy to your AI</span>
-        <pre className={styles.donePromptText}>{aiPrompt}</pre>
-        <button type="button" className={styles.doneCopyBtn} onClick={copy}>
-          {copied ? '✓ Copied' : 'Copy prompt'}
-        </button>
-      </div>
       <div className={styles.welcomeCta}>
         <SailButton fullWidth onClick={onComplete}>Go to dashboard →</SailButton>
       </div>
+      <p className={styles.fineprint}>Manage your agent, mandates and RPCs from your dashboard.</p>
     </GlassCard>
   )
 }
 
 /* ── Shared atoms ── */
+/* Inline glossary term (F13): the word followed by an InfoTip whose tooltip
+   defines it in plain language — lowers the DeFi-knowledge barrier without
+   cluttering the copy. */
+function Term({ word, children }) {
+  return (
+    <>
+      {word}
+      <InfoTip label={word}>{children}</InfoTip>
+    </>
+  )
+}
+
 function CardHeader({ kicker, title, sub, onBack }) {
   return (
     <header className={styles.cardHeader}>

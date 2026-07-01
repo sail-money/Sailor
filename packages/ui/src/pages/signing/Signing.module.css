@@ -1,5 +1,5 @@
 /* ──────────────────────────────────────────
-   Signing & onboarding — Apple-grade redesign
+   Signing & onboarding — refined redesign
    ────────────────────────────────────────── */
 
 .shell {
@@ -64,7 +64,7 @@
   border: none;
   cursor: pointer;
   color: var(--text-primary);
-  transition: transform 220ms var(--ease-apple);
+  transition: transform 220ms var(--ease-sail);
 }
 .logoBtn:hover {
   transform: translateY(-1px);
@@ -325,10 +325,10 @@
   border-radius: 2px;
   cursor: pointer;
   transition:
-    transform 260ms var(--ease-apple),
-    background 260ms var(--ease-apple),
-    border-color 260ms var(--ease-apple),
-    box-shadow 260ms var(--ease-apple);
+    transform 260ms var(--ease-sail),
+    background 260ms var(--ease-sail),
+    border-color 260ms var(--ease-sail),
+    box-shadow 260ms var(--ease-sail);
 }
 .pathOption:hover {
   background: rgba(255, 255, 255, 0.045);
@@ -400,7 +400,7 @@
   width: 24px;
   height: 24px;
   color: var(--text-tertiary);
-  transition: transform 260ms var(--ease-apple), color 260ms var(--ease-apple);
+  transition: transform 260ms var(--ease-sail), color 260ms var(--ease-sail);
 }
 
 .fineprint {
@@ -506,9 +506,9 @@
   border-radius: 2px;
   cursor: pointer;
   transition:
-    background 220ms var(--ease-apple),
-    border-color 220ms var(--ease-apple),
-    transform 220ms var(--ease-apple);
+    background 220ms var(--ease-sail),
+    border-color 220ms var(--ease-sail),
+    transform 220ms var(--ease-sail);
 }
 .authBtn:hover {
   background:
@@ -564,7 +564,7 @@
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 2px;
   color: var(--text-tertiary);
-  transition: border-color 200ms var(--ease-apple), background 200ms var(--ease-apple);
+  transition: border-color 200ms var(--ease-sail), background 200ms var(--ease-sail);
 }
 .field:focus-within {
   border-color: rgba(25, 144, 255, 0.55);
@@ -832,7 +832,7 @@
   border-radius: 50%;
   background:
     radial-gradient(circle, rgba(25, 144, 255, 0.22) 0%, rgba(25, 144, 255, 0) 70%);
-  transition: background 380ms var(--ease-apple);
+  transition: background 380ms var(--ease-sail);
 }
 .pulse {
   width: 58px;

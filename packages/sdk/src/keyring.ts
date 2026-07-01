@@ -35,7 +35,6 @@ export type EncryptedKeystore = {
 
 export type LocalKeyringOptions =
   | { type: "privateKey"; privateKey: Hex }
-  | { type: "keystore"; keystore: EncryptedKeystore; password: string }
   | { type: "mnemonic"; mnemonic: string; derivationPath?: string };
 
 /**
@@ -54,7 +53,7 @@ export class LocalKeyring implements ILocalKeyring {
       this.account = account;
       this.address = account.address;
       this.privateKey = options.privateKey;
-    } else if (options.type === "mnemonic") {
+    } else {
       const account = mnemonicToAccount(
         options.mnemonic,
         options.derivationPath
@@ -63,16 +62,7 @@ export class LocalKeyring implements ILocalKeyring {
       );
       this.account = account;
       this.address = account.address;
-    } else {
-      throw new Error(
-        "keystore decryption not implemented — use type: 'privateKey' or type: 'mnemonic' instead",
-      );
     }
-  }
-
-  /** Returns a lightweight signer stub for read-only contexts where the key is not available. */
-  static fromAddress(address: Address): Pick<LocalKeyring, "address"> {
-    return { address };
   }
 
   /** Generates a brand-new keyring backed by a random private key. */

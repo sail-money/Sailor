@@ -39,8 +39,16 @@ export function explainPermission(
 
 // ── Structured header comment (the Sailor standard format) ────────────────────
 
+// Section-header matchers, loose enough to cover the shipped example headers
+// (F17): "ENFORCED ON-CHAIN:", "ENFORCES ON-CHAIN (…)", "NOT ENFORCED:",
+// "AGENT-ENFORCED / NOT BOUNDED HERE". `enforced` requires the ON-CHAIN
+// adjacency so an "AGENT-ENFORCED / NOT BOUNDED" line can't be misread as the
+// enforced section.
+const ENFORCED_HEADER = /ENFORCE[SD]\s+ON-CHAIN/i;
+const NOT_ENFORCED_HEADER = /NOT\s+(ENFORCED|BOUNDED)/i;
+
 function parseStructured(src: string): PermissionExplanation | null {
-  if (!src.includes("ENFORCED ON-CHAIN")) return null;
+  if (!ENFORCED_HEADER.test(src)) return null;
 
   const lines = src.split("\n");
   const result: PermissionExplanation = {
@@ -65,9 +73,11 @@ function parseStructured(src: string): PermissionExplanation | null {
     // Separator lines (─────)
     if (/^─+$/.test(trimmed)) continue;
 
-    // Section headers
-    if (trimmed.includes("ENFORCED ON-CHAIN")) { section = "enforced"; continue; }
-    if (trimmed.includes("NOT ENFORCED")) { section = "notEnforced"; continue; }
+    // Section headers. Check "not enforced/bounded" first: those lines never
+    // carry the ON-CHAIN adjacency the enforced matcher requires, and checking
+    // them first avoids any ambiguity with "AGENT-ENFORCED / NOT BOUNDED".
+    if (NOT_ENFORCED_HEADER.test(trimmed)) { section = "notEnforced"; continue; }
+    if (ENFORCED_HEADER.test(trimmed)) { section = "enforced"; continue; }
     // VERIFY BEFORE USE section is omitted — deploy-time detail, not user-facing
     if (trimmed.includes("VERIFY BEFORE USE")) { section = null; continue; }
 
@@ -97,13 +107,38 @@ function parseNatSpec(src: string): PermissionExplanation | null {
   const enforced: string[] = [];
   const notEnforced: string[] = [];
 
+  // A NatSpec tag's text can wrap across several `///` lines until the next tag
+  // or a non-NatSpec line (F15). Track the current tag and join its
+  // continuation lines into one entry instead of dropping all but the first.
+  let current: "enforced" | "notEnforced" | null = null;
+  let buf: string[] = [];
+  const flush = (): void => {
+    if (current && buf.length) {
+      const text = buf.join(" ").replace(/\s+/g, " ").trim();
+      if (text) (current === "enforced" ? enforced : notEnforced).push(text);
+    }
+    buf = [];
+  };
+
   for (const line of src.split("\n")) {
     const t = line.trim();
-    const notice = t.match(/^\/\/\/\s*@notice\s+(.+)$/);
-    if (notice) enforced.push(notice[1].trim());
-    const dev = t.match(/^\/\/\/\s*@dev\s+(.+)$/);
-    if (dev) notEnforced.push(dev[1].trim());
+    const tagged = t.match(/^\/\/\/\s*@(\w+)\s+(.+)$/);
+    if (tagged) {
+      const [, tag, text] = tagged;
+      if (tag === "notice") { flush(); current = "enforced"; buf.push(text.trim()); }
+      else if (tag === "dev") { flush(); current = "notEnforced"; buf.push(text.trim()); }
+      else { flush(); current = null; } // @title/@param/etc. close the block
+      continue;
+    }
+    const cont = t.match(/^\/\/\/\s?(.*)$/); // `///` line with no tag → continuation
+    if (cont && current) {
+      const text = cont[1].trim();
+      if (text) buf.push(text);
+      continue;
+    }
+    if (!t.startsWith("///")) { flush(); current = null; } // non-NatSpec line ends the block
   }
+  flush();
 
   if (enforced.length === 0 && notEnforced.length === 0) return null;
   return { source: "natspec", enforced, notEnforced };
