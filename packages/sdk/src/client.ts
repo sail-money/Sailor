@@ -364,12 +364,19 @@ class MandateNamespace extends KernelNamespace implements IMandateNamespace {
       td.message,
     );
 
-    await wallet.writeContract({
+    const txHash = await wallet.writeContract({
       address: template.address,
       abi: CONFIGURABLE_PERMISSION_ABI,
       functionName: "configure",
       args: [safe, encoded, deadline, sig],
     });
+    // Wait for the receipt and surface a revert: a failed re-config (stale nonce, expired
+    // deadline, bad params) must not resolve as success, which would leave the old bounds in
+    // place while the caller believes the new ones applied.
+    const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash });
+    if (receipt.status !== "success") {
+      throw new Error(`configure reverted (tx ${txHash})`);
+    }
   }
 
   replace(

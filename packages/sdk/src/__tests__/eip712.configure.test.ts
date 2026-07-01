@@ -38,6 +38,22 @@ test("v1 template: legacy Configure struct, domain version 1, no epoch", async (
   assert.equal(td.message.nonce, "3");
 });
 
+test("unknown template version throws (no silent v1 fallback)", async () => {
+  await assert.rejects(
+    () =>
+      buildConfigureTypedData({
+        publicClient: fakeClient("3"),
+        kernel: KERNEL,
+        template: TEMPLATE,
+        account: ACCOUNT,
+        params: PARAMS,
+        nonce: 1n,
+        deadline: 1n,
+      }),
+    /Unsupported template EIP-712 domain version "3"/,
+  );
+});
+
 test("v2 template: epoch-bound Configure struct, domain version 2, epoch from kernel", async () => {
   const td = await buildConfigureTypedData({
     publicClient: fakeClient("2", 7n),

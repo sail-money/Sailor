@@ -487,14 +487,11 @@ const CONFIGURE_FIELDS_V2 = [...CONFIGURE_FIELDS_V1, { name: "epoch", type: "uin
  *
  * No flag day: the same call signs whichever is on-chain, so it works with the
  * currently-deployed templates today and automatically with the epoch-binding
- * templates once they redeploy.
+ * templates once they redeploy. `SailorClient.mandate.reconfigure()` consumes this
+ * to sign and submit `template.configure(...)`.
  *
- * TODO(configure-flow): Sailor does not yet have a flow that *submits* a template
- * `configure()` (the SDK `reconfigure`/`attach`/`replace` are notImplemented, and
- * the launch attach path signs only RegisterPermission). This builder is the
- * version-adaptive seam that flow will use — finish wiring it (CLI/UI →
- * MandateFactory.attach configureSig, or configureDirect) once the epoch-binding
- * templates are deployed, and add an end-to-end test against a live v2 template.
+ * An unrecognized domain version throws rather than falling back to v1, so a future
+ * schema bump fails loudly instead of being silently mis-signed against the wrong shape.
  */
 export async function buildConfigureTypedData(args: {
   publicClient: PublicClient;
@@ -517,6 +514,11 @@ export async function buildConfigureTypedData(args: {
     functionName: "eip712Domain",
   })) as [string, string, string, bigint, string, string, readonly bigint[]];
 
+  if (version !== "1" && version !== "2") {
+    throw new Error(
+      `Unsupported template EIP-712 domain version "${version}" for ${args.template}. This SDK signs Configure schema v1 or v2; upgrade the SDK for newer templates.`,
+    );
+  }
   const isV2 = version === "2";
   const message: Record<string, string | number | boolean | string[]> = {
     account: args.account,

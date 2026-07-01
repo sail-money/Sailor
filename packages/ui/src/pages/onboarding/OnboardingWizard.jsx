@@ -730,7 +730,10 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
         domain: td.domain,
         types: td.types,
         primaryType: td.primaryType,
-        message: td.message,
+        // buildRegisterAccountTypedData emits JSON-safe values (uint256 as decimal strings).
+        // Re-parse deadline to BigInt so the signing payload matches the numeric type across
+        // signTypedData implementations (same convention as the SigningStation).
+        message: { ...td.message, deadline: BigInt(td.message.deadline) },
       })
 
       // 2b. Wrap registerAccount(...) in the Safe's execTransaction so msg.sender == the Safe.
