@@ -1,36 +1,33 @@
 import {
-  type Account as ViemAccount,
+  http,
   type Chain,
+  type PublicClient,
+  type Transport,
+  type Account as ViemAccount,
+  type WalletClient,
   createPublicClient,
   defineChain,
   encodeAbiParameters,
-  http,
   keccak256,
   parseEventLogs,
-  type PublicClient,
-  type Transport,
-  type WalletClient,
   zeroAddress,
 } from "viem";
 import { SailKernelAbi } from "./abis/SailKernel.js";
-import {
-  type KernelCapabilities,
-  detectKernelCapabilities,
-} from "./capabilities.js";
+import { type KernelCapabilities, detectKernelCapabilities } from "./capabilities.js";
 import { sailDeployments } from "./deployments.js";
-import { explainKernelRevert } from "./errors.js";
 import {
   DISPATCH_EIP712_FIELDS,
   buildConfigureTypedData,
   buildDispatchSignature,
   sailKernelDomain,
 } from "./eip712.js";
+import { explainKernelRevert } from "./errors.js";
 import {
   DEFAULT_SLIPPAGE,
   ERC20_ALLOWANCE_ABI,
+  LIFI_ROUTERS,
   encodeApprove,
   fetchLifiQuote,
-  LIFI_ROUTERS,
 } from "./lifi.js";
 import type {
   Account,
@@ -188,9 +185,7 @@ abstract class KernelNamespace {
   protected requireKernel(): Address {
     const kernel = this.config.kernel;
     if (!kernel) {
-      throw new Error(
-        "SailKernel address not configured — set `kernel` in SailorClientConfig.",
-      );
+      throw new Error("SailKernel address not configured — set `kernel` in SailorClientConfig.");
     }
     return kernel;
   }
@@ -211,8 +206,8 @@ abstract class KernelNamespace {
    */
   protected async capabilities(): Promise<KernelCapabilities> {
     const kernel = this.requireKernel();
-    const staticModel = sailDeployments[this.config.chainId as keyof typeof sailDeployments]
-      ?.dispatchModel;
+    const staticModel =
+      sailDeployments[this.config.chainId as keyof typeof sailDeployments]?.dispatchModel;
     return detectKernelCapabilities(this.publicClient, kernel, {
       chainId: this.config.chainId,
       staticModel,
@@ -225,9 +220,7 @@ class AccountNamespace extends KernelNamespace implements IAccountNamespace {
     const kernel = this.requireKernel();
     const signer = this.requireSigner();
     if (!params.safeFactory || !params.safeSingleton || !params.safeInitializer) {
-      throw new Error(
-        "createAccount requires safeFactory, safeSingleton, and safeInitializer.",
-      );
+      throw new Error("createAccount requires safeFactory, safeSingleton, and safeInitializer.");
     }
 
     const txHash = await signer.writeContract({
@@ -855,11 +848,7 @@ class PrincipalNamespace extends KernelNamespace implements IPrincipalNamespace 
   }
 
   /** Record a withdrawal. msg.sender must be the permissionSigner (the attached wallet). */
-  async recordWithdrawal(
-    safe: Address,
-    amount: bigint,
-    _signer: ILocalKeyring,
-  ): Promise<TxResult> {
+  async recordWithdrawal(safe: Address, amount: bigint, _signer: ILocalKeyring): Promise<TxResult> {
     const kernel = this.requireKernel();
     const wallet = this.requireSigner();
     const txHash = await wallet.writeContract({
@@ -922,8 +911,8 @@ export class SailorClient implements ISailorClient {
     if (!kernel) {
       throw new Error("SailKernel address not configured — set `kernel` in SailorClientConfig.");
     }
-    const staticModel = sailDeployments[this.config.chainId as keyof typeof sailDeployments]
-      ?.dispatchModel;
+    const staticModel =
+      sailDeployments[this.config.chainId as keyof typeof sailDeployments]?.dispatchModel;
     return detectKernelCapabilities(this.publicClient, kernel, {
       chainId: this.config.chainId,
       staticModel,

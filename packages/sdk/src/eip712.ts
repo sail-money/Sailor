@@ -1,4 +1,4 @@
-import { keccak256, type PublicClient, type TypedDataDomain } from "viem";
+import { type PublicClient, type TypedDataDomain, keccak256 } from "viem";
 import type { Account, Address, Chain, Hex, Transport, WalletClient } from "viem";
 import type { DispatchModel, KernelCapabilities } from "./capabilities.js";
 import { detectKernelCapabilities } from "./capabilities.js";
@@ -27,20 +27,20 @@ export function sailKernelDomain(args: { chainId: number; kernel: Address }): Ty
  */
 export const DISPATCH_EIP712_FIELDS = {
   selective: [
-    { name: "account",    type: "address" },
+    { name: "account", type: "address" },
     { name: "permission", type: "address" },
-    { name: "target",     type: "address" },
-    { name: "value",      type: "uint256" },
-    { name: "dataHash",   type: "bytes32" },
-    { name: "nonce",      type: "uint256" },
-    { name: "deadline",   type: "uint256" },
+    { name: "target", type: "address" },
+    { name: "value", type: "uint256" },
+    { name: "dataHash", type: "bytes32" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
   ],
   conjunctive: [
-    { name: "account",  type: "address" },
-    { name: "target",   type: "address" },
-    { name: "value",    type: "uint256" },
+    { name: "account", type: "address" },
+    { name: "target", type: "address" },
+    { name: "value", type: "uint256" },
     { name: "dataHash", type: "bytes32" },
-    { name: "nonce",    type: "uint256" },
+    { name: "nonce", type: "uint256" },
     { name: "deadline", type: "uint256" },
   ],
 } as const;
