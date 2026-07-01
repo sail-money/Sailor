@@ -103,14 +103,27 @@ via `readContract` immediately before signing (no caching / no precompute). New
 - `session pause/resume` honour `SAIL_PASSPHRASE` + `--json` (F6).
 - chain-aware explorer links / Base Sepolia config (genesis F1/F5).
 
-## 7. Acceptance test (testnet, after §1–§4)
+## 7. Acceptance test (testnet, after §1–§4)  — harness landed; awaiting a funded testnet run
 End-to-end: deploy SMA → `registerAccount` via owner-sig + Safe `execTransaction` →
 `configure` a shared template (v2 epoch path) → dispatch within bounds → `revokeSession`
-→ confirm both a **dispatch** and an **`ActivateSession`** pre-signed before the revoke
-are rejected (manager/batch + signer epoch bumps, #70) → re-activate by signing the
-fresh signer nonce. If the registerAccount rework (§2) is in scope, also assert an
-`ownerSig` built as a `v==1` approved-hash is rejected (#69) while an ECDSA owner sig
-succeeds. Run the full Sailor suite against the relaunch addresses.
+→ confirm a **dispatch** pre-signed with the pre-revoke nonce is rejected (manager/batch +
+signer epoch bumps, #70) → re-activate. Also assert an `ownerSig` built as a `v==1`
+approved-hash is rejected (#69) while an ECDSA owner sig succeeds.
+
+**Harness:** `packages/sdk/e2e-acceptance.mjs` implements this sequence against the bundled
+deployment registry (no hardcoded addresses). Build the SDK, then run with a funded key:
+
+```bash
+pnpm --filter @sail/sdk build
+cd packages/sdk
+CHAIN_ID=84532 RPC_URL=<testnet rpc> DEPLOYER_PRIVATE_KEY=0x<funded key> node e2e-acceptance.mjs
+```
+
+Phases 1 (createAccount), 2 (registerAccount-via-execTransaction + #69 guard), 4 (revoke →
+stale-nonce rejection → re-activate) run against live SDK methods. **Phase 3 (configure) needs
+one wiring step**: supply the params encoder that matches the deployed template's `configure()`
+ABI for the chosen `knownTemplates` entry — left explicit in the harness so the operator sets
+the exact bounds under test. Once a funded run passes, take PR #172 fully ready and merge.
 
 ---
 _Sources: Protocol PRs #52–#59, #64, #69–#71. This file lives on the configure-signer PR so all_
