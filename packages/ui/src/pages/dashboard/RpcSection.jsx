@@ -14,8 +14,9 @@ const CHAINS = [
   { id: 56,    name: 'BNB',          kind: 'mainnet' },
   { id: 480,   name: 'World',        kind: 'mainnet' },
   { id: 999,   name: 'HyperEVM',     kind: 'mainnet' },
-  { id: 6342,  name: 'MegaETH',      kind: 'mainnet' },
+  { id: 4326,  name: 'MegaETH',      kind: 'mainnet' },
   { id: 84532, name: 'Base Sepolia', kind: 'testnet' },
+  { id: 11155111, name: 'Eth Sepolia', kind: 'testnet' },
 ]
 
 const RPC_PROVIDERS = [
@@ -50,16 +51,26 @@ const RPC_PROVIDERS = [
 ]
 
 const ALCHEMY_HOST = {
+  1: 'eth-mainnet.g.alchemy.com',
   8453: 'base-mainnet.g.alchemy.com', 42161: 'arb-mainnet.g.alchemy.com',
+  10: 'opt-mainnet.g.alchemy.com',
   130: 'unichain-mainnet.g.alchemy.com', 84532: 'base-sepolia.g.alchemy.com',
+  11155111: 'eth-sepolia.g.alchemy.com',
 }
 const INFURA_HOST = {
+  1: 'mainnet.infura.io',
   8453: 'base-mainnet.infura.io', 42161: 'arbitrum-mainnet.infura.io',
+  10: 'optimism-mainnet.infura.io',
   130: 'unichain-mainnet.infura.io', 84532: 'base-sepolia.infura.io',
+  11155111: 'sepolia.infura.io',
 }
 const PUBLIC_RPC = {
+  1: 'https://eth.llamarpc.com',
   8453: 'https://mainnet.base.org', 42161: 'https://arb1.arbitrum.io/rpc',
+  10: 'https://mainnet.optimism.io',
   130: 'https://mainnet.unichain.org', 84532: 'https://sepolia.base.org',
+  56: 'https://bsc-dataseed.binance.org', 480: 'https://worldchain-mainnet.g.alchemy.com/public',
+  999: 'https://rpc.hyperliquid.xyz/evm', 4326: 'https://carrot.megaeth.com/rpc',
 }
 
 function composeRpcUrl(provider, chainId, key) {

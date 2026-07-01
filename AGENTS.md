@@ -30,15 +30,15 @@ Use the user-facing terms in all CLI output, prompts, and errors. The code ident
 
 ## Dispatch model
 
-All six chains share the same kernel at the same CREATE2 address, verified on-chain via `DISPATCH_TYPEHASH()`:
+All eleven chains share the same kernel at the same CREATE2 address, verified on-chain via `DISPATCH_TYPEHASH()`:
 
-| Kernel (all 6 chains) | Model | DISPATCH_TYPEHASH |
+| Kernel (all 11 chains) | Model | DISPATCH_TYPEHASH |
 |---|---|---|
-| `0x02ABC18B65A328de2e749F56ba79ACF2718a6659` | **selective** | `0xbe50c539...` |
+| `0x38b508756c976e876EFF05a29E731A4d348BA6ED` | **selective** | `0xbe50c539...` |
 
-Supported chains: Ethereum (1), Base (8453), Arbitrum (42161), Unichain (130), Base Sepolia (84532), Eth Sepolia (11155111).
+Supported chains: Ethereum (1), Base (8453), Arbitrum (42161), Optimism (10), Unichain (130), BSC (56), World Chain (480), HyperEVM (999), MegaETH (4326), Base Sepolia (84532), Eth Sepolia (11155111).
 
-All six kernels are live and bootstrapped (genesis allowlist set, `createAccount` verified working, zero fees). No templates are deployed against the current kernel on any chain yet — `knownTemplates` and `standaloneTemplates` are empty for all six entries. `packages/sdk/src/deployments.ts` is the canonical source of truth for kernel addresses, templates, and metadata.
+All eleven kernels are live and bootstrapped (genesis allowlist set, `createAccount` verified working, zero fees). Shared permission templates (swap, swap-no-oracle, borrow, deposit, withdraw, transfer, approve-and-call-batch) are deployed and verified against the current kernel on every chain — `knownTemplates` and `standaloneTemplates` are populated for all eleven entries. `packages/sdk/src/deployments.ts` is the canonical source of truth for kernel addresses, templates, and metadata.
 
 **Always use `detectKernelCapabilities` for the real model** — it reads the on-chain typehash and
 overrides the static label in `deployments.ts`. The static label is a fallback for offline use only.
@@ -57,7 +57,7 @@ Pass the detected value — never hardcode the type shape.
 
 ## Active addresses
 
-All six chain records in `packages/sdk/src/deployments.ts` are live — no commented-out or pending
+All eleven chain records in `packages/sdk/src/deployments.ts` are live — no commented-out or pending
 addresses remain. This file is the source of truth this guide mirrors.
 
 - `packages/sdk/src/deployments.ts` — `SailDeployment` records; canonical source of truth

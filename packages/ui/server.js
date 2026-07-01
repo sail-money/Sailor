@@ -96,12 +96,17 @@ function persistPassphrase(envPath, passphrase) {
 
 const CHAIN_NAMES = {
   1: 'ethereum',
-  10: 'optimism',
-  137: 'polygon',
   8453: 'base',
   42161: 'arbitrum',
-  84532: 'base-sepolia',
+  10: 'optimism',
   130: 'unichain',
+  56: 'bsc',
+  480: 'world',
+  999: 'hyperevm',
+  4326: 'megaeth',
+  84532: 'base-sepolia',
+  11155111: 'eth-sepolia',
+  137: 'polygon',
 }
 
 // Named env-var aliases the CLI uses (e.g. BASE_RPC_URL), alongside the
@@ -110,14 +115,19 @@ const CHAIN_RPC_ENV_KEYS = {
   1:       ['RPC_URL_1',       'ETH_MAINNET_RPC_URL'],
   8453:    ['RPC_URL_8453',    'BASE_RPC_URL'],
   42161:   ['RPC_URL_42161',   'ARBITRUM_RPC_URL'],
+  10:      ['RPC_URL_10',      'OPTIMISM_RPC_URL'],
   130:     ['RPC_URL_130',     'UNICHAIN_RPC_URL'],
+  56:      ['RPC_URL_56',      'BSC_RPC_URL'],
+  480:     ['RPC_URL_480',     'WORLD_RPC_URL'],
+  999:     ['RPC_URL_999',     'HYPEREVM_RPC_URL'],
+  4326:    ['RPC_URL_4326',    'MEGAETH_RPC_URL'],
   84532:   ['RPC_URL_84532',   'BASE_SEPOLIA_RPC_URL'],
   11155111:['RPC_URL_11155111','SEPOLIA_RPC_URL'],
 }
 
 // Mainnet chains the dashboard knows about. Used to discover which chains a
 // (deterministically-addressed) SMA is deployed on by probing each on-chain.
-const SUPPORTED_CHAIN_IDS = [1, 8453, 42161, 130, 84532]
+const SUPPORTED_CHAIN_IDS = [1, 8453, 42161, 10, 130, 56, 480, 999, 4326, 84532]
 
 // Last-resort public RPC endpoints, keyed by chain id. Used for chain discovery
 // and read-only overviews when a project hasn't configured a per-chain RPC, so
@@ -126,7 +136,12 @@ const DEFAULT_RPC_URLS = {
   1:     'https://eth.llamarpc.com',
   8453:  'https://mainnet.base.org',
   42161: 'https://arb1.arbitrum.io/rpc',
+  10:    'https://mainnet.optimism.io',
   130:   'https://mainnet.unichain.org',
+  56:    'https://bsc-dataseed.binance.org',
+  480:   'https://worldchain-mainnet.g.alchemy.com/public',
+  999:   'https://rpc.hyperliquid.xyz/evm',
+  4326:  'https://carrot.megaeth.com/rpc',
   84532: 'https://sepolia.base.org',
 }
 

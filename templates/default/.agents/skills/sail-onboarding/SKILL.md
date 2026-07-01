@@ -58,7 +58,7 @@ Stage machine keyed off `.sail/`. Read the state, enter at the right stage, neve
 | `account.json` exists, `state/mandates.json` empty or absent | SMA live, no permissions — hand off to **sail-mandates** |
 | `account.json` + tracked mandates | SMA live with permissions — hand off to **sail-transactions** to run. Once the agent is live, the flow is not done: **offer Extend (stage 5 — notifications + a custom dashboard) by default**, unless the operator opts out, then hand off to **sail-extend**. The end state is "stage 5 offered," not "running" |
 
-Supported chains: Ethereum (1), Base (8453), Arbitrum (42161), Unichain (130), Base Sepolia (84532), Eth Sepolia (11155111). `sailor chains --json` lists them with kernel addresses.
+Supported chains: Ethereum (1), Base (8453), Arbitrum (42161), Optimism (10), Unichain (130), BSC (56), World Chain (480), HyperEVM (999), MegaETH (4326), Base Sepolia (84532), Eth Sepolia (11155111). `sailor chains --json` lists them with kernel addresses.
 
 ## Stage 1 — Deploy the SMA and create the agent wallet
 

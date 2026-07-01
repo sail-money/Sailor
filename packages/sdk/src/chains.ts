@@ -3,20 +3,24 @@ import type { ChainConfig } from "./types.js";
 /**
  * Registry of live SailKernel deployments, keyed by EVM chainId.
  *
- * All entries were updated to the CREATE2-deterministic deployment (gitCommit
- * 1199b33) in which every core contract lands at the same address on every chain.
- * Add new chains here as SailKernel is deployed on additional networks.
+ * All entries run the Safe-governed CREATE2-deterministic deployment (gitCommit
+ * 1dc1960, create2-2026-07-01) in which every core contract lands at the same
+ * address on every chain. Add new chains here as SailKernel is deployed on
+ * additional networks.
  */
+const CREATE2_KERNEL = "0x38b508756c976e876EFF05a29E731A4d348BA6ED";
+const CREATE2_MANDATE_FACTORY = "0x6d2C802ffa0d9A8Ed69A5Bf22c1b63ccB566B8Fc";
+const CREATE2_GOVERNANCE = "0x4315B37cA4A315A7042af1Fcb37F8436f4D24356";
+
 export const chains: Record<number, ChainConfig> = {
   // Ethereum mainnet
   1: {
     chainId: 1,
     name: "Ethereum",
     rpcEnvVar: "ETH_MAINNET_RPC_URL",
-    // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33).
-    kernel: "0x02ABC18B65A328de2e749F56ba79ACF2718a6659",
-    mandateFactory: "0x14EDd6c2a56EfC0d71E215ab13094B9AF90543d2",
-    governance: "0x7A478118715791728BDE3bc7A4D7ECfdEB89C6EC",
+    kernel: CREATE2_KERNEL,
+    mandateFactory: CREATE2_MANDATE_FACTORY,
+    governance: CREATE2_GOVERNANCE,
     dispatchModel: "selective",
     protocols: {},
   },
@@ -25,11 +29,9 @@ export const chains: Record<number, ChainConfig> = {
     chainId: 8453,
     name: "Base",
     rpcEnvVar: "BASE_RPC_URL",
-    // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33).
-    // Supersedes 0x6319d3dfDDe3804ba93D65752b00c52bFb05a1ab (SAIL-405).
-    kernel: "0x02ABC18B65A328de2e749F56ba79ACF2718a6659",
-    mandateFactory: "0x14EDd6c2a56EfC0d71E215ab13094B9AF90543d2",
-    governance: "0x7A478118715791728BDE3bc7A4D7ECfdEB89C6EC",
+    kernel: CREATE2_KERNEL,
+    mandateFactory: CREATE2_MANDATE_FACTORY,
+    governance: CREATE2_GOVERNANCE,
     dispatchModel: "selective",
     protocols: {},
   },
@@ -38,11 +40,20 @@ export const chains: Record<number, ChainConfig> = {
     chainId: 42161,
     name: "Arbitrum",
     rpcEnvVar: "ARBITRUM_RPC_URL",
-    // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33).
-    // Supersedes 0x2716B12832DED0EF5688519c5Fe069EFc0374E02 (SAIL-405).
-    kernel: "0x02ABC18B65A328de2e749F56ba79ACF2718a6659",
-    mandateFactory: "0x14EDd6c2a56EfC0d71E215ab13094B9AF90543d2",
-    governance: "0x7A478118715791728BDE3bc7A4D7ECfdEB89C6EC",
+    kernel: CREATE2_KERNEL,
+    mandateFactory: CREATE2_MANDATE_FACTORY,
+    governance: CREATE2_GOVERNANCE,
+    dispatchModel: "selective",
+    protocols: {},
+  },
+  // Optimism mainnet
+  10: {
+    chainId: 10,
+    name: "Optimism",
+    rpcEnvVar: "OPTIMISM_RPC_URL",
+    kernel: CREATE2_KERNEL,
+    mandateFactory: CREATE2_MANDATE_FACTORY,
+    governance: CREATE2_GOVERNANCE,
     dispatchModel: "selective",
     protocols: {},
   },
@@ -51,11 +62,53 @@ export const chains: Record<number, ChainConfig> = {
     chainId: 130,
     name: "Unichain",
     rpcEnvVar: "UNICHAIN_RPC_URL",
-    // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33).
-    // Supersedes 0xD985029960a9B7C2E7E38e102C448b8b8539B156 (SAIL-406).
-    kernel: "0x02ABC18B65A328de2e749F56ba79ACF2718a6659",
-    mandateFactory: "0x14EDd6c2a56EfC0d71E215ab13094B9AF90543d2",
-    governance: "0x7A478118715791728BDE3bc7A4D7ECfdEB89C6EC",
+    kernel: CREATE2_KERNEL,
+    mandateFactory: CREATE2_MANDATE_FACTORY,
+    governance: CREATE2_GOVERNANCE,
+    dispatchModel: "selective",
+    protocols: {},
+  },
+  // BSC mainnet
+  56: {
+    chainId: 56,
+    name: "BSC",
+    rpcEnvVar: "BSC_RPC_URL",
+    kernel: CREATE2_KERNEL,
+    mandateFactory: CREATE2_MANDATE_FACTORY,
+    governance: CREATE2_GOVERNANCE,
+    dispatchModel: "selective",
+    protocols: {},
+  },
+  // World Chain mainnet
+  480: {
+    chainId: 480,
+    name: "World Chain",
+    rpcEnvVar: "WORLD_RPC_URL",
+    kernel: CREATE2_KERNEL,
+    mandateFactory: CREATE2_MANDATE_FACTORY,
+    governance: CREATE2_GOVERNANCE,
+    dispatchModel: "selective",
+    protocols: {},
+  },
+  // HyperEVM mainnet
+  999: {
+    chainId: 999,
+    name: "HyperEVM",
+    rpcEnvVar: "HYPEREVM_RPC_URL",
+    kernel: CREATE2_KERNEL,
+    mandateFactory: CREATE2_MANDATE_FACTORY,
+    governance: CREATE2_GOVERNANCE,
+    dispatchModel: "selective",
+    protocols: {},
+  },
+  // MegaETH mainnet
+  4326: {
+    chainId: 4326,
+    name: "MegaETH",
+    rpcEnvVar: "MEGAETH_RPC_URL",
+    kernel: CREATE2_KERNEL,
+    mandateFactory: CREATE2_MANDATE_FACTORY,
+    governance: CREATE2_GOVERNANCE,
     dispatchModel: "selective",
     protocols: {},
   },
@@ -64,11 +117,9 @@ export const chains: Record<number, ChainConfig> = {
     chainId: 84532,
     name: "Base Sepolia",
     rpcEnvVar: "BASE_SEPOLIA_RPC_URL",
-    // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33).
-    // Supersedes 0xf1D0F4C9893612627409948BAa9d82a01a373799 (SAIL-405).
-    kernel: "0x02ABC18B65A328de2e749F56ba79ACF2718a6659",
-    mandateFactory: "0x14EDd6c2a56EfC0d71E215ab13094B9AF90543d2",
-    governance: "0x7A478118715791728BDE3bc7A4D7ECfdEB89C6EC",
+    kernel: CREATE2_KERNEL,
+    mandateFactory: CREATE2_MANDATE_FACTORY,
+    governance: CREATE2_GOVERNANCE,
     dispatchModel: "selective",
     protocols: {},
   },
@@ -77,10 +128,9 @@ export const chains: Record<number, ChainConfig> = {
     chainId: 11155111,
     name: "Eth Sepolia",
     rpcEnvVar: "SEPOLIA_RPC_URL",
-    // CREATE2 deterministic deploy (2026-06-09, gitCommit 1199b33).
-    kernel: "0x02ABC18B65A328de2e749F56ba79ACF2718a6659",
-    mandateFactory: "0x14EDd6c2a56EfC0d71E215ab13094B9AF90543d2",
-    governance: "0x7A478118715791728BDE3bc7A4D7ECfdEB89C6EC",
+    kernel: CREATE2_KERNEL,
+    mandateFactory: CREATE2_MANDATE_FACTORY,
+    governance: CREATE2_GOVERNANCE,
     dispatchModel: "selective",
     protocols: {},
   },
@@ -91,7 +141,7 @@ export function getChain(chainId: number): ChainConfig {
   const config = chains[chainId];
   if (!config) {
     throw new Error(
-      `Chain ${chainId} is not supported. Supported chains: 1 (Ethereum), 8453 (Base), 42161 (Arbitrum), 130 (Unichain), 84532 (Base Sepolia), 11155111 (Eth Sepolia).`,
+      `Chain ${chainId} is not supported. Supported chains: 1 (Ethereum), 8453 (Base), 42161 (Arbitrum), 10 (Optimism), 130 (Unichain), 56 (BSC), 480 (World Chain), 999 (HyperEVM), 4326 (MegaETH), 84532 (Base Sepolia), 11155111 (Eth Sepolia).`,
     );
   }
   return config;

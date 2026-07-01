@@ -493,27 +493,28 @@ docker start agent   # restart it later (project files and state are on the host
 
 Sailor is functional and published as [`@sail.money/sailor`](https://www.npmjs.com/package/@sail.money/sailor) on npm (v1.2.0). The SDK, CLI, keystore, mandate flows, agent runner, and dashboard are implemented and have been exercised end to end.
 
-The Sail Protocol trusted core is deployed on six chains — Ethereum, Base, Arbitrum, Unichain, Base Sepolia, and Eth Sepolia — via CREATE2, with every core contract at the same address on every chain. All six run the selective dispatch model with zero fees and are bootstrapped with a genesis allowlist so `createAccount` is usable immediately. These deployments are under an ongoing external audit by [Octane Security](https://octane.security) and are not final — do not use them with funds you are not prepared to lose.
+The Sail Protocol trusted core is deployed on eleven chains — Ethereum, Base, Arbitrum, Optimism, Unichain, BSC, World Chain, HyperEVM, MegaETH, Base Sepolia, and Eth Sepolia — via CREATE2, with every core contract at the same address on every chain. All eleven run the selective dispatch model with zero fees and are bootstrapped with a genesis allowlist so `createAccount` is usable immediately. These deployments are under an ongoing external audit by [Octane Security](https://octane.security) and are not final — do not use them with funds you are not prepared to lose.
 
-Permission templates have not yet been deployed against the current kernel on any chain; `knownTemplates` and `standaloneTemplates` are empty for all six chains in `packages/sdk/src/deployments.ts` and will be populated as templates are deployed and verified against the new kernel.
+Shared permission templates (swap, swap-no-oracle, borrow, deposit, withdraw, transfer, approve-and-call-batch) are deployed and verified against the current kernel on every chain; they're populated as `knownTemplates`/`standaloneTemplates` for all eleven chains in `packages/sdk/src/deployments.ts`.
 
 ---
 
 ## Deployments
 
-All core contracts are deployed at the same address on every supported chain via CREATE2 (commit `1199b33`, 2026-06-09). An SMA created with the same owner, permission signer, manager, fee policy, and salt has the same address on every supported chain.
+All core contracts are deployed at the same address on every supported chain via CREATE2 (commit `1dc1960`, 2026-07-01, Safe-governed). An SMA created with the same owner, permission signer, manager, fee policy, and salt has the same address on every supported chain.
 
-### Core addresses (identical on all 6 chains)
+### Core addresses (identical on all 11 chains)
 
 | Contract | Address |
 |---|---|
-| SailKernel | `0x02ABC18B65A328de2e749F56ba79ACF2718a6659` |
-| SailGovernance | `0x7A478118715791728BDE3bc7A4D7ECfdEB89C6EC` |
-| TimelockController | `0xE48Ba8DB6d748adafD13155c3590f62e58a77f56` |
-| MandateFactory | `0x14EDd6c2a56EfC0d71E215ab13094B9AF90543d2` |
-| StandardFeePolicy | `0xe7B5901b839cFFDEd9D4108A22712C8BfdA1D80D` |
+| SailKernel | `0x38b508756c976e876EFF05a29E731A4d348BA6ED` |
+| SailGovernance | `0x4315B37cA4A315A7042af1Fcb37F8436f4D24356` |
+| TimelockController | `0xC1E5F9A581D4100Aa949f80204540a33aD97A7b6` |
+| MandateFactory | `0x6d2C802ffa0d9A8Ed69A5Bf22c1b63ccB566B8Fc` |
+| StandardFeePolicy | `0x1087312447C8a2BfA15EB9cE23590E3502DBA04b` |
 | SafeModuleEnabler | `0x7897Cb53a4be4a2eaAf46D60573C4Fd83b33fE1F` |
-| Treasury | `0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6` |
+| Deployer | `0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6` |
+| Treasury | `0x7b37F85575F1568a37dBA342BC5FE6d393F0872f` |
 
 These addresses are bundled in `@sail.money/sailor` and exposed via `getSailDeployment(chainId)` in the SDK. The Protocol repository is the canonical source of truth for deployment details — see [deployments/addresses.md](https://github.com/sail-money/Protocol/blob/main/deployments/addresses.md).
 
@@ -524,7 +525,12 @@ These addresses are bundled in `@sail.money/sailor` and exposed via `getSailDepl
 | Ethereum | 1 |
 | Base | 8453 |
 | Arbitrum | 42161 |
+| Optimism | 10 |
 | Unichain | 130 |
+| BSC | 56 |
+| World Chain | 480 |
+| HyperEVM | 999 |
+| MegaETH | 4326 |
 | Base Sepolia | 84532 |
 | Eth Sepolia | 11155111 |
 

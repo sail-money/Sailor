@@ -23,7 +23,8 @@ const CHAIN_COLORS = {
   4801:     '#dfe3e8', // World Chain Sepolia
   999:      '#50d2c1', // HyperEVM (Hyperliquid mint)
   998:      '#50d2c1', // HyperEVM Testnet
-  6342:     '#ffffff', // MegaETH (testnet)
+  4326:     '#ffffff', // MegaETH
+  6342:     '#ffffff', // MegaETH Testnet
 }
 
 function chainColor(chainId) {
@@ -86,7 +87,7 @@ function Mark({ chainId, color }) {
     </svg>
   )
   // MegaETH — M mascot
-  if (chainId === 6342) return (
+  if (chainId === 4326 || chainId === 6342) return (
     <svg viewBox="0 0 24 24" fill={color} xmlns="http://www.w3.org/2000/svg">
       <path d="M3 16.5V5h2.8L12 12.2 18.2 5H21v11.5h-2.6V9.2L12 16.6 5.6 9.2v7.3z" />
       <circle cx="9.4" cy="20" r="1.3" />

@@ -38,7 +38,7 @@ const manager = await LocalKeyring.load("path/to/manager.json", passphrase);
 
 const { signature, nonce, deadline, dispatchModel } = await buildDispatchSignature({
   publicClient,
-  kernel: "0x02ABC18B65A328de2e749F56ba79ACF2718a6659", // SailKernel — same address on every supported chain
+  kernel: "0x38b508756c976e876EFF05a29E731A4d348BA6ED", // SailKernel — same address on every supported chain
   chainId: 8453,
   account: mySafe,
   permission: myPermission,
