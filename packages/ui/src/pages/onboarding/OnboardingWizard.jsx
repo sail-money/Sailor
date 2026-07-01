@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { getAddress } from 'viem'
 import { useAccount, useSendTransaction, useSignTypedData, useSwitchChain } from 'wagmi'
-import { buildRegisterAccountExecTransaction, buildRegisterAccountTypedData } from '@sail/sdk'
+// Import from subpaths, not the '@sail/sdk' barrel: the barrel re-exports the Node-only
+// keyring (node:crypto scryptSync), which breaks the browser (vite) build. safe/eip712 are
+// viem-only and browser-safe.
+import { buildRegisterAccountTypedData } from '@sail/sdk/eip712'
+import { buildRegisterAccountExecTransaction } from '@sail/sdk/safe'
 import { sailDeployments } from '@sail/sdk/deployments'
 import { ChainGlyph, GlassCard, InfoTip, Sai, SailButton } from '../shared'
 import SailBackground from '../shared/SailBackground'
