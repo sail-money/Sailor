@@ -464,10 +464,10 @@ function parseAddressList(csv: string | undefined, flag: string): Address[] {
 export async function mandateDeployClone(options: DeployCloneOptions): Promise<void> {
   const project = requireProject();
   // Availability gate FIRST — before any signing server is spawned or gas spent.
-  // No standalone clone templates are deployed against the current kernel on any
-  // chain (standaloneTemplates is empty for all six). Erroring here, ahead of
-  // createSigningChannel, also avoids leaving an orphaned ephemeral signing
-  // server bound to a port for a command that cannot proceed.
+  // `boundedApprove` (the only clone template key) is not among the shared templates
+  // bundled per chain, so this — and the specific-key check below — still catches it.
+  // Erroring here, ahead of createSigningChannel, also avoids leaving an orphaned
+  // ephemeral signing server bound to a port for a command that cannot proceed.
   const templateMap = project.deployment.standaloneTemplates ?? {};
   if (Object.keys(templateMap).length === 0) {
     fail(
