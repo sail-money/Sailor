@@ -20,9 +20,10 @@
  * Run from packages/sdk so ./dist and viem resolve. A single local key collapses
  * owner = permissionSigner = manager, which is fine for a testnet acceptance run.
  */
-import { createPublicClient, createWalletClient, encodeFunctionData, http, pad } from "viem";
+import { http, createPublicClient, createWalletClient, encodeFunctionData, pad } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import * as viemChains from "viem/chains";
+import { buildRegisterAccountTypedData } from "./dist/eip712.js";
 import {
   LocalKeyring,
   SAFE_V141,
@@ -30,7 +31,6 @@ import {
   buildSafeSetupInitializer,
   getSailDeployment,
 } from "./dist/index.js";
-import { buildRegisterAccountTypedData } from "./dist/eip712.js";
 import { buildRegisterAccountExecTransaction } from "./dist/safe.js";
 
 const CHAIN_ID = Number(process.env.CHAIN_ID ?? 84532);
@@ -131,7 +131,9 @@ async function deployBareSafe(saltNonce) {
 }
 
 (async () => {
-  log(`\n== §7 acceptance — chain ${CHAIN_ID} (${chain.name}), kernel ${dep.kernel.slice(0, 10)}… ==`);
+  log(
+    `\n== §7 acceptance — chain ${CHAIN_ID} (${chain.name}), kernel ${dep.kernel.slice(0, 10)}… ==`,
+  );
   const caps = await client.capabilities();
   log(`Kernel model: ${caps.dispatchModel} (${caps.source}) · operator ${me}\n`);
 
@@ -158,7 +160,7 @@ async function deployBareSafe(saltNonce) {
 
   // ── Phase 2 — registerAccount via owner-sig + Safe.execTransaction (#53), #69 guard ──
   log("\n[2] registerAccount via Safe.execTransaction (owner-sig) + #69 approved-hash guard");
-  const bareSafe = await deployBareSafe(BigInt((Number(process.env.SALT ?? Date.now())) + 1));
+  const bareSafe = await deployBareSafe(BigInt(Number(process.env.SALT ?? Date.now()) + 1));
   const regDeadline = BigInt(Math.floor(Date.now() / 1000) + 600);
   const regArgs = {
     chainId: CHAIN_ID,
@@ -171,11 +173,20 @@ async function deployBareSafe(saltNonce) {
     deadline: regDeadline,
   };
   const td = buildRegisterAccountTypedData(regArgs);
-  const ownerSig = await keyring.signTyped(td.domain, { primaryType: td.primaryType, types: td.types }, td.message);
+  const ownerSig = await keyring.signTyped(
+    td.domain,
+    { primaryType: td.primaryType, types: td.types },
+    td.message,
+  );
 
   // #69: a v==1 approved-hash blob must be REJECTED as the kernel ownerSig.
   const approvedHashSig = `0x${pad(me, { size: 32 }).slice(2)}${"00".repeat(32)}01`;
-  const badExec = buildRegisterAccountExecTransaction({ safe: bareSafe, ...regArgs, ownerSig: approvedHashSig, owner: me });
+  const badExec = buildRegisterAccountExecTransaction({
+    safe: bareSafe,
+    ...regArgs,
+    ownerSig: approvedHashSig,
+    owner: me,
+  });
   check(
     "#69: approved-hash ownerSig rejected",
     await rejects(async () => {
@@ -186,7 +197,12 @@ async function deployBareSafe(saltNonce) {
   );
 
   // Real ECDSA ownerSig must succeed.
-  const goodExec = buildRegisterAccountExecTransaction({ safe: bareSafe, ...regArgs, ownerSig, owner: me });
+  const goodExec = buildRegisterAccountExecTransaction({
+    safe: bareSafe,
+    ...regArgs,
+    ownerSig,
+    owner: me,
+  });
   const regHash = await walletClient.sendTransaction({ to: goodExec.to, data: goodExec.data });
   const regRcpt = await publicClient.waitForTransactionReceipt({ hash: regHash });
   check("ECDSA ownerSig registerAccount succeeds", regRcpt.status === "success", bareSafe);
