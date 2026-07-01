@@ -792,16 +792,85 @@ class StrategyNamespace extends KernelNamespace implements IStrategyNamespace {
 }
 
 class SessionNamespace extends KernelNamespace implements ISessionNamespace {
-  revoke(_safe: Address, _signer: ILocalKeyring): Promise<void> {
-    return notImplemented();
+  /**
+   * Suspend (`revokeSession`) or resume (`activateSession`) the manager's dispatch rights.
+   * Both are permissionSigner-signed over the RevokeSession/ActivateSession EIP-712 struct,
+   * with `nonce` read fresh from `signerNonces[account]` immediately before signing — the
+   * kernel bumps that nonce by a full epoch on revoke (#70), so it must never be cached. The
+   * kernel also rotates the manager/batch nonce epochs, invalidating any pre-signed dispatch.
+   */
+  async revoke(safe: Address, signer: ILocalKeyring): Promise<void> {
+    await this.#submitSessionOp(safe, signer, "RevokeSession", "revokeSession");
   }
 
-  activate(_safe: Address, _signer: ILocalKeyring): Promise<void> {
-    return notImplemented();
+  async activate(safe: Address, signer: ILocalKeyring): Promise<void> {
+    await this.#submitSessionOp(safe, signer, "ActivateSession", "activateSession");
   }
 
-  status(_safe: Address): Promise<Session> {
-    return notImplemented();
+  async #submitSessionOp(
+    safe: Address,
+    signer: ILocalKeyring,
+    primaryType: "RevokeSession" | "ActivateSession",
+    fn: "revokeSession" | "activateSession",
+  ): Promise<void> {
+    const kernel = this.requireKernel();
+    const wallet = this.requireSigner();
+    const deadline = defaultDeadline();
+
+    // Just-in-time signer nonce (never cache — revoke advances it a full epoch, #70).
+    const nonce = (await this.publicClient.readContract({
+      address: kernel,
+      abi: SailKernelAbi,
+      functionName: "signerNonces",
+      args: [safe],
+    })) as bigint;
+
+    const sig = await signer.signTyped(
+      sailKernelDomain({ chainId: this.config.chainId, kernel }),
+      {
+        primaryType,
+        types: {
+          [primaryType]: [
+            { name: "account", type: "address" },
+            { name: "nonce", type: "uint256" },
+            { name: "deadline", type: "uint256" },
+          ],
+        },
+      },
+      { account: safe, nonce, deadline },
+    );
+
+    const txHash = await wallet.writeContract({
+      address: kernel,
+      abi: SailKernelAbi,
+      functionName: fn,
+      args: [safe, deadline, sig],
+    });
+    // A kill switch must land before we return — wait for the receipt and surface a revert.
+    const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash });
+    if (receipt.status !== "success") {
+      throw new Error(`${fn} reverted (tx ${txHash})`);
+    }
+  }
+
+  async status(safe: Address): Promise<Session> {
+    const kernel = this.requireKernel();
+    // configs returns (permissionSigner, manager, feePolicy, feeAsset, sessionActive).
+    const cfg = (await this.publicClient.readContract({
+      address: kernel,
+      abi: SailKernelAbi,
+      functionName: "configs",
+      args: [safe],
+    })) as readonly [Address, Address, Address, Address, boolean];
+    return {
+      safe,
+      active: cfg[4],
+      manager: cfg[1],
+      // Block-level markers require an event scan; expose live active/manager state and
+      // leave the historical timestamps null.
+      activatedAtBlock: null,
+      revokedAtBlock: null,
+    };
   }
 }
 

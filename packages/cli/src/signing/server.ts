@@ -423,7 +423,7 @@ export class SigningServer {
         abi: SailKernelAbi,
         functionName: "configs",
         args: [getAddress(safe)],
-      })) as [Address, Address, Address, boolean];
+      })) as [Address, Address, Address, Address, boolean];
       return { permissionSigner: getAddress(configs[0]), manager: getAddress(configs[1]) };
     } catch {
       return null;

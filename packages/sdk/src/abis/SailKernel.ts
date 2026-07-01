@@ -91,6 +91,33 @@ export const SailKernelAbi = [
     outputs: [],
   },
 
+  // ── Session kill switch ───────────────────────────────────────────────────
+  // Suspend/resume manager dispatch rights. Both are permissionSigner-signed
+  // (RevokeSession/ActivateSession EIP-712, nonce = signerNonces[account]) and
+  // rotate the manager/batch nonce epochs so any pre-signed dispatch is invalidated.
+  {
+    type: "function",
+    name: "revokeSession",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "account", type: "address" },
+      { name: "deadline", type: "uint256" },
+      { name: "sig", type: "bytes" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "activateSession",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "account", type: "address" },
+      { name: "deadline", type: "uint256" },
+      { name: "sig", type: "bytes" },
+    ],
+    outputs: [],
+  },
+
   // ── Manager dispatch ──────────────────────────────────────────────────────
   {
     type: "function",
@@ -233,6 +260,7 @@ export const SailKernelAbi = [
       { name: "permissionSigner", type: "address" },
       { name: "manager", type: "address" },
       { name: "feePolicy", type: "address" },
+      { name: "feeAsset", type: "address" },
       { name: "sessionActive", type: "bool" },
     ],
   },

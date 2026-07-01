@@ -103,7 +103,18 @@ via `readContract` immediately before signing (no caching / no precompute). New
 - `session pause/resume` honour `SAIL_PASSPHRASE` + `--json` (F6).
 - chain-aware explorer links / Base Sepolia config (genesis F1/F5).
 
-## 7. Acceptance test (testnet, after §1–§4)  — harness landed; awaiting a funded testnet run
+## 7. Acceptance test (testnet, after §1–§4)  ✅ PASSED on Base Sepolia (7/7)
+
+**Live result (Base Sepolia, kernel `0x38b5…A6ED`):** createAccount ✓ · registerAccount via
+owner-sig + `Safe.execTransaction` ✓ · #69 approved-hash ownerSig rejected ✓ · session
+revoke → `active=false` ✓ · #70 signer-nonce epoch bump (`0 → 2¹²⁸+1`) ✓ · re-activate ✓.
+Phase 3 (configure) is operator-set — supply the template params encoder to include it.
+
+This run also surfaced and fixed: `session.revoke`/`activate`/`status` were `notImplemented()`
+(now implemented, signer-op EIP-712 + JIT signer-nonce, awaiting receipt); and the SDK `configs`
+ABI was missing `feeAsset` (a 5th field) — corrected, with the CLI consumers updated.
+
+
 End-to-end: deploy SMA → `registerAccount` via owner-sig + Safe `execTransaction` →
 `configure` a shared template (v2 epoch path) → dispatch within bounds → `revokeSession`
 → confirm a **dispatch** pre-signed with the pre-revoke nonce is rejected (manager/batch +

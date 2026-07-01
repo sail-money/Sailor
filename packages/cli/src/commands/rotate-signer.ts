@@ -208,7 +208,7 @@ async function runRotateSigner(
     abi: SailKernelAbi,
     functionName: "configs",
     args: [smaAddress],
-  })) as [Address, Address, Address, boolean];
+  })) as [Address, Address, Address, Address, boolean];
   const [permissionSigner, oldManager] = config;
 
   const currentPermissions = (await publicClient.readContract({

@@ -548,7 +548,7 @@ async function runDeployClone(
     abi: SailKernelAbi,
     functionName: "configs",
     args: [sma],
-  })) as [Address, Address, Address, boolean];
+  })) as [Address, Address, Address, Address, boolean];
   const permissionSigner = kernelConfig[0];
 
   const initParams: CloneInitParams = {
@@ -961,7 +961,7 @@ async function runRevoke(
       abi: SailKernelAbi,
       functionName: "configs",
       args: [sma],
-    })) as [Address, Address, Address, boolean];
+    })) as [Address, Address, Address, Address, boolean];
     const expectedPermissionSigner = kCfg[0];
 
     const recoveredSigner = await recoverTypedDataAddress({
@@ -1057,7 +1057,7 @@ async function attachToSma(
     abi: SailKernelAbi,
     functionName: "configs",
     args: [sma],
-  })) as [Address, Address, Address, boolean];
+  })) as [Address, Address, Address, Address, boolean];
   const permissionSigner = kernelConfig[0];
 
   const txHash = await attachMandate(
@@ -1118,7 +1118,7 @@ async function attachBatchToSma(
     abi: SailKernelAbi,
     functionName: "configs",
     args: [sma],
-  })) as [Address, Address, Address, boolean];
+  })) as [Address, Address, Address, Address, boolean];
   const permissionSigner = kernelConfig[0];
 
   // Batch registration (registerPermissions, with deadline) is the selective-kernel
