@@ -6,7 +6,7 @@ None of it is live yet (fresh launch, no deployed accounts), but the Sailor side
 must be updated **in lockstep with the relaunch deploy**. This is the consolidated
 to-do; items are ordered by blast radius.
 
-## 1. Refresh deployment addresses — `packages/sdk/src/deployments.ts`  (BLOCKER)
+## 1. Refresh deployment addresses — `packages/sdk/src/deployments.ts`  ✅ DONE
 PR #64 adds a `_setupEnabler` arg to the `SailKernel` constructor → the **kernel
 address changes**, and because `MandateFactory(_kernel)` and
 `StandardFeePolicy(..., _kernel, ...)` take the kernel in their constructors, the
@@ -14,6 +14,13 @@ address changes**, and because `MandateFactory(_kernel)` and
 (kernel, mandateFactory, feePolicy) + add the `SafeModuleEnabler` address, per chain,
 from the relaunch manifests. Governance/timelock don't depend on the kernel — verify
 they're unchanged. Re-confirm the same-address-across-chains property still holds.
+
+**Done:** `deployments.ts` refreshed to the final relaunch manifests (CREATE2 global salt,
+factory `0x4e59…4956C`). Kernel `0x38b5…A6ED`, MandateFactory `0x6d2C…B8Fc`, StandardFeePolicy
+`0x1087…A04b`, SafeModuleEnabler `0x7897…fE1F`, Governance `0x4315…4356`, Timelock `0xC1E5…A7b6`
+— all identical on every chain. Treasury (`0x7b37…872f`) split out from the deployer EOA
+(`0xB01d…15B6`). Coverage expanded to all **11** launch chains (added Optimism, BSC, World,
+HyperEVM, MegaETH). The seven shared templates are populated in each chain's `knownTemplates`.
 
 ## 2. Rework the two-step `registerAccount` onboarding — UI  (BLOCKER, behaviour change)
 `OnboardingWizard.jsx` (~L682) sends `registerAccount(permissionSigner, manager,
