@@ -22,6 +22,7 @@ export type {
 export {
   SAFE_V141,
   buildApprovedHashSignature,
+  buildRegisterAccountExecTransaction,
   buildSafeSetupInitializer,
   buildSetManagerExecTransaction,
   computeKernelBoundSalt,

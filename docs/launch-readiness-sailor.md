@@ -22,7 +22,10 @@ factory `0x4e59…4956C`). Kernel `0x38b5…A6ED`, MandateFactory `0x6d2C…B8Fc
 (`0xB01d…15B6`). Coverage expanded to all **11** launch chains (added Optimism, BSC, World,
 HyperEVM, MegaETH). The seven shared templates are populated in each chain's `knownTemplates`.
 
-## 2. Rework the two-step `registerAccount` onboarding — UI  (BLOCKER, behaviour change)
+> **Done:** §2, §3, §5b landed on this branch; §4 SDK path wired (live-v2 e2e + take-out-of-draft
+> pending). §1 addresses landed earlier. Remaining before merge: §4 step 2–3, §7 testnet acceptance.
+
+## 2. Rework the two-step `registerAccount` onboarding — UI  ✅ DONE (needs §7 testnet run)
 `OnboardingWizard.jsx` (~L682) sends `registerAccount(permissionSigner, manager,
 feePolicy)` (3-arg ABI) **from the owner EOA**. Post-#53 `registerAccount` is
 `registerAccount(permissionSigner, manager, feePolicy, feeAsset, deadline, ownerSig)`
@@ -43,22 +46,31 @@ EIP-712 preimage (`0x1901 ‖ domainSeparator ‖ structHash`) as `data`. Do **n
 `buildSetManagerExecTransaction` — a Safe `execTransaction` signature, not the kernel
 `checkSignatures` arg — is unaffected.)
 
-## 3. Sync the SDK ABIs to the redeployed contracts — `packages/sdk/src/abis/*`  (BLOCKER)
-- `SailKernel.ts`: `registerAccount` → 6-arg (see §2).
-- `Context`/`BatchContext` now carry `configEpoch` (#59) — update anywhere the SDK
-  encodes/decodes them.
-- `MandateFactory` `deployAndAttach` external ABI is unchanged (#58 changed only the
-  internal salt) — no ABI edit, but see §5.
-- Regenerate against the relaunch build to catch anything else.
+**Done:** SDK adds `buildRegisterAccountTypedData` (kernel digest) and
+`buildRegisterAccountExecTransaction` (wraps the 6-arg `registerAccount` in the Safe's
+`execTransaction`; ownerSig is a real ECDSA sig, the execTransaction is authorised by the
+sole-owner pre-validated blob — the two signatures kept distinct per #69). `OnboardingWizard.jsx`
+two-step path rewired: owner signs the RegisterAccount digest, then submits via the Safe. Unit
+tests cover both builders (18/18). Not yet exercised on a live chain — see §7.
 
-## 4. Finish + wire the configure flow — this PR (#172)  (BLOCKER for shared templates)
+## 3. Sync the SDK ABIs to the redeployed contracts — `packages/sdk/src/abis/*`  ✅ DONE
+- `SailKernel.ts`: `registerAccount` → 6-arg. **Done.**
+- `Context`/`BatchContext` carry `configEpoch` (#59): the kernel builds Context internally and
+  passes it to permissions via staticcall — it is **never** an SDK-encoded argument or part of any
+  signed digest, so there is nothing to update in the SDK ABIs. Verified against `dispatch`/
+  `dispatchBatch` (no Context tuple arg) and `IPermission.Context` (read-only freshness tag).
+- `MandateFactory` `deployAndAttach` external ABI unchanged (#58 changed only the internal salt).
+- Regenerate against the relaunch build to catch anything else. (pending relaunch build)
+
+## 4. Finish + wire the configure flow — this PR (#172)  (SDK wired; e2e pending)
 Shared launch templates need `configure()` to set per-account bounds; post-#59 an
 unconfigured template fails `_configCurrent` (epoch guard) → every dispatch denied.
 `buildConfigureTypedData` (this PR) is the version-adaptive signer; remaining:
-  1. wire an actual configure submission (CLI/UI → `MandateFactory.attach` `configureSig`,
-     or `configureDirect`);
-  2. add a live-v2 end-to-end test;
-  3. take this PR out of draft and merge.
+  1. ~~wire an actual configure submission~~ — **Done:** `SailorClient.mandate.reconfigure`
+     encodes params, reads `configNonces` fresh, signs the v1/v2 Configure struct, and submits
+     `template.configure(account, params, deadline, sig)`.
+  2. add a live-v2 end-to-end test; (pending a deployed v2 template — unit branches covered)
+  3. take this PR out of draft and merge. (pending §4.2 + §7)
 
 ## 5. Re-activate `deploy-clone` when standalone clone templates redeploy  (only if used)
 Dormant until standalone clone templates are redeployed and re-added to
@@ -82,6 +94,10 @@ SDK/CLI must read `signerNonces[account]` **fresh on-chain immediately before si
 each signer op (RevokeSession/ActivateSession/RegisterPermission/etc.) and never cache or
 precompute "current + 1". Confirm the signer-op builders read live nonce; this is the
 expected pattern already, so this is a verification item, not a known break.
+
+**Verified:** the signer-op builder (`mandate.attachBatch`) reads `signerNonces[account]` fresh
+via `readContract` immediately before signing (no caching / no precompute). New
+`mandate.reconfigure` follows the same pattern for the template `configNonces`. OK, no change.
 
 ## 6. Already merged — verify post-relaunch
 - `session pause/resume` honour `SAIL_PASSPHRASE` + `--json` (F6).
