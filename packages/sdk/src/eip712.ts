@@ -270,6 +270,70 @@ export function buildRegisterPermissionTypedData(args: {
 }
 
 /**
+ * EIP-712 types for RegisterAccount (post-#53 two-step onboarding). Mirrors the on-chain
+ * REGISTER_ACCOUNT_TYPEHASH:
+ *   RegisterAccount(address account,address permissionSigner,address manager,
+ *                   address feePolicy,address feeAsset,uint256 deadline)
+ * The owner signs this digest; the resulting signature is passed as `ownerSig` to
+ * registerAccount, which the Safe submits via execTransaction (so msg.sender == the Safe).
+ */
+export const REGISTER_ACCOUNT_TYPES = {
+  RegisterAccount: [
+    { name: "account", type: "address" },
+    { name: "permissionSigner", type: "address" },
+    { name: "manager", type: "address" },
+    { name: "feePolicy", type: "address" },
+    { name: "feeAsset", type: "address" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
+
+/**
+ * Build a JSON-serializable RegisterAccount typed-data payload for the browser signing
+ * station. The Safe owner signs it; the signature becomes the `ownerSig` arg to
+ * registerAccount (submitted via the Safe's execTransaction). Bigints are stringified for
+ * transport; the UI re-parses the decimal-string `deadline` before signing.
+ *
+ * Note (#69): the kernel rejects the Safe v==1 approved-hash shortcut for this ownerSig —
+ * build it as a real EOA ECDSA signature over the digest, or the Safe v==0 contract-signature
+ * path for contract/nested-Safe owners. Do NOT use buildApprovedHashSignature here.
+ */
+export function buildRegisterAccountTypedData(args: {
+  chainId: number;
+  kernel: Address;
+  /** The Safe account being registered. */
+  account: Address;
+  permissionSigner: Address;
+  manager: Address;
+  feePolicy: Address;
+  /** Fee asset (address(0) for the native token). */
+  feeAsset?: Address;
+  /** Signature deadline (unix seconds). Defaults to 10 minutes from now. */
+  deadline?: bigint;
+}): SerializedTypedData {
+  const deadline = args.deadline ?? BigInt(Math.floor(Date.now() / 1000) + 600);
+  const feeAsset = args.feeAsset ?? ("0x0000000000000000000000000000000000000000" as Address);
+  return {
+    domain: {
+      name: "SailKernel",
+      version: "1",
+      chainId: args.chainId,
+      verifyingContract: args.kernel,
+    },
+    types: REGISTER_ACCOUNT_TYPES as unknown as SerializedTypedData["types"],
+    primaryType: "RegisterAccount",
+    message: {
+      account: args.account,
+      permissionSigner: args.permissionSigner,
+      manager: args.manager,
+      feePolicy: args.feePolicy,
+      feeAsset,
+      deadline: deadline.toString(),
+    },
+  };
+}
+
+/**
  * EIP-712 types for RegisterPermissions (batch) — selective kernel. Mirrors the
  * shape SailorClient.mandate.attachBatch signs and the on-chain
  * registerPermissions(account, permissions[], deadline, sig) entry point.

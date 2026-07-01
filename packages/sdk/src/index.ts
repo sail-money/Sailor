@@ -64,11 +64,13 @@ export {
 } from "./errors.js";
 export {
   DISPATCH_EIP712_FIELDS,
+  REGISTER_ACCOUNT_TYPES,
   REGISTER_PERMISSION_TYPES,
   REGISTER_PERMISSION_TYPES_NO_DEADLINE,
   REGISTER_PERMISSIONS_BATCH_TYPES,
   buildConfigureTypedData,
   buildDispatchSignature,
+  buildRegisterAccountTypedData,
   buildRegisterPermissionTypedData,
   buildRegisterPermissionsBatchTypedData,
   sailKernelDomain,

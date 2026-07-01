@@ -23,6 +23,10 @@ export const SailKernelAbi = [
     ],
     outputs: [{ name: "account", type: "address" }],
   },
+  // Post-#53: two-step registration. Requires msg.sender == the Safe (trusted-proxy
+  // codehash + trusted-singleton pin) and a Safe owner signature over the
+  // RegisterAccount EIP-712 digest (verified via checkSignatures). Must be submitted
+  // through the Safe's execTransaction, not the owner EOA. See buildRegisterAccountTypedData.
   {
     type: "function",
     name: "registerAccount",
@@ -31,6 +35,9 @@ export const SailKernelAbi = [
       { name: "permissionSigner", type: "address" },
       { name: "manager", type: "address" },
       { name: "feePolicy", type: "address" },
+      { name: "feeAsset", type: "address" },
+      { name: "deadline", type: "uint256" },
+      { name: "ownerSig", type: "bytes" },
     ],
     outputs: [],
   },

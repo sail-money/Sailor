@@ -21,6 +21,7 @@ import { sailDeployments } from "./deployments.js";
 import { explainKernelRevert } from "./errors.js";
 import {
   DISPATCH_EIP712_FIELDS,
+  buildConfigureTypedData,
   buildDispatchSignature,
   sailKernelDomain,
 } from "./eip712.js";
@@ -90,6 +91,32 @@ function buildPublicClient(config: SailorClientConfig): PublicClient {
 function defaultDeadline(): bigint {
   return BigInt(Math.floor(Date.now() / 1000) + 300);
 }
+
+/**
+ * Minimal ConfigurablePermission ABI — the signer-gated re-config entry point and its
+ * per-account nonce. Shared by every launch template (they all extend ConfigurablePermission).
+ */
+const CONFIGURABLE_PERMISSION_ABI = [
+  {
+    type: "function",
+    name: "configNonces",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "configure",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "account", type: "address" },
+      { name: "params", type: "bytes" },
+      { name: "deadline", type: "uint256" },
+      { name: "sig", type: "bytes" },
+    ],
+    outputs: [],
+  },
+] as const;
 
 /**
  * Default gas limit for a single dispatch. Passing an explicit limit makes viem
@@ -300,13 +327,56 @@ class MandateNamespace extends KernelNamespace implements IMandateNamespace {
     });
   }
 
-  reconfigure(
-    _safe: Address,
-    _template: PermissionTemplate,
-    _params: unknown,
-    _signer: ILocalKeyring,
+  /**
+   * Re-configure the per-account bounds of an already-registered shared template.
+   * The permission signer signs the template's `Configure` EIP-712 struct — built by
+   * `buildConfigureTypedData`, which reads the template's live ERC-5267 domain and emits
+   * the v1 or v2 (epoch-bound) schema to match whatever is deployed — and the attached
+   * wallet submits `configure(account, params, deadline, sig)`.
+   *
+   * The config nonce is read fresh on-chain immediately before signing (the template
+   * increments it only after a successful verify), so a re-config never reuses a stale nonce.
+   */
+  async reconfigure(
+    safe: Address,
+    template: PermissionTemplate,
+    params: unknown,
+    signer: ILocalKeyring,
   ): Promise<void> {
-    return notImplemented();
+    const kernel = this.requireKernel();
+    const wallet = this.requireSigner();
+    const encoded = template.encoder.encode(params);
+    const deadline = defaultDeadline();
+
+    const nonce = (await this.publicClient.readContract({
+      address: template.address,
+      abi: CONFIGURABLE_PERMISSION_ABI,
+      functionName: "configNonces",
+      args: [safe],
+    })) as bigint;
+
+    const td = await buildConfigureTypedData({
+      publicClient: this.publicClient,
+      kernel,
+      template: template.address,
+      account: safe,
+      params: encoded,
+      nonce,
+      deadline,
+    });
+
+    const sig = await signer.signTyped(
+      td.domain,
+      { primaryType: td.primaryType, types: td.types },
+      td.message,
+    );
+
+    await wallet.writeContract({
+      address: template.address,
+      abi: CONFIGURABLE_PERMISSION_ABI,
+      functionName: "configure",
+      args: [safe, encoded, deadline, sig],
+    });
   }
 
   replace(
