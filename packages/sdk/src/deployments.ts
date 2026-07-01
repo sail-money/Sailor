@@ -129,12 +129,20 @@ const CREATE2_TEMPLATES: Record<string, Address> = {
 
 const CREATE2_KNOWN_TEMPLATES: Omit<KnownTemplate, "chainId">[] = [
   { kind: "SwapPermission", address: CREATE2_TEMPLATES.swap, label: "Swap" },
-  { kind: "SwapPermissionNoOracle", address: CREATE2_TEMPLATES.swapNoOracle, label: "Swap (no oracle)" },
+  {
+    kind: "SwapPermissionNoOracle",
+    address: CREATE2_TEMPLATES.swapNoOracle,
+    label: "Swap (no oracle)",
+  },
   { kind: "BorrowPermission", address: CREATE2_TEMPLATES.borrow, label: "Borrow" },
   { kind: "DepositPermission", address: CREATE2_TEMPLATES.deposit, label: "Deposit" },
   { kind: "WithdrawPermission", address: CREATE2_TEMPLATES.withdraw, label: "Withdraw" },
   { kind: "TransferPermission", address: CREATE2_TEMPLATES.transfer, label: "Transfer" },
-  { kind: "ApproveAndCallBatchPermission", address: CREATE2_TEMPLATES.approveAndCallBatch, label: "Approve + call batch" },
+  {
+    kind: "ApproveAndCallBatchPermission",
+    address: CREATE2_TEMPLATES.approveAndCallBatch,
+    label: "Approve + call batch",
+  },
 ];
 
 /** Shared `SailDeployment` fields identical across every chain in this deploy. */
@@ -151,7 +159,13 @@ const COMMON_DEPLOYMENT_FIELDS = {
   initialBaseFee: 0n,
   initialComplexityRate: 0n,
   dispatchModel: "selective" as const,
-  standaloneTemplates: CREATE2_TEMPLATES,
+  // The seven launch templates are SHARED multi-tenant ConfigurablePermission instances
+  // (registered by address, configured via configure()), NOT EIP-1167 clone logic. They
+  // belong in knownTemplates only. standaloneTemplates is the clone-implementation registry
+  // (the `impl` arg to MandateFactory.deployAndAttach) — empty until standalone clones deploy.
+  // Populating it with shared templates mislabels them as unaudited community clones in
+  // `sailor mandate templates` and makes capabilities advertise them as deployAndAttach-able.
+  standaloneTemplates: {} as Record<string, Address>,
 };
 
 /** `knownTemplates` for a given chain — same addresses everywhere, chainId varies. */

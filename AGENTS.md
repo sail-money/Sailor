@@ -38,7 +38,7 @@ All eleven chains share the same kernel at the same CREATE2 address, verified on
 
 Supported chains: Ethereum (1), Base (8453), Arbitrum (42161), Optimism (10), Unichain (130), BSC (56), World Chain (480), HyperEVM (999), MegaETH (4326), Base Sepolia (84532), Eth Sepolia (11155111).
 
-All eleven kernels are live and bootstrapped (genesis allowlist set, `createAccount` verified working, zero fees). Shared permission templates (swap, swap-no-oracle, borrow, deposit, withdraw, transfer, approve-and-call-batch) are deployed and verified against the current kernel on every chain — `knownTemplates` and `standaloneTemplates` are populated for all eleven entries. `packages/sdk/src/deployments.ts` is the canonical source of truth for kernel addresses, templates, and metadata.
+All eleven kernels are live and bootstrapped (genesis allowlist set, `createAccount` verified working, zero fees). Shared permission templates (swap, swap-no-oracle, borrow, deposit, withdraw, transfer, approve-and-call-batch) are deployed and verified against the current kernel on every chain — `knownTemplates` is populated for all eleven entries (`standaloneTemplates` stays empty: it's the EIP-1167 clone-implementation registry, and these are shared multi-tenant templates). `packages/sdk/src/deployments.ts` is the canonical source of truth for kernel addresses, templates, and metadata.
 
 **Always use `detectKernelCapabilities` for the real model** — it reads the on-chain typehash and
 overrides the static label in `deployments.ts`. The static label is a fallback for offline use only.

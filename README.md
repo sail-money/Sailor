@@ -495,7 +495,7 @@ Sailor is functional and published as [`@sail.money/sailor`](https://www.npmjs.c
 
 The Sail Protocol trusted core is deployed on eleven chains — Ethereum, Base, Arbitrum, Optimism, Unichain, BSC, World Chain, HyperEVM, MegaETH, Base Sepolia, and Eth Sepolia — via CREATE2, with every core contract at the same address on every chain. All eleven run the selective dispatch model with zero fees and are bootstrapped with a genesis allowlist so `createAccount` is usable immediately. These deployments are under an ongoing external audit by [Octane Security](https://octane.security) and are not final — do not use them with funds you are not prepared to lose.
 
-Shared permission templates (swap, swap-no-oracle, borrow, deposit, withdraw, transfer, approve-and-call-batch) are deployed and verified against the current kernel on every chain; they're populated as `knownTemplates`/`standaloneTemplates` for all eleven chains in `packages/sdk/src/deployments.ts`.
+Shared permission templates (swap, swap-no-oracle, borrow, deposit, withdraw, transfer, approve-and-call-batch) are deployed and verified against the current kernel on every chain; they're populated as `knownTemplates` for all eleven chains in `packages/sdk/src/deployments.ts` (`standaloneTemplates` stays empty — it's the EIP-1167 clone-implementation registry, and these are shared multi-tenant templates).
 
 ---
 
