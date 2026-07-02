@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { type IncomingMessage, type ServerResponse, createServer } from "node:http";
 import { extname, join, resolve } from "node:path";
 import { packageRoot } from "../lib/packagePaths.js";
@@ -790,8 +790,9 @@ export class SigningServer {
       }
     }
     if (!existsSync(this.runtimeDir)) mkdirSync(this.runtimeDir, { recursive: true });
+    const serverStatePath = join(this.runtimeDir, SERVER_STATE_FILE);
     writeFileSync(
-      join(this.runtimeDir, SERVER_STATE_FILE),
+      serverStatePath,
       JSON.stringify(
         {
           url: this._url,
@@ -804,7 +805,11 @@ export class SigningServer {
         null,
         2,
       ),
+      { mode: 0o600 },
     );
+    // server.json holds the requestSecret. writeFileSync's mode is ignored when
+    // the file already exists, so chmod every rewrite to keep it owner-only.
+    chmodSync(serverStatePath, 0o600);
   }
 
   private removeRuntimeState(): void {
