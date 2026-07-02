@@ -128,3 +128,19 @@
 .danger:active {
   transform: translateY(0);
 }
+
+/* Amber — transient "in progress" / caution (e.g. Pausing/Resuming a session while the
+   on-chain read catches up). The one warm hue, reserved for this transitional state. */
+.warning {
+  color: #f5a623;
+  background: rgba(245, 166, 35, 0.10);
+  border: 1px solid rgba(245, 166, 35, 0.45);
+  box-shadow: none;
+}
+
+/* Keep the amber legible in the transient (disabled) state instead of dimming to grey. */
+.warning:disabled {
+  opacity: 1;
+  cursor: progress;
+  color: #f5a623;
+}
