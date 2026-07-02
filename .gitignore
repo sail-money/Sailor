@@ -20,6 +20,7 @@ broadcast/
 .vite/
 .vitest/
 *.tsbuildinfo
+packages/ui/test-results/
 
 # Environment — never commit real secrets
 .env
@@ -41,3 +42,6 @@ broadcast/
 .DS_Store
 .idea/
 .vscode/
+
+# Local agent-tooling settings
+.claude/
