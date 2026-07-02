@@ -163,11 +163,11 @@ export default function SessionControlModal({ open, mode, sma, kernel, chainId, 
 
         {step === 'done' ? (
           <>
-            <h2 className={styles.title}>Session {pausing ? 'paused' : 'resumed'}</h2>
+            <h2 className={styles.title}>{pausing ? 'Your agent is paused' : 'Your agent is back online'}</h2>
             <p className={styles.body}>
               {pausing
-                ? <>Agent dispatch for this SMA is now <strong>halted</strong>. Permissions stay registered — resume anytime without re-signing. It now appears in Recent Activity.</>
-                : <>Agent dispatch is <strong>re-enabled</strong> for this SMA. It now appears in Recent Activity.</>}
+                ? <>It’s <strong>on hold</strong> and can’t make any moves until you resume. Your permissions and funds are untouched — resume anytime, no re-setup needed. (Saved to Recent Activity.)</>
+                : <>It can <strong>act again</strong> within the permissions you’ve set. (Saved to Recent Activity.)</>}
             </p>
             <div className={styles.actions}>
               <SailButton onClick={onClose}>Done</SailButton>
@@ -175,33 +175,33 @@ export default function SessionControlModal({ open, mode, sma, kernel, chainId, 
           </>
         ) : (
           <>
-            <h2 className={styles.title}>{pausing ? 'Pause this session?' : 'Resume this session?'}</h2>
+            <h2 className={styles.title}>{pausing ? 'Pause your agent?' : 'Bring your agent back online?'}</h2>
             <p className={styles.body}>
               {pausing ? (
                 <>
-                  This immediately <strong>halts all agent dispatch</strong> for this SMA — the manager
-                  can execute nothing until you resume. It does <strong>not</strong> remove any
-                  permissions; they stay registered and the SMA keeps custody of its funds.
+                  This puts your agent <strong>on hold right away</strong> — it won’t be able to make
+                  any moves until you resume. Nothing else changes: the permissions you set stay in
+                  place, and your funds stay safe in your account.
                 </>
               ) : (
                 <>
-                  This <strong>re-enables agent dispatch</strong> for this SMA. The manager can again
-                  execute transactions within the registered permissions.
+                  This brings your agent <strong>back online</strong> — it can act again within the
+                  permissions you’ve set.
                 </>
               )}
             </p>
             <ul className={styles.confirmList}>
               <li className={styles.confirmItem}>
-                Any transaction the agent <strong>pre-signed</strong> before now becomes invalid — the
-                kernel advances the signing epoch, so stale signatures can’t execute.
+                Anything your agent already had lined up to send stops working — you’re starting from
+                a clean slate.
               </li>
               <li className={styles.confirmItem}>
                 {pausing
-                  ? 'Fully reversible: Resume re-enables dispatch without re-registering or re-signing permissions.'
-                  : 'You can pause again at any time.'}
+                  ? 'Reversible anytime — resuming is instant, with no re-setup or re-signing.'
+                  : 'You can pause again whenever you like.'}
               </li>
               <li className={styles.confirmItem}>
-                You authorize this in your wallet (a signature + one transaction) and pay gas.
+                You’ll approve this in your wallet — a quick signature plus one transaction.
               </li>
             </ul>
             <dl className={styles.meta}>

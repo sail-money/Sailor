@@ -1771,15 +1771,15 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                     </span>
                     <p className={styles.idRelation}>
                       {activeChainOv.sma.sessionActive === false
-                        ? 'Dispatch is halted — the agent cannot execute anything until you resume.'
-                        : 'Dispatch is allowed — the agent can execute within the registered permissions.'}
+                        ? 'Paused — your agent is on hold and can’t make any moves until you resume.'
+                        : 'Live — your agent can act within the permissions you’ve set.'}
                     </p>
                   </div>
                   {sessionPending
                     && Number(sessionPending.chainId) === Number(activeChainOv.chainId)
                     && activeChainOv.sma.sessionActive !== sessionPending.expectedActive ? (
                     // Transient state: tx confirmed, waiting for the overview read to catch up.
-                    <SailButton variant="ghost" disabled aria-busy="true">
+                    <SailButton variant="warning" disabled aria-busy="true">
                       {sessionPending.expectedActive ? 'Resuming SMA…' : 'Pausing SMA…'}
                     </SailButton>
                   ) : (
