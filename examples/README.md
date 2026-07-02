@@ -15,10 +15,3 @@ adapt. They are not a supported or exhaustive library — review them before usi
 
 A standalone Foundry workspace scaffold for authoring your own `IPermission` contract as a
 separate project. Fork it, rename it, and build from `BoundedCallPermission.sol`.
-
-### `lifi-permissions/`
-
-Reference-only source for the deployed LiFi EIP-1167 clone implementations
-(`LifiBoundedApprovePermissionCloneable`, `LifiDiamondSwapPermissionCloneable`).
-These document live deployed contracts — do not adapt them directly for new projects.
-See the `README.md` inside for deployment addresses and the conjunctive-kernel caveat.

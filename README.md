@@ -16,7 +16,6 @@ Sailor is the off-chain operator layer for [Sail Protocol](https://github.com/sa
 | `templates/default` | — | The agent starter `sailor init` scaffolds: slim `AGENTS.md` + on-demand skills under `.agents/skills/` |
 | `examples/permissions` | — | Worked permission contracts by protocol and chain (reference, unaudited) |
 | `examples/custom-mandate` | — | Solidity reference: IPermission authoring scaffold |
-| `examples/lifi-permissions` | — | Solidity reference: LiFi clone permission contracts (source of the clone implementations) |
 
 ---
 
@@ -202,7 +201,7 @@ sailor init my-agent --template <name>   # named subdirectory + specific templat
 
 A valid template is any directory under `templates/` that contains a
 `package.json`. Solidity reference sources live under `examples/`
-(`examples/permissions`, `examples/custom-mandate`, `examples/lifi-permissions`)
+(`examples/permissions`, `examples/custom-mandate`)
 — they are not project scaffolds and never appear in the template list.
 
 ### Adding a template

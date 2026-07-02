@@ -239,12 +239,6 @@ export async function initCommand(
     copyDirSync(customMandateSrc, path.join(dest, "examples", "custom-mandate"));
   }
 
-  const permModelSrc = path.join(pkgRoot, "docs", "PERMISSION_MODEL.md");
-  if (fs.existsSync(permModelSrc)) {
-    fs.mkdirSync(path.join(dest, "docs"), { recursive: true });
-    writeIfMissing(path.join(dest, "docs", "PERMISSION_MODEL.md"), fs.readFileSync(permModelSrc, "utf-8"));
-  }
-
   // Patch package.json: set the project name and inject the Sailor CLI as a
   // devDependency pinned to the version that generated this scaffold.
   //
