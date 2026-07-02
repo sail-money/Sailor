@@ -94,6 +94,9 @@ async function probePassThrough(
           value: 0n,
           blockTimestamp: 0n,
           blockNumber: 0n,
+          // Pass-through probes only run on conjunctive kernels, which predate
+          // registrationEpoch — there is no live epoch to read, so probe with 0.
+          configEpoch: 0n,
         },
       ],
     })) as boolean;

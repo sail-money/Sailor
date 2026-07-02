@@ -10,6 +10,10 @@ struct Context {
     uint256 value;
     uint256 blockTimestamp;
     uint256 blockNumber;
+    /// @dev Kernel registrationEpoch(account, permission) at dispatch. Configurable
+    ///      permissions fail closed on a mismatch with the epoch stamped at configure()
+    ///      time; permissions without post-deploy configuration can ignore it.
+    uint256 configEpoch;
 }
 
 interface IPermission {

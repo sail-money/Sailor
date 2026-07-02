@@ -29,6 +29,6 @@ Permissions only bound on-chain actions: venues with off-chain order matching (P
 
 ## Interfaces (vendored in `examples/permissions/interfaces/`)
 
-- `IPermission.evaluate(bytes txData, Context ctx) → bool`; Context: `account, manager, submitter, target, selector, value, blockTimestamp, blockNumber`.
-- `IBatchPermission.evaluateBatch(Call[] calls, BatchContext ctx) → bool` + `isBatchPermission() → true`; Call: `(target, value, data)`; BatchContext: `account, manager, submitter, permission, batchHash, blockTimestamp, blockNumber`.
+- `IPermission.evaluate(bytes txData, Context ctx) → bool`; Context: `account, manager, submitter, target, selector, value, blockTimestamp, blockNumber, configEpoch`.
+- `IBatchPermission.evaluateBatch(Call[] calls, BatchContext ctx) → bool` + `isBatchPermission() → true`; Call: `(target, value, data)`; BatchContext: `account, manager, submitter, permission, batchHash, blockTimestamp, blockNumber, configEpoch`.
 - `SailCalldata.sol`: bounded slot-indexed calldata readers (`hasParams`, `asAddress`, `asUint256`, …) — use these instead of `abi.decode` to avoid wrong-offset reads.

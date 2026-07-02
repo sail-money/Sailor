@@ -39,7 +39,8 @@ contract BoundedCallPermissionTest {
             selector: selector,
             value: value,
             blockTimestamp: block.timestamp,
-            blockNumber: block.number
+            blockNumber: block.number,
+            configEpoch: 0 // BoundedCallPermission takes no post-deploy config; value unused
         });
     }
 

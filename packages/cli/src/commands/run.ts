@@ -474,6 +474,7 @@ export async function runCommand(opts: {
           // Single-call dispatch: find a permission whose evaluate() accepts it.
           permission = await resolvePermissionForCall({
             publicClient,
+            kernel: kernel!, // narrowed: runCommand validates kernel before runTick runs
             account:               accountAddr,
             manager:               agentManager.address,
             call:                  firstCall as NonNullable<typeof firstCall>,
