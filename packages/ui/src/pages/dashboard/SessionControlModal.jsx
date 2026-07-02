@@ -163,7 +163,7 @@ export default function SessionControlModal({ open, mode, sma, kernel, chainId, 
 
         {step === 'done' ? (
           <>
-            <h2 className={styles.title}>{pausing ? 'Your agent is paused' : 'Your agent is back online'}</h2>
+            <h2 className={styles.title}>{pausing ? 'Your SMA is paused' : 'Your SMA is back online'}</h2>
             <p className={styles.body}>
               {pausing
                 ? <>It’s <strong>on hold</strong> and can’t make any moves until you resume. Your permissions and funds are untouched — resume anytime, no re-setup needed. (Saved to Recent Activity.)</>
@@ -175,24 +175,24 @@ export default function SessionControlModal({ open, mode, sma, kernel, chainId, 
           </>
         ) : (
           <>
-            <h2 className={styles.title}>{pausing ? 'Pause your agent?' : 'Bring your agent back online?'}</h2>
+            <h2 className={styles.title}>{pausing ? 'Pause this SMA?' : 'Resume this SMA?'}</h2>
             <p className={styles.body}>
               {pausing ? (
                 <>
-                  This puts your agent <strong>on hold right away</strong> — it won’t be able to make
+                  This puts your SMA <strong>on hold right away</strong> — it won’t be able to make
                   any moves until you resume. Nothing else changes: the permissions you set stay in
                   place, and your funds stay safe in your account.
                 </>
               ) : (
                 <>
-                  This brings your agent <strong>back online</strong> — it can act again within the
+                  This brings your SMA <strong>back online</strong> — it can act again within the
                   permissions you’ve set.
                 </>
               )}
             </p>
             <ul className={styles.confirmList}>
               <li className={styles.confirmItem}>
-                Anything your agent already had lined up to send stops working — you’re starting from
+                Anything your SMA already had lined up to send stops working — you’re starting from
                 a clean slate.
               </li>
               <li className={styles.confirmItem}>
