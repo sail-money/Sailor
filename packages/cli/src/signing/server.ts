@@ -1,9 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { type IncomingMessage, type ServerResponse, createServer } from "node:http";
-import { createServer as createNetServer } from "node:net";
 import { extname, join, resolve } from "node:path";
 import { packageRoot } from "../lib/packagePaths.js";
+import { findFreePort, isProcessAlive } from "../lib/process.js";
 import type {
   ClientMessage,
   ServerMessage,
@@ -19,7 +19,8 @@ import { getRpcUrl } from "../lib/chain.js";
 import { appendActivity, nowIso } from "../lib/io.js";
 import { type StoredAccount, upsertAccountInList } from "../lib/state.js";
 
-export const DEFAULT_SIGNING_PORT = 3141; // π — memorable, thematic
+const _signingPort = parseInt(process.env.SAILOR_STATION_PORT ?? "", 10);
+export const DEFAULT_SIGNING_PORT = Number.isFinite(_signingPort) && _signingPort >= 1 && _signingPort <= 65535 ? _signingPort : 3141; // π — memorable, thematic
 const RUNTIME_SUBDIR = join(".sail", "runtime");
 const SERVER_STATE_FILE = "server.json";
 const REQUEST_SECRET_HEADER = "x-sailor-secret";
@@ -133,7 +134,7 @@ export class SigningServer {
   }
 
   async start(): Promise<void> {
-    this.port = await findAvailablePort(this.port);
+    this.port = await findFreePort(this.port);
     this._url = `http://localhost:${this.port}`;
     this.requestSecret = randomBytes(16).toString("hex");
 
@@ -783,7 +784,7 @@ export class SigningServer {
     if (existsSync(path)) {
       try {
         const existing = JSON.parse(readFileSync(path, "utf8")) as { pid?: number };
-        if (existing.pid != null && existing.pid !== process.pid && pidAlive(existing.pid)) return;
+        if (existing.pid != null && existing.pid !== process.pid && isProcessAlive(existing.pid)) return;
       } catch {
         /* malformed — safe to overwrite */
       }
@@ -822,17 +823,6 @@ export class SigningServer {
   }
 }
 
-/** True if a process with this pid is currently alive (signal 0 probes liveness). */
-function pidAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    // EPERM means the process exists but we can't signal it — still alive.
-    return (err as NodeJS.ErrnoException).code === "EPERM";
-  }
-}
-
 /**
  * Remove `.sail/runtime/server.json` if it describes a server whose process is
  * no longer running — an orphan left by a crashed or killed signing server.
@@ -843,7 +833,7 @@ export function reapStaleRuntimeState(projectRoot: string = process.cwd()): void
   try {
     if (!existsSync(path)) return;
     const state = JSON.parse(readFileSync(path, "utf8")) as { pid?: number };
-    if (state.pid != null && state.pid !== process.pid && !pidAlive(state.pid)) {
+    if (state.pid != null && state.pid !== process.pid && !isProcessAlive(state.pid)) {
       unlinkSync(path);
     }
   } catch {
@@ -851,13 +841,3 @@ export function reapStaleRuntimeState(projectRoot: string = process.cwd()): void
   }
 }
 
-async function findAvailablePort(startPort: number): Promise<number> {
-  return new Promise((res) => {
-    const probe = createNetServer();
-    probe.listen(startPort, "127.0.0.1", () => {
-      const addr = probe.address() as { port: number };
-      probe.close(() => res(addr.port));
-    });
-    probe.on("error", () => res(findAvailablePort(startPort + 1)));
-  });
-}

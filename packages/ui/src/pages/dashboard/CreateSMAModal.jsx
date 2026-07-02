@@ -165,7 +165,7 @@ export default function CreateSMAModal({ open, onClose, onComplete }) {
     if (selectedNets.length === 0) { setTxError('Select a network.'); return }
 
     // One salt for every chain → the same SMA address everywhere (the Safe
-    // factory/singleton + all six SailKernels live at identical CREATE2
+    // factory/singleton + every SailKernel live at identical CREATE2
     // addresses across chains). Deploy sequentially: one wallet signature per
     // chain, switching the wallet network between each.
     const saltNonce = BigInt(Date.now())
@@ -546,7 +546,12 @@ const ALL_NETWORKS = [
   { id: 'base',             name: 'Base',             chainId: 8453,   color: '#0052FF', gas: '$0.18',  tier: 'L2',      sail: true },
   { id: 'arbitrum',         name: 'Arbitrum One',     chainId: 42161,  color: '#28A0F0', gas: '$0.42',  tier: 'L2',      sail: true },
   { id: 'ethereum',         name: 'Ethereum',         chainId: 1,      color: '#627EEA', gas: '$24.80', tier: 'L1',      sail: true },
+  { id: 'optimism',         name: 'Optimism',         chainId: 10,     color: '#FF0420', gas: '$0.20',  tier: 'L2',      sail: true },
   { id: 'unichain',         name: 'Unichain',         chainId: 130,    color: '#FF007A', gas: '$0.10',  tier: 'L2',      sail: true },
+  { id: 'bsc',              name: 'BSC',              chainId: 56,     color: '#F0B90B', gas: '$0.15',  tier: 'L1',      sail: true },
+  { id: 'world',            name: 'World Chain',      chainId: 480,    color: '#000000', gas: '$0.05',  tier: 'L2',      sail: true },
+  { id: 'hyperevm',         name: 'HyperEVM',         chainId: 999,    color: '#97FCE4', gas: '$0.05',  tier: 'L1',      sail: true },
+  { id: 'megaeth',          name: 'MegaETH',          chainId: 4326,   color: '#5B5FEF', gas: '$0.05',  tier: 'L1',      sail: true },
   // ── Testnets ─────────────────────────────────────────────────────────
   { id: 'sepolia',          name: 'Ethereum Sepolia', chainId: 11155111, color: '#627EEA', gas: '$0.01', tier: 'Testnet', sail: true },
   { id: 'baseSepolia',      name: 'Base Sepolia',     chainId: 84532,    color: '#3c6ef5', gas: '$0.01', tier: 'Testnet', sail: true },

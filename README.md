@@ -102,6 +102,18 @@ npm install -g @sail.money/sailor
 sailor init my-agent
 ```
 
+### Docker (no Node.js required)
+
+Run sailor from a pre-built image — useful when you don't want to install Node.js or want an isolated environment:
+
+```bash
+mkdir my-agent && cd my-agent
+docker run -d --name agent -P -v "${PWD}:/workspace" sailmoney/sailor
+docker exec agent sailor init
+```
+
+Then open the folder in your AI coding assistant and say **"start"**. See the [Docker Hub](#docker-hub-publish-dockeryml) section below for full usage details.
+
 ---
 
 ## Quickstart
@@ -158,6 +170,7 @@ sailor trigger github      # fire the agent's GitHub Actions workflow on demand
 
 # Dashboard
 sailor ui start            # prints the per-project dashboard URL
+sailor ui start --expose tailscale   # also expose it on your tailnet over HTTPS (see Dashboard section)
 
 # Maintenance
 sailor update              # re-sync skills, AGENTS.md, and tooling files after a CLI upgrade
@@ -249,6 +262,37 @@ sailor ui stop        # Stopped Sailor UI (pid 12345).
 Start-Job { sailor ui start }
 sailor ui status
 sailor ui stop
+```
+
+### Remote access over your tailnet (HTTPS) — optional
+
+The dashboard is local-only by default. To reach it from another device (e.g. a
+remote operator box), expose it over your [Tailscale](https://tailscale.com)
+tailnet on HTTPS:
+
+```bash
+sailor ui start --expose tailscale
+# → Sailor UI started at http://localhost:<port>
+# → Exposed on your tailnet at https://<node>.<tailnet>.ts.net/
+```
+
+It uses `tailscale serve` (tailnet-private), **never `funnel`** — only devices on
+your tailnet can reach it, not the public internet. `sailor ui stop` tears the
+tailnet proxy down along with the local server.
+
+Requirements:
+
+- `tailscale` installed and logged in (`tailscale up`).
+- Tailscale **Serve** enabled for your tailnet, plus **HTTPS certificates**
+  (admin console → DNS → Enable HTTPS). If Serve is disabled, the command prints
+  the enable link instead of reporting success.
+
+When exposed, the tailnet origin is added to the dashboard's CORS allowlist
+automatically. To allow additional origins (e.g. a custom HTTPS host in front of
+the station), set a comma-separated list — the local origin is always allowed:
+
+```bash
+SAILOR_CORS_ORIGINS=https://hermes.example.ts.net,https://another.host
 ```
 
 ---
@@ -382,6 +426,57 @@ Or pin in `package.json`:
 
 Either way, `@sail.money/sailor/sdk` imports work unchanged.
 
+### Docker Hub (`publish-docker.yml`)
+
+A pre-built image is published to Docker Hub so you can run the CLI without installing Node.js locally. The image uses Alpine Linux and includes `tsx` (required to compile TypeScript agent code at runtime).
+
+| Trigger | Tag |
+|---|---|
+| Merge to `main` or manual dispatch | `sailmoney/sailor:dev` |
+| Tag push (`v*`) | `sailmoney/sailor:<version>` + `sailmoney/sailor:latest` |
+
+#### Starting the container
+
+Run this from your project root. `-P` publishes all exposed ports to random available host ports; use a fixed `-p <host>:3334` if you want a stable UI port.
+
+```bash
+docker run -d --name agent -P -v "${PWD}:/workspace" sailmoney/sailor
+```
+
+- `-d` — detached, runs in the background
+- `--name agent` — container name used in all `docker exec` calls
+- `-P` — maps container ports (UI: 3334, station: 3141) to random host ports
+- `-v "${PWD}:/workspace"` — mounts the current project into the container
+
+#### Running sailor commands
+
+All sailor commands run via `docker exec`:
+
+```bash
+docker exec agent sailor --version
+docker exec agent sailor init
+docker exec agent sailor ui start
+docker exec agent sailor run --once
+```
+
+Project files are on your **local filesystem** — read and write them directly from local paths. Only `sailor` commands need the `docker exec` prefix; the volume mount makes files accessible to both sides.
+
+#### Opening the dashboard
+
+The UI always binds to port **3334 inside the container**, but the host-side port depends on how `-P` mapped it. Resolve it before opening the browser:
+
+```bash
+docker port agent 3334
+# → 0.0.0.0:49201   (open http://localhost:49201 in the browser)
+```
+
+#### Stopping
+
+```bash
+docker stop agent    # stop the container
+docker start agent   # restart it later (project files and state are on the host)
+```
+
 ---
 
 ## Security model
@@ -398,27 +493,28 @@ Either way, `@sail.money/sailor/sdk` imports work unchanged.
 
 Sailor is functional and published as [`@sail.money/sailor`](https://www.npmjs.com/package/@sail.money/sailor) on npm (v1.2.0). The SDK, CLI, keystore, mandate flows, agent runner, and dashboard are implemented and have been exercised end to end.
 
-The Sail Protocol trusted core is deployed on six chains — Ethereum, Base, Arbitrum, Unichain, Base Sepolia, and Eth Sepolia — via CREATE2, with every core contract at the same address on every chain. All six run the selective dispatch model with zero fees and are bootstrapped with a genesis allowlist so `createAccount` is usable immediately. These deployments are under an ongoing external audit by [Octane Security](https://octane.security) and are not final — do not use them with funds you are not prepared to lose.
+The Sail Protocol trusted core is deployed on eleven chains — Ethereum, Base, Arbitrum, Optimism, Unichain, BSC, World Chain, HyperEVM, MegaETH, Base Sepolia, and Eth Sepolia — via CREATE2, with every core contract at the same address on every chain. All eleven run the selective dispatch model with zero fees and are bootstrapped with a genesis allowlist so `createAccount` is usable immediately. These deployments are under an ongoing external audit by [Octane Security](https://octane.security) and are not final — do not use them with funds you are not prepared to lose.
 
-Permission templates have not yet been deployed against the current kernel on any chain; `knownTemplates` and `standaloneTemplates` are empty for all six chains in `packages/sdk/src/deployments.ts` and will be populated as templates are deployed and verified against the new kernel.
+Shared permission templates (swap, swap-no-oracle, borrow, deposit, withdraw, transfer, approve-and-call-batch) are deployed and verified against the current kernel on every chain; they're populated as `knownTemplates` for all eleven chains in `packages/sdk/src/deployments.ts` (`standaloneTemplates` stays empty — it's the EIP-1167 clone-implementation registry, and these are shared multi-tenant templates).
 
 ---
 
 ## Deployments
 
-All core contracts are deployed at the same address on every supported chain via CREATE2 (version `create2-safe-2026-06-17`, deployed 2026-06-17). An SMA created with the same owner, permission signer, manager, fee policy, and salt has the same address on every supported chain. Live on Base, Arbitrum, Unichain, Base Sepolia, and Eth Sepolia; Ethereum mainnet is pending (Safe batch prepared, awaiting execution).
+All core contracts are deployed at the same address on every supported chain via CREATE2 (commit `1dc1960`, 2026-07-01, Safe-governed). An SMA created with the same owner, permission signer, manager, fee policy, and salt has the same address on every supported chain.
 
-### Core addresses (identical on all 6 chains)
+### Core addresses (identical on all 11 chains)
 
 | Contract | Address |
 |---|---|
-| SailKernel | `0x3E4C45D34Ea49DB66a78dd965B005f91d483C13F` |
-| SailGovernance | `0xCBC9DcC44485250c6C8D3597E5CD45beCb858c7b` |
+| SailKernel | `0x38b508756c976e876EFF05a29E731A4d348BA6ED` |
+| SailGovernance | `0x4315B37cA4A315A7042af1Fcb37F8436f4D24356` |
 | TimelockController | `0xC1E5F9A581D4100Aa949f80204540a33aD97A7b6` |
-| MandateFactory | `0x7c1714C2B7CF7ED2AAAEbdb615692A9c1F3eb46f` |
-| StandardFeePolicy | `0x9a73C8E1BC4772959cB0c40Fd1d37234d6743819` |
+| MandateFactory | `0x6d2C802ffa0d9A8Ed69A5Bf22c1b63ccB566B8Fc` |
+| StandardFeePolicy | `0x1087312447C8a2BfA15EB9cE23590E3502DBA04b` |
 | SafeModuleEnabler | `0x7897Cb53a4be4a2eaAf46D60573C4Fd83b33fE1F` |
-| Owner (governance / treasury) | `0x152a32c851d317Cd54F1E6423377d7D58Dd3DE8C` |
+| Deployer | `0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6` |
+| Treasury | `0x7b37F85575F1568a37dBA342BC5FE6d393F0872f` |
 
 These addresses are bundled in `@sail.money/sailor` and exposed via `getSailDeployment(chainId)` in the SDK. The Protocol repository is the canonical source of truth for deployment details — see [deployments/addresses.md](https://github.com/sail-money/Protocol/blob/main/deployments/addresses.md).
 
@@ -429,7 +525,12 @@ These addresses are bundled in `@sail.money/sailor` and exposed via `getSailDepl
 | Ethereum | 1 |
 | Base | 8453 |
 | Arbitrum | 42161 |
+| Optimism | 10 |
 | Unichain | 130 |
+| BSC | 56 |
+| World Chain | 480 |
+| HyperEVM | 999 |
+| MegaETH | 4326 |
 | Base Sepolia | 84532 |
 | Eth Sepolia | 11155111 |
 

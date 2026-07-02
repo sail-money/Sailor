@@ -1,7 +1,7 @@
 {
   "name": "sailor",
   "private": true,
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "Operator toolkit for Sail Protocol",
   "bin": {
     "sailor": "packages/cli/dist/index.cjs"
@@ -25,6 +25,7 @@
     "AGENTS.md"
   ],
   "scripts": {
+    "clean": "node scripts/clean.mjs",
     "build": "pnpm --filter @sail/sdk build && pnpm --filter sailor build && pnpm --filter sailor-ui build",
     "test": "pnpm --filter sailor-ui test",
     "test:ui": "pnpm --filter sailor-ui test:ui",

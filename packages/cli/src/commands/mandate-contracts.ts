@@ -23,9 +23,8 @@ import {
   buildRegisterPermissionTypedData,
   buildRegisterPermissionsBatchTypedData,
   detectKernelCapabilities,
-  estimateMandateRegistrationFee,
-  readPermissionRegistrationFee,
   getSailDeployment,
+  readPermissionRegistrationFee,
   sailKernelDomain,
 } from "@sail/sdk";
 import {
@@ -52,9 +51,11 @@ import {
 } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { appendActivity, nowIso } from "../lib/io.js";
+import { explainPermission } from "../lib/permission-explainer.js";
 import { type DeployedMandate, MandateStore } from "../lib/mandates.js";
 import { emit } from "../lib/output.js";
-import { ProjectContext, loadManagerSigner } from "../lib/project.js";
+import { loadManagerSigner } from "../lib/keys.js";
+import { ProjectContext } from "../lib/project.js";
 import { type SigningChannel, createSigningChannel, signingPageUrl } from "../signing/client.js";
 import { attachMandate } from "./onboard.js";
 import { projectPort } from "../lib/packagePaths.js";
@@ -165,7 +166,7 @@ function fail(err: unknown, json = false): never {
  * instead of nothing while the command blocks for minutes.
  */
 function announceSigningUrl(json: boolean): void {
-  const url = signingPageUrl(undefined, projectPort(process.cwd()));
+  const url = signingPageUrl(projectPort(process.cwd()));
   if (json) {
     process.stdout.write(`${JSON.stringify({ status: "waiting_for_signature", url })}\n`);
   } else {
@@ -218,7 +219,7 @@ async function runDeploy(
     );
   }
 
-  const { abi, bytecode, contractName, artifactPath } = resolveArtifact(options);
+  const { abi, bytecode, contractName, artifactPath, sourcePath } = resolveArtifact(options);
   let argsJson: string | undefined;
   if (options.argsFile) {
     const argsFilePath = resolve(options.argsFile);
@@ -239,6 +240,11 @@ async function runDeploy(
   announceSigningUrl(json);
   say(() => console.log(`Pushing deploy request for "${contractName}"…`));
 
+  // Parse the permission's own comments into a plain-language summary so the
+  // approval card can explain what the contract enforces *before* the owner
+  // signs the deploy — rather than approving opaque creation bytecode.
+  const explanation = explainPermission(contractName, sourcePath) ?? undefined;
+
   const response = await channel.requestSignature({
     type: "transaction",
     kind: "deploy-mandate",
@@ -254,6 +260,7 @@ async function runDeploy(
         value: argsJson ? argsJson : "(none)",
       },
     ],
+    explanation,
   });
 
   if (response.status === "rejected") {
@@ -277,6 +284,7 @@ async function runDeploy(
     address: deployed,
     txHash: response.txHash,
     chainId,
+    sourcePath,
     artifactPath,
     constructorArgs: parseArgsRaw(options.args),
     deployedAt: new Date().toISOString(),
@@ -413,17 +421,24 @@ const CLONE_TEMPLATES: Record<string, CloneTemplateSpec> = {
 
 /**
  * Compute an EIP-1167 clone's CREATE2 address off-chain, matching
- * MandateFactory: the raw salt is namespaced by the submitter (msg.sender of
- * deployAndAttach) as keccak256(abi.encode(submitter, salt)).
+ * MandateFactory: the raw salt is namespaced by both the submitter (msg.sender
+ * of deployAndAttach) and the target account as
+ * keccak256(abi.encode(submitter, account, salt)). The account binding (Octane
+ * #18) gives each (caller, account) pair its own clone address space, so a
+ * shared relayer serving many accounts can't collide or pre-squat addresses.
  */
 function predictCloneAddress(
   impl: Address,
   factory: Address,
   submitter: Address,
+  account: Address,
   salt: Hex,
 ): Address {
   const namespacedSalt = keccak256(
-    encodeAbiParameters([{ type: "address" }, { type: "bytes32" }], [submitter, salt]),
+    encodeAbiParameters(
+      [{ type: "address" }, { type: "address" }, { type: "bytes32" }],
+      [submitter, account, salt],
+    ),
   );
   const initCode = concatHex([CLONE_INIT_PREFIX, impl, CLONE_INIT_SUFFIX]);
   return getCreate2Address({
@@ -449,10 +464,10 @@ function parseAddressList(csv: string | undefined, flag: string): Address[] {
 export async function mandateDeployClone(options: DeployCloneOptions): Promise<void> {
   const project = requireProject();
   // Availability gate FIRST — before any signing server is spawned or gas spent.
-  // No standalone clone templates are deployed against the current kernel on any
-  // chain (standaloneTemplates is empty for all six). Erroring here, ahead of
-  // createSigningChannel, also avoids leaving an orphaned ephemeral signing
-  // server bound to a port for a command that cannot proceed.
+  // `boundedApprove` (the only clone template key) is not among the shared templates
+  // bundled per chain, so this — and the specific-key check below — still catches it.
+  // Erroring here, ahead of createSigningChannel, also avoids leaving an orphaned
+  // ephemeral signing server bound to a port for a command that cannot proceed.
   const templateMap = project.deployment.standaloneTemplates ?? {};
   if (Object.keys(templateMap).length === 0) {
     fail(
@@ -544,9 +559,9 @@ async function runDeployClone(
   };
   const initData = spec.buildInitData(initParams);
 
-  // Deterministic-but-unique salt per (account, impl): namespaced by the
-  // submitter inside the factory. The agent submits, so predict with the agent
-  // address as msg.sender.
+  // Deterministic-but-unique salt per (account, impl): the factory namespaces it
+  // by (submitter, account). The agent submits, so predict with the agent address
+  // as msg.sender and the SMA as the account.
   const submitter = agentSigner.address as Address;
   const salt = keccak256(
     encodeAbiParameters(
@@ -554,7 +569,7 @@ async function runDeployClone(
       [sma, impl, BigInt(Math.floor(Date.now() / 1000))],
     ),
   );
-  const clone = predictCloneAddress(impl, project.contracts.mandateFactory, submitter, salt);
+  const clone = predictCloneAddress(impl, project.contracts.mandateFactory, submitter, sma, salt);
 
   say(() => {
     console.log(`\n${spec.label} clone (${options.template})`);
@@ -596,6 +611,10 @@ async function runDeployClone(
     deadline,
   });
 
+  // Read the fee before pushing the signing request so it can be disclosed
+  // in the card before the owner signs.
+  const fee = await readPermissionRegistrationFee(publicClient, project.contracts.governance);
+
   const label = options.label ?? `${spec.label} (${options.template})`;
   say(() =>
     console.log(
@@ -615,6 +634,10 @@ async function runDeployClone(
       { label: "Mandate signer", value: permissionSigner },
       ...spec.describe(initParams),
     ],
+    registrationFee: {
+      totalEth: formatEther(fee),
+      permissionCount: 1,
+    },
     typedData,
   });
 
@@ -648,10 +671,6 @@ async function runDeployClone(
   } catch (err) {
     if ((err as Error).message.startsWith("Security:")) throw err;
   }
-
-  // Flat fee charged by the kernel on registration (0 on zero-fee chains like
-  // Unichain). One permission registered here → a single flat fee.
-  const fee = await readPermissionRegistrationFee(publicClient, project.contracts.governance);
 
   // The selective kernel's registerPermission takes a deadline; deployAndAttach
   // forwards whatever deadline the owner signed over. Conjunctive kernels (no
@@ -1138,6 +1157,23 @@ async function attachBatchToSma(
       `\nAttaching ${permissions.length} permissions in one signature — the mandate signer (${permissionSigner}) signs in the browser…`,
     ),
   );
+  // Per-permission NL summaries so the approval card explains what each
+  // permission enforces before the owner signs (parsed from each contract's
+  // comments, resolved by address → tracked name/source).
+  const permStore = new MandateStore();
+  const permExplanations = permissions.map((addr) => {
+    const rec = permStore.find(addr);
+    return {
+      label: rec?.name ?? addr,
+      address: addr,
+      explanation: (rec ? explainPermission(rec.name, rec.sourcePath) : null) ?? undefined,
+    };
+  });
+
+  // Read fee before pushing the signing request so it can be disclosed in the card.
+  const flatFee = await readPermissionRegistrationFee(publicClient, project.contracts.governance);
+  const fee = flatFee * BigInt(permissions.length);
+
   const response = await channel.requestSignature({
     type: "typed-data",
     kind: "register-permission",
@@ -1149,6 +1185,12 @@ async function attachBatchToSma(
       { label: "Permissions", value: String(permissions.length) },
       { label: "Mandate signer", value: permissionSigner },
     ],
+    permissions: permExplanations,
+    registrationFee: {
+      totalEth: formatEther(fee),
+      permissionCount: permissions.length,
+      ...(permissions.length > 1 ? { perPermissionEth: formatEther(flatFee) } : {}),
+    },
     typedData,
   });
 
@@ -1158,14 +1200,6 @@ async function attachBatchToSma(
   if (response.status !== "signature") {
     throw new Error(`Expected an EIP-712 signature response, got: ${response.status}`);
   }
-
-  // One estimate for the whole batch (flat fee × N; 0 on the zero-fee deploys).
-  const feeEstimate = await estimateMandateRegistrationFee(
-    publicClient,
-    project.contracts.governance,
-    permissions,
-  );
-  const fee = feeEstimate.totalWei;
 
   const chain = getChainById(project.chainId);
   const walletClient = createWalletClient({
@@ -1203,6 +1237,9 @@ async function attachBatchToSma(
       sma,
       txHash,
       chainId: project.chainId,
+      // Each permission in the batch is charged the same flat fee.
+      fee: flatFee.toString(),
+      feeEth: formatEther(flatFee),
     });
     say(() => {
       if (!present) {
@@ -1335,6 +1372,7 @@ function resolveArtifact(options: DeployOptions): {
   bytecode: Hex;
   contractName: string;
   artifactPath: string;
+  sourcePath?: string;
 } {
   let artifactPath = options.artifact;
   let contractName = options.contract ?? options.name ?? "";
@@ -1376,7 +1414,21 @@ function resolveArtifact(options: DeployOptions): {
     contractName = m ? m[1] : "Mandate";
   }
 
-  return { abi, bytecode, contractName, artifactPath };
+  // The contract's .sol source path, so the NL explainer can find the comments
+  // even when the deploy --name differs from the source filename (F20). Foundry
+  // records it under metadata.settings.compilationTarget ({ "<src>": "<name>" }),
+  // with the AST's absolutePath as a fallback. Resolved to an absolute path.
+  let sourcePath: string | undefined;
+  const compilationTarget = artifact.metadata?.settings?.compilationTarget;
+  if (compilationTarget && typeof compilationTarget === "object") {
+    sourcePath = Object.keys(compilationTarget)[0];
+  }
+  sourcePath = sourcePath ?? artifact.ast?.absolutePath;
+  if (sourcePath && !sourcePath.startsWith("/")) {
+    sourcePath = resolve(projectRoot, sourcePath);
+  }
+
+  return { abi, bytecode, contractName, artifactPath, sourcePath };
 }
 
 function parseArgsRaw(argsJson?: string): string[] | undefined {

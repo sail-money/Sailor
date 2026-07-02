@@ -1,26 +1,53 @@
 name: Publish to npm
 
 on:
-  push:
-    tags:
-      - 'v*'
-    branches:
-      - main
+  workflow_call:
+    inputs:
+      environment:
+        description: "'dev' for @dev.sail.money/sailor, 'prod' for @sail.money/sailor"
+        type: string
+        required: true
+      version:
+        description: 'Git ref name (e.g. v1.2.3 for tags, main for branches)'
+        type: string
+        default: ''
+      skip-tests:
+        description: 'Skip the test job (set true when called from the orchestrator, which already ran tests)'
+        type: boolean
+        default: false
+    secrets:
+      NPM_TOKEN:
+        description: 'npm publish token. When provided, used for authentication instead of OIDC.'
+        required: false
   workflow_dispatch:
+    inputs:
+      environment:
+        description: "'dev' for @dev.sail.money/sailor, 'prod' for @sail.money/sailor"
+        type: choice
+        options: [dev, prod]
+        default: dev
+
+permissions:
+  contents: read
 
 jobs:
   tests:
+    # Skipped when called from the orchestrator (which passes skip-tests: true).
+    if: ${{ !inputs.skip-tests }}
     uses: ./.github/workflows/tests.yml
 
-  sailor:
+  publish:
     needs: tests
+    # always() prevents auto-skip when tests is skipped (workflow_call path).
+    if: always() && (needs.tests.result == 'success' || needs.tests.result == 'skipped')
     permissions:
       id-token: write
       contents: read
       packages: write
     uses: ./.github/workflows/publish-npm-public-pkg.yaml
     with:
-      package-name: ${{ (github.event_name == 'workflow_dispatch' || github.ref_type == 'branch') && '@dev.sail.money/sailor' || '@sail.money/sailor' }}
-      dist-tag: 'latest'
-      build-number: ${{ (github.event_name == 'workflow_dispatch' || github.ref_type == 'branch') && github.run_number || 0 }}
-    secrets: inherit
+      package-name: ${{ inputs.environment == 'prod' && '@sail.money/sailor' || '@dev.sail.money/sailor' }}
+      dist-tag: latest
+      build-number: ${{ inputs.environment != 'prod' && github.run_number || 0 }}
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

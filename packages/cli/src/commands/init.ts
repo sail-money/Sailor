@@ -71,6 +71,10 @@ function scaffoldProjectWorkspace(dest: string, name: string, options: InitOptio
   fs.mkdirSync(path.join(sailDir, "runtime"), { recursive: true });
   fs.mkdirSync(path.join(sailDir, "state"), { recursive: true });
 
+  const installMode = process.env.SAILOR_INSTALL_MODE === "docker" ? "docker" : "local";
+  const _rawContainerName = process.env.SAILOR_CONTAINER_NAME ?? "agent";
+  const containerName = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(_rawContainerName) ? _rawContainerName : "agent";
+
   fs.writeFileSync(
     path.join(sailDir, "config.json"),
     `${JSON.stringify(
@@ -80,6 +84,8 @@ function scaffoldProjectWorkspace(dest: string, name: string, options: InitOptio
         chainId,   // null = chain not yet chosen; Stage 1 will set this
         stateDir: ".sail/state",
         createdAt: new Date().toISOString(),
+        installMode,
+        ...(installMode === "docker" ? { containerName } : {}),
         contracts: {
           kernel: "",
           mandateFactory: "",
@@ -209,6 +215,12 @@ export async function initCommand(
     );
   }
 
+  // Read existing install mode before scaffold overwrites config (handles --force re-init).
+  const existingConfigPath = path.join(dest, ".sail", "config.json");
+  const previousConfig = fs.existsSync(existingConfigPath)
+    ? (() => { try { return JSON.parse(fs.readFileSync(existingConfigPath, "utf-8")) as { installMode?: string; containerName?: string }; } catch { return null; } })()
+    : null;
+
   copyDirSync(templateSrc, dest);
 
   // Copy shared reference assets from the package into the project so the agent
@@ -286,6 +298,18 @@ export async function initCommand(
 
   scaffoldProjectWorkspace(dest, name, options);
   scaffoldFoundryWorkspace(dest);
+
+  // Print transition advisory when install mode changes on a re-init (--force).
+  const newMode = process.env.SAILOR_INSTALL_MODE === "docker" ? "docker" : "local";
+  if (previousConfig?.installMode === "docker" && newMode === "local") {
+    const prev = previousConfig.containerName ?? "agent";
+    console.log(`\nSwitched to local install. If the Docker container is still running:`);
+    console.log(`  docker stop ${prev}`);
+    console.log(`You can restart it anytime with the standard docker run command.`);
+  } else if (previousConfig?.installMode === "local" && newMode === "docker") {
+    const containerName = process.env.SAILOR_CONTAINER_NAME ?? "agent";
+    console.log(`\nSwitched to Docker install (container: ${containerName}).`);
+  }
 
   printWelcome(dest, name, inPlace, !!options.rpcUrl, /* freshInit */ true);
 }
@@ -406,6 +430,12 @@ function printWelcome(dest: string, name: string, inPlace: boolean, _hasRpc: boo
     "║                                                                      ║",
     "║  If you skip this step, setup WILL break and you will have to        ║",
     "║  restart. There are no shortcuts.                                    ║",
+    "║                                                                      ║",
+    "║  IF SAILOR IS RUNNING IN DOCKER:                                     ║",
+    "║    • Read project files from your local filesystem — they are        ║",
+    "║      shared via volume mount, do NOT use docker exec to read them.   ║",
+    "║    • Prefix every sailor command with:                               ║",
+    "║      docker exec <containerName> sailor <command>                    ║",
     "║                                                                      ║",
     "╚══════════════════════════════════════════════════════════════════════╝",
     "",

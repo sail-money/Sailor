@@ -45,9 +45,11 @@ import {
 } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { appendActivity, checksum, nowIso, prompt, sailPath, writeJsonFile } from "../lib/io.js";
-import { keyExists } from "../lib/keys.js";
+import { keyExists, loadManagerSigner } from "../lib/keys.js";
+import { MandateStore } from "../lib/mandates.js";
+import { explainPermission } from "../lib/permission-explainer.js";
 import { emit } from "../lib/output.js";
-import { ProjectContext, loadManagerSigner } from "../lib/project.js";
+import { ProjectContext } from "../lib/project.js";
 import { registrationGate } from "../lib/registration-fee.js";
 import { type StoredAccount, upsertAccountInList } from "../lib/state.js";
 import { type SigningChannel, createSigningChannel, signingPageUrl } from "../signing/client.js";
@@ -138,7 +140,7 @@ async function runOnboard(
 
   say(() =>
     console.log(
-      `\n→ Open the Sailor dashboard to approve signing requests:\n  ${signingPageUrl(channel, projectPort(process.cwd()))}\n`,
+      `\n→ Open the Sailor dashboard to approve signing requests:\n  ${signingPageUrl(projectPort(process.cwd()))}\n`,
     ),
   );
 
@@ -585,6 +587,13 @@ export async function attachMandate(
       `  The mandate signer (${permissionSigner}) must sign in the browser — not the agent wallet.`,
     ),
   );
+  // NL summary parsed from the permission's contract comments, so the approval
+  // card explains what it enforces before the owner signs.
+  const permRecord = new MandateStore().find(templateAddress);
+  const permExplanation =
+    (permRecord ? explainPermission(permRecord.name, permRecord.sourcePath) : explainPermission(template.label)) ??
+    undefined;
+
   const response = await channel.requestSignature({
     type: "typed-data",
     kind: "register-permission",
@@ -597,6 +606,14 @@ export async function attachMandate(
       { label: "Permission", value: template.label },
       { label: "Mandate signer", value: permissionSigner },
     ],
+    explanation: permExplanation,
+    // Disclose the fee in the signing card so the owner sees what the agent
+    // will pay before signing. Only included when non-zero or when there is a
+    // fee to disclose (zero-fee chains pass 0 ETH, still informative).
+    registrationFee: {
+      totalEth: formatEther(fee),
+      permissionCount: 1,
+    },
     typedData,
   });
 

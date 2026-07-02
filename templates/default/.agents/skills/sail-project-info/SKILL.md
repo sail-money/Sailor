@@ -28,3 +28,5 @@ Every command here is read-only and supports `--json` for machine reading. Prefe
 - "Is anything running?" — `.sail/runtime/ui.json` (dashboard), `.sail/runtime/server.json` (signing station), agent pid via `sailor status`.
 
 Run `sailor doctor` before any operation that spends gas — it is the cheapest way to catch a dead RPC, an unfunded wallet, or a kernel mismatch first.
+
+- "What is the permission registration fee?" — `permissionRegistrationFee()` on `SailGovernance` (read live; currently `0` on this deploy). `sailor mandate sign` and `sailor mandate prepare` print the fee before signing. Each `permission_registered` entry in the activity log includes `fee` (wei) and `feeEth` (formatted), so Recent Activity shows the real cost paid per registration.

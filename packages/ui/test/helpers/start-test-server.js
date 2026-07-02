@@ -12,7 +12,8 @@ import { fileURLToPath } from 'node:url'
 import { startServer } from '../../server.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const UI_TEST_PORT = 14333
+const _testPort = Number(process.env.SAILOR_TEST_PORT)
+const UI_TEST_PORT = Number.isInteger(_testPort) && _testPort > 0 ? _testPort : 14333
 
 function copyDir(src, dest) {
   fs.mkdirSync(dest, { recursive: true })

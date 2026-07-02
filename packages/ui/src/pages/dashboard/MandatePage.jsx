@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   BrandMark,
-  FluidBackground,
+  HorizonBackground,
   MandateStatus,
   Sai,
   SailButton,
@@ -12,37 +12,7 @@ import layout from './SharedLayout.module.css'
 import styles from './MandatePage.module.css'
 import { useSailorAccount, useSailorMandate } from '../../hooks/useSailorData'
 import { useAccount } from 'wagmi'
-
-const CHAIN_NAMES = {
-  1: 'ethereum',
-  42161: 'arbitrum',
-  8453: 'base',
-  130: 'unichain',
-  10: 'optimism',
-  137: 'polygon',
-}
-const EXPLORER_ADDRESS = {
-  arbitrum: (a) => `https://arbiscan.io/address/${a}`,
-  ethereum: (a) => `https://etherscan.io/address/${a}`,
-  base:     (a) => `https://basescan.org/address/${a}`,
-  unichain: (a) => `https://uniscan.xyz/address/${a}`,
-  optimism: (a) => `https://optimistic.etherscan.io/address/${a}`,
-  polygon:  (a) => `https://polygonscan.com/address/${a}`,
-}
-const EXPLORER_TX = {
-  arbitrum: (h) => `https://arbiscan.io/tx/${h}`,
-  ethereum: (h) => `https://etherscan.io/tx/${h}`,
-  base:     (h) => `https://basescan.org/tx/${h}`,
-  unichain: (h) => `https://uniscan.xyz/tx/${h}`,
-  optimism: (h) => `https://optimistic.etherscan.io/tx/${h}`,
-  polygon:  (h) => `https://polygonscan.com/tx/${h}`,
-}
-function explorerAddress(network, addr) {
-  return (EXPLORER_ADDRESS[network] ?? EXPLORER_ADDRESS.ethereum)(addr)
-}
-function explorerTx(network, hash) {
-  return (EXPLORER_TX[network] ?? EXPLORER_TX.ethereum)(hash)
-}
+import { explorerTxUrl, explorerAddressUrl, explorerCodeUrl } from '../../lib/explorer'
 
 // SailKernel protocol constants (from SailProtocol source)
 const GOVERNANCE = {
@@ -73,11 +43,67 @@ import AIHandoffModal from './AIHandoffModal'
  * agents at once. Individual agents can be Stopped/Resumed via their
  * own AgentPage — that's a separate, reversible action.
  */
+/* ─────────── Capabilities at a glance (F11) ───────────
+   Renders the mandate's permissions as a plain-language "can do" list beside a
+   fixed "cannot do" list. The cannot side states the protocol's deny-by-default
+   guarantees — the trust-building half a flat permission list doesn't surface. */
+function CapabilitiesGlance({ mandate }) {
+  const active = (mandate?.permissionsAllowed ?? []).filter((p) => !p.revoked)
+  const CANNOT = [
+    'Move funds to any address outside the mandate’s allowlists',
+    'Exceed the per-transaction caps or slippage bounds set below',
+    'Trade tokens or call contracts that aren’t explicitly permitted',
+    'Act at all while the session is paused or the mandate is revoked',
+  ]
+  const colStyle = { display: 'flex', flexDirection: 'column', gap: 8 }
+  const itemStyle = { display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 13, lineHeight: 1.45 }
+  return (
+    <section className={styles.card}>
+      <header className={styles.cardHead}>
+        <div className={styles.cardHeadText}>
+          <h2 className={styles.cardTitle}>What this agent can — and cannot — do</h2>
+          <p className={styles.cardSub}>
+            A plain-language summary. The “cannot” side is enforced by the protocol’s
+            deny-by-default model: anything not permitted below is impossible, not merely discouraged.
+          </p>
+        </div>
+      </header>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 20 }}>
+        <div style={colStyle}>
+          <span style={{ fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase', color: 'rgba(120,220,160,0.95)' }}>Can do</span>
+          {active.length === 0 ? (
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', margin: 0 }}>No active permissions.</p>
+          ) : (
+            active.map((p) => (
+              <div key={p.id} style={itemStyle}>
+                <span aria-hidden style={{ color: 'rgba(120,220,160,0.95)' }}>✓</span>
+                <span>
+                  <span style={{ color: 'rgba(255,255,255,0.92)' }}>{p.label}</span>
+                  {p.sub && <span style={{ color: 'rgba(255,255,255,0.5)' }}> — {p.sub}</span>}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+        <div style={colStyle}>
+          <span style={{ fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase', color: 'rgba(255,180,120,0.95)' }}>Cannot do</span>
+          {CANNOT.map((line) => (
+            <div key={line} style={itemStyle}>
+              <span aria-hidden style={{ color: 'rgba(255,180,120,0.95)' }}>✗</span>
+              <span style={{ color: 'rgba(255,255,255,0.82)' }}>{line}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export default function MandatePage({ mandateId, onBack, onRevoke }) {
   const { mandate: liveMandate } = useSailorMandate()
   const { account } = useSailorAccount()
   const { address: walletAddress } = useAccount()
-  const network = CHAIN_NAMES[account?.chainId] ?? 'ethereum'
+  const chainId = account?.chainId
 
   const baseMandate = useMemo(() => {
     if (!liveMandate) return null
@@ -129,7 +155,7 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
   if (!mandate) {
     return (
       <div className={`${shared.pageShell} ${styles.shell}`}>
-        <FluidBackground />
+        <HorizonBackground />
         <main className={styles.notFound}>
           <Sai size={48} />
           <h1 className={styles.notFoundTitle}>Mandate not found</h1>
@@ -145,7 +171,7 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
 
   return (
     <div className={`${shared.pageShell} ${styles.shell}`}>
-      <FluidBackground />
+      <HorizonBackground />
 
       <header className={styles.header}>
         <button
@@ -209,6 +235,12 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
             </footer>
           </blockquote>
         </section>
+
+        {/* ── Capabilities at a glance (F11) ───────────────────
+            A plain-language "can / cannot" summary above the detailed
+            permission list. The deny side is what builds trust: the
+            protocol enforces it by deny-by-default. */}
+        <CapabilitiesGlance mandate={mandate} />
 
         {/* ── Permissions ──────────────────────────────────────
             Comes right after the draft because permissions ARE the
@@ -338,19 +370,19 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
                           k="Registration tx"
                           v={p.registeredTxHash}
                           mono
-                          link={explorerTx(network, p.registeredTxHash)}
+                          link={explorerTxUrl(chainId, p.registeredTxHash)}
                         />
                       </dl>
 
                       <div className={styles.permDetailActions}>
                         <a
-                          href={explorerAddress(network, p.address)}
+                          href={explorerCodeUrl(chainId, p.address) ?? explorerAddressUrl(chainId, p.address)}
                           target="_blank"
                           rel="noreferrer"
                           className={styles.permActionGhost}
                           onClick={(e) => e.stopPropagation()}
                         >
-                          View on explorer
+                          View code on scanner
                           <ArrowOutIcon />
                         </a>
                         {!isRevoked && isActive && (
@@ -511,7 +543,7 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
             <ReceiptRow k="Block"             v={mandate.blockNumber != null ? mandate.blockNumber.toLocaleString() : '—'} />
             <ReceiptRow k="Tx hash"           v={
               <a
-                href={explorerTx(network, mandate.txHash)}
+                href={explorerTxUrl(chainId, mandate.txHash)}
                 target="_blank"
                 rel="noreferrer"
                 className={styles.receiptLink}

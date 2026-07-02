@@ -1,0 +1,7 @@
+.git
+**/node_modules
+**/dist
+# tsbuildinfo must be excluded — if present, tsc incremental mode skips emitting
+# dist files it thinks are current, but dist is excluded above so they don't exist.
+**/*.tsbuildinfo
+.env*

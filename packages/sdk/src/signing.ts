@@ -24,6 +24,24 @@ export type SigningRequestKind =
   | "arbitrary-tx"; // Arbitrary transaction — the agent can request the owner to sign any calldata (e.g. admin calls on custom permissions)
 
 /** Fields shared by all signing request variants. */
+/**
+ * Natural-language summary of a permission being signed, parsed from the
+ * contract's comments (structured header → NatSpec → require messages). Lets the
+ * approval card explain what the contract enforces *before* the user signs —
+ * rather than approving an opaque deploy/registration.
+ */
+export type SigningExplanation = {
+  source?: string;
+  protocol?: string;
+  version?: string;
+  chain?: string;
+  target?: string;
+  /** Constraints enforced on-chain. */
+  enforced: string[];
+  /** Things left to agent code, not enforced on-chain. */
+  notEnforced: string[];
+};
+
 export type SigningRequestBase = {
   id: string;
   kind: SigningRequestKind;
@@ -34,6 +52,32 @@ export type SigningRequestBase = {
   chainId: number;
   /** Human-readable breakdown rendered in the card. */
   details: Array<{ label: string; value: string }>;
+  /** Optional NL summary of the permission, parsed from its contract comments. */
+  explanation?: SigningExplanation;
+  /**
+   * Optional per-permission NL summaries — used when one signature authorizes
+   * several permissions (batch register), so the card can list each with its own
+   * "what you're signing" breakdown.
+   */
+  permissions?: Array<{
+    label?: string;
+    address?: string;
+    explanation?: SigningExplanation;
+  }>;
+  /**
+   * Registration fee the agent wallet will pay on-chain for this signing.
+   * Absent when no fee is charged (zero-fee chains) or when the fee couldn't
+   * be read. Passed from the CLI so the signing card can disclose it before
+   * the owner signs.
+   */
+  registrationFee?: {
+    /** Total fee in ETH (formatted string, e.g. "0.00003"). */
+    totalEth: string;
+    /** Number of permissions the total covers. */
+    permissionCount: number;
+    /** Flat per-permission fee in ETH, present when count > 1. */
+    perPermissionEth?: string;
+  };
   createdAt: number;
 };
 

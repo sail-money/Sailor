@@ -62,6 +62,43 @@ export async function updateCommand(): Promise<void> {
   const added: string[] = [];
   copyDirSyncIfMissing(templateSrc, dest, added);
 
+  // Re-detect install mode and update config.json if it changed.
+  const configPath = path.join(dest, ".sail", "config.json");
+  try {
+    const config = JSON.parse(fs.readFileSync(configPath, "utf-8")) as {
+      installMode?: string;
+      containerName?: string;
+      [key: string]: unknown;
+    };
+    const newMode = process.env.SAILOR_INSTALL_MODE === "docker" ? "docker" : "local";
+    const _rawContainerName = process.env.SAILOR_CONTAINER_NAME ?? "agent";
+    const containerName = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(_rawContainerName) ? _rawContainerName : "agent";
+    if (config.installMode !== newMode) {
+      const previousMode = config.installMode;
+      const previousContainer = config.containerName as string | undefined;
+      config.installMode = newMode;
+      if (newMode === "docker") {
+        config.containerName = containerName;
+      } else {
+        delete config.containerName;
+      }
+      fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
+      if (previousMode === "docker" && newMode === "local") {
+        const prev = previousContainer ?? "agent";
+        console.log(`\nSwitched to local install. If the Docker container is still running:`);
+        console.log(`  docker stop ${prev}`);
+        console.log(`You can restart it anytime with the standard docker run command.`);
+      } else if (newMode === "docker") {
+        console.log(`\nSwitched to Docker install (container: ${containerName}).`);
+      }
+    } else if (newMode === "docker" && config.containerName !== containerName) {
+      config.containerName = containerName;
+      fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
+    }
+  } catch {
+    console.warn("Warning: could not update install mode in .sail/config.json");
+  }
+
   if (removed.length === 0 && updated.length === 0 && added.length === 0) {
     console.log("Nothing to update.");
     return;

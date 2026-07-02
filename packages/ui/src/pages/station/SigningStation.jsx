@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAccount, useChains, useDisconnect, useSendTransaction, useSignTypedData, useSwitchChain } from 'wagmi'
-import { FluidBackground, GlassCard, Sai, SailButton } from '../shared'
+import { HorizonBackground, GlassCard, Sai, SailButton, BadgeRow } from '../shared'
 import PageHeader from '../shared/PageHeader'
 import ChainIcon from '../shared/ChainIcon'
 import NotConnectedCard from '../shared/NotConnectedCard'
@@ -11,6 +11,7 @@ import shared from '../shared/shared.module.css'
 import { useSailorAccount, useSailorMandateDraft } from '../../hooks/useSailorData'
 import { useSigningSocket } from '../../hooks/useSigningSocket'
 import { MandateSigningFlow } from '../signing/Signing'
+import { explorerCodeUrl, explorerTxUrl } from '../../lib/explorer'
 
 const KIND_LABELS = {
   'create-sma': 'Create Safe (SMA)',
@@ -128,7 +129,7 @@ export default function SigningStation() {
 
   return (
     <div className={styles.shell}>
-      <FluidBackground />
+      <HorizonBackground />
 
       <PageHeader
         eyebrow="Signing Station"
@@ -249,14 +250,73 @@ function OperationCard({ request, chains, phase, onSign, onReject, otherActive }
         <p className={styles.cardDesc}>{request.description}</p>
       </div>
 
+      {request.permissions?.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 4 }}>
+          {request.permissions.map((p, i) => {
+            const codeUrl = p.address ? explorerCodeUrl(request.chainId, p.address) : null
+            return (
+              <div key={p.address ?? i}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary, rgba(255,255,255,0.72))' }}>{p.label}</span>
+                  {codeUrl && (
+                    <a href={codeUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: '#7eb8f7', textDecoration: 'none', fontSize: 12, whiteSpace: 'nowrap' }}>
+                      View code on scanner ↗
+                    </a>
+                  )}
+                </div>
+                {p.explanation && <ExplanationBlock ex={p.explanation} />}
+              </div>
+            )
+          })}
+        </div>
+      ) : request.explanation ? (
+        <ExplanationBlock ex={request.explanation} />
+      ) : null}
+
       <div className={styles.details}>
-        {request.details.map((d) => <DetailRow key={d.label} label={d.label} value={d.value} />)}
+        {request.details.map((d) => <DetailRow key={d.label} label={d.label} value={d.value} chainId={request.chainId} />)}
         <DetailRow label="Network" value={chainName(chains, request.chainId)} mono={false} />
-        {request.type === 'transaction' && request.to && <DetailRow label="Contract" value={request.to} />}
+        {request.type === 'transaction' && request.to && <DetailRow label="Contract" value={request.to} chainId={request.chainId} />}
         {request.type === 'transaction' && !request.to && <DetailRow label="Action" value="Deploys a new contract" mono={false} />}
       </div>
 
-      {done && <div className={`${styles.banner} ${styles.ok}`}>Submitted — {shortHex(phase.txHash)}</div>}
+      {request.registrationFee && (
+        <div style={{
+          marginTop: 4,
+          marginBottom: 4,
+          padding: '10px 12px',
+          borderRadius: 2,
+          background: 'var(--glass-bg)',
+          border: '1px solid var(--glass-border)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          gap: 8,
+        }}>
+          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Registration fee</span>
+          <span style={{ textAlign: 'right' }}>
+            <span style={{ fontSize: 14, color: 'var(--text-primary, #fff)', fontWeight: 600 }}>
+              {request.registrationFee.totalEth} ETH
+            </span>
+            {request.registrationFee.permissionCount > 1 && request.registrationFee.perPermissionEth && (
+              <span style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
+                {request.registrationFee.permissionCount} permissions × {request.registrationFee.perPermissionEth} ETH
+              </span>
+            )}
+          </span>
+        </div>
+      )}
+
+      {done && (
+        <div className={`${styles.banner} ${styles.ok}`}>
+          Submitted —{' '}
+          {request.type === 'transaction' && explorerTxUrl(request.chainId, phase.txHash) ? (
+            <a href={explorerTxUrl(request.chainId, phase.txHash)} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>
+              {shortHex(phase.txHash)} ↗
+            </a>
+          ) : shortHex(phase.txHash)}
+        </div>
+      )}
       {hasError && <div className={`${styles.banner} ${styles.danger}`}>{phase.message}</div>}
       {wrongChain && (
         <div className={`${styles.banner} ${styles.warn}`}>
@@ -281,11 +341,73 @@ function OperationCard({ request, chains, phase, onSign, onReject, otherActive }
   )
 }
 
-function DetailRow({ label, value, mono = true }) {
+/* Plain-language summary of the permission being signed, parsed from the
+   contract's comments by the CLI (explainPermission). Mirrors the mandate
+   review panel so deploy/registration cards say what is being authorized. */
+function ExplanationBlock({ ex }) {
+  const hasBody = (ex.enforced?.length ?? 0) > 0 || (ex.notEnforced?.length ?? 0) > 0
+  if (!hasBody) return null
+
+  return (
+    <div style={{
+      margin: '0 0 14px', padding: 12, borderRadius: 6,
+      background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border, rgba(255,255,255,0.1))',
+    }}>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>
+        What you're signing
+      </div>
+      <BadgeRow items={[ex.protocol, ex.chain, ex.version]} />
+      {ex.enforced?.length > 0 && (
+        <div style={{ marginBottom: ex.notEnforced?.length > 0 ? 8 : 0 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5dde8b', marginBottom: 5 }}>
+            Enforced on-chain
+          </div>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {ex.enforced.map((b, i) => (
+              <li key={i} style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', paddingLeft: 12, position: 'relative' }}>
+                <span style={{ position: 'absolute', left: 0, color: '#5dde8b' }}>·</span>{b}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {ex.notEnforced?.length > 0 && (
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 5 }}>
+            Agent code — not enforced on-chain
+          </div>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {ex.notEnforced.map((b, i) => (
+              <li key={i} style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', paddingLeft: 12, position: 'relative' }}>
+                <span style={{ position: 'absolute', left: 0 }}>·</span>{b}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DetailRow({ label, value, mono = true, chainId }) {
+  // For a permission/contract address, link to its verified source on the
+  // chain's block explorer (Basescan/Etherscan/…). Label kept generic
+  // ("scanner") so it reads the same on every network.
+  const isAddress = typeof value === 'string' && /^0x[a-fA-F0-9]{40}$/.test(value)
+  const isContract = /contract|permission/i.test(label)
+  const codeUrl = isAddress && isContract && chainId ? explorerCodeUrl(chainId, value) : null
+
   return (
     <div className={styles.detailRow}>
       <span className={styles.detailLabel}>{label}</span>
-      {mono ? <code className={styles.detailValue}>{value}</code> : <span className={styles.detailValue}>{value}</span>}
+      <span style={{ display: 'inline-flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        {mono ? <code className={styles.detailValue}>{value}</code> : <span className={styles.detailValue}>{value}</span>}
+        {codeUrl && (
+          <a href={codeUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: '#7eb8f7', textDecoration: 'none', fontSize: 12, whiteSpace: 'nowrap' }}>
+            View code on scanner ↗
+          </a>
+        )}
+      </span>
     </div>
   )
 }

@@ -127,7 +127,7 @@
   background: rgba(255, 255, 255, 0.022);
   border: 1px solid var(--hairline);
   border-radius: 2px;
-  transition: background 200ms, border-color 200ms, transform 220ms var(--ease-apple);
+  transition: background 200ms, border-color 200ms, transform 220ms var(--ease-sail);
 }
 .item:hover {
   border-color: rgba(255, 255, 255, 0.18);
@@ -229,7 +229,7 @@
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.26),
     0 14px 32px -14px rgba(25, 144, 255, 0.7);
-  transition: filter 220ms var(--ease-apple), transform 220ms var(--ease-apple), box-shadow 220ms var(--ease-apple);
+  transition: filter 220ms var(--ease-sail), transform 220ms var(--ease-sail), box-shadow 220ms var(--ease-sail);
 }
 .reviewBtn:hover {
   filter: brightness(1.06);
@@ -244,7 +244,7 @@
   align-items: center;
   justify-content: center;
   color: currentColor;
-  transition: transform 220ms var(--ease-apple);
+  transition: transform 220ms var(--ease-sail);
 }
 .reviewBtn:hover .reviewBtnArrow {
   transform: translateX(2px);
@@ -280,7 +280,7 @@
   align-items: center;
   justify-content: center;
   color: var(--text-tertiary);
-  transition: transform 240ms var(--ease-apple), color 200ms;
+  transition: transform 240ms var(--ease-sail), color 200ms;
 }
 .expandChevronOpen {
   transform: rotate(180deg);
@@ -413,7 +413,7 @@
   letter-spacing: -0.005em;
 }
 
-/* Apple permission-dialog pattern — balanced two-button bar.
+/* Permission-dialog pattern — balanced two-button bar.
    Destructive on the left, primary on the right, equal weight. */
 .itemActions {
   display: grid;
