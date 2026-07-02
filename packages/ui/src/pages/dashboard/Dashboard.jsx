@@ -1754,7 +1754,7 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
               </div>
 
               {/* ── Session kill switch ───────────────────────────
-                  Pause halts ALL agent dispatch for this SMA (on-chain
+                  Pause halts ALL dispatch for this SMA (on-chain
                   revokeSession); Resume re-enables it. Owner-signed,
                   reversible, and it invalidates any pre-signed dispatch.
                   Only shown for a registered SMA with a resolvable kernel. */}
@@ -1765,14 +1765,14 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                       Session
                       <InfoTip label="What pausing does">
                         The kill switch for this SMA. Pausing immediately halts <strong>all</strong>{' '}
-                        agent dispatch (permissions stay registered); resume anytime without
-                        re-signing. Any transaction the agent pre-signed is invalidated.
+                        of the SMA’s activity (permissions stay registered); resume anytime without
+                        re-signing. Any transaction the SMA pre-signed is invalidated.
                       </InfoTip>
                     </span>
                     <p className={styles.idRelation}>
                       {activeChainOv.sma.sessionActive === false
-                        ? 'Paused — your agent is on hold and can’t make any moves until you resume.'
-                        : 'Live — your agent can act within the permissions you’ve set.'}
+                        ? 'Paused — your SMA is on hold and can’t make any moves until you resume.'
+                        : 'Live — your SMA can act within the permissions you’ve set.'}
                     </p>
                   </div>
                   {sessionPending
