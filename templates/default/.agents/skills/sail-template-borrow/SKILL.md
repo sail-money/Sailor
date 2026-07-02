@@ -16,15 +16,22 @@ Reuse the shared **`BorrowPermission`** singleton. Family overview + flow:
 
 ## What it enforces (per account, from source)
 
-Selectors (any other ⇒ `false`): Aave `borrow(address,uint256,uint256,uint16,address)`,
-Morpho-style `borrow(...)`, Compound-style `borrow(...)`. Invariants: `target ∈ protocols`;
-`asset ∈ assets` (Aave/Morpho decode the asset; Compound uses `target`);
-`amount ≤ maxAmountPerTx`; `onBehalfOf`/`receiver == SMA`; **`_ltvCheck` passes** — the
-projected debt value (via `borrowOracle`) against collateral value (via `collateralOracle`)
-must stay within `maxLtvBps`.
+Selectors (any other ⇒ `false`): Aave `borrow(address,uint256,uint256,uint16,address)`
+(**variable-rate only** — a stable-rate borrow, `rateMode != 2`, is rejected), Morpho
+**Optimizer/Morpho-Aave** `borrow(address,uint256,address,address)` (**NOT Morpho Blue** — its
+ABI differs and simply won't match this selector, i.e. fails closed; target a Blue-specific
+permission instead), Compound `borrow(uint256)` (the call target is the **cToken**; the template
+resolves `cToken.underlying()` and keys the allowlist/cap/LTV on the underlying — a target with
+no `underlying()`, e.g. cETH, is denied). Invariants: `target ∈ protocols`; `asset ∈ assets`
+(Aave/Morpho decode the asset; Compound resolves it via `underlying()`); `amount ≤
+maxAmountPerTx`; `onBehalfOf`/`receiver == SMA`; **`_ltvCheck` passes** — the projected debt
+value (via `borrowOracle`) against collateral value (via `collateralOracle`) must stay within
+`maxLtvBps`, when oracles are configured (see ORACLE MODES below).
 
-> Unlike the older bounded-borrow doc, this version **does** enforce an LTV bound on-chain.
-> The check still depends on the oracles you configure — see staleness via `maxPriceAgeSec`.
+> **Oracle modes:** configure **zero** oracles for amount-cap-only borrowing (no LTV ceiling is
+> applied at all, despite `maxLtvBps` being stored) or **both** — exactly one oracle reverts
+> `OracleConfigInconsistent` at configure (a single feed can't price a ratio). When both are set,
+> the check still depends on their honesty/freshness — see staleness via `maxPriceAgeSec`.
 
 ## Config blob (authoritative — `config-schemas.md`)
 

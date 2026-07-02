@@ -1,6 +1,6 @@
 ---
 name: sail-template-swap-no-oracle
-description: Gate an SMA's DEX swaps for tokens that have NO oracle by REUSING the shared SwapPermissionNoOracle singleton (Protocol/contracts/templates/SwapPermissionNoOracle.sol) — register + configure, no per-SMA deploy. Use for a bounded swap mandate on Uniswap V3/V3-02/V2 (and forks) where no manipulation-resistant price feed exists: router + token-in/out allowlists, a per-tx cap, recipient pinned to the SMA, and a per-pair live-pool "hallucination band". NOT manipulation-resistant — if the token HAS an oracle use sail-template-swap instead; for the LI.FI aggregator use sail-lifi-swap. NOT YET DEPLOYED on any chain — reference-only until the singleton is deployed.
+description: Gate an SMA's DEX swaps for tokens that have NO oracle by REUSING the shared SwapPermissionNoOracle singleton (Protocol/contracts/templates/SwapPermissionNoOracle.sol) — register + configure, no per-SMA deploy. Use for a bounded swap mandate on Uniswap V3/V3-02/V2 (and forks) where no manipulation-resistant price feed exists: router + token-in/out allowlists, a per-tx cap, recipient pinned to the SMA, and a per-pair live-pool "hallucination band". NOT manipulation-resistant — if the token HAS an oracle use sail-template-swap instead; for the LI.FI aggregator use sail-lifi-swap. Deployed on all 11 Sailor-bundled chains (recorded in sail-templates/deployed.json).
 compatibility: A Sailor project (`@sail/sdk`, `sailor` CLI). Requires SwapPermissionNoOracle deployed on the target chain (recorded in sail-templates/deployed.json); run sail-templates first.
 metadata:
   workspace: sailor-harness
@@ -16,12 +16,6 @@ contract. Register its address on the SMA and `configure()` your routers, token 
 and a **reference pool per tradeable pair**. Family overview + flow:
 [`sail-templates`](../sail-templates/SKILL.md). For the oracle-gated tier see
 [`sail-template-swap`](../sail-template-swap/SKILL.md).
-
-> ⚠️ **NOT YET DEPLOYED.** As of `deployed.json` (2026-06-23), `SwapPermissionNoOracle` is **not
-> deployed on any chain** — the catalog reports it as "not yet on any tracked chain" and there
-> is no usable address. This skill is **reference-only** until the singleton is deployed and its
-> address recorded in `deployed.json`. Until then, use [`sail-template-swap`](../sail-template-swap/SKILL.md)
-> where an oracle exists, or author a bespoke permission via `sailor mandate deploy`.
 
 > ⚠️ **Pick the right tier.** This template provides **NO manipulation-resistant slippage
 > protection**. Its price band reads a *single pool's live spot price*, which any party can move
@@ -86,9 +80,6 @@ Register → configure → simulate → reconfigure mechanics (and the encoding 
 [`sail-templates` reuse-flow](../sail-templates/references/reuse-flow.md) — follow it.
 `sailor mandate attach` registers only; `configureDirect` (owner tx) is the half that makes the
 permission live.
-
-> **Prerequisite:** `SwapPermissionNoOracle` must be deployed on the target chain first (see the
-> not-deployed warning above) and recorded in `deployed.json`.
 
 Template-specific bits:
 

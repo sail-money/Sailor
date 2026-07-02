@@ -26,9 +26,10 @@ Selectors (any other ⇒ `false`):
 | `deposit(address asset, uint256 amount, address onBehalfOf, uint16)` | Aave v2 |
 | `supply(address asset, uint256 amount, address onBehalfOf, uint16)` | Aave v3 |
 
-Invariants: `value == 0`; `target ∈ targets`; token allowlist enforced — Aave checks the
-`asset` arg, ERC-4626 requires the `target` (vault) itself ∈ `tokens`; `amount`/`shares ≤
-maxAmountPerTx`; `receiver`/`onBehalfOf == SMA`.
+Invariants: `value == 0`; `targets`/`tokens` must be non-empty with no zero addresses
+(`EmptyAllowlist`/`ZeroAddress` revert at configure otherwise); `target ∈ targets`; token
+allowlist enforced — Aave checks the `asset` arg, ERC-4626 requires the `target` (vault) itself
+∈ `tokens`; `amount`/`shares ≤ maxAmountPerTx`; `receiver`/`onBehalfOf == SMA`.
 
 > `mint`'s cap is in **shares**, not underlying. At a high share price the effective asset cap
 > is `maxAmountPerTx × sharePrice` — size accordingly. For ERC-4626 `deposit`/`mint` the token

@@ -17,9 +17,11 @@ Reuse the shared **`TransferPermission`** singleton. Family overview + flow:
 ## What it enforces (per account, from source)
 
 Selectors: `0xa9059cbb` `transfer`, `0x23b872dd` `transferFrom`. Invariants: `value == 0`;
-`target (token) ∈ allowedTokens`; `to ∈ allowedRecipients`; `amount ≤ maxAmountPerTx`;
-**`transferFrom` requires `from == SMA`** (cannot pull from third parties that approved the
-Safe). Max 50 entries per allowlist.
+`allowedRecipients`/`allowedTokens` must be non-empty with no zero addresses
+(`EmptyAllowlist`/`ZeroAddress` revert at configure otherwise); `target (token) ∈
+allowedTokens`; `to ∈ allowedRecipients`; `amount ≤ maxAmountPerTx`; **`transferFrom` requires
+`from == SMA`** (cannot pull from third parties that approved the Safe). Max 50 entries per
+allowlist.
 
 ## Config blob (authoritative — `config-schemas.md`)
 

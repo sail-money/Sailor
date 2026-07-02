@@ -5,7 +5,7 @@
 // These are configurable singletons (extend ConfigurablePermission): deploy once
 // per chain, then every SMA reuses that address via REGISTER + CONFIGURE (attach only
 // registers on the kernel; configure writes the per-account bounds — see SKILL.md).
-// Six of seven are deployed (2026-06-23); SwapPermissionNoOracle is source-only so far.
+// All seven are deployed (2026-07-01, CREATE2 global salt) — same address on every chain.
 // Deployment status is read from deployed.json next to this file.
 //
 // The template LIST is auto-detected from source (so it tracks additions/removals),
@@ -25,7 +25,8 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 const CHAIN_NAMES = {
-  1: "Ethereum", 8453: "Base", 42161: "Arbitrum", 130: "Unichain",
+  1: "Ethereum", 8453: "Base", 42161: "Arbitrum", 10: "Optimism", 130: "Unichain",
+  56: "BSC", 480: "World Chain", 999: "HyperEVM", 4326: "MegaETH",
   84532: "Base Sepolia", 11155111: "Sepolia",
 };
 
@@ -65,7 +66,7 @@ const META = {
   ApproveAndCallBatchPermission: {
     primitive: "Atomic approve / consuming-call / reset-to-zero batch",
     skill: "sail-template-approve-batch",
-    config: "Config{ address[] tokens, address[] spenders, ConsumingPair[] consumingPairs /* (address target, bytes4 selector) */, uint256[] maxApprovalAmounts, bool requireAmountMatch, bool requireRecipientIsAccount }",
+    config: "Config{ address[] tokens, address[] spenders, ConsumingPair[] consumingPairs /* (address target, bytes4 selector) */, uint256[] maxApprovalAmounts, bool requireAmountMatch, bool allowUnconstrainedRecipient /* default false = recipient pinned to account; true = opt out */ }",
   },
 };
 
@@ -125,18 +126,6 @@ function statusFor(deployed, name) {
   return rows.sort((a, b) => a.chainId - b.chainId);
 }
 
-// Non-canonical test instances (deployed.json `testInstances`): NOT registered singletons.
-function testInstancesFor(deployed, name) {
-  const rows = [];
-  for (const [chainId, map] of Object.entries(deployed.testInstances ?? {})) {
-    const entry = map?.[name];
-    if (!entry) continue;
-    const e = typeof entry === "string" ? { address: entry } : entry;
-    rows.push({ chainId: Number(chainId), name: CHAIN_NAMES[chainId] ?? `chain ${chainId}`, ...e });
-  }
-  return rows.sort((a, b) => a.chainId - b.chainId);
-}
-
 function main() {
   const protocolDir = findProtocolDir();
   if (!protocolDir) {
@@ -151,7 +140,6 @@ function main() {
     ...t,
     ...(META[t.name] ?? { primitive: "(uncurated — see source)", skill: null, config: "(see source)" }),
     deployments: statusFor(deployed, t.name).filter((r) => !onlyChain || r.chainId === Number(onlyChain)),
-    testInstances: testInstancesFor(deployed, t.name).filter((r) => !onlyChain || r.chainId === Number(onlyChain)),
   }));
 
   // IOracle adapters usable as `priceOracle` in SwapPermission config (deployed.json `oracles`).
@@ -189,14 +177,6 @@ function main() {
       }
     } else {
       console.log("   deployed:  not yet on any tracked chain (record in deployed.json once deployed)");
-    }
-    if (t.testInstances && t.testInstances.length) {
-      console.log("   ⚠️ TEST instances (NOT registered singletons — testing only):");
-      for (const ti of t.testInstances) {
-        const ver = ti.contractVersion ? ` [${ti.contractVersion}]` : "";
-        console.log(`     ${ti.name} (${ti.chainId}): ${ti.address}${ver}`);
-        if (ti.note) console.log(`       ↳ ${ti.note}`);
-      }
     }
     console.log("");
   }

@@ -26,9 +26,11 @@ Supported selectors (any other ⇒ `false`):
 | `0x38ed1739` | `swapExactTokensForTokens(amountIn,amountOutMin,path[],to,deadline)` | Uniswap V2 Router |
 
 Invariants: `ctx.value == 0` (native value rejected — ERC-20→ERC-20 only); `target ∈ routers`;
-`tokenIn`/`path[0] ∈ tokensIn`; `tokenOut`/`path[last] ∈ tokensOut`; `recipient`/`to == SMA`
-(funds can't leave the account); `amountIn ≤ maxAmountPerTx`; **oracle band ALWAYS enforced**
-(the oracle is mandatory — see below): `amountOutMin ≥ amountIn × price/10^dec ×
+**`tokenIn != tokenOut` / `path[0] != path[last]`** (self-routes denied — a round-trip burns AMM
+fees while an oracle reporting base==quote would otherwise clear the band); `tokenIn`/`path[0] ∈
+tokensIn`; `tokenOut`/`path[last] ∈ tokensOut`; `recipient`/`to == SMA` (funds can't leave the
+account); `amountIn ≤ maxAmountPerTx`; **oracle band ALWAYS enforced** (the oracle is
+mandatory — see below): `amountOutMin ≥ amountIn × price/10^dec ×
 (10_000 − maxSlippageBps)/10_000`. Dust trades whose computed floor truncates to `0` are
 **denied** (fail-closed).
 
@@ -127,10 +129,7 @@ adapter** for this pair on this chain (`0x0` reverts):
 > [`sail-templates` reuse-flow](../sail-templates/references/reuse-flow.md).
 
 1. **Address:** `node SKILLS/sail-templates/catalog.mjs --chain <id>` → `SwapPermission`
-   address. Not deployed yet? Deploy the singleton once and record it in `deployed.json`.
-   *(The catalog also prints any non-canonical **TEST instances** under a `⚠️ TEST` flag — e.g.
-   the verified Unichain `v2` test instance `0xDe30B1AdCdf46939303022aD41A3dDFaF8c2e644`. Use those
-   for end-to-end testing only; register the canonical singleton for production.)*
+   address. It's the same address on every chain (CREATE2); see `deployed.json`.
 2. **Confirm the spec with the user** (sell/buy tokens, per-swap cap, slippage, router/fee
    tier, recipient = SMA) — print the explainer's humanReadable + warnings. No gas before
    approval.
@@ -191,8 +190,9 @@ it is below `amountIn`.
   bespoke permission. There is no oracle-off mode on `SwapPermission`.
 - **Aggregator (LI.FI) or opaque calldata** → the mandate can't inspect the route; use
   [`sail-lifi-swap`](../sail-lifi-swap/SKILL.md) or [`sail-mandates`](../sail-mandates/SKILL.md).
-- **`SwapPermission` not deployed on your chain** (e.g. Ethereum mainnet) → deploy the singleton and
-  record it in `deployed.json`, or author your own via [`sail-mandates`](../sail-mandates/SKILL.md).
+- **`SwapPermission` not deployed on your chain** → check `deployed.json` first (it's live on all
+  11 Sailor-bundled chains as of the current deploy); for anything outside that set, author your
+  own via [`sail-mandates`](../sail-mandates/SKILL.md).
 
 ## Notes
 - The oracle is **mandatory** and the band is **always** enforced; `maxSlippageBps = 0` is the

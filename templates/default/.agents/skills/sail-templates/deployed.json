@@ -1,66 +1,109 @@
 {
-  "_comment": "Reuse registry for the shared permission templates in Protocol/contracts/templates. These are CONFIGURABLE SINGLETONS: deployed ONCE per chain, then every SMA reuses that address via attach + configure (no per-SMA deploy). Keyed by chainId then by the Solidity contract name. All six bind to the current CREATE2 kernel 0x02ABC18B65A328de2e749F56ba79ACF2718a6659 (same address on every chain). Deployed by 0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6 on 2026-06-23.",
+  "_comment": "Reuse registry for the shared permission templates in Protocol/contracts/templates. These are CONFIGURABLE SINGLETONS: deployed ONCE, then every SMA reuses that address via attach + configure (no per-SMA deploy). All seven templates bind to the current CREATE2 kernel 0x38b508756c976e876EFF05a29E731A4d348BA6ED. Deploy is CREATE2 with a global salt (gitCommit 1dc1960, deploy version create2-2026-07-01), so the kernel and every template land at the SAME address on every chain — the per-chain blocks below are identical by construction, not independent deployments. Deployed by 0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6 on 2026-07-01. Supersedes the prior EOA-governed 2026-06-09 deploy (kernel 0x02ABC18B65A328de2e749F56ba79ACF2718a6659) — those addresses are dead; do not reuse them.",
   "_schema": "sail.skills.templates.deployed/v1",
-  "kernel": "0x02ABC18B65A328de2e749F56ba79ACF2718a6659",
+  "kernel": "0x38b508756c976e876EFF05a29E731A4d348BA6ED",
   "chains": {
-    "1": {},
+    "1": {
+      "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
+      "BorrowPermission": "0x3e2666051599223cEAb10De55C89A0842857d8AF",
+      "DepositPermission": "0xBfB5e13a97b12Ee89d2F2b9B65eCf7e0E371911f",
+      "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
+      "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
+      "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
+      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
+    },
     "8453": {
-      "ApproveAndCallBatchPermission": "0x64dE31F74112ED5C81e4FC6957Da129C591a5280",
-      "BorrowPermission": "0x12D129fb97A8b11d308b151F347f2a08d5B34410",
-      "DepositPermission": "0x3bc306a183A665f36A4a1FfbDB22982BFcaBca48",
-      "SwapPermission": "0xB1e5Ab0A53b4633e138c7a10F7cF65C0BC4A8Ae9",
-      "TransferPermission": "0x13748C90271F96bfc9C2DeDA41dA1717a0C8c01B",
-      "WithdrawPermission": "0xb1794816142E2aE434c18DAB38A3589B1344759D"
+      "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
+      "BorrowPermission": "0x3e2666051599223cEAb10De55C89A0842857d8AF",
+      "DepositPermission": "0xBfB5e13a97b12Ee89d2F2b9B65eCf7e0E371911f",
+      "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
+      "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
+      "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
+      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
     },
     "42161": {
-      "ApproveAndCallBatchPermission": "0xCd07Bb514D7f264C472C6faf1B20725be1C7eAA7",
-      "BorrowPermission": "0xA45758D733e8A1446D6317DC9DADc57dcd7Fba4F",
-      "DepositPermission": "0xFb7EFb68C0852079ADa92cACDAd81328880DD682",
-      "SwapPermission": "0x2A3660Bd20A34ed4f861A574aE8421581890CbFA",
-      "TransferPermission": "0x20d6218868c81e0208fd545B179587DE43266647",
-      "WithdrawPermission": "0x3693a933A113030f8c656552D7190466b2607E00"
+      "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
+      "BorrowPermission": "0x3e2666051599223cEAb10De55C89A0842857d8AF",
+      "DepositPermission": "0xBfB5e13a97b12Ee89d2F2b9B65eCf7e0E371911f",
+      "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
+      "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
+      "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
+      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
+    },
+    "10": {
+      "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
+      "BorrowPermission": "0x3e2666051599223cEAb10De55C89A0842857d8AF",
+      "DepositPermission": "0xBfB5e13a97b12Ee89d2F2b9B65eCf7e0E371911f",
+      "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
+      "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
+      "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
+      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
     },
     "130": {
-      "ApproveAndCallBatchPermission": "0x5709B869Bd133A630e05A60566136B78Ed07c1e8",
-      "BorrowPermission": "0xabD86E04d17cbEb90582D6a51c3D1C1Fc73f8950",
-      "DepositPermission": "0xb52680Cb9dFfe5B92a4C5B0C831116D002Ba3150",
-      "SwapPermission": "0xDe30B1AdCdf46939303022aD41A3dDFaF8c2e644",
-      "TransferPermission": "0xb1ED08A2912380A3Bf2d609a10b5AC52A13DD1b2",
-      "WithdrawPermission": "0x6E3cab201C06a4682e22aC1ba1a88F944FF489De"
+      "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
+      "BorrowPermission": "0x3e2666051599223cEAb10De55C89A0842857d8AF",
+      "DepositPermission": "0xBfB5e13a97b12Ee89d2F2b9B65eCf7e0E371911f",
+      "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
+      "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
+      "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
+      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
     },
-    "11155111": {
-      "ApproveAndCallBatchPermission": "0x1dF90a2484bCF3c6Da2FB035aa0C9f523e77Cd62",
-      "BorrowPermission": "0x851Ad196b7DC6c05eaf0B9420f2a72dc336D7739",
-      "DepositPermission": "0xd48cdBB25bF0A214dEffECac3c9431650834b046",
-      "SwapPermission": "0xbF7089A905081054c9dA628707f2e1EF70A7F300",
-      "TransferPermission": "0x17D466309C7E0237960f68126Cc4A109D194ac28",
-      "WithdrawPermission": "0xf49E304EDf806AF46E8f17740e56C1CBFad5d264"
+    "56": {
+      "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
+      "BorrowPermission": "0x3e2666051599223cEAb10De55C89A0842857d8AF",
+      "DepositPermission": "0xBfB5e13a97b12Ee89d2F2b9B65eCf7e0E371911f",
+      "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
+      "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
+      "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
+      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
+    },
+    "480": {
+      "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
+      "BorrowPermission": "0x3e2666051599223cEAb10De55C89A0842857d8AF",
+      "DepositPermission": "0xBfB5e13a97b12Ee89d2F2b9B65eCf7e0E371911f",
+      "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
+      "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
+      "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
+      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
+    },
+    "999": {
+      "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
+      "BorrowPermission": "0x3e2666051599223cEAb10De55C89A0842857d8AF",
+      "DepositPermission": "0xBfB5e13a97b12Ee89d2F2b9B65eCf7e0E371911f",
+      "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
+      "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
+      "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
+      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
+    },
+    "4326": {
+      "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
+      "BorrowPermission": "0x3e2666051599223cEAb10De55C89A0842857d8AF",
+      "DepositPermission": "0xBfB5e13a97b12Ee89d2F2b9B65eCf7e0E371911f",
+      "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
+      "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
+      "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
+      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
     },
     "84532": {
-      "ApproveAndCallBatchPermission": "0xBd2E10051CB2b144391715bbCbf51eBea326Fea2",
-      "BorrowPermission": "0xB79AF25a71a42F425CFc2b0721a26fEff6a60994",
-      "DepositPermission": "0x13B075116EAcB2feFEDbc36E10bE5448fB493b03",
-      "SwapPermission": "0x0eCef4e92CfAD090c7f35aCA7A3A563851e3b6Da",
-      "TransferPermission": "0x5dA4741Bb60BC123e2a0512dD56467b73bF4cac6",
-      "WithdrawPermission": "0xE567C026eAf4d0b64F6E232F5f904E4caAe859d8"
+      "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
+      "BorrowPermission": "0x3e2666051599223cEAb10De55C89A0842857d8AF",
+      "DepositPermission": "0xBfB5e13a97b12Ee89d2F2b9B65eCf7e0E371911f",
+      "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
+      "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
+      "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
+      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
+    },
+    "11155111": {
+      "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
+      "BorrowPermission": "0x3e2666051599223cEAb10De55C89A0842857d8AF",
+      "DepositPermission": "0xBfB5e13a97b12Ee89d2F2b9B65eCf7e0E371911f",
+      "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
+      "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
+      "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
+      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
     }
   },
-  "_testInstancesComment": "NON-canonical instances deployed for testing only — NOT the registered production singletons in `chains`. Keyed chainId -> contract -> {address, ...}. catalog.mjs surfaces these with a TEST flag; do not use them for production registration.",
-  "testInstances": {
-    "130": {
-      "SwapPermission": {
-        "address": "0xDe30B1AdCdf46939303022aD41A3dDFaF8c2e644",
-        "deployedBy": "0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6",
-        "tx": "0x4a4d06758264be2f4b2b60b1103908a7ef4edb373a562686cf9856015e46c35c",
-        "deployedAt": "2026-06-30",
-        "contractVersion": "v2 (EIP712 domain \"2\"; oracle-mandatory #45 + epoch-binding #59)",
-        "verified": "https://uniscan.xyz/address/0xde30b1adcdf46939303022ad41a3ddfaf8c2e644",
-        "incompatibleWithLiveKernel": true,
-        "note": "WARNING: built from CURRENT Protocol source (v2) but the LIVE Unichain kernel 0x02ABC…6659 (deployed 2026-06-23) is a pre-#59 \"v1\" snapshot WITHOUT registrationEpoch. configureDirect/configure call kernel.registrationEpoch and therefore ALWAYS REVERT against the live kernel — this instance cannot be configured on-chain as-is. The canonical chains.130.SwapPermission (0xb4111e…535B1) is the matching v1 (EIP712 domain \"1\", no epoch binding). v2 allow/deny logic + this oracle were verified on a fork against a v2-compatible mock kernel (1 allow + 6 deny). To use v2 on Unichain, redeploy the v2 kernel+templates together; otherwise keep using the v1 canonical set."
-      }
-    }
-  },
-  "_oraclesComment": "IOracle adapters (getPrice(base,quote)) usable as `priceOracle` in SwapPermission config. SwapPermission requires a non-zero IOracle adapter. Keyed chainId -> label. `pairs` lists the directional token pairs each adapter serves (both directions); any other pair reverts. catalog.mjs surfaces these so the swap skill can pick a default oracle.",
+  "_oraclesComment": "IOracle adapters (getPrice(base,quote)) usable as `priceOracle` in SwapPermission config. SwapPermission requires a non-zero IOracle adapter. Keyed chainId -> label. `pairs` lists the directional token pairs each adapter serves (both directions); any other pair reverts. catalog.mjs surfaces these so the swap skill can pick a default oracle. An IOracle adapter reads only its named pool/tokens — it has no kernel or template-address dependency, so it remains valid against the current CREATE2 SwapPermission singleton.",
   "oracles": {
     "130": {
       "UniV3TwapOracle-USDC-WETH": {
@@ -83,7 +126,7 @@
         "verified": "https://uniscan.xyz/address/0x9d84c11626d13c5dc9540fa12a3ff7b85ac3c1b9",
         "source": "sail-templates/oracles/UniV3TwapOracle.sol",
         "default": true,
-        "note": "Default priceOracle for the USDC<->WETH pair on Unichain. Live 30-min TWAP from the 0.05% V3 pool (cardinality 2000); updatedAt = block.timestamp, so it is always fresh against maxPriceAgeSec. Manipulation resistance scales with pool liquidity + window; reads a single pool. Use with maxPriceAgeSec >= a few minutes."
+        "note": "Default priceOracle for the USDC<->WETH pair on Unichain. Live 30-min TWAP from the 0.05% V3 pool (cardinality 2000); updatedAt = block.timestamp, so it is always fresh against maxPriceAgeSec. Manipulation resistance scales with pool liquidity + window; reads a single pool. Use with maxPriceAgeSec >= a few minutes. Deployed before the create2-2026-07-01 migration but kernel-agnostic (reads only the named pool/tokens), so it remains a valid priceOracle for the current SwapPermission singleton (0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C)."
       }
     }
   }

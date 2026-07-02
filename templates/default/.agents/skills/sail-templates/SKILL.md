@@ -1,6 +1,6 @@
 ---
 name: sail-templates
-description: Registry + reuse guide for Sail's shared permission templates (Protocol/contracts/templates). Load this when you need to know which permission primitives are available as reusable templates and want to gate an SMA's mandate by REUSING a configurable singleton — deploy once per chain, then register + configure per SMA (no per-SMA deploy). Covers swap (oracle-gated and no-oracle), borrow, transfer, deposit, withdraw, and approve-and-call-batch. Seven exist in source; six are deployed today; addresses live in deployed.json.
+description: Registry + reuse guide for Sail's shared permission templates (Protocol/contracts/templates). Load this when you need to know which permission primitives are available as reusable templates and want to gate an SMA's mandate by REUSING a configurable singleton — deploy once, then register + configure per SMA (no per-SMA deploy). Covers swap (oracle-gated and no-oracle), borrow, transfer, deposit, withdraw, and approve-and-call-batch. All seven are deployed today, at the SAME address on every supported chain (CREATE2); addresses live in deployed.json.
 compatibility: Node 18+; a Sailor project (`@sail/sdk`, `sailor` CLI); read access to the workspace `Protocol/contracts/templates/` (or set SAIL_PROTOCOL_DIR).
 metadata:
   workspace: sailor-harness
@@ -19,13 +19,14 @@ metadata:
 > **register + configure** — its own routers / tokens / caps live in the singleton's
 > `mapping(address => …)`. **No per-SMA deploy, no per-SMA audit, minimal gas.**
 
-> **Deployment status (2026-06-23, by `0xB01dCE…815B6`):** **six of seven** templates are live
-> on Base, Arbitrum, Unichain, Sepolia, and Base Sepolia, all bound to the current CREATE2
-> kernel `0x02ABC18B65A328de2e749F56ba79ACF2718a6659`. Live addresses are in
-> [`deployed.json`](deployed.json) (keyed by chainId → contract name). Ethereum mainnet
-> (chainId 1) is not yet deployed. **`SwapPermissionNoOracle` exists in source but is NOT
-> deployed on any chain** — its skill is reference-only until the singleton is deployed and
-> recorded; the catalog reports it as "not yet on any tracked chain".
+> **Deployment status (2026-07-01, by `0xB01dCE…815B6`):** **all seven** templates are live on
+> every chain Sailor bundles — Ethereum, Base, Arbitrum, Optimism, Unichain, BSC, World Chain,
+> HyperEVM, MegaETH, Base Sepolia, and Eth Sepolia (11 chains) — all bound to the current
+> CREATE2 kernel `0x38b508756c976e876EFF05a29E731A4d348BA6ED`. This is a CREATE2 deploy with a
+> global salt, so the kernel and every template address are **identical on every chain**. Live
+> addresses are in [`deployed.json`](deployed.json) (keyed by chainId → contract name, though
+> the value is the same for all 11 keys). This supersedes the prior 2026-06-09 deploy (kernel
+> `0x02ABC18B65A328de2e749F56ba79ACF2718a6659`) — those addresses are dead.
 
 > ⚠️ **Audit scope.** These are marked *"UNAUDITED EXAMPLE — NOT PART OF THE TRUSTED CORE"* in
 > source. The kernel runs them safely (staticcall + gas cap + fail-closed) but does not verify
@@ -43,13 +44,13 @@ metadata:
 
 | Primitive | Contract | Deployed? | Skill |
 |---|---|---|---|
-| DEX swap (oracle band) | `SwapPermission` | ✅ 6 chains | [`sail-template-swap`](../sail-template-swap/SKILL.md) |
-| DEX swap (no oracle) | `SwapPermissionNoOracle` | ❌ not deployed | [`sail-template-swap-no-oracle`](../sail-template-swap-no-oracle/SKILL.md) (reference-only) |
-| Lending borrow | `BorrowPermission` | ✅ 6 chains | [`sail-template-borrow`](../sail-template-borrow/SKILL.md) |
-| Transfer (allowlist) | `TransferPermission` | ✅ 6 chains | [`sail-template-transfer`](../sail-template-transfer/SKILL.md) |
-| Vault/lending deposit | `DepositPermission` | ✅ 6 chains | [`sail-template-deposit`](../sail-template-deposit/SKILL.md) |
-| Withdraw to fixed addr | `WithdrawPermission` | ✅ 6 chains | [`sail-template-withdraw`](../sail-template-withdraw/SKILL.md) |
-| Approve+call batch | `ApproveAndCallBatchPermission` | ✅ 6 chains | [`sail-template-approve-batch`](../sail-template-approve-batch/SKILL.md) |
+| DEX swap (oracle band) | `SwapPermission` | ✅ 11 chains | [`sail-template-swap`](../sail-template-swap/SKILL.md) |
+| DEX swap (no oracle) | `SwapPermissionNoOracle` | ✅ 11 chains | [`sail-template-swap-no-oracle`](../sail-template-swap-no-oracle/SKILL.md) |
+| Lending borrow | `BorrowPermission` | ✅ 11 chains | [`sail-template-borrow`](../sail-template-borrow/SKILL.md) |
+| Transfer (allowlist) | `TransferPermission` | ✅ 11 chains | [`sail-template-transfer`](../sail-template-transfer/SKILL.md) |
+| Vault/lending deposit | `DepositPermission` | ✅ 11 chains | [`sail-template-deposit`](../sail-template-deposit/SKILL.md) |
+| Withdraw to fixed addr | `WithdrawPermission` | ✅ 11 chains | [`sail-template-withdraw`](../sail-template-withdraw/SKILL.md) |
+| Approve+call batch | `ApproveAndCallBatchPermission` | ✅ 11 chains | [`sail-template-approve-batch`](../sail-template-approve-batch/SKILL.md) |
 
 Authoritative config tuples + enforced invariants (from source):
 [references/config-schemas.md](references/config-schemas.md).
@@ -92,8 +93,8 @@ add it here and write a skill.)
 > below describes what actually works now; the "intended one-step" path is noted where it
 > applies and tracked in the proposal linked under Notes.
 
-1. **Deploy once per chain** (one-time, Protocol team / `DeploySharedTemplates`) → record the
-   address in `deployed.json`. (Already done for six of seven.)
+1. **Deploy once** (one-time, Protocol team / `DeploySharedTemplates`, CREATE2 — same address on
+   every chain) → record the address in `deployed.json`. (Already done for all seven.)
 2. **Build the config blob** for your SMA (per-primitive skill gives the exact params).
 3. **Register** the singleton address on the SMA's kernel (this does NOT configure it):
    ```bash
@@ -126,7 +127,10 @@ custody-bound aggregator pattern and [`sail-pendle`](../sail-pendle/SKILL.md) fo
 
 ## Notes
 
-- Each chain has its own kernel; a template address is only valid with its chain's kernel.
+- The kernel and every template address are identical on every chain (CREATE2 global salt) —
+  but that pairing is generation-specific: a template address from one deploy generation (e.g.
+  the superseded 2026-06-09 deploy) is never valid against a different generation's kernel.
+  Always resolve both from the same `deployed.json` entry / SDK deployment.
 - Caps/amounts are in **base units**. Size them with `sail-pyth-prices` / `uniswap-v3-quote`.
 - The config encoder must match each contract's `_applyConfig` decode exactly — use the SDK
   builder under `@sail/sdk/templates` **only after** verifying its param tuple equals the

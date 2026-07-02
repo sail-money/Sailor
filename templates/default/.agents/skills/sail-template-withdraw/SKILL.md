@@ -17,8 +17,10 @@ Reuse the shared **`WithdrawPermission`** singleton. Family overview + flow:
 ## What it enforces (per account, from source)
 
 Selectors: `0xa9059cbb` `transfer`, `0x23b872dd` `transferFrom`. Invariants: `value == 0`;
-`target (token) ∈ tokens`; `to == allowedRecipient` (a single address from config);
-`amount ≤ maxAmountPerTx`; **`transferFrom` requires `from == SMA`**.
+`tokens` must be non-empty and `allowedRecipient` non-zero, with no zero-address tokens
+(`EmptyAllowlist`/`ZeroAddress` revert at configure otherwise); `target (token) ∈ tokens`;
+`to == allowedRecipient` (a single address from config); `amount ≤ maxAmountPerTx`;
+**`transferFrom` requires `from == SMA`**.
 
 > Single recipient per config. To change it, `reconfigure` with a new blob (no redeploy). This
 > is the consolidation primitive — funds can only flow to the one approved address.

@@ -19,7 +19,9 @@ abi.encode(address[] routers, address[] tokensIn, address[] tokensOut,
 ```
 Selectors: `0x414bf389` (V3 `exactInputSingle` w/ deadline), `0x04e45aaf` (V3-02 no deadline),
 `0x38ed1739` (V2 `swapExactTokensForTokens`). Invariants: `value == 0` (native value rejected);
-`target ∈ routers`; `tokenIn`/`path[0] ∈ tokensIn`; `tokenOut`/`path[last] ∈ tokensOut`;
+`target ∈ routers`; **`tokenIn != tokenOut` / `path[0] != path[last]`** (self-routes denied — a
+round-trip would burn AMM fees while an oracle reporting base==quote clears the band);
+`tokenIn`/`path[0] ∈ tokensIn`; `tokenOut`/`path[last] ∈ tokensOut`;
 `recipient`/`to == account`; `amountIn ≤ maxAmountPerTx`; **oracle slippage band ALWAYS enforced**.
 The oracle is **mandatory** (contract `v2`): `_applyConfig` reverts `OracleRequired` if
 `priceOracle == 0`, `MissingPriceAge` if `maxPriceAgeSec == 0`, and `SlippageBpsTooLarge` if
@@ -60,17 +62,26 @@ abi.encode(address[] protocols, address[] assets, uint256 maxAmountPerTx,
            uint256 maxLtvBps, address collateralOracle, address borrowOracle,
            uint256 maxPriceAgeSec)
 ```
-Selectors: Aave `borrow(address,uint256,uint256,uint16,address)`, Morpho-style, Compound-style.
-Invariants: `target ∈ protocols`; `asset ∈ assets`; `amount ≤ maxAmountPerTx`;
-`onBehalfOf`/`receiver == account`; **`_ltvCheck` against collateral + borrow oracles**
-(this version DOES enforce an LTV bound — unlike the older bounded-borrow doc).
+Selectors: Aave `borrow(address,uint256,uint256,uint16,address)` (variable-rate only —
+`rateMode != 2` denies; stable-rate debt is rejected), Morpho **Optimizer/Morpho-Aave**
+`borrow(address,uint256,address,address)` (NOT Morpho Blue — its ABI differs and simply won't
+match, i.e. fails closed), Compound `borrow(uint256)` (target is the cToken; the underlying is
+resolved via `cToken.underlying()` and both the allowlist and LTV are underlying-denominated —
+targets with no `underlying()`, e.g. cETH, are denied). Invariants: `protocols`/`assets` must be
+non-empty with no zero addresses (`EmptyAllowlist`/`ZeroAddress` revert otherwise);
+`target ∈ protocols`; `asset ∈ assets`; `amount ≤ maxAmountPerTx`; `onBehalfOf`/`receiver ==
+account`. **Oracle modes:** zero oracles ⇒ amount-cap-only (no LTV ceiling applied at all, despite
+`maxLtvBps` being stored); both oracles set ⇒ `_ltvCheck` enforces the LTV bound. Exactly one
+oracle set reverts `OracleConfigInconsistent` at configure — it's an all-or-nothing pair.
 
 ## TransferPermission
 ```
 abi.encode(address[] allowedRecipients, address[] allowedTokens, uint256 maxAmountPerTx)
 ```
 Selectors: `0xa9059cbb` `transfer`, `0x23b872dd` `transferFrom`. Invariants: `value == 0`;
-`target (token) ∈ allowedTokens`; `to ∈ allowedRecipients`; `amount ≤ maxAmountPerTx`;
+`allowedRecipients`/`allowedTokens` must be non-empty with no zero addresses
+(`EmptyAllowlist`/`ZeroAddress` revert at configure otherwise); `target (token) ∈ allowedTokens`;
+`to ∈ allowedRecipients`; `amount ≤ maxAmountPerTx`;
 **`transferFrom` requires `from == account`** (stricter than the old TransferTarget).
 Max 50 entries per allowlist.
 
@@ -80,35 +91,49 @@ abi.encode(address[] targets, address[] tokens, uint256 maxAmountPerTx)
 ```
 Selectors: `deposit(uint256,address)` (ERC-4626), `mint(uint256,address)`,
 `deposit(address,uint256,address,uint16)` (Aave v2), `supply(address,uint256,address,uint16)`
-(Aave v3). Invariants: `value == 0`; `target ∈ targets`; token allowlist enforced (Aave: the
-`asset` arg; ERC-4626: `target` itself must be in `tokens`); `amount`/`shares ≤ maxAmountPerTx`;
-`receiver`/`onBehalfOf == account`. `mint` cap is in **shares** — account for share price.
+(Aave v3). Invariants: `value == 0`; `targets`/`tokens` must be non-empty with no zero addresses
+(`EmptyAllowlist`/`ZeroAddress` revert at configure otherwise); `target ∈ targets`; token
+allowlist enforced (Aave: the `asset` arg; ERC-4626: `target` itself must be in `tokens`);
+`amount`/`shares ≤ maxAmountPerTx`; `receiver`/`onBehalfOf == account`. `mint` cap is in
+**shares** — account for share price.
 
 ## WithdrawPermission
 ```
 abi.encode(address[] tokens, address allowedRecipient, uint256 maxAmountPerTx)
 ```
 Selectors: `0xa9059cbb` `transfer`, `0x23b872dd` `transferFrom`. Invariants: `value == 0`;
-`target (token) ∈ tokens`; `to == allowedRecipient` (single address per config);
-`amount ≤ maxAmountPerTx`; **`transferFrom` requires `from == account`**. To change the
-recipient, `reconfigure` with a new blob.
+`tokens` must be non-empty and `allowedRecipient` non-zero, with no zero-address tokens
+(`EmptyAllowlist`/`ZeroAddress` revert at configure otherwise); `target (token) ∈ tokens`;
+`to == allowedRecipient` (single address per config); `amount ≤ maxAmountPerTx`;
+**`transferFrom` requires `from == account`**. To change the recipient, `reconfigure` with a new
+blob.
 
 ## ApproveAndCallBatchPermission
 ```
 abi.encode(Config{
   address[]       tokens; address[] spenders; ConsumingPair[] consumingPairs;
-  uint256[]       maxApprovalAmounts; bool requireAmountMatch; bool requireRecipientIsAccount;
+  uint256[]       maxApprovalAmounts; bool requireAmountMatch; bool allowUnconstrainedRecipient;
 })
 struct ConsumingPair { address target; bytes4 selector; }
 ```
 ABI tuple: `(address[],address[],(address,bytes4)[],uint256[],bool,bool)`. `consumingPairs` is a
 **struct array**, not two flat arrays — each `(target, selector)` is bound together, so a selector
 is authorised only on its paired target. Authorises exactly the 3-call batch:
-`approve(spender, amount)` → consuming call → `approve(spender, 0)`. Invariants: token ∈ `tokens`
-with `amount ≤ maxApprovalAmount[token]`; `spender ∈ spenders`; `(target, selector)` ∈
-`consumingPairs`; allowance reset to zero in the same batch; if `requireAmountMatch`, the consuming
+`approve(spender, amount)` → consuming call → `approve(spender, 0)`. Invariants: `tokens`,
+`spenders`, and `consumingPairs` must each be non-empty and contain no zero addresses/selectors
+(`EmptyAllowlist` reverts otherwise); token ∈ `tokens` with `amount ≤ maxApprovalAmount[token]`;
+`spender ∈ spenders`; `(target, selector)` ∈ `consumingPairs`; the pre-batch allowance on
+`(token, spender)` must be zero; the consuming call must target the approved `spender` and pull the
+approved `token`; allowance reset to zero in the same batch; if `requireAmountMatch`, the consuming
 call's leading `uint256` arg must equal the approve amount. `maxApprovalAmounts` is index-parallel
-with `tokens` (length mismatch reverts). **Output recipient:** when `requireRecipientIsAccount` is
-true, the consuming call's output recipient is decoded and must equal the account (selectors
-outside the decodable set are denied — fail-closed); when false (default) it is unconstrained, so
-only allowlist `(target, selector)` pairs you trust to deliver output to the account.
+with `tokens` (length mismatch reverts).
+
+> ⚠️ **Field name/polarity — `allowUnconstrainedRecipient`, NOT `requireRecipientIsAccount`.**
+> The field is an **opt-out**, default-safe: `false` (the default, i.e. an omitted/zero-value
+> bool) means the consuming call's output recipient is decoded and **must equal the account** —
+> the safe posture. `true` is a deliberate opt-out that leaves the recipient **unconstrained**.
+> Setting the bool `true` thinking it "requires/pins the recipient" gets the **opposite**
+> behaviour on-chain. Either way, the recipient (and the consumed asset) can only be decoded for
+> selectors in the fixed-offset set below — any other selector is denied under the default pin:
+> `swapExactTokensForTokens`, V3 `exactInputSingle` (both SwapRouter layouts), Aave V2/V3
+> `deposit`/`supply`, ERC-4626 `deposit`/`mint`.
