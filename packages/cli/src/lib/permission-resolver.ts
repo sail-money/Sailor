@@ -169,12 +169,25 @@ export async function probePermissionForCall(params: {
   blockInfo:    { number: bigint; timestamp: bigint };
 }): Promise<ProbeResult> {
   const { publicClient, kernel, permission, account, manager, call, blockInfo } = params;
+  // The kernel pushes registrationEpoch(account, permission) as ctx.configEpoch
+  // on every dispatch; configured templates fail closed on a mismatch, so the
+  // probe must read and pass the live value to mirror dispatch behaviour. Read it
+  // in its OWN try: this probe exists to distinguish evaluate()->false from
+  // evaluate() reverting, so a failure reading the epoch (bad kernel address / a
+  // kernel with no registrationEpoch) must be reported as its own error, not
+  // masqueraded as an evaluate revert against the user's permission logic.
+  let configEpoch: bigint;
   try {
-    // The kernel pushes registrationEpoch(account, permission) as ctx.configEpoch
-    // on every dispatch; configured templates fail closed on a mismatch, so the
-    // probe must read and pass the live value to mirror dispatch behaviour.
-    const configEpoch = await readRegistrationEpoch(publicClient, kernel, account, permission);
-    const ctx = buildPermissionContext({ account, manager, call, blockInfo, configEpoch });
+    configEpoch = await readRegistrationEpoch(publicClient, kernel, account, permission);
+  } catch (err) {
+    return {
+      accepted: false,
+      reverted: true,
+      error: `could not read registrationEpoch from kernel ${kernel} (${(err as Error).message.split("\n")[0]})`,
+    };
+  }
+  const ctx = buildPermissionContext({ account, manager, call, blockInfo, configEpoch });
+  try {
     const accepted = await publicClient.readContract({
       address:      permission,
       abi:          IPERMISSION_ABI,
