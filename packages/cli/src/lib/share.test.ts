@@ -3,6 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { sailCoreAddresses } from "@sail/sdk";
+import { COMMON_TOKEN_ADDRESSES } from "./public-constants.js";
 import {
   RPC_PLACEHOLDER,
   type ShareManifest,
@@ -291,6 +293,33 @@ test("collectSensitiveValues gathers identity addresses and rpc urls", () => {
   assert.ok(v.addresses.includes("0x1111111111111111111111111111111111111111"));
   assert.ok(v.addresses.includes("0x4444444444444444444444444444444444444444"));
   assert.ok(v.rpcUrls.some((u) => u.includes("alchemy.io")));
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("collectSensitiveValues keeps universal constants, strips only user identity", () => {
+  const root = makeProject();
+  const sma = "0x1111111111111111111111111111111111111111";
+  const kernel = sailCoreAddresses.kernel; // SDK core constant — same for everyone
+  const token = COMMON_TOKEN_ADDRESSES[0]; // e.g. USDC — public
+  const protocol = "0x9999999999999999999999999999999999999999"; // sharer-declared public
+  // A mandate references the user's SMA alongside a shared kernel + token.
+  fs.writeFileSync(
+    path.join(root, ".sail", "account.json"),
+    JSON.stringify({ safe: sma, kernel, token }),
+  );
+  // The sharer declares a strategy protocol address as public via the keep-list.
+  fs.writeFileSync(
+    path.join(root, ".sail", "public-addresses.json"),
+    JSON.stringify([protocol]),
+  );
+  // Plant the protocol address somewhere it would otherwise be swept.
+  fs.appendFileSync(path.join(root, ".sail", "account.json"), `\n// ${protocol}\n`);
+
+  const v = collectSensitiveValues(root).addresses.map((a) => a.toLowerCase());
+  assert.ok(v.includes(sma), "user's SMA is still redacted");
+  assert.ok(!v.includes(kernel.toLowerCase()), "SDK kernel constant is kept");
+  assert.ok(!v.includes(token.toLowerCase()), "common token address is kept");
+  assert.ok(!v.includes(protocol.toLowerCase()), "sharer-declared public address is kept");
   fs.rmSync(root, { recursive: true, force: true });
 });
 

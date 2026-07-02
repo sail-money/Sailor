@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { publicConstantAddresses } from "./public-constants.js";
 import { TEMPLATE_COPY_EXCLUDES } from "./template.js";
 
 /**
@@ -455,6 +456,11 @@ export function collectSensitiveValues(projectRoot: string): SensitiveValues {
 
   // The zero address is a placeholder, never a secret — don't redact it.
   addresses.delete(ZERO_ADDRESS.toLowerCase());
+  // Keep universal, non-secret addresses (Sail core contracts, per-chain
+  // deployments, shared templates, common tokens, and the sharer's declared
+  // public-addresses.json). Only the sharer's own identity should be zeroed —
+  // wiping token/protocol constants would gut the cloned template's context.
+  for (const addr of publicConstantAddresses(projectRoot)) addresses.delete(addr);
   return { addresses: [...addresses], rpcUrls: [...rpcUrls] };
 }
 
