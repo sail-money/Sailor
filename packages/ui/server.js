@@ -1719,7 +1719,8 @@ export function startServer(sailDir, { port = PORT } = {}) {
           client.readContract({ address: kernel, abi: SailKernelAbi, functionName: 'getPermissions', args: [safe] }),
           client.getBalance({ address: safe }),
         ])
-        const [permissionSigner, manager, , sessionActive] = configs
+        // configs = (permissionSigner, manager, feePolicy, feeAsset, sessionActive)
+        const [permissionSigner, manager, , , sessionActive] = configs
 
         // An unregistered SMA has no delegated signer yet: the kernel returns
         // the zero address for `manager`. Treat that as "not configured" rather

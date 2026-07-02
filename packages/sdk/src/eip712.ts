@@ -1,4 +1,4 @@
-import { keccak256, type PublicClient, type TypedDataDomain } from "viem";
+import { type PublicClient, type TypedDataDomain, keccak256 } from "viem";
 import type { Account, Address, Chain, Hex, Transport, WalletClient } from "viem";
 import type { DispatchModel, KernelCapabilities } from "./capabilities.js";
 import { detectKernelCapabilities } from "./capabilities.js";
@@ -27,20 +27,20 @@ export function sailKernelDomain(args: { chainId: number; kernel: Address }): Ty
  */
 export const DISPATCH_EIP712_FIELDS = {
   selective: [
-    { name: "account",    type: "address" },
+    { name: "account", type: "address" },
     { name: "permission", type: "address" },
-    { name: "target",     type: "address" },
-    { name: "value",      type: "uint256" },
-    { name: "dataHash",   type: "bytes32" },
-    { name: "nonce",      type: "uint256" },
-    { name: "deadline",   type: "uint256" },
+    { name: "target", type: "address" },
+    { name: "value", type: "uint256" },
+    { name: "dataHash", type: "bytes32" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
   ],
   conjunctive: [
-    { name: "account",  type: "address" },
-    { name: "target",   type: "address" },
-    { name: "value",    type: "uint256" },
+    { name: "account", type: "address" },
+    { name: "target", type: "address" },
+    { name: "value", type: "uint256" },
     { name: "dataHash", type: "bytes32" },
-    { name: "nonce",    type: "uint256" },
+    { name: "nonce", type: "uint256" },
     { name: "deadline", type: "uint256" },
   ],
 } as const;
@@ -270,6 +270,70 @@ export function buildRegisterPermissionTypedData(args: {
 }
 
 /**
+ * EIP-712 types for RegisterAccount (post-#53 two-step onboarding). Mirrors the on-chain
+ * REGISTER_ACCOUNT_TYPEHASH:
+ *   RegisterAccount(address account,address permissionSigner,address manager,
+ *                   address feePolicy,address feeAsset,uint256 deadline)
+ * The owner signs this digest; the resulting signature is passed as `ownerSig` to
+ * registerAccount, which the Safe submits via execTransaction (so msg.sender == the Safe).
+ */
+export const REGISTER_ACCOUNT_TYPES = {
+  RegisterAccount: [
+    { name: "account", type: "address" },
+    { name: "permissionSigner", type: "address" },
+    { name: "manager", type: "address" },
+    { name: "feePolicy", type: "address" },
+    { name: "feeAsset", type: "address" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
+
+/**
+ * Build a JSON-serializable RegisterAccount typed-data payload for the browser signing
+ * station. The Safe owner signs it; the signature becomes the `ownerSig` arg to
+ * registerAccount (submitted via the Safe's execTransaction). Bigints are stringified for
+ * transport; the UI re-parses the decimal-string `deadline` before signing.
+ *
+ * Note (#69): the kernel rejects the Safe v==1 approved-hash shortcut for this ownerSig —
+ * build it as a real EOA ECDSA signature over the digest, or the Safe v==0 contract-signature
+ * path for contract/nested-Safe owners. Do NOT use buildApprovedHashSignature here.
+ */
+export function buildRegisterAccountTypedData(args: {
+  chainId: number;
+  kernel: Address;
+  /** The Safe account being registered. */
+  account: Address;
+  permissionSigner: Address;
+  manager: Address;
+  feePolicy: Address;
+  /** Fee asset (address(0) for the native token). */
+  feeAsset?: Address;
+  /** Signature deadline (unix seconds). Defaults to 10 minutes from now. */
+  deadline?: bigint;
+}): SerializedTypedData {
+  const deadline = args.deadline ?? BigInt(Math.floor(Date.now() / 1000) + 600);
+  const feeAsset = args.feeAsset ?? ("0x0000000000000000000000000000000000000000" as Address);
+  return {
+    domain: {
+      name: "SailKernel",
+      version: "1",
+      chainId: args.chainId,
+      verifyingContract: args.kernel,
+    },
+    types: REGISTER_ACCOUNT_TYPES as unknown as SerializedTypedData["types"],
+    primaryType: "RegisterAccount",
+    message: {
+      account: args.account,
+      permissionSigner: args.permissionSigner,
+      manager: args.manager,
+      feePolicy: args.feePolicy,
+      feeAsset,
+      deadline: deadline.toString(),
+    },
+  };
+}
+
+/**
  * EIP-712 types for RegisterPermissions (batch) — selective kernel. Mirrors the
  * shape SailorClient.mandate.attachBatch signs and the on-chain
  * registerPermissions(account, permissions[], deadline, sig) entry point.
@@ -364,4 +428,129 @@ export async function signRegisterPermission(args: {
       nonce: args.nonce,
     },
   });
+}
+
+// ── Template configure() signing (version-adaptive: Protocol Octane #2/#8) ────
+
+/**
+ * ERC-5267 `eip712Domain()` — read a ConfigurablePermission template's live EIP-712
+ * domain so we sign against whatever schema is actually deployed.
+ */
+const TEMPLATE_EIP712_DOMAIN_ABI = [
+  {
+    type: "function",
+    name: "eip712Domain",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [
+      { name: "fields", type: "bytes1" },
+      { name: "name", type: "string" },
+      { name: "version", type: "string" },
+      { name: "chainId", type: "uint256" },
+      { name: "verifyingContract", type: "address" },
+      { name: "salt", type: "bytes32" },
+      { name: "extensions", type: "uint256[]" },
+    ],
+  },
+] as const;
+
+/** SailKernel `registrationEpoch(account, permission)` — the v2 epoch a config binds to. */
+const REGISTRATION_EPOCH_ABI = [
+  {
+    type: "function",
+    name: "registrationEpoch",
+    stateMutability: "view",
+    inputs: [
+      { name: "account", type: "address" },
+      { name: "permission", type: "address" },
+    ],
+    outputs: [{ type: "uint256" }],
+  },
+] as const;
+
+const CONFIGURE_FIELDS_V1 = [
+  { name: "account", type: "address" },
+  { name: "paramsHash", type: "bytes32" },
+  { name: "nonce", type: "uint256" },
+  { name: "deadline", type: "uint256" },
+] as const;
+const CONFIGURE_FIELDS_V2 = [...CONFIGURE_FIELDS_V1, { name: "epoch", type: "uint256" }] as const;
+
+/**
+ * Build the EIP-712 typed data for a ConfigurablePermission template's `configure()`,
+ * **adapting to whatever schema the deployed template reports** via ERC-5267
+ * `eip712Domain()`:
+ *   - domain version "1" (pre-epoch-binding templates): the legacy
+ *     `Configure(account, paramsHash, nonce, deadline)` struct, domain version "1".
+ *   - domain version "2" (Protocol PR #59, Octane #2/#8): adds `epoch`, read from
+ *     the kernel's `registrationEpoch(account, template)`, domain version "2".
+ *
+ * No flag day: the same call signs whichever is on-chain, so it works with the
+ * currently-deployed templates today and automatically with the epoch-binding
+ * templates once they redeploy. `SailorClient.mandate.reconfigure()` consumes this
+ * to sign and submit `template.configure(...)`.
+ *
+ * An unrecognized domain version throws rather than falling back to v1, so a future
+ * schema bump fails loudly instead of being silently mis-signed against the wrong shape.
+ */
+export async function buildConfigureTypedData(args: {
+  publicClient: PublicClient;
+  /** SailKernel address (source of registrationEpoch for the v2 schema). */
+  kernel: Address;
+  /** The ConfigurablePermission template instance being configured. */
+  template: Address;
+  /** The SMA the config applies to. */
+  account: Address;
+  /** ABI-encoded config blob (from `sdk/src/templates/*` encoders). */
+  params: Hex;
+  /** Current `template.configNonces(account)`. */
+  nonce: bigint;
+  /** Signature deadline (unix seconds). */
+  deadline: bigint;
+}): Promise<SerializedTypedData> {
+  const [, name, version, chainId] = (await args.publicClient.readContract({
+    address: args.template,
+    abi: TEMPLATE_EIP712_DOMAIN_ABI,
+    functionName: "eip712Domain",
+  })) as [string, string, string, bigint, string, string, readonly bigint[]];
+
+  if (version !== "1" && version !== "2") {
+    throw new Error(
+      `Unsupported template EIP-712 domain version "${version}" for ${args.template}. This SDK signs Configure schema v1 or v2; upgrade the SDK for newer templates.`,
+    );
+  }
+  const isV2 = version === "2";
+  const message: Record<string, string | number | boolean | string[]> = {
+    account: args.account,
+    paramsHash: keccak256(args.params),
+    nonce: args.nonce.toString(),
+    deadline: args.deadline.toString(),
+  };
+
+  if (isV2) {
+    const epoch = (await args.publicClient.readContract({
+      address: args.kernel,
+      abi: REGISTRATION_EPOCH_ABI,
+      functionName: "registrationEpoch",
+      args: [args.account, args.template],
+    })) as bigint;
+    message.epoch = epoch.toString();
+  }
+
+  return {
+    domain: {
+      name,
+      version,
+      chainId: Number(chainId),
+      verifyingContract: args.template,
+    },
+    types: {
+      Configure: (isV2 ? CONFIGURE_FIELDS_V2 : CONFIGURE_FIELDS_V1) as unknown as Array<{
+        name: string;
+        type: string;
+      }>,
+    },
+    primaryType: "Configure",
+    message,
+  };
 }

@@ -117,7 +117,7 @@ export async function scan(options: { owner?: string; json?: boolean }): Promise
           abi: SailKernelAbi,
           functionName: "configs",
           args: [address],
-        }) as Promise<[Address, Address, Address, boolean]>,
+        }) as Promise<[Address, Address, Address, Address, boolean]>,
         publicClient.readContract({
           address: kernel,
           abi: SailKernelAbi,
@@ -126,7 +126,8 @@ export async function scan(options: { owner?: string; json?: boolean }): Promise
         }) as Promise<Address[]>,
       ]);
 
-      const [permissionSigner, manager, , sessionActive] = config;
+      // configs = (permissionSigner, manager, feePolicy, feeAsset, sessionActive)
+      const [permissionSigner, manager, , , sessionActive] = config;
       smas.push({ address, registered: true, manager, permissionSigner, sessionActive, mandates });
     } catch (err) {
       smas.push({

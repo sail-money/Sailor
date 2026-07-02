@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
-import { encodeFunctionData, getAddress } from 'viem'
-import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi'
+import { getAddress } from 'viem'
+import { useAccount, useSendTransaction, useSignTypedData, useSwitchChain } from 'wagmi'
+// Import from subpaths, not the '@sail/sdk' barrel: the barrel re-exports the Node-only
+// keyring (node:crypto scryptSync), which breaks the browser (vite) build. safe/eip712 are
+// viem-only and browser-safe.
+import { buildRegisterAccountTypedData } from '@sail/sdk/eip712'
+import { buildRegisterAccountExecTransaction } from '@sail/sdk/safe'
 import { sailDeployments } from '@sail/sdk/deployments'
 import { ChainGlyph, GlassCard, InfoTip, Sai, SailButton } from '../shared'
 import SailBackground from '../shared/SailBackground'
@@ -618,6 +623,7 @@ function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTo
 /* ── Step 4: Deploy SMAs — one per selected chain ── */
 function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onDone, progressIndex, progressTotal }) {
   const { sendTransactionAsync } = useSendTransaction()
+  const { signTypedDataAsync } = useSignTypedData()
   const { switchChainAsync } = useSwitchChain()
 
   // Per-chain status: 'pending' | 'switching' | 'building' | 'wallet' | 'confirming' | 'done' | 'error'
@@ -671,10 +677,13 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
 
     if (useRegisterPath) {
       // Two-step path: deploy Safe directly via factory, then registerAccount on kernel.
-      // The registerAccount function takes (permissionSigner, manager, feePolicy):
+      // Post-Protocol #53 registerAccount is 6-arg and requires (a) msg.sender == the Safe
+      // and (b) a Safe owner signature over the RegisterAccount EIP-712 digest. So the owner
+      // signs the digest, then submits registerAccount wrapped in the Safe's execTransaction
+      // (msg.sender == Safe), rather than calling the kernel directly from their EOA.
       //   permissionSigner = owner (user's wallet — signs mandates)
       //   manager = managerAddress (agent wallet — signs dispatches)
-      //   feePolicy = address(0) (no fee policy)
+      //   feePolicy / feeAsset = address(0)
       setStatus(chainId, 'building')
       const pathRes = await fetch('/api/onboard/build-register-path', {
         method: 'POST',
@@ -698,17 +707,50 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
       if (!proxyLog) throw new Error('ProxyCreation event not found in deploy receipt')
       const safe = getAddress(`0x${proxyLog.topics[1].slice(26)}`)
 
-      // Step 2: register with kernel.
-      // registerAccount(address permissionSigner, address manager, address feePolicy)
-      // permissionSigner = owner (NOT the safe address)
+      // Step 2: register with the kernel via the Safe (post-#53 two-step path).
+      // permissionSigner = owner (NOT the safe address); feePolicy/feeAsset = address(0).
       const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
-      const registerData = encodeFunctionData({
-        abi: [{ name: 'registerAccount', type: 'function', inputs: [{ type: 'address' }, { type: 'address' }, { type: 'address' }], outputs: [] }],
-        functionName: 'registerAccount',
-        args: [owner, managerAddress, ZERO_ADDRESS],  // (permissionSigner, manager, feePolicy)
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 600)
+
+      // 2a. Owner signs the RegisterAccount EIP-712 digest (a real ECDSA sig — #69 forbids
+      //     the Safe approved-hash shortcut for this ownerSig). The same `deadline` is bound
+      //     into both the signed digest and the on-chain call below.
+      setStatus(chainId, 'wallet')
+      const td = buildRegisterAccountTypedData({
+        chainId,
+        kernel: path.kernel,
+        account: safe,
+        permissionSigner: owner,
+        manager: managerAddress,
+        feePolicy: ZERO_ADDRESS,
+        feeAsset: ZERO_ADDRESS,
+        deadline,
+      })
+      const ownerSig = await signTypedDataAsync({
+        domain: td.domain,
+        types: td.types,
+        primaryType: td.primaryType,
+        // buildRegisterAccountTypedData emits JSON-safe values (uint256 as decimal strings).
+        // Re-parse deadline to BigInt so the signing payload matches the numeric type across
+        // signTypedData implementations (same convention as the SigningStation).
+        message: { ...td.message, deadline: BigInt(td.message.deadline) },
+      })
+
+      // 2b. Wrap registerAccount(...) in the Safe's execTransaction so msg.sender == the Safe.
+      //     The execTransaction is authorised by the sole-owner pre-validated signature.
+      const exec = buildRegisterAccountExecTransaction({
+        safe,
+        kernel: path.kernel,
+        permissionSigner: owner,
+        manager: managerAddress,
+        feePolicy: ZERO_ADDRESS,
+        feeAsset: ZERO_ADDRESS,
+        deadline,
+        ownerSig,
+        owner,
       })
       setStatus(chainId, 'wallet')
-      const registerHash = await sendTransactionAsync({ to: path.kernel, data: registerData, chainId })
+      const registerHash = await sendTransactionAsync({ to: exec.to, data: exec.data, chainId })
       setStatus(chainId, 'confirming')
       const registerReceipt = await waitForReceipt(registerHash, chainId)
       if (registerReceipt?.status === '0x0') throw new Error('registerAccount reverted — check the kernel address and try again.')

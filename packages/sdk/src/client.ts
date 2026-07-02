@@ -1,35 +1,33 @@
 import {
-  type Account as ViemAccount,
+  http,
   type Chain,
+  type PublicClient,
+  type Transport,
+  type Account as ViemAccount,
+  type WalletClient,
   createPublicClient,
   defineChain,
   encodeAbiParameters,
-  http,
   keccak256,
   parseEventLogs,
-  type PublicClient,
-  type Transport,
-  type WalletClient,
   zeroAddress,
 } from "viem";
 import { SailKernelAbi } from "./abis/SailKernel.js";
-import {
-  type KernelCapabilities,
-  detectKernelCapabilities,
-} from "./capabilities.js";
+import { type KernelCapabilities, detectKernelCapabilities } from "./capabilities.js";
 import { sailDeployments } from "./deployments.js";
-import { explainKernelRevert } from "./errors.js";
 import {
   DISPATCH_EIP712_FIELDS,
+  buildConfigureTypedData,
   buildDispatchSignature,
   sailKernelDomain,
 } from "./eip712.js";
+import { explainKernelRevert } from "./errors.js";
 import {
   DEFAULT_SLIPPAGE,
   ERC20_ALLOWANCE_ABI,
+  LIFI_ROUTERS,
   encodeApprove,
   fetchLifiQuote,
-  LIFI_ROUTERS,
 } from "./lifi.js";
 import type {
   Account,
@@ -90,6 +88,32 @@ function buildPublicClient(config: SailorClientConfig): PublicClient {
 function defaultDeadline(): bigint {
   return BigInt(Math.floor(Date.now() / 1000) + 300);
 }
+
+/**
+ * Minimal ConfigurablePermission ABI — the signer-gated re-config entry point and its
+ * per-account nonce. Shared by every launch template (they all extend ConfigurablePermission).
+ */
+const CONFIGURABLE_PERMISSION_ABI = [
+  {
+    type: "function",
+    name: "configNonces",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "configure",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "account", type: "address" },
+      { name: "params", type: "bytes" },
+      { name: "deadline", type: "uint256" },
+      { name: "sig", type: "bytes" },
+    ],
+    outputs: [],
+  },
+] as const;
 
 /**
  * Default gas limit for a single dispatch. Passing an explicit limit makes viem
@@ -161,9 +185,7 @@ abstract class KernelNamespace {
   protected requireKernel(): Address {
     const kernel = this.config.kernel;
     if (!kernel) {
-      throw new Error(
-        "SailKernel address not configured — set `kernel` in SailorClientConfig.",
-      );
+      throw new Error("SailKernel address not configured — set `kernel` in SailorClientConfig.");
     }
     return kernel;
   }
@@ -184,8 +206,8 @@ abstract class KernelNamespace {
    */
   protected async capabilities(): Promise<KernelCapabilities> {
     const kernel = this.requireKernel();
-    const staticModel = sailDeployments[this.config.chainId as keyof typeof sailDeployments]
-      ?.dispatchModel;
+    const staticModel =
+      sailDeployments[this.config.chainId as keyof typeof sailDeployments]?.dispatchModel;
     return detectKernelCapabilities(this.publicClient, kernel, {
       chainId: this.config.chainId,
       staticModel,
@@ -198,9 +220,7 @@ class AccountNamespace extends KernelNamespace implements IAccountNamespace {
     const kernel = this.requireKernel();
     const signer = this.requireSigner();
     if (!params.safeFactory || !params.safeSingleton || !params.safeInitializer) {
-      throw new Error(
-        "createAccount requires safeFactory, safeSingleton, and safeInitializer.",
-      );
+      throw new Error("createAccount requires safeFactory, safeSingleton, and safeInitializer.");
     }
 
     const txHash = await signer.writeContract({
@@ -300,13 +320,63 @@ class MandateNamespace extends KernelNamespace implements IMandateNamespace {
     });
   }
 
-  reconfigure(
-    _safe: Address,
-    _template: PermissionTemplate,
-    _params: unknown,
-    _signer: ILocalKeyring,
+  /**
+   * Re-configure the per-account bounds of an already-registered shared template.
+   * The permission signer signs the template's `Configure` EIP-712 struct — built by
+   * `buildConfigureTypedData`, which reads the template's live ERC-5267 domain and emits
+   * the v1 or v2 (epoch-bound) schema to match whatever is deployed — and the attached
+   * wallet submits `configure(account, params, deadline, sig)`.
+   *
+   * The config nonce is read fresh on-chain immediately before signing (the template
+   * increments it only after a successful verify), so a re-config never reuses a stale nonce.
+   */
+  async reconfigure(
+    safe: Address,
+    template: PermissionTemplate,
+    params: unknown,
+    signer: ILocalKeyring,
   ): Promise<void> {
-    return notImplemented();
+    const kernel = this.requireKernel();
+    const wallet = this.requireSigner();
+    const encoded = template.encoder.encode(params);
+    const deadline = defaultDeadline();
+
+    const nonce = (await this.publicClient.readContract({
+      address: template.address,
+      abi: CONFIGURABLE_PERMISSION_ABI,
+      functionName: "configNonces",
+      args: [safe],
+    })) as bigint;
+
+    const td = await buildConfigureTypedData({
+      publicClient: this.publicClient,
+      kernel,
+      template: template.address,
+      account: safe,
+      params: encoded,
+      nonce,
+      deadline,
+    });
+
+    const sig = await signer.signTyped(
+      td.domain,
+      { primaryType: td.primaryType, types: td.types },
+      td.message,
+    );
+
+    const txHash = await wallet.writeContract({
+      address: template.address,
+      abi: CONFIGURABLE_PERMISSION_ABI,
+      functionName: "configure",
+      args: [safe, encoded, deadline, sig],
+    });
+    // Wait for the receipt and surface a revert: a failed re-config (stale nonce, expired
+    // deadline, bad params) must not resolve as success, which would leave the old bounds in
+    // place while the caller believes the new ones applied.
+    const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash });
+    if (receipt.status !== "success") {
+      throw new Error(`configure reverted (tx ${txHash})`);
+    }
   }
 
   replace(
@@ -729,16 +799,85 @@ class StrategyNamespace extends KernelNamespace implements IStrategyNamespace {
 }
 
 class SessionNamespace extends KernelNamespace implements ISessionNamespace {
-  revoke(_safe: Address, _signer: ILocalKeyring): Promise<void> {
-    return notImplemented();
+  /**
+   * Suspend (`revokeSession`) or resume (`activateSession`) the manager's dispatch rights.
+   * Both are permissionSigner-signed over the RevokeSession/ActivateSession EIP-712 struct,
+   * with `nonce` read fresh from `signerNonces[account]` immediately before signing — the
+   * kernel bumps that nonce by a full epoch on revoke (#70), so it must never be cached. The
+   * kernel also rotates the manager/batch nonce epochs, invalidating any pre-signed dispatch.
+   */
+  async revoke(safe: Address, signer: ILocalKeyring): Promise<void> {
+    await this.#submitSessionOp(safe, signer, "RevokeSession", "revokeSession");
   }
 
-  activate(_safe: Address, _signer: ILocalKeyring): Promise<void> {
-    return notImplemented();
+  async activate(safe: Address, signer: ILocalKeyring): Promise<void> {
+    await this.#submitSessionOp(safe, signer, "ActivateSession", "activateSession");
   }
 
-  status(_safe: Address): Promise<Session> {
-    return notImplemented();
+  async #submitSessionOp(
+    safe: Address,
+    signer: ILocalKeyring,
+    primaryType: "RevokeSession" | "ActivateSession",
+    fn: "revokeSession" | "activateSession",
+  ): Promise<void> {
+    const kernel = this.requireKernel();
+    const wallet = this.requireSigner();
+    const deadline = defaultDeadline();
+
+    // Just-in-time signer nonce (never cache — revoke advances it a full epoch, #70).
+    const nonce = (await this.publicClient.readContract({
+      address: kernel,
+      abi: SailKernelAbi,
+      functionName: "signerNonces",
+      args: [safe],
+    })) as bigint;
+
+    const sig = await signer.signTyped(
+      sailKernelDomain({ chainId: this.config.chainId, kernel }),
+      {
+        primaryType,
+        types: {
+          [primaryType]: [
+            { name: "account", type: "address" },
+            { name: "nonce", type: "uint256" },
+            { name: "deadline", type: "uint256" },
+          ],
+        },
+      },
+      { account: safe, nonce, deadline },
+    );
+
+    const txHash = await wallet.writeContract({
+      address: kernel,
+      abi: SailKernelAbi,
+      functionName: fn,
+      args: [safe, deadline, sig],
+    });
+    // A kill switch must land before we return — wait for the receipt and surface a revert.
+    const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash });
+    if (receipt.status !== "success") {
+      throw new Error(`${fn} reverted (tx ${txHash})`);
+    }
+  }
+
+  async status(safe: Address): Promise<Session> {
+    const kernel = this.requireKernel();
+    // configs returns (permissionSigner, manager, feePolicy, feeAsset, sessionActive).
+    const cfg = (await this.publicClient.readContract({
+      address: kernel,
+      abi: SailKernelAbi,
+      functionName: "configs",
+      args: [safe],
+    })) as readonly [Address, Address, Address, Address, boolean];
+    return {
+      safe,
+      active: cfg[4],
+      manager: cfg[1],
+      // Block-level markers require an event scan; expose live active/manager state and
+      // leave the historical timestamps null.
+      activatedAtBlock: null,
+      revokedAtBlock: null,
+    };
   }
 }
 
@@ -785,11 +924,7 @@ class PrincipalNamespace extends KernelNamespace implements IPrincipalNamespace 
   }
 
   /** Record a withdrawal. msg.sender must be the permissionSigner (the attached wallet). */
-  async recordWithdrawal(
-    safe: Address,
-    amount: bigint,
-    _signer: ILocalKeyring,
-  ): Promise<TxResult> {
+  async recordWithdrawal(safe: Address, amount: bigint, _signer: ILocalKeyring): Promise<TxResult> {
     const kernel = this.requireKernel();
     const wallet = this.requireSigner();
     const txHash = await wallet.writeContract({
@@ -852,8 +987,8 @@ export class SailorClient implements ISailorClient {
     if (!kernel) {
       throw new Error("SailKernel address not configured — set `kernel` in SailorClientConfig.");
     }
-    const staticModel = sailDeployments[this.config.chainId as keyof typeof sailDeployments]
-      ?.dispatchModel;
+    const staticModel =
+      sailDeployments[this.config.chainId as keyof typeof sailDeployments]?.dispatchModel;
     return detectKernelCapabilities(this.publicClient, kernel, {
       chainId: this.config.chainId,
       staticModel,

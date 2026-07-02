@@ -198,9 +198,7 @@ export function computeSafeProxyAddress(params: {
       encodeAbiParameters([{ type: "address" }], [SAFE_V141.singletonL2 as Address]),
     ]),
   );
-  const salt = keccak256(
-    encodePacked(["bytes32", "uint256"], [keccak256(initializer), saltNonce]),
-  );
+  const salt = keccak256(encodePacked(["bytes32", "uint256"], [keccak256(initializer), saltNonce]));
   return getCreate2Address({
     from: SAFE_V141.proxyFactory as Address,
     salt,
@@ -294,6 +292,9 @@ export function encodeSetManager(newManager: Address): Hex {
  * submits this tx from their own wallet and authorises it with a pre-validated
  * signature (see `buildApprovedHashSignature`); no separate Safe-tx signing
  * round-trip is needed. Returns the tx the owner sends: `{ to: safe, data }`.
+ *
+ * PRECONDITION — 1-of-1 Safe (as above): the single pre-validated entry is only accepted
+ * when `threshold === 1` and `params.owner` submits; on a threshold ≥ 2 Safe it reverts.
  */
 export function buildSetManagerExecTransaction(params: {
   /** The SMA (Safe) whose manager is being rotated; also the tx `to`. */
@@ -313,6 +314,98 @@ export function buildSetManagerExecTransaction(params: {
       params.kernel, // to
       0n, // value
       innerData, // data: setManager(newManager)
+      0, // operation: Call
+      0n, // safeTxGas
+      0n, // baseGas
+      0n, // gasPrice
+      zeroAddress, // gasToken
+      zeroAddress, // refundReceiver
+      buildApprovedHashSignature(params.owner),
+    ],
+  });
+  return { to: params.safe, data };
+}
+
+/** ABI-encode the kernel's 6-arg `registerAccount(...)` call (Protocol #53). */
+const registerAccountAbi = [
+  {
+    type: "function",
+    name: "registerAccount",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "permissionSigner", type: "address" },
+      { name: "manager", type: "address" },
+      { name: "feePolicy", type: "address" },
+      { name: "feeAsset", type: "address" },
+      { name: "deadline", type: "uint256" },
+      { name: "ownerSig", type: "bytes" },
+    ],
+    outputs: [],
+  },
+] as const;
+
+/**
+ * Build the `Safe.execTransaction` calldata that registers an SMA by calling
+ * `kernel.registerAccount(...)` *as the Safe* (Protocol #53, two-step onboarding).
+ *
+ * Post-#53 `registerAccount` requires `msg.sender == the Safe` (trusted-proxy codehash +
+ * trusted-singleton pin), so it cannot be sent from the owner EOA — it must be wrapped in
+ * a Safe transaction. It also requires an `ownerSig`: a Safe **owner** signature over the
+ * RegisterAccount EIP-712 digest (built with `buildRegisterAccountTypedData`), verified by
+ * the kernel via `checkSignatures`.
+ *
+ * Two distinct signatures are involved and must not be confused:
+ *   - `ownerSig` (this arg): a REAL EOA ECDSA signature over the kernel digest. Per Protocol
+ *     #69 the kernel rejects the Safe v==1 approved-hash shortcut here — do NOT pass a
+ *     `buildApprovedHashSignature` blob as `ownerSig`.
+ *   - the execTransaction signature (built here): the sole-owner pre-validated blob, valid
+ *     because the owner submits the execTransaction themselves. This is the correct use of
+ *     `buildApprovedHashSignature`.
+ *
+ * PRECONDITION — 1-of-1 Safe. The execTransaction signature is a single pre-validated
+ * (approved-hash) entry, which the Safe only accepts when `threshold === 1` and `params.owner`
+ * is the submitter. This builder does not read the Safe's threshold; on a threshold ≥ 2 Safe the
+ * returned calldata reverts on submit. The owner submits the returned tx `{ to: safe, data }`.
+ */
+export function buildRegisterAccountExecTransaction(params: {
+  /** The SMA (Safe) being registered; also the tx `to`. */
+  safe: Address;
+  /** The SailKernel the Safe will call. */
+  kernel: Address;
+  /** Permission signer (owner in retail setups). */
+  permissionSigner: Address;
+  /** Delegated signer (agent) address. */
+  manager: Address;
+  /** Fee policy (zeroAddress for none). */
+  feePolicy: Address;
+  /** Fee asset (zeroAddress for the native token). */
+  feeAsset: Address;
+  /** RegisterAccount signature deadline (unix seconds) — must match the signed digest. */
+  deadline: bigint;
+  /** Owner ECDSA signature over the RegisterAccount EIP-712 digest (see note above). */
+  ownerSig: Hex;
+  /** The sole Safe owner who will submit this tx. */
+  owner: Address;
+}): { to: Address; data: Hex } {
+  const innerData = encodeFunctionData({
+    abi: registerAccountAbi,
+    functionName: "registerAccount",
+    args: [
+      params.permissionSigner,
+      params.manager,
+      params.feePolicy,
+      params.feeAsset,
+      params.deadline,
+      params.ownerSig,
+    ],
+  });
+  const data = encodeFunctionData({
+    abi: gnosisSafeExecAbi,
+    functionName: "execTransaction",
+    args: [
+      params.kernel, // to
+      0n, // value
+      innerData, // data: registerAccount(...)
       0, // operation: Call
       0n, // safeTxGas
       0n, // baseGas
