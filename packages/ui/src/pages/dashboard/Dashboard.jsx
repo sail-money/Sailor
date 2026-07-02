@@ -23,6 +23,7 @@ import CreateSMAModal from './CreateSMAModal'
 import RevokeMandateModal from './RevokeMandateModal'
 import AddSignerModal from './AddSignerModal'
 import RotateSignerModal from './RotateSignerModal'
+import SessionControlModal from './SessionControlModal'
 import FundGasModal from './FundGasModal'
 import RpcSection from './RpcSection'
 import {
@@ -1286,6 +1287,15 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
   // modal must operate on the chain whose "Rotate" was clicked — not always the
   // primary overview. Null falls back to the active single-chain overview.
   const [rotateContext, setRotateContext] = useState(null)
+  // Session kill-switch modal state. sessionCtx carries the per-chain SMA/kernel and current
+  // paused state so pause/resume operates on the chain whose control was clicked.
+  const [sessionOpen, setSessionOpen] = useState(false)
+  const [sessionCtx, setSessionCtx] = useState(null)
+  // After a pause/resume tx confirms, the overview RPC read lags the new state. Track the
+  // expected result per chain so the button shows a transient "Pausing/Resuming…" state and
+  // re-polls until the overview reflects it — no manual refresh needed.
+  // Shape: { chainId, expectedActive } | null.
+  const [sessionPending, setSessionPending] = useState(null)
   const { account: realAccount, loading: accountLoading } = useSailorAccount(refreshTick)
   const { accounts: allAccounts } = useSailorAccounts(refreshTick)
   const { overview } = useSailorOverview(refreshTick)
@@ -1387,6 +1397,18 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
   const activeChainOv = isMultiChain
     ? (chainOverviews.find((o) => Number(o.chainId) === activeChainId) ?? chainOverviews[0] ?? overview)
     : overview
+
+  // While a session change is pending, re-poll the overview until sessionActive reflects the
+  // expected value, then clear the pending state. (Normal overview polling is 15s — too slow.)
+  useEffect(() => {
+    if (!sessionPending) return
+    const ov = chainOverviews.find((o) => Number(o.chainId) === Number(sessionPending.chainId))
+    const cur = ov?.sma?.sessionActive
+    if (cur === sessionPending.expectedActive) { setSessionPending(null); return }
+    const t = setTimeout(() => setRefreshTick((x) => x + 1), 2000)
+    return () => clearTimeout(t)
+  }, [sessionPending, chainOverviews])
+
   const smaName = safeNames[activeAccount?.safe ?? 'live-sma'] ?? activeAccount?.name ?? sma?.name ?? 'My SMA'
   const currentSafeId = activeAccount?.safe ?? effectiveAccount?.safe ?? 'live-sma'
   const profileSafes = allAccounts.length > 0
@@ -1730,6 +1752,54 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                     : undefined}
                 />
               </div>
+
+              {/* ── Session kill switch ───────────────────────────
+                  Pause halts ALL dispatch for this SMA (on-chain
+                  revokeSession); Resume re-enables it. Owner-signed,
+                  reversible, and it invalidates any pre-signed dispatch.
+                  Only shown for a registered SMA with a resolvable kernel. */}
+              {activeChainOv?.sma?.registered && activeChainOv?.kernel && activeChainOv?.sma?.address && (
+                <div className={styles.idWalletsGroup}>
+                  <div className={styles.idGroupHead}>
+                    <span className={styles.idGroupLabel}>
+                      Session
+                      <InfoTip label="What pausing does">
+                        The kill switch for this SMA. Pausing immediately halts <strong>all</strong>{' '}
+                        of the SMA’s activity (permissions stay registered); resume anytime without
+                        re-signing. Any transaction the SMA pre-signed is invalidated.
+                      </InfoTip>
+                    </span>
+                    <p className={styles.idRelation}>
+                      {activeChainOv.sma.sessionActive === false
+                        ? 'Paused — your SMA is on hold and can’t make any moves until you resume.'
+                        : 'Live — your SMA can act within the permissions you’ve set.'}
+                    </p>
+                  </div>
+                  {sessionPending
+                    && Number(sessionPending.chainId) === Number(activeChainOv.chainId)
+                    && activeChainOv.sma.sessionActive !== sessionPending.expectedActive ? (
+                    // Transient state: tx confirmed, waiting for the overview read to catch up.
+                    <SailButton variant="warning" disabled aria-busy="true">
+                      {sessionPending.expectedActive ? 'Resuming SMA…' : 'Pausing SMA…'}
+                    </SailButton>
+                  ) : (
+                    <SailButton
+                      variant={activeChainOv.sma.sessionActive === false ? 'primary' : 'danger'}
+                      onClick={() => {
+                        setSessionCtx({
+                          sma: activeChainOv.sma.address,
+                          kernel: activeChainOv.kernel,
+                          chainId: activeChainOv.chainId,
+                          paused: activeChainOv.sma.sessionActive === false,
+                        })
+                        setSessionOpen(true)
+                      }}
+                    >
+                      {activeChainOv.sma.sessionActive === false ? 'Resume SMA' : 'Pause SMA'}
+                    </SailButton>
+                  )}
+                </div>
+              )}
             </section>
 
             {/* ── Mandates + Account Details ──────────────────────
@@ -1979,6 +2049,24 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
         initialTo={rotateTo}
         onClose={() => { setRotateOpen(false); setRotateTo(null); setRotateContext(null) }}
         onRotated={() => setRefreshTick((t) => t + 1)}
+      />
+
+      <SessionControlModal
+        open={sessionOpen}
+        mode={sessionCtx?.paused ? 'resume' : 'pause'}
+        sma={sessionCtx?.sma}
+        kernel={sessionCtx?.kernel}
+        chainId={sessionCtx?.chainId}
+        onClose={() => { setSessionOpen(false); setSessionCtx(null) }}
+        onDone={() => {
+          // sessionCtx.paused = state BEFORE the action, so the expected new state is its inverse.
+          if (sessionCtx) {
+            setSessionPending({ chainId: sessionCtx.chainId, expectedActive: sessionCtx.paused })
+          }
+          setSessionOpen(false)
+          setSessionCtx(null)
+          setRefreshTick((t) => t + 1)
+        }}
       />
 
       <CreateSMAModal
