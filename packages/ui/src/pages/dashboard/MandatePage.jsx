@@ -104,7 +104,12 @@ function CapabilitiesGlance({ mandate }) {
 export default function MandatePage({ mandateId, onBack, onRevoke }) {
   // Bumped after a session pause/resume lands so the mandate + account state re-fetch.
   const [refreshTick, setRefreshTick] = useState(0)
-  const { mandate: liveMandate } = useSailorMandate(refreshTick)
+  // useSailorMandate returns { mandates } (plural). Pick the one this route addresses by id,
+  // else the first — a project usually has a single mandate. (Prior code destructured a
+  // non-existent `mandate` key, so the page never rendered a live mandate.)
+  const { mandates } = useSailorMandate(refreshTick)
+  const liveMandate =
+    mandates.find((m) => String(m.id ?? 'live') === String(mandateId)) ?? mandates[0] ?? null
   const { account } = useSailorAccount(refreshTick)
   const { address: walletAddress } = useAccount()
   const chainId = account?.chainId
