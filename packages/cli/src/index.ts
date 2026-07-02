@@ -29,6 +29,7 @@ import {
   type UpdateOptions,
 } from "./commands/mandate-contracts.js";
 import { mandatePrepare, mandateSign } from "./commands/mandate.js";
+import { type ConfigureOptions, mandateConfigure } from "./commands/mandate-configure.js";
 import { type SimulateOptions, mandateSimulate } from "./commands/mandate-simulate.js";
 import { type OnboardOptions, onboard } from "./commands/onboard.js";
 import { type RotateSignerOptions, rotateSigner } from "./commands/rotate-signer.js";
@@ -227,6 +228,23 @@ mandate
   .option("--label <label>", "Human-readable label shown in the signing UI")
   .option("--json", "Emit machine-readable JSON")
   .action(actionWith<AttachOptions>(mandateAttach));
+mandate
+  .command("configure")
+  .description(
+    "Write per-account bounds on an already-deployed shared permission singleton " +
+      "(configureDirect; owner tx via the signing station). Pairs with `mandate attach`, " +
+      "which only registers — a registered-but-unconfigured singleton denies every call.",
+  )
+  .requiredOption("--address <singleton>", "Shared permission singleton address (deployed on this chain)")
+  .requiredOption("--sma <address>", "SMA to configure the singleton for")
+  .option("--params <hex>", "Pre-encoded config blob (0x-prefixed hex)")
+  .option("--args-file <path>", "JSON file of typed params (paired with --template)")
+  .option("--template <name>", "Template name (e.g. SwapPermission) — resolves the encoder for --args-file")
+  .option("--label <label>", "Human-readable label shown in the signing UI")
+  .option("--simulate-only", "Stop after the off-chain pre-flight (no signing, no gas)")
+  .option("--force", "Re-configure even if isConfigured is already true")
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<ConfigureOptions>(mandateConfigure));
 mandate
   .command("deploy-clone")
   .description("[currently unavailable — no clone templates deployed on any chain; use `mandate deploy`] Deploy + register a standalone clone permission via the signing UI")

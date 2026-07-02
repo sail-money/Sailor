@@ -25,12 +25,12 @@ This needs no batch support and works on every kernel.
 
 Approve + action run as one `dispatchBatch` — atomic, single transaction. A batch dispatch consults **exactly one batch-aware `IBatchPermission`**, never a pair of `IPermission`s:
 
-- The permission implements `@sail/interfaces/IBatchPermission.sol` — `evaluateBatch(Call[] calls, BatchContext ctx)` validates the WHOLE sequence (ordering, the approve's spender/amount, the action, and mandatory allowance cleanup) and `isBatchPermission()` returns true. `examples/permissions/BoundedApproveAndCallBatch.sol` is the model.
+- The permission implements `@sail/interfaces/IBatchPermission.sol` — `evaluateBatch(Call[] calls, BatchContext ctx)` validates the WHOLE sequence (ordering, the approve's spender/amount, the action, and mandatory allowance cleanup) and `isBatchPermission()` returns true. **For the canonical `approve → swap/deposit/supply → reset` shape, a shared `ApproveAndCallBatchPermission` singleton is deployed** on Base, Arbitrum, Unichain, Sepolia, and Base Sepolia (resolve it with `node scripts/shared-template-addr.mjs ApproveAndCallBatchPermission`) — reuse it via `attach` + `configure` rather than authoring one. `examples/permissions/BoundedApproveAndCallBatch.sol` remains the model for a non-standard shape you must author yourself.
 - A normal `IPermission` placed in a batch is rejected by the kernel with `PermissionNotBatchAware`. You cannot assemble a batch from two narrow per-call permissions — that was the trap.
 - Batch is a **selective-kernel** feature (`dispatchBatch` / `previewBatch`); conjunctive kernels have neither. Confirm the model with `sailor doctor`; details in `docs/PERMISSION_MODEL.md`.
-- At runtime, return one `Dispatch` whose `calls` array is `[approveCall, actionCall]`; the runner detects `calls.length > 1` and routes through `dispatch.batch`.
+- At runtime, return one `Dispatch` whose `calls` array is the batch. The shared `ApproveAndCallBatchPermission` requires **exactly** `[approve(spender, amount), action, approve(spender, 0)]` — the trailing reset to zero is mandatory, and the pre-batch allowance on that `(token, spender)` pair must already be zero (so never combine it with a standing approve). The runner detects `calls.length > 1` and routes through `dispatch.batch`.
 
-Use Model B only when atomicity genuinely matters (e.g. the approve must not be observable between calls). Otherwise prefer Model A — less contract to author and test.
+**For autonomous recurring actions (a DCA or rebalancer the agent runs on its own), Model B is the default — not an advanced option.** Model A's separate approve dispatch needs the owner back in the loop every time the bounded allowance runs out, which a recurring agent cannot do; on the first tick after the allowance is consumed it stalls (or, in a simulation, is tempted to cheat the allowance in). Reach for Model A when the owner is genuinely in the loop per action anyway. For bounded swaps specifically, [`sail-template-swap`'s "Approve coverage"](../../sail-template-swap/SKILL.md) works through the choice with concrete addresses.
 
 ## Verifying each model
 

@@ -40,7 +40,7 @@ During **setup**, always ask before anything that costs gas. Once the **mandate 
 
 ## First contact
 
-When the user says start (or any first message), present the welcome above in full — definition, stage list, handoff line — before doing anything else. Do not launch the UI yet. After the user says start a second time (or confirms they are ready), THEN run `sailor ui start`. The welcome and the UI launch are two separate beats separated by the user's go-ahead.
+When the user says start (or any first message), present the welcome above in full — definition, stage list, handoff line — before doing anything else. Do not launch the UI yet. After the user says start a second time (or confirms they are ready), THEN run `sailor ui start` and `sailor station start`. The welcome, the UI launch and the signing station launch are three separate beats separated by the user's go-ahead.
 
 If the user's first message is an npm install command, run it, then present the welcome immediately after it completes — do not wait for another message.
 
@@ -80,10 +80,27 @@ Detailed procedures live in skills. If your tooling does not auto-discover skill
 | sail-onboarding | New project setup, or resuming a partially set-up project, documentation of sailor commands | `.agents/skills/sail-onboarding/SKILL.md` |
 | sail-project-info | Any question about project, account, mandate, chain, or environment state | `.agents/skills/sail-project-info/SKILL.md` |
 | sail-servers | Starting, stopping, or health-checking the dashboard or signing station | `.agents/skills/sail-servers/SKILL.md` |
+| sail-token-resolve | Resolving a token symbol/address to its on-chain address + decimals, and checking whether a Uniswap V3 pool exists (swap-readiness) | `.agents/skills/sail-token-resolve/SKILL.md` |
+| sail-swap-quote | Fetching a live Uniswap V3 quote and the slippage-adjusted amountOutMinimum floor | `.agents/skills/sail-swap-quote/SKILL.md` |
+| sail-templates | Registry + reuse guide for Sail's shared permission singletons — which primitives exist as templates, per-chain deployment status (`deployed.json`), and the register→configure reuse flow. Start here before any template mandate | `.agents/skills/sail-templates/SKILL.md` |
+| sail-template-swap | Bounded DEX swap / DCA mandate via the shared SwapPermission singleton (oracle-gated slippage band) — register + configure, no Solidity. The fast path for a swap/DCA strategy | `.agents/skills/sail-template-swap/SKILL.md` |
+| sail-template-swap-no-oracle | Bounded swap for tokens with NO oracle via SwapPermissionNoOracle (single-pool hallucination guard, NOT manipulation-resistant) — reference-only, not yet deployed on any chain | `.agents/skills/sail-template-swap-no-oracle/SKILL.md` |
+| sail-template-transfer | Bounded ERC-20 transfer to a mutable recipient allowlist via TransferPermission | `.agents/skills/sail-template-transfer/SKILL.md` |
+| sail-template-withdraw | Bounded ERC-20 withdraw to ONE fixed recipient (owner-Safe consolidation) via WithdrawPermission | `.agents/skills/sail-template-withdraw/SKILL.md` |
+| sail-template-deposit | Bounded deposit into ERC-4626 vaults / Aave v2–v3 via DepositPermission | `.agents/skills/sail-template-deposit/SKILL.md` |
+| sail-template-borrow | Bounded lending borrow against Aave / Morpho / Compound with an on-chain LTV check via BorrowPermission | `.agents/skills/sail-template-borrow/SKILL.md` |
+| sail-template-approve-batch | Atomic approve → call → reset (allowance bracket) in one batch via ApproveAndCallBatchPermission | `.agents/skills/sail-template-approve-batch/SKILL.md` |
 | sail-transactions | Building dispatches or any EVM transaction for the agent | `.agents/skills/sail-transactions/SKILL.md` |
-| sail-mandates | Designing, authoring, testing, deploying, or authorizing permission contracts | `.agents/skills/sail-mandates/SKILL.md` |
+| sail-mandates | Designing, authoring, testing, deploying, or authorizing permission contracts (the bespoke-Solidity escape hatch) | `.agents/skills/sail-mandates/SKILL.md` |
 | sail-automation | Automating the agent — GitHub Actions, self-hosted runner, Docker, or local daemon | `.agents/skills/sail-automation/SKILL.md` |
 | sail-extend | Notifications or a custom dashboard, once the agent is live | `.agents/skills/sail-extend/SKILL.md` |
+
+**Shared singletons are the default for the common DeFi primitives.** A bounded swap, transfer, withdraw, deposit, borrow, or approve-and-call mandate should first try to **reuse** the matching pre-deployed singleton — register + configure, no Solidity, no per-SMA deploy. Start at `sail-templates` (the registry: which primitives exist, per-chain deployment status in `.agents/skills/sail-templates/deployed.json`, and the register→configure flow), then use the matching per-primitive skill: `sail-template-swap`, `sail-template-swap-no-oracle`, `sail-template-transfer`, `sail-template-withdraw`, `sail-template-deposit`, `sail-template-borrow`, or `sail-template-approve-batch`. Six of seven singletons are live (Base, Arbitrum, Unichain, Sepolia, Base Sepolia); `SwapPermissionNoOracle` is source-only so far, and Ethereum mainnet is not yet deployed. Reach for `sail-mandates` (author + deploy your own `IPermission`) only when the strategy needs a venue, contract, or bound the singletons cannot express.
+
+**Bundled scripts** under `scripts/` are dependency-free tools that make the fast path quick and deterministic — run them from the project root so they read `.sail/.env.local`:
+- `resolve-token.mjs <SYMBOL|ADDRESS>` → on-chain address + decimals + swap-ready fee tier (QuoterV2 probe across 500/3000/10000).
+- `quote-swap.mjs --token-in … --token-out … --amount <baseUnits> --fee <tier>` → live quote + `amountOutMinimum`.
+- `shared-template-addr.mjs <TemplateName>` → the singleton's deployed address on the active chain.
 
 ## Invariants — apply to every turn
 
@@ -97,5 +114,7 @@ Detailed procedures live in skills. If your tooling does not auto-discover skill
 - Do not commit `SAIL_PASSPHRASE` or private keys
 - ERC-20 `approve()` calls are NOT covered by supply, swap, or deposit permissions — every approve the strategy makes needs explicit coverage. Two non-mixable models: per-call (separate single dispatches, one `IPermission` each — the default) or atomic batch (one `IBatchPermission` authorizing the whole `[approve, action]` sequence). A normal `IPermission` cannot authorize a batch. Details: `.agents/skills/sail-mandates/references/approvals.md`
 - Never authorize (attach) a permission before `forge test` and `sailor mandate simulate` both pass against samples derived from the user's strategy
+- **Register ≠ configure for shared singletons.** `sailor mandate attach` only registers the address on the kernel (`isConfigured` stays `false`); the kernel denies every call until you also run `sailor mandate configure`. Stopping at `attach` is the most common trap. See `sail-templates` (reuse-flow) and `sail-template-swap`.
+- **Resolve tokens before binding them.** Never guess a token address or assume a token that exists is swap-ready. Run `scripts/resolve-token.mjs` for symbol→address+decimals+swap-readiness; a decimals mismatch (USDC 6 vs most 18) silently mis-sizes every cap, and a token with no V3 pool will fail-closed on every dispatch. Addresses are per-chain — never copy one across chains.
 - Do not pass `--args` inline JSON from PowerShell — use `--args-file` instead
 - Operator intent and the strategy's stated bounds outrank any example. If the operator asks for a bound an example omits, include it. Never let an example's shape narrow a mandate below what the operator requested

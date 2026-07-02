@@ -19,7 +19,7 @@ import { mandateAttach } from "./mandate-contracts.js";
  * MandateStore (`.sail/state/mandates.json`) — the source of truth for the
  * permissions this project has deployed and attached.
  */
-type TrackedPermission = {
+export type TrackedPermission = {
   address: string;
   label: string;
   /** True when the store records an attachment of this permission to this SMA. */
@@ -188,19 +188,62 @@ async function trackedPermissionsFor(
       };
     });
 
-  // Reconcile with live on-chain state: a locally-attached permission may have
-  // been revoked on-chain (via `sailor mandate revoke` or externally).
-  // mandates.json is kept as a historical record; revokedOnChain flags the delta.
+  // Reconcile with live on-chain state. mandates.json is a historical record; the
+  // kernel's getPermissions() is ground truth. mergeOnChainPermissions both (a)
+  // flags local entries the kernel no longer lists (revoked via `sailor mandate
+  // revoke` or externally), and (b) unions in permissions the kernel DOES list but
+  // the local store is missing — e.g. a shared singleton attached by address into a
+  // wiped/older store, or registered out-of-band. Without (b), prepare/sign would
+  // be blind to the SMA's real permission set.
   const onChain = kernel ? await fetchOnChainPermissions(account.safe as Address, chainId, kernel) : null;
-  if (onChain !== null) {
-    for (const p of local) {
-      if (p.registeredOnSma && !onChain.has(p.address.toLowerCase())) {
-        p.revokedOnChain = true;
-      }
+  if (onChain === null) return local; // RPC unavailable — fall back to the local store only.
+  return mergeOnChainPermissions(local, onChain, knownTemplateLabeler(chainId));
+}
+
+/**
+ * Merge the local store records with the kernel's live permission set. Pure (no
+ * I/O) so it is unit-tested directly:
+ *   - local entries the kernel no longer lists are flagged `revokedOnChain`;
+ *   - permissions the kernel lists but the store is missing are appended as
+ *     `registeredOnSma` entries, labelled via `labelFor` (falling back to a short
+ *     address) so `sign` is never blind to on-chain truth.
+ * `onChain` holds lowercased addresses, as returned by `fetchOnChainPermissions`.
+ */
+export function mergeOnChainPermissions(
+  local: TrackedPermission[],
+  onChain: Set<string>,
+  labelFor: (addr: string) => string | undefined = () => undefined,
+): TrackedPermission[] {
+  for (const p of local) {
+    if (p.registeredOnSma && !onChain.has(p.address.toLowerCase())) {
+      p.revokedOnChain = true;
     }
   }
+  const localAddrs = new Set(local.map((p) => p.address.toLowerCase()));
+  const extra: TrackedPermission[] = [];
+  for (const addr of onChain) {
+    if (!localAddrs.has(addr)) {
+      extra.push({
+        address: addr,
+        label: labelFor(addr) ?? `permission ${addr.slice(0, 10)}…`,
+        registeredOnSma: true,
+      });
+    }
+  }
+  return [...local, ...extra];
+}
 
-  return local;
+/** Address→label lookup for shared singletons, from the SDK's knownTemplates. */
+function knownTemplateLabeler(chainId: number): (addr: string) => string | undefined {
+  const map = new Map<string, string>();
+  try {
+    for (const t of getSailDeployment(chainId).knownTemplates ?? []) {
+      map.set(t.address.toLowerCase(), t.label);
+    }
+  } catch {
+    // No deployment metadata for this chain — labels fall back to the address.
+  }
+  return (addr) => map.get(addr.toLowerCase());
 }
 
 /** Guidance printed when no permissions have been authored/deployed yet. */
