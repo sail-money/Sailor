@@ -153,7 +153,7 @@ export default function SessionControlModal({ open, mode, sma, kernel, chainId, 
       className={styles.overlay}
       role="dialog"
       aria-modal="true"
-      aria-label={pausing ? 'Pause session' : 'Resume session'}
+      aria-label={pausing ? 'Pause SMA' : 'Resume SMA'}
       onClick={step === 'pending' ? undefined : onClose}
     >
       <GlassCard className={styles.card} onClick={(e) => e.stopPropagation()}>
@@ -233,7 +233,7 @@ export default function SessionControlModal({ open, mode, sma, kernel, chainId, 
                 Cancel
               </button>
               <SailButton onClick={handleSubmit} disabled={step === 'pending' || !ownerAddress}>
-                {step === 'pending' ? 'Awaiting wallet…' : pausing ? 'Pause session' : 'Resume session'}
+                {step === 'pending' ? 'Awaiting wallet…' : pausing ? 'Pause SMA' : 'Resume SMA'}
               </SailButton>
             </div>
           </>

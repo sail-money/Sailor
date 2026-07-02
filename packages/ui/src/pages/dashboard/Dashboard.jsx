@@ -1795,7 +1795,7 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                         setSessionOpen(true)
                       }}
                     >
-                      {activeChainOv.sma.sessionActive === false ? 'Resume session' : 'Pause session'}
+                      {activeChainOv.sma.sessionActive === false ? 'Resume SMA' : 'Pause SMA'}
                     </SailButton>
                   )}
                 </div>
