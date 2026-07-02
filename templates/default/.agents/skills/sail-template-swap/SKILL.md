@@ -137,19 +137,22 @@ adapter** for this pair on this chain (`0x0` reverts):
    ```bash
    sailor mandate attach --address <SWAP_PERMISSION> --sma <SMA> --label "bounded-swap"
    ```
-   **b. Configure** the per-account bounds — this is what makes the permission live. Encode the
-   blob (`abi.encode(routers[], tokensIn[], tokensOut[], maxAmountPerTx, maxSlippageBps,
-   priceOracle, maxPriceAgeSec)` — **flat params, no wrapper**; the SDK `boundedSwapTemplate`
-   encoder matches this tuple). `configureDirect` requires `msg.sender == permissionSigner`
-   (`kernel.configs(<SMA>)` — the owner only when they collapse to the same address), so pre-flight
-   and send from that signer: `cast call <SWAP_PERMISSION> "configureDirect(address,bytes)" <SMA>
-   <blob> --from <permissionSigner>`, then send the `configureDirect` tx through the signing
-   station. The call **reverts** on `priceOracle == 0` (`OracleRequired`), `maxPriceAgeSec == 0`
-   (`MissingPriceAge`), or `maxSlippageBps > 9_999` (`SlippageBpsTooLarge`) — so the pre-flight
-   `cast call` is the cheapest place to catch a bad blob. Verify `isConfigured(<SMA>) == true`.
+   **b. Configure** the per-account bounds — this is what makes the permission live. Build a
+   JSON file with the flat template params (`routers`, `tokensIn`, `tokensOut`, `maxAmountPerTx`,
+   `maxSlippageBps`, `priceOracle`, `maxPriceAgeSec` — matches the SDK `boundedSwapTemplate`
+   encoder tuple, no wrapper), then run:
+   ```bash
+   sailor mandate configure --address <SWAP_PERMISSION> --sma <SMA> \
+     --template SwapPermission --args-file ./swap-config.json
+   ```
+   `configureDirect` requires `msg.sender == permissionSigner` (`kernel.configs(<SMA>)` — the
+   owner only when they collapse to the same address); the command pre-flights the blob with an
+   `eth_call` BEFORE any signing or gas — it **reverts** on `priceOracle == 0` (`OracleRequired`),
+   `maxPriceAgeSec == 0` (`MissingPriceAge`), or `maxSlippageBps > 9_999` (`SlippageBpsTooLarge`) —
+   then requests the `configureDirect` tx from `permissionSigner` through the signing station and
+   verifies `isConfigured(<SMA>) == true` on receipt. Pass `--simulate-only` to stop after the
+   pre-flight (no signing, no gas).
    *(The signed `configure(account, params, deadline, sig)` path uses EIP-712 domain `("SwapPermission","2")`.)*
-   *(Intended future: `sailor mandate use`/`configure` does register+configure in one step —
-   not yet shipped.)*
 4. **Simulate** — prove an allowed swap passes and a bad one (wrong recipient / over-cap /
    disallowed token) fails:
    ```bash

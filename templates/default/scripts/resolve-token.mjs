@@ -341,7 +341,9 @@ async function fetchVenues(geckoNet, tokenAddrLower, chainName, ourSymbolUp) {
     let pairedToken = "";
     if (baseAddr === tokenAddrLower) pairedToken = quoteAddr;
     else if (quoteAddr === tokenAddrLower) pairedToken = baseAddr;
-    else pairedToken = quoteAddr; // fallback when our address isn't the pool base/quote
+    // else: our token isn't actually base/quote of this pool (a GeckoTerminal data
+    // quirk) — leave pairedToken unset rather than guessing quoteAddr, which would
+    // let isUsdcPair() mislabel a pool the token isn't even in as USDC-paired.
     const syms = name
       .split("/")
       .map((s) => s.trim().split(/\s+/)[0].toUpperCase())
@@ -499,10 +501,25 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
         source = "geckoterminal";
         decimalsSource = "onchain";
       } else {
-        // No RPC: trust the deepest-pool candidate (unverified). Metadata comes from
-        // GeckoTerminal below.
-        address = candidates[0];
-        source = "geckoterminal-unverified";
+        // No RPC: candidates are ranked by pool depth, but depth alone can't tell two
+        // different contracts sharing a ticker apart (a collision). Cross-check each
+        // candidate's own GeckoTerminal token metadata — independent of the pool-name
+        // parsing used to build the candidate list — and prefer the first whose symbol
+        // actually matches, rather than blindly trusting the deepest pool.
+        let verified = null;
+        for (const cand of candidates) {
+          try {
+            const m = await fetchTokenMeta(geckoNet, cand.toLowerCase());
+            if (m.symbol && m.symbol.toUpperCase() === wantSym) {
+              verified = cand;
+              break;
+            }
+          } catch {
+            // metadata lookup failed for this candidate — try the next
+          }
+        }
+        address = verified || candidates[0];
+        source = verified ? "geckoterminal-unverified" : "geckoterminal-unverified-collision";
       }
     }
   }
@@ -585,6 +602,10 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
         tokenInAddress: tokenIn,
         amountIn: PROBE_AMOUNT_USDC.toString(),
         amountOut: best.amountOut.toString(),
+        note:
+          "feeTier was chosen using this small probe amount. A thin low-fee pool that wins " +
+          "at this size can be the worst tier for a much larger trade — for large amounts, " +
+          "re-quote across fee tiers at the actual trade size via quote-swap.mjs before dispatch.",
       };
     }
   } else {
@@ -604,7 +625,7 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
     symbol: verifiedSymbol,
     address,
     decimals,
-    source, // registry | geckoterminal | geckoterminal-unverified | address-input
+    source, // registry | geckoterminal | geckoterminal-unverified | geckoterminal-unverified-collision | address-input
     decimalsSource, // onchain | geckoterminal-unverified
     chain: chain.name,
     chainId: chain.chainId,
@@ -626,15 +647,18 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
       onchain,
       isUsdc,
       decimalsSource,
+      source,
     }),
   };
 }
 
-function perChainRecommendation({ symbol, chain, swapReady, best, bestVenue, onchain, isUsdc, decimalsSource }) {
+function perChainRecommendation({ symbol, chain, swapReady, best, bestVenue, onchain, isUsdc, decimalsSource, source }) {
   const unverified =
-    decimalsSource === "geckoterminal-unverified"
-      ? ` NOTE: address/decimals are NOT on-chain verified on ${chain.name} — confirm before signing.`
-      : "";
+    source === "geckoterminal-unverified-collision"
+      ? ` NOTE: multiple "${symbol}" contracts were found on ${chain.name} and none of their GeckoTerminal metadata matched the symbol — this address is the deepest pool, NOT a verified match. Confirm the address before signing.`
+      : decimalsSource === "geckoterminal-unverified"
+        ? ` NOTE: address/decimals are NOT on-chain verified on ${chain.name} — confirm before signing.`
+        : "";
   if (isUsdc) {
     return `${symbol} is the USDC quote asset on ${chain.name} — no swap needed to source it.`;
   }

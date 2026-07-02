@@ -33,12 +33,10 @@ metadata:
 > their internal logic. Always `sailor mandate simulate` against your SMA before authorizing.
 
 > ⚠️ **CRITICAL — "register" ≠ "configure" in the shipped CLI.** A shared template is useless
-> until it is both **registered** on the kernel AND **configured** per-account. The shipped
-> `sailor mandate attach` does **only the register** half (it submits `RegisterPermission` and
-> nothing more). A registered-but-unconfigured singleton has `isConfigured == false` and the
-> kernel **denies every call**. Today the configure step is done separately via
-> `configureDirect` (see the reuse flow below). A combined `sailor mandate use` / `configure`
-> command is proposed but not yet shipped — see the proposal linked in Notes.
+> until it is both **registered** on the kernel AND **configured** per-account. `sailor mandate
+> attach` does **only the register** half (it submits `RegisterPermission` and nothing more). A
+> registered-but-unconfigured singleton has `isConfigured == false` and the kernel **denies every
+> call**. Run `sailor mandate configure` as the separate second step (see the reuse flow below).
 
 ## The seven templates
 
@@ -68,7 +66,7 @@ something changes, edit it in ONE place:
 | Register → configure → simulate flow | [references/reuse-flow.md](references/reuse-flow.md) | link here, don't restate |
 | Config tuples + invariants | [references/config-schemas.md](references/config-schemas.md) | quote only their own tuple |
 
-So a change to the CLI flow (e.g. when `sailor mandate use` ships) is a single edit to
+So a change to the CLI flow is a single edit to
 `reuse-flow.md`, not seven spoke edits. The deliberately-fuller [`sail-template-swap`](../sail-template-swap/SKILL.md)
 is the worked-example exemplar; the other spokes stay thin.
 
@@ -89,9 +87,9 @@ add it here and write a skill.)
 
 > The on-chain **intended** design is one signed call (`MandateFactory.attach`) that registers
 > the address on the kernel and writes the per-account config together. The **shipped** CLI
-> does not implement that combined call yet, so today these are two separate steps. The flow
-> below describes what actually works now; the "intended one-step" path is noted where it
-> applies and tracked in the proposal linked under Notes.
+> does not implement that combined call yet, so today these are two separate steps:
+> `sailor mandate attach` (register) followed by `sailor mandate configure` (configure). The
+> flow below describes what actually works now.
 
 1. **Deploy once** (one-time, Protocol team / `DeploySharedTemplates`, CREATE2 — same address on
    every chain) → record the address in `deployed.json`. (Already done for all seven.)
@@ -102,11 +100,15 @@ add it here and write a skill.)
    ```
    A comma-separated `--address` list registers several in one signature (`attachBatch`).
 4. **Configure** the per-account bounds — this is the step that makes the permission actually
-   allow calls. Today, drive `configureDirect(account, <config blob>)` as an owner transaction
-   (the owner is the `permissionSigner`), pre-flighted with `cast call` against the live RPC.
-   See [references/reuse-flow.md](references/reuse-flow.md) for the exact encoding gotcha and
-   the signing-station path. *(Intended future: `sailor mandate use` / `configure` does this
-   in one step — not yet shipped.)*
+   allow calls:
+   ```bash
+   sailor mandate configure --address <DEPLOYED_ADDRESS> --sma <SMA> \
+     --template <TemplateName> --args-file ./config.json
+   ```
+   This drives `configureDirect(account, <config blob>)` as an owner transaction (the owner is
+   the `permissionSigner`), pre-flighted with an `eth_call` before any signing or gas. See
+   [references/reuse-flow.md](references/reuse-flow.md) for the exact encoding gotcha and the
+   signing-station path.
 5. **Simulate** off-chain (no gas) — prove allowed calls pass and bad ones fail:
    ```bash
    sailor mandate simulate --address <DEPLOYED_ADDRESS> --sma <SMA> --calls ./probe.json
@@ -136,7 +138,5 @@ custody-bound aggregator pattern and [`sail-pendle`](../sail-pendle/SKILL.md) fo
   builder under `@sail/sdk/templates` **only after** verifying its param tuple equals the
   source blob in `config-schemas.md` (the SDK builders track a previously-deployed set and may
   differ from these source contracts).
-- **CLI gap & proposal:** the missing combined register+configure command (`sailor mandate use`
-  / `configure`) and configure-time security defaults are specified in
-  `projects/sail_templates_test/docs/shared-template-cli-improvement-proposal.md`. Until it
-  ships, treat `sailor mandate attach` as register-only and configure separately.
+- **CLI gap:** `sailor mandate attach` (register) and `sailor mandate configure` (configure) are
+  still separate commands — no combined one-step call ships yet. Always run both.

@@ -154,6 +154,9 @@ async function main() {
   const decimalsIn = Number(a.decimalsIn);
   const decimalsOut = Number(a.decimalsOut);
   const slippageBps = a.slippageBps !== undefined ? Number(a.slippageBps) : 100; // default 1%
+  if (!Number.isInteger(slippageBps) || slippageBps < 0 || slippageBps > 10_000) {
+    throw new Error(`--slippage-bps must be an integer in [0, 10000], got "${a.slippageBps}".`);
+  }
 
   const data = encodeQuoteCall(tokenIn, tokenOut, amountIn, fee);
   const ret = await ethCall(rpc, chain.quoterV2, data);

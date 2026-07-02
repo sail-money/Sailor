@@ -291,7 +291,7 @@ async function runConfigure(
     abi: SailKernelAbi,
     functionName: "configs",
     args: [sma],
-  })) as [Address, Address, Address, boolean];
+  })) as [Address, Address, Address, Address, boolean];
   const permissionSigner = kernelConfig[0];
   if (!permissionSigner || permissionSigner === getAddress("0x0000000000000000000000000000000000000000")) {
     throw new Error(`SMA ${sma} has no on-chain permissionSigner; cannot configure.`);

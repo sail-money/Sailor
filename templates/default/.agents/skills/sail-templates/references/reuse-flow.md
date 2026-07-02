@@ -15,8 +15,8 @@ deploy entirely. You give one SMA its own private config inside the singleton's
 >
 > A registered-but-unconfigured singleton has `isConfigured == false`, so the kernel's
 > `evaluate()` **denies every call** — a registered-but-dead permission. You MUST configure
-> separately. The flow below describes what actually works now; the "intended one-step" path is
-> noted where it applies and tracked in the CLI improvement proposal.
+> separately, with `sailor mandate configure` (step 4 below). The flow below describes what
+> actually works now.
 
 ## On-chain mechanics (`MandateFactory` + `ConfigurablePermission`)
 
@@ -41,8 +41,8 @@ Configuration (singleton side — the half the CLI does NOT do today):
 | `reconfigure(...)` | Intended batch re-config path (`MandateFactory.reconfigure`); functionally `configure` again with a new blob. |
 
 The intended combined call (`MandateFactory.attach`) and its batch/replace/detach siblings are
-defined on the factory contract; they are the target state for a future `sailor mandate use`
-command, not something the current CLI drives.
+defined on the factory contract; they are the target state for a future one-step CLI command,
+not something the current CLI drives.
 
 The kernel evaluates a registered permission via `staticcall` with a per-permission gas cap;
 a revert or over-gas is treated as `false` (fail-closed), never a kernel revert.
@@ -92,24 +92,25 @@ in `getPermissions(<SMA>)` but `isConfigured(<SMA>) == false`, so every dispatch
 denied. Proceed to step 4.
 
 ### 4. Configure the per-account bounds (the half that makes it live)
-Drive `configureDirect(account, <config blob>)` as an **owner** transaction — the owner is the
-SMA's `permissionSigner`, so `msg.sender == permissionSigner` holds and no EIP-712 signature is
-needed:
-
-1. **Pre-flight (no gas):** `cast call <SHARED_ADDRESS> "configureDirect(address,bytes)" <SMA> <blob> --from <owner>` against the live RPC. A revert here means the config is invalid before any gas is spent — fix the blob (see the encoding gotcha) and retry.
-2. **Send it:** push the `configureDirect` call to the owner wallet as an `arbitrary-tx` request through the signing station (the dashboard `POST /requests` with the station's `requestSecret`); the owner approves in the browser and the owner wallet sends the transaction.
-3. **Verify:** read `isConfigured(<SMA>)` on the singleton — it must return `true`.
+When the owner IS the SMA's `permissionSigner` (the default Sailor onboarding), drive
+`configureDirect(account, <config blob>)` as a plain owner transaction — `msg.sender ==
+permissionSigner` holds and no EIP-712 signature is needed — via the shipped command:
+```bash
+sailor mandate configure --address <SHARED_ADDRESS> --sma <SMA> \
+  --template <TemplateName> --args-file ./config.json
+# or with a pre-encoded blob:
+sailor mandate configure --address <SHARED_ADDRESS> --sma <SMA> --params <0x-blob>
+```
+It does, in order:
+1. **Pre-flight (no gas):** an `eth_call` simulation of `configureDirect` from `permissionSigner`. A revert here means the config is invalid before any gas is spent — fix the blob (see the encoding gotcha) and retry. Pass `--simulate-only` to stop here.
+2. **Send it:** pushes the `configureDirect` call to the owner wallet as an `arbitrary-tx` request through the signing station; the owner approves in the browser and the owner wallet sends the transaction.
+3. **Verify:** reads `isConfigured(<SMA>)` on the singleton and errors if it isn't `true`.
 
 If the owner is **not** the `permissionSigner` (e.g. a separate mandate-signer / multisig), use
 `configure(account, params, deadline, sig)` instead: construct the EIP-712 `Configure` digest
 (bound to the kernel's current `registrationEpoch`), have the `permissionSigner` sign it, and
-submit. The shipped CLI does not build this signature for you yet — it is manual until the
-proposed `sailor mandate configure` command lands.
-
-*(Intended future: `sailor mandate use` collects the configure signature and the kernel
-registration signature in one browser session and submits `MandateFactory.attach`, collapsing
-steps 3 + 4 into the one-step flow the original skills described. Not yet shipped — see the
-CLI improvement proposal.)*
+submit. `sailor mandate configure` does not build this signature for you — that path is still
+manual.
 
 ### 5. Verify off-chain (no gas)
 Prove it accepts what you want and rejects what you don't, before trusting it:
@@ -121,9 +122,9 @@ sailor mandate simulate --address <SHARED_ADDRESS> --sma <SMA> --calls ./probe.j
 ```
 
 ### 6. Reconfigure when bounds change
-New cap or allowlist? Re-encode the blob and repeat step 4 (`configureDirect` / `configure`) —
-the address stays registered, no re-attach. (On-chain `MandateFactory.reconfigure` is the
-intended batch path for this.)
+New cap or allowlist? Re-encode the blob and repeat step 4 (`sailor mandate configure --force`,
+or the manual `configure` signature path) — the address stays registered, no re-attach. (On-chain
+`MandateFactory.reconfigure` is the intended batch path for this.)
 
 ## Gotchas
 

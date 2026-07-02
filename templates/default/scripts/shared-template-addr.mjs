@@ -13,6 +13,28 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve as resolvePath } from "node:path";
 
+// Mirrors the chain map in quote-swap.mjs / resolve-token.mjs so --chain accepts
+// the same names those scripts do, not just a numeric id.
+const CHAIN_NAME_TO_ID = {
+  ethereum: 1,
+  unichain: 130,
+  base: 8453,
+  arbitrum: 42161,
+};
+
+function resolveChainArg(raw) {
+  if (raw === undefined) return null;
+  if (/^\d+$/.test(raw)) return Number(raw);
+  const id = CHAIN_NAME_TO_ID[raw.toLowerCase()];
+  if (id === undefined) {
+    process.stderr.write(
+      `Unknown --chain "${raw}". Known names: ${Object.keys(CHAIN_NAME_TO_ID).join(", ")} (or pass a numeric chain id).\n`,
+    );
+    process.exit(1);
+  }
+  return id;
+}
+
 function readJson(p) {
   return existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) : null;
 }
@@ -48,7 +70,7 @@ const args = process.argv.slice(2);
 const list = args.includes("--list");
 const name = args.find((a) => !a.startsWith("--"));
 const chainFlagIdx = args.indexOf("--chain");
-const chainOverride = chainFlagIdx !== -1 ? Number(args[chainFlagIdx + 1]) : null;
+const chainOverride = chainFlagIdx !== -1 ? resolveChainArg(args[chainFlagIdx + 1]) : null;
 const chainId = chainOverride ?? readChain();
 
 if (list) {
@@ -63,7 +85,9 @@ if (list) {
 }
 
 if (!name) {
-  process.stderr.write("Usage: shared-template-addr.mjs <TemplateName> [--chain <id>] [--list]\n");
+  process.stderr.write(
+    `Usage: shared-template-addr.mjs <TemplateName> [--chain <id|${Object.keys(CHAIN_NAME_TO_ID).join("|")}>] [--list]\n`,
+  );
   process.exit(1);
 }
 if (!chainId) {
