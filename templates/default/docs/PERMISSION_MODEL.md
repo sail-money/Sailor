@@ -89,5 +89,5 @@ Run `sailor doctor` (read-only, no gas, no keys):
 - on a conjunctive kernel, **probes each permission for pass-through** and flags any
   that would brick dispatch.
 
-See [AGENT_PLAYBOOK.md](../AGENT_PLAYBOOK.md) for the operational decision tree and the
-revert failure-mode catalog.
+See [AGENTS.md](../AGENTS.md) (and the skills it routes to under `.agents/skills/`)
+for the operational decision tree and the revert failure-mode catalog.

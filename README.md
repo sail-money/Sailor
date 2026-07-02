@@ -14,8 +14,8 @@ Sailor is the off-chain operator layer for [Sail Protocol](https://github.com/sa
 | `packages/cli` | `@sail.money/sailor` | CLI for account setup, mandate signing, and agent execution |
 | `packages/ui` | `sailor-ui` | Local dashboard (per-project port; see Dashboard below) |
 | `templates/default` | — | The agent starter `sailor init` scaffolds: slim `AGENTS.md` + on-demand skills under `.agents/skills/` |
-| `examples/permissions` | — | Worked permission contracts by protocol and chain (reference, unaudited) |
-| `examples/custom-mandate` | — | Solidity reference: IPermission authoring scaffold |
+| `templates/default/examples/permissions` | — | Worked permission contracts by protocol and chain (reference, unaudited) |
+| `templates/default/examples/custom-mandate` | — | Solidity reference: IPermission authoring scaffold |
 
 ---
 
@@ -200,9 +200,10 @@ sailor init my-agent --template <name>   # named subdirectory + specific templat
 ### What makes a valid template
 
 A valid template is any directory under `templates/` that contains a
-`package.json`. Solidity reference sources live under `examples/`
-(`examples/permissions`, `examples/custom-mandate`)
-— they are not project scaffolds and never appear in the template list.
+`package.json`. Solidity reference sources live inside the default template
+(`templates/default/examples/permissions`, `templates/default/examples/custom-mandate`)
+and are copied into every scaffold — they are not project scaffolds themselves
+and never appear in the template list.
 
 ### Adding a template
 

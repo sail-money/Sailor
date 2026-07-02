@@ -1,6 +1,6 @@
 ---
 name: sail-template-swap
-description: Gate an SMA's DEX swaps by REUSING the shared SwapPermission singleton (Protocol/contracts/templates/SwapPermission.sol) — register + configure, no per-SMA deploy. Use for a bounded swap / DCA mandate on Uniswap V3, V3-02, or V2 with router + token-in/out allowlists, a per-tx cap, and a MANDATORY oracle slippage band (priceOracle is required — for no-oracle tokens use sail-template-swap-no-oracle). For the LI.FI aggregator use sail-lifi-swap; for Pendle use sail-pendle. NOTE: `sailor mandate attach` only registers — you must also configure per-account (see steps).
+description: Gate an SMA's DEX swaps by REUSING the shared SwapPermission singleton (Protocol/contracts/templates/SwapPermission.sol) — register + configure, no per-SMA deploy. Use for a bounded swap / DCA mandate on Uniswap V3, V3-02, or V2 with router + token-in/out allowlists, a per-tx cap, and a MANDATORY oracle slippage band (priceOracle is required — for no-oracle tokens use sail-template-swap-no-oracle). For the LI.FI aggregator or Pendle, author a bespoke permission via sail-mandates. NOTE: `sailor mandate attach` only registers — you must also configure per-account (see steps).
 compatibility: A Sailor project (`@sail/sdk`, `sailor` CLI). Requires SwapPermission deployed on the target chain (recorded in sail-templates/deployed.json); run sail-templates first.
 metadata:
   workspace: sailor-harness
@@ -192,7 +192,7 @@ it is below `amountIn`.
   (live-pool hallucination band — catches honest mistakes, NOT MEV/flash-loan attacks) or author a
   bespoke permission. There is no oracle-off mode on `SwapPermission`.
 - **Aggregator (LI.FI) or opaque calldata** → the mandate can't inspect the route; use
-  [`sail-lifi-swap`](../sail-lifi-swap/SKILL.md) or [`sail-mandates`](../sail-mandates/SKILL.md).
+  [`sail-mandates`](../sail-mandates/SKILL.md).
 - **`SwapPermission` not deployed on your chain** → check `deployed.json` first (it's live on all
   11 Sailor-bundled chains as of the current deploy); for anything outside that set, author your
   own via [`sail-mandates`](../sail-mandates/SKILL.md).

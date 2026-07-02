@@ -2,7 +2,7 @@
 /**
  * Doc-drift gate.
  *
- * The agent-facing docs (CLAUDE.md, AGENTS.md, AGENT_PLAYBOOK.md, the scaffolded
+ * The agent-facing docs (CLAUDE.md, AGENTS.md, the scaffolded
  * template, package READMEs) tell an LLM agent which `sailor` commands and which
  * `client.<ns>.<method>(...)` SDK calls to use. If a doc names a command or method
  * that no longer exists, the agent confidently does the wrong thing. This script
@@ -153,7 +153,6 @@ function parseSdkSurface() {
 const DOC_GLOBS = [
   "CLAUDE.md",
   "AGENTS.md",
-  "AGENT_PLAYBOOK.md",
   "README.md",
   "docs",
   "templates",

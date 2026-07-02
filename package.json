@@ -18,7 +18,6 @@
     "packages/sdk/package.json",
     "packages/ui/dist",
     "templates",
-    "examples",
     "README.md",
     "AGENTS.md"
   ],
