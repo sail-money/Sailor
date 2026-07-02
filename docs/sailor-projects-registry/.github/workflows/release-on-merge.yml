@@ -2,7 +2,7 @@ name: release-on-merge
 
 # When a project folder under projects/ changes on main (i.e. a `sailor share`
 # PR merges), package that folder as a .tar.gz and publish/update a release
-# tagged <slug>-v<n>. The release asset is what `sailor replicate` downloads,
+# tagged <slug>-v<n>. The release asset is what `sailor clone` downloads,
 # and its download_count is the per-project metric.
 
 on:
@@ -65,6 +65,6 @@ jobs:
 
             gh release create "$tag" "$asset" \
               --title "$slug v$next" \
-              --notes "Automated release of projects/$slug (sailor share). Download with: sailor replicate <asset-url>"
+              --notes "Automated release of projects/$slug (sailor share). Download with: sailor clone <source>"
             echo "Released $tag ($asset)"
           done <<< "${{ steps.changed.outputs.slugs }}"

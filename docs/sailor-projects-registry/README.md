@@ -1,7 +1,7 @@
 # sailor-projects registry — setup
 
 These files bootstrap the public registry repo (`sail-money/Dock`) that
-`sailor share` opens PRs into and `sailor replicate` downloads from.
+`sailor share` opens PRs into and `sailor clone` downloads from.
 
 ## Layout
 
@@ -18,7 +18,7 @@ projects/<slug>/        # one shared project per folder (added by `sailor share`
 2. A maintainer reviews (the PR template checklist) and merges to `main`.
 3. `release-on-merge.yml` packages `projects/<slug>/` as `<slug>.tar.gz` and publishes a
    release tagged `<slug>-v<n>` (auto-incrementing).
-4. `sailor replicate <asset-url>` downloads that asset.
+4. `sailor clone <source>` downloads that asset.
 
 ## Metrics
 
