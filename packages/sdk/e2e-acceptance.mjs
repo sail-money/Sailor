@@ -1,8 +1,8 @@
 /**
- * §7 launch-readiness acceptance test — end-to-end against a live testnet, exercising the
- * Protocol #52–#59/#64/#69/#70 relaunch surface that PR #172 adds Sailor support for.
+ * End-to-end acceptance test — runs against a live testnet, exercising the full account
+ * lifecycle: onboarding, template configuration, dispatch, and the session kill switch.
  *
- * Sequence (per docs/launch-readiness-sailor.md §7):
+ * Sequence:
  *   1. createAccount SMA (single-tx path).
  *   2. registerAccount via a Safe owner-sig + Safe.execTransaction (the post-#53 two-step
  *      path), and assert a v==1 approved-hash ownerSig is REJECTED (#69) while an ECDSA sig
