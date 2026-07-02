@@ -236,6 +236,7 @@ export async function mandateSimulate(options: SimulateOptions): Promise<void> {
       const [probe, codeCheck] = await Promise.all([
         probePermissionForCall({
           publicClient: pc,
+          kernel: project.contracts.kernel,
           permission,
           account,
           manager,

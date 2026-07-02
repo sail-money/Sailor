@@ -36,11 +36,14 @@ struct Context {
     uint256 value;          // msg.value (native asset) sent with the call
     uint256 blockTimestamp; // block.timestamp at evaluation
     uint256 blockNumber;    // block.number at evaluation
+    uint256 configEpoch;    // kernel registrationEpoch(account, permission) at dispatch;
+                            // ignore it unless your permission takes post-deploy configuration
 }
 ```
 
 - `evaluate` — your policy. Return `true` to permit the call, `false` to block it. Runs under a
-  100k-gas `staticcall`; a revert or gas overage is treated as `false`.
+  150,000-gas `staticcall` (`SailKernel.PERMISSION_GAS_CAP`); a revert or gas overage is treated
+  as `false`.
 - `discriminator` — a stable `bytes32` name for your permission (e.g. `keccak256("MyMandate")`).
 
 Keep all policy parameters constructor-configured so each deployment is a complete, reviewable

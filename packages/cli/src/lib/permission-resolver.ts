@@ -19,7 +19,9 @@ import type { Address, Hex, PublicClient } from "viem";
 
 /**
  * Minimal IPermission ABI for the off-chain evaluate() probe.
- * The Context tuple mirrors SailProtocol's Context struct field order exactly.
+ * The Context tuple mirrors SailProtocol's Context struct field order exactly
+ * (9 fields since protocol #59 added configEpoch — the field is part of the
+ * function selector, so an 8-field encoding reverts on every live permission).
  * Single source of truth — imported by doctor.ts and run.ts; never duplicated.
  */
 export const IPERMISSION_ABI = [
@@ -41,12 +43,48 @@ export const IPERMISSION_ABI = [
           { name: "value",          type: "uint256" },
           { name: "blockTimestamp", type: "uint256" },
           { name: "blockNumber",    type: "uint256" },
+          { name: "configEpoch",    type: "uint256" },
         ],
       },
     ],
     outputs: [{ type: "bool" }],
   },
 ] as const;
+
+/**
+ * SailKernel `registrationEpoch(account, permission)` — the kernel pushes this
+ * value as ctx.configEpoch on every dispatch, and configurable templates fail
+ * closed unless it matches the epoch stamped at configure() time. Probes must
+ * pass the live value or configured templates return false for calls the
+ * kernel would actually allow.
+ */
+const REGISTRATION_EPOCH_ABI = [
+  {
+    type: "function",
+    name: "registrationEpoch",
+    stateMutability: "view",
+    inputs: [
+      { name: "account", type: "address" },
+      { name: "permission", type: "address" },
+    ],
+    outputs: [{ type: "uint256" }],
+  },
+] as const;
+
+/** Read the kernel's current registration epoch for an (account, permission) pair. */
+export async function readRegistrationEpoch(
+  publicClient: PublicClient,
+  kernel: Address,
+  account: Address,
+  permission: Address,
+): Promise<bigint> {
+  return (await publicClient.readContract({
+    address: kernel,
+    abi: REGISTRATION_EPOCH_ABI,
+    functionName: "registrationEpoch",
+    args: [account, permission],
+  })) as bigint;
+}
 
 /** Shape of the Context struct passed to IPermission.evaluate(). */
 export type PermissionContext = {
@@ -58,6 +96,7 @@ export type PermissionContext = {
   value:          bigint;
   blockTimestamp: bigint;
   blockNumber:    bigint;
+  configEpoch:    bigint;
 };
 
 /**
@@ -75,12 +114,14 @@ export type PermissionContext = {
  *   than a selector (matches the runner's extraction exactly).
  */
 export function buildPermissionContext(params: {
-  account:   Address;
-  manager:   Address;
-  call:      { target: Address; value: bigint; data: Hex };
-  blockInfo: { number: bigint; timestamp: bigint };
+  account:     Address;
+  manager:     Address;
+  call:        { target: Address; value: bigint; data: Hex };
+  blockInfo:   { number: bigint; timestamp: bigint };
+  /** Kernel registrationEpoch(account, permission) — per-permission, read live. */
+  configEpoch: bigint;
 }): PermissionContext {
-  const { account, manager, call, blockInfo } = params;
+  const { account, manager, call, blockInfo, configEpoch } = params;
   const selector = (
     call.data.length >= 10 ? call.data.slice(0, 10) : "0x00000000"
   ) as Hex;
@@ -93,6 +134,7 @@ export function buildPermissionContext(params: {
     value:          call.value,
     blockTimestamp: blockInfo.timestamp,
     blockNumber:    blockInfo.number,
+    configEpoch,
   };
 }
 
@@ -119,15 +161,20 @@ export type ProbeResult = {
  */
 export async function probePermissionForCall(params: {
   publicClient: PublicClient;
+  kernel:       Address;
   permission:   Address;
   account:      Address;
   manager:      Address;
   call:         { target: Address; value: bigint; data: Hex };
   blockInfo:    { number: bigint; timestamp: bigint };
 }): Promise<ProbeResult> {
-  const { publicClient, permission, account, manager, call, blockInfo } = params;
-  const ctx = buildPermissionContext({ account, manager, call, blockInfo });
+  const { publicClient, kernel, permission, account, manager, call, blockInfo } = params;
   try {
+    // The kernel pushes registrationEpoch(account, permission) as ctx.configEpoch
+    // on every dispatch; configured templates fail closed on a mismatch, so the
+    // probe must read and pass the live value to mirror dispatch behaviour.
+    const configEpoch = await readRegistrationEpoch(publicClient, kernel, account, permission);
+    const ctx = buildPermissionContext({ account, manager, call, blockInfo, configEpoch });
     const accepted = await publicClient.readContract({
       address:      permission,
       abi:          IPERMISSION_ABI,
@@ -166,19 +213,22 @@ export async function probePermissionForCall(params: {
  */
 export async function resolvePermissionForCall(params: {
   publicClient:          PublicClient;
+  kernel:                Address;
   account:               Address;
   manager:               Address;
   call:                  { target: Address; value: bigint; data: Hex };
   registeredPermissions: Address[];
   blockInfo:             { number: bigint; timestamp: bigint };
 }): Promise<Address | undefined> {
-  const { publicClient, account, manager, call, registeredPermissions, blockInfo } = params;
-
-  // Shared Context builder — identical to the shape `sailor mandate simulate` probes.
-  const ctx = buildPermissionContext({ account, manager, call, blockInfo });
+  const { publicClient, kernel, account, manager, call, registeredPermissions, blockInfo } = params;
 
   for (const permission of registeredPermissions) {
     try {
+      // ctx.configEpoch is per-(account, permission) — read it live so configured
+      // templates see the epoch the kernel would push on a real dispatch.
+      const configEpoch = await readRegistrationEpoch(publicClient, kernel, account, permission);
+      // Shared Context builder — identical to the shape `sailor mandate simulate` probes.
+      const ctx = buildPermissionContext({ account, manager, call, blockInfo, configEpoch });
       const accepted = await publicClient.readContract({
         address:      permission,
         abi:          IPERMISSION_ABI,

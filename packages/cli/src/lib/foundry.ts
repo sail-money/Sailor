@@ -41,6 +41,10 @@ struct Context {
     uint256 value;          // native ETH forwarded (wei)
     uint256 blockTimestamp; // block.timestamp at dispatch
     uint256 blockNumber;    // block.number at dispatch
+    uint256 configEpoch;    // kernel registrationEpoch(account, permission) at dispatch;
+                            // configurable permissions fail closed on a mismatch with the
+                            // epoch stamped at configure() time. Custom permissions that
+                            // take no post-deploy configuration can ignore it.
 }
 
 /// @title  IPermission
@@ -90,6 +94,8 @@ struct BatchContext {
     bytes32 batchHash;      // keccak256(abi.encode(calls)) — stable id for the exact sequence
     uint256 blockTimestamp; // block.timestamp at dispatch
     uint256 blockNumber;    // block.number at dispatch
+    uint256 configEpoch;    // kernel registrationEpoch(account, permission) at dispatch —
+                            // same fail-closed freshness check as Context.configEpoch
 }
 
 /// @title  IBatchPermission
