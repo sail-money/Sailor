@@ -248,7 +248,7 @@ test("buildCleanCopy strips sensitive files, keeps strategy, sanitizes config", 
   assert.ok(files.includes("mandates/Perm.sol"));
   assert.ok(files.includes(".sail/config.json"));
   assert.ok(files.includes(".env.example"));
-  // core reusable material is stripped (re-injected by replicate)
+  // core reusable material is stripped (re-injected by clone)
   assert.ok(!files.some((f) => f.startsWith("examples/")));
   assert.ok(!files.some((f) => f.startsWith(".agents/")));
   assert.ok(!files.includes("AGENTS.md"));

@@ -2,9 +2,9 @@ import { resolveToken } from "../commands/trigger.js";
 
 /**
  * Thin GitHub REST helpers shared by `sailor share` (open a PR) and
- * `sailor replicate` (resolve + download a release asset). Same conventions as
+ * `sailor clone` (resolve + download a release asset). Same conventions as
  * commands/trigger.ts: raw `fetch`, no SDK, token only from the environment via
- * {@link resolveToken}. Re-exported here so the share/replicate commands have a
+ * {@link resolveToken}. Re-exported here so the share/clone commands have a
  * single import surface.
  */
 export { resolveToken, parseRepoFromRemoteUrl } from "../commands/trigger.js";

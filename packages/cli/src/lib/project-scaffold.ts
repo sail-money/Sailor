@@ -6,7 +6,7 @@ import { writeIfMissing } from "./template.js";
 /**
  * Scaffolds the secret-bearing parts of a Sailor project workspace — the
  * `.sail/` dirs, `config.json`, and the `.env.example` / `.sail/.env.local`
- * templates. Shared by `sailor init` (fresh scaffold) and `sailor replicate`
+ * templates. Shared by `sailor init` (fresh scaffold) and `sailor clone`
  * (rebuild the local workspace a published template deliberately omits), so the
  * two can never drift.
  */
@@ -34,7 +34,7 @@ before changing strategy code or running commands that touch funds.
 /**
  * Create `.sail/{keys,runtime,state}`, write `config.json`, `.env.example`, and
  * `.sail/.env.local`. `preserveConfig` keeps an existing `.sail/config.json`
- * (replicate ships a sanitized one already) instead of overwriting it.
+ * (clone ships a sanitized one already) instead of overwriting it.
  */
 export function scaffoldProjectWorkspace(
   dest: string,

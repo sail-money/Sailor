@@ -15,7 +15,7 @@ import { TEMPLATE_COPY_EXCLUDES } from "./template.js";
 /**
  * `.sail/share.json` — the compulsory metadata every shared project must carry.
  * It is both the publish gate and the PR body source. `strategy` and `mandate`
- * are required prose so a reviewer (and a future replicator) understands what
+ * are required prose so a reviewer (and a future cloner) understands what
  * the project does and what authority it needs before running it.
  */
 export interface ShareManifest {
@@ -138,7 +138,7 @@ export function isSensitivePath(rel: string): boolean {
 
 /**
  * Core Sailor reference material that `sailor init` injects identically into
- * every project (and `replicate` re-injects from the installed package). Stripped
+ * every project (and `clone` re-injects from the installed package). Stripped
  * from the published copy so a shared project carries only the operator's own
  * work — strategy, custom mandates, config — not ~40 files of shared boilerplate.
  */

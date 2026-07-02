@@ -9,7 +9,7 @@ import { sailCoreAddresses, sailDeployments } from "@sail/sdk";
  * and well-known token/protocol addresses.
  *
  * These are KEPT (never redacted) when a project is shared publicly, so cloned
- * templates retain the context a replicator needs. Only user-specific identity
+ * templates retain the context a cloner needs. Only user-specific identity
  * — the SMA, owner, manager, and signer addresses — is stripped; the cloning
  * agent fills those back in during onboarding.
  *
