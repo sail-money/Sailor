@@ -86,6 +86,23 @@ export class MandateStore {
     return mandate;
   }
 
+  /**
+   * Track a permission only if no record at its address exists yet, returning the
+   * record either way. Used by `mandate attach` for addresses that were never
+   * deployed from this project — e.g. a shared permission singleton the operator
+   * attaches by address. Without a store record, `recordAttachment` is a no-op and
+   * the permission stays invisible to `mandate prepare`/`sign`. Unlike `add`, this
+   * never overwrites an existing record (so richer deploy-time metadata such as
+   * `sourcePath` is preserved). For attach-only records, `txHash`/`deployedAt`
+   * reflect the registration/first-tracked moment, not an on-chain deployment.
+   */
+  ensureTracked(mandate: DeployedMandate): DeployedMandate {
+    const existing = this.read().mandates.find(
+      (m) => m.address.toLowerCase() === mandate.address.toLowerCase(),
+    );
+    return existing ?? this.add(mandate);
+  }
+
   /** Update mutable metadata fields on a tracked mandate (name, sourcePath, artifactPath). */
   update(
     addressOrName: string,

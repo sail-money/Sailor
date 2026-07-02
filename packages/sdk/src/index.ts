@@ -6,6 +6,10 @@ export type { EncryptedKeystore, LocalKeyringOptions } from "./keyring.js";
 export { SailKernelAbi } from "./abis/SailKernel.js";
 export { MandateFactoryAbi } from "./abis/MandateFactory.js";
 export { SailGovernanceAbi } from "./abis/SailGovernance.js";
+export {
+  ConfigurablePermissionAbi,
+  CONFIGURE_TYPES,
+} from "./abis/ConfigurablePermission.js";
 
 // ── Onboarding / mandate-deploy primitives (verified against Base Sepolia) ──
 export type {

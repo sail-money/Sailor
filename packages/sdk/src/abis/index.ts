@@ -4,3 +4,4 @@
 export { SailKernelAbi } from "./SailKernel.js";
 export { MandateFactoryAbi } from "./MandateFactory.js";
 export { SailGovernanceAbi } from "./SailGovernance.js";
+export { ConfigurablePermissionAbi, CONFIGURE_TYPES } from "./ConfigurablePermission.js";
