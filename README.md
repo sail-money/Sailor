@@ -2,7 +2,7 @@
 
 > The operator toolkit for Sail Protocol — SDK, CLI, and local dashboard for building and running mandated agents.
 
-Sailor is the off-chain operator layer for [Sail Protocol](https://github.com/sail-money/SailProtocol): the tooling an operator uses to create a Separately Managed Account, register a mandate, and run a strategy agent against it. It wraps SailKernel dispatch, MandateFactory registration, and EIP-712 mandate signing behind a TypeScript SDK, a CLI, and a local dashboard. It does not deploy the protocol or author permission templates — those live in Sail Protocol. It targets already-deployed SailKernel instances and gives operators the tooling to drive them.
+Sailor is the off-chain operator layer for [Sail Protocol](https://github.com/sail-money/protocol): the tooling an operator uses to create a Separately Managed Account, register a mandate, and run a strategy agent against it. It wraps SailKernel dispatch, MandateFactory registration, and EIP-712 mandate signing behind a TypeScript SDK, a CLI, and a local dashboard. It does not deploy the protocol or author permission templates — those live in Sail Protocol. It targets already-deployed SailKernel instances and gives operators the tooling to drive them.
 
 ---
 
@@ -532,7 +532,7 @@ All core contracts are deployed at the same address on every supported chain via
 | Deployer | `0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6` |
 | Treasury | `0x7b37F85575F1568a37dBA342BC5FE6d393F0872f` |
 
-These addresses are bundled in `@sail.money/sailor` and exposed via `getSailDeployment(chainId)` in the SDK. The Protocol repository is the canonical source of truth for deployment details — see [deployments/addresses.md](https://github.com/sail-money/Protocol/blob/main/deployments/addresses.md).
+These addresses are bundled in `@sail.money/sailor` and exposed via `getSailDeployment(chainId)` in the SDK. The Protocol repository is the canonical source of truth for deployment details — see [deployments/addresses.md](https://github.com/sail-money/protocol/blob/main/deployments/addresses.md).
 
 ### Supported chains
 
@@ -554,7 +554,7 @@ These addresses are bundled in `@sail.money/sailor` and exposed via `getSailDepl
 
 ## Contributing
 
-Sailor and Sail Protocol are separate repositories with separate concerns. Protocol questions — SailKernel internals, permission templates, MandateFactory, fee policies — belong in the [SailProtocol](../SailProtocol) repository. Sailor questions — the SDK, CLI, dashboard, and agent templates — belong here.
+Sailor and Sail Protocol are separate repositories with separate concerns. Protocol questions — SailKernel internals, permission templates, MandateFactory, fee policies — belong in the [Sail Protocol](https://github.com/sail-money/protocol) repository. Sailor questions — the SDK, CLI, dashboard, and agent templates — belong here.
 
 ---
 
