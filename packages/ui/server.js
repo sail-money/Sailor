@@ -118,8 +118,10 @@ function serverError(res, err) {
 }
 
 /**
- * Minimal fixed-window rate limiter keyed by client IP — no dependency, no shared
- * store (the data server is single-process and localhost-bound).
+ * Minimal fixed-window limiter for INBOUND HTTP requests (throttles callers hitting
+ * this server), keyed by client IP. No dependency, no shared store — the data server
+ * is single-process. NOTE: this is unrelated to the OUTBOUND RPC-429 detection in the
+ * CLI (`doctor.ts isRateLimit`), which reacts to an upstream RPC throttling *us*.
  * ponytail: swap for express-rate-limit if this ever runs multi-instance.
  */
 function rateLimit({ windowMs, max }) {

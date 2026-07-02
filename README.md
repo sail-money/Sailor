@@ -295,6 +295,18 @@ the station), set a comma-separated list — the local origin is always allowed:
 SAILOR_CORS_ORIGINS=https://hermes.example.ts.net,https://another.host
 ```
 
+By default the UI server binds `127.0.0.1` (local only). To reach it from another
+device **without** Tailscale — e.g. behind your own reverse proxy on a domain — bind
+all interfaces and throttle the key-management endpoints:
+
+```bash
+SAILOR_HOST=0.0.0.0             # bind all interfaces (default 127.0.0.1)
+SAILOR_RATE_LIMIT_PER_MIN=100   # cap /api/signer + /api/onboard/generate-key (default 100)
+```
+
+The key-management endpoints are **unauthenticated** — only expose them behind your
+own auth (reverse-proxy basic-auth, or a private tailnet), never the open internet.
+
 ---
 
 ## Agent-driven onboarding & custom mandates
