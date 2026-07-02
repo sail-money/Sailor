@@ -204,6 +204,25 @@ export default function SessionControlModal({ open, mode, sma, kernel, chainId, 
                 You’ll approve this in your wallet — a quick signature plus one transaction.
               </li>
             </ul>
+            <details className={styles.tech}>
+              <summary className={styles.techSummary}>What happens on-chain</summary>
+              <div className={styles.techBody}>
+                <p>
+                  Your wallet signs an EIP-712 <code>{primaryType}</code> message, then submits{' '}
+                  <code>{fn}(account, deadline, sig)</code> to the SailKernel. The kernel verifies
+                  the signature against the account’s <strong>permission signer</strong>.
+                </p>
+                <p>
+                  It flips the account’s <code>sessionActive</code> flag — the kernel checks this on{' '}
+                  <em>every</em> dispatch, so {pausing ? 'all manager dispatch is blocked' : 'manager dispatch is allowed again'}.
+                </p>
+                <p>
+                  It also advances the account’s signer and manager/batch <strong>nonce epochs</strong>,
+                  which is what invalidates anything pre-signed under the old epoch (the “clean slate”
+                  above). Your registered permissions and the SMA’s custody of funds are untouched.
+                </p>
+              </div>
+            </details>
             <dl className={styles.meta}>
               <div><dt>SMA</dt><dd>{sma}</dd></div>
             </dl>
