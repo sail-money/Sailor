@@ -80,7 +80,7 @@ const MANAGER_NONCES_ABI = [
  * ```ts
  * const { signature, nonce, deadline } = await buildDispatchSignature({
  *   publicClient,
- *   kernel: "0x3E4C45D3...",
+ *   kernel: "0x6319d3df...",
  *   chainId: 8453,
  *   account: mySafe,
  *   permission: myPermission,

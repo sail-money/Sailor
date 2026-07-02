@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { usePublicClient } from 'wagmi'
-import { FluidBackground, GlassCard, Sai, SailButton } from '../shared'
+import { HorizonBackground, GlassCard, Sai, SailButton } from '../shared'
 import PageHeader from '../shared/PageHeader'
 import shared from '../shared/shared.module.css'
 import styles from './RewardsPage.module.css'
@@ -118,7 +118,7 @@ export default function RewardsPage() {
 
   return (
     <div className={`${shared.pageShell} ${styles.shell}`}>
-      <FluidBackground />
+      <HorizonBackground />
       <PageHeader eyebrow={copy.TOKEN_NAME} title="Rewards" />
       <main className={styles.main}>
         {!firstSma ? <NoSmaState /> : (

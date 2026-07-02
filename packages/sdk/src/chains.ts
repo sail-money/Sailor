@@ -1,15 +1,4 @@
-import { sailDeployments, type SailChainId } from "./deployments.js";
 import type { ChainConfig } from "./types.js";
-
-/** Per-chain metadata not stored in the deployment registry. */
-const CHAIN_META: Record<SailChainId, { name: string; rpcEnvVar: string }> = {
-  1: { name: "Ethereum", rpcEnvVar: "ETH_MAINNET_RPC_URL" },
-  8453: { name: "Base", rpcEnvVar: "BASE_RPC_URL" },
-  42161: { name: "Arbitrum", rpcEnvVar: "ARBITRUM_RPC_URL" },
-  130: { name: "Unichain", rpcEnvVar: "UNICHAIN_RPC_URL" },
-  84532: { name: "Base Sepolia", rpcEnvVar: "BASE_SEPOLIA_RPC_URL" },
-  11155111: { name: "Eth Sepolia", rpcEnvVar: "SEPOLIA_RPC_URL" },
-};
 
 /**
  * Registry of live SailKernel deployments, keyed by EVM chainId.
