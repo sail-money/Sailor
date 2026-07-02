@@ -94,6 +94,60 @@ function persistPassphrase(envPath, passphrase) {
   fs.chmodSync(envPath, 0o600)
 }
 
+/** Reject values that would break `.env.local`: a newline injects an extra
+ *  KEY=VALUE line (e.g. overwriting SAIL_PASSPHRASE) when the file is re-serialized. */
+export function isSafeEnvValue(v) {
+  return typeof v === 'string' && !/[\n\r]/.test(v)
+}
+
+/** True for a well-formed http(s) URL — rejects other schemes and garbage. */
+export function isHttpUrl(v) {
+  try {
+    const u = new URL(v)
+    return u.protocol === 'http:' || u.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+/** Log the real error server-side; return a generic message so filesystem paths,
+ *  RPC URLs and other internals never leak in the response body. */
+function serverError(res, err) {
+  console.error(err)
+  res.status(500).json({ error: 'internal server error' })
+}
+
+/**
+ * Minimal fixed-window limiter for INBOUND HTTP requests (throttles callers hitting
+ * this server), keyed by client IP. No dependency, no shared store — the data server
+ * is single-process. NOTE: this is unrelated to the OUTBOUND RPC-429 detection in the
+ * CLI (`doctor.ts isRateLimit`), which reacts to an upstream RPC throttling *us*.
+ * ponytail: swap for express-rate-limit if this ever runs multi-instance.
+ */
+function rateLimit({ windowMs, max }) {
+  const hits = new Map()
+  let lastSweep = 0
+  return (req, res, next) => {
+    const now = Date.now()
+    // Amortized prune (once per window): drop expired entries so the map can't grow
+    // unbounded with one-shot client IPs once the server is network-exposed. O(n) at
+    // most once per window, not per request.
+    if (now - lastSweep > windowMs) {
+      for (const [k, v] of hits) if (now > v.resetAt) hits.delete(k)
+      lastSweep = now
+    }
+    const ip = req.ip || req.socket?.remoteAddress || 'local'
+    const rec = hits.get(ip)
+    if (!rec || now > rec.resetAt) {
+      hits.set(ip, { count: 1, resetAt: now + windowMs })
+      return next()
+    }
+    if (rec.count >= max) return res.status(429).json({ error: 'too many requests' })
+    rec.count += 1
+    next()
+  }
+}
+
 const CHAIN_NAMES = {
   1: 'ethereum',
   8453: 'base',
@@ -236,8 +290,37 @@ const OVERVIEW_TTL_MS = 10_000
  */
 export function startServer(sailDir, { port = PORT } = {}) {
   const app = express()
+  // Behind a reverse proxy (see SAILOR_HOST exposure), set SAILOR_TRUST_PROXY so Express
+  // derives req.ip from X-Forwarded-For — otherwise the rate limiter keys on the proxy's
+  // IP and collapses every client into one shared bucket. Value passes through to Express
+  // "trust proxy": a hop count ("1"), "true", or a comma-separated IP/subnet allowlist.
+  // Default off (direct connections use the real socket IP); only trust XFF when you know
+  // a proxy is in front, since a client can otherwise forge the header.
+  const trustProxy = process.env.SAILOR_TRUST_PROXY
+  if (trustProxy && trustProxy !== 'false' && trustProxy !== '0') {
+    const hops = Number(trustProxy)
+    app.set('trust proxy', Number.isFinite(hops) ? hops : trustProxy === 'true' ? true : trustProxy)
+  }
   app.use(cors({ origin: CORS_ORIGINS }))
   app.use(express.json())
+
+  // Throttle the key-management endpoints. This server can be exposed beyond
+  // localhost (SAILOR_HOST), where a network client — which ignores CORS — could
+  // otherwise brute-force the keystore passphrase or spam the expensive scrypt KDF.
+  // Ceiling (requests/min) is configurable; precedence: env > project config > 100.
+  const rateLimitPerMin = (() => {
+    const fromEnv = Number(process.env.SAILOR_RATE_LIMIT_PER_MIN)
+    if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv
+    try {
+      const cfg = JSON.parse(fs.readFileSync(path.join(sailDir, 'config.json'), 'utf-8'))
+      const fromCfg = Number(cfg?.rateLimitPerMin)
+      if (Number.isFinite(fromCfg) && fromCfg > 0) return fromCfg
+    } catch { /* no project config — use default */ }
+    return 100
+  })()
+  const keyEndpointLimiter = rateLimit({ windowMs: 60_000, max: rateLimitPerMin })
+  app.use('/api/signer', keyEndpointLimiter)
+  app.use('/api/onboard/generate-key', keyEndpointLimiter)
 
   const at = (name) => path.join(sailDir, name)
 
@@ -390,7 +473,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
       overviewCacheByAccount.clear()
       res.json({ ok: true })
     } catch (err) {
-      res.status(500).json({ error: String(err) })
+      serverError(res, err)
     }
   })
 
@@ -447,7 +530,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
       syncConfigChainId(chainId)
       res.json({ ok: true })
     } catch (err) {
-      res.status(500).json({ error: String(err) })
+      serverError(res, err)
     }
   })
 
@@ -484,7 +567,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
       syncConfigChainId(target.chainId)
       res.json({ ok: true, active: target })
     } catch (err) {
-      res.status(500).json({ error: String(err) })
+      serverError(res, err)
     }
   })
 
@@ -492,16 +575,22 @@ export function startServer(sailDir, { port = PORT } = {}) {
   app.post('/api/account/rename', (req, res) => {
     const { safe, name } = req.body ?? {}
     if (!safe || !name) { res.status(400).json({ error: 'safe and name are required' }); return }
+    // Cap length and strip control chars: the name lands in accounts.json and the
+    // JSONL activity log, where a raw newline would corrupt a record.
+    const cleanName = typeof name === 'string' ? name.replace(/\p{Cc}/gu, '').trim() : ''
+    if (!cleanName || cleanName.length > 100) {
+      res.status(400).json({ error: 'name must be 1–100 characters' }); return
+    }
     try {
       const accountsPath = at('state/accounts.json')
       const accounts = JSON.parse(fs.readFileSync(accountsPath, 'utf-8'))
       const idx = accounts.findIndex((a) => a.safe.toLowerCase() === safe.toLowerCase())
       if (idx === -1) { res.status(404).json({ error: 'SMA not found' }); return }
-      accounts[idx] = { ...accounts[idx], name }
+      accounts[idx] = { ...accounts[idx], name: cleanName }
       fs.writeFileSync(accountsPath, `${JSON.stringify(accounts, null, 2)}\n`)
       res.json({ ok: true })
     } catch (err) {
-      res.status(500).json({ error: String(err) })
+      serverError(res, err)
     }
   })
 
@@ -595,7 +684,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
       fs.appendFileSync(at('activity.jsonl'), `${JSON.stringify(event)}\n`)
       res.json({ ok: true, event })
     } catch (err) {
-      res.status(500).json({ error: String(err) })
+      serverError(res, err)
     }
   })
 
@@ -677,7 +766,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
 
       res.json({ ok: true, address: keyring.address, revealed })
     } catch (err) {
-      res.status(500).json({ error: String(err) })
+      serverError(res, err)
     }
   })
 
@@ -729,7 +818,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
       invalidateOverviewCache(safe)
       res.json({ ok: true, manager })
     } catch (err) {
-      res.status(500).json({ error: String(err) })
+      serverError(res, err)
     }
   })
 
@@ -798,7 +887,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
       }
       res.json({ signers: [...byAddress.values()] })
     } catch (err) {
-      res.status(500).json({ error: String(err) })
+      serverError(res, err)
     }
   })
 
@@ -838,7 +927,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
       invalidateOverviewCache(safe)
       res.json({ ok: true, address: getAddress(address), file: match })
     } catch (err) {
-      res.status(500).json({ error: String(err) })
+      serverError(res, err)
     }
   })
 
@@ -965,7 +1054,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
         try { fs.appendFileSync(at('activity.jsonl'), `${JSON.stringify(ev)}\n`) } catch { /* activity log is best-effort */ }
       }
     } catch (err) {
-      res.status(500).json({ error: `On-chain registration failed: ${err?.message ?? String(err)}` })
+      res.status(500).json({ error: `On-chain registration failed: ${(err?.message ?? String(err)).split('\n')[0]}` })
       return
     }
 
@@ -998,7 +1087,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
       }
       res.json(mandate)
     } catch (err) {
-      res.status(500).json({ error: String(err) })
+      serverError(res, err)
     }
   })
 
@@ -1257,20 +1346,34 @@ export function startServer(sailDir, { port = PORT } = {}) {
   // the active project chain, so existing CLI commands keep working.
   app.post('/api/onboard/save-config', (req, res) => {
     const { rpcUrl, sailApiKey, chainId } = req.body ?? {}
+    // Validate at the trust boundary: chainId must be a KNOWN integer (it becomes
+    // an env-var key) and values must be single-line http(s) URLs — otherwise a
+    // newline could inject an extra KEY=VALUE line (e.g. overwrite SAIL_PASSPHRASE).
+    const cid = Number(chainId)
+    if (chainId !== undefined && !CHAIN_RPC_ENV_KEYS[cid]) {
+      res.status(400).json({ error: 'unsupported chainId' }); return
+    }
+    if (rpcUrl !== undefined && (!isSafeEnvValue(rpcUrl) || !isHttpUrl(rpcUrl))) {
+      res.status(400).json({ error: 'invalid rpcUrl' }); return
+    }
+    if (sailApiKey !== undefined && !isSafeEnvValue(sailApiKey)) {
+      res.status(400).json({ error: 'invalid sailApiKey' }); return
+    }
     try {
       const config = (() => { try { return JSON.parse(fs.readFileSync(at('config.json'), 'utf-8')) } catch { return null } })()
       const activeChainId = config?.chainId ?? 8453
       const envPath = at('.env.local')
       const existing = parseEnvFile(envPath)
       if (rpcUrl && chainId) {
-        existing[`RPC_URL_${chainId}`] = rpcUrl
+        // cid is a validated integer — never interpolate the raw chainId here.
+        existing[`RPC_URL_${cid}`] = rpcUrl
         // Keep RPC_URL in sync with the active chain so CLI commands work.
-        if (Number(chainId) === Number(activeChainId)) existing.RPC_URL = rpcUrl
+        if (cid === Number(activeChainId)) existing.RPC_URL = rpcUrl
       } else if (rpcUrl) {
         existing.RPC_URL = rpcUrl
       }
       if (sailApiKey) existing.SAIL_API_KEY = sailApiKey
-      if (chainId) existing.CHAIN_ID = String(chainId)
+      if (chainId) existing.CHAIN_ID = String(cid)
       const content = Object.entries(existing).map(([k, v]) => `${k}=${v}`).join('\n') + '\n'
       fs.mkdirSync(sailDir, { recursive: true })
       // 0600: .env.local can hold SAIL_PASSPHRASE (preserved across rewrites), matching the CLI.
@@ -1278,7 +1381,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
       fs.chmodSync(envPath, 0o600)
       res.json({ ok: true })
     } catch (err) {
-      res.status(500).json({ error: String(err) })
+      serverError(res, err)
     }
   })
 
@@ -1315,7 +1418,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
       persistPassphrase(at('.env.local'), passphrase)
       res.json({ address: keyring.address, existed: false })
     } catch (err) {
-      res.status(500).json({ error: String(err) })
+      serverError(res, err)
     }
   })
 
@@ -1361,7 +1464,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
       })
       res.json({ to: kernel, data, chainId, saltNonce: saltNonce.toString() })
     } catch (err) {
-      res.status(500).json({ error: String(err) })
+      serverError(res, err)
     }
   })
 
@@ -1414,7 +1517,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
         saltNonce: saltNonce.toString(),
       })
     } catch (err) {
-      res.status(500).json({ error: String(err) })
+      serverError(res, err)
     }
   })
 
@@ -1474,7 +1577,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
       syncConfigChainId(chainId)
       res.json({ ok: true, account: record })
     } catch (err) {
-      res.status(500).json({ error: String(err) })
+      serverError(res, err)
     }
   })
 
@@ -1490,12 +1593,18 @@ export function startServer(sailDir, { port = PORT } = {}) {
 
   // POST /api/wizard-state — persist the wizard progress object.
   app.post('/api/wizard-state', (req, res) => {
+    // Only a plain object is valid wizard state — reject anything else so the
+    // state file can't be poisoned. (express.json's 100kb default caps size.)
+    const body = req.body
+    if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+      res.status(400).json({ error: 'wizard state must be an object' }); return
+    }
     try {
       fs.mkdirSync(sailDir, { recursive: true })
-      fs.writeFileSync(at('.wizard-state.json'), `${JSON.stringify(req.body, null, 2)}\n`)
+      fs.writeFileSync(at('.wizard-state.json'), `${JSON.stringify(body, null, 2)}\n`)
       res.json({ ok: true })
     } catch (err) {
-      res.status(500).json({ error: String(err) })
+      serverError(res, err)
     }
   })
 
@@ -1903,7 +2012,11 @@ export function startServer(sailDir, { port = PORT } = {}) {
     })
   }
 
-  const httpServer = app.listen(port, () => {
+  // Bind localhost by default so the key-management API isn't network-reachable.
+  // Set SAILOR_HOST=0.0.0.0 to expose it (behind a domain / for LAN access) — do
+  // that only with auth in front, since these endpoints are unauthenticated.
+  const bindHost = process.env.SAILOR_HOST ?? '127.0.0.1'
+  const httpServer = app.listen(port, bindHost, () => {
     console.log(`Sailor UI running at http://localhost:${port} (reading ${sailDir})`)
   })
 

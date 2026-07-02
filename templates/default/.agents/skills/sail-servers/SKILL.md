@@ -20,6 +20,7 @@ sailor ui start --expose tailscale   # also serve it on the tailnet over HTTPS (
 - The server serves the pre-built React app (`SERVE_DIST=1`) and a local `/api` that reads `.sail/` state (`SAIL_DIR` env).
 - `ui start` does not block — no `&` needed.
 - `--expose tailscale` (optional): proxies the dashboard onto the operator's tailnet over HTTPS via `tailscale serve` (tailnet-private, never `funnel`). Requires `tailscale` installed + logged in, and Serve + HTTPS enabled for the tailnet (else the command prints the enable link). `ui stop` tears the proxy down. To allow extra browser origins, set `SAILOR_CORS_ORIGINS` (comma-separated; the local origin is always allowed).
+- Binds `127.0.0.1` by default (local only). To expose without `--expose tailscale` — e.g. behind a reverse proxy on a domain — set `SAILOR_HOST=0.0.0.0`. The `/api` key-management endpoints are **unauthenticated**, so only do this behind your own auth (reverse-proxy basic-auth or a private tailnet), and throttle them with `SAILOR_RATE_LIMIT_PER_MIN` (default 100; or `rateLimitPerMin` in `.sail/config.json`).
 
 ## Signing station — `sailor station`
 
