@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -8,7 +7,8 @@ import {
   getReleaseByTag,
   parseReleaseRef,
 } from "../lib/github.js";
-import { prompt, readJsonFile } from "../lib/io.js";
+import { auditClonedProject, safeExtract } from "../lib/clone-safety.js";
+import { confirm, prompt, readJsonFile } from "../lib/io.js";
 import { emit } from "../lib/output.js";
 import { scaffoldProjectWorkspace } from "../lib/project-scaffold.js";
 import { injectCoreReferenceAssets } from "../lib/reference-assets.js";
@@ -43,16 +43,6 @@ function pickAsset(assets: ReleaseAsset[], named?: string): ReleaseAsset {
   const archive = assets.find((a) => a.name.endsWith(".tar.gz") || a.name.endsWith(".zip"));
   if (!archive) throw new Error("Release has no .tar.gz or .zip asset to clone.");
   return archive;
-}
-
-/** Extract an archive into `dest` using the platform `tar`/`unzip`. */
-function extractArchive(archivePath: string, dest: string): void {
-  fs.mkdirSync(dest, { recursive: true });
-  if (archivePath.endsWith(".zip")) {
-    execFileSync("unzip", ["-q", archivePath, "-d", dest], { stdio: "inherit" });
-  } else {
-    execFileSync("tar", ["-xzf", archivePath, "-C", dest], { stdio: "inherit" });
-  }
 }
 
 /**
@@ -132,11 +122,40 @@ export async function clone(
     }
 
     const extractDir = path.join(tmp, "x");
-    extractArchive(archivePath, extractDir);
+    safeExtract(archivePath, extractDir); // zip-slip / symlink / size guards
     const projectRoot = findProjectRoot(extractDir);
 
     const manifest = readJsonFile<ShareManifest>(path.join(projectRoot, ".sail", "share.json"));
     if (!manifest) throw new Error("Archive is missing .sail/share.json — not a shared project.");
+
+    // Untrusted-code review: a shared project is a stranger's code that, once
+    // onboarded, can move YOUR funds. Surface hardcoded addresses (a hostile
+    // mandate routes funds to the attacker) and npm lifecycle scripts (auto-run
+    // on `npm install`), and require sign-off before writing it to disk.
+    const audit = auditClonedProject(projectRoot);
+    const warn = (): void => {
+      console.log("\n⚠  This is UNTRUSTED code. Review before you onboard/run — it can move funds.");
+      if (audit.lifecycleScripts.length > 0) {
+        console.log(`\n  npm lifecycle scripts (run on \`npm install\`):`);
+        for (const s of audit.lifecycleScripts) console.log(`    ${s.script}: ${s.command}`);
+      }
+      if (audit.addresses.length > 0) {
+        console.log(`\n  ${audit.addresses.length} hardcoded address(es) in mandates/src/test —`);
+        console.log("  verify NONE redirects funds to a stranger (recipient/spender/router):");
+        for (const a of audit.addresses) console.log(`    ${a}`);
+      }
+      if (!audit.lifecycleScripts.length && !audit.addresses.length) {
+        console.log("  No lifecycle scripts or hardcoded addresses found (still review the strategy).");
+      }
+    };
+    if (interactive) {
+      warn();
+      const ok = await confirm("\nClone this project to disk?");
+      if (!ok) {
+        console.log("Aborted.");
+        return;
+      }
+    }
 
     fs.mkdirSync(target, { recursive: true });
     fs.cpSync(projectRoot, target, { recursive: true, force: true });
@@ -183,6 +202,7 @@ export async function clone(
         asset: assetName,
         target,
         restored: reAdded.length,
+        audit,
         manifest,
       },
     );
