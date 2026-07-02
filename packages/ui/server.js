@@ -126,8 +126,16 @@ function serverError(res, err) {
  */
 function rateLimit({ windowMs, max }) {
   const hits = new Map()
+  let lastSweep = 0
   return (req, res, next) => {
     const now = Date.now()
+    // Amortized prune (once per window): drop expired entries so the map can't grow
+    // unbounded with one-shot client IPs once the server is network-exposed. O(n) at
+    // most once per window, not per request.
+    if (now - lastSweep > windowMs) {
+      for (const [k, v] of hits) if (now > v.resetAt) hits.delete(k)
+      lastSweep = now
+    }
     const ip = req.ip || req.socket?.remoteAddress || 'local'
     const rec = hits.get(ip)
     if (!rec || now > rec.resetAt) {
@@ -282,6 +290,17 @@ const OVERVIEW_TTL_MS = 10_000
  */
 export function startServer(sailDir, { port = PORT } = {}) {
   const app = express()
+  // Behind a reverse proxy (see SAILOR_HOST exposure), set SAILOR_TRUST_PROXY so Express
+  // derives req.ip from X-Forwarded-For — otherwise the rate limiter keys on the proxy's
+  // IP and collapses every client into one shared bucket. Value passes through to Express
+  // "trust proxy": a hop count ("1"), "true", or a comma-separated IP/subnet allowlist.
+  // Default off (direct connections use the real socket IP); only trust XFF when you know
+  // a proxy is in front, since a client can otherwise forge the header.
+  const trustProxy = process.env.SAILOR_TRUST_PROXY
+  if (trustProxy && trustProxy !== 'false' && trustProxy !== '0') {
+    const hops = Number(trustProxy)
+    app.set('trust proxy', Number.isFinite(hops) ? hops : trustProxy === 'true' ? true : trustProxy)
+  }
   app.use(cors({ origin: CORS_ORIGINS }))
   app.use(express.json())
 
