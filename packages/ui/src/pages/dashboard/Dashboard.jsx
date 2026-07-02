@@ -23,6 +23,7 @@ import CreateSMAModal from './CreateSMAModal'
 import RevokeMandateModal from './RevokeMandateModal'
 import AddSignerModal from './AddSignerModal'
 import RotateSignerModal from './RotateSignerModal'
+import SessionControlModal from './SessionControlModal'
 import FundGasModal from './FundGasModal'
 import RpcSection from './RpcSection'
 import {
@@ -1286,6 +1287,10 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
   // modal must operate on the chain whose "Rotate" was clicked — not always the
   // primary overview. Null falls back to the active single-chain overview.
   const [rotateContext, setRotateContext] = useState(null)
+  // Session kill-switch modal state. sessionCtx carries the per-chain SMA/kernel and current
+  // paused state so pause/resume operates on the chain whose control was clicked.
+  const [sessionOpen, setSessionOpen] = useState(false)
+  const [sessionCtx, setSessionCtx] = useState(null)
   const { account: realAccount, loading: accountLoading } = useSailorAccount(refreshTick)
   const { accounts: allAccounts } = useSailorAccounts(refreshTick)
   const { overview } = useSailorOverview(refreshTick)
@@ -1730,6 +1735,45 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                     : undefined}
                 />
               </div>
+
+              {/* ── Session kill switch ───────────────────────────
+                  Pause halts ALL agent dispatch for this SMA (on-chain
+                  revokeSession); Resume re-enables it. Owner-signed,
+                  reversible, and it invalidates any pre-signed dispatch.
+                  Only shown for a registered SMA with a resolvable kernel. */}
+              {activeChainOv?.sma?.registered && activeChainOv?.kernel && activeChainOv?.sma?.address && (
+                <div className={styles.idWalletsGroup}>
+                  <div className={styles.idGroupHead}>
+                    <span className={styles.idGroupLabel}>
+                      Session
+                      <InfoTip label="What pausing does">
+                        The kill switch for this SMA. Pausing immediately halts <strong>all</strong>{' '}
+                        agent dispatch (permissions stay registered); resume anytime without
+                        re-signing. Any transaction the agent pre-signed is invalidated.
+                      </InfoTip>
+                    </span>
+                    <p className={styles.idRelation}>
+                      {activeChainOv.sma.sessionActive === false
+                        ? 'Dispatch is halted — the agent cannot execute anything until you resume.'
+                        : 'Dispatch is allowed — the agent can execute within the registered permissions.'}
+                    </p>
+                  </div>
+                  <SailButton
+                    variant={activeChainOv.sma.sessionActive === false ? 'primary' : 'danger'}
+                    onClick={() => {
+                      setSessionCtx({
+                        sma: activeChainOv.sma.address,
+                        kernel: activeChainOv.kernel,
+                        chainId: activeChainOv.chainId,
+                        paused: activeChainOv.sma.sessionActive === false,
+                      })
+                      setSessionOpen(true)
+                    }}
+                  >
+                    {activeChainOv.sma.sessionActive === false ? 'Resume session' : 'Pause session'}
+                  </SailButton>
+                </div>
+              )}
             </section>
 
             {/* ── Mandates + Account Details ──────────────────────
@@ -1979,6 +2023,16 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
         initialTo={rotateTo}
         onClose={() => { setRotateOpen(false); setRotateTo(null); setRotateContext(null) }}
         onRotated={() => setRefreshTick((t) => t + 1)}
+      />
+
+      <SessionControlModal
+        open={sessionOpen}
+        mode={sessionCtx?.paused ? 'resume' : 'pause'}
+        sma={sessionCtx?.sma}
+        kernel={sessionCtx?.kernel}
+        chainId={sessionCtx?.chainId}
+        onClose={() => { setSessionOpen(false); setSessionCtx(null) }}
+        onDone={() => { setSessionOpen(false); setSessionCtx(null); setRefreshTick((t) => t + 1) }}
       />
 
       <CreateSMAModal
