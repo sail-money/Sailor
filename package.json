@@ -18,9 +18,6 @@
     "packages/sdk/package.json",
     "packages/ui/dist",
     "templates",
-    "examples",
-    "docs",
-    "scripts",
     "README.md",
     "AGENTS.md"
   ],
@@ -34,7 +31,6 @@
     "docs:check": "node scripts/check-docs.mjs",
     "init:check": "node scripts/check-init.mjs",
     "update:check": "node scripts/check-update.mjs",
-    "eval": "node evals/run.mjs",
     "lint": "biome check ."
   },
   "devDependencies": {

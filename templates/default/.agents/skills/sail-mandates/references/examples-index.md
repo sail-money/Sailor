@@ -15,7 +15,7 @@ Permissions only bound on-chain actions: venues with off-chain order matching (P
 | `BoundedStake_Venice_Base.sol` | Venice (VVV) staking · Base | Recipient binding on stake; claim() structurally routes rewards to caller (the SMA) | `0xadc9772e` stake(address,uint256), `0x4e71d92d` claim() |
 | `BoundedTransfer_ERC20_Ethereum.sol` | ERC-20 · any EVM | Token allowlist + recipient allowlist + per-transfer cap; caps are per-token base units (USDC 6 decimals, WETH 18) — one permission per token if amounts differ | `0xa9059cbb` transfer(address,uint256) |
 | `BoundedPerp_GMXv2_Arbitrum.sol` | GMX v2 ExchangeRouter · Arbitrum | Market allowlist + collateral cap + size cap (USD is 1e30-scaled) + long/short flags on a struct-typed call | `0x212234c3` createOrder(CreateOrderParams) — MUST re-verify, see below |
-| `BoundedBet_Limitless_Base.sol` | Limitless CTF exchange · Base | Condition allowlist + stake cap + outcome allowlist on a prediction market | buy(bytes32,uint256,uint256) — **ABI UNVERIFIED**, see below |
+| `BoundedLimitless_Base.sol` | Limitless CTF exchange · Base | Condition allowlist + stake cap + outcome allowlist on a prediction market | buy(bytes32,uint256,uint256) — **ABI UNVERIFIED**, see below |
 | `BoundedApproveAndCallBatch.sol` | Sail batch dispatch · any selective kernel | `IBatchPermission`: atomic approve → consume → reset-to-0 in exactly 3 calls; single-call evaluate() deliberately returns false | `0x095ea7b3` approve (calls 0 and 2) |
 
 ## Lessons the examples encode

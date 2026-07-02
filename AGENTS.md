@@ -14,7 +14,7 @@ tooling to create SMAs, register permission contracts, and run strategy agents.
 | `packages/cli` | `sailor` | CLI: init, keys, account, mandate, onboard, station, ui, run, session, scan, status, owner, doctor, capabilities |
 | `packages/ui` | `sailor-ui` | Local dashboard + browser-driven onboarding wizard (per-project port, 3333–3999) |
 | `templates/default` | — | Default agent starter: neutral blank scaffold + Foundry workspace + onboarding guide (AGENTS.md) |
-| `examples/custom-mandate` | — | Solidity reference: IPermission scaffold (not a project template) |
+| `templates/default/examples/custom-mandate` | — | Solidity reference: IPermission scaffold (not a project template) |
 
 ## Protocol roles
 

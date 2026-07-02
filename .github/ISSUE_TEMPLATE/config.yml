@@ -1,0 +1,12 @@
+# Blank issues stay enabled — full-open contribution posture.
+blank_issues_enabled: true
+contact_links:
+  - name: Security disclosure (do NOT open a public issue)
+    url: https://github.com/sail-money/Sailor/blob/main/SECURITY.md
+    about: Report vulnerabilities privately per the Security Policy — email hello@sail.money.
+  - name: Smart-contract / protocol issues
+    url: https://github.com/sail-money/protocol/issues
+    about: SailKernel, governance, shared permission templates, and deployments live in the protocol repo.
+  - name: Questions
+    url: mailto:hello@sail.money
+    about: Non-security questions about Sailor.

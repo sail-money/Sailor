@@ -9,7 +9,8 @@ import { SailGovernanceAbi } from "./abis/SailGovernance.js";
  *
  * This is THE single source of truth for the registration fee. The kernel
  * charges `fee × N` for N permissions, bounded by MAX_PERMISSION_FEE_WEI
- * (0.001 ETH) and refunding any excess; there is NO bytecode/size-based
+ * (0.01 ETH — the constitutional cap in SailGovernance; the seeded launch
+ * default fee is 0.001 ETH) and refunding any excess; there is NO bytecode/size-based
  * component in the live contracts (that "variable" formula existed only in
  * stale protocol docs describing an abandoned design). Underpaying reverts with
  * InsufficientFee(required, provided).

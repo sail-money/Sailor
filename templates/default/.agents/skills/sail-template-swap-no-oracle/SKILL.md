@@ -1,6 +1,6 @@
 ---
 name: sail-template-swap-no-oracle
-description: Gate an SMA's DEX swaps for tokens that have NO oracle by REUSING the shared SwapPermissionNoOracle singleton (Protocol/contracts/templates/SwapPermissionNoOracle.sol) — register + configure, no per-SMA deploy. Use for a bounded swap mandate on Uniswap V3/V3-02/V2 (and forks) where no manipulation-resistant price feed exists: router + token-in/out allowlists, a per-tx cap, recipient pinned to the SMA, and a per-pair live-pool "hallucination band". NOT manipulation-resistant — if the token HAS an oracle use sail-template-swap instead; for the LI.FI aggregator use sail-lifi-swap. Deployed on all 11 Sailor-bundled chains (recorded in sail-templates/deployed.json).
+description: Gate an SMA's DEX swaps for tokens that have NO oracle by REUSING the shared SwapPermissionNoOracle singleton (Protocol/contracts/templates/SwapPermissionNoOracle.sol) — register + configure, no per-SMA deploy. Use for a bounded swap mandate on Uniswap V3/V3-02/V2 (and forks) where no manipulation-resistant price feed exists: router + token-in/out allowlists, a per-tx cap, recipient pinned to the SMA, and a per-pair live-pool "hallucination band". NOT manipulation-resistant — if the token HAS an oracle use sail-template-swap instead; for the LI.FI aggregator author a bespoke permission via sail-mandates. Deployed on all 11 Sailor-bundled chains (recorded in sail-templates/deployed.json).
 compatibility: A Sailor project (`@sail/sdk`, `sailor` CLI). Requires SwapPermissionNoOracle deployed on the target chain (recorded in sail-templates/deployed.json); run sail-templates first.
 metadata:
   workspace: sailor-harness
@@ -97,4 +97,4 @@ Template-specific bits:
   [`sail-template-swap`](../sail-template-swap/SKILL.md) wherever an oracle exists.
 - `toleranceBps` is capped at 50% in source; a wider band is meaningless and rejected at configure.
 - Unaudited example — step 4 is mandatory.
-- Aggregator routing (opaque calldata) → [`sail-lifi-swap`](../sail-lifi-swap/SKILL.md).
+- Aggregator routing (opaque calldata) → author a bespoke permission via [`sail-mandates`](../sail-mandates/SKILL.md).

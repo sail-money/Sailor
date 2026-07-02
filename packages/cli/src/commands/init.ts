@@ -221,29 +221,10 @@ export async function initCommand(
     ? (() => { try { return JSON.parse(fs.readFileSync(existingConfigPath, "utf-8")) as { installMode?: string; containerName?: string }; } catch { return null; } })()
     : null;
 
+  // The template tree carries everything a scaffold receives, including the
+  // examples/ reference material (permissions/, custom-mandate/, dca/) that
+  // `sailor mandate templates` and the skills point the user at.
   copyDirSync(templateSrc, dest);
-
-  // Copy shared reference assets from the package into the project so the agent
-  // can read them locally regardless of where Sailor is installed.
-  const pkgRoot = packageRoot();
-
-  const examplesPermSrc = path.join(pkgRoot, "examples", "permissions");
-  if (fs.existsSync(examplesPermSrc)) {
-    copyDirSync(examplesPermSrc, path.join(dest, "examples", "permissions"));
-  }
-
-  // The IPermission authoring scaffold — `sailor mandate templates` points the
-  // user at examples/custom-mandate/README.md, so it must exist locally.
-  const customMandateSrc = path.join(pkgRoot, "examples", "custom-mandate");
-  if (fs.existsSync(customMandateSrc)) {
-    copyDirSync(customMandateSrc, path.join(dest, "examples", "custom-mandate"));
-  }
-
-  const permModelSrc = path.join(pkgRoot, "docs", "PERMISSION_MODEL.md");
-  if (fs.existsSync(permModelSrc)) {
-    fs.mkdirSync(path.join(dest, "docs"), { recursive: true });
-    writeIfMissing(path.join(dest, "docs", "PERMISSION_MODEL.md"), fs.readFileSync(permModelSrc, "utf-8"));
-  }
 
   // Patch package.json: set the project name and inject the Sailor CLI as a
   // devDependency pinned to the version that generated this scaffold.

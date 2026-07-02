@@ -124,8 +124,8 @@ Full mechanics (EIP-712 sigs, `configure`/`configureDirect`, `attachBatch`, `rep
 
 No shared template covers: **perps** (GMX, Gains, Synthetix), **prediction markets** (Azuro,
 Limitless), or the **LI.FI aggregator**. For those, author a bespoke `IPermission` via
-`sailor mandate deploy` — see [`sail-lifi-swap`](../sail-lifi-swap/SKILL.md) for the
-custody-bound aggregator pattern and [`sail-pendle`](../sail-pendle/SKILL.md) for Pendle.
+`sailor mandate deploy` — see [`sail-mandates`](../sail-mandates/SKILL.md) for the
+authoring flow and `examples/permissions/` for worked per-protocol patterns.
 
 ## Notes
 
