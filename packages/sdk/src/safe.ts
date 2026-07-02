@@ -292,6 +292,9 @@ export function encodeSetManager(newManager: Address): Hex {
  * submits this tx from their own wallet and authorises it with a pre-validated
  * signature (see `buildApprovedHashSignature`); no separate Safe-tx signing
  * round-trip is needed. Returns the tx the owner sends: `{ to: safe, data }`.
+ *
+ * PRECONDITION — 1-of-1 Safe (as above): the single pre-validated entry is only accepted
+ * when `threshold === 1` and `params.owner` submits; on a threshold ≥ 2 Safe it reverts.
  */
 export function buildSetManagerExecTransaction(params: {
   /** The SMA (Safe) whose manager is being rotated; also the tx `to`. */
@@ -359,7 +362,10 @@ const registerAccountAbi = [
  *     because the owner submits the execTransaction themselves. This is the correct use of
  *     `buildApprovedHashSignature`.
  *
- * For 1-of-1 Safes the owner submits the returned tx `{ to: safe, data }` from their wallet.
+ * PRECONDITION — 1-of-1 Safe. The execTransaction signature is a single pre-validated
+ * (approved-hash) entry, which the Safe only accepts when `threshold === 1` and `params.owner`
+ * is the submitter. This builder does not read the Safe's threshold; on a threshold ≥ 2 Safe the
+ * returned calldata reverts on submit. The owner submits the returned tx `{ to: safe, data }`.
  */
 export function buildRegisterAccountExecTransaction(params: {
   /** The SMA (Safe) being registered; also the tx `to`. */
