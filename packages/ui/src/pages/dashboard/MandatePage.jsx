@@ -12,7 +12,9 @@ import layout from './SharedLayout.module.css'
 import styles from './MandatePage.module.css'
 import { useSailorAccount, useSailorMandate } from '../../hooks/useSailorData'
 import { useAccount } from 'wagmi'
+import { getSailDeployment } from '@sail/sdk/deployments'
 import { explorerTxUrl, explorerAddressUrl, explorerCodeUrl } from '../../lib/explorer'
+import SessionControlModal from './SessionControlModal'
 
 // SailKernel protocol constants (from SailProtocol source)
 const GOVERNANCE = {
@@ -100,10 +102,18 @@ function CapabilitiesGlance({ mandate }) {
 }
 
 export default function MandatePage({ mandateId, onBack, onRevoke }) {
-  const { mandate: liveMandate } = useSailorMandate()
-  const { account } = useSailorAccount()
+  // Bumped after a session pause/resume lands so the mandate + account state re-fetch.
+  const [refreshTick, setRefreshTick] = useState(0)
+  const { mandate: liveMandate } = useSailorMandate(refreshTick)
+  const { account } = useSailorAccount(refreshTick)
   const { address: walletAddress } = useAccount()
   const chainId = account?.chainId
+  // Resolve the kernel for this chain from the bundled deployment registry (getSailDeployment
+  // throws for an unknown chain, so guard it). Needed to submit the session kill switch.
+  let kernel = null
+  try { kernel = chainId ? getSailDeployment(chainId)?.kernel ?? null : null } catch { kernel = null }
+  // Session kill-switch modal: null | 'pause' | 'resume'.
+  const [sessionMode, setSessionMode] = useState(null)
 
   const baseMandate = useMemo(() => {
     if (!liveMandate) return null
@@ -130,7 +140,6 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
   const sma = account ? { name: 'My SMA', address: account.safe } : null
   const agents = []
 
-  const [revokeOpen, setRevokeOpen] = useState(false)
   const [contractOpen, setContractOpen] = useState(false)
   const [expandedPermId, setExpandedPermId] = useState(null)
   const [handoffOpen, setHandoffOpen] = useState(false)
@@ -168,6 +177,8 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
 
   const isActive = mandate.status === 'active'
   const isRevoked = mandate.status === 'revoked'
+  // On-chain session kill switch: sessionActive === false means dispatch is halted.
+  const sessionPaused = mandate.sessionActive === false
 
   return (
     <div className={`${shared.pageShell} ${styles.shell}`}>
@@ -690,21 +701,21 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
           <header className={styles.cardHead}>
             <div className={styles.cardHeadText}>
               <span className={styles.dangerKicker}>Reversible · halts all dispatch</span>
-              <h2 className={styles.cardTitle}>Revoke mandate</h2>
+              <h2 className={styles.cardTitle}>{sessionPaused ? 'Resume session' : 'Pause session'}</h2>
               <p className={styles.cardSub}>
-                Flips the kill switch on this mandate. Every agent stops dispatching
-                immediately, but the permissions below stay registered. You can
-                re-activate the mandate at any time without re-signing anything.
-                Always exempt from protocol pause.
+                The kill switch for this mandate. Pausing halts <em>all</em> agent dispatch
+                immediately — permissions stay registered, so you can resume at any time without
+                re-signing anything. Any transaction the agent pre-signed is invalidated. Always
+                exempt from protocol pause.
               </p>
             </div>
             <button
               type="button"
               className={styles.revokeBtn}
-              onClick={() => setRevokeOpen(true)}
-              disabled={!isActive}
+              onClick={() => setSessionMode(sessionPaused ? 'resume' : 'pause')}
+              disabled={!kernel || !sma}
             >
-              Revoke mandate
+              {sessionPaused ? 'Resume session' : 'Pause session'}
             </button>
           </header>
         </section>
@@ -719,17 +730,18 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
         onClose={() => setContractOpen(false)}
       />
 
-      {/* Destructive revoke — opens the same signed contract and plays
-          the REVOKED stamp animation on confirmation. */}
-      <ContractModal
-        open={revokeOpen}
-        mode="revoke"
-        mandate={mandate}
-        signedDate={mandate.signedAt}
-        onClose={() => setRevokeOpen(false)}
-        onRevoke={() => {
-          setRevokeOpen(false)
-          onRevoke?.()
+      {/* Session kill switch — pause (revokeSession) / resume (activateSession) on-chain.
+          The owner signs the RevokeSession/ActivateSession digest and submits the tx. */}
+      <SessionControlModal
+        open={!!sessionMode}
+        mode={sessionMode}
+        sma={sma?.address}
+        kernel={kernel}
+        chainId={chainId}
+        onClose={() => setSessionMode(null)}
+        onDone={() => {
+          setSessionMode(null)
+          setRefreshTick((t) => t + 1)
         }}
       />
 
