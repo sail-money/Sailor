@@ -37,18 +37,8 @@ jobs:
       environment: ${{ github.event_name == 'push' && (github.ref_type == 'tag' && 'prod' || 'beta') || 'dev' }}
       version: ${{ github.ref_name }}
 
-  publish-github-packages:
-    needs: tests
-    if: github.event_name == 'push'
-    permissions:
-      id-token: write
-      contents: read
-      packages: write
-    uses: ./.github/workflows/publish-github-packages.yml
-    with:
-      # Channel: tag push → prod (latest), main push → beta, manual dispatch → dev.
-      environment: ${{ github.event_name == 'push' && (github.ref_type == 'tag' && 'prod' || 'beta') || 'dev' }}
-      version: ${{ github.ref_name }}
+  # GitHub Packages publishing is intentionally NOT run here.
+  # Trigger it manually via the "Publish to GitHub Packages" workflow.
 
   publish-docker:
     needs: tests

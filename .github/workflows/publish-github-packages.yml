@@ -1,10 +1,17 @@
 name: Publish to GitHub Packages
 
 on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Publish channel: sets the dist-tag on the GH_NPM_PACKAGE repo variable. 'prod' → @latest, 'beta' → @beta, 'dev' → @dev"
+        type: choice
+        options: [dev, beta, prod]
+        default: dev
   workflow_call:
     inputs:
       environment:
-        description: "Publish channel: 'prod' → @sail-money/sailor@latest, 'beta' → @sail-money/sailor-dev@beta, 'dev' → @sail-money/sailor-dev@dev"
+        description: "Publish channel: sets the dist-tag on the GH_NPM_PACKAGE repo variable. 'prod' → @latest, 'beta' → @beta, 'dev' → @dev"
         type: string
         required: true
       version:
@@ -24,7 +31,9 @@ jobs:
     uses: ./.github/workflows/publish-npm-public-pkg.yaml
     with:
       registry-url: 'https://npm.pkg.github.com'
-      package-name: ${{ inputs.environment == 'prod' && '@sail-money/sailor' || '@sail-money/sailor-dev' }}
+      # One package for every channel; set GH_NPM_PACKAGE under repo
+      # Settings → Secrets and variables → Actions → Variables.
+      package-name: ${{ vars.GH_NPM_PACKAGE }}
       dist-tag: ${{ inputs.environment == 'prod' && 'latest' || inputs.environment }}
       build-number: ${{ inputs.environment != 'prod' && github.run_number || 0 }}
     secrets:
