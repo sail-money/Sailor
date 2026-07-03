@@ -7,17 +7,18 @@
 
 ## What you can build
 
-A trading agent that works a strategy across DEXes. A yield agent that moves capital between lending markets to chase the best rate. A DCA agent that accumulates a position on a schedule. A portfolio rebalancer that holds target allocations through market moves. A vault agent that rotates deposits as conditions change. If a strategy can be expressed as swaps, transfers, lending, deposits, and withdrawals with hard limits — an agent can run it on Sail.
+Autonomous AI agents that transact digital assets, for any use case:
 
-Sailor is the toolkit that takes you there, and it does three jobs:
+- **Trading** — spot, perps, DCA, rebalancing
+- **Yield** — lending, borrowing, liquidity providing, looping
+- **Prediction markets** — bounded bets on outcome venues
+- **Payments & treasury** — transfers, scheduled moves, operational flows
 
-1. **Use the protocol without low-level work.** Sail's shared permission templates (swap, transfer, deposit, withdraw, borrow, and more) are already deployed on every supported chain — and Sailor ships a curated set of skills that equip your agent to configure and use them. You express what the agent may do; nobody writes permission contracts from scratch unless they want to.
-2. **Design a strategy.** The SDK, CLI, and local dashboard are where you compose the agent's logic and the exact bounds it operates within — which venues, which tokens, what size — then prove those bounds hold with an off-chain simulation before anything is at stake.
-3. **Automate it, locally.** The agent runs on your machine (or your runner, or your container), with your keys. There is no hosted intermediary: you keep control, and you keep custody.
+Every agent operates inside a **mandate** — a set of onchain permissions the protocol enforces on each transaction. The agent can't exceed it; you can revoke it in one transaction.
 
-Through all of it, the owner keeps custody. The onchain permissions reject anything outside the mandate before it touches funds, and the owner can revoke the agent's rights instantly without moving assets — a bad strategy can waste its budget, but it cannot exceed it.
+Sailor takes you end to end: deploy your SMA, build your strategy, sign its mandate, and **run the agent on your own machine**.
 
-For the details — what the contracts enforce versus what stays off-chain — see the [Sail Protocol repo](https://github.com/sail-money/protocol) and the [whitepaper](https://github.com/sail-money/protocol/blob/main/docs/whitepaper/Sail_Protocol_Whitepaper.pdf).
+The full trust model — what the contracts enforce versus what stays off-chain — is in the [Sail Protocol repo](https://github.com/sail-money/protocol) and the [whitepaper](https://github.com/sail-money/protocol/blob/main/docs/whitepaper/Sail_Protocol_Whitepaper.pdf).
 
 ## What's in the box
 
