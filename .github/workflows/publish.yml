@@ -24,8 +24,6 @@ jobs:
       environment: ${{ github.event_name == 'push' && github.ref_type == 'tag' && 'prod' || 'dev' }}
       version: ${{ github.ref_name }}
       skip-tests: true
-    secrets:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-github-packages:
     needs: tests

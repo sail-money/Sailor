@@ -68,7 +68,7 @@ on:
         value: ${{ jobs.publish.outputs.version }}
     secrets:
       NPM_TOKEN:
-        description: 'npm publish token. When provided, used for authentication instead of OIDC.'
+        description: 'npm publish token for registries without trusted publishing (e.g. GitHub Packages). Omit to authenticate via OIDC.'
         required: false
 permissions:
   id-token: write  # Required for OIDC
@@ -78,6 +78,8 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    env:
+      HAS_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
     outputs:
       version: ${{ steps.capture.outputs.version }}
     steps:
@@ -159,7 +161,15 @@ jobs:
         working-directory: ${{ inputs.package_dir }}
         run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
-      - name: Publish
+      # OIDC trusted publishing requires NODE_AUTH_TOKEN to be entirely unset —
+      # a present-but-empty value makes npm use the empty token instead of OIDC.
+      - name: Publish (OIDC)
+        if: env.HAS_TOKEN != 'true'
+        working-directory: ${{ inputs.package_dir }}
+        run: npm publish --access public --tag ${{ inputs.dist-tag }}
+
+      - name: Publish (token)
+        if: env.HAS_TOKEN == 'true'
         working-directory: ${{ inputs.package_dir }}
         run: npm publish --access public --tag ${{ inputs.dist-tag }}
         env:
