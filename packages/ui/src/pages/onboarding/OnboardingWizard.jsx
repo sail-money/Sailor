@@ -108,7 +108,7 @@ function OnboardingHeader({ onSkip }) {
   )
 }
 
-export default function OnboardingWizard({ onboardState, onComplete, onSkip }) {
+export default function OnboardingWizard({ onboardState, onComplete, onSkip, onActiveDeployChange }) {
   const { address } = useAccount()
   const [step, setStep] = useState('welcome')
   // Multi-chain: user selects one or more chains; default to Base
@@ -185,6 +185,7 @@ export default function OnboardingWizard({ onboardState, onComplete, onSkip }) {
               saltNonce={saltNonce}
               onBack={() => setStep(onboardState?.hasManagerKey ? 'connect' : 'keygen')}
               onDone={(safes) => { setDeployedSafes(safes); setStep('done') }}
+              onRunningChange={onActiveDeployChange}
               progressIndex={progressIndex}
               progressTotal={PROGRESS_STEPS.length}
             />
@@ -621,7 +622,7 @@ function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTo
 }
 
 /* ── Step 4: Deploy SMAs — one per selected chain ── */
-function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onDone, progressIndex, progressTotal }) {
+function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onDone, onRunningChange, progressIndex, progressTotal }) {
   const { sendTransactionAsync } = useSendTransaction()
   const { signTypedDataAsync } = useSignTypedData()
   const { switchChainAsync } = useSwitchChain()
@@ -633,6 +634,12 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
   const [errors, setErrors] = useState({})
   const [running, setRunning] = useState(false)
   const [deployed, setDeployed] = useState([]) // [{ chainId, safe }]
+
+  // Safety net: if this step ever unmounts while a deploy loop is still marked
+  // running (shouldn't happen via the UI — onBack/onSkip are disabled while
+  // running), release the parent's activeDeployRef so the onboard-state poll
+  // doesn't stay permanently blocked.
+  useEffect(() => () => { if (running) onRunningChange?.(false) }, [running])
 
   function setStatus(chainId, status) {
     setStatuses(prev => ({ ...prev, [chainId]: status }))
@@ -797,6 +804,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
 
   async function deployAll() {
     setRunning(true)
+    onRunningChange?.(true) // held until every selected chain settles — see Dashboard's activeDeployRef
     const results = []
     for (const chainId of chainIds) {
       if (statuses[chainId] === 'done' || statuses[chainId] === 'skipped') continue
@@ -815,11 +823,13 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
           setError(chainId, msg)
           setStatus(chainId, 'error')
           setRunning(false)
+          onRunningChange?.(false)
           return // stop on real errors — user retries
         }
       }
     }
     setRunning(false)
+    onRunningChange?.(false)
     const allSettled = [...deployed, ...results]
     onDone(allSettled) // pass whatever succeeded
   }
@@ -893,11 +903,18 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
 // of the SDK deployment record, so this map must be kept in sync by hand: every
 // chainId in LIVE_CHAIN_IDS (i.e. sailDeployments) needs an entry here.
 const PUBLIC_RPC = {
+  1:      'https://eth.llamarpc.com',
   8453:   'https://mainnet.base.org',
   84532:  'https://sepolia.base.org',
   42161:  'https://arb1.arbitrum.io/rpc',
   421614: 'https://sepolia-rollup.arbitrum.io/rpc',
   130:    'https://mainnet.unichain.org',
+  10:     'https://mainnet.optimism.io',
+  56:     'https://bsc-dataseed.binance.org',
+  480:    'https://worldchain-mainnet.g.alchemy.com/public',
+  999:    'https://rpc.hyperliquid.xyz/evm',
+  4326:   'https://mainnet.megaeth.com/rpc',
+  11155111: 'https://ethereum-sepolia-rpc.publicnode.com',
 }
 
 // Poll for a transaction receipt (public client not available as hook here).

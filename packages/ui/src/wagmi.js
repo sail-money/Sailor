@@ -1,5 +1,5 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit'
-import { mainnet, sepolia, arbitrum, arbitrumSepolia, base, baseSepolia } from 'wagmi/chains'
+import { mainnet, sepolia, arbitrum, arbitrumSepolia, base, baseSepolia, optimism, bsc, worldchain } from 'wagmi/chains'
 import { defineChain } from 'viem'
 
 const unichain = defineChain({
@@ -19,8 +19,25 @@ const unichainSepolia = defineChain({
   testnet: true,
 })
 
+// Not (yet) published in wagmi/chains — defined here from the Sail Protocol deployment data.
+const hyperevm = defineChain({
+  id: 999,
+  name: 'HyperEVM',
+  nativeCurrency: { name: 'HYPE', symbol: 'HYPE', decimals: 18 },
+  rpcUrls: { default: { http: ['https://rpc.hyperliquid.xyz/evm'] } },
+  blockExplorers: { default: { name: 'HyperEVM Scan', url: 'https://hyperevmscan.io' } },
+})
+
+const megaeth = defineChain({
+  id: 4326,
+  name: 'MegaETH',
+  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+  rpcUrls: { default: { http: ['https://mainnet.megaeth.com/rpc'] } },
+  blockExplorers: { default: { name: 'MegaExplorer', url: 'https://megaexplorer.xyz' } },
+})
+
 export const chains = [
-  base, arbitrum, mainnet, unichain,
+  base, arbitrum, mainnet, unichain, optimism, bsc, worldchain, hyperevm, megaeth,
   baseSepolia, arbitrumSepolia, unichainSepolia, sepolia,
 ]
 

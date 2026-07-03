@@ -14,7 +14,7 @@ const megaeth = defineChain({
   id: 4326,
   name: "MegaETH",
   nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-  rpcUrls: { default: { http: ["https://carrot.megaeth.com/rpc"] } },
+  rpcUrls: { default: { http: ["https://mainnet.megaeth.com/rpc"] } },
 });
 
 const CHAINS: Record<number, Chain> = {

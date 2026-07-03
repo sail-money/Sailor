@@ -1215,11 +1215,22 @@ export default function Dashboard() {
   const [onboardChecked, setOnboardChecked] = useState(() => _onboardCache !== null || localStorageOnboardHint() !== null)
   const { draft } = useSailorMandateDraft()
   const [wizardSkipped, setWizardSkipped] = useState(false)
+  // True while the wizard's multi-chain CreateSmaStep is actively looping through
+  // selected chains in THIS page load. account.json is written after each chain
+  // succeeds (not after all of them), so the poll below must not act on an
+  // account it detects mid-loop — that would unmount the wizard while deployAll()
+  // is still mid-flight for the remaining chains (their wallet prompts would then
+  // fire with no visible progress UI). Resets to false on a real page reload, so
+  // the reload-recovery behavior the poll exists for is unaffected.
+  const activeDeployRef = useRef(false)
 
   function refreshOnboard() {
     fetch('/api/onboard/state')
       .then(r => r.json())
-      .then(s => { _onboardCache = s; setOnboardState(s); setOnboardChecked(true) })
+      .then(s => {
+        if (activeDeployRef.current) return
+        _onboardCache = s; setOnboardState(s); setOnboardChecked(true)
+      })
       .catch(() => setOnboardChecked(true))
   }
 
@@ -1259,7 +1270,14 @@ export default function Dashboard() {
   // SMA creation — not eject them into the dashboard's create-SMA modal. Users
   // who already have an SMA elsewhere use the wizard's "Skip to dashboard" link.
   if (!onboardState?.hasAccount && !wizardSkipped) {
-    return <OnboardingWizard onboardState={onboardState} onComplete={handleOnboardComplete} onSkip={() => setWizardSkipped(true)} />
+    return (
+      <OnboardingWizard
+        onboardState={onboardState}
+        onComplete={handleOnboardComplete}
+        onSkip={() => setWizardSkipped(true)}
+        onActiveDeployChange={(active) => { activeDeployRef.current = active }}
+      />
+    )
   }
 
   return <DashboardContent draft={draft} onReset={refreshOnboard} wizardSkipped={wizardSkipped} />
