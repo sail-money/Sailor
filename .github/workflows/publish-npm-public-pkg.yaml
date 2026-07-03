@@ -68,7 +68,7 @@ on:
         value: ${{ jobs.publish.outputs.version }}
     secrets:
       NPM_TOKEN:
-        description: 'npm publish token. When provided, used for authentication instead of OIDC.'
+        description: 'npm publish token for registries without trusted publishing (e.g. GitHub Packages). Omit to authenticate via OIDC.'
         required: false
 permissions:
   id-token: write  # Required for OIDC
@@ -78,6 +78,8 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    env:
+      HAS_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
     outputs:
       version: ${{ steps.capture.outputs.version }}
     steps:
@@ -159,9 +161,32 @@ jobs:
         working-directory: ${{ inputs.package_dir }}
         run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
-      - name: Publish
+      # OIDC trusted publishing requires that no auth token is configured.
+      # actions/setup-node exports a placeholder NODE_AUTH_TOKEN (XXXXX-...) and
+      # writes an _authToken line into its generated .npmrc whenever registry-url
+      # is set; npm then uses that garbage token instead of OIDC and the registry
+      # rejects the publish with E404. Publish with a clean userconfig instead.
+      - name: Publish (OIDC)
+        if: env.HAS_TOKEN != 'true'
         working-directory: ${{ inputs.package_dir }}
-        run: npm publish --access public --tag ${{ inputs.dist-tag }}
+        env:
+          REGISTRY_URL: ${{ inputs.registry-url }}
+          DIST_TAG: ${{ inputs.dist-tag }}
+        run: |
+          if [ -z "$ACTIONS_ID_TOKEN_REQUEST_URL" ]; then
+            echo "::error::OIDC endpoint unavailable: id-token permission was not granted to this job, so npm cannot mint a trusted-publishing token"
+            exit 1
+          fi
+          echo "OIDC endpoint available; publishing via trusted publishing"
+          unset NODE_AUTH_TOKEN
+          echo "registry=$REGISTRY_URL" > "$RUNNER_TEMP/.npmrc-oidc"
+          NPM_CONFIG_USERCONFIG="$RUNNER_TEMP/.npmrc-oidc" npm publish --access public --tag "$DIST_TAG"
+
+      - name: Publish (token)
+        if: env.HAS_TOKEN == 'true'
+        working-directory: ${{ inputs.package_dir }}
+        run: npm publish --access public --tag "$DIST_TAG"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DIST_TAG: ${{ inputs.dist-tag }}
 

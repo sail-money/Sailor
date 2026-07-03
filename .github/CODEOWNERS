@@ -1,5 +1,13 @@
-# Code owners for sail-money/Sailor
-# Syntax: https://docs.github.com/articles/about-code-owners
+# Code owners. Auto-requests review; only ENFORCED when branch protection has
+# "Require review from Code Owners" enabled (and direct pushes to main blocked).
+# A review from ANY listed owner satisfies the check.
 # The @sail-money/devs team must have write access for team ownership to apply.
 
-*                            @sail-money/devs @aadopii
+# Default owner for everything.
+*               @sail-money/devs @aadopii
+
+# GitHub flow — CI, release workflows, this file. Owned by the release operator.
+/.github/       @jmad-sail
+
+# Package source — owned by the devs team.
+/packages/      @sail-money/devs

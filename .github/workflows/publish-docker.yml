@@ -4,44 +4,43 @@ on:
   workflow_call:
     inputs:
       environment:
-        description: "'dev' → <DOCKER_IMAGE>:dev, 'prod' → <DOCKER_IMAGE>:<ver> + :latest  (DOCKER_IMAGE repo variable)"
+        description: "Publish channel: 'dev'/'beta' → <DOCKER_IMAGE>:dev / :beta, 'prod' → <DOCKER_IMAGE>:<ver> + :latest  (DOCKER_IMAGE repo variable)"
         type: string
         required: true
       version:
         description: 'Git ref name (e.g. v1.2.3 for tags)'
         type: string
         default: ''
-      skip-tests:
-        description: 'Skip the test job (set true when called from the orchestrator, which already ran tests)'
-        type: boolean
-        default: false
     secrets:
       DOCKERHUB_USERNAME:
         required: true
       DOCKERHUB_TOKEN:
         required: true
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: "'dev' → <DOCKER_IMAGE>:dev, 'prod' → <DOCKER_IMAGE>:<ver> + :latest  (DOCKER_IMAGE repo variable)"
-        type: choice
-        options: [dev, prod]
-        default: dev
-      version:
-        description: 'Version tag (e.g. v1.2.3) — required for prod'
-        type: string
-        default: ''
 
 jobs:
-  tests:
-    # Skipped when called from the orchestrator (which passes skip-tests: true).
-    if: ${{ !inputs.skip-tests }}
-    uses: ./.github/workflows/tests.yml
+  # Fail loud on an unknown channel instead of silently skipping every publish job.
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate environment input
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          case "$ENVIRONMENT" in
+            dev|beta) ;;
+            prod)
+              if [ -z "$VERSION" ]; then
+                echo "::error::prod publish requires a non-empty version"; exit 1
+              fi ;;
+            *)
+              echo "::error::Invalid environment '$ENVIRONMENT' (expected dev, beta, or prod)"; exit 1 ;;
+          esac
 
-  publish-dev:
-    needs: tests
-    # always() prevents auto-skip when tests is skipped (workflow_call path).
-    if: always() && inputs.environment == 'dev' && (needs.tests.result == 'success' || needs.tests.result == 'skipped')
+  # dev (manual builds) and beta (pushes to main) publish a single channel tag.
+  publish-channel:
+    needs: validate
+    if: inputs.environment == 'dev' || inputs.environment == 'beta'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -65,16 +64,15 @@ jobs:
         with:
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ vars.DOCKER_IMAGE }}:dev
+          tags: ${{ vars.DOCKER_IMAGE }}:${{ inputs.environment }}
           sbom: true
           provenance: mode=max
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   publish-prod:
-    needs: tests
-    # always() prevents auto-skip when tests is skipped (workflow_call path).
-    if: always() && inputs.environment == 'prod' && inputs.version != '' && (needs.tests.result == 'success' || needs.tests.result == 'skipped')
+    needs: validate
+    if: inputs.environment == 'prod' && inputs.version != ''
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -1,8 +1,12 @@
 {
   "name": "sailor",
   "private": true,
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Operator toolkit for Sail Protocol",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sail-money/Sailor.git"
+  },
   "bin": {
     "sailor": "packages/cli/dist/index.cjs"
   },

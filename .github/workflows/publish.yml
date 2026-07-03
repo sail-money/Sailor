@@ -5,51 +5,53 @@ on:
     tags: ['v*']
     branches: [main]
   workflow_dispatch:
+    inputs:
+      publish-npm:
+        description: 'Publish the npm package'
+        type: boolean
+        default: false
+      publish-docker:
+        description: 'Build and publish the Docker image'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
   tests:
+    # On manual dispatch, only run when at least one publish target is selected.
+    if: github.event_name == 'push' || inputs.publish-npm || inputs.publish-docker
     uses: ./.github/workflows/tests.yml
 
   publish-npm:
     needs: tests
+    if: github.event_name == 'push' || inputs.publish-npm
     permissions:
       id-token: write
       contents: read
       packages: write
     uses: ./.github/workflows/publish-npm.yml
     with:
-      environment: ${{ github.event_name == 'push' && github.ref_type == 'tag' && 'prod' || 'dev' }}
+      # Channel: tag push → prod (latest), main push → beta, manual dispatch → dev.
+      environment: ${{ github.event_name == 'push' && (github.ref_type == 'tag' && 'prod' || 'beta') || 'dev' }}
       version: ${{ github.ref_name }}
-      skip-tests: true
-    secrets:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-  publish-github-packages:
-    needs: tests
-    permissions:
-      id-token: write
-      contents: read
-      packages: write
-    uses: ./.github/workflows/publish-github-packages.yml
-    with:
-      environment: ${{ github.event_name == 'push' && github.ref_type == 'tag' && 'prod' || 'dev' }}
-      version: ${{ github.ref_name }}
-      skip-tests: true
+  # GitHub Packages publishing is intentionally NOT run here.
+  # Trigger it manually via the "Publish to GitHub Packages" workflow.
 
   publish-docker:
     needs: tests
+    if: github.event_name == 'push' || inputs.publish-docker
     permissions:
       contents: read
       id-token: write
       attestations: write
     uses: ./.github/workflows/publish-docker.yml
     with:
-      environment: ${{ github.event_name == 'push' && github.ref_type == 'tag' && 'prod' || 'dev' }}
+      # Channel: tag push → prod (latest), main push → beta, manual dispatch → dev.
+      environment: ${{ github.event_name == 'push' && (github.ref_type == 'tag' && 'prod' || 'beta') || 'dev' }}
       version: ${{ github.ref_name }}
-      skip-tests: true
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
