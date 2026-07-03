@@ -1215,13 +1215,17 @@ export default function Dashboard() {
   const [onboardChecked, setOnboardChecked] = useState(() => _onboardCache !== null || localStorageOnboardHint() !== null)
   const { draft } = useSailorMandateDraft()
   const [wizardSkipped, setWizardSkipped] = useState(false)
-  // True while the wizard's multi-chain CreateSmaStep is actively looping through
-  // selected chains in THIS page load. account.json is written after each chain
-  // succeeds (not after all of them), so the poll below must not act on an
-  // account it detects mid-loop — that would unmount the wizard while deployAll()
-  // is still mid-flight for the remaining chains (their wallet prompts would then
-  // fire with no visible progress UI). Resets to false on a real page reload, so
-  // the reload-recovery behavior the poll exists for is unaffected.
+  // True from the moment the wizard's multi-chain CreateSmaStep starts deploying
+  // until the user actually leaves the wizard (Go to dashboard / Skip). account.json
+  // is written after each chain succeeds (not after all of them), so the poll below
+  // must not act on an account it detects while the user is still in the wizard —
+  // that would unmount the wizard out from under them: mid-loop (remaining chains'
+  // wallet prompts fire with no progress UI), on the error/retry screen (they can
+  // never click "Retry failed chains"), or on the "done" summary (it vanishes
+  // before they see which chains deployed). It is released only on the real exit
+  // paths (handleOnboardComplete / onSkip) and on wizard unmount, never at loop
+  // end. Resets to false on a real page reload, so the reload-recovery behavior
+  // the poll exists for is unaffected.
   const activeDeployRef = useRef(false)
 
   function refreshOnboard() {
@@ -1239,6 +1243,7 @@ export default function Dashboard() {
   // another /api/onboard/state round-trip. Then fetch in the background to
   // populate the full state (rpcUrl, chainId, etc.).
   function handleOnboardComplete() {
+    activeDeployRef.current = false // user has left the wizard — let the poll resume
     const optimistic = { ...(onboardState ?? {}), hasAccount: true }
     _onboardCache = optimistic
     setOnboardState(optimistic)
@@ -1274,7 +1279,7 @@ export default function Dashboard() {
       <OnboardingWizard
         onboardState={onboardState}
         onComplete={handleOnboardComplete}
-        onSkip={() => setWizardSkipped(true)}
+        onSkip={() => { activeDeployRef.current = false; setWizardSkipped(true) }}
         onActiveDeployChange={(active) => { activeDeployRef.current = active }}
       />
     )

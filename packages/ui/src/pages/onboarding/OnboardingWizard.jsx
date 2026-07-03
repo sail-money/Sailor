@@ -118,6 +118,14 @@ export default function OnboardingWizard({ onboardState, onComplete, onSkip, onA
   // Fixed salt so the same Safe address is produced on every chain via CREATE2
   const [saltNonce] = useState(() => String(Date.now()))
 
+  // Safety net: whenever the wizard unmounts for any reason, release the parent's
+  // deploy-active flag so the onboard-state poll can never stay permanently
+  // blocked. The normal exit paths (onComplete / onSkip) already clear it; this
+  // covers every other unmount. Scoped to the whole wizard, NOT CreateSmaStep —
+  // that inner step unmounts on the create-sma → done transition, which must keep
+  // the flag held so the poll doesn't eject the user off the "done" summary.
+  useEffect(() => () => { onActiveDeployChange?.(false) }, [])
+
 
   // Note: we intentionally do NOT auto-advance past the welcome screen when a
   // wallet is already connected. The welcome screen is where the user chooses
@@ -635,12 +643,6 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
   const [running, setRunning] = useState(false)
   const [deployed, setDeployed] = useState([]) // [{ chainId, safe }]
 
-  // Safety net: if this step ever unmounts while a deploy loop is still marked
-  // running (shouldn't happen via the UI — onBack/onSkip are disabled while
-  // running), release the parent's activeDeployRef so the onboard-state poll
-  // doesn't stay permanently blocked.
-  useEffect(() => () => { if (running) onRunningChange?.(false) }, [running])
-
   function setStatus(chainId, status) {
     setStatuses(prev => ({ ...prev, [chainId]: status }))
   }
@@ -804,7 +806,12 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
 
   async function deployAll() {
     setRunning(true)
-    onRunningChange?.(true) // held until every selected chain settles — see Dashboard's activeDeployRef
+    // Suppress the parent's onboard-state poll for the rest of the wizard's life:
+    // account.json is written per-chain, so from the first success onward the poll
+    // would otherwise detect an account and eject the user. The parent releases
+    // this on the real exit paths (Go to dashboard / Skip) and on wizard unmount —
+    // NOT at loop end, so the error/retry and "done" screens stay visible.
+    onRunningChange?.(true)
     const results = []
     for (const chainId of chainIds) {
       if (statuses[chainId] === 'done' || statuses[chainId] === 'skipped') continue
@@ -823,15 +830,22 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
           setError(chainId, msg)
           setStatus(chainId, 'error')
           setRunning(false)
-          onRunningChange?.(false)
+          // Do NOT release onRunningChange here: the wizard stays on this step
+          // showing "Retry failed chains", and the parent's poll must remain
+          // suppressed so it doesn't unmount the wizard before the user retries.
           return // stop on real errors — user retries
         }
       }
     }
     setRunning(false)
-    onRunningChange?.(false)
-    const allSettled = [...deployed, ...results]
-    onDone(allSettled) // pass whatever succeeded
+    const settled = [...deployed, ...results]
+    // Every chain was skipped (e.g. UntrustedFactory everywhere): nothing was
+    // deployed and no account.json was written. Do NOT navigate to the "done"
+    // summary — it would falsely claim "Your SMA is live". Stay on this step so
+    // the in-place "No chains deployed successfully" branch shows the reasons.
+    // onRunningChange stays held; the wizard-unmount safety net releases it.
+    if (settled.length === 0) return
+    onDone(settled) // pass whatever succeeded
   }
 
   const allSettled = chainIds.every(id => statuses[id] === 'done' || statuses[id] === 'skipped' || statuses[id] === 'error')
