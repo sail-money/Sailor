@@ -189,6 +189,15 @@ const SUPPORTED_CHAIN_IDS = [1, 8453, 42161, 10, 130, 56, 480, 999, 4326, 84532]
 // Sourced from the SDK chain registry (single source of truth) — do not hand-edit.
 const DEFAULT_RPC_URLS = { ...defaultRpcUrls }
 
+// Per-chain cache for the governance registration fee. The fee is a per-chain
+// value that only changes after a 48h-timelocked admin vote, but /api/overview
+// is polled every ~15s — so reading it live on every request would add an RPC
+// round-trip (and up to the client's timeout in latency) to each poll. Cache it
+// for a few minutes so the poll is cheap while still picking up a fee change
+// well within the timelock window. Keyed by chainId → { fee, expiresAt }.
+const REGISTRATION_FEE_TTL_MS = 5 * 60 * 1000
+const registrationFeeCache = new Map()
+
 /** Resolve the RPC URL for a specific chain from the env, with a public fallback. */
 function resolveRpcUrl(env, chainId) {
   const keys = CHAIN_RPC_ENV_KEYS[chainId] ?? [`RPC_URL_${chainId}`]
@@ -1753,16 +1762,22 @@ export function startServer(sailDir, { port = PORT } = {}) {
     // UI falls back to its static disclosure copy instead of breaking the page.
     let registrationFee = null
     if (!localOnly && governance && rpcUrl) {
-      try {
-        const feeClient = createPublicClient({ transport: http(rpcUrl, { timeout: 4000 }) })
-        const feeWei = await readPermissionRegistrationFee(feeClient, governance)
-        registrationFee = {
-          feeWei: feeWei.toString(),
-          feeEth: formatEther(feeWei),
-          symbol: getNativeCurrencySymbol(chainId),
+      const cached = registrationFeeCache.get(chainId)
+      if (cached && cached.expiresAt > Date.now()) {
+        registrationFee = cached.fee
+      } else {
+        try {
+          const feeClient = createPublicClient({ transport: http(rpcUrl, { timeout: 4000 }) })
+          const feeWei = await readPermissionRegistrationFee(feeClient, governance)
+          registrationFee = {
+            feeWei: feeWei.toString(),
+            feeEth: formatEther(feeWei),
+            symbol: getNativeCurrencySymbol(chainId),
+          }
+          registrationFeeCache.set(chainId, { fee: registrationFee, expiresAt: Date.now() + REGISTRATION_FEE_TTL_MS })
+        } catch {
+          registrationFee = null
         }
-      } catch {
-        registrationFee = null
       }
     }
 

@@ -1,3 +1,4 @@
+import { getNativeCurrencySymbol } from '@sail/sdk/chains'
 import { chains } from '../wagmi'
 
 /**
@@ -67,22 +68,16 @@ function resolveChainId(chainOrNetwork) {
 }
 
 /**
- * The native gas token a chain's registration fee is denominated in.
- * Mirrors `@sail/sdk`'s chain registry (`packages/sdk/src/chains.ts`) — kept
- * as a small client-side table here (rather than importing @sail/sdk into the
- * browser bundle) since this is the same pattern used for EXPLORER_SUPPLEMENT
- * above. Most chains use ETH; only chains with their own gas token are listed.
+ * Native gas-token symbol for a chainId or network name. Defaults to "ETH".
+ * Delegates to the SDK chain registry (`@sail/sdk/chains`) so it is the single
+ * source of truth — a new non-ETH chain added there is reflected here with no
+ * second table to keep in sync. `@sail/sdk/chains` is already in the browser
+ * bundle (via `src/wagmi.js`), so this adds no new dependency.
  */
-const NATIVE_SYMBOL_SUPPLEMENT = {
-  56: 'BNB', // BSC
-  999: 'HYPE', // HyperEVM
-}
-
-/** Native gas-token symbol for a chainId or network name. Defaults to "ETH". */
 export function nativeCurrencySymbol(chainOrNetwork) {
   const id = resolveChainId(chainOrNetwork)
   if (id == null) return 'ETH'
-  return NATIVE_SYMBOL_SUPPLEMENT[id] ?? 'ETH'
+  return getNativeCurrencySymbol(id)
 }
 
 /** Returns `{ name, url }` for a chainId or network name, or null if unknown. */
