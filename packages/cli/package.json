@@ -1,6 +1,6 @@
 {
   "name": "sailor",
-  "version": "1.4.0",
+  "version": "2.0.0",
   "description": "CLI operator toolkit for Sail Protocol",
   "type": "module",
   "bin": {
