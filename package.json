@@ -5,7 +5,7 @@
   "description": "Operator toolkit for Sail Protocol",
   "repository": {
     "type": "git",
-    "url": "https://github.com/sail-money/Sailor.git"
+    "url": "git+https://github.com/sail-money/Sailor.git"
   },
   "bin": {
     "sailor": "packages/cli/dist/index.cjs"

@@ -161,12 +161,18 @@ jobs:
         working-directory: ${{ inputs.package_dir }}
         run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
-      # OIDC trusted publishing requires NODE_AUTH_TOKEN to be entirely unset —
-      # a present-but-empty value makes npm use the empty token instead of OIDC.
+      # OIDC trusted publishing requires that no auth token is configured.
+      # actions/setup-node exports a placeholder NODE_AUTH_TOKEN (XXXXX-...) and
+      # writes an _authToken line into its generated .npmrc whenever registry-url
+      # is set; npm then uses that garbage token instead of OIDC and the registry
+      # rejects the publish with E404. Publish with a clean userconfig instead.
       - name: Publish (OIDC)
         if: env.HAS_TOKEN != 'true'
         working-directory: ${{ inputs.package_dir }}
-        run: npm publish --access public --tag ${{ inputs.dist-tag }}
+        run: |
+          unset NODE_AUTH_TOKEN
+          echo "registry=${{ inputs.registry-url }}" > "$RUNNER_TEMP/.npmrc-oidc"
+          NPM_CONFIG_USERCONFIG="$RUNNER_TEMP/.npmrc-oidc" npm publish --access public --tag ${{ inputs.dist-tag }}
 
       - name: Publish (token)
         if: env.HAS_TOKEN == 'true'
