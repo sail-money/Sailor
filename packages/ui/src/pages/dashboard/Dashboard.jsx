@@ -83,7 +83,7 @@ const CHAIN_NAMES = {
   56: 'binance',
   480: 'world',
   999: 'hyperevm',
-  6342: 'megaeth',
+  4326: 'megaeth',
   84532: 'base sepolia',
 }
 // Proper-cased display labels for chains whose slug doesn't render cleanly under
@@ -94,7 +94,7 @@ const CHAIN_DISPLAY_NAMES = {
   56: 'BNB',
   480: 'World',
   999: 'HyperEVM',
-  6342: 'MegaETH',
+  4326: 'MegaETH',
 }
 // User-facing chain label; falls back to the network slug for everything else.
 function chainDisplayName(chainId) {
