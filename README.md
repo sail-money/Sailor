@@ -4,12 +4,20 @@
 
 [![npm version](https://img.shields.io/npm/v/%40sail.money%2Fsailor)](https://www.npmjs.com/package/@sail.money/sailor)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-[![Tests](https://github.com/sail-money/Sailor/actions/workflows/tests.yml/badge.svg)](https://github.com/sail-money/Sailor/actions/workflows/tests.yml)
-[![node >= 18](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org)
 
 ## What you can build
 
-An autonomous or semi-autonomous agent that manages capital inside a **self-custodial Safe**, bounded by **onchain permissions it cannot exceed**. The owner holds the Safe and signs a mandate — a set of permission contracts encoding exactly what the agent may do (which venues, which tokens, what size). The agent executes within those bounds; anything outside them is rejected by the SailKernel before it touches funds, and the owner can revoke the agent's dispatch rights instantly without moving assets. The trust model — what the contracts enforce versus what stays off-chain — is specified in the [Sail Protocol repo](https://github.com/sail-money/protocol) and the [whitepaper](https://github.com/sail-money/protocol/blob/main/docs/whitepaper/Sail_Protocol_Whitepaper.pdf).
+A trading agent that works a strategy across DEXes. A yield agent that moves capital between lending markets to chase the best rate. A DCA agent that accumulates a position on a schedule. A portfolio rebalancer that holds target allocations through market moves. A vault agent that rotates deposits as conditions change. If a strategy can be expressed as swaps, transfers, lending, deposits, and withdrawals with hard limits — an agent can run it on Sail.
+
+Sailor is the toolkit that takes you there, and it does three jobs:
+
+1. **Use the protocol without low-level work.** Sail's shared permission templates (swap, transfer, deposit, withdraw, borrow, and more) are already deployed on every supported chain — and Sailor ships a curated set of skills that equip your agent to configure and use them. You express what the agent may do; nobody writes permission contracts from scratch unless they want to.
+2. **Design a strategy.** The SDK, CLI, and local dashboard are where you compose the agent's logic and the exact bounds it operates within — which venues, which tokens, what size — then prove those bounds hold with an off-chain simulation before anything is at stake.
+3. **Automate it, locally.** The agent runs on your machine (or your runner, or your container), with your keys. There is no hosted intermediary: you keep control, and you keep custody.
+
+Through all of it, the owner keeps custody. The onchain permissions reject anything outside the mandate before it touches funds, and the owner can revoke the agent's rights instantly without moving assets — a bad strategy can waste its budget, but it cannot exceed it.
+
+For the details — what the contracts enforce versus what stays off-chain — see the [Sail Protocol repo](https://github.com/sail-money/protocol) and the [whitepaper](https://github.com/sail-money/protocol/blob/main/docs/whitepaper/Sail_Protocol_Whitepaper.pdf).
 
 ## What's in the box
 
@@ -18,9 +26,9 @@ An autonomous or semi-autonomous agent that manages capital inside a **self-cust
 | **SDK** (`@sail.money/sailor/sdk`) | `SailorClient`, encrypted keyring, EIP-712 signing, dispatch submission, deployment + chain registries, template encoders |
 | **CLI** (`sailor`) | Everything from `sailor init` to `sailor run`: keys, SMA deployment, mandate lifecycle, agent loop, doctor, session control |
 | **Dashboard** (`sailor ui`) | Local web UI for onboarding, balances, mandate health, activity, and owner signing |
-| **Scaffolded skills** | Step-by-step procedures under `.agents/skills/` that your AI coding assistant follows to set up and operate the agent |
+| **Skills** | Seventeen curated procedures under `.agents/skills/` that equip the agent across the whole workflow — project setup and diagnostics, mandate authoring and template configuration, market data and transactions, unattended automation |
 
-**About the scaffold.** `sailor init` scaffolds your project from `templates/default/`, which ships two things together: the `.agents/skills` your assistant follows, and the **worked example permissions** (`templates/default/examples/` → your project's `examples/`) those skills teach from — protocol-specific bounding patterns (Uniswap, Aave, GMX, ERC-4626, and more) plus an `IPermission` authoring workspace. The examples are shipped teaching material inside every scaffold, not repo furniture.
+**About the scaffold.** `sailor init` scaffolds your project from `templates/default/`, and the agent arrives already equipped: the skills cover setting up (onboarding, project state, the local servers), defining the mandate (one skill per shared template, plus the full custom-permission lifecycle), executing strategy (token resolution and liquidity mapping, live swap quotes, the dispatch model), and running unattended (automation options, notifications, custom dashboards). Alongside the skills ship the **worked example permissions** (`templates/default/examples/` → your project's `examples/`) the mandate skills teach from — protocol-specific bounding patterns (Uniswap, Aave, GMX, ERC-4626, and more) plus an `IPermission` authoring workspace. Shipped teaching material in every scaffold, not repo furniture.
 
 ## Installation
 
@@ -50,7 +58,7 @@ Project files live on your host via the volume mount; prefix `sailor` commands w
 
 ## Quickstart
 
-The recommended path is assistant-driven: open the scaffolded folder in Claude Code, Cursor, Codex, or any AI coding assistant and say **"start"** — the scaffold's `AGENTS.md` and skills walk the assistant through everything below. The direct-CLI version of the same journey:
+The recommended path is agent-driven: open the scaffolded folder in Claude Code, Cursor, Codex, or any AI coding agent and say **"start"** — the scaffold's `AGENTS.md` and skills walk the agent through everything below. The direct-CLI version of the same journey:
 
 ```bash
 npx sailor init my-agent && cd my-agent && npm install
@@ -84,9 +92,9 @@ Each probed call prints a verdict — `PASS`, `FAIL`, or `REVERT` — which is t
 
 Longer walkthrough, including revocation: [docs/getting-started.md](./docs/getting-started.md).
 
-## How the assistant is guided (skills)
+## How the agent is guided (skills)
 
-The scaffold follows the open [Agent Skills](https://agentskills.io) standard: a slim, always-loaded `AGENTS.md` carries the project map and hard invariants, while detailed procedures live in on-demand skills under `.agents/skills/` — onboarding, transactions, mandate authoring, shared-template configuration (one skill per template), automation, and more. Shared templates are registered and configured *through* the skills because the safe order of operations (register → configure → simulate → verify) is encoded there once, instead of re-derived by every assistant. Skills are plain markdown; assistants that don't scan skills follow the routing table in `AGENTS.md` to the same files. See [docs/templates-and-skills.md](./docs/templates-and-skills.md).
+The scaffold follows the open [Agent Skills](https://agentskills.io) standard: a slim, always-loaded `AGENTS.md` carries the project map and hard invariants, while detailed procedures live in on-demand skills under `.agents/skills/` — onboarding, transactions, mandate authoring, shared-template configuration (one skill per template), automation, and more. Shared templates are registered and configured *through* the skills because the safe order of operations (register → configure → simulate → verify) is encoded there once, instead of re-derived by every agent. Skills are plain markdown; agents that don't scan skills follow the routing table in `AGENTS.md` to the same files. See [docs/templates-and-skills.md](./docs/templates-and-skills.md).
 
 ## Documentation
 
@@ -113,7 +121,7 @@ Vulnerability reports: see [SECURITY.md](./SECURITY.md) (off-chain toolkit) — 
 
 The SDK bundles verified deployments for **11 chains** — mainnets: Ethereum (1), Base (8453), Arbitrum (42161), Optimism (10), Unichain (130), BSC (56), World Chain (480), HyperEVM (999), MegaETH (4326); testnets: Base Sepolia (84532), Ethereum Sepolia (11155111). Every core contract sits at the same address on every chain via CREATE2 (SailKernel: `0x38b508756c976e876EFF05a29E731A4d348BA6ED`), and the seven shared permission templates (swap, swap-no-oracle, borrow, deposit, withdraw, transfer, approve-and-call-batch) are deployed and registered as `knownTemplates` on all of them. Query it yourself: `sailor chains` or `getSailDeployment(chainId)` from the SDK; the canonical record is the protocol repo's [deployments/addresses.md](https://github.com/sail-money/protocol/blob/main/deployments/addresses.md).
 
-These deployments are under an ongoing external **security review** by [Octane](https://octane.security) and are not final — do not use them with funds you are not prepared to lose.
+The Sail Protocol trusted core and its seven shared permission templates underwent an AI **security review** by [Octane](https://octane.security); the final analysis identified no critical- or high-severity findings, and the reports live in the protocol repo's [docs/security](https://github.com/sail-money/protocol/tree/main/docs/security). That review covers the protocol contracts — not this toolkit. A security review is not a guarantee of correctness; size your exposure accordingly.
 
 ## Contributing
 
