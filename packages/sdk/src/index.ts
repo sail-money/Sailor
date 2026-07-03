@@ -1,5 +1,5 @@
 export * from "./types.js";
-export { chains, getChain } from "./chains.js";
+export { chains, getChain, defaultRpcUrls, getDefaultRpcUrl } from "./chains.js";
 export { SailorClient } from "./client.js";
 export { LocalKeyring } from "./keyring.js";
 export type { EncryptedKeystore, LocalKeyringOptions } from "./keyring.js";
