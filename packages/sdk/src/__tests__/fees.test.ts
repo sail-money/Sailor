@@ -86,6 +86,28 @@ test("describeMandateFee: zero permissions does not say 'N × fee'", () => {
   );
 });
 
+test("describeMandateFee: labels with the passed symbol, not a hardcoded ETH", async () => {
+  const est = await estimateMandateRegistrationFee(flatGovernanceClient(TEST_FEE), GOVERNANCE, [
+    PERM_A,
+    PERM_B,
+  ]);
+  assert.equal(
+    describeMandateFee(est, "BNB"),
+    "Registration fee: 0.00002 BNB (2 permissions × 0.00001 BNB)",
+  );
+  assert.equal(
+    describeMandateFee(est, "HYPE"),
+    "Registration fee: 0.00002 HYPE (2 permissions × 0.00001 HYPE)",
+  );
+});
+
+test("assertFeeAffordable: error message uses the passed symbol", () => {
+  assert.throws(
+    () => assertFeeAffordable(0n, TEST_FEE, "BNB"),
+    (err) => err instanceof RegistrationFeeError && /BNB/.test(err.message) && !/ETH/.test(err.message),
+  );
+});
+
 test("disclosure, preflight, tx value and activity record are ONE number", async () => {
   // The estimate's totalWei is the single value every consumer derives from:
   //  - tx value / activity record use estimate.totalWei directly,

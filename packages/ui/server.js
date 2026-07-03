@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import cors from 'cors'
 import express from 'express'
 import { WebSocket, WebSocketServer } from 'ws'
-import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, defaultRpcUrls, getSailDeployment, readPermissionRegistrationFee } from '@sail/sdk'
+import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, defaultRpcUrls, getNativeCurrencySymbol, getSailDeployment, readPermissionRegistrationFee } from '@sail/sdk'
 import { createPublicClient, createWalletClient, defineChain, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
 
@@ -188,6 +188,15 @@ const SUPPORTED_CHAIN_IDS = [1, 8453, 42161, 10, 130, 56, 480, 999, 4326, 84532]
 // a multi-chain SMA still surfaces every chain it lives on out of the box.
 // Sourced from the SDK chain registry (single source of truth) — do not hand-edit.
 const DEFAULT_RPC_URLS = { ...defaultRpcUrls }
+
+// Per-chain cache for the governance registration fee. The fee is a per-chain
+// value that only changes after a 48h-timelocked admin vote, but /api/overview
+// is polled every ~15s — so reading it live on every request would add an RPC
+// round-trip (and up to the client's timeout in latency) to each poll. Cache it
+// for a few minutes so the poll is cheap while still picking up a fee change
+// well within the timelock window. Keyed by chainId → { fee, expiresAt }.
+const REGISTRATION_FEE_TTL_MS = 5 * 60 * 1000
+const registrationFeeCache = new Map()
 
 /** Resolve the RPC URL for a specific chain from the env, with a public fallback. */
 function resolveRpcUrl(env, chainId) {
@@ -1027,6 +1036,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
       // mandate.json and its registrations never appeared. Each permission in
       // the batch is charged the same flat fee.
       const feeEth = formatEther(flatFee)
+      const feeSymbol = getNativeCurrencySymbol(Number(chainId))
       for (const addr of addrs) {
         const meta = permissionMeta.find((p) => p.address && getAddress(p.address) === addr)
         const ev = {
@@ -1040,6 +1050,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
           chainId,
           fee: flatFee.toString(),
           feeEth,
+          feeSymbol,
         }
         try { fs.appendFileSync(at('activity.jsonl'), `${JSON.stringify(ev)}\n`) } catch { /* activity log is best-effort */ }
       }
@@ -1726,14 +1737,49 @@ export function startServer(sailDir, { port = PORT } = {}) {
     const env = parseEnvFile(at('.env.local'))
     const chainId = Number(account.chainId ?? env.CHAIN_ID ?? 0)
     let kernel = env.KERNEL_ADDRESS
+    let governance
     if (!kernel) {
       try {
-        kernel = getSailDeployment(chainId)?.kernel
+        const deployment = getSailDeployment(chainId)
+        kernel = deployment?.kernel
+        governance = deployment?.governance
       } catch {
         kernel = undefined
       }
+    } else {
+      try {
+        governance = getSailDeployment(chainId)?.governance
+      } catch {
+        governance = undefined
+      }
     }
     const rpcUrl = resolveRpcUrl(env, chainId)
+
+    // The live per-permission registration fee for this chain — read
+    // independently of the SMA-specific block below since it's a per-chain
+    // governance value, not per-account, and only changes after a 48h-timelocked
+    // admin vote. Best-effort: a failed read leaves `registrationFee` null so the
+    // UI falls back to its static disclosure copy instead of breaking the page.
+    let registrationFee = null
+    if (!localOnly && governance && rpcUrl) {
+      const cached = registrationFeeCache.get(chainId)
+      if (cached && cached.expiresAt > Date.now()) {
+        registrationFee = cached.fee
+      } else {
+        try {
+          const feeClient = createPublicClient({ transport: http(rpcUrl, { timeout: 4000 }) })
+          const feeWei = await readPermissionRegistrationFee(feeClient, governance)
+          registrationFee = {
+            feeWei: feeWei.toString(),
+            feeEth: formatEther(feeWei),
+            symbol: getNativeCurrencySymbol(chainId),
+          }
+          registrationFeeCache.set(chainId, { fee: registrationFee, expiresAt: Date.now() + REGISTRATION_FEE_TTL_MS })
+        } catch {
+          registrationFee = null
+        }
+      }
+    }
 
     // Friendly name lookup: address → name or template.
     const nameByAddr = new Map()
@@ -1766,6 +1812,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
       kernel: kernel ?? null,
       rpcConfigured: Boolean(rpcUrl),
       onchain: false,
+      registrationFee,
       sma: {
         address: account.safe,
         owner: account.owner,

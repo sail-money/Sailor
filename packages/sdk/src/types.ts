@@ -500,4 +500,11 @@ export type ChainConfig = {
   governance: Address;
   protocols: Record<string, Address>;
   dispatchModel?: "conjunctive" | "selective";
+  /**
+   * The chain's native gas token — what `permissionRegistrationFee` (and gas)
+   * is denominated in. Most chains use ETH, but chains with their own gas
+   * token (BSC → BNB, HyperEVM → HYPE) must NOT be labeled "ETH" in fee
+   * disclosures.
+   */
+  nativeCurrency: { name: string; symbol: string; decimals: number };
 };

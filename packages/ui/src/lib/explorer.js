@@ -1,3 +1,4 @@
+import { getNativeCurrencySymbol } from '@sail/sdk/chains'
 import { chains } from '../wagmi'
 
 /**
@@ -64,6 +65,19 @@ function resolveChainId(chainOrNetwork) {
     return NAME_TO_ID[key] ?? null
   }
   return null
+}
+
+/**
+ * Native gas-token symbol for a chainId or network name. Defaults to "ETH".
+ * Delegates to the SDK chain registry (`@sail/sdk/chains`) so it is the single
+ * source of truth — a new non-ETH chain added there is reflected here with no
+ * second table to keep in sync. `@sail/sdk/chains` is already in the browser
+ * bundle (via `src/wagmi.js`), so this adds no new dependency.
+ */
+export function nativeCurrencySymbol(chainOrNetwork) {
+  const id = resolveChainId(chainOrNetwork)
+  if (id == null) return 'ETH'
+  return getNativeCurrencySymbol(id)
 }
 
 /** Returns `{ name, url }` for a chainId or network name, or null if unknown. */

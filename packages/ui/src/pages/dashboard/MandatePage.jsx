@@ -10,9 +10,9 @@ import ConfirmDestructiveModal from '../shared/ConfirmDestructiveModal'
 import shared from '../shared/shared.module.css'
 import layout from './SharedLayout.module.css'
 import styles from './MandatePage.module.css'
-import { useSailorAccount, useSailorMandate } from '../../hooks/useSailorData'
+import { useSailorAccount, useSailorMandate, useSailorOverview } from '../../hooks/useSailorData'
 import { useAccount } from 'wagmi'
-import { explorerTxUrl, explorerAddressUrl, explorerCodeUrl } from '../../lib/explorer'
+import { explorerTxUrl, explorerAddressUrl, explorerCodeUrl, nativeCurrencySymbol } from '../../lib/explorer'
 
 // SailKernel protocol constants (from SailProtocol source)
 const GOVERNANCE = {
@@ -100,10 +100,16 @@ function CapabilitiesGlance({ mandate }) {
 }
 
 export default function MandatePage({ mandateId, onBack, onRevoke }) {
-  const { mandate: liveMandate } = useSailorMandate()
+  const { mandates: liveMandates } = useSailorMandate()
+  const liveMandate = liveMandates[0] ?? null
   const { account } = useSailorAccount()
   const { address: walletAddress } = useAccount()
+  const { overview } = useSailorOverview()
   const chainId = account?.chainId
+  const feeSymbol = overview?.registrationFee?.symbol ?? nativeCurrencySymbol(liveMandate?.chainId ?? chainId)
+  // Live governance value when reachable; falls back to the static launch
+  // default when RPC is unavailable — see GOVERNANCE above.
+  const liveFeeEth = overview?.registrationFee?.feeEth ?? null
 
   const baseMandate = useMemo(() => {
     if (!liveMandate) return null
@@ -273,7 +279,7 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
                     </>
                   )}
                   <span className={styles.permSlotPillDot} aria-hidden>·</span>
-                  <span>{mandate.registrationFeeEth} ETH each at registration</span>
+                  <span>{mandate.registrationFeeEth ?? liveFeeEth ?? GOVERNANCE.permissionRegistrationFeeEth} {feeSymbol} each at registration</span>
                 </span>
               )}
             </div>
@@ -446,7 +452,7 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
             </div>
             <p className={styles.metricSub}>
               Per-account ceiling set by governance. Registration fee:{' '}
-              <strong>{mandate.registrationFeeEth ?? GOVERNANCE.permissionRegistrationFeeEth} ETH</strong> per permission.
+              <strong>{mandate.registrationFeeEth ?? liveFeeEth ?? GOVERNANCE.permissionRegistrationFeeEth} {feeSymbol}</strong> per permission.
             </p>
           </article>
 
@@ -460,7 +466,7 @@ export default function MandatePage({ mandateId, onBack, onRevoke }) {
               from this hash invalidates the mandate's enforcement guarantees.
             </p>
             <span className={styles.metricFootnote}>
-              Block <strong>{mandate.blockNumber.toLocaleString()}</strong> · {mandate.signedAt}
+              Block <strong>{mandate.blockNumber != null ? mandate.blockNumber.toLocaleString() : '—'}</strong> · {mandate.signedAt}
             </span>
           </article>
         </section>

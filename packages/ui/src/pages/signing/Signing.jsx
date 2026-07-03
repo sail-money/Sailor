@@ -710,6 +710,7 @@ function PermissionRow({ item, chainId }) {
 }
 
 function RegistrationFeeNote({ fee }) {
+  const symbol = fee.symbol ?? 'ETH'
   return (
     <div style={{
       marginTop: 4,
@@ -726,11 +727,11 @@ function RegistrationFeeNote({ fee }) {
       <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Registration fee</span>
       <span style={{ textAlign: 'right' }}>
         <span style={{ fontSize: 14, color: 'var(--text-primary, #fff)', fontWeight: 600 }}>
-          {fee.totalEth} ETH
+          {fee.totalEth} {symbol}
         </span>
         {fee.permissionCount > 1 && fee.perPermissionEth && (
           <span style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
-            {fee.permissionCount} permissions × {fee.perPermissionEth} ETH
+            {fee.permissionCount} permissions × {fee.perPermissionEth} {symbol}
           </span>
         )}
         {fee.permissionCount > 1 && !fee.perPermissionEth && (

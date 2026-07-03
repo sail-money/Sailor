@@ -71,12 +71,18 @@ export type SigningRequestBase = {
    * the owner signs.
    */
   registrationFee?: {
-    /** Total fee in ETH (formatted string, e.g. "0.00003"). */
+    /** Total fee in the chain's native token (formatted string, e.g. "0.00003"). */
     totalEth: string;
     /** Number of permissions the total covers. */
     permissionCount: number;
-    /** Flat per-permission fee in ETH, present when count > 1. */
+    /** Flat per-permission fee in the chain's native token, present when count > 1. */
     perPermissionEth?: string;
+    /**
+     * The chain's native gas token symbol (e.g. "ETH", "BNB", "HYPE") — what
+     * `totalEth`/`perPermissionEth` are actually denominated in. Defaults to
+     * "ETH" when absent (older callers / zero-fee chains).
+     */
+    symbol?: string;
   };
   createdAt: number;
 };

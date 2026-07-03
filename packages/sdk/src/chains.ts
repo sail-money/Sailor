@@ -12,6 +12,10 @@ const CREATE2_KERNEL = "0x38b508756c976e876EFF05a29E731A4d348BA6ED";
 const CREATE2_MANDATE_FACTORY = "0x6d2C802ffa0d9A8Ed69A5Bf22c1b63ccB566B8Fc";
 const CREATE2_GOVERNANCE = "0x4315B37cA4A315A7042af1Fcb37F8436f4D24356";
 
+const ETH = { name: "Ether", symbol: "ETH", decimals: 18 } as const;
+const BNB = { name: "BNB", symbol: "BNB", decimals: 18 } as const;
+const HYPE = { name: "HYPE", symbol: "HYPE", decimals: 18 } as const;
+
 export const chains: Record<number, ChainConfig> = {
   // Ethereum mainnet
   1: {
@@ -24,6 +28,7 @@ export const chains: Record<number, ChainConfig> = {
     governance: CREATE2_GOVERNANCE,
     dispatchModel: "selective",
     protocols: {},
+    nativeCurrency: ETH,
   },
   // Base mainnet
   8453: {
@@ -36,6 +41,7 @@ export const chains: Record<number, ChainConfig> = {
     governance: CREATE2_GOVERNANCE,
     dispatchModel: "selective",
     protocols: {},
+    nativeCurrency: ETH,
   },
   // Arbitrum mainnet
   42161: {
@@ -48,6 +54,7 @@ export const chains: Record<number, ChainConfig> = {
     governance: CREATE2_GOVERNANCE,
     dispatchModel: "selective",
     protocols: {},
+    nativeCurrency: ETH,
   },
   // Optimism mainnet
   10: {
@@ -60,6 +67,7 @@ export const chains: Record<number, ChainConfig> = {
     governance: CREATE2_GOVERNANCE,
     dispatchModel: "selective",
     protocols: {},
+    nativeCurrency: ETH,
   },
   // Unichain mainnet
   130: {
@@ -72,8 +80,9 @@ export const chains: Record<number, ChainConfig> = {
     governance: CREATE2_GOVERNANCE,
     dispatchModel: "selective",
     protocols: {},
+    nativeCurrency: ETH,
   },
-  // BSC mainnet
+  // BSC mainnet — native gas token is BNB, not ETH.
   56: {
     chainId: 56,
     name: "BSC",
@@ -84,6 +93,7 @@ export const chains: Record<number, ChainConfig> = {
     governance: CREATE2_GOVERNANCE,
     dispatchModel: "selective",
     protocols: {},
+    nativeCurrency: BNB,
   },
   // World Chain mainnet
   480: {
@@ -96,8 +106,9 @@ export const chains: Record<number, ChainConfig> = {
     governance: CREATE2_GOVERNANCE,
     dispatchModel: "selective",
     protocols: {},
+    nativeCurrency: ETH,
   },
-  // HyperEVM mainnet
+  // HyperEVM mainnet — native gas token is HYPE, not ETH.
   999: {
     chainId: 999,
     name: "HyperEVM",
@@ -108,6 +119,7 @@ export const chains: Record<number, ChainConfig> = {
     governance: CREATE2_GOVERNANCE,
     dispatchModel: "selective",
     protocols: {},
+    nativeCurrency: HYPE,
   },
   // MegaETH mainnet
   4326: {
@@ -120,6 +132,7 @@ export const chains: Record<number, ChainConfig> = {
     governance: CREATE2_GOVERNANCE,
     dispatchModel: "selective",
     protocols: {},
+    nativeCurrency: ETH,
   },
   // Base Sepolia (testnet)
   84532: {
@@ -132,6 +145,7 @@ export const chains: Record<number, ChainConfig> = {
     governance: CREATE2_GOVERNANCE,
     dispatchModel: "selective",
     protocols: {},
+    nativeCurrency: ETH,
   },
   // Eth Sepolia (testnet)
   11155111: {
@@ -144,6 +158,7 @@ export const chains: Record<number, ChainConfig> = {
     governance: CREATE2_GOVERNANCE,
     dispatchModel: "selective",
     protocols: {},
+    nativeCurrency: ETH,
   },
 };
 
@@ -171,4 +186,14 @@ export const defaultRpcUrls: Record<number, string> = Object.fromEntries(
 /** The public default RPC URL for a chainId, or undefined if unsupported. */
 export function getDefaultRpcUrl(chainId: number): string | undefined {
   return chains[chainId]?.defaultRpcUrl;
+}
+
+/**
+ * The native gas token symbol for a chain (e.g. "ETH", "BNB", "HYPE") — what
+ * `permissionRegistrationFee` is denominated in on that chain. Falls back to
+ * "ETH" for an unrecognized chainId so display code degrades gracefully
+ * instead of throwing.
+ */
+export function getNativeCurrencySymbol(chainId: number): string {
+  return chains[chainId]?.nativeCurrency.symbol ?? "ETH";
 }

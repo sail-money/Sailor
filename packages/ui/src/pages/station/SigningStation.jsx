@@ -296,11 +296,11 @@ function OperationCard({ request, chains, phase, onSign, onReject, otherActive }
           <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Registration fee</span>
           <span style={{ textAlign: 'right' }}>
             <span style={{ fontSize: 14, color: 'var(--text-primary, #fff)', fontWeight: 600 }}>
-              {request.registrationFee.totalEth} ETH
+              {request.registrationFee.totalEth} {request.registrationFee.symbol ?? 'ETH'}
             </span>
             {request.registrationFee.permissionCount > 1 && request.registrationFee.perPermissionEth && (
               <span style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
-                {request.registrationFee.permissionCount} permissions × {request.registrationFee.perPermissionEth} ETH
+                {request.registrationFee.permissionCount} permissions × {request.registrationFee.perPermissionEth} {request.registrationFee.symbol ?? 'ETH'}
               </span>
             )}
           </span>

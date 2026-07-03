@@ -1,4 +1,9 @@
-import { type MandateFeeEstimate, assertFeeAffordable, describeMandateFee } from "@sail/sdk";
+import {
+  type MandateFeeEstimate,
+  assertFeeAffordable,
+  describeMandateFee,
+  getNativeCurrencySymbol,
+} from "@sail/sdk";
 
 /** The pre-sign registration-fee gate for a mandate signing/attach operation. */
 export type RegistrationGate = {
@@ -22,15 +27,18 @@ export type RegistrationGate = {
 export function registrationGate(args: {
   estimate: MandateFeeEstimate;
   agentBalanceWei?: bigint;
+  /** The chain being registered on, used to label the fee with its native gas token. Defaults to ETH. */
+  chainId?: number;
 }): RegistrationGate {
-  const { estimate, agentBalanceWei } = args;
+  const { estimate, agentBalanceWei, chainId } = args;
+  const symbol = chainId !== undefined ? getNativeCurrencySymbol(chainId) : "ETH";
   if (agentBalanceWei !== undefined) {
     // Preflight FIRST: refuse to disclose-then-sign when the agent can't pay.
-    assertFeeAffordable(agentBalanceWei, estimate.totalWei);
+    assertFeeAffordable(agentBalanceWei, estimate.totalWei, symbol);
   }
   return {
     totalFeeWei: estimate.totalWei,
     permissionCount: estimate.perPermission.length,
-    disclosure: describeMandateFee(estimate),
+    disclosure: describeMandateFee(estimate, symbol),
   };
 }
