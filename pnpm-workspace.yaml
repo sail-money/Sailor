@@ -11,4 +11,5 @@ allowBuilds:
   keccak: true
   utf-8-validate: true
 overrides:
-  sailor: link:packages/cli
+  form-data@<4.0.6: ">=4.0.6"
+  hono@<4.12.25: ">=4.12.25"

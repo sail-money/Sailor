@@ -488,6 +488,13 @@ export type ChainConfig = {
   name: string;
   /** Environment variable name used to supply an RPC URL for this chain (e.g. BASE_RPC_URL). */
   rpcEnvVar: string;
+  /**
+   * Public default RPC endpoint for this chain, used as a fallback when no
+   * `rpcEnvVar` override is set. This is the single source of truth for public
+   * RPC URLs — the CLI, UI, and dashboard server all derive their fallback maps
+   * from here rather than hand-maintaining their own copies.
+   */
+  defaultRpcUrl: string;
   kernel: Address;
   mandateFactory: Address;
   governance: Address;

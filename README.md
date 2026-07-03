@@ -1,6 +1,6 @@
 # Sailor
 
-> The open-source toolkit — TypeScript SDK, CLI, and local dashboard — for operating agent-managed Separately Managed Accounts on [Sail Protocol](https://github.com/sail-money/protocol).
+> The open-source toolkit — TypeScript SDK, CLI, and local dashboard — for operating agent-managed Separately Managed Accounts (SMAs) on [Sail Protocol](https://github.com/sail-money/protocol).
 
 [![npm version](https://img.shields.io/npm/v/%40sail.money%2Fsailor)](https://www.npmjs.com/package/@sail.money/sailor)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
