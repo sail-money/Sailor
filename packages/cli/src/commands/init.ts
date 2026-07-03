@@ -31,27 +31,22 @@ before changing strategy code or running commands that touch funds.
 `;
 
 const CANONICAL_PKG = "@sail.money/sailor";
-const DEV_PKG = "@dev.sail.money/sailor";
 
 /**
- * Name and version of the running CLI, read from its package manifest.
- * When installed from the dev org (@dev.sail.money/sailor) the name differs
- * from the canonical published name — callers use this to emit an npm alias
- * so the scaffolded project resolves from the same registry/org the user
- * already has configured, while keeping the import path canonical.
+ * Version of the running CLI, read from its package manifest. Throws rather than
+ * falling back to a placeholder: a bad version would scaffold an unresolvable
+ * `@sail.money/sailor: ^0.0.0` devDependency, failing later and more confusingly.
  */
-function cliPackageInfo(): { name: string; version: string } {
+function cliVersion(): string {
+  const manifest = path.join(packageRoot(), "package.json");
+  let version: string | undefined;
   try {
-    const pkg = JSON.parse(
-      fs.readFileSync(path.join(packageRoot(), "package.json"), "utf-8"),
-    ) as { name?: string; version?: string };
-    return {
-      name: pkg.name ?? CANONICAL_PKG,
-      version: pkg.version ?? "0.0.0",
-    };
-  } catch {
-    return { name: CANONICAL_PKG, version: "0.0.0" };
+    version = (JSON.parse(fs.readFileSync(manifest, "utf-8")) as { version?: string }).version;
+  } catch (err) {
+    throw new Error(`Cannot read CLI package manifest at ${manifest}: ${(err as Error).message}`);
   }
+  if (!version) throw new Error(`CLI package manifest at ${manifest} has no version`);
+  return version;
 }
 
 function scaffoldProjectWorkspace(dest: string, name: string, options: InitOptions): void {
@@ -246,13 +241,9 @@ export async function initCommand(
     >;
     pkg.name = name as never;
     const devDeps = pkg.devDependencies ?? {};
-    const { name: cliName, version: cliVer } = cliPackageInfo();
-    // Use npm alias syntax when the installed package comes from a non-canonical
-    // org (e.g. @dev.sail.money/sailor) so the scaffolded project resolves from
-    // the same registry the user already has configured. The dep key stays as the
-    // canonical name so all `@sail.money/sailor/sdk` imports work unchanged.
-    devDeps[CANONICAL_PKG] =
-      cliName === DEV_PKG ? `npm:${DEV_PKG}@^${cliVer}` : `^${cliVer}`;
+    // Single published package (@sail.money/sailor); dev/beta/latest are just
+    // dist-tags of it. Pin the SDK devDependency to the running CLI's version.
+    devDeps[CANONICAL_PKG] = `^${cliVersion()}`;
     pkg.devDependencies = devDeps;
     fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
   }

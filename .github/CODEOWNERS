@@ -1,0 +1,9 @@
+# Code owners. Auto-requests review; only ENFORCED when branch protection has
+# "Require review from Code Owners" enabled (and direct pushes to main blocked).
+# A review from ANY listed owner satisfies the check.
+
+# GitHub flow — CI, release workflows, this file. Owned by the release operator.
+/.github/       @jmad-sail
+
+# Package source — owned by the devs team.
+/packages/      @sail-money/devs
