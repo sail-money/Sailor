@@ -75,7 +75,7 @@ const PUBLIC_RPC = {
   10: 'https://mainnet.optimism.io',
   130: 'https://mainnet.unichain.org', 84532: 'https://sepolia.base.org',
   56: 'https://bsc-dataseed.binance.org', 480: 'https://worldchain-mainnet.g.alchemy.com/public',
-  999: 'https://rpc.hyperliquid.xyz/evm', 4326: 'https://carrot.megaeth.com/rpc',
+  999: 'https://rpc.hyperliquid.xyz/evm', 4326: 'https://mainnet.megaeth.com/rpc',
 }
 
 function composeRpcUrl(provider, chainId, key) {
