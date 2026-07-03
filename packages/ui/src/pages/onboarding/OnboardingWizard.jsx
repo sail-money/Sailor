@@ -8,6 +8,7 @@ import { useAccount, useSendTransaction, useSignTypedData, useSwitchChain } from
 import { buildRegisterAccountTypedData } from '@sail/sdk/eip712'
 import { buildRegisterAccountExecTransaction } from '@sail/sdk/safe'
 import { sailDeployments } from '@sail/sdk/deployments'
+import { defaultRpcUrls } from '@sail/sdk/chains'
 import { ChainGlyph, GlassCard, InfoTip, Sai, SailButton } from '../shared'
 import SailBackground from '../shared/SailBackground'
 import shared from '../shared/shared.module.css'
@@ -913,23 +914,10 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
   )
 }
 
-// Public RPC endpoints for simulation + receipt polling. RPC URLs are not part
-// of the SDK deployment record, so this map must be kept in sync by hand: every
-// chainId in LIVE_CHAIN_IDS (i.e. sailDeployments) needs an entry here.
-const PUBLIC_RPC = {
-  1:      'https://eth.llamarpc.com',
-  8453:   'https://mainnet.base.org',
-  84532:  'https://sepolia.base.org',
-  42161:  'https://arb1.arbitrum.io/rpc',
-  421614: 'https://sepolia-rollup.arbitrum.io/rpc',
-  130:    'https://mainnet.unichain.org',
-  10:     'https://mainnet.optimism.io',
-  56:     'https://bsc-dataseed.binance.org',
-  480:    'https://worldchain-mainnet.g.alchemy.com/public',
-  999:    'https://rpc.hyperliquid.xyz/evm',
-  4326:   'https://mainnet.megaeth.com/rpc',
-  11155111: 'https://ethereum-sepolia-rpc.publicnode.com',
-}
+// Public RPC endpoints for simulation + receipt polling, sourced from the SDK
+// chain registry (single source of truth) so this can never drift from
+// getSailDeployment / @sail/sdk. Covers exactly LIVE_CHAIN_IDS.
+const PUBLIC_RPC = defaultRpcUrls
 
 // Poll for a transaction receipt (public client not available as hook here).
 async function waitForReceipt(hash, chainId) {

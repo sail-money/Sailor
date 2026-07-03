@@ -18,6 +18,7 @@ export const chains: Record<number, ChainConfig> = {
     chainId: 1,
     name: "Ethereum",
     rpcEnvVar: "ETH_MAINNET_RPC_URL",
+    defaultRpcUrl: "https://eth.llamarpc.com",
     kernel: CREATE2_KERNEL,
     mandateFactory: CREATE2_MANDATE_FACTORY,
     governance: CREATE2_GOVERNANCE,
@@ -29,6 +30,7 @@ export const chains: Record<number, ChainConfig> = {
     chainId: 8453,
     name: "Base",
     rpcEnvVar: "BASE_RPC_URL",
+    defaultRpcUrl: "https://mainnet.base.org",
     kernel: CREATE2_KERNEL,
     mandateFactory: CREATE2_MANDATE_FACTORY,
     governance: CREATE2_GOVERNANCE,
@@ -40,6 +42,7 @@ export const chains: Record<number, ChainConfig> = {
     chainId: 42161,
     name: "Arbitrum",
     rpcEnvVar: "ARBITRUM_RPC_URL",
+    defaultRpcUrl: "https://arb1.arbitrum.io/rpc",
     kernel: CREATE2_KERNEL,
     mandateFactory: CREATE2_MANDATE_FACTORY,
     governance: CREATE2_GOVERNANCE,
@@ -51,6 +54,7 @@ export const chains: Record<number, ChainConfig> = {
     chainId: 10,
     name: "Optimism",
     rpcEnvVar: "OPTIMISM_RPC_URL",
+    defaultRpcUrl: "https://mainnet.optimism.io",
     kernel: CREATE2_KERNEL,
     mandateFactory: CREATE2_MANDATE_FACTORY,
     governance: CREATE2_GOVERNANCE,
@@ -62,6 +66,7 @@ export const chains: Record<number, ChainConfig> = {
     chainId: 130,
     name: "Unichain",
     rpcEnvVar: "UNICHAIN_RPC_URL",
+    defaultRpcUrl: "https://mainnet.unichain.org",
     kernel: CREATE2_KERNEL,
     mandateFactory: CREATE2_MANDATE_FACTORY,
     governance: CREATE2_GOVERNANCE,
@@ -73,6 +78,7 @@ export const chains: Record<number, ChainConfig> = {
     chainId: 56,
     name: "BSC",
     rpcEnvVar: "BSC_RPC_URL",
+    defaultRpcUrl: "https://bsc-dataseed.binance.org",
     kernel: CREATE2_KERNEL,
     mandateFactory: CREATE2_MANDATE_FACTORY,
     governance: CREATE2_GOVERNANCE,
@@ -84,6 +90,7 @@ export const chains: Record<number, ChainConfig> = {
     chainId: 480,
     name: "World Chain",
     rpcEnvVar: "WORLD_RPC_URL",
+    defaultRpcUrl: "https://worldchain-mainnet.g.alchemy.com/public",
     kernel: CREATE2_KERNEL,
     mandateFactory: CREATE2_MANDATE_FACTORY,
     governance: CREATE2_GOVERNANCE,
@@ -95,6 +102,7 @@ export const chains: Record<number, ChainConfig> = {
     chainId: 999,
     name: "HyperEVM",
     rpcEnvVar: "HYPEREVM_RPC_URL",
+    defaultRpcUrl: "https://rpc.hyperliquid.xyz/evm",
     kernel: CREATE2_KERNEL,
     mandateFactory: CREATE2_MANDATE_FACTORY,
     governance: CREATE2_GOVERNANCE,
@@ -106,6 +114,7 @@ export const chains: Record<number, ChainConfig> = {
     chainId: 4326,
     name: "MegaETH",
     rpcEnvVar: "MEGAETH_RPC_URL",
+    defaultRpcUrl: "https://mainnet.megaeth.com/rpc",
     kernel: CREATE2_KERNEL,
     mandateFactory: CREATE2_MANDATE_FACTORY,
     governance: CREATE2_GOVERNANCE,
@@ -117,6 +126,7 @@ export const chains: Record<number, ChainConfig> = {
     chainId: 84532,
     name: "Base Sepolia",
     rpcEnvVar: "BASE_SEPOLIA_RPC_URL",
+    defaultRpcUrl: "https://sepolia.base.org",
     kernel: CREATE2_KERNEL,
     mandateFactory: CREATE2_MANDATE_FACTORY,
     governance: CREATE2_GOVERNANCE,
@@ -128,6 +138,7 @@ export const chains: Record<number, ChainConfig> = {
     chainId: 11155111,
     name: "Eth Sepolia",
     rpcEnvVar: "SEPOLIA_RPC_URL",
+    defaultRpcUrl: "https://ethereum-sepolia-rpc.publicnode.com",
     kernel: CREATE2_KERNEL,
     mandateFactory: CREATE2_MANDATE_FACTORY,
     governance: CREATE2_GOVERNANCE,
@@ -145,4 +156,19 @@ export function getChain(chainId: number): ChainConfig {
     );
   }
   return config;
+}
+
+/**
+ * Public default RPC URLs keyed by chainId — the canonical fallback map derived
+ * from the chain registry. Consumers (CLI, UI, dashboard server) should import
+ * this instead of hand-maintaining their own copies. Returns a plain
+ * `Record<number, string>` for easy spreading/merging with env-provided URLs.
+ */
+export const defaultRpcUrls: Record<number, string> = Object.fromEntries(
+  Object.values(chains).map((c) => [c.chainId, c.defaultRpcUrl]),
+);
+
+/** The public default RPC URL for a chainId, or undefined if unsupported. */
+export function getDefaultRpcUrl(chainId: number): string | undefined {
+  return chains[chainId]?.defaultRpcUrl;
 }

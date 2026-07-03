@@ -3,18 +3,19 @@ import { arbitrum, base, baseSepolia, bsc, mainnet, optimism, sepolia, unichain,
 import { chains } from "@sail/sdk";
 import { parseEnvFile, sailPath } from "./io.js";
 
-// Not (yet) published in viem/chains — defined here from the Sail Protocol deployment data.
+// Not (yet) published in viem/chains — defined here from the Sail Protocol deployment
+// data. RPC URLs come from the SDK chain registry (single source of truth).
 const hyperevm = defineChain({
   id: 999,
   name: "HyperEVM",
   nativeCurrency: { name: "HYPE", symbol: "HYPE", decimals: 18 },
-  rpcUrls: { default: { http: ["https://rpc.hyperliquid.xyz/evm"] } },
+  rpcUrls: { default: { http: [chains[999].defaultRpcUrl] } },
 });
 const megaeth = defineChain({
   id: 4326,
   name: "MegaETH",
   nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-  rpcUrls: { default: { http: ["https://mainnet.megaeth.com/rpc"] } },
+  rpcUrls: { default: { http: [chains[4326].defaultRpcUrl] } },
 });
 
 const CHAINS: Record<number, Chain> = {

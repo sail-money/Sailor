@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import styles from './RpcSection.module.css'
 import { ChainGlyph, InfoTip } from '../shared'
 import { getOnboardState, saveConfig } from '../../data/sailorClient'
+import { defaultRpcUrls } from '@sail/sdk/chains'
 
 const RPC_TIP = "An RPC is the connection your dashboard uses to read the blockchain and broadcast transactions — like a phone line to the network. Sail talks to the chain directly through it; there's no Sail server in between. A free Alchemy/Infura key (or a public endpoint) works."
 
@@ -69,14 +70,8 @@ const INFURA_HOST = {
   11155111: 'sepolia.infura.io',
   56: 'bsc-mainnet.infura.io',
 }
-const PUBLIC_RPC = {
-  1: 'https://eth.llamarpc.com',
-  8453: 'https://mainnet.base.org', 42161: 'https://arb1.arbitrum.io/rpc',
-  10: 'https://mainnet.optimism.io',
-  130: 'https://mainnet.unichain.org', 84532: 'https://sepolia.base.org',
-  56: 'https://bsc-dataseed.binance.org', 480: 'https://worldchain-mainnet.g.alchemy.com/public',
-  999: 'https://rpc.hyperliquid.xyz/evm', 4326: 'https://mainnet.megaeth.com/rpc',
-}
+// Public RPC fallbacks, sourced from the SDK chain registry (single source of truth).
+const PUBLIC_RPC = defaultRpcUrls
 
 function composeRpcUrl(provider, chainId, key) {
   if (provider === 'infura') {
