@@ -127,7 +127,7 @@ export default function AIHandoffModal({ open, variant = 'new', context = 'agent
         </div>
 
         <p className={styles.foot}>
-          Paste this into your AI coding assistant (Claude Code, Cursor, Codex, …) to get started.
+          Paste this into your AI coding agent (Claude Code, Cursor, Codex, …) to get started.
         </p>
       </GlassCard>
     </div>
