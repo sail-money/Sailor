@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       environment:
-        description: "'dev' for @sail-money/sailor-dev, 'prod' for @sail-money/sailor"
+        description: "Publish channel: 'prod' → @sail-money/sailor@latest, 'beta' → @sail-money/sailor-dev@beta, 'dev' → @sail-money/sailor-dev@dev"
         type: string
         required: true
       version:
@@ -25,7 +25,7 @@ jobs:
     with:
       registry-url: 'https://npm.pkg.github.com'
       package-name: ${{ inputs.environment == 'prod' && '@sail-money/sailor' || '@sail-money/sailor-dev' }}
-      dist-tag: latest
+      dist-tag: ${{ inputs.environment == 'prod' && 'latest' || inputs.environment }}
       build-number: ${{ inputs.environment != 'prod' && github.run_number || 0 }}
     secrets:
       NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}

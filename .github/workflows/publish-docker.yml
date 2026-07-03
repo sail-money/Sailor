@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       environment:
-        description: "'dev' → <DOCKER_IMAGE>:dev, 'prod' → <DOCKER_IMAGE>:<ver> + :latest  (DOCKER_IMAGE repo variable)"
+        description: "Publish channel: 'dev'/'beta' → <DOCKER_IMAGE>:dev / :beta, 'prod' → <DOCKER_IMAGE>:<ver> + :latest  (DOCKER_IMAGE repo variable)"
         type: string
         required: true
       version:
@@ -18,8 +18,9 @@ on:
         required: true
 
 jobs:
-  publish-dev:
-    if: inputs.environment == 'dev'
+  # dev (manual builds) and beta (pushes to main) publish a single channel tag.
+  publish-channel:
+    if: inputs.environment == 'dev' || inputs.environment == 'beta'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -43,7 +44,7 @@ jobs:
         with:
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ vars.DOCKER_IMAGE }}:dev
+          tags: ${{ vars.DOCKER_IMAGE }}:${{ inputs.environment }}
           sbom: true
           provenance: mode=max
           cache-from: type=gha
