@@ -5,16 +5,28 @@ on:
     tags: ['v*']
     branches: [main]
   workflow_dispatch:
+    inputs:
+      publish-npm:
+        description: 'Publish the npm package'
+        type: boolean
+        default: false
+      publish-docker:
+        description: 'Build and publish the Docker image'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
   tests:
+    # On manual dispatch, only run when at least one publish target is selected.
+    if: github.event_name == 'push' || inputs.publish-npm || inputs.publish-docker
     uses: ./.github/workflows/tests.yml
 
   publish-npm:
     needs: tests
+    if: github.event_name == 'push' || inputs.publish-npm
     permissions:
       id-token: write
       contents: read
@@ -23,10 +35,10 @@ jobs:
     with:
       environment: ${{ github.event_name == 'push' && github.ref_type == 'tag' && 'prod' || 'dev' }}
       version: ${{ github.ref_name }}
-      skip-tests: true
 
   publish-github-packages:
     needs: tests
+    if: github.event_name == 'push'
     permissions:
       id-token: write
       contents: read
@@ -35,10 +47,10 @@ jobs:
     with:
       environment: ${{ github.event_name == 'push' && github.ref_type == 'tag' && 'prod' || 'dev' }}
       version: ${{ github.ref_name }}
-      skip-tests: true
 
   publish-docker:
     needs: tests
+    if: github.event_name == 'push' || inputs.publish-docker
     permissions:
       contents: read
       id-token: write
@@ -47,7 +59,6 @@ jobs:
     with:
       environment: ${{ github.event_name == 'push' && github.ref_type == 'tag' && 'prod' || 'dev' }}
       version: ${{ github.ref_name }}
-      skip-tests: true
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

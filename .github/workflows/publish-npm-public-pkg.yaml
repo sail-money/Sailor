@@ -177,7 +177,7 @@ jobs:
           echo "OIDC endpoint available; publishing via trusted publishing"
           unset NODE_AUTH_TOKEN
           echo "registry=${{ inputs.registry-url }}" > "$RUNNER_TEMP/.npmrc-oidc"
-          NPM_CONFIG_USERCONFIG="$RUNNER_TEMP/.npmrc-oidc" npm publish --access public --tag ${{ inputs.dist-tag }} --loglevel http
+          NPM_CONFIG_USERCONFIG="$RUNNER_TEMP/.npmrc-oidc" npm publish --access public --tag ${{ inputs.dist-tag }}
 
       - name: Publish (token)
         if: env.HAS_TOKEN == 'true'

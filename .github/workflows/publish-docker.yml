@@ -11,37 +11,15 @@ on:
         description: 'Git ref name (e.g. v1.2.3 for tags)'
         type: string
         default: ''
-      skip-tests:
-        description: 'Skip the test job (set true when called from the orchestrator, which already ran tests)'
-        type: boolean
-        default: false
     secrets:
       DOCKERHUB_USERNAME:
         required: true
       DOCKERHUB_TOKEN:
         required: true
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: "'dev' → <DOCKER_IMAGE>:dev, 'prod' → <DOCKER_IMAGE>:<ver> + :latest  (DOCKER_IMAGE repo variable)"
-        type: choice
-        options: [dev, prod]
-        default: dev
-      version:
-        description: 'Version tag (e.g. v1.2.3) — required for prod'
-        type: string
-        default: ''
 
 jobs:
-  tests:
-    # Skipped when called from the orchestrator (which passes skip-tests: true).
-    if: ${{ !inputs.skip-tests }}
-    uses: ./.github/workflows/tests.yml
-
   publish-dev:
-    needs: tests
-    # always() prevents auto-skip when tests is skipped (workflow_call path).
-    if: always() && inputs.environment == 'dev' && (needs.tests.result == 'success' || needs.tests.result == 'skipped')
+    if: inputs.environment == 'dev'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -72,9 +50,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   publish-prod:
-    needs: tests
-    # always() prevents auto-skip when tests is skipped (workflow_call path).
-    if: always() && inputs.environment == 'prod' && inputs.version != '' && (needs.tests.result == 'success' || needs.tests.result == 'skipped')
+    if: inputs.environment == 'prod' && inputs.version != ''
     runs-on: ubuntu-latest
     permissions:
       contents: read
