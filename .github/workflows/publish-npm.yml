@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       environment:
-        description: "Publish channel: 'prod' → @sail.money/sailor@latest, 'beta' → @dev.sail.money/sailor@beta, 'dev' → @dev.sail.money/sailor@dev"
+        description: "Publish channel: sets the dist-tag on the NPM_PACKAGE repo variable. 'prod' → @latest, 'beta' → @beta, 'dev' → @dev"
         type: string
         required: true
       version:
@@ -23,6 +23,8 @@ jobs:
       packages: write
     uses: ./.github/workflows/publish-npm-public-pkg.yaml
     with:
-      package-name: ${{ inputs.environment == 'prod' && '@sail.money/sailor' || '@dev.sail.money/sailor' }}
+      # One package for every channel; only the dist-tag changes. Set NPM_PACKAGE
+      # under repo Settings → Secrets and variables → Actions → Variables.
+      package-name: ${{ vars.NPM_PACKAGE }}
       dist-tag: ${{ inputs.environment == 'prod' && 'latest' || inputs.environment }}
       build-number: ${{ inputs.environment != 'prod' && github.run_number || 0 }}
