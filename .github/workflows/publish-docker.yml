@@ -18,8 +18,28 @@ on:
         required: true
 
 jobs:
+  # Fail loud on an unknown channel instead of silently skipping every publish job.
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate environment input
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          case "$ENVIRONMENT" in
+            dev|beta) ;;
+            prod)
+              if [ -z "$VERSION" ]; then
+                echo "::error::prod publish requires a non-empty version"; exit 1
+              fi ;;
+            *)
+              echo "::error::Invalid environment '$ENVIRONMENT' (expected dev, beta, or prod)"; exit 1 ;;
+          esac
+
   # dev (manual builds) and beta (pushes to main) publish a single channel tag.
   publish-channel:
+    needs: validate
     if: inputs.environment == 'dev' || inputs.environment == 'beta'
     runs-on: ubuntu-latest
     permissions:
@@ -51,6 +71,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   publish-prod:
+    needs: validate
     if: inputs.environment == 'prod' && inputs.version != ''
     runs-on: ubuntu-latest
     permissions:

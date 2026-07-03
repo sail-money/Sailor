@@ -32,16 +32,21 @@ before changing strategy code or running commands that touch funds.
 
 const CANONICAL_PKG = "@sail.money/sailor";
 
-/** Version of the running CLI, read from its package manifest. */
+/**
+ * Version of the running CLI, read from its package manifest. Throws rather than
+ * falling back to a placeholder: a bad version would scaffold an unresolvable
+ * `@sail.money/sailor: ^0.0.0` devDependency, failing later and more confusingly.
+ */
 function cliVersion(): string {
+  const manifest = path.join(packageRoot(), "package.json");
+  let version: string | undefined;
   try {
-    const pkg = JSON.parse(
-      fs.readFileSync(path.join(packageRoot(), "package.json"), "utf-8"),
-    ) as { version?: string };
-    return pkg.version ?? "0.0.0";
-  } catch {
-    return "0.0.0";
+    version = (JSON.parse(fs.readFileSync(manifest, "utf-8")) as { version?: string }).version;
+  } catch (err) {
+    throw new Error(`Cannot read CLI package manifest at ${manifest}: ${(err as Error).message}`);
   }
+  if (!version) throw new Error(`CLI package manifest at ${manifest} has no version`);
+  return version;
 }
 
 function scaffoldProjectWorkspace(dest: string, name: string, options: InitOptions): void {

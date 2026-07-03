@@ -169,6 +169,9 @@ jobs:
       - name: Publish (OIDC)
         if: env.HAS_TOKEN != 'true'
         working-directory: ${{ inputs.package_dir }}
+        env:
+          REGISTRY_URL: ${{ inputs.registry-url }}
+          DIST_TAG: ${{ inputs.dist-tag }}
         run: |
           if [ -z "$ACTIONS_ID_TOKEN_REQUEST_URL" ]; then
             echo "::error::OIDC endpoint unavailable: id-token permission was not granted to this job, so npm cannot mint a trusted-publishing token"
@@ -176,13 +179,14 @@ jobs:
           fi
           echo "OIDC endpoint available; publishing via trusted publishing"
           unset NODE_AUTH_TOKEN
-          echo "registry=${{ inputs.registry-url }}" > "$RUNNER_TEMP/.npmrc-oidc"
-          NPM_CONFIG_USERCONFIG="$RUNNER_TEMP/.npmrc-oidc" npm publish --access public --tag ${{ inputs.dist-tag }}
+          echo "registry=$REGISTRY_URL" > "$RUNNER_TEMP/.npmrc-oidc"
+          NPM_CONFIG_USERCONFIG="$RUNNER_TEMP/.npmrc-oidc" npm publish --access public --tag "$DIST_TAG"
 
       - name: Publish (token)
         if: env.HAS_TOKEN == 'true'
         working-directory: ${{ inputs.package_dir }}
-        run: npm publish --access public --tag ${{ inputs.dist-tag }}
+        run: npm publish --access public --tag "$DIST_TAG"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DIST_TAG: ${{ inputs.dist-tag }}
 
