@@ -345,7 +345,7 @@ function printWelcome(dest: string, name: string, inPlace: boolean, _hasRpc: boo
     console.log("Next:");
     console.log("  sailor ui start");
     console.log("  Connect your wallet and deploy your SMA in the browser.\n");
-    console.log('Or open this folder in your AI coding assistant and say: "continue"');
+    console.log('Or open this folder in your AI coding agent and say: "continue"');
     return;
   }
 
@@ -362,7 +362,7 @@ function printWelcome(dest: string, name: string, inPlace: boolean, _hasRpc: boo
     );
     console.log("  forge build");
     console.log(`  sailor mandate deploy --contract <Name> --attach --sma ${state.sma}\n`);
-    console.log('Or open this folder in your AI coding assistant and say: "continue"');
+    console.log('Or open this folder in your AI coding agent and say: "continue"');
     return;
   }
 
@@ -371,7 +371,7 @@ function printWelcome(dest: string, name: string, inPlace: boolean, _hasRpc: boo
     console.log(`Project: ${state.projectName}`);
     console.log(`SMA: ${state.sma} on ${state.chain}`);
     console.log(`Permissions: ${state.permissionCount} registered\n`);
-    console.log('Open this folder in your AI coding assistant and say: "continue"');
+    console.log('Open this folder in your AI coding agent and say: "continue"');
     return;
   }
 

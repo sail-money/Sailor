@@ -1,7 +1,7 @@
 # Getting started
 
 End-to-end path from nothing to a running, bounded agent — and how to shut it down. Every command
-here is copy-pasteable. The assistant-driven flow (open the scaffold in your AI coding assistant
+here is copy-pasteable. The agent-driven flow (open the scaffold in your AI coding agent
 and say **"start"**) walks the same journey conversationally; this page is the manual version.
 
 ## 1. Install and scaffold
@@ -77,7 +77,7 @@ sailor mandate configure --address <templateAddress> \
 ```
 
 The scaffold's skills (`.agents/skills/sail-template-*`) carry the exact parameter schema and the
-safe order of operations per template — this is where the assistant-driven flow shines. For a
+safe order of operations per template — this is where the agent-driven flow shines. For a
 custom policy instead, author an `IPermission` contract in `mandates/` (start from
 `BoundedCallPermission.sol`, worked patterns in `examples/permissions/`) and use
 `sailor mandate deploy --contract <Name> --attach --sma <yourSMA>`.

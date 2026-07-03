@@ -28,12 +28,14 @@ config encoders (`@sail.money/sdk/templates`), and the version-adaptive EIP-712 
 
 ## Skills: how templates get used
 
-Each scaffolded project carries on-demand skills under `.agents/skills/` — one per shared
-template (`sail-template-swap`, `sail-template-transfer`, …) plus cross-cutting ones
-(`sail-onboarding`, `sail-mandates` for authoring custom permissions, `sail-transactions`,
-`sail-templates` for the catalog itself, `sail-automation`, and more). A skill encodes the safe
+Each scaffolded project carries seventeen on-demand skills under `.agents/skills/`, spanning the
+whole workflow: setting up (`sail-onboarding`, `sail-project-info`, `sail-servers`), defining the
+mandate (one skill per shared template plus `sail-templates` for the catalog and `sail-mandates`
+for authoring custom permissions), executing strategy (`sail-token-resolve`, `sail-swap-quote`,
+`sail-transactions`), and running unattended (`sail-automation`, `sail-extend`). Template usage
+is one part of that set, not the whole of it. A template skill encodes the safe
 order of operations — register → configure → simulate → verify — along with the exact parameter
-schemas and per-template footguns, so every AI assistant follows the same vetted procedure
+schemas and per-template footguns, so every agent follows the same vetted procedure
 instead of re-deriving it. This is why template configuration is *driven through the skills*: the
 CLI provides the primitives (`sailor mandate attach` / `configure` / `simulate`), and the skill
 is the checklist that sequences them correctly.

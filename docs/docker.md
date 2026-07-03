@@ -15,7 +15,7 @@ docker exec agent sailor init
 
 - The container idles (`sleep infinity`) and exists to serve `docker exec agent sailor <command>`.
 - `-v "${PWD}:/workspace"` mounts your project **on the host** — read and edit files with your
-  normal editor/assistant; only `sailor` commands need the `docker exec` prefix. `sailor init`
+  normal editor or coding agent; only `sailor` commands need the `docker exec` prefix. `sailor init`
   detects the container (`SAILOR_INSTALL_MODE=docker`) and notes this in the scaffold.
 - If you name the container something else, match it:
   `docker run --name myproject -e SAILOR_CONTAINER_NAME=myproject …`.
