@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import cors from 'cors'
 import express from 'express'
 import { WebSocket, WebSocketServer } from 'ws'
-import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, getSailDeployment, readPermissionRegistrationFee } from '@sail/sdk'
+import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, defaultRpcUrls, getSailDeployment, readPermissionRegistrationFee } from '@sail/sdk'
 import { createPublicClient, createWalletClient, defineChain, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
 
@@ -186,18 +186,8 @@ const SUPPORTED_CHAIN_IDS = [1, 8453, 42161, 10, 130, 56, 480, 999, 4326, 84532]
 // Last-resort public RPC endpoints, keyed by chain id. Used for chain discovery
 // and read-only overviews when a project hasn't configured a per-chain RPC, so
 // a multi-chain SMA still surfaces every chain it lives on out of the box.
-const DEFAULT_RPC_URLS = {
-  1:     'https://eth.llamarpc.com',
-  8453:  'https://mainnet.base.org',
-  42161: 'https://arb1.arbitrum.io/rpc',
-  10:    'https://mainnet.optimism.io',
-  130:   'https://mainnet.unichain.org',
-  56:    'https://bsc-dataseed.binance.org',
-  480:   'https://worldchain-mainnet.g.alchemy.com/public',
-  999:   'https://rpc.hyperliquid.xyz/evm',
-  4326:  'https://mainnet.megaeth.com/rpc',
-  84532: 'https://sepolia.base.org',
-}
+// Sourced from the SDK chain registry (single source of truth) — do not hand-edit.
+const DEFAULT_RPC_URLS = { ...defaultRpcUrls }
 
 /** Resolve the RPC URL for a specific chain from the env, with a public fallback. */
 function resolveRpcUrl(env, chainId) {
