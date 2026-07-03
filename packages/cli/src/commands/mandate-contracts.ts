@@ -23,6 +23,7 @@ import {
   buildRegisterPermissionTypedData,
   buildRegisterPermissionsBatchTypedData,
   detectKernelCapabilities,
+  getNativeCurrencySymbol,
   getSailDeployment,
   readPermissionRegistrationFee,
   sailKernelDomain,
@@ -651,6 +652,7 @@ async function runDeployClone(
     registrationFee: {
       totalEth: formatEther(fee),
       permissionCount: 1,
+      symbol: getNativeCurrencySymbol(project.chainId),
     },
     typedData,
   });
@@ -749,6 +751,7 @@ async function runDeployClone(
     // Registration fee actually paid by the agent for this permission.
     fee: fee.toString(),
     feeEth: formatEther(fee),
+    feeSymbol: getNativeCurrencySymbol(project.chainId),
   });
 
   emit(json, () => {}, {
@@ -1225,6 +1228,7 @@ async function attachBatchToSma(
       totalEth: formatEther(fee),
       permissionCount: permissions.length,
       ...(permissions.length > 1 ? { perPermissionEth: formatEther(flatFee) } : {}),
+      symbol: getNativeCurrencySymbol(project.chainId),
     },
     typedData,
   });
@@ -1275,6 +1279,7 @@ async function attachBatchToSma(
       // Each permission in the batch is charged the same flat fee.
       fee: flatFee.toString(),
       feeEth: formatEther(flatFee),
+      feeSymbol: getNativeCurrencySymbol(project.chainId),
     });
     say(() => {
       if (!present) {

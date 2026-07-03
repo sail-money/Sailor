@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import OnboardingWizard from '../onboarding/OnboardingWizard'
 import { ConnectButton, useConnectModal } from '@rainbow-me/rainbowkit'
 import { useAccount, useDisconnect } from 'wagmi'
-import { explorerAddressUrl, explorerCodeUrl as libExplorerCodeUrl, explorerTxUrl } from '../../lib/explorer'
+import { explorerAddressUrl, explorerCodeUrl as libExplorerCodeUrl, explorerTxUrl, nativeCurrencySymbol } from '../../lib/explorer'
 import {
   ChainGlyph,
   InfoTip,
@@ -250,7 +250,10 @@ function activityDetail(e) {
   }
   if (e.type === 'permission_registered' || e.type === 'permission_revoked') {
     const base = e.name ?? truncateAddr(e.permission)
-    if (e.type === 'permission_registered' && e.feeEth) return `${base} · fee ${e.feeEth} ETH`
+    if (e.type === 'permission_registered' && e.feeEth) {
+      const symbol = e.feeSymbol ?? nativeCurrencySymbol(e.chainId)
+      return `${base} · fee ${e.feeEth} ${symbol}`
+    }
     return base
   }
   if (e.permission) return truncateAddr(e.permission)

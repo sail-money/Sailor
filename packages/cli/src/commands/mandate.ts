@@ -3,6 +3,7 @@ import {
   SailKernelAbi,
   describeMandateFee,
   estimateMandateRegistrationFee,
+  getNativeCurrencySymbol,
   getSailDeployment,
 } from "@sail/sdk";
 import { http, type Address, createPublicClient, formatEther } from "viem";
@@ -44,16 +45,18 @@ export type TrackedPermission = {
 type DraftRegistrationFee = {
   /** Flat per-permission fee (wei); the kernel charges this for each permission. */
   perPermissionWei?: string;
-  /** Flat per-permission fee in ETH. */
+  /** Flat per-permission fee, formatted in the chain's native token. */
   perPermissionEth?: string;
   /** Total fee (wei) for this mandate = sum of the per-permission charges. */
   totalWei: string;
-  /** Total fee formatted in ETH. */
+  /** Total fee, formatted in the chain's native token. */
   totalEth: string;
   /** Number of not-yet-registered permissions the fee covers. */
   permissionCount: number;
   /** One-line factual cost disclosure for the UI. */
   disclosure: string;
+  /** The chain's native gas token symbol (e.g. "ETH", "BNB", "HYPE") — what totalEth/perPermissionEth are denominated in. */
+  symbol: string;
 };
 
 /**
@@ -106,7 +109,8 @@ async function liveMandateFee(
 
 /** Build the draft fee block from a flat estimate. Every permission is charged
  *  the same flat fee, so the per-permission rate is always included. */
-function draftFeeFromEstimate(estimate: MandateFeeEstimate): DraftRegistrationFee {
+function draftFeeFromEstimate(estimate: MandateFeeEstimate, chainId: number): DraftRegistrationFee {
+  const symbol = getNativeCurrencySymbol(chainId);
   const perFeeWei = estimate.perPermission[0]?.feeWei ?? 0n;
   return {
     perPermissionWei: perFeeWei.toString(),
@@ -114,7 +118,8 @@ function draftFeeFromEstimate(estimate: MandateFeeEstimate): DraftRegistrationFe
     totalWei: estimate.totalWei.toString(),
     totalEth: formatEther(estimate.totalWei),
     permissionCount: estimate.perPermission.length,
-    disclosure: describeMandateFee(estimate),
+    disclosure: describeMandateFee(estimate, symbol),
+    symbol,
   };
 }
 
@@ -308,7 +313,7 @@ export async function mandatePrepare(): Promise<void> {
   const unregisteredAddresses = chargeable.map((p) => p.address);
   if (unregisteredAddresses.length > 0) {
     const estimate = await liveMandateFee(chainId, unregisteredAddresses);
-    if (estimate !== null) registrationFee = draftFeeFromEstimate(estimate);
+    if (estimate !== null) registrationFee = draftFeeFromEstimate(estimate, chainId);
   }
 
   const draft: MandateDraft = {
@@ -375,7 +380,7 @@ export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
   if (unregistered.length > 0) {
     const estimate = await liveMandateFee(chainId, unregistered.map((p) => p.address));
     if (estimate !== null) {
-      console.log(`\n${describeMandateFee(estimate)}`);
+      console.log(`\n${describeMandateFee(estimate, getNativeCurrencySymbol(chainId))}`);
       console.log("  Paid by the agent wallet on registration, per permission.");
     }
   }

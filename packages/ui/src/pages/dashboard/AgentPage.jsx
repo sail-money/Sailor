@@ -25,7 +25,8 @@ import ContractModal from './ContractModal'
  * recommendation.
  */
 export default function AgentPage({ agentId, onBack, onEdit, onRevoke }) {
-  const { mandate: liveMandate } = useSailorMandate()
+  const { mandates: liveMandates } = useSailorMandate()
+  const liveMandate = liveMandates[0] ?? null
   const { account } = useSailorAccount()
   const { address: mockWallet } = useAccount()
   const mockSafe = account?.safe ?? null

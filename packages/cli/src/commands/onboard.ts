@@ -24,6 +24,7 @@ import {
   buildSafeSetupInitializer,
   detectKernelCapabilities,
   estimateMandateRegistrationFee,
+  getNativeCurrencySymbol,
   getSailDeployment,
   sailKernelDomain,
 } from "@sail/sdk";
@@ -578,7 +579,7 @@ export async function attachMandate(
   const agentBalanceWei = await publicClient.getBalance({
     address: agentSigner.viemAccount.address,
   });
-  const gate = registrationGate({ estimate: feeEstimate, agentBalanceWei });
+  const gate = registrationGate({ estimate: feeEstimate, agentBalanceWei, chainId: project.chainId });
   say(() => console.log(gate.disclosure));
 
   say(() => console.log(`\nPushing signing request for "${template.label}" permission…`));
@@ -613,6 +614,7 @@ export async function attachMandate(
     registrationFee: {
       totalEth: formatEther(fee),
       permissionCount: 1,
+      symbol: getNativeCurrencySymbol(project.chainId),
     },
     typedData,
   });
@@ -720,6 +722,7 @@ export async function attachMandate(
     // Registration fee actually paid by the agent for this permission.
     fee: fee.toString(),
     feeEth: formatEther(fee),
+    feeSymbol: getNativeCurrencySymbol(project.chainId),
   });
   return txHash;
 }

@@ -65,14 +65,17 @@ export async function estimateMandateRegistrationFee(
  * Plain-language disclosure of a mandate's flat registration fee, e.g.
  * `"Registration fee: 0.00003 ETH (3 permissions × 0.00001 ETH)"`.
  *
- * Factual cost statement only — no price/value framing.
+ * Factual cost statement only — no price/value framing. `symbol` is the
+ * chain's native gas token (defaults to "ETH") — callers on a chain with its
+ * own gas token (BSC → BNB, HyperEVM → HYPE) MUST pass the correct symbol;
+ * the fee is always denominated in the chain's native token, never literally ETH.
  */
-export function describeMandateFee(estimate: MandateFeeEstimate): string {
+export function describeMandateFee(estimate: MandateFeeEstimate, symbol = "ETH"): string {
   const count = estimate.perPermission.length;
-  if (count === 0) return "Registration fee: 0 ETH (no new permissions to register)";
+  if (count === 0) return `Registration fee: 0 ${symbol} (no new permissions to register)`;
   const noun = count === 1 ? "permission" : "permissions";
   const perFeeWei = estimate.perPermission[0].feeWei; // flat — identical for every permission
-  return `Registration fee: ${formatEther(estimate.totalWei)} ETH (${count} ${noun} × ${formatEther(perFeeWei)} ETH)`;
+  return `Registration fee: ${formatEther(estimate.totalWei)} ${symbol} (${count} ${noun} × ${formatEther(perFeeWei)} ${symbol})`;
 }
 
 /** Thrown when a signer cannot cover the registration fee. A typed error so the
@@ -100,12 +103,13 @@ export function feeShortfall(balanceWei: bigint, totalFeeWei: bigint): bigint {
  * registration fee. Call this BEFORE prompting the owner to sign so an
  * underfunded signer fails early rather than after a wasted signature or an
  * on-chain revert. Scoped to the fee itself — gas is a separate concern.
+ * `symbol` is the chain's native gas token (defaults to "ETH").
  */
-export function assertFeeAffordable(balanceWei: bigint, totalFeeWei: bigint): void {
+export function assertFeeAffordable(balanceWei: bigint, totalFeeWei: bigint, symbol = "ETH"): void {
   if (balanceWei < totalFeeWei) {
     throw new RegistrationFeeError(
-      `Insufficient ETH for the ${formatEther(totalFeeWei)} ETH registration fee; ` +
-        `signer balance is ${formatEther(balanceWei)} ETH.`,
+      `Insufficient ${symbol} for the ${formatEther(totalFeeWei)} ${symbol} registration fee; ` +
+        `signer balance is ${formatEther(balanceWei)} ${symbol}.`,
       totalFeeWei,
       balanceWei,
     );

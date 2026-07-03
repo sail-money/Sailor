@@ -29,7 +29,8 @@ import { explorerTxUrl } from '../../lib/explorer'
  */
 export default function JournalPage({ entryId, onBack }) {
   const { events } = useSailorActivity()
-  const { mandate } = useSailorMandate()
+  const { mandates } = useSailorMandate()
+  const mandate = mandates[0] ?? null
   const { account } = useSailorAccount()
 
   const entry = useMemo(
