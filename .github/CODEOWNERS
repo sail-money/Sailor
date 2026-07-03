@@ -1,16 +1,5 @@
 # Code owners for sail-money/Sailor
 # Syntax: https://docs.github.com/articles/about-code-owners
-# Order matters — the last matching pattern wins.
+# The @sail-money/devs team must have write access for team ownership to apply.
 
-# Default: any change needs a maintainer review.
-*                       @AlvaroAlonso-0 @aadopii @jmad-sail @dreski3
-
-# SDK / CLI / packages
-/packages/              @AlvaroAlonso-0 @jmad-sail @dreski3
-
-# Templates (scaffolded projects, agent skills)
-/templates/             @aadopii @AlvaroAlonso-0
-/templates/default/.agents/  @aadopii @AlvaroAlonso-0
-
-# Release + CI surface
-/.github/               @AlvaroAlonso-0 @jmad-sail
+*                            @sail-money/devs @aadopii
