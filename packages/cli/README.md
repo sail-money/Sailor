@@ -1,7 +1,7 @@
 # sailor
 
 Start a new agent project with `npx @sail.money/sailor init <name>` from inside your
-AI coding assistant, or install globally for direct command use and CI/CD.
+AI coding agent, or install globally for direct command use and CI/CD.
 
 CLI operator toolkit for Sail Protocol. Run `sailor --help` to see all commands.
 
