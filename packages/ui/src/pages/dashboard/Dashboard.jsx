@@ -575,6 +575,7 @@ function NetworkSelect({ chains, activeChainId, onSelect }) {
 function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSigner }) {
   const [copied, setCopied] = useState(false)
   const [fundOpen, setFundOpen] = useState(false)
+  const nativeSymbol = nativeCurrencySymbol(chainId)
   const role = signer.role === 'sma'
     ? { label: 'SMA' }
     : (SIGNER_ROLE[signer.role] ?? { label: signer.role })
@@ -691,12 +692,12 @@ function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSi
             >
               0.0000
             </span>
-            <span className={`${styles.signerBalanceUnit} ${styles.signerBalanceNumLoading}`}>ETH</span>
+            <span className={`${styles.signerBalanceUnit} ${styles.signerBalanceNumLoading}`}>{nativeSymbol}</span>
           </>
         ) : (
           <>
             <span className={styles.signerBalanceNum}>{fmtEth(signer.balanceEth)}</span>
-            <span className={styles.signerBalanceUnit}>ETH</span>
+            <span className={styles.signerBalanceUnit}>{nativeSymbol}</span>
           </>
         )}
       </div>

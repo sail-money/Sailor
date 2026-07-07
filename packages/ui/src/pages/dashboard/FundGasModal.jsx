@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi'
 import { parseEther } from 'viem'
 import { GlassCard, SailButton } from '../shared'
+import { nativeCurrencySymbol } from '../../lib/explorer'
 import styles from './FundGasModal.module.css'
 
 function short(a) {
@@ -16,6 +17,7 @@ export default function FundGasModal({ open, onClose, signer, network, chainId }
   const { address: fromAddress, chainId: walletChainId } = useAccount()
   const { sendTransactionAsync } = useSendTransaction()
   const { switchChainAsync } = useSwitchChain()
+  const nativeSymbol = nativeCurrencySymbol(chainId)
 
   // True when the connected wallet IS the signer — sending to itself is a no-op.
   const isSelf = fromAddress && signer?.address &&
@@ -90,10 +92,10 @@ export default function FundGasModal({ open, onClose, signer, network, chainId }
 
           {isSelf ? (
             <>
-              <h2 className={styles.headline}>Send ETH to this address.</h2>
+              <h2 className={styles.headline}>Send {nativeSymbol} to this address.</h2>
               <p className={styles.sub}>
                 This is your connected wallet — you can't send to yourself.
-                Transfer ETH here from an exchange or another wallet
+                Transfer {nativeSymbol} here from an exchange or another wallet
                 {networkLabel ? ` on ${networkLabel}` : ''}.
               </p>
               <div className={styles.addrBlock}>
@@ -110,7 +112,7 @@ export default function FundGasModal({ open, onClose, signer, network, chainId }
               <h2 className={styles.headline}>Top up agent wallet.</h2>
               <p className={styles.sub}>
                 The agent signs transactions with its local wallet and pays gas from it.
-                Send ETH from your connected wallet to keep it running.
+                Send {nativeSymbol} from your connected wallet to keep it running.
                 {networkLabel && ` The transfer happens on ${networkLabel}.`}
               </p>
 
@@ -137,7 +139,7 @@ export default function FundGasModal({ open, onClose, signer, network, chainId }
                     autoFocus
                     onChange={(e) => setAmount(e.target.value)}
                   />
-                  <span className={styles.amountUnit}>ETH</span>
+                  <span className={styles.amountUnit}>{nativeSymbol}</span>
                 </div>
               </label>
 
