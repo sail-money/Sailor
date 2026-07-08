@@ -24,7 +24,7 @@ export const agent: Agent = {
     // TODO: implement your strategy.
     // Read on-chain state, decide what to do, return intent dispatches.
     // ctx.read.balance(tokenAddress) — read token balance of the SMA
-    // ctx.data._publicClient — viem PublicClient for arbitrary on-chain reads
+    // ctx.publicClient — viem PublicClient for arbitrary on-chain reads
     // ctx.log(msg) — append a message to the activity log
     //
     // Example (from examples/dca/agent.ts):

@@ -131,14 +131,16 @@ function errMsg(e) {
 }
 
 async function main() {
-  const a = parseArgs(process.argv.slice(2));
-  if (process.argv.length <= 2 || a.help) {
+  const rawArgs = process.argv.slice(2);
+  if (rawArgs.length === 0 || rawArgs.includes("-h") || rawArgs.includes("--help")) {
     process.stderr.write(
       "Usage: quote-swap.mjs --token-in <addr> --token-out <addr> --amount <baseUnits>\n" +
         "  --decimals-in <n> --decimals-out <n> --fee <tier> [--slippage-bps <n>] [--chain <>] [--rpc URL]\n",
     );
-    process.exit(process.argv.length <= 2 ? 1 : 0);
+    process.exit(rawArgs.length === 0 ? 1 : 0);
   }
+
+  const a = parseArgs(rawArgs);
 
   const need = ["tokenIn", "tokenOut", "amount", "decimalsIn", "decimalsOut", "fee"];
   for (const k of need) if (a[k] === undefined) throw new Error(`Missing --${k.replace(/([A-Z])/g, "-$1").toLowerCase()}`);

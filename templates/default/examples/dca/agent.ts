@@ -3,7 +3,7 @@
 // To adapt: replace token addresses, protocol ABIs, and swap logic with your target strategy.
 
 import type { Agent, AgentContext, Call, Dispatch } from "@sail.money/sailor/sdk";
-import { encodeFunctionData, type PublicClient } from "viem";
+import { encodeFunctionData } from "viem";
 import {
   ALLOWED_TOKENS,
   MIN_USDC_TO_SWAP,
@@ -106,11 +106,7 @@ export const agent: Agent = {
     const { safe } = ctx;
     ctx.log(`tick — block ${ctx.blockNumber}, sma ${safe}`);
 
-    const pc = ctx.data._publicClient as PublicClient | undefined;
-    if (!pc) {
-      ctx.log("no publicClient in ctx.data — skipping tick");
-      return [];
-    }
+    const pc = ctx.publicClient;
 
     const usdc = ALLOWED_TOKENS[0]!;
     const weth = ALLOWED_TOKENS[1]!;
