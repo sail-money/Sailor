@@ -289,7 +289,7 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
   if (!safe) {
     console.log("✗ Setup incomplete — no SMA found. Run \"sailor onboard --new-sma\" to deploy one.");
   } else if (permissions.length === 0) {
-    console.log("✗ Setup incomplete — no permissions registered. Your agent cannot dispatch until at least one permission is attached.");
+    console.log("✗ Setup incomplete — no permissions registered. Your agent cannot dispatch until at least one permission is registered.");
   } else if (multiBricking) {
     console.log(`✗ Setup issue — ${bricking.length} of ${permissions.length} permissions block unrelated calls (see below).`);
   } else {
@@ -417,7 +417,7 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
     console.log(
       "\n⚠ No permissions registered — every dispatch will be denied (NoPermissionsRegistered).",
     );
-    console.log('  Register at least one with "sailor mandate attach".');
+    console.log('  Register at least one with "sailor mandate register".');
     return;
   }
 

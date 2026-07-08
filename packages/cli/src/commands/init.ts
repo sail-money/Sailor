@@ -366,7 +366,7 @@ function printWelcome(dest: string, name: string, inPlace: boolean, _hasRpc: boo
       "  Write your permission contract in mandates/ (start from BoundedCallPermission.sol)",
     );
     console.log("  forge build");
-    console.log(`  sailor mandate deploy --contract <Name> --attach --sma ${state.sma}\n`);
+    console.log(`  sailor mandate deploy --contract <Name> --register --sma ${state.sma}\n`);
     console.log('Or open this folder in your AI coding agent and say: "continue"');
     return;
   }
