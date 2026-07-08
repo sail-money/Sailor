@@ -42,11 +42,11 @@ is the checklist that sequences them correctly.
 
 ## Where everything lives (and why together)
 
-**Skills are the instructions; `templates/default/examples/permissions/` are the worked patterns
-those instructions reference — and both are scaffolded together from `templates/default/`.**
+**Skills are the instructions; `templates/default/examples/` is the teaching material those
+instructions reference — and both are scaffolded together from `templates/default/`.**
 When `sailor init` creates a project, the entire template tree is copied in, so the skill that
-says "start from the worked examples" finds those exact files at `examples/permissions/` in the
-project, alongside the `IPermission` authoring workspace at `examples/custom-mandate/` and a
+says "start from the scaffold" finds those exact files in the project: the `IPermission`
+authoring workspace at `examples/custom-mandate/` (with a Foundry test, per Gate 4) and a
 complete DCA agent at `examples/dca/`. Single source of truth in the repo; self-contained
 teaching material in every scaffold.
 
@@ -57,9 +57,10 @@ deliberately not restated here where they could drift.
 ## Custom permissions
 
 When no shared template fits (perps, prediction markets, aggregators, anything bespoke), author
-your own `IPermission` contract: the `sail-mandates` skill is the procedure,
-`examples/permissions/*.sol` are the per-protocol patterns (each header documents what is
-enforced onchain vs left to the agent). Deploy, simulate, then register — as three separate
+your own `IPermission` contract: the `sail-mandates` skill is the procedure, and
+`examples/custom-mandate/` is the neutral scaffold to start from (each permission's header should
+document what is enforced onchain vs left to the agent — see the skill's authoring-patterns
+reference). Deploy, simulate, then register — as three separate
 steps, never combined: `sailor mandate deploy --contract <Name>`, then `sailor mandate simulate`
 to prove it accepts and rejects the right calls, then `sailor mandate register --address
 <deployed>` to authorize it. You own what you deploy — nothing here is a supported or exhaustive

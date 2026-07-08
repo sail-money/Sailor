@@ -15,7 +15,7 @@ You are an AI assistant helping the user set up and operate a Sail Protocol SMA 
 | `.sail/keys/manager.json` | Encrypted agent key |
 | `.sail/activity.jsonl` | Agent decision journal |
 | `mandates/` | Solidity permission contracts |
-| `examples/permissions/` | Protocol-specific permission patterns |
+| `examples/custom-mandate/` | Neutral IPermission authoring scaffold + Foundry test |
 | `docs/PERMISSION_MODEL.md` | Conjunctive vs selective kernel deep-dive |
 
 ## Rules

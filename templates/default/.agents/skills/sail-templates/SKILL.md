@@ -127,7 +127,7 @@ Full mechanics (EIP-712 sigs, `configure`/`configureDirect`, `registerBatch`, `r
 No shared template covers: **perps** (GMX, Gains, Synthetix), **prediction markets** (Azuro,
 Limitless), or the **LI.FI aggregator**. For those, author a bespoke `IPermission` via
 `sailor mandate deploy` — see [`sail-mandates`](../sail-mandates/SKILL.md) for the
-authoring flow and `examples/permissions/` for worked per-protocol patterns.
+authoring flow and `examples/custom-mandate/` for the neutral authoring scaffold.
 
 ## Notes
 

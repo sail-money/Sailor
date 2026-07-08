@@ -13,8 +13,15 @@ const UPDATE_PATHS = [
 ];
 
 // Paths removed or renamed in past template versions. Deleted on update if present.
+// Note: UPDATE_PATHS re-sync (copyDirSync) only copies files that exist in the current
+// template — it never deletes a destination file/dir that the template no longer ships.
+// So a path removed from templates/default (even one under .agents/) needs an explicit
+// entry here, or it lingers in already-scaffolded projects forever.
 const STALE_PATHS = [
   ".agents/skills/sail-ci", // renamed to sail-automation
+  ".agents/skills/sail-mandates/references/examples-index.md", // retired with examples/permissions/
+  "examples/permissions", // retired per-protocol gallery — see sail-mandates/references/authoring-patterns.md
+  "test/BoundedCallPermission.t.sol", // moved to examples/custom-mandate/test/BoundedCallPermission.t.sol
 ];
 
 

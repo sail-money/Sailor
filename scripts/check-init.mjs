@@ -65,7 +65,7 @@ try {
     ".dockerignore",
     ".sail/contracts/interfaces/IPermission.sol",
     ".sail/contracts/interfaces/IBatchPermission.sol",
-    "test/BoundedCallPermission.t.sol",
+    "examples/custom-mandate/test/BoundedCallPermission.t.sol",
     "examples/custom-mandate/README.md",
     ".agents/skills/sail-onboarding/SKILL.md",
     ".agents/skills/sail-project-info/SKILL.md",

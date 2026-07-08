@@ -124,8 +124,8 @@ import {IPermission, Context} from "@sail/interfaces/IPermission.sol";
 /// @title  BoundedCallPermission
 /// @notice General-purpose IPermission primitive. Bounds the universal properties of any call:
 ///         allowed targets, allowed selectors, and max ETH value. Protocol-agnostic.
-///         For calldata-parameter bounds (amount caps, recipient checks, slippage), write a
-///         protocol-specific permission — see examples/permissions/ for the pattern per protocol.
+///         For calldata-parameter bounds (amount caps, recipient checks, slippage), extend this
+///         pattern — see the sail-mandates skill's authoring-patterns reference for the method.
 /// @dev Deploy one instance per SMA with constructor-configured parameters.
 contract BoundedCallPermission is IPermission {
     bytes32 private constant DISCRIMINATOR = keccak256("BoundedCallPermission");

@@ -7,8 +7,8 @@
  * For a worked example (DCA / USDC→WETH / Uniswap V3 / Base):
  *   see examples/dca/mandate.ts
  *
- * For protocol-specific permission examples (Uniswap, Aave, GMX, …):
- *   see examples/permissions/
+ * For authoring a bespoke on-chain permission for this strategy's venue:
+ *   see examples/custom-mandate/ (the scaffold) and the sail-mandates skill.
  */
 
 // TODO: replace with your strategy's parameters.

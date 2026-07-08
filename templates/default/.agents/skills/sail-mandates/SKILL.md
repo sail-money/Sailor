@@ -29,7 +29,7 @@ List every ERC-20 `approve()` the strategy implies — protocol permissions neve
 
 ## Gate 3 — Author the permission contracts
 
-Permission contracts live in `mandates/`. The user authors, reviews, and owns them. Start from the worked examples — see [references/examples-index.md](references/examples-index.md) for what each `examples/permissions/*.sol` teaches — adapt them, never present them as audited or as a closed menu.
+Permission contracts live in `mandates/`. The user authors, reviews, and owns them. Start from `examples/custom-mandate/` — a neutral, protocol-agnostic `IPermission` scaffold (`BoundedCallPermission.sol` + a Foundry test) — and extend it for the venue at hand. See [references/authoring-patterns.md](references/authoring-patterns.md) for the header discipline, named gotchas (selector verification, ABI drift, opaque-calldata boundaries), and the fail-closed authoring idiom. Never present a bespoke permission as audited.
 
 - Implement `IPermission.evaluate(bytes txData, Context ctx) → bool` (single-call) or `IBatchPermission.evaluateBatch(Call[] calls, BatchContext ctx) → bool` (batch). Interfaces are vendored under `.sail/contracts/`.
 - Use the `SailCalldata` library for bounded calldata decoding — slot-indexed reads after the 4-byte selector prevent silent truncation bugs.
@@ -45,7 +45,7 @@ foundryup
 
 ## Gate 4 — Write and run Foundry tests BEFORE any deployment
 
-`test/BoundedCallPermission.t.sol` is the scaffolded example — copy it for each permission you author. Write tests that call `evaluate()` (and `evaluateBatch()` for batch permissions) directly with calldata derived from the user's stated strategy:
+`examples/custom-mandate/test/BoundedCallPermission.t.sol` is the scaffolded example — copy it for each permission you author. Write tests that call `evaluate()` (and `evaluateBatch()` for batch permissions) directly with calldata derived from the user's stated strategy:
 
 - **Accept cases**: every call the strategy must make.
 - **Reject cases**: out-of-bounds amounts, wrong tokens, wrong recipients, wrong selectors, unbound venues.
