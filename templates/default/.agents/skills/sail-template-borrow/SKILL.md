@@ -60,7 +60,7 @@ Register → configure → simulate → reconfigure mechanics (and the encoding 
 `sailor mandate attach` registers only; `configureDirect` (owner tx) is the half that makes the
 permission live. Template-specific bits:
 
-- **Singleton:** `BorrowPermission` — `node SKILLS/sail-templates/catalog.mjs --chain <id>`.
+- **Singleton:** `BorrowPermission` — `node .agents/skills/sail-templates/catalog.mjs --chain <id>`.
 - **Spec to confirm:** protocols, assets, cap, max LTV, oracles.
 - **Blob:** `abi.encode(protocols[], assets[], maxAmountPerTx, maxLtvBps, collateralOracle,
   borrowOracle, maxPriceAgeSec)` — **flat params, no wrapper**.

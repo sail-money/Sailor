@@ -44,7 +44,7 @@ Register → configure → simulate → reconfigure mechanics (and the encoding 
 `sailor mandate attach` registers only; `configureDirect` (owner tx) is the half that makes the
 permission live. Template-specific bits:
 
-- **Singleton:** `TransferPermission` — `node SKILLS/sail-templates/catalog.mjs --chain <id>`.
+- **Singleton:** `TransferPermission` — `node .agents/skills/sail-templates/catalog.mjs --chain <id>`.
 - **Spec to confirm:** recipients, tokens, cap.
 - **Blob:** `abi.encode(allowedRecipients[], allowedTokens[], maxAmountPerTx)` — **flat params, no
   wrapper**.

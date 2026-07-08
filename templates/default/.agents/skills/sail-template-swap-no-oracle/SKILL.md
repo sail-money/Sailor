@@ -83,7 +83,7 @@ permission live.
 
 Template-specific bits:
 
-- **Singleton:** `SwapPermissionNoOracle` — `node SKILLS/sail-templates/catalog.mjs --chain <id>`.
+- **Singleton:** `SwapPermissionNoOracle` — `node .agents/skills/sail-templates/catalog.mjs --chain <id>`.
 - **Spec to confirm:** sell/buy tokens, per-swap cap, router/fee tier, recipient = SMA, and for each
   pair the reference pool + tolerance. **Explicitly confirm the no-oracle trade-off** with the user:
   this is a hallucination guard, not slippage/manipulation protection.
