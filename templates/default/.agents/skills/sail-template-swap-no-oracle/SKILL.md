@@ -78,7 +78,7 @@ above before using it (see [`sail-templates`](../sail-templates/SKILL.md) notes)
 
 Register → configure → simulate → reconfigure mechanics (and the encoding gotcha) live in
 [`sail-templates` reuse-flow](../sail-templates/references/reuse-flow.md) — follow it.
-`sailor mandate attach` registers only; `configureDirect` (owner tx) is the half that makes the
+`sailor mandate register` registers only; `configureDirect` (owner tx) is the half that makes the
 permission live.
 
 Template-specific bits:

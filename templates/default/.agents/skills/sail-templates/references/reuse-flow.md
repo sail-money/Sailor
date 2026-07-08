@@ -6,11 +6,13 @@ deploy entirely. You give one SMA its own private config inside the singleton's
 
 > **Two steps, not one (today).** The on-chain **intended** design is a single signed call —
 > `MandateFactory.attach(account, template, params, configureDeadline, configureSig, kernelSig)`
-> — that registers the template on the kernel AND writes its per-account config together.
+> — that registers the template on the kernel AND writes its per-account config together. (The
+> on-chain function is named `attach`; in Sailor and protocol vocabulary this operation is
+> permission registration — the kernel's own functions are registerPermission/registerPermissions.)
 > **The shipped `sailor` CLI does not implement that combined call yet.** `sailor mandate
-> attach` performs **only the kernel registration** (`RegisterPermission` / the batch
+> register` performs **only the kernel registration** (`RegisterPermission` / the batch
 > `registerPermissions`); it never calls `configure`/`configureDirect`, carries no `--params`,
-> and builds no `Configure` EIP-712 signature. The SDK's `client.mandate.attach(...)` is a
+> and builds no `Configure` EIP-712 signature. The SDK's `client.mandate.register(...)` is a
 > `notImplemented()` stub.
 >
 > A registered-but-unconfigured singleton has `isConfigured == false`, so the kernel's
@@ -24,7 +26,7 @@ These are the **on-chain** entry points — the contract truth for what the comb
 flow does. The shipped CLI uses a subset of them today (registration only); the configure
 half is driven directly for now.
 
-Registration (kernel side — what `sailor mandate attach` does today):
+Registration (kernel side — what `sailor mandate register` does today):
 
 | Function | Use |
 |---|---|
@@ -84,7 +86,7 @@ const explanation = boundedSwapTemplate.explainer.explain(params);
 
 ### 3. Register the singleton on the kernel (does NOT configure)
 ```bash
-sailor mandate attach --address <SHARED_ADDRESS> --sma <SMA> --label "<primitive>"
+sailor mandate register --address <SHARED_ADDRESS> --sma <SMA> --label "<primitive>"
 ```
 This builds and submits the kernel `RegisterPermission` (or `registerPermissions` for a
 comma-separated `--address` list). It does NOT call `configure`. After this step the address is
@@ -123,15 +125,15 @@ sailor mandate simulate --address <SHARED_ADDRESS> --sma <SMA> --calls ./probe.j
 
 ### 6. Reconfigure when bounds change
 New cap or allowlist? Re-encode the blob and repeat step 4 (`sailor mandate configure --force`,
-or the manual `configure` signature path) — the address stays registered, no re-attach. (On-chain
+or the manual `configure` signature path) — the address stays registered, no re-register. (On-chain
 `MandateFactory.reconfigure` is the intended batch path for this.)
 
 ## Gotchas
 
 - **Unconfigured = deny.** A freshly-registered shared template with no `configure()` has
   `isConfigured == false` and denies everything. Register AND configure — don't stop at
-  `sailor mandate attach`.
-- **`sailor mandate attach` is register-only.** It does not configure. This is the single most
+  `sailor mandate register`.
+- **`sailor mandate register` is register-only.** It does not configure. This is the single most
   common trap; see steps 3 and 4.
 - **Caps are in base units** of the relevant token (e.g. `25_000_000` = 25 USDC).
 - **permissionSigner is the trust anchor** for config. In production use a multisig / timelock

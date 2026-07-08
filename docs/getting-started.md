@@ -69,7 +69,7 @@ swap-no-oracle). Register, then configure:
 
 ```bash
 # Register (owner signs an EIP-712 RegisterPermission in the browser):
-sailor mandate attach --address <templateAddress> --sma <yourSMA>
+sailor mandate register --address <templateAddress> --sma <yourSMA>
 
 # Configure your bounds (tokens, caps, venues) for that template:
 sailor mandate configure --address <templateAddress> \
@@ -80,7 +80,7 @@ The scaffold's skills (`.agents/skills/sail-template-*`) carry the exact paramet
 safe order of operations per template — this is where the agent-driven flow shines. For a
 custom policy instead, author an `IPermission` contract in `mandates/` (start from
 `BoundedCallPermission.sol`, worked patterns in `examples/permissions/`) and use
-`sailor mandate deploy --contract <Name> --attach --sma <yourSMA>`.
+`sailor mandate deploy --contract <Name> --register --sma <yourSMA>`.
 
 ## 5. Prove the bounds before running
 

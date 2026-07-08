@@ -71,7 +71,7 @@ addresses remain. This file is the source of truth this guide mirrors.
 | `packages/sdk/src/capabilities.ts` | On-chain typehash detection; capability cache |
 | `packages/sdk/src/eip712.ts` | `buildRegisterPermissionTypedData`, `REGISTER_PERMISSION_TYPES` |
 | `packages/cli/src/commands/onboard.ts` | SMA creation + permission registration flow |
-| `packages/cli/src/commands/mandate-contracts.ts` | Deploy / attach / revoke permission contracts |
+| `packages/cli/src/commands/mandate-contracts.ts` | Deploy / register / revoke permission contracts |
 | `packages/cli/src/lib/mandates.ts` | `MandateStore` — `.sail/state/mandates.json` source of truth |
 | `packages/sdk/src/fees.ts` | `readPermissionRegistrationFee` (live governance read) + per-permission fee math/disclosure/preflight |
 | `packages/ui/server.js` | Local API + WebSocket proxy; signing station relay |

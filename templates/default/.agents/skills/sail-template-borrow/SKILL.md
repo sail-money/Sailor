@@ -1,6 +1,6 @@
 ---
 name: sail-template-borrow
-description: Gate an SMA's lending borrows by REUSING the shared BorrowPermission singleton (Protocol/contracts/templates/BorrowPermission.sol) — register + configure, no per-SMA deploy. Use for a bounded borrow mandate against Aave / Morpho / Compound with a protocol + asset allowlist, per-tx cap, and an on-chain LTV check via collateral + borrow oracles. NOTE: `sailor mandate attach` only registers — you must also configure per-account (see steps).
+description: Gate an SMA's lending borrows by REUSING the shared BorrowPermission singleton (Protocol/contracts/templates/BorrowPermission.sol) — register + configure, no per-SMA deploy. Use for a bounded borrow mandate against Aave / Morpho / Compound with a protocol + asset allowlist, per-tx cap, and an on-chain LTV check via collateral + borrow oracles. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps).
 compatibility: A Sailor project (`@sail/sdk`, `sailor` CLI). Requires BorrowPermission deployed on the target chain (recorded in sail-templates/deployed.json); run sail-templates first.
 metadata:
   workspace: sailor-harness
@@ -57,7 +57,7 @@ abi.encode(address[] protocols, address[] assets, uint256 maxAmountPerTx,
 
 Register → configure → simulate → reconfigure mechanics (and the encoding gotcha) live in
 [`sail-templates` reuse-flow](../sail-templates/references/reuse-flow.md) — follow it.
-`sailor mandate attach` registers only; `configureDirect` (owner tx) is the half that makes the
+`sailor mandate register` registers only; `configureDirect` (owner tx) is the half that makes the
 permission live. Template-specific bits:
 
 - **Singleton:** `BorrowPermission` — `node .agents/skills/sail-templates/catalog.mjs --chain <id>`.

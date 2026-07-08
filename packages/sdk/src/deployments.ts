@@ -36,6 +36,9 @@ export type CloneTemplateParam = {
  * `address` mirrors `standaloneTemplates[key]` (the clone LOGIC). A clone is created
  * per account via `MandateFactory.deployAndAttach(account, address, salt,
  * initData)`, where `initData` ABI-encodes a call to `initialize(initParams…)`.
+ * (The on-chain function is named `deployAndAttach`; in Sailor and protocol
+ * vocabulary this operation is permission registration — the kernel's own
+ * functions are registerPermission/registerPermissions.)
  */
 export type CloneTemplateInfo = {
   /** Matching key in `standaloneTemplates`. */

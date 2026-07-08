@@ -206,7 +206,7 @@ export type SailorClientConfig = {
   chainId: number;
   /** Deployed SailKernel address on this chain. Required for on-chain operations. */
   kernel?: Address;
-  /** Deployed MandateFactory address on this chain. Required for bundled attach flows. */
+  /** Deployed MandateFactory address on this chain. Required for bundled register flows. */
   mandateFactory?: Address;
 };
 
@@ -264,6 +264,14 @@ export interface IMandateNamespace {
    * Registers a single IPermission contract on the Safe.
    * The signer must be the Safe's permissionSigner.
    */
+  register(
+    safe: Address,
+    template: PermissionTemplate,
+    params: unknown,
+    signer: ILocalKeyring,
+  ): Promise<void>;
+
+  /** @deprecated Use {@link register}. Kept as an alias for backward compatibility. */
   attach(
     safe: Address,
     template: PermissionTemplate,
@@ -274,6 +282,9 @@ export interface IMandateNamespace {
   /**
    * Registers multiple IPermission contracts atomically (single Safe tx).
    */
+  registerBatch(safe: Address, items: MandateItem[], signer: ILocalKeyring): Promise<void>;
+
+  /** @deprecated Use {@link registerBatch}. Kept as an alias for backward compatibility. */
   attachBatch(safe: Address, items: MandateItem[], signer: ILocalKeyring): Promise<void>;
 
   /**
@@ -302,9 +313,18 @@ export interface IMandateNamespace {
   detach(safe: Address, template: PermissionTemplate, signer: ILocalKeyring): Promise<void>;
 
   /**
-   * Clones an implementation contract via ERC-1167 minimal proxy, then attaches it.
+   * Clones an implementation contract via ERC-1167 minimal proxy, then registers it.
    * Use when you want a dedicated permission instance rather than a shared one.
    */
+  deployAndRegisterClone(
+    safe: Address,
+    impl: Address,
+    initData: Hex,
+    salt: Hex,
+    signer: ILocalKeyring,
+  ): Promise<void>;
+
+  /** @deprecated Use {@link deployAndRegisterClone}. Kept as an alias for backward compatibility. */
   deployAndAttachClone(
     safe: Address,
     impl: Address,

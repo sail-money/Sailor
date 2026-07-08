@@ -117,7 +117,7 @@ test("disclosure, preflight, tx value and activity record are ONE number", async
     PERM_A,
     PERM_B,
   ]);
-  const txValue = est.totalWei; // what attachMandate sends and records
+  const txValue = est.totalWei; // what registerMandate sends and records
   assert.equal(txValue, TEST_FEE * 2n);
   assert.ok(describeMandateFee(est).includes("0.00002 ETH"), "disclosure shows the same total");
   // Preflight passes at exactly the total and fails just below it — same number.

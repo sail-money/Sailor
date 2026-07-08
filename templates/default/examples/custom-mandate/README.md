@@ -47,7 +47,7 @@ struct Context {
 - `discriminator` — a stable `bytes32` name for your permission (e.g. `keccak256("MyMandate")`).
 
 Keep all policy parameters constructor-configured so each deployment is a complete, reviewable
-policy before it is attached to the SMA.
+policy before it is registered on the SMA.
 
 ## Workflow
 
@@ -56,25 +56,31 @@ policy before it is attached to the SMA.
 # 2. Compile
 forge build
 
-# 3. Deploy and attach in one step
-sailor mandate deploy --contract <Name> --attach --sma <SMA>
-```
-
-Or deploy first and attach later (two-step):
-
-```bash
+# 3. Deploy
 sailor mandate deploy --contract <Name>            # prints the deployed address
-sailor mandate attach --address <deployedAddress> --sma <SMA>
 ```
 
-To attach several permissions, deploy each one first, then register them all in a single
-signature by passing a comma-separated list:
+Prove it before you authorize it — simulate against calls the permission MUST accept and calls it
+MUST reject (off-chain `eth_call`, no gas, signs nothing):
 
 ```bash
-sailor mandate attach --address <addr1>,<addr2>,<addr3> --sma <SMA>
+sailor mandate simulate --address <deployedAddress> --calls calls.json
 ```
 
-These attach commands open the browser signing station so the owner authorizes the registration
+Only once simulate is clean should you register:
+
+```bash
+sailor mandate register --address <deployedAddress> --sma <SMA>
+```
+
+To register several permissions, deploy (and simulate) each one first, then register them all in
+a single signature by passing a comma-separated list:
+
+```bash
+sailor mandate register --address <addr1>,<addr2>,<addr3> --sma <SMA>
+```
+
+These register commands open the browser signing station so the owner authorizes the registration
 (EIP-712 `RegisterPermission`); the agent submits the on-chain transaction.
 
 ## Prerequisites
@@ -86,7 +92,7 @@ These attach commands open the browser signing station so the owner authorizes t
 
 > **You are responsible for the correctness of your permission logic. Sailor registers whatever
 > contract address you provide. A bug can block all agent activity or authorize transactions you did
-> not intend. Review carefully before attaching.**
+> not intend. Review carefully before registering.**
 
 ## Extracting calldata parameters safely
 

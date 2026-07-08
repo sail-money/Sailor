@@ -63,7 +63,7 @@ export const SailKernelAbi = [
   },
 
   // ── Permission registry ───────────────────────────────────────────────────
-  // Singular register: the verified onboarding/mandate-attach path. The owner
+  // Singular register: the verified onboarding/mandate-register path. The owner
   // signs a RegisterPermission EIP-712 message; the agent submits this with the
   // exact registration fee as msg.value.
   {
@@ -77,7 +77,7 @@ export const SailKernelAbi = [
     ],
     outputs: [],
   },
-  // Batch register used by mandate.attachBatch.
+  // Batch register used by mandate.registerBatch.
   {
     type: "function",
     name: "registerPermissions",

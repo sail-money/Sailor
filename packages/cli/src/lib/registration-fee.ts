@@ -5,7 +5,7 @@ import {
   getNativeCurrencySymbol,
 } from "@sail/sdk";
 
-/** The pre-sign registration-fee gate for a mandate signing/attach operation. */
+/** The pre-sign registration-fee gate for a mandate signing/register operation. */
 export type RegistrationGate = {
   /** Total fee the kernel will charge for this signing (wei) = sum per permission. */
   totalFeeWei: bigint;

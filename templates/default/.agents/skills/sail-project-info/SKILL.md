@@ -16,7 +16,7 @@ Every command here is read-only and supports `--json` for machine reading. Prefe
 | `sailor scan --json` | Owner's Safes, which are Sail SMAs, their managers/permissions/sessions, local keys — persisted to `.sail/state/context.json` | Safe Transaction Service + kernel reads; `--owner <address>` overrides the saved owner |
 | `sailor owner show --json` | The saved project owner address | `.sail/state/owner.json` |
 | `sailor keys show` | Address of each stored key (decrypts to derive the address; prompts for passphrase unless `SAIL_PASSPHRASE` is set) | `.sail/keys/*.json` |
-| `sailor mandate list` | Permission contracts deployed from this project, with attachment history | `.sail/state/mandates.json` |
+| `sailor mandate list` | Permission contracts deployed from this project, with registration history | `.sail/state/mandates.json` |
 | `sailor mandate templates --json` | How to author a permission + any community-deployed standalone template addresses on this chain (unaudited, informational) | `deployments.ts` `standaloneTemplates` |
 
 ## Which source answers what

@@ -1,6 +1,6 @@
 ---
 name: sail-template-swap
-description: Gate an SMA's DEX swaps by REUSING the shared SwapPermission singleton (Protocol/contracts/templates/SwapPermission.sol) — register + configure, no per-SMA deploy. Use for a bounded swap / DCA mandate on Uniswap V3, V3-02, or V2 with router + token-in/out allowlists, a per-tx cap, and a MANDATORY oracle slippage band (priceOracle is required — for no-oracle tokens use sail-template-swap-no-oracle). For the LI.FI aggregator or Pendle, author a bespoke permission via sail-mandates. NOTE: `sailor mandate attach` only registers — you must also configure per-account (see steps).
+description: Gate an SMA's DEX swaps by REUSING the shared SwapPermission singleton (Protocol/contracts/templates/SwapPermission.sol) — register + configure, no per-SMA deploy. Use for a bounded swap / DCA mandate on Uniswap V3, V3-02, or V2 with router + token-in/out allowlists, a per-tx cap, and a MANDATORY oracle slippage band (priceOracle is required — for no-oracle tokens use sail-template-swap-no-oracle). For the LI.FI aggregator or Pendle, author a bespoke permission via sail-mandates. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps).
 compatibility: A Sailor project (`@sail/sdk`, `sailor` CLI). Requires SwapPermission deployed on the target chain (recorded in sail-templates/deployed.json); run sail-templates first.
 metadata:
   workspace: sailor-harness
@@ -123,7 +123,7 @@ adapter** for this pair on this chain (`0x0` reverts):
 
 ## Steps
 
-> **Register ≠ configure.** `sailor mandate attach` only registers the singleton on the kernel;
+> **Register ≠ configure.** `sailor mandate register` only registers the singleton on the kernel;
 > it does NOT configure it. A registered-but-unconfigured singleton denies every call. You must
 > do both — steps 3a (register) and 3b (configure). Full mechanics + the encoding gotcha:
 > [`sail-templates` reuse-flow](../sail-templates/references/reuse-flow.md).
@@ -135,7 +135,7 @@ adapter** for this pair on this chain (`0x0` reverts):
    approval.
 3. **a. Register** the singleton on the SMA's kernel (does NOT configure):
    ```bash
-   sailor mandate attach --address <SWAP_PERMISSION> --sma <SMA> --label "bounded-swap"
+   sailor mandate register --address <SWAP_PERMISSION> --sma <SMA> --label "bounded-swap"
    ```
    **b. Configure** the per-account bounds — this is what makes the permission live. Build a
    JSON file with the flat template params (`routers`, `tokensIn`, `tokensOut`, `maxAmountPerTx`,

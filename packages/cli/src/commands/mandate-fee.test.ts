@@ -40,7 +40,7 @@ test("prepare and sign charge the SAME count (re-prepare doesn't overstate)", ()
   assert.equal(chargeablePermissions(allRegistered).length, 0);
 });
 
-test("attachMandate: disclosed = preflighted = charged = recorded come from ONE estimate", () => {
+test("registerMandate: disclosed = preflighted = charged = recorded come from ONE estimate", () => {
   // Exactly one fee estimate is computed up front…
   assert.equal((onboardSrc.match(/estimateMandateRegistrationFee\(/g) ?? []).length, 1);
   // …assigned to a single `fee`…

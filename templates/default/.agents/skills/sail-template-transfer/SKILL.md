@@ -1,6 +1,6 @@
 ---
 name: sail-template-transfer
-description: Gate an SMA's ERC-20 transfers by REUSING the shared TransferPermission singleton (Protocol/contracts/templates/TransferPermission.sol) — register + configure, no per-SMA deploy. Use to let an agent move approved tokens, within a per-tx cap, only to a recipient allowlist (partner protocols, CEX deposit addrs, co-manager wallets). For returning funds to a single fixed Safe, prefer sail-template-withdraw. NOTE: `sailor mandate attach` only registers — you must also configure per-account (see steps).
+description: Gate an SMA's ERC-20 transfers by REUSING the shared TransferPermission singleton (Protocol/contracts/templates/TransferPermission.sol) — register + configure, no per-SMA deploy. Use to let an agent move approved tokens, within a per-tx cap, only to a recipient allowlist (partner protocols, CEX deposit addrs, co-manager wallets). For returning funds to a single fixed Safe, prefer sail-template-withdraw. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps).
 compatibility: A Sailor project (`@sail/sdk`, `sailor` CLI). Requires TransferPermission deployed on the target chain (recorded in sail-templates/deployed.json); run sail-templates first.
 metadata:
   workspace: sailor-harness
@@ -41,7 +41,7 @@ abi.encode(address[] allowedRecipients, address[] allowedTokens, uint256 maxAmou
 
 Register → configure → simulate → reconfigure mechanics (and the encoding gotcha) live in
 [`sail-templates` reuse-flow](../sail-templates/references/reuse-flow.md) — follow it.
-`sailor mandate attach` registers only; `configureDirect` (owner tx) is the half that makes the
+`sailor mandate register` registers only; `configureDirect` (owner tx) is the half that makes the
 permission live. Template-specific bits:
 
 - **Singleton:** `TransferPermission` — `node .agents/skills/sail-templates/catalog.mjs --chain <id>`.

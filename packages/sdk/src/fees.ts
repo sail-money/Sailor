@@ -5,7 +5,9 @@ import { SailGovernanceAbi } from "./abis/SailGovernance.js";
  * Read the live FLAT per-permission registration fee (wei) from governance —
  * `permissionRegistrationFee()`, the single scalar the kernel's
  * `_calcPermissionFee()` returns for EVERY charging path (registerPermission,
- * replacePermission, and the batch / deployAndAttach variants).
+ * replacePermission, and the batch / deployAndAttach variants — the on-chain
+ * function is named `deployAndAttach`; in Sailor and protocol vocabulary this
+ * operation is permission registration).
  *
  * This is THE single source of truth for the registration fee. The kernel
  * charges `fee × N` for N permissions, bounded by MAX_PERMISSION_FEE_WEI

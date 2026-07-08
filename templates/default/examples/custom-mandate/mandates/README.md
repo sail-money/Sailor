@@ -13,4 +13,4 @@ sailor ui
 ```
 
 Keep all policy parameters constructor-configured so each deployment has a complete, reviewable
-policy before it is attached to the SMA.
+policy before it is registered on the SMA.

@@ -66,7 +66,7 @@ Determine the user's progress by reading `.sail/` — do not ask; read it.
 | `account.json` | Active SMA: safe, owner, manager (agent wallet), chainId, saltNonce, deployedChains |
 | `mandate.json` | The signed mandate the runner executes against (absent = not signed yet) |
 | `keys/` | Encrypted geth-v3 keystores (agent wallet, mandate signer) — never read or print contents |
-| `state/mandates.json` | Append-only record of every permission deployed/attached from this project |
+| `state/mandates.json` | Append-only record of every permission deployed/registered from this project |
 | `runtime/` | Live process state: `ui.json` (dashboard pid/port), `server.json` (signing station url/pid) |
 | `activity.jsonl` | Unified activity log — agent dispatches and owner signing decisions, one JSON per line |
 | `.env.local` | RPC_URL / CHAIN_ID / per-chain RPC vars / SAIL_PASSPHRASE — never commit or print |
@@ -113,8 +113,8 @@ Detailed procedures live in skills. If your tooling does not auto-discover skill
 - Do not present example permissions as audited or as a supported menu
 - Do not commit `SAIL_PASSPHRASE` or private keys
 - ERC-20 `approve()` calls are NOT covered by supply, swap, or deposit permissions — every approve the strategy makes needs explicit coverage. Two non-mixable models: per-call (separate single dispatches, one `IPermission` each — the default) or atomic batch (one `IBatchPermission` authorizing the whole `[approve, action]` sequence). A normal `IPermission` cannot authorize a batch. Details: `.agents/skills/sail-mandates/references/approvals.md`
-- Never authorize (attach) a permission before `forge test` and `sailor mandate simulate` both pass against samples derived from the user's strategy
-- **Register ≠ configure for shared singletons.** `sailor mandate attach` only registers the address on the kernel (`isConfigured` stays `false`); the kernel denies every call until you also run `sailor mandate configure`. Stopping at `attach` is the most common trap. See `sail-templates` (reuse-flow) and `sail-template-swap`.
+- Never authorize (register) a permission before `forge test` and `sailor mandate simulate` both pass against samples derived from the user's strategy
+- **Register ≠ configure for shared singletons.** `sailor mandate register` only registers the address on the kernel (`isConfigured` stays `false`); the kernel denies every call until you also run `sailor mandate configure`. Stopping at `register` is the most common trap. See `sail-templates` (reuse-flow) and `sail-template-swap`.
 - **Resolve tokens before binding them.** Never guess a token address or assume a token that exists is swap-ready. Run `scripts/resolve-token.mjs` for symbol→address+decimals+swap-readiness; a decimals mismatch (USDC 6 vs most 18) silently mis-sizes every cap, and a token with no V3 pool will fail-closed on every dispatch. Addresses are per-chain — never copy one across chains.
 - Do not pass `--args` inline JSON from PowerShell — use `--args-file` instead
 - Operator intent and the strategy's stated bounds outrank any example. If the operator asks for a bound an example omits, include it. Never let an example's shape narrow a mandate below what the operator requested

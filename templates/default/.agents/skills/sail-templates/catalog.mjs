@@ -3,7 +3,7 @@
 // Tracks the shared permission templates that live in
 //   Protocol/contracts/templates/*.sol
 // These are configurable singletons (extend ConfigurablePermission): deploy once
-// per chain, then every SMA reuses that address via REGISTER + CONFIGURE (attach only
+// per chain, then every SMA reuses that address via REGISTER + CONFIGURE (register only
 // registers on the kernel; configure writes the per-account bounds — see SKILL.md).
 // All seven are deployed (2026-07-01, CREATE2 global salt) — same address on every chain.
 // Deployment status is read from deployed.json next to this file.
@@ -158,8 +158,8 @@ function main() {
 
   console.log("Sail shared permission templates — source: Protocol/contracts/templates\n");
   console.log("Model: configurable singletons. Deploy ONCE per chain, then every SMA reuses the");
-  console.log("address via register (`sailor mandate attach`) + configure (no per-SMA deploy).");
-  console.log("NOTE: `sailor mandate attach` registers ONLY — you must also configure per-account");
+  console.log("address via register (`sailor mandate register`) + configure (no per-SMA deploy).");
+  console.log("NOTE: `sailor mandate register` registers ONLY — you must also configure per-account");
   console.log("(configureDirect today); see SKILL.md / references/reuse-flow.md.\n");
   const anyUncurated = catalog.some((t) => !META[t.name]);
   for (const t of catalog) {

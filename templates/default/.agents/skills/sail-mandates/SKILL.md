@@ -1,11 +1,11 @@
 ---
 name: sail-mandates
-description: The full permission-contract lifecycle — designing bounds with the user, authoring Solidity permissions, Foundry testing, deploying, simulating, and authorizing on the SMA, plus revoke/update/list and clone templates. Use when anything touches a permission contract or the mandate: writing or changing what the agent is allowed to do, deploying or attaching permissions, or verifying them before authorization.
+description: The full permission-contract lifecycle — designing bounds with the user, authoring Solidity permissions, Foundry testing, deploying, simulating, and authorizing on the SMA, plus revoke/update/list and clone templates. Use when anything touches a permission contract or the mandate: writing or changing what the agent is allowed to do, deploying or registering permissions, or verifying them before authorization.
 ---
 
 # Sail mandates
 
-The lifecycle is an ordered set of gates. **The order is the correctness model** — skipping a gate or reordering them is how funds get lost. Never authorize (attach) anything that has not passed every earlier gate.
+The lifecycle is an ordered set of gates. **The order is the correctness model** — skipping a gate or reordering them is how funds get lost. Never authorize (register) anything that has not passed every earlier gate.
 
 ## Gate 1 — Pin the strategy bounds with the user
 
@@ -57,7 +57,7 @@ forge test
 
 This gate comes before deployment because it is the only gate that exercises your boundary logic with full control of inputs, at zero cost. Do not deploy a permission whose tests do not pass.
 
-## Gate 5 — Deploy (deploy only — never --attach yet)
+## Gate 5 — Deploy (deploy only — never register yet)
 
 ```bash
 sailor mandate deploy --contract <Name> --sma <SMA> --json   # BLOCKS — owner signs the contract-creation tx in the browser
@@ -65,7 +65,7 @@ sailor mandate deploy --contract <Name> --sma <SMA> --json   # BLOCKS — owner 
 
 The owner pays gas; the deployed address is read from the receipt and tracked in `.sail/state/mandates.json`. Add `--build` to run `forge build` first.
 
-When a strategy needs several permissions, **deploy all of them first** (don't `--attach` yet). Each deploy is its own owner-signed contract-creation transaction — those cannot be combined — but attaching them is a single signature (Gate 7), so deploy the full set, then attach it in one step.
+When a strategy needs several permissions, **deploy all of them first** (don't `register` yet). Each deploy is its own owner-signed contract-creation transaction — those cannot be combined — but registering them is a single signature (Gate 7), so deploy the full set, then register it in one step.
 
 Constructor args: `--args '["0xToken","1000000"]'` (JSON array, inline, bash) or `--args-file args.json` (any shell — required on PowerShell). Full per-shell quoting rules: [references/constructor-args.md](references/constructor-args.md). Values are coerced to the constructor's ABI types (uint→bigint, etc.) and the array length is validated.
 
@@ -81,27 +81,27 @@ This is an off-chain `eth_call` — no gas, no signing. It reports what `evaluat
 
 `calls.json` schema: [references/calls-schema.md](references/calls-schema.md). How to design pass/fail cases: [references/simulate-calls.md](references/simulate-calls.md).
 
-**Batch permissions:** simulate probes single-call `evaluate()` only — it does not exercise `evaluateBatch()`. Verify batch permissions by calling `evaluateBatch(calls, ctx)` directly via `cast call` with pass and fail batches before attaching.
+**Batch permissions:** simulate probes single-call `evaluate()` only — it does not exercise `evaluateBatch()`. Verify batch permissions by calling `evaluateBatch(calls, ctx)` directly via `cast call` with pass and fail batches before registering.
 
-## Gate 7 — Attach (authorize)
+## Gate 7 — Register (authorize)
 
 ```bash
-sailor mandate attach --address <PermissionOrName> --sma <SMA> --json              # one permission, one signature
-sailor mandate attach --address <addr1>,<addr2>,<addr3> --sma <SMA> --json          # many permissions, ONE signature
+sailor mandate register --address <PermissionOrName> --sma <SMA> --json              # one permission, one signature
+sailor mandate register --address <addr1>,<addr2>,<addr3> --sma <SMA> --json          # many permissions, ONE signature
 ```
 
-Only now is the permission live. The owner (mandate signer) signs in the browser; the agent submits the registration and pays gas plus any registration fee. **Fund the agent wallet before attaching**, or this step fails with `gas required exceeds allowance`. The CLI verifies the signature came from the on-chain mandate signer — a wrong connected wallet is rejected. After confirmation it polls `getPermissions()` until the permissions appear.
+Only now is the permission live. The owner (mandate signer) signs in the browser; the agent submits the registration and pays gas plus any registration fee. **Fund the agent wallet before registering**, or this step fails with `gas required exceeds allowance`. The CLI verifies the signature came from the on-chain mandate signer — a wrong connected wallet is rejected. After confirmation it polls `getPermissions()` until the permissions appear.
 
-When a strategy needs several permissions (e.g. a bounded-approve alongside the protocol permission), attach them all at once by passing a comma-separated list of addresses — the registration approvals collapse to a **single** browser signature via the kernel's `registerPermissions`. The earlier per-contract deploy approvals (Gate 5) are separate and unavoidable. A single permission attaches exactly as before with `--address <one>`.
+When a strategy needs several permissions (e.g. a bounded-approve alongside the protocol permission), register them all at once by passing a comma-separated list of addresses — the registration approvals collapse to a **single** browser signature via the kernel's `registerPermissions`. The earlier per-contract deploy approvals (Gate 5) are separate and unavoidable. A single permission registers exactly as before with `--address <one>`.
 
 ## Registration fee
 
 Registering a permission charges a **per-permission fee**, paid on-chain by the agent wallet at the moment of registration. It is a public protocol parameter — `permissionRegistrationFee()` on `SailGovernance` — read **live from the chain**, never hardcoded: it is `0` on the current deploy and higher in production, and the same flow surfaces whichever value the connected chain returns.
 
 - **A mandate is a SET of permissions, so a mandate of N permissions costs `N × fee`.** Three permissions at `0.00001 ETH` each cost `0.00003 ETH` total.
-- **When it's charged:** once per permission, on registration (the `attach` / `deploy-clone` step). Already-registered permissions are not re-charged when you re-run `sailor mandate sign`. Revoking does not refund.
+- **When it's charged:** once per permission, on registration (the `register` / `deploy-clone` step). Already-registered permissions are not re-charged when you re-run `sailor mandate sign`. Revoking does not refund.
 - **Disclosure before signing:** `sailor mandate prepare` reads the live fee and records it in the draft, and `sailor mandate sign` prints `Registration fee: <total> ETH (<N> permissions × <fee> ETH)` before you confirm. The browser sign-time screen shows the same total.
-- **Preflight:** before requesting the owner's signature, the agent wallet's ETH balance is checked against the total fee; an underfunded wallet fails early with `Insufficient ETH for the <X> ETH registration fee` instead of an on-chain revert. **Fund the agent wallet before attaching.**
+- **Preflight:** before requesting the owner's signature, the agent wallet's ETH balance is checked against the total fee; an underfunded wallet fails early with `Insufficient ETH for the <X> ETH registration fee` instead of an on-chain revert. **Fund the agent wallet before registering.**
 - **Recorded:** each `permission_registered` activity entry carries the fee actually paid (`fee` in wei, `feeEth` formatted), so Recent Activity shows the real cost.
 
 The fee is read via `readPermissionRegistrationFee()` in `packages/sdk/src/fees.ts` and applied as `fee × N` — the same number used for disclosure, the preflight, the tx `value`, and the activity record.
@@ -110,10 +110,10 @@ The fee is read via `readPermissionRegistrationFee()` in `packages/sdk/src/fees.
 
 - `sailor mandate revoke --address <P> --sma <SMA> --json` (or `--all`) — owner signs `RevokePermissions` in the browser (BLOCKS); agent submits. Revocations are recorded to the activity log; `state/mandates.json` keeps the historical record.
 - `sailor mandate update --address <P> --name/--source-path/--artifact-path` — fix tracked metadata.
-- `sailor mandate list` — everything deployed from this project, with attachments.
+- `sailor mandate list` — everything deployed from this project, with registrations.
 - `sailor mandate sign` — reviews the permission set and reconciles against live on-chain `getPermissions()` before writing `mandate.json`; permissions revoked on-chain are excluded even if still in local state. `--yes` for non-interactive use.
 - `sailor account rotate-signer` — rotates the agent wallet and re-approves attached mandates (BLOCKS on browser); `--reattach-only` resumes after funding, `--list` shows known agent wallets.
 
 ## Clone templates (deploy-clone)
 
-`sailor mandate deploy-clone --template boundedApprove --sma <SMA> --tokens <csv> --spenders <csv> --max <wei> --json` deploys + registers an EIP-1167 clone of a published implementation in one transaction (owner signs `RegisterPermission` for the predicted clone address — BLOCKS; agent submits `deployAndAttach`). The only template key is `boundedApprove`. Implementations come from the SDK deployment registry (`standaloneTemplates`) — that map is now populated with the shared swap/borrow/deposit/withdraw/transfer/approve-and-call-batch templates on all eleven chains, but no `boundedApprove` clone implementation is deployed yet, so deploy-clone errors with a clear message and you should write and deploy a bounded-approve permission with `sailor mandate deploy` instead. Check availability with `sailor mandate templates --json`.
+`sailor mandate deploy-clone --template boundedApprove --sma <SMA> --tokens <csv> --spenders <csv> --max <wei> --json` deploys + registers an EIP-1167 clone of a published implementation in one transaction (owner signs `RegisterPermission` for the predicted clone address — BLOCKS; agent submits `deployAndAttach` — the on-chain function is named `deployAndAttach`; in Sailor and protocol vocabulary this operation is permission registration). The only template key is `boundedApprove`. Implementations come from the SDK deployment registry (`standaloneTemplates`) — that map is now populated with the shared swap/borrow/deposit/withdraw/transfer/approve-and-call-batch templates on all eleven chains, but no `boundedApprove` clone implementation is deployed yet, so deploy-clone errors with a clear message and you should write and deploy a bounded-approve permission with `sailor mandate deploy` instead. Check availability with `sailor mandate templates --json`.

@@ -23,7 +23,7 @@ solc = "0.8.26"
 optimizer = true
 optimizer_runs = 200
 # Mandates are deployed as standalone contracts and configured via their
-# constructor, then attached to a Safe with \`sailor mandate attach\`.
+# constructor, then registered on a Safe with \`sailor mandate register\`.
 `;
 
 /** Vendored copy of SailProtocol/contracts/interfaces/IPermission.sol */
@@ -179,11 +179,11 @@ returns \`true\` to permit a manager-submitted dispatch, \`false\` to block it.
    Args: (allowedTargets[], allowedSelectors[], maxValue).
    Pass an empty selector array [] to skip selector filtering.
    Pass 0 for maxValue to block all ETH transfers.
-4. Attach it to a Safe:
+4. Register it on a Safe:
    \`\`\`bash
-   sailor mandate attach --address 0xDeployed --sma 0xSafe
+   sailor mandate register --address 0xDeployed --sma 0xSafe
    \`\`\`
-   (or pass \`--attach --sma 0xSafe\` to \`deploy\` to do both at once.)
+   (or pass \`--register --sma 0xSafe\` to \`deploy\` to do both at once.)
 
 Compiled artifacts are written to \`out/\` and the deployed address is tracked in
 \`.sail/state/mandates.json\`.

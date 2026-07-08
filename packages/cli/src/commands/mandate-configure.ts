@@ -7,7 +7,7 @@
  *   sailor mandate configure --address <singleton> --sma <SMA> \
  *       --template SwapPermission --args-file config.json
  *
- * `sailor mandate attach` only REGISTERS a shared template on the kernel; a
+ * `sailor mandate register` only REGISTERS a shared template on the kernel; a
  * registered-but-unconfigured singleton has `isConfigured == false` and the
  * kernel denies every call. This command performs the missing configure half.
  *

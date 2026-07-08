@@ -62,7 +62,7 @@ Supported chains: Ethereum (1), Base (8453), Arbitrum (42161), Optimism (10), Un
 
 ## Stage 1 — Deploy the SMA and create the agent wallet
 
-In the browser. Run `sailor ui start`, open the printed URL, connect the owner wallet, choose the network, deploy the SMA, then create the agent wallet — a separate signing key the agent uses to submit transactions. **Both wallets need gas, and the split is not what it looks like:** the owner *signs* (SMA deployment, mandate authorization) but the **agent wallet submits and pays for every on-chain transaction** — including `mandate deploy` and `mandate attach` during setup, not just dispatches once running. Fund the agent wallet before Stage 3 or attach fails with `gas required exceeds allowance`. The owner wallet needs gas only for transactions it submits directly in the browser (the SMA deployment). The owner key never leaves the browser.
+In the browser. Run `sailor ui start`, open the printed URL, connect the owner wallet, choose the network, deploy the SMA, then create the agent wallet — a separate signing key the agent uses to submit transactions. **Both wallets need gas, and the split is not what it looks like:** the owner *signs* (SMA deployment, mandate authorization) but the **agent wallet submits and pays for every on-chain transaction** — including `mandate deploy` and `mandate register` during setup, not just dispatches once running. Fund the agent wallet before Stage 3 or register fails with `gas required exceeds allowance`. The owner wallet needs gas only for transactions it submits directly in the browser (the SMA deployment). The owner key never leaves the browser.
 
 Headless alternative (the agent drives, the owner only signs in the browser):
 
@@ -104,7 +104,7 @@ If `deploy-chain` refuses with an address mismatch, the SMA was deployed against
 ## Gas requirements
 
 - Owner wallet: SMA deployment, mandate signing (EIP-712), any additional-chain deployment.
-- Agent wallet: `mandate deploy`, `mandate attach`, `mandate revoke`, and every dispatch submission once the agent runs, plus permission registration fees on fee-charging chains. The registration fee is a **per-permission flat charge** (`permissionRegistrationFee()` on `SailGovernance`, read live — currently `0` on this deploy). A mandate of N permissions costs `N × fee` on top of gas; fund the agent wallet for the full amount before attaching. The fee is disclosed at sign time (`Registration fee: X ETH`) and recorded in the activity log. An underfunded agent wallet fails early with `Insufficient ETH for the X ETH registration fee` rather than reverting on-chain.
+- Agent wallet: `mandate deploy`, `mandate register`, `mandate revoke`, and every dispatch submission once the agent runs, plus permission registration fees on fee-charging chains. The registration fee is a **per-permission flat charge** (`permissionRegistrationFee()` on `SailGovernance`, read live — currently `0` on this deploy). A mandate of N permissions costs `N × fee` on top of gas; fund the agent wallet for the full amount before registering. The fee is disclosed at sign time (`Registration fee: X ETH`) and recorded in the activity log. An underfunded agent wallet fails early with `Insufficient ETH for the X ETH registration fee` rather than reverting on-chain.
 
 `sailor doctor` — read-only preflight: kernel dispatch model, permission health, RPC reachability, gas balances in both wallets. Do not proceed to Stage 3 with a failing doctor.
 
