@@ -1337,7 +1337,7 @@ async function pollForPermission(
 
 /**
  * `sailor mandate templates` — Sailor does not ship a blessed library of
- * permission contracts. This points users at the custom-mandate scaffold so they
+ * permission contracts. This points users at the contracts/ workspace so they
  * author, review, and deploy their OWN IPermission contracts. Any addresses
  * shown are community-deployed and unaudited — informational only.
  */
@@ -1366,7 +1366,7 @@ export function mandateTemplates(options: { json?: boolean }): void {
       console.log("  2. Implement IPermission.evaluate(txData, ctx) with your policy logic");
       console.log("  3. forge build");
       console.log("  4. sailor mandate deploy --contract <Name> --register --sma <yourSMA>");
-      console.log("\n  See examples/custom-mandate/README.md for the full guide.");
+      console.log("\n  See contracts/README.md for the full guide.");
 
       if (community.length > 0) {
         console.log(

@@ -1,6 +1,6 @@
 # Sailor — Codebase Guide
 
-This guide is for contributors to the Sailor codebase. The user-facing agent guide ships in templates/default/AGENTS.md.
+This guide is for contributors to the Sailor codebase. The user-facing agent guide ships in scaffold/AGENTS.md.
 
 Sailor is the operator toolkit for Sail Protocol. It does **not** deploy the protocol or author
 permission templates — it targets already-deployed SailKernel instances and gives operators the
@@ -13,8 +13,8 @@ tooling to create SMAs, register permission contracts, and run strategy agents.
 | `packages/sdk` | `@sail/sdk` | SailorClient, LocalKeyring, kernel ABIs, EIP-712 builders, deployment registry, per-chain address registry (publishes to npm as `@sail.money/sdk`) |
 | `packages/cli` | `sailor` | CLI: init, keys, account, mandate, onboard, station, ui, run, session, scan, status, owner, doctor, capabilities |
 | `packages/ui` | `sailor-ui` | Local dashboard + browser-driven onboarding wizard (per-project port, 3333–3999) |
-| `templates/default` | — | Default agent starter: neutral blank scaffold + Foundry workspace + onboarding guide (AGENTS.md) |
-| `templates/default/examples/custom-mandate` | — | Solidity reference: IPermission scaffold (not a project template) |
+| `scaffold` | — | Default agent starter: neutral blank scaffold + Foundry workspace + onboarding guide (AGENTS.md) |
+| `scaffold/contracts` | — | Solidity reference: IPermission scaffold (not a project template) |
 
 ## Protocol roles
 
@@ -76,7 +76,7 @@ addresses remain. This file is the source of truth this guide mirrors.
 | `packages/sdk/src/fees.ts` | `readPermissionRegistrationFee` (live governance read) + per-permission fee math/disclosure/preflight |
 | `packages/ui/server.js` | Local API + WebSocket proxy; signing station relay |
 
-Per-permission registration fee (read live from governance, surfaced at sign time / activity / preflight): see `templates/default/.agents/skills/sailor-mandates/SKILL.md` → "Registration fee".
+Per-permission registration fee (read live from governance, surfaced at sign time / activity / preflight): see `scaffold/.agents/skills/sailor-mandates/SKILL.md` → "Registration fee".
 
 ## Build
 

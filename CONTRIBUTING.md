@@ -58,7 +58,7 @@ Contributions are welcome via **issues** and **pull requests**. The most welcome
 - **Dashboard improvements** — the local UI under `packages/ui`.
 
 Two areas carry a higher bar and more scrutiny, because every scaffolded project depends on them:
-the **scaffold template** (`templates/default/`, including the `.agents/skills` the agent follows
+the **scaffold template** (`scaffold/`, including the `.agents/skills` the agent follows
 and the worked examples they teach from) and anything that **signs or submits transactions**
 (`packages/sdk` signing paths, `packages/cli` dispatch/run flows). Open an **issue to discuss
 first** before a large change there, rather than a surprise PR.

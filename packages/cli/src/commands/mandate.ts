@@ -266,7 +266,7 @@ function printNoPermissionsGuidance(): void {
  * active SMA (from the MandateStore) and writes a simple
  * `.sail/mandate-draft.json` the UI can display. Sailor does not ship a blessed
  * library of permission templates: users author, deploy, and register their own
- * IPermission contracts (see examples/custom-mandate/).
+ * IPermission contracts (see contracts/).
  */
 export async function mandatePrepare(): Promise<void> {
   const account = readJsonFile<StoredAccount>(sailPath("account.json"));

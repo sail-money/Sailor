@@ -21,7 +21,7 @@
     "packages/sdk/dist",
     "packages/sdk/package.json",
     "packages/ui/dist",
-    "templates",
+    "scaffold",
     "README.md",
     "AGENTS.md"
   ],

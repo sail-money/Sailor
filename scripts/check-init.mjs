@@ -5,7 +5,7 @@
  * PASS 1 — fresh init: scaffolds a new project and asserts expected files exist.
  *
  * Template files are read live from disk (not bundled), so no rebuild is needed
- * between runs — the in-tree templates/default/ IS the "latest version".
+ * between runs — the in-tree scaffold/ IS the "latest version".
  *
  * Run:  node scripts/check-init.mjs   (CI builds the CLI first)
  * Exit: 0 = all passes OK, 1 = failure (prints what went wrong).
@@ -65,8 +65,8 @@ try {
     ".dockerignore",
     ".sail/contracts/interfaces/IPermission.sol",
     ".sail/contracts/interfaces/IBatchPermission.sol",
-    "examples/custom-mandate/test/BoundedCallPermission.t.sol",
-    "examples/custom-mandate/README.md",
+    "contracts/test/BoundedCallPermission.t.sol",
+    "contracts/README.md",
     ".agents/skills/sailor-onboarding/SKILL.md",
     ".agents/skills/sailor-project-info/SKILL.md",
     ".agents/skills/sailor-servers/SKILL.md",

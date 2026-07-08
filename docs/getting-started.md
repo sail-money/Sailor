@@ -76,10 +76,10 @@ sailor mandate configure --address <templateAddress> \
   --template SwapPermission --args-file swap-config.json
 ```
 
-The scaffold's skills (`.agents/skills/sail-template-*`) carry the exact parameter schema and the
+The scaffold's skills (`.agents/skills/sailor-template-*`) carry the exact parameter schema and the
 safe order of operations per template — this is where the agent-driven flow shines. For a
 custom policy instead, author an `IPermission` contract in `mandates/` (start from the
-`examples/custom-mandate/` scaffold) and use
+`contracts/` scaffold) and use
 `sailor mandate deploy --contract <Name> --register --sma <yourSMA>`.
 
 ## 5. Prove the bounds before running

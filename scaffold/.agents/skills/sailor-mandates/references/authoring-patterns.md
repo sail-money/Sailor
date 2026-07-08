@@ -1,6 +1,6 @@
 # Authoring patterns — how to write a bespoke permission
 
-This is a method, not a library. There is no per-protocol menu to copy from — `examples/custom-mandate/` is the neutral `IPermission` scaffold (`BoundedCallPermission.sol` + a Foundry test) to author from. What follows are the patterns and hard-won gotchas that apply regardless of which venue you're binding.
+This is a method, not a library. There is no per-protocol menu to copy from — `contracts/` is the neutral `IPermission` scaffold (`BoundedCallPermission.sol` + a Foundry test) to author from. What follows are the patterns and hard-won gotchas that apply regardless of which venue you're binding.
 
 ## The header discipline
 
@@ -42,4 +42,4 @@ Permissions bind on-chain calls. For a venue with off-chain order matching (e.g.
 
 ## Where to actually write one
 
-Start from `examples/custom-mandate/` — a neutral, protocol-agnostic Foundry scaffold (`BoundedCallPermission.sol` + `test/BoundedCallPermission.t.sol`) that bounds allowed targets, allowed selectors, and max ETH value. Extend it with calldata-specific checks (amount caps, recipient binding, allowlists) for the venue you're targeting, following the patterns above. See [Gate 3](../SKILL.md) for the full authoring procedure and [Gate 4](../SKILL.md) for writing tests before any deployment.
+Start from `contracts/` — a neutral, protocol-agnostic Foundry scaffold (`BoundedCallPermission.sol` + `test/BoundedCallPermission.t.sol`) that bounds allowed targets, allowed selectors, and max ETH value. Extend it with calldata-specific checks (amount caps, recipient binding, allowlists) for the venue you're targeting, following the patterns above. See [Gate 3](../SKILL.md) for the full authoring procedure and [Gate 4](../SKILL.md) for writing tests before any deployment.

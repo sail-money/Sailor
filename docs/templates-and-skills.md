@@ -42,23 +42,23 @@ is the checklist that sequences them correctly.
 
 ## Where everything lives (and why together)
 
-**Skills are the instructions; `templates/default/examples/` is the teaching material those
-instructions reference — and both are scaffolded together from `templates/default/`.**
+**Skills are the instructions; `scaffold/examples/` is the teaching material those
+instructions reference — and both are scaffolded together from `scaffold/`.**
 When `sailor init` creates a project, the entire template tree is copied in, so the skill that
 says "start from the scaffold" finds those exact files in the project: the `IPermission`
-authoring workspace at `examples/custom-mandate/` (with a Foundry test, per Gate 4) and a
+authoring workspace at `contracts/` (with a Foundry test, per Gate 4) and a
 complete DCA agent at `examples/dca/`. Single source of truth in the repo; self-contained
 teaching material in every scaffold.
 
 This page is an overview with pointers — the skills themselves (in your scaffold, or in this
-repo under `templates/default/.agents/skills/`) are the authoritative procedures, and they are
+repo under `scaffold/.agents/skills/`) are the authoritative procedures, and they are
 deliberately not restated here where they could drift.
 
 ## Custom permissions
 
 When no shared template fits (perps, prediction markets, aggregators, anything bespoke), author
 your own `IPermission` contract: the `sailor-mandates` skill is the procedure, and
-`examples/custom-mandate/` is the neutral scaffold to start from (each permission's header should
+`contracts/` is the neutral scaffold to start from (each permission's header should
 document what is enforced onchain vs left to the agent — see the skill's authoring-patterns
 reference). Deploy, simulate, then register — as three separate
 steps, never combined: `sailor mandate deploy --contract <Name>`, then `sailor mandate simulate`

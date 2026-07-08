@@ -128,7 +128,7 @@ The seven templates cover the bounded swap, transfer, withdraw, deposit, borrow,
 approve-and-call-batch primitives. A strategy that needs any other venue or bound — perps
 (GMX, Gains, Synthetix), prediction markets (Azuro, Limitless), the LI.FI aggregator, or
 anything else on-chain — is authored as a bespoke `IPermission` via
-[`sailor-mandates`](../sailor-mandates/SKILL.md), starting from the `examples/custom-mandate/`
+[`sailor-mandates`](../sailor-mandates/SKILL.md), starting from the `contracts/`
 scaffold: full expressiveness, same kernel guarantees.
 
 ## Notes
