@@ -12,9 +12,8 @@ Sailor is the harness. Your job, working with the user, is to take them from a s
 
 What can be built here — any of these, or any combination:
 
-- **Trading** — spot, perps, DCA, rebalancing
+- **Trading** — spot, DCA, rebalancing
 - **Yield** — lending, borrowing, liquidity providing, looping
-- **Prediction markets** — bounded bets on outcome venues
 - **Payments & treasury** — transfers, scheduled moves, operational flows
 
 …or anything else on-chain. Permissions are arbitrary Solidity: if it's on-chain, it can be bounded.
@@ -27,7 +26,7 @@ Work moves through five stations, in order. Each names its owning skill (read it
 Skill: `.agents/skills/sail-onboarding/SKILL.md` · Gate: none (entry point) · Exit verifier: `sailor doctor` green (RPC connected, chain-id matches, keys present, gas funded).
 
 **2. STRATEGY — make the user's intent concrete.**
-Skill: sail-strategy · Gate: doctor green · Exit verifier: `.sail/strategy.md` exists and its completeness checklist is fully satisfied — chains, tokens, venues, amounts, caps, cadence, risk bounds, exit condition, all concrete. Do not begin mandate work from a vague strategy.
+Skill: `.agents/skills/sail-strategy/SKILL.md` · Gate: doctor green · Exit verifier: `.sail/strategy.md` exists and its completeness checklist is fully satisfied — chains, tokens, venues, amounts, caps, cadence, risk bounds, exit condition, all concrete. Do not begin mandate work from a vague strategy.
 
 **3. MANDATE — turn the strategy into enforced bounds.**
 Skill: sail-mandate-planner — it routes each action of the strategy to a shared template or to bespoke authoring; mixing both in one mandate is normal. Templates: start at `.agents/skills/sail-templates/SKILL.md` (the registry + register→configure reuse flow), then the matching spoke — `.agents/skills/sail-template-swap/SKILL.md`, `.agents/skills/sail-template-swap-no-oracle/SKILL.md`, `.agents/skills/sail-template-transfer/SKILL.md`, `.agents/skills/sail-template-withdraw/SKILL.md`, `.agents/skills/sail-template-deposit/SKILL.md`, `.agents/skills/sail-template-borrow/SKILL.md`, `.agents/skills/sail-template-approve-batch/SKILL.md`. Bespoke Solidity: `.agents/skills/sail-mandates/SKILL.md`.
