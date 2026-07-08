@@ -120,8 +120,8 @@ Read `crossChain.action` (per token) and the portfolio `summary`, then advise:
   an SMA on Unichain"). Don't silently drop it.
 - **`manual-address`** — liquidity exists but only on a DEX Sail can't fast-route (e.g. only on
   Aerodrome). Offer a custom mandate via `sail-mandates`, or hold the leg.
-- **`hold-skip`** — no pool on any scanned Sail chain (the token may live on a non-Sail chain,
-  e.g. a HyperEVM-only asset). Recommend holding/dropping it from the strategy.
+- **`hold-skip`** — no pool on any scanned Sail chain (the token may live on a chain this
+  project isn't configured for). Recommend holding/dropping it from the strategy.
 
 Always show the resolved **address + decimals + the chain/protocol/depth** you're acting on, so
 the user can sanity-check before anything is signed.

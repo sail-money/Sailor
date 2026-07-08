@@ -78,8 +78,9 @@ abi.encode(address[] routers, address[] tokensIn, address[] tokensOut,
 | `priceOracle` | **REQUIRED, non-zero.** An `IOracle` adapter exposing `getPrice(tokenIn, tokenOut) → (price, dec, updatedAt)` — **not** a raw Chainlink/Pyth feed. `0` reverts `OracleRequired`. |
 | `maxPriceAgeSec` | **REQUIRED, `> 0`** (oracle staleness bound). `0` reverts `MissingPriceAge`. |
 
-Size the cap and slippage floor with `uniswap-v3-quote` / `sail-pyth-prices`. The SDK
-`boundedSwapTemplate` encoder matches this tuple — fine to use after a quick verify.
+Size the cap and slippage floor with `sail-swap-quote`; `priceOracle` must be a real `IOracle`
+adapter for the pair (see above). The SDK `boundedSwapTemplate` encoder matches this tuple —
+fine to use after a quick verify.
 
 ### Worked example — single-leg USDC → WETH
 

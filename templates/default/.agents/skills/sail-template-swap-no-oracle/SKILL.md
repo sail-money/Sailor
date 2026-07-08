@@ -71,7 +71,7 @@ directional combination of `tokensIn × tokensOut` has a `ReferencePool`. The po
 `token0()`/`token1()` must match the pair (orientation is precomputed at configure time), else it
 reverts `PoolTokenMismatch`. `pool == 0` reverts `ZeroPool`.
 
-Size the cap with `uniswap-v3-quote`. Verify the SDK encoder's param tuple matches the source blob
+Size the cap with `sail-swap-quote`. Verify the SDK encoder's param tuple matches the source blob
 above before using it (see [`sail-templates`](../sail-templates/SKILL.md) notes).
 
 ## Steps

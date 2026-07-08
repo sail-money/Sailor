@@ -732,7 +732,7 @@ function recommendCrossChain(chains, configuredNames) {
 
   return {
     action: "hold-skip",
-    note: `No pool found on any scanned Sail chain. The token may live on a non-Sail chain (e.g. HYPE on HyperEVM). Configure it as a held leg or drop it from the strategy.`,
+    note: `No pool found on any scanned Sail chain. The token may live on a chain this project isn't configured for. Configure it as a held leg or drop it from the strategy.`,
   };
 }
 

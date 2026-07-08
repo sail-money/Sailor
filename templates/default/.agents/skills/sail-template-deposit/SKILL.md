@@ -12,8 +12,9 @@ metadata:
 # sail-template-deposit — bounded vault/lending deposit via the shared singleton
 
 Reuse the shared **`DepositPermission`** singleton. Family overview + flow:
-[`sail-templates`](../sail-templates/SKILL.md). Discover yield targets first with
-`sail-defillama-yields`.
+[`sail-templates`](../sail-templates/SKILL.md). The operator/agent chooses the target vault
+(ERC-4626) or lending market (Aave v2/v3) — this template gates the deposit, not the choice
+of venue.
 
 ## What it enforces (per account, from source)
 

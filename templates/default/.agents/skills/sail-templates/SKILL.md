@@ -135,7 +135,7 @@ authoring flow and `examples/custom-mandate/` for the neutral authoring scaffold
   but that pairing is generation-specific: a template address from one deploy generation (e.g.
   the superseded 2026-06-09 deploy) is never valid against a different generation's kernel.
   Always resolve both from the same `deployed.json` entry / SDK deployment.
-- Caps/amounts are in **base units**. Size them with `sail-pyth-prices` / `uniswap-v3-quote`.
+- Caps/amounts are in **base units**. Size them with `sail-swap-quote`.
 - The config encoder must match each contract's `_applyConfig` decode exactly — use the SDK
   builder under `@sail/sdk/templates` **only after** verifying its param tuple equals the
   source blob in `config-schemas.md` (the SDK builders track a previously-deployed set and may

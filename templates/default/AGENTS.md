@@ -84,7 +84,7 @@ Detailed procedures live in skills. If your tooling does not auto-discover skill
 | sail-swap-quote | Fetching a live Uniswap V3 quote and the slippage-adjusted amountOutMinimum floor | `.agents/skills/sail-swap-quote/SKILL.md` |
 | sail-templates | Registry + reuse guide for Sail's shared permission singletons — which primitives exist as templates, per-chain deployment status (`deployed.json`), and the register→configure reuse flow. Start here before any template mandate | `.agents/skills/sail-templates/SKILL.md` |
 | sail-template-swap | Bounded DEX swap / DCA mandate via the shared SwapPermission singleton (oracle-gated slippage band) — register + configure, no Solidity. The fast path for a swap/DCA strategy | `.agents/skills/sail-template-swap/SKILL.md` |
-| sail-template-swap-no-oracle | Bounded swap for tokens with NO oracle via SwapPermissionNoOracle (single-pool hallucination guard, NOT manipulation-resistant) — reference-only, not yet deployed on any chain | `.agents/skills/sail-template-swap-no-oracle/SKILL.md` |
+| sail-template-swap-no-oracle | Bounded swap for tokens with NO oracle via SwapPermissionNoOracle (single-pool hallucination guard, NOT manipulation-resistant) | `.agents/skills/sail-template-swap-no-oracle/SKILL.md` |
 | sail-template-transfer | Bounded ERC-20 transfer to a mutable recipient allowlist via TransferPermission | `.agents/skills/sail-template-transfer/SKILL.md` |
 | sail-template-withdraw | Bounded ERC-20 withdraw to ONE fixed recipient (owner-Safe consolidation) via WithdrawPermission | `.agents/skills/sail-template-withdraw/SKILL.md` |
 | sail-template-deposit | Bounded deposit into ERC-4626 vaults / Aave v2–v3 via DepositPermission | `.agents/skills/sail-template-deposit/SKILL.md` |
