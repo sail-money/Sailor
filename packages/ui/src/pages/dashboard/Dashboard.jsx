@@ -170,7 +170,7 @@ const SIGNING_KIND_LABELS = {
   'create-sma': 'Create Safe (SMA)',
   'deploy-mandate': 'Deploy mandate',
   'register-permission': 'Register permission',
-  'attach-mandate': 'Attach mandate',
+  'attach-mandate': 'Register mandate',
   'set-delegate': 'Set agent as manager',
   'arbitrary-tx': 'Arbitrary transaction',
 }
@@ -202,7 +202,7 @@ const ACTIVITY_LABELS = {
   owner_rejected: 'rejected signing',
   sma_created: 'created Safe (SMA)',
   mandate_deployed: 'deployed mandate',
-  mandate_attached: 'attached mandate',
+  mandate_attached: 'registered mandate',
 }
 
 const SUCCESS_TYPES = new Set([
@@ -1753,7 +1753,7 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                     </h2>
                     <span className={styles.mandatesSectionMeta}>
                       {permCount > 0
-                        ? `${permCount} permission${permCount === 1 ? '' : 's'}${!showAll && activeChainOv?.onchain ? ' · attached on-chain' : ''}`
+                        ? `${permCount} permission${permCount === 1 ? '' : 's'}${!showAll && activeChainOv?.onchain ? ' · registered on-chain' : ''}`
                         : 'No permissions registered yet'}
                     </span>
                   </header>
