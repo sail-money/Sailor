@@ -7,6 +7,7 @@ import {
   ChainGlyph,
   InfoTip,
   MandateStatus,
+  NativeCurrencyGlyph,
   Sai,
   SailButton,
 } from '../shared'
@@ -679,7 +680,7 @@ function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSi
 
       <div className={styles.signerBalance}>
         {!unconfigured && (
-          <span className={styles.ethGlyph} aria-hidden><EthGlyph /></span>
+          <span className={styles.ethGlyph} aria-hidden><NativeCurrencyGlyph chainId={chainId} size={20} /></span>
         )}
         {unconfigured ? (
           <span className={styles.signerBalanceNum} style={{ opacity: 0.4 }}>—</span>
@@ -2463,19 +2464,6 @@ function PencilIcon() {
   return (
     <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M11.5 2.5a1.414 1.414 0 0 1 2 2L5 13H3v-2L11.5 2.5z" />
-    </svg>
-  )
-}
-/* Ethereum diamond — single accent hue at varied opacities (design manual §3). */
-function EthGlyph() {
-  return (
-    <svg viewBox="0 0 32 32" width="20" height="20" aria-hidden>
-      <path d="M16 3 7.8 16.6 16 12.9Z" fill="#1990ff" />
-      <path d="M16 3 24.2 16.6 16 12.9Z" fill="#1990ff" opacity="0.55" />
-      <path d="M16 20.2 7.8 16.6 16 12.9Z" fill="#1990ff" opacity="0.8" />
-      <path d="M16 20.2 24.2 16.6 16 12.9Z" fill="#1990ff" opacity="0.4" />
-      <path d="M16 29 7.8 18.2 16 21.7Z" fill="#1990ff" />
-      <path d="M16 29 24.2 18.2 16 21.7Z" fill="#1990ff" opacity="0.55" />
     </svg>
   )
 }
