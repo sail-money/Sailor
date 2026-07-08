@@ -1,16 +1,16 @@
 /**
- * sailor mandate deploy | attach | templates | list
+ * sailor mandate deploy | register | templates | list
  *
- * Deploy and attach brand-new mandate (permission) contracts the agent has
+ * Deploy and register brand-new mandate (permission) contracts the agent has
  * authored and compiled with Foundry.
  *
- *   sailor mandate deploy --contract MyMandate --args '["0xToken"]' --attach --sma 0x...
- *   sailor mandate attach --address 0xMandate --sma 0xSafe
+ *   sailor mandate deploy --contract MyMandate --args '["0xToken"]' --register --sma 0x...
+ *   sailor mandate register --address 0xMandate --sma 0xSafe
  *
  * Deployment is a contract-creation transaction signed by the owner in the
  * browser signing UI (the agent never holds the owner key). Mandates are fully
  * configured by their constructor at deploy time, so a single deploy + a single
- * attach signature is all that's required.
+ * register signature is all that's required.
  */
 
 import { spawnSync } from "node:child_process";
@@ -58,7 +58,7 @@ import { emit } from "../lib/output.js";
 import { loadManagerSigner } from "../lib/keys.js";
 import { ProjectContext } from "../lib/project.js";
 import { type SigningChannel, createSigningChannel, signingPageUrl } from "../signing/client.js";
-import { attachMandate } from "./onboard.js";
+import { registerMandate } from "./onboard.js";
 import { projectPort } from "../lib/packagePaths.js";
 
 export interface DeployOptions {
@@ -69,12 +69,15 @@ export interface DeployOptions {
   args?: string;
   argsFile?: string;
   build?: boolean;
+  /** Canonical: register the deployed permission on --sma immediately. */
+  register?: boolean;
+  /** @deprecated Hidden alias for --register; accepted for backward compatibility. */
   attach?: boolean;
   sma?: string;
   json?: boolean;
 }
 
-export interface AttachOptions {
+export interface RegisterOptions {
   address: string;
   sma: string;
   label?: string;
@@ -221,7 +224,8 @@ async function runDeploy(
     if (!json) fn();
   };
 
-  if (options.attach && !options.sma) throw new Error("--attach requires --sma <address>");
+  const shouldRegister = options.register ?? options.attach;
+  if (shouldRegister && !options.sma) throw new Error("--register requires --sma <address>");
   if (options.sma && !isAddress(options.sma, { strict: false })) {
     throw new Error(`Invalid --sma address: ${options.sma}`);
   }
@@ -321,10 +325,10 @@ async function runDeploy(
     chainId,
   });
 
-  let attachTxHash: Hex | undefined;
-  if (options.attach && options.sma) {
+  let registerTxHash: Hex | undefined;
+  if (shouldRegister && options.sma) {
     const sma = getAddress(options.sma);
-    attachTxHash = await attachToSma(
+    registerTxHash = await registerOnSma(
       project,
       channel,
       publicClient,
@@ -333,19 +337,25 @@ async function runDeploy(
       stored.name,
       json,
     );
-    store.recordAttachment(deployed, { sma, txHash: attachTxHash });
+    store.recordAttachment(deployed, { sma, txHash: registerTxHash });
   } else {
     say(() =>
       console.log(
-        `\nRegister it later with: sailor mandate attach --address ${deployed} --sma <SMA>`,
+        `\nRegister it later with: sailor mandate register --address ${deployed} --sma <SMA>`,
       ),
     );
   }
 
+  const registration = shouldRegister
+    ? { sma: getAddress(options.sma!), txHash: registerTxHash }
+    : null;
   emit(json, () => {}, {
     status: "ok",
     mandate: { name: stored.name, address: deployed, txHash: response.txHash, chainId },
-    attached: options.attach ? { sma: getAddress(options.sma!), txHash: attachTxHash } : null,
+    // `registered` is canonical; `attached` is kept for backward compatibility
+    // with existing scripts parsing --json output.
+    registered: registration,
+    attached: registration,
   });
 }
 
@@ -355,8 +365,11 @@ async function runDeploy(
 // are EIP-1167 clones of a published logic contract. Each account gets its own
 // clone, deployed and registered in ONE transaction via
 // PermissionFactory.deployAndAttach(account, impl, salt, initData, deadline, sig).
+// (The on-chain function is named `deployAndAttach`; in Sailor and protocol
+// vocabulary this operation is permission registration — the kernel's own
+// functions are registerPermission/registerPermissions.)
 //
-// Authorization mirrors `attachMandate`: the owner (mandate signer) signs the
+// Authorization mirrors `registerMandate`: the owner (mandate signer) signs the
 // kernel RegisterPermission EIP-712 in the browser signing station — for the
 // clone's *predicted* address, since the clone does not exist until the tx
 // lands — and the agent submits deployAndAttach (paying gas). No new dashboard
@@ -722,8 +735,8 @@ async function runDeployClone(
     throw new Error(`deployAndAttach reverted (tx ${txHash})`);
   }
 
-  const attached = await pollForPermission(publicClient, project.contracts.kernel, sma, clone);
-  if (!attached) {
+  const permissionRegistered = await pollForPermission(publicClient, project.contracts.kernel, sma, clone);
+  if (!permissionRegistered) {
     throw new Error(
       `Tx ${txHash} mined, but clone ${clone} is not in getPermissions(${sma}). Verify on-chain.`,
     );
@@ -760,14 +773,14 @@ async function runDeployClone(
   });
 }
 
-// ── attach ─────────────────────────────────────────────────────────────────
+// ── register ───────────────────────────────────────────────────────────────
 
-export async function mandateAttach(options: AttachOptions): Promise<void> {
+export async function mandateRegister(options: RegisterOptions): Promise<void> {
   const project = requireProject();
   const channel = await createSigningChannel(process.cwd());
   try {
     await channel.start();
-    await runAttach(project, channel, options);
+    await runRegister(project, channel, options);
   } catch (err) {
     fail(err, options.json);
   } finally {
@@ -775,10 +788,10 @@ export async function mandateAttach(options: AttachOptions): Promise<void> {
   }
 }
 
-async function runAttach(
+async function runRegister(
   project: ProjectContext,
   channel: SigningChannel,
-  options: AttachOptions,
+  options: RegisterOptions,
 ): Promise<void> {
   const json = !!options.json;
   if (!isAddress(options.sma, { strict: false })) throw new Error(`Invalid --sma address: ${options.sma}`);
@@ -790,7 +803,7 @@ async function runAttach(
   // list of addresses. The single-entry path is unchanged; a list registers all
   // of them in ONE signature via registerPermissions.
   if (options.address.includes(",")) {
-    await runAttachBatch(project, channel, options, sma, store);
+    await runRegisterBatch(project, channel, options, sma, store);
     return;
   }
 
@@ -808,7 +821,7 @@ async function runAttach(
 
   announceSigningUrl(json);
 
-  const txHash = await attachToSma(
+  const txHash = await registerOnSma(
     project,
     channel,
     publicClient,
@@ -817,7 +830,7 @@ async function runAttach(
     label,
     json,
   );
-  // Track the permission before recording the attachment: a bare `--address`
+  // Track the permission before recording the registration: a bare `--address`
   // (e.g. a shared permission singleton, never deployed from this project) has no
   // store record, so `recordAttachment` would silently no-op and the permission
   // would never appear in `mandate prepare`/`sign`. ensureTracked preserves any
@@ -831,23 +844,27 @@ async function runAttach(
   });
   store.recordAttachment(mandateAddress, { sma, txHash });
 
+  const registration = { sma, mandate: mandateAddress, txHash };
   emit(json, () => {}, {
     status: "ok",
-    attached: { sma, mandate: mandateAddress, txHash },
+    // `registered` is canonical; `attached` is kept for backward compatibility
+    // with existing scripts parsing --json output.
+    registered: registration,
+    attached: registration,
   });
 }
 
 /**
- * Batch path for `mandate attach --address <a>,<b>,<c>`: registers every
+ * Batch path for `mandate register --address <a>,<b>,<c>`: registers every
  * permission in ONE permission-signer signature via the kernel's
  * `registerPermissions`. Comma-separated entries must be addresses (tracked-name
  * resolution stays on the single-entry path). The shared batch txHash is recorded
  * against each tracked permission.
  */
-async function runAttachBatch(
+async function runRegisterBatch(
   project: ProjectContext,
   channel: SigningChannel,
-  options: AttachOptions,
+  options: RegisterOptions,
   sma: Address,
   store: MandateStore,
 ): Promise<void> {
@@ -861,7 +878,7 @@ async function runAttachBatch(
 
   announceSigningUrl(json);
 
-  const txHash = await attachBatchToSma(project, channel, publicClient, sma, permissions, json);
+  const txHash = await registerBatchOnSma(project, channel, publicClient, sma, permissions, json);
 
   for (const permission of permissions) {
     // Track each address (shared singletons included) so it surfaces in
@@ -876,9 +893,11 @@ async function runAttachBatch(
     store.recordAttachment(permission, { sma, txHash });
   }
 
+  const registration = permissions.map((mandate) => ({ sma, mandate, txHash }));
   emit(json, () => {}, {
     status: "ok",
-    attached: permissions.map((mandate) => ({ sma, mandate, txHash })),
+    registered: registration,
+    attached: registration,
   });
 }
 
@@ -1065,8 +1084,8 @@ async function runRevoke(
   });
 }
 
-/** Verify the Safe is registered, read its permission signer, then run attach. */
-async function attachToSma(
+/** Verify the Safe is registered, read its permission signer, then run register. */
+async function registerOnSma(
   project: ProjectContext,
   channel: SigningChannel,
   publicClient: PublicClient,
@@ -1098,7 +1117,7 @@ async function attachToSma(
   })) as [Address, Address, Address, Address, boolean];
   const permissionSigner = kernelConfig[0];
 
-  const txHash = await attachMandate(
+  const txHash = await registerMandate(
     project,
     channel,
     publicClient,
@@ -1109,9 +1128,9 @@ async function attachToSma(
     { json },
   );
 
-  const attached = await pollForPermission(publicClient, project.contracts.kernel, sma, mandate);
+  const permissionRegistered = await pollForPermission(publicClient, project.contracts.kernel, sma, mandate);
   say(() => {
-    if (!attached) {
+    if (!permissionRegistered) {
       console.log("⚠  Permission not yet visible in the permission set — verify on-chain.");
     } else {
       console.log("✓", `Permission present in getPermissions(${sma})`);
@@ -1128,7 +1147,7 @@ async function attachToSma(
  * submits and pays gas plus the summed registration fee. Returns the shared batch
  * txHash so the caller can record each attachment.
  */
-async function attachBatchToSma(
+async function registerBatchOnSma(
   project: ProjectContext,
   channel: SigningChannel,
   publicClient: PublicClient,
@@ -1167,9 +1186,9 @@ async function attachBatchToSma(
   });
   if (caps.dispatchModel !== "selective") {
     throw new Error(
-      `Batch attach requires a selective kernel, but ${project.contracts.kernel} reports ` +
-        `dispatchModel="${caps.dispatchModel}". Attach permissions one at a time instead ` +
-        `(sailor mandate attach --address <one> --sma ${sma}).`,
+      `Batch register requires a selective kernel, but ${project.contracts.kernel} reports ` +
+        `dispatchModel="${caps.dispatchModel}". Register permissions one at a time instead ` +
+        `(sailor mandate register --address <one> --sma ${sma}).`,
     );
   }
 
@@ -1192,7 +1211,7 @@ async function attachBatchToSma(
 
   say(() =>
     console.log(
-      `\nAttaching ${permissions.length} permissions in one signature — the mandate signer (${permissionSigner}) signs in the browser…`,
+      `\nRegistering ${permissions.length} permissions in one signature — the mandate signer (${permissionSigner}) signs in the browser…`,
     ),
   );
   // Per-permission NL summaries so the approval card explains what each
@@ -1346,7 +1365,7 @@ export function mandateTemplates(options: { json?: boolean }): void {
       console.log("  1. Start from BoundedCallPermission.sol in mandates/ (targets + selectors + max ETH value)");
       console.log("  2. Implement IPermission.evaluate(txData, ctx) with your policy logic");
       console.log("  3. forge build");
-      console.log("  4. sailor mandate deploy --contract <Name> --attach --sma <yourSMA>");
+      console.log("  4. sailor mandate deploy --contract <Name> --register --sma <yourSMA>");
       console.log("\n  See examples/custom-mandate/README.md for the full guide.");
 
       if (community.length > 0) {

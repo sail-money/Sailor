@@ -13,22 +13,22 @@ import { MandateStore } from "../lib/mandates.js";
 import { type PermissionExplanation, explainPermission } from "../lib/permission-explainer.js";
 import { ProjectContext } from "../lib/project.js";
 import type { StoredAccount, StoredMandate } from "../lib/state.js";
-import { mandateAttach } from "./mandate-contracts.js";
+import { mandateRegister } from "./mandate-contracts.js";
 
 /**
  * A permission contract tracked for the active SMA, derived from the
  * MandateStore (`.sail/state/mandates.json`) — the source of truth for the
- * permissions this project has deployed and attached.
+ * permissions this project has deployed and registered.
  */
 export type TrackedPermission = {
   address: string;
   label: string;
-  /** True when the store records an attachment of this permission to this SMA. */
+  /** True when the store records a registration of this permission on this SMA. */
   registeredOnSma: boolean;
   /** ISO timestamp the permission was registered on this SMA, if known. */
-  attachedAt?: string;
+  registeredAt?: string;
   /**
-   * True when the local store records an attachment but the kernel's
+   * True when the local store records a registration but the kernel's
    * getPermissions() no longer lists this address — i.e. it was revoked
    * on-chain after the local record was written.
    */
@@ -60,7 +60,7 @@ type DraftRegistrationFee = {
 };
 
 /**
- * The permissions a sign/attach will actually be CHARGED for: tracked, not
+ * The permissions a sign/register will actually be CHARGED for: tracked, not
  * revoked on-chain, and not yet registered on this SMA. `mandate prepare` and
  * `mandate sign` MUST use this same selection so their disclosed fee counts
  * agree (re-preparing a mandate with some permissions already registered must
@@ -189,7 +189,7 @@ async function trackedPermissionsFor(
         address: m.address,
         label: m.name,
         registeredOnSma: !!attachment,
-        attachedAt: attachment?.at,
+        registeredAt: attachment?.at,
       };
     });
 
@@ -197,7 +197,7 @@ async function trackedPermissionsFor(
   // kernel's getPermissions() is ground truth. mergeOnChainPermissions both (a)
   // flags local entries the kernel no longer lists (revoked via `sailor mandate
   // revoke` or externally), and (b) unions in permissions the kernel DOES list but
-  // the local store is missing — e.g. a shared singleton attached by address into a
+  // the local store is missing — e.g. a shared singleton registered by address into a
   // wiped/older store, or registered out-of-band. Without (b), prepare/sign would
   // be blind to the SMA's real permission set.
   const onChain = kernel ? await fetchOnChainPermissions(account.safe as Address, chainId, kernel) : null;
@@ -257,12 +257,12 @@ function printNoPermissionsGuidance(): void {
     "\nNo permissions registered yet.\n" +
       "  1. Write your permission contract in mandates/ (start from BoundedCallPermission.sol)\n" +
       "  2. forge build\n" +
-      "  3. sailor mandate deploy --contract <Name> --attach --sma <yourSMA>",
+      "  3. sailor mandate deploy --contract <Name> --register --sma <yourSMA>",
   );
 }
 
 /**
- * `sailor mandate prepare` — lists the permission contracts attached to the
+ * `sailor mandate prepare` — lists the permission contracts registered to the
  * active SMA (from the MandateStore) and writes a simple
  * `.sail/mandate-draft.json` the UI can display. Sailor does not ship a blessed
  * library of permission templates: users author, deploy, and register their own
@@ -286,7 +286,7 @@ export async function mandatePrepare(): Promise<void> {
     const status = p.revokedOnChain
       ? "revoked on-chain (local record is stale)"
       : p.registeredOnSma
-        ? `registered on this SMA${p.attachedAt ? ` (${p.attachedAt})` : ""}`
+        ? `registered on this SMA${p.registeredAt ? ` (${p.registeredAt})` : ""}`
         : "not yet registered on this SMA";
     console.log(`• ${p.label}`);
     console.log(`    ${p.address}`);
@@ -329,8 +329,8 @@ export async function mandatePrepare(): Promise<void> {
 }
 
 /**
- * `sailor mandate sign` — reviews and confirms the permission contracts attached
- * to the active SMA. On-chain registration happens via `sailor mandate attach`;
+ * `sailor mandate sign` — reviews and confirms the permission contracts registered
+ * to the active SMA. On-chain registration happens via `sailor mandate register`;
  * for any tracked permission not yet registered on this SMA, this re-uses that
  * same RegisterPermission signing flow (see mandate-contracts.ts / onboard.ts).
  */
@@ -361,8 +361,8 @@ export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
     );
   }
   console.log(
-    "\nNote: `sailor mandate sign` reviews and confirms the permissions attached to your SMA.\n" +
-      "On-chain registration happens via `sailor mandate attach` (or `sailor mandate deploy --attach`).",
+    "\nNote: `sailor mandate sign` reviews and confirms the permissions registered to your SMA.\n" +
+      "On-chain registration happens via `sailor mandate register` (or `sailor mandate deploy --register`).",
   );
 
   // Exclude revoked-on-chain entries from the confirmation: they are no longer
@@ -375,7 +375,7 @@ export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
   // Disclose the registration fee BEFORE the user confirms. Only the
   // not-yet-registered permissions incur a fee now (already-registered ones were
   // paid for when they were first registered) — the same set and the same flat
-  // per-permission charge (permissionRegistrationFee) the attach tx will send.
+  // per-permission charge (permissionRegistrationFee) the register tx will send.
   // Best-effort, so a missing fee never blocks confirmation.
   if (unregistered.length > 0) {
     const estimate = await liveMandateFee(chainId, unregistered.map((p) => p.address));
@@ -400,14 +400,14 @@ export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
       `\n${unregistered.length} permission(s) are not yet registered on this SMA. Initiating registration…`,
     );
     for (const p of unregistered) {
-      await mandateAttach({ address: p.address, sma: account.safe, label: p.label });
+      await mandateRegister({ address: p.address, sma: account.safe, label: p.label });
     }
   }
 
   // Write .sail/mandate.json so `sailor run` can proceed.
   // Schema: StoredMandate — runner only gate-checks existence; actual permissions
   // are read from on-chain via readClient.mandate.list().
-  // No `signature` field: registration authority is on-chain (via mandateAttach),
+  // No `signature` field: registration authority is on-chain (via mandateRegister),
   // not a single local EIP-712 signing step. Emitting an empty string here falsely
   // implied a missing/invalid signature, so it is omitted entirely.
   const storedMandate: StoredMandate = {

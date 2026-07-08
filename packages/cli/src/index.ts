@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import {
   type DeployChainOptions,
   type PredictOptions,
@@ -15,14 +15,14 @@ import { initCommand } from "./commands/init.js";
 import { updateCommand } from "./commands/update.js";
 import { type KeysGenerateOptions, keysExportCi, keysGenerate, keysShow } from "./commands/keys.js";
 import {
-  type AttachOptions,
   type DeployCloneOptions,
   type DeployOptions,
+  type RegisterOptions,
   type RevokeOptions,
-  mandateAttach,
   mandateContractsList,
   mandateDeploy,
   mandateDeployClone,
+  mandateRegister,
   mandateRevoke,
   mandateTemplates,
   mandateUpdate,
@@ -213,26 +213,43 @@ mandate
   .option("--args <json>", 'Constructor args as JSON array. Bash: \'["0x..","1"]\'. PowerShell: \'[\\"0x..\\",\\"1\\"]\'. Use --args-file to avoid quoting.')
   .option("--args-file <path>", "Path to a JSON file containing constructor args array (recommended on PowerShell)")
   .option("--build", "Run `forge build` before deploying")
-  .option("--attach", "After deploy, register the permission on --sma")
-  .option("--sma <address>", "SMA to register on (required with --attach)")
+  .addOption(new Option("--register", "After deploy, register the permission on --sma"))
+  .addOption(new Option("--attach").hideHelp()) // hidden back-compat alias for --register
+  .option("--sma <address>", "SMA to register on (required with --register)")
   .option("--json", "Emit machine-readable JSON")
   .action(actionWith<DeployOptions>(mandateDeploy));
-mandate
-  .command("attach")
-  .description("Register one or more already-deployed permissions on an SMA (EIP-712 RegisterPermission; a comma-separated list registers all in one signature)")
-  .requiredOption(
-    "--address <mandateOrName>",
-    "Permission address or locally-tracked name; or a comma-separated list of addresses to register together in one signature",
-  )
-  .requiredOption("--sma <address>", "SMA to register the permission on")
-  .option("--label <label>", "Human-readable label shown in the signing UI")
-  .option("--json", "Emit machine-readable JSON")
-  .action(actionWith<AttachOptions>(mandateAttach));
+{
+  // `register` is canonical; `attach` is a hidden alias kept for backward
+  // compatibility with existing scripts — same options, same handler, not
+  // listed in --help.
+  const registerOptions = [
+    [
+      "--address <mandateOrName>",
+      "Permission address or locally-tracked name; or a comma-separated list of addresses to register together in one signature",
+    ],
+    ["--sma <address>", "SMA to register the permission on"],
+  ] as const;
+  mandate
+    .command("register")
+    .description("Register one or more already-deployed permissions on an SMA (EIP-712 RegisterPermission; a comma-separated list registers all in one signature)")
+    .requiredOption(...registerOptions[0])
+    .requiredOption(...registerOptions[1])
+    .option("--label <label>", "Human-readable label shown in the signing UI")
+    .option("--json", "Emit machine-readable JSON")
+    .action(actionWith<RegisterOptions>(mandateRegister));
+  mandate
+    .command("attach", { hidden: true })
+    .requiredOption(...registerOptions[0])
+    .requiredOption(...registerOptions[1])
+    .option("--label <label>", "Human-readable label shown in the signing UI")
+    .option("--json", "Emit machine-readable JSON")
+    .action(actionWith<RegisterOptions>(mandateRegister));
+}
 mandate
   .command("configure")
   .description(
     "Write per-account bounds on an already-deployed shared permission singleton " +
-      "(configureDirect; owner tx via the signing station). Pairs with `mandate attach`, " +
+      "(configureDirect; owner tx via the signing station). Pairs with `mandate register`, " +
       "which only registers — a registered-but-unconfigured singleton denies every call.",
   )
   .requiredOption("--address <singleton>", "Shared permission singleton address (deployed on this chain)")

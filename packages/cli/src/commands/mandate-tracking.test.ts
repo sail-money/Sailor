@@ -26,7 +26,7 @@ test("mergeOnChainPermissions: unions on-chain permissions absent from the local
   assert.ok(b, "on-chain-only permission B should be unioned into the list");
   assert.equal(b.registeredOnSma, true, "unioned entry is registered on-chain");
   assert.equal(b.revokedOnChain ?? false, false);
-  // This is the bug fix: B is the shared singleton that `attach` failed to track,
+  // This is the bug fix: B is the shared singleton that `register` failed to track,
   // and without it `sign` saw nothing and the operator hand-wrote mandate.json.
   assert.equal(merged.length, 2);
 });
@@ -70,7 +70,7 @@ function tempStore(): { store: MandateStore; dir: string } {
   return { store: new MandateStore(join(dir, "mandates.json")), dir };
 }
 
-test("ensureTracked: records a never-deployed address so attach is no longer invisible", () => {
+test("ensureTracked: records a never-deployed address so register is no longer invisible", () => {
   const { store, dir } = tempStore();
   try {
     assert.equal(store.find(A), undefined);
@@ -103,7 +103,7 @@ test("ensureTracked: preserves an existing richer record (does not overwrite dep
       sourcePath: "/abs/mandates/MyDeployedMandate.sol",
       deployedAt: "2026-06-01T00:00:00.000Z",
     });
-    // A later attach-time ensureTracked with a minimal record must not clobber it.
+    // A later register-time ensureTracked with a minimal record must not clobber it.
     store.ensureTracked({
       name: "different-label",
       address: A,

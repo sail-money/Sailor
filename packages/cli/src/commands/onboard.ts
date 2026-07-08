@@ -5,7 +5,7 @@
  *   1. Ensure a manager (agent) key exists
  *   2. Resolve the SMA — use --sma, or create a new one with --new-sma
  *   3. Verify on-chain registration with SailKernel
- *   4. Optionally attach one mandate template
+ *   4. Optionally register one mandate template
  *   5. Persist the SMA to .sail/account.json and print a summary
  *
  * Signing requests are pushed to the signing station (a running `sailor station`
@@ -207,7 +207,7 @@ async function runOnboard(
     saltNonce: deployedSaltNonce,
   });
 
-  // ── Step 4: Mandate attachment ──────────────────────────────────────────────
+  // ── Step 4: Mandate registration ────────────────────────────────────────────
   if (options.skipMandate) {
     return { sma: smaAddress, agent: agentAddress, mandates: [], created: justCreated };
   }
@@ -235,7 +235,7 @@ async function runOnboard(
   }
 
   // Detect conjunctive kernel and guard against unsafe mandate configurations
-  // before attaching anything. Warnings are always printed (even with --json)
+  // before registering anything. Warnings are always printed (even with --json)
   // because they concern fund security, not just UX.
   let isConjunctive = false;
   try {
@@ -256,7 +256,7 @@ async function runOnboard(
   }
 
   // MEDIUM security guard: if a LiFi swap permission (boundedLiFi / boundedApprove)
-  // is being attached without a transfer-restriction companion, warn the operator.
+  // is being registered without a transfer-restriction companion, warn the operator.
   // These pass-through permissions leave ERC-20 transfer() calls unrestricted —
   // the manager key can call token.transfer(attacker, balance) from the Safe.
   // Production deployments must add SharedTransferTargetPermission or equivalent.
@@ -268,8 +268,8 @@ async function runOnboard(
     "SharedTransferTargetPermission",
     "TransferTargetPermission",
   ]);
-  const attachingLifi = LIFI_PERMISSION_KINDS.has(template.label) || LIFI_PERMISSION_KINDS.has(template.address);
-  if (attachingLifi) {
+  const registeringLifi = LIFI_PERMISSION_KINDS.has(template.label) || LIFI_PERMISSION_KINDS.has(template.address);
+  if (registeringLifi) {
     // Check if a transfer-restriction permission is already registered.
     const existing = (await publicClient.readContract({
       address: project.contracts.kernel,
@@ -289,7 +289,7 @@ async function runOnboard(
     }
   }
 
-  await attachMandate(
+  await registerMandate(
     project,
     channel,
     publicClient,
@@ -499,12 +499,12 @@ async function createSma(
 }
 
 /**
- * Shared attach path: read the signer nonce, push a RegisterPermission EIP-712
+ * Shared register path: read the signer nonce, push a RegisterPermission EIP-712
  * request for the owner to sign in the browser, then submit
  * kernel.registerPermission from the agent wallet with the exact fee.
  * Returns the registration tx hash.
  */
-export async function attachMandate(
+export async function registerMandate(
   project: ProjectContext,
   channel: SigningChannel,
   publicClient: PublicClient,
@@ -770,7 +770,7 @@ function printSummary(smaAddress: Address, agentAddress: Address, permissions: A
     console.log(`  Permissions: ${permissions.length}`);
     for (const p of permissions) console.log("    -", p);
   } else {
-    console.log("  Permissions: none — register one later with sailor mandate attach");
+    console.log("  Permissions: none — register one later with sailor mandate register");
   }
   console.log("─".repeat(56));
 }
