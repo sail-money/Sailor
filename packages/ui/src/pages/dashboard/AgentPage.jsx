@@ -35,6 +35,9 @@ export default function AgentPage({ agentId, onBack, onEdit, onRevoke }) {
   const mandate = liveMandate ?? null
   const view = useMemo(() => buildAgentView(mandate), [mandate])
   const agentPermissions = (liveMandate?.permissions ?? []).map((p) => ({ ...p, usedByThisAgent: true }))
+  // This page is always for the mandate the agent operates under.
+  const parentMandate = mandate
+  const usedPermissionIds = new Set(agentPermissions.filter((p) => p.usedByThisAgent).map((p) => p.id))
   const [schedules, setSchedules] = useState([])
 
   function toggleSchedule(scheduleId) {
@@ -162,7 +165,7 @@ export default function AgentPage({ agentId, onBack, onEdit, onRevoke }) {
             lastRehearsalHoursAgo={rehearsalHoursAgo}
             rehearsing={rehearsing}
             onRehearse={runDryRun}
-            managerEndpoint={mockManagerEndpoint}
+            managerEndpoint={undefined}
           />
         </section>
 
@@ -1043,7 +1046,7 @@ function AgentReadinessLine({ status, mandate, hasMpcWallet, lastRehearsalHoursA
       </div>
       <p className={styles.readinessAttribution}>
         Drafted in <strong>{mandate.aiName}</strong>. Runtime decisions come from
-        your agent endpoint at <code>{managerEndpoint.url}</code> — not from
+        your agent endpoint at <code>{managerEndpoint?.url ?? '—'}</code> — not from
         {' '}{mandate.aiName}. Switching drafters doesn't change who runs the agent.
       </p>
     </div>
@@ -1532,6 +1535,7 @@ function buildAgentView(mandate) {
 }
 
 function hashStr(s) {
+  s = s ?? ''
   let h = 0
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0
   return Math.abs(h)
