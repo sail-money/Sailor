@@ -361,12 +361,14 @@ function printWelcome(dest: string, name: string, inPlace: boolean, _hasRpc: boo
     console.log(
       "Permissions: none registered yet — your agent has no mandate to execute against.\n",
     );
-    console.log("Next:");
+    console.log("Next (see AGENTS.md — define the strategy, then build its mandate):");
     console.log(
       "  Write your permission contract in mandates/ (start from BoundedCallPermission.sol)",
     );
     console.log("  forge build");
-    console.log(`  sailor mandate deploy --contract <Name> --register --sma ${state.sma}\n`);
+    console.log(`  sailor mandate deploy --contract <Name> --sma ${state.sma}`);
+    console.log(`  sailor mandate simulate --address <Name> --sma ${state.sma} --calls calls.json`);
+    console.log(`  sailor mandate register --address <Name> --sma ${state.sma}\n`);
     console.log('Or open this folder in your AI coding agent and say: "continue"');
     return;
   }
@@ -388,20 +390,13 @@ function printWelcome(dest: string, name: string, inPlace: boolean, _hasRpc: boo
     "║   !!  AI AGENT — MANDATORY ACTION REQUIRED BEFORE CONTINUING   !!    ║",
     "╠══════════════════════════════════════════════════════════════════════╣",
     "║                                                                      ║",
-    "║  YOU MUST STOP AND READ AGENTS.md BEFORE DOING ANYTHING ELSE.        ║",
+    "║  STOP AND READ AGENTS.md (project root, FULL FILE) before            ║",
+    "║  responding to the user or running any sailor command.               ║",
+    '║  When done, confirm: "I have read AGENTS.md and am ready."           ║',
     "║                                                                      ║",
-    "║  DO NOT:                                                             ║",
-    "║    • respond to the user yet                                         ║",
-    "║    • run any sailor commands                                         ║",
-    "║    • assume you know what to do next                                 ║",
-    "║                                                                      ║",
-    "║  DO THIS FIRST:                                                      ║",
-    "║    1. Read AGENTS.md in the project root (FULL FILE, not a skim)     ║",
-    "║    2. Follow it — the detailed steps live in .agents/skills/         ║",
-    '║    3. Confirm to the user: "I have read AGENTS.md and am ready."     ║',
-    "║                                                                      ║",
-    "║  If you skip this step, setup WILL break and you will have to        ║",
-    "║  restart. There are no shortcuts.                                    ║",
+    "║  AGENTS.md is the map: five stations from setup to a live agent —    ║",
+    "║  it tells you exactly what to do and when. Detailed procedures       ║",
+    "║  live in .agents/skills/.                                            ║",
     "║                                                                      ║",
     "║  IF SAILOR IS RUNNING IN DOCKER:                                     ║",
     "║    • Read project files from your local filesystem — they are        ║",

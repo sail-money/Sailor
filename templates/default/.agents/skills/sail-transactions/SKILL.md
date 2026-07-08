@@ -35,7 +35,7 @@ sailor run                 # continuous; interval SAILOR_INTERVAL seconds (defau
 sailor run --chain <id>    # override CHAIN_ID for this run
 ```
 
-`run` needs `.sail/account.json`, `.sail/mandate.json`, a manager key, `CHAIN_ID` and an RPC URL (`.sail/.env.local`). Set `SAIL_PASSPHRASE` in `.env.local` to unlock the agent wallet non-interactively. Neither form blocks on a browser — the signed mandate is the authorization.
+`run` needs `.sail/account.json`, `.sail/mandate.json`, a manager key, `CHAIN_ID` and an RPC URL (`.sail/.env.local`). Set `SAIL_PASSPHRASE` in `.env.local` to unlock the agent wallet non-interactively. Neither form blocks on a browser — the signed mandate is the authorization. Once the mandate is signed and the agent is running, the agent transacts autonomously within it — do not ask the user to confirm individual dispatches inside the mandate.
 
 ## Where results land
 
