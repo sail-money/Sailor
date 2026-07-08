@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 const POLL_MS = 5000
 
@@ -212,30 +212,6 @@ export function useDiscoverSafes(ownerAddress, enabled) {
 export function useSailorMandateDraft() {
   const { data, loading, error } = usePolledJson('/api/mandate-draft', null, 5000)
   return { draft: data, loading, error }
-}
-
-/** Wizard progress from `.sail/.wizard-state.json`, with an updater. */
-export function useWizardState() {
-  const { data, loading } = usePolledJson('/api/wizard-state', null)
-
-  const update = useCallback(
-    async (patch) => {
-      const next = { ...(data ?? {}), ...patch }
-      try {
-        await fetch('/api/wizard-state', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(next),
-        })
-        return next
-      } catch {
-        return null
-      }
-    },
-    [data],
-  )
-
-  return { state: data, update, loading }
 }
 
 /** Latest positions snapshot from state/positions-<chainId>.json. Polls every 15s. */

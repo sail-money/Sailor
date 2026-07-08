@@ -24,7 +24,7 @@ function indexFromString(s, n) {
   return h % n
 }
 
-export default function Badge({ children, title }) {
+function Badge({ children, title }) {
   const label = String(children ?? '')
   if (!label) return null
   const c = PALETTE[indexFromString(label.toLowerCase(), PALETTE.length)]

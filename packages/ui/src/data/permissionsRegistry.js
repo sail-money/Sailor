@@ -9,7 +9,7 @@
  * this file is read by an RPC call.
  */
 
-export const NETWORKS = {
+const NETWORKS = {
   ethereum: {
     id: 'ethereum',
     name: 'Ethereum',
@@ -51,7 +51,7 @@ export const NETWORKS = {
  * Tokens, keyed by symbol. Each token has a per-network address map
  * (some tokens exist on multiple chains under different addresses).
  */
-export const TOKENS = {
+const TOKENS = {
   USDC: {
     symbol: 'USDC',
     name: 'USD Coin',
@@ -152,7 +152,7 @@ export const TOKENS = {
  * Protocols / venues — each lists its contract address per network.
  * `kind` is used as a category label in the UI ('Lending', 'AMM', etc).
  */
-export const PROTOCOLS = {
+const PROTOCOLS = {
   'morpho-blue': {
     id: 'morpho-blue',
     name: 'Morpho Blue',
