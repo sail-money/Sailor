@@ -1,6 +1,6 @@
 ---
 name: sail-servers
-description: Start, stop, and health-check the two local servers — the Sailor dashboard and the signing station. Use when launching the UI, when a signing request needs a browser, when a port or pid question comes up, or when a command appears stuck waiting for a signature.
+description: Anytime utility — start, stop, and health-check the two local servers (the Sailor dashboard and the signing station), and set up Docker or remote access. Use when launching the UI, when the dashboard won't open, when a signing request needs a browser, when a port or pid question comes up, when a command appears stuck waiting for a signature, or for remote access (tailscale).
 ---
 
 # Sail servers
@@ -41,6 +41,17 @@ Signing-flow commands (`mandate deploy/register/deploy-clone/revoke`, `onboard`,
 
 ## Docker installation
 
+If the container is not running, start it from the project root:
+
+```bash
+docker run -d --name agent -P -v "${PWD}:/workspace" sailmoney/sailor
+```
+
+- `-d` — detached, runs in the background
+- `--name agent` — names the container; use a different name with `-e SAILOR_CONTAINER_NAME=<name>` if needed
+- `-P` — publishes all exposed ports to random available host ports (UI: 3334, station: 3141)
+- `-v "${PWD}:/workspace"` — mounts the current project directory into the container
+
 If `.sail/config.json → installMode` is `"docker"`, prefix every command with `docker exec <containerName>` (read `containerName` from the same config):
 
 ```bash
@@ -70,3 +81,7 @@ Project files at `/workspace` are your local directory — read and write them d
 - Command stuck "waiting"? It is blocked on a browser signature — check `GET /config` `pendingCount`, and tell the user to open the station URL and approve. Signing requests time out after 10 minutes.
 - Stale pid file (process died): `ui status` / `station stop` clean it up automatically.
 - `sailor ui start` errors about a missing server bundle or UI dist: the package build is incomplete — re-run the sailor build.
+
+---
+
+This is an anytime utility, not a station — once the servers are sorted, return to the station you came from.

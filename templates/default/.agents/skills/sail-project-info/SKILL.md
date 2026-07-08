@@ -1,6 +1,6 @@
 ---
 name: sail-project-info
-description: Read-only commands and state files that answer questions about the project, account, mandate, chains, keys, or environment. Use when the user asks "what's the state of…", "is X set up", "which chains…", "what permissions are registered", or before any operation that needs current state.
+description: Anytime read-only utility — commands and state files that answer questions about the project, account, mandate, chains, keys, or environment. Use when the user asks "what's the state of…", "is X set up", "am I ready", "check my setup", "run a preflight", "which chains…", "what permissions are registered", or before any operation that needs current state.
 ---
 
 # Sail project info
@@ -27,6 +27,35 @@ Every command here is read-only and supports `--json` for machine reading. Prefe
 - "Same address on another chain?" — `account.json` `deployedChains`, verified by `sailor account predict`.
 - "Is anything running?" — `.sail/runtime/ui.json` (dashboard), `.sail/runtime/server.json` (signing station), agent pid via `sailor status`.
 
-Run `sailor doctor` before any operation that spends gas — it is the cheapest way to catch a dead RPC, an unfunded wallet, or a kernel mismatch first.
+Run `sailor doctor` before any operation that spends gas — it is the cheapest way to catch a dead RPC, an unfunded wallet, or a kernel mismatch first. (Full preflight semantics and its role as Station 1's exit verifier: [`sail-onboarding`](../sail-onboarding/SKILL.md).)
 
-- "What is the permission registration fee?" — `permissionRegistrationFee()` on `SailGovernance` (read live; currently `0` on this deploy). `sailor mandate sign` and `sailor mandate prepare` print the fee before signing. Each `permission_registered` entry in the activity log includes `fee` (wei) and `feeEth` (formatted), so Recent Activity shows the real cost paid per registration.
+- "What is the permission registration fee?" — read live from the chain; mechanics and current value are owned by [`sail-mandates`](../sail-mandates/SKILL.md) (Registration fee section).
+
+## Worked sample — `sailor doctor --json` on a fresh project
+
+Genuine output shape (addresses shown as placeholders; run it for live values):
+
+```json
+{
+  "chainId": 8453,
+  "kernel": "0xKERNEL…",
+  "dispatchModel": "selective",
+  "dispatchTypehash": "0xTYPEHASH…",
+  "capabilitySource": "onchain-typehash",
+  "rpc": { "chainIdOnChain": 8453, "chainIdMatches": true },
+  "wallet": { "owner": null, "manager": null },
+  "passphrase": { "keystorePresent": false, "envSet": false },
+  "account": null,
+  "saltNonce": null,
+  "permissions": [],
+  "permissionsWithoutCode": [],
+  "conjunctivePassThrough": "n/a (selective kernel)",
+  "healthy": false
+}
+```
+
+`healthy: false` here because no account or keys exist yet — expected on a fresh project.
+
+---
+
+This is an anytime utility, not a station — once you have your answer, return to the station you came from.

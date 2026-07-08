@@ -386,6 +386,12 @@ function printWelcome(dest: string, name: string, inPlace: boolean, _hasRpc: boo
   if (!inPlace) console.log(`\nCreated ${name}/`);
   console.log([
     "",
+    "⛵ Sailor — your project is ready.",
+    "Your AI agent will now walk you through it: account → strategy → mandate → launch.",
+    "Everything self-custodial, every action bounded onchain.",
+  ].join("\n"));
+  console.log([
+    "",
     "╔══════════════════════════════════════════════════════════════════════╗",
     "║   !!  AI AGENT — MANDATORY ACTION REQUIRED BEFORE CONTINUING   !!    ║",
     "╠══════════════════════════════════════════════════════════════════════╣",
