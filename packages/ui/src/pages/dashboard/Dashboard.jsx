@@ -1747,11 +1747,11 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                 ? allBuilt.reduce((s, b) => s + b.perms.length, 0)
                 : active.perms.length
               return (
-                <section className={styles.mandatesSection} aria-label="Mandate">
+                <section className={styles.mandatesSection} aria-label="Mandates">
                   <header className={styles.mandatesSectionHead}>
                     <h2 className={styles.mandatesSectionTitle}>
                       <DocGlyph />
-                      Mandate
+                      Mandates
                     </h2>
                     <span className={styles.mandatesSectionMeta}>
                       {permCount > 0
