@@ -187,13 +187,13 @@ batch requires a zero pre-batch allowance); under `SwapPermission` + owner pre-a
 plain single-call swap and MUST read `allowance(SMA, router)` and **stall (not self-approve)** when
 it is below `amountIn`.
 
-## When NOT to use this
+## Beyond this template — routing
 - **Token has no `IOracle` adapter** → this template REQUIRES a non-zero oracle and will not
   configure without one. Use [`sail-template-swap-no-oracle`](../sail-template-swap-no-oracle/SKILL.md)
   (live-pool hallucination band — catches honest mistakes, NOT MEV/flash-loan attacks) or author a
   bespoke permission. There is no oracle-off mode on `SwapPermission`.
-- **Aggregator (LI.FI) or opaque calldata** → the mandate can't inspect the route; use
-  [`sail-mandates`](../sail-mandates/SKILL.md).
+- **Aggregator (LI.FI) or opaque calldata** → a bespoke permission bounds the perimeter the route
+  can't expose; use [`sail-mandates`](../sail-mandates/SKILL.md).
 - **`SwapPermission` not deployed on your chain** → check `deployed.json` first (it's live on all
   11 Sailor-bundled chains as of the current deploy); for anything outside that set, author your
   own via [`sail-mandates`](../sail-mandates/SKILL.md).

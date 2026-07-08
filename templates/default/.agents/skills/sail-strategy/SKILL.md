@@ -85,4 +85,4 @@ Adding a category to Sailor = one door line in `AGENTS.md` + one conforming refe
 
 ## Handoff
 
-Exit verifier: every dimension concrete, user explicitly confirmed, `.sail/strategy.md` written with `"confirmedByUser": true`. Next: **Station 3 — the mandate planner** (sail-mandate-planner), which routes each action of the spec to a shared template or bespoke authoring. Templates route via [`sail-templates`](../sail-templates/SKILL.md); bespoke authoring via [`sail-mandates`](../sail-mandates/SKILL.md).
+Exit verifier: every dimension concrete, user explicitly confirmed, `.sail/strategy.md` written with `"confirmedByUser": true`. Next: **Station 3 — [`sail-mandate-planner`](../sail-mandate-planner/SKILL.md)**, which routes each action of the spec to a shared template or bespoke authoring.

@@ -46,7 +46,7 @@ each command named here exists in the CLI source.
 | `sailor mandate revoke` | Revoke permission(s) — owner-authorized (`--address <permissionOrName>` or `--all`) |
 | `sailor mandate list` | Permissions deployed from this project |
 | `sailor mandate update` | Update tracked-permission metadata (`--name`, `--source-path`, `--artifact-path`) |
-| `sailor mandate deploy-clone` | Deploy + register a standalone clone permission — currently unavailable (no clone templates deployed); use `mandate deploy` |
+| `sailor mandate deploy-clone` | Deploy + register a standalone clone permission from a published template — use `mandate deploy` today; `deploy-clone` requires clone templates and none are deployed yet |
 
 ## Signing station
 

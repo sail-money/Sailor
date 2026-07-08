@@ -122,12 +122,14 @@ add it here and write a skill.)
 Full mechanics (EIP-712 sigs, `configure`/`configureDirect`, `registerBatch`, `replace`,
 `detach`, and the register-vs-configure split): [references/reuse-flow.md](references/reuse-flow.md).
 
-## When NOT to use these
+## Beyond the templates — authoring bespoke
 
-No shared template covers: **perps** (GMX, Gains, Synthetix), **prediction markets** (Azuro,
-Limitless), or the **LI.FI aggregator**. For those, author a bespoke `IPermission` via
-`sailor mandate deploy` — see [`sail-mandates`](../sail-mandates/SKILL.md) for the
-authoring flow and `examples/custom-mandate/` for the neutral authoring scaffold.
+The seven templates cover the bounded swap, transfer, withdraw, deposit, borrow, and
+approve-and-call-batch primitives. A strategy that needs any other venue or bound — perps
+(GMX, Gains, Synthetix), prediction markets (Azuro, Limitless), the LI.FI aggregator, or
+anything else on-chain — is authored as a bespoke `IPermission` via
+[`sail-mandates`](../sail-mandates/SKILL.md), starting from the `examples/custom-mandate/`
+scaffold: full expressiveness, same kernel guarantees.
 
 ## Notes
 
@@ -142,3 +144,11 @@ authoring flow and `examples/custom-mandate/` for the neutral authoring scaffold
   differ from these source contracts).
 - **CLI gap:** `sailor mandate register` and `sailor mandate configure` are
   still separate commands — no combined one-step call ships yet. Always run both.
+
+## Next
+
+Chose a template? Open its matching spoke skill (`sail-template-*`) and follow its steps.
+Authoring bespoke? [`sail-mandates`](../sail-mandates/SKILL.md). Either way, return to the
+mandate plan ([`sail-mandate-planner`](../sail-mandate-planner/SKILL.md)) — the mandate is
+complete only when every permission in the plan is registered, configured, and
+simulate-verified.
