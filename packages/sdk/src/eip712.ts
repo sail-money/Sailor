@@ -335,7 +335,7 @@ export function buildRegisterAccountTypedData(args: {
 
 /**
  * EIP-712 types for RegisterPermissions (batch) — selective kernel. Mirrors the
- * shape SailorClient.mandate.attachBatch signs and the on-chain
+ * shape SailorClient.mandate.registerBatch signs and the on-chain
  * registerPermissions(account, permissions[], deadline, sig) entry point.
  */
 export const REGISTER_PERMISSIONS_BATCH_TYPES = {

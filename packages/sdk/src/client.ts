@@ -267,7 +267,7 @@ class AccountNamespace extends KernelNamespace implements IAccountNamespace {
 }
 
 class MandateNamespace extends KernelNamespace implements IMandateNamespace {
-  attach(
+  register(
     _safe: Address,
     _template: PermissionTemplate,
     _params: unknown,
@@ -276,13 +276,23 @@ class MandateNamespace extends KernelNamespace implements IMandateNamespace {
     return notImplemented();
   }
 
+  /** @deprecated Use {@link register}. Kept as an alias for backward compatibility. */
+  attach(
+    safe: Address,
+    template: PermissionTemplate,
+    params: unknown,
+    signer: ILocalKeyring,
+  ): Promise<void> {
+    return this.register(safe, template, params, signer);
+  }
+
   /**
    * Registers a batch of permissions on the kernel. The permissionSigner signs
-   * the EIP-712 RegisterPermissions struct; the attached wallet submits the tx.
+   * the EIP-712 RegisterPermissions struct; the registered wallet submits the tx.
    * Assumes each template is already configured for the account (shared
    * templates) or is stateless.
    */
-  async attachBatch(safe: Address, items: MandateItem[], signer: ILocalKeyring): Promise<void> {
+  async registerBatch(safe: Address, items: MandateItem[], signer: ILocalKeyring): Promise<void> {
     const kernel = this.requireKernel();
     const wallet = this.requireSigner();
     const permissions = items.map((item) => item.template.address);
@@ -318,6 +328,11 @@ class MandateNamespace extends KernelNamespace implements IMandateNamespace {
       args: [safe, permissions, deadline, sig],
       value: 0n,
     });
+  }
+
+  /** @deprecated Use {@link registerBatch}. Kept as an alias for backward compatibility. */
+  attachBatch(safe: Address, items: MandateItem[], signer: ILocalKeyring): Promise<void> {
+    return this.registerBatch(safe, items, signer);
   }
 
   /**
@@ -393,7 +408,7 @@ class MandateNamespace extends KernelNamespace implements IMandateNamespace {
     return notImplemented();
   }
 
-  deployAndAttachClone(
+  deployAndRegisterClone(
     _safe: Address,
     _impl: Address,
     _initData: Hex,
@@ -402,12 +417,25 @@ class MandateNamespace extends KernelNamespace implements IMandateNamespace {
   ): Promise<void> {
     // Clone deployment goes through PermissionFactory.attach with a configureSig
     // signed by the permission signer — the factory handles clone deployment and
-    // initialization atomically. The CLI's `sailor mandate attach` command is the
-    // supported path until a dedicated SDK helper is added.
+    // initialization atomically. (The on-chain function is named `attach`; in
+    // Sailor and protocol vocabulary this operation is permission registration.)
+    // The CLI's `sailor mandate register` command is the supported path until a
+    // dedicated SDK helper is added.
     throw new Error(
-      "deployAndAttachClone is not yet implemented in the SDK.\n" +
-        "Use `sailor mandate attach --address <impl>` to attach a clone template via the factory.",
+      "deployAndRegisterClone is not yet implemented in the SDK.\n" +
+        "Use `sailor mandate register --address <impl>` to register a clone template via the factory.",
     );
+  }
+
+  /** @deprecated Use {@link deployAndRegisterClone}. Kept as an alias for backward compatibility. */
+  deployAndAttachClone(
+    safe: Address,
+    impl: Address,
+    initData: Hex,
+    salt: Hex,
+    signer: ILocalKeyring,
+  ): Promise<void> {
+    return this.deployAndRegisterClone(safe, impl, initData, salt, signer);
   }
 
   async list(safe: Address): Promise<Mandate[]> {
@@ -969,7 +997,7 @@ export class SailorClient implements ISailorClient {
   /**
    * Returns a new client bound to a WalletClient for state-changing calls.
    * Reads work without a signer; writes (dispatch, fees, principal, account
-   * create, mandate attach) require one.
+   * create, mandate register) require one.
    */
   withSigner(walletClient: Signer): SailorClient {
     return new SailorClient(this.config, walletClient);
