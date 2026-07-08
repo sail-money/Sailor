@@ -59,7 +59,7 @@ const REGISTRY = JSON.parse(
       "..",
       ".agents",
       "skills",
-      "sail-templates",
+      "sailor-templates",
       "deployed.json",
     ),
     "utf8",
@@ -75,7 +75,7 @@ const chainId = chainOverride ?? readChain();
 
 if (list) {
   process.stdout.write(
-    "Deployed shared templates by chain (from .agents/skills/sail-templates/deployed.json):\n",
+    "Deployed shared templates by chain (from .agents/skills/sailor-templates/deployed.json):\n",
   );
   for (const [cid, templates] of Object.entries(REGISTRY.chains)) {
     const names = Object.keys(templates);

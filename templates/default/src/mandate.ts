@@ -8,7 +8,7 @@
  *   see examples/dca/mandate.ts
  *
  * For authoring a bespoke on-chain permission for this strategy's venue:
- *   see examples/custom-mandate/ (the scaffold) and the sail-mandates skill.
+ *   see examples/custom-mandate/ (the scaffold) and the sailor-mandates skill.
  */
 
 // TODO: replace with your strategy's parameters.

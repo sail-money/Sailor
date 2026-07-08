@@ -5,7 +5,7 @@ import {IPermission, Context} from "@sail/interfaces/IPermission.sol";
 // SailCalldata: safe helpers for extracting calldata parameters inside evaluate().
 // Use SailCalldata.hasParams(txData, N) + SailCalldata.asAddress/asUint256/... instead of
 // manual abi.decode when you need to bound specific call arguments (amounts, recipients, etc.).
-// See SailCalldata.sol for the full API, and the sail-mandates skill's authoring-patterns
+// See SailCalldata.sol for the full API, and the sailor-mandates skill's authoring-patterns
 // reference for the method and named gotchas when writing a protocol-specific permission.
 import {SailCalldata} from "./SailCalldata.sol";
 

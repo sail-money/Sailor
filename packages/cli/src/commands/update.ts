@@ -7,7 +7,7 @@ import { copyDirSync, copyDirSyncIfMissing } from "../lib/template.js";
 // User-space files (AGENTS.md, CLAUDE.md, Dockerfile, src/, package.json, etc.) are
 // never overwritten — they are seeded once via copyDirSyncIfMissing if missing.
 const UPDATE_PATHS = [
-  ".agents",       // all sail-* skills
+  ".agents",       // all sailor-* skills
   ".cursor",       // cursor IDE rules
   ".env.example",  // documents env vars; not meant to be edited directly
 ];
@@ -18,10 +18,30 @@ const UPDATE_PATHS = [
 // So a path removed from templates/default (even one under .agents/) needs an explicit
 // entry here, or it lingers in already-scaffolded projects forever.
 const STALE_PATHS = [
-  ".agents/skills/sail-ci", // renamed to sail-automation
-  ".agents/skills/sail-mandates/references/examples-index.md", // retired with examples/permissions/
-  "examples/permissions", // retired per-protocol gallery — see sail-mandates/references/authoring-patterns.md
+  ".agents/skills/sail-ci", // renamed to sailor-automation
+  "examples/permissions", // retired per-protocol gallery — see sailor-mandates/references/authoring-patterns.md
   "test/BoundedCallPermission.t.sol", // moved to examples/custom-mandate/test/BoundedCallPermission.t.sol
+  // All 19 skills renamed sail-* → sailor-*. Remove the whole old-named dir from existing
+  // projects (this also removes the retired sail-mandates/references/examples-index.md).
+  ".agents/skills/sail-onboarding",
+  ".agents/skills/sail-project-info",
+  ".agents/skills/sail-servers",
+  ".agents/skills/sail-token-resolve",
+  ".agents/skills/sail-swap-quote",
+  ".agents/skills/sail-templates",
+  ".agents/skills/sail-template-swap",
+  ".agents/skills/sail-template-swap-no-oracle",
+  ".agents/skills/sail-template-transfer",
+  ".agents/skills/sail-template-withdraw",
+  ".agents/skills/sail-template-deposit",
+  ".agents/skills/sail-template-borrow",
+  ".agents/skills/sail-template-approve-batch",
+  ".agents/skills/sail-transactions",
+  ".agents/skills/sail-mandates",
+  ".agents/skills/sail-automation",
+  ".agents/skills/sail-extend",
+  ".agents/skills/sail-strategy",
+  ".agents/skills/sail-mandate-planner",
 ];
 
 

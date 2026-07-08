@@ -29,10 +29,10 @@ config encoders (`@sail.money/sdk/templates`), and the version-adaptive EIP-712 
 ## Skills: how templates get used
 
 Each scaffolded project carries seventeen on-demand skills under `.agents/skills/`, spanning the
-whole workflow: setting up (`sail-onboarding`, `sail-project-info`, `sail-servers`), defining the
-mandate (one skill per shared template plus `sail-templates` for the catalog and `sail-mandates`
-for authoring custom permissions), executing strategy (`sail-token-resolve`, `sail-swap-quote`,
-`sail-transactions`), and running unattended (`sail-automation`, `sail-extend`). Template usage
+whole workflow: setting up (`sailor-onboarding`, `sailor-project-info`, `sailor-servers`), defining the
+mandate (one skill per shared template plus `sailor-templates` for the catalog and `sailor-mandates`
+for authoring custom permissions), executing strategy (`sailor-token-resolve`, `sailor-swap-quote`,
+`sailor-transactions`), and running unattended (`sailor-automation`, `sailor-extend`). Template usage
 is one part of that set, not the whole of it. A template skill encodes the safe
 order of operations — register → configure → simulate → verify — along with the exact parameter
 schemas and per-template footguns, so every agent follows the same vetted procedure
@@ -57,7 +57,7 @@ deliberately not restated here where they could drift.
 ## Custom permissions
 
 When no shared template fits (perps, prediction markets, aggregators, anything bespoke), author
-your own `IPermission` contract: the `sail-mandates` skill is the procedure, and
+your own `IPermission` contract: the `sailor-mandates` skill is the procedure, and
 `examples/custom-mandate/` is the neutral scaffold to start from (each permission's header should
 document what is enforced onchain vs left to the agent — see the skill's authoring-patterns
 reference). Deploy, simulate, then register — as three separate

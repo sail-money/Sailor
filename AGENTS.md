@@ -76,7 +76,7 @@ addresses remain. This file is the source of truth this guide mirrors.
 | `packages/sdk/src/fees.ts` | `readPermissionRegistrationFee` (live governance read) + per-permission fee math/disclosure/preflight |
 | `packages/ui/server.js` | Local API + WebSocket proxy; signing station relay |
 
-Per-permission registration fee (read live from governance, surfaced at sign time / activity / preflight): see `templates/default/.agents/skills/sail-mandates/SKILL.md` → "Registration fee".
+Per-permission registration fee (read live from governance, surfaced at sign time / activity / preflight): see `templates/default/.agents/skills/sailor-mandates/SKILL.md` → "Registration fee".
 
 ## Build
 

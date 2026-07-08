@@ -13,7 +13,7 @@ import type { Address } from "@sail.money/sailor/sdk";
  * PLACEHOLDERS — replace with the operator's tokens for their chain. These are not
  * "the supported tokens"; any valid ERC-20 on a supported chain works. Resolve and
  * verify a token's address on-chain (symbol/decimals) before using it — see Gate 1 of
- * the sail-mandates skill.
+ * the sailor-mandates skill.
  */
 export const ALLOWED_TOKENS: Address[] = [
   "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // USDC on Base  (6 decimals)  — placeholder

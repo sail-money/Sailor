@@ -2,7 +2,7 @@
 
 Sail Protocol accepts ANY contract implementing `IPermission`. There is no fixed set of
 permission types. `BoundedCallPermission` here is a general, protocol-agnostic primitive —
-extend it with calldata-specific checks for the venue at hand (see the `sail-mandates` skill's
+extend it with calldata-specific checks for the venue at hand (see the `sailor-mandates` skill's
 authoring-patterns reference for the method and named gotchas). Every financial bound your
 mandate enforces should live in Solidity — the kernel checks `evaluate()` on every dispatch. The
 agent's TypeScript can be changed without your signature; the permission contract cannot. You own
@@ -132,4 +132,4 @@ use `abi.decode(txData[4:], ...)` after the `hasParams` guard.
 - `.sail/contracts/interfaces/IPermission.sol` — interface copy (matches SailProtocol)
 - `mandates/BoundedCallPermission.sol` — general primitive: allowlisted targets, optional selector filter, max ETH value
 - `mandates/SailCalldata.sol` — safe calldata parameter extraction helpers
-- `test/BoundedCallPermission.t.sol` — Foundry test scaffold; copy it for each permission you author (see Gate 4 in the `sail-mandates` skill)
+- `test/BoundedCallPermission.t.sol` — Foundry test scaffold; copy it for each permission you author (see Gate 4 in the `sailor-mandates` skill)
