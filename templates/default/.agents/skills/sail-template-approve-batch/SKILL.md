@@ -84,7 +84,7 @@ Register → configure → simulate → reconfigure mechanics live in
 `sailor mandate attach` registers only; `configureDirect` (owner tx) is the half that makes the
 permission live. Template-specific bits:
 
-- **Singleton:** `ApproveAndCallBatchPermission` — `node SKILLS/sail-templates/catalog.mjs --chain
+- **Singleton:** `ApproveAndCallBatchPermission` — `node .agents/skills/sail-templates/catalog.mjs --chain
   <id>`.
 - **Spec to confirm:** tokens+caps, spenders, `(target, selector)` consuming pairs,
   `requireAmountMatch`, `allowUnconstrainedRecipient`. Get each selector with `cast sig` and verify

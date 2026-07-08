@@ -12,11 +12,11 @@
 // the rich per-template detail is curated below, and deployment status is read from
 // deployed.json.
 //
-// Usage:
-//   node catalog.mjs                # human view, all detected templates
-//   node catalog.mjs --json         # machine-readable
-//   node catalog.mjs --chain 8453   # deployment status for one chain
-//   node catalog.mjs --protocol /path/to/Protocol   # override Protocol dir
+// Usage (run from the scaffolded project root):
+//   node .agents/skills/sail-templates/catalog.mjs                # human view, all detected templates
+//   node .agents/skills/sail-templates/catalog.mjs --json         # machine-readable
+//   node .agents/skills/sail-templates/catalog.mjs --chain 8453   # deployment status for one chain
+//   node .agents/skills/sail-templates/catalog.mjs --protocol /path/to/Protocol   # override Protocol dir
 
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";

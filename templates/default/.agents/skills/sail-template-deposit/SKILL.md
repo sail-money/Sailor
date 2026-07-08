@@ -54,7 +54,7 @@ Register → configure → simulate → reconfigure mechanics (and the encoding 
 `sailor mandate attach` registers only; `configureDirect` (owner tx) is the half that makes the
 permission live. Template-specific bits:
 
-- **Singleton:** `DepositPermission` — `node SKILLS/sail-templates/catalog.mjs --chain <id>`.
+- **Singleton:** `DepositPermission` — `node .agents/skills/sail-templates/catalog.mjs --chain <id>`.
 - **Spec to confirm:** targets, tokens, cap (note the share-price caveat for `mint`).
 - **Blob:** `abi.encode(targets[], tokens[], maxAmountPerTx)` — **flat params, no wrapper**.
 - **Simulate (mandatory — unaudited example):** allowed deposit within cap passes; off-list

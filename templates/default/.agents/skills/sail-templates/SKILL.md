@@ -75,9 +75,9 @@ is the worked-example exemplar; the other spokes stay thin.
 The list is auto-detected from source; deployment status comes from `deployed.json`:
 
 ```bash
-node SKILLS/sail-templates/catalog.mjs              # all templates
-node SKILLS/sail-templates/catalog.mjs --chain 8453 # status on one chain
-node SKILLS/sail-templates/catalog.mjs --json       # machine-readable
+node .agents/skills/sail-templates/catalog.mjs              # all templates
+node .agents/skills/sail-templates/catalog.mjs --chain 8453 # status on one chain
+node .agents/skills/sail-templates/catalog.mjs --json       # machine-readable
 ```
 
 (The catalog warns if a new source contract appears with no curated metadata — a signal to

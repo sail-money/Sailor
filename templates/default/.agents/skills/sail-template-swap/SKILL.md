@@ -128,7 +128,7 @@ adapter** for this pair on this chain (`0x0` reverts):
 > do both — steps 3a (register) and 3b (configure). Full mechanics + the encoding gotcha:
 > [`sail-templates` reuse-flow](../sail-templates/references/reuse-flow.md).
 
-1. **Address:** `node SKILLS/sail-templates/catalog.mjs --chain <id>` → `SwapPermission`
+1. **Address:** `node .agents/skills/sail-templates/catalog.mjs --chain <id>` → `SwapPermission`
    address. It's the same address on every chain (CREATE2); see `deployed.json`.
 2. **Confirm the spec with the user** (sell/buy tokens, per-swap cap, slippage, router/fee
    tier, recipient = SMA) — print the explainer's humanReadable + warnings. No gas before

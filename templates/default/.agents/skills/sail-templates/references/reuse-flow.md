@@ -51,7 +51,7 @@ a revert or over-gas is treated as `false` (fail-closed), never a kernel revert.
 
 ### 1. Discover the address
 ```bash
-node SKILLS/sail-templates/catalog.mjs --chain <id>
+node .agents/skills/sail-templates/catalog.mjs --chain <id>
 ```
 The address comes from [`deployed.json`](../deployed.json). **If the template isn't deployed on
 your chain yet** (e.g. `SwapPermissionNoOracle` is not deployed anywhere), that's the

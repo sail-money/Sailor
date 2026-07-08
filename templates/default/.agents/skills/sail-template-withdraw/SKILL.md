@@ -43,7 +43,7 @@ Register → configure → simulate → reconfigure mechanics (and the encoding 
 `sailor mandate attach` registers only; `configureDirect` (owner tx) is the half that makes the
 permission live. Template-specific bits:
 
-- **Singleton:** `WithdrawPermission` — `node SKILLS/sail-templates/catalog.mjs --chain <id>`.
+- **Singleton:** `WithdrawPermission` — `node .agents/skills/sail-templates/catalog.mjs --chain <id>`.
 - **Spec to confirm:** tokens, the single recipient, cap.
 - **Blob:** `abi.encode(tokens[], allowedRecipient, maxAmountPerTx)` — **flat params, no wrapper**.
 - **Simulate (mandatory — unaudited example):** withdraw to the recipient within cap passes; any
