@@ -995,60 +995,6 @@ function TickCard({ tick, positions }) {
   )
 }
 
-function AgentSourceBadge({ source, pid, pids }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-
-  useEffect(() => {
-    if (!open) return
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
-
-  const label = source === 'remote' ? 'remote agent'
-    : source === 'github-actions' ? 'github actions'
-    : 'Running'
-
-  const hasDetail = source === 'local' && pids.length > 0
-
-  return (
-    <div className={styles.agentSourceWrap} ref={ref}>
-      <button
-        type="button"
-        className={`${styles.agentRunningBadge} ${hasDetail ? styles.agentRunningBadgeClickable : ''}`}
-        onClick={() => hasDetail && setOpen((o) => !o)}
-        aria-haspopup={hasDetail ? 'true' : undefined}
-        aria-expanded={open}
-      >
-        <span className={styles.agentRunningDot} aria-hidden />
-        {label}
-        {hasDetail && (
-          <svg
-            className={`${styles.agentSourceChevron} ${open ? styles.agentSourceChevronOpen : ''}`}
-            width="8" height="8" viewBox="0 0 8 8" fill="none" aria-hidden="true"
-          >
-            <path d="M1.5 3L4 5.5L6.5 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        )}
-      </button>
-      {open && (
-        <div className={styles.agentSourcePanel}>
-          {pids.map(({ chainId, pid: p }) => {
-            const chainLabel = chainId ? (chainDisplayName(chainId) ?? `chain ${chainId}`) : 'unknown chain'
-            return (
-              <div key={chainId ?? p} className={styles.agentSourceRow}>
-                <span className={styles.agentSourceChain}>{chainLabel}</span>
-                <span className={styles.agentSourcePid}>PID {p}</span>
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
 function ActivityChainFilter({ deployedChains, chainFilter, onChainFilterChange }) {
   if (deployedChains.length <= 1) return null
   // Same chip style as the mandate switcher (glyph + name), kept as buttons.
@@ -1327,7 +1273,7 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
   const { mandates: liveMandates } = useSailorMandate(refreshTick)
   const { events: liveActivity } = useSailorActivity(refreshTick)
   const { positions: livePositions } = useSailorPositions(refreshTick)
-  const { running: agentRunning, pid: agentPid, pids: agentPids, source: agentSource } = useSailorAgentStatus()
+  const { running: agentRunning } = useSailorAgentStatus()
   const { pending } = useSailorPending()
 
   const [justCreatedAccount, setJustCreatedAccount] = useState(() => {
@@ -1663,13 +1609,6 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                           {c.name}
                         </span>
                       ))
-                    )}
-                    {agentSource && (
-                      <AgentSourceBadge
-                        source={agentSource}
-                        pid={agentPid}
-                        pids={agentPids}
-                      />
                     )}
                   </div>
                 )
