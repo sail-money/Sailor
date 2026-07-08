@@ -278,8 +278,8 @@ const BALANCE_STATUS = {
 }
 
 const SIGNER_ROLE = {
-  manager: { label: 'Agent', gasReason: 'Spends gas to submit every dispatch — keep it well funded.' },
-  owner: { label: 'Owner', gasReason: 'Only spends gas to deploy your SMA and register permissions.' },
+  manager: { label: 'Agent' },
+  owner: { label: 'Owner' },
   permissionSigner: { label: 'Permission signer' },
 }
 
@@ -760,7 +760,6 @@ function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSi
       <div className={styles.signerSpacer} />
       {needsTopUp && (
         <div className={styles.signerTopUp}>
-          {role.gasReason && <span className={styles.signerTopUpTitle}>{role.gasReason}</span>}
           <span className={styles.signerTopUpMsg}>
             {isCritical ? 'Out of gas — agent is stalled.' : 'Running low — top up soon.'}
           </span>
@@ -1247,8 +1246,17 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
   // cached snapshot instantly, so the switch feels immediate.
   const [refreshTick, setRefreshTick] = useState(0)
   // Multi-chain: which deployed chain the SMA view (wallets + mandates) shows.
-  // null falls back to the first deployed chain.
-  const [selectedChainId, setSelectedChainId] = useState(null)
+  // null falls back to the first deployed chain. Persisted so a reload keeps
+  // showing the chain the user was last looking at rather than resetting to
+  // an arbitrary one (the activeChainId fallback below already handles the
+  // case where the stored chain is no longer in deployedChains).
+  const [selectedChainId, setSelectedChainId] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('sail.selectedChainId') ?? 'null') } catch { return null }
+  })
+  useEffect(() => {
+    if (selectedChainId == null) return
+    try { localStorage.setItem('sail.selectedChainId', JSON.stringify(selectedChainId)) } catch {}
+  }, [selectedChainId])
   // Mandate section: "All chains" shows every chain's mandate at once; otherwise
   // it follows the selected chain. Independent of the wallets' chain selector.
   const [mandateAll, setMandateAll] = useState(false)
@@ -1581,11 +1589,6 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                 )}
               </div>
 
-              {/* Lead with plain language so a first-timer learns what the account
-                  IS before meeting the acronym; the formal definition lives in the ⓘ. */}
-              <p className={styles.idDefn}>
-                Your self-custodial wallet — it holds your funds, and your agent acts within the limits you set.
-              </p>
                 </div>
                 {/* Status chips, top-right, balance the identity block. */}
                 <div className={styles.identityStatus}>
@@ -1667,16 +1670,14 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
               <div className={styles.idWalletsGroup}>
                 <div className={styles.idGroupHead}>
                   <span className={styles.idGroupLabel}>
-                    Wallets
+                    Gas Wallets
                     <InfoTip label="How these wallets work">
                       Two wallets act on this SMA: you — <strong>the owner</strong> — deploy it and
                       register your permissions; your <strong>agent</strong> submits each dispatch
-                      within them, never beyond.
+                      within them, never beyond. Both only hold gas to sign and submit
+                      transactions — your funds stay in the SMA.
                     </InfoTip>
                   </span>
-                  <p className={styles.idRelation}>
-                    These wallets only hold gas to sign and submit transactions — your funds stay in the SMA.
-                  </p>
                 </div>
                 <SignersPanel
                   overview={activeChainOv}
@@ -1746,11 +1747,11 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                 ? allBuilt.reduce((s, b) => s + b.perms.length, 0)
                 : active.perms.length
               return (
-                <section className={styles.mandatesSection} aria-label="Your mandates">
+                <section className={styles.mandatesSection} aria-label="Mandate">
                   <header className={styles.mandatesSectionHead}>
                     <h2 className={styles.mandatesSectionTitle}>
                       <DocGlyph />
-                      Your Mandates
+                      Mandate
                     </h2>
                     <span className={styles.mandatesSectionMeta}>
                       {permCount > 0
@@ -1814,7 +1815,7 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                     Network RPCs
                   </h2>
                   <p className={agentStyles.cardSub}>
-                    The connection your dashboard uses to read chains and broadcast transactions.
+                    How your dashboard reads chains and sends transactions.
                   </p>
                 </div>
               </header>
@@ -1829,9 +1830,6 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                     <ClockGlyph />
                     Recent Activity
                   </h2>
-                  <p className={agentStyles.cardSub}>
-                    Click any event to see the agent's reasoning and evidence.
-                  </p>
                 </div>
                 <div className={styles.activityFilter} role="tablist" aria-label="Filter by actor">
                   {ACTIVITY_FILTERS.map((f) => (
@@ -1881,9 +1879,8 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                 localhost; all project state is under .sail/ on disk. */}
             <footer className={styles.localFootnote}>
               <span className={styles.localFootnoteDot} aria-hidden />
-              Running locally at <code>{window.location.host}</code> · project state lives in
-              {' '}<code>.sail/</code>. There is no Sail-hosted backend; your wallet
-              talks to the chain directly.
+              Running locally at <code>{window.location.host}</code> · state in <code>.sail/</code>
+              {' '}· no hosted backend — your wallet talks to the chain directly.
             </footer>
           </>
         )}
@@ -2225,7 +2222,7 @@ function NewMandateTile({ onClick }) {
       <span className={styles.newMandateTileText}>
         <span className={styles.newMandateTileLabel}>Register a permission</span>
         <span className={styles.newMandateTileHint}>
-          Draft one with your AI — sign each permission individually.
+          Draft with your AI.
         </span>
       </span>
     </button>
