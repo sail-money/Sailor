@@ -1973,9 +1973,7 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
         onRevoked={() => { setRevokeTarget(null); setRevokeContext(null) }}
       />
 
-      {/* Contract preview modal retired — viewing the signed contract
-          now lives inside MandatePage at /mandate/:id, which the
-          Your mandate card on the dashboard routes to. */}
+      {/* Contract preview modal retired. */}
     </div>
   )
 }

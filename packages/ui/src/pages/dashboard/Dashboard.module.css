@@ -712,14 +712,11 @@
 
 /* ─────────────────────────────────────────────
    SMA-centric dashboard additions.
-   Layers on top of the agent-page primitives — the dashboard reuses
-   .titleBlock, .addrPill, .card, .permList, .signerList, .journalList
-   from AgentPage.module.css and only adds what's distinctive here.
    ───────────────────────────────────────────── */
 
 /* Title row needs to host "Stop all agents" on the right alongside
-   the SMA name. The agent page's .titleHeadRow lets the row wrap;
-   we need a stronger flex with the destructive lever pinned right. */
+   the SMA name. Uses a stronger flex with the destructive lever
+   pinned right so the row can still wrap. */
 /* ── Identity card: SMA + Owner + Agent grouped together ── */
 .identityCard {
   display: flex;
@@ -1103,15 +1100,12 @@
   max-width: 500px;
 }
 
-/* Bigger quick-link cards — the dashboard surfaces these at a higher
-   visual altitude than the agent page does (they're the user's two
-   external escape hatches: portfolio view + key custody). */
+/* Bigger quick-link cards — the user's two external escape hatches:
+   portfolio view + key custody. */
 /* ─────────────────────────────────────────────
-   Dashboard canvas — wider than the agent page.
-   The agent page is detail-oriented, comfortable at 880px.
+   Dashboard canvas.
    The dashboard hosts a multi-card agent grid, so it earns
-   more horizontal room (about 1180px on desktop). We override
-   the shared .main max-width from AgentPage.module.css via a
+   more horizontal room (about 1180px on desktop) via a
    higher-specificity selector layered on the page shell.
    ───────────────────────────────────────────── */
 .shell main { max-width: 1180px; }

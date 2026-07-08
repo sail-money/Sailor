@@ -849,9 +849,8 @@
   word-break: break-word;
 }
 
-/* Read-only footer — shown when the contract is opened from the
-   Agent page (the mandate is already signed). Just a Close button +
-   a quiet onchain note. */
+/* Read-only footer — shown when the contract is opened for an
+   already-signed mandate. Just a Close button + a quiet onchain note. */
 .readOnlyFoot {
   display: flex;
   align-items: center;
