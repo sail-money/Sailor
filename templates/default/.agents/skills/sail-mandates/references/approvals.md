@@ -16,7 +16,7 @@ Approve and action are **separate single-call dispatches**, each gated by its ow
      --tokens <token,...> --spenders <spender,...> --max <amount>
    ```
    or a custom `IPermission` that bounds the approve's spender and amount.
-2. Deploy the protocol `IPermission` (swap/supply/…). Attach both in one signing session.
+2. Deploy the protocol `IPermission` (swap/supply/…). Register both in one signing session.
 3. At runtime, manage the allowance instead of approving every tick: read the on-chain allowance, emit an approve dispatch ONLY when it is insufficient, approving a large amount so subsequent ticks skip it. The DCA example does exactly this — it returns the approve as its own tick's dispatch, then swaps on later ticks once the allowance is set.
 
 This needs no batch support and works on every kernel.
@@ -25,7 +25,7 @@ This needs no batch support and works on every kernel.
 
 Approve + action run as one `dispatchBatch` — atomic, single transaction. A batch dispatch consults **exactly one batch-aware `IBatchPermission`**, never a pair of `IPermission`s:
 
-- The permission implements `@sail/interfaces/IBatchPermission.sol` — `evaluateBatch(Call[] calls, BatchContext ctx)` validates the WHOLE sequence (ordering, the approve's spender/amount, the action, and mandatory allowance cleanup) and `isBatchPermission()` returns true. **For the canonical `approve → swap/deposit/supply → reset` shape, a shared `ApproveAndCallBatchPermission` singleton is deployed** on Base, Arbitrum, Unichain, Sepolia, and Base Sepolia (resolve it with `node scripts/shared-template-addr.mjs ApproveAndCallBatchPermission`) — reuse it via `attach` + `configure` rather than authoring one. `examples/permissions/BoundedApproveAndCallBatch.sol` remains the model for a non-standard shape you must author yourself.
+- The permission implements `@sail/interfaces/IBatchPermission.sol` — `evaluateBatch(Call[] calls, BatchContext ctx)` validates the WHOLE sequence (ordering, the approve's spender/amount, the action, and mandatory allowance cleanup) and `isBatchPermission()` returns true. **For the canonical `approve → swap/deposit/supply → reset` shape, a shared `ApproveAndCallBatchPermission` singleton is deployed** on Base, Arbitrum, Unichain, Sepolia, and Base Sepolia (resolve it with `node scripts/shared-template-addr.mjs ApproveAndCallBatchPermission`) — reuse it via `register` + `configure` rather than authoring one. `examples/permissions/BoundedApproveAndCallBatch.sol` remains the model for a non-standard shape you must author yourself.
 - A normal `IPermission` placed in a batch is rejected by the kernel with `PermissionNotBatchAware`. You cannot assemble a batch from two narrow per-call permissions — that was the trap.
 - Batch is a **selective-kernel** feature (`dispatchBatch` / `previewBatch`); conjunctive kernels have neither. Confirm the model with `sailor doctor`; details in `docs/PERMISSION_MODEL.md`.
 - At runtime, return one `Dispatch` whose `calls` array is the batch. The shared `ApproveAndCallBatchPermission` requires **exactly** `[approve(spender, amount), action, approve(spender, 0)]` — the trailing reset to zero is mandatory, and the pre-batch allowance on that `(token, spender)` pair must already be zero (so never combine it with a standing approve). The runner detects `calls.length > 1` and routes through `dispatch.batch`.

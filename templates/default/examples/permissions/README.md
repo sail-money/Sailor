@@ -62,7 +62,8 @@ The `interfaces/` directory holds `IPermission.sol` (single-call permissions) an
 ## Using these examples
 
 Each file is self-contained and explains in its header exactly what is and is not enforced.
-Read the header before deploying.
+Read the header before deploying. Deploy, simulate, then register — as three separate steps,
+never combined.
 
 To compile:
 ```bash
@@ -71,20 +72,29 @@ forge build
 
 To deploy within a Sailor project (copy the .sol file to `mandates/` first):
 ```bash
-sailor mandate deploy --contract <Name> --args '[...]' --attach --sma <SMA>
+sailor mandate deploy --contract <Name> --args '[...]'
 ```
 
-For several permissions, deploy each one (without `--attach`), then register them together in
-one signature: `sailor mandate attach --address <addr1>,<addr2> --sma <SMA>`.
+For several permissions, deploy each one — deploying does not register anything yet.
 
 ## Verify before you authorize
 
 Prove a permission accepts the calls you want and rejects the ones you don't — before paying
-registration gas — with `sailor mandate simulate` (off-chain `eth_call`, no gas, signs nothing):
+registration gas, and before registering at all — with `sailor mandate simulate` (off-chain
+`eth_call`, no gas, signs nothing):
 ```bash
 sailor mandate simulate --address <permission> --calls calls.json
 ```
-Every example here was checked this way (valid calls PASS, out-of-bounds calls FAIL).
+Every example here was checked this way (valid calls PASS, out-of-bounds calls FAIL). Only once
+simulate is clean should you register.
+
+## Register
+
+```bash
+sailor mandate register --address <addr> --sma <SMA>
+```
+For several permissions, register them together in one signature:
+`sailor mandate register --address <addr1>,<addr2> --sma <SMA>`.
 
 **Batch permissions are different.** `BoundedApproveAndCallBatch.sol` implements `IBatchPermission`
 and is gated by the kernel's `dispatchBatch`, not single `dispatch` — its single-call `evaluate()`

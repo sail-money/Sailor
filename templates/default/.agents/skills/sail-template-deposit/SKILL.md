@@ -1,6 +1,6 @@
 ---
 name: sail-template-deposit
-description: Gate an SMA's deposits into vaults / lending pools by REUSING the shared DepositPermission singleton (Protocol/contracts/templates/DepositPermission.sol) — register + configure, no per-SMA deploy. Use for a bounded deposit mandate into ERC-4626 vaults (deposit/mint) or Aave v2/v3 (deposit/supply) with a target + token allowlist and a per-tx cap; the resulting position always accrues to the SMA. NOTE: `sailor mandate attach` only registers — you must also configure per-account (see steps).
+description: Gate an SMA's deposits into vaults / lending pools by REUSING the shared DepositPermission singleton (Protocol/contracts/templates/DepositPermission.sol) — register + configure, no per-SMA deploy. Use for a bounded deposit mandate into ERC-4626 vaults (deposit/mint) or Aave v2/v3 (deposit/supply) with a target + token allowlist and a per-tx cap; the resulting position always accrues to the SMA. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps).
 compatibility: A Sailor project (`@sail/sdk`, `sailor` CLI). Requires DepositPermission deployed on the target chain (recorded in sail-templates/deployed.json); run sail-templates first.
 metadata:
   workspace: sailor-harness
@@ -51,7 +51,7 @@ abi.encode(address[] targets, address[] tokens, uint256 maxAmountPerTx)
 
 Register → configure → simulate → reconfigure mechanics (and the encoding gotcha) live in
 [`sail-templates` reuse-flow](../sail-templates/references/reuse-flow.md) — follow it.
-`sailor mandate attach` registers only; `configureDirect` (owner tx) is the half that makes the
+`sailor mandate register` registers only; `configureDirect` (owner tx) is the half that makes the
 permission live. Template-specific bits:
 
 - **Singleton:** `DepositPermission` — `node .agents/skills/sail-templates/catalog.mjs --chain <id>`.

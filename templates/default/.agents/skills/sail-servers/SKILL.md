@@ -37,7 +37,7 @@ sailor station stop --json    # SIGTERM, verified against the recorded URL first
 
 ## How they relate
 
-Signing-flow commands (`mandate deploy/attach/deploy-clone/revoke`, `onboard`, `account deploy-chain`, `account rotate-signer`, `owner connect`) push requests to a running station daemon if one exists, otherwise they spin up an ephemeral in-process signing server for the duration of the command. Starting a persistent station first means the owner connects their wallet once and approves a whole sequence of requests in the same browser tab — do this before any multi-step signing flow.
+Signing-flow commands (`mandate deploy/register/deploy-clone/revoke`, `onboard`, `account deploy-chain`, `account rotate-signer`, `owner connect`) push requests to a running station daemon if one exists, otherwise they spin up an ephemeral in-process signing server for the duration of the command. Starting a persistent station first means the owner connects their wallet once and approves a whole sequence of requests in the same browser tab — do this before any multi-step signing flow.
 
 ## Docker installation
 

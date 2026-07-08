@@ -50,7 +50,7 @@ sailor mandate simulate --address <PermissionOrName> --sma <SMA> \
 
 - Off-chain `eth_call` — no gas, no signing, uses the same evaluation context as the runner.
 - Flags any target with no contract code (wrong or wrong-chain address).
-- Any `expect` mismatch → non-zero exit → do NOT attach. `--json` for automation.
+- Any `expect` mismatch → non-zero exit → do NOT register. `--json` for automation.
 
 ## Limits
 

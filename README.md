@@ -74,7 +74,7 @@ sailor onboard --new-sma
 # 3. Give the agent a mandate — register + configure a shared permission
 #    template (swap, transfer, deposit, ...). The skills flow drives this
 #    conversationally; directly, it is register then configure:
-sailor mandate attach --address <templateAddress> --sma <yourSMA>
+sailor mandate register --address <templateAddress> --sma <yourSMA>
 sailor mandate configure --address <templateAddress> --template SwapPermission --args-file swap-config.json
 
 # 4. Run the agent loop (or --once for a single tick)

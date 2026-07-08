@@ -37,7 +37,7 @@ is one part of that set, not the whole of it. A template skill encodes the safe
 order of operations — register → configure → simulate → verify — along with the exact parameter
 schemas and per-template footguns, so every agent follows the same vetted procedure
 instead of re-deriving it. This is why template configuration is *driven through the skills*: the
-CLI provides the primitives (`sailor mandate attach` / `configure` / `simulate`), and the skill
+CLI provides the primitives (`sailor mandate register` / `configure` / `simulate`), and the skill
 is the checklist that sequences them correctly.
 
 ## Where everything lives (and why together)
@@ -59,8 +59,10 @@ deliberately not restated here where they could drift.
 When no shared template fits (perps, prediction markets, aggregators, anything bespoke), author
 your own `IPermission` contract: the `sail-mandates` skill is the procedure,
 `examples/permissions/*.sol` are the per-protocol patterns (each header documents what is
-enforced onchain vs left to the agent), and `sailor mandate deploy --contract <Name> --attach`
-is the deployment path. You own what you deploy — nothing here is a supported or exhaustive
+enforced onchain vs left to the agent). Deploy, simulate, then register — as three separate
+steps, never combined: `sailor mandate deploy --contract <Name>`, then `sailor mandate simulate`
+to prove it accepts and rejects the right calls, then `sailor mandate register --address
+<deployed>` to authorize it. You own what you deploy — nothing here is a supported or exhaustive
 library.
 
 ---

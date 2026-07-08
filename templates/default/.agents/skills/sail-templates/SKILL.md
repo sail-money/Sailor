@@ -34,7 +34,7 @@ metadata:
 
 > ⚠️ **CRITICAL — "register" ≠ "configure" in the shipped CLI.** A shared template is useless
 > until it is both **registered** on the kernel AND **configured** per-account. `sailor mandate
-> attach` does **only the register** half (it submits `RegisterPermission` and nothing more). A
+> register` does **only the register** half (it submits `RegisterPermission` and nothing more). A
 > registered-but-unconfigured singleton has `isConfigured == false` and the kernel **denies every
 > call**. Run `sailor mandate configure` as the separate second step (see the reuse flow below).
 
@@ -86,19 +86,21 @@ add it here and write a skill.)
 ## Step 2 — the reuse flow (per template)
 
 > The on-chain **intended** design is one signed call (`MandateFactory.attach`) that registers
-> the address on the kernel and writes the per-account config together. The **shipped** CLI
-> does not implement that combined call yet, so today these are two separate steps:
-> `sailor mandate attach` (register) followed by `sailor mandate configure` (configure). The
-> flow below describes what actually works now.
+> the address on the kernel and writes the per-account config together. (The on-chain function
+> is named `attach`; in Sailor and protocol vocabulary this operation is permission
+> registration — the kernel's own functions are registerPermission/registerPermissions.) The
+> **shipped** CLI does not implement that combined call yet, so today these are two separate
+> steps: `sailor mandate register` followed by `sailor mandate configure`. The flow below
+> describes what actually works now.
 
 1. **Deploy once** (one-time, Protocol team / `DeploySharedTemplates`, CREATE2 — same address on
    every chain) → record the address in `deployed.json`. (Already done for all seven.)
 2. **Build the config blob** for your SMA (per-primitive skill gives the exact params).
 3. **Register** the singleton address on the SMA's kernel (this does NOT configure it):
    ```bash
-   sailor mandate attach --address <DEPLOYED_ADDRESS> --sma <SMA> --label "<primitive>"
+   sailor mandate register --address <DEPLOYED_ADDRESS> --sma <SMA> --label "<primitive>"
    ```
-   A comma-separated `--address` list registers several in one signature (`attachBatch`).
+   A comma-separated `--address` list registers several in one signature (`registerBatch`).
 4. **Configure** the per-account bounds — this is the step that makes the permission actually
    allow calls:
    ```bash
@@ -117,7 +119,7 @@ add it here and write a skill.)
    singleton — same address, no re-register. (On-chain `MandateFactory.reconfigure` is the
    intended batch path for this.)
 
-Full mechanics (EIP-712 sigs, `configure`/`configureDirect`, `attachBatch`, `replace`,
+Full mechanics (EIP-712 sigs, `configure`/`configureDirect`, `registerBatch`, `replace`,
 `detach`, and the register-vs-configure split): [references/reuse-flow.md](references/reuse-flow.md).
 
 ## When NOT to use these
@@ -138,5 +140,5 @@ authoring flow and `examples/permissions/` for worked per-protocol patterns.
   builder under `@sail/sdk/templates` **only after** verifying its param tuple equals the
   source blob in `config-schemas.md` (the SDK builders track a previously-deployed set and may
   differ from these source contracts).
-- **CLI gap:** `sailor mandate attach` (register) and `sailor mandate configure` (configure) are
+- **CLI gap:** `sailor mandate register` and `sailor mandate configure` are
   still separate commands — no combined one-step call ships yet. Always run both.

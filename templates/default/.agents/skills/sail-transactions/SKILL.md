@@ -51,7 +51,7 @@ These open a signing channel, push a request, and wait (default timeout 10 minut
 | `sailor account deploy-chain --chain <id>` | `create-sma` transaction on the target chain |
 | `sailor account rotate-signer` | Delegate rotation + mandate re-approvals |
 | `sailor mandate deploy` | `deploy-mandate` contract-creation transaction (owner pays gas) |
-| `sailor mandate attach` | `RegisterPermission` EIP-712 — one permission; a comma-separated `--address` list signs `RegisterPermissions` once for all (off-chain signature; agent submits and pays gas) |
+| `sailor mandate register` | `RegisterPermission` EIP-712 — one permission; a comma-separated `--address` list signs `RegisterPermissions` once for all (off-chain signature; agent submits and pays gas) |
 | `sailor mandate deploy-clone` | `RegisterPermission` EIP-712 for the predicted clone address |
 | `sailor mandate revoke` | `RevokePermissions` EIP-712 (agent submits and pays gas) |
 | `sailor owner connect` | Nothing — blocks up to 300s waiting for a wallet to connect |

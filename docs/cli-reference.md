@@ -37,8 +37,8 @@ each command named here exists in the CLI source.
 | Command | What it does |
 |---|---|
 | `sailor mandate templates` | How to author your own permission + any community-deployed addresses |
-| `sailor mandate deploy` | Deploy a Foundry-compiled permission via the signing UI (`--contract <Name>` or `--artifact <path>`, `--args <json>` / `--args-file`, `--build`, `--attach --sma <address>`) |
-| `sailor mandate attach` | Register already-deployed permission(s) on an SMA — comma-separated list = one signature (`--label`) |
+| `sailor mandate deploy` | Deploy a Foundry-compiled permission via the signing UI (`--contract <Name>` or `--artifact <path>`, `--args <json>` / `--args-file`, `--build`, `--register --sma <address>`) |
+| `sailor mandate register` | Register already-deployed permission(s) on an SMA — comma-separated list = one signature (`--label`) |
 | `sailor mandate configure` | Configure a shared template's per-account bounds (`--template <name> --args-file <path>` or `--params <hex>`; `--simulate-only` for a gas-free preflight; `--force`) |
 | `sailor mandate simulate` | Probe a permission's `evaluate()` off-chain — no gas, no signing (inline `--target/--calldata/--value/--expect/--label`, or `--calls <file>` for a batch) |
 | `sailor mandate sign` | Review and confirm the permissions authorized for your SMA (`--yes` for CI) |

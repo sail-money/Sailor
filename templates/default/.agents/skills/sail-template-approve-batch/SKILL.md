@@ -1,6 +1,6 @@
 ---
 name: sail-template-approve-batch
-description: Gate an SMA's "approve → call → reset" interactions by REUSING the shared ApproveAndCallBatchPermission singleton (Protocol/contracts/templates/ApproveAndCallBatchPermission.sol) — register + configure, no per-SMA deploy. Use when an agent must approve an ERC-20 to a protocol, make one consuming call, and reset the allowance to zero — all in one atomic batch — with token/spender/target/selector allowlists and a per-token approval cap. NOTE: `sailor mandate attach` only registers — you must also configure per-account (see steps).
+description: Gate an SMA's "approve → call → reset" interactions by REUSING the shared ApproveAndCallBatchPermission singleton (Protocol/contracts/templates/ApproveAndCallBatchPermission.sol) — register + configure, no per-SMA deploy. Use when an agent must approve an ERC-20 to a protocol, make one consuming call, and reset the allowance to zero — all in one atomic batch — with token/spender/target/selector allowlists and a per-token approval cap. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps).
 compatibility: A Sailor project (`@sail/sdk`, `sailor` CLI). Requires ApproveAndCallBatchPermission deployed on the target chain (recorded in sail-templates/deployed.json); run sail-templates first.
 metadata:
   workspace: sailor-harness
@@ -81,7 +81,7 @@ missing trailing bool). The named errors (`TokensAndAmountsLengthMismatch`, `Emp
 
 Register → configure → simulate → reconfigure mechanics live in
 [`sail-templates` reuse-flow](../sail-templates/references/reuse-flow.md) — follow it.
-`sailor mandate attach` registers only; `configureDirect` (owner tx) is the half that makes the
+`sailor mandate register` registers only; `configureDirect` (owner tx) is the half that makes the
 permission live. Template-specific bits:
 
 - **Singleton:** `ApproveAndCallBatchPermission` — `node .agents/skills/sail-templates/catalog.mjs --chain

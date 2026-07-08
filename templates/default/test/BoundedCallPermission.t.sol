@@ -13,7 +13,7 @@ import {BoundedCallPermission} from "../mandates/BoundedCallPermission.sol";
 /// cases from the user's strategy: every call the agent must be able to make
 /// (evaluate returns true) and every bound it must not cross (returns false).
 /// `forge test` must pass BEFORE `sailor mandate deploy`, and simulate must
-/// pass before `sailor mandate attach`.
+/// pass before `sailor mandate register`.
 contract BoundedCallPermissionTest {
     address internal constant ROUTER = 0x1111111111111111111111111111111111111111;
     address internal constant UNKNOWN = 0x2222222222222222222222222222222222222222;
