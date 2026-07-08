@@ -251,12 +251,6 @@
   color: #fff;
   background: rgba(25, 144, 255, 0.14);
 }
-.chainDot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
 .chainOptionName { flex: 1; }
 .chainCheck {
   font-size: 12px;
@@ -278,12 +272,6 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
-}
-.pageTitle {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding-bottom: 4px;
 }
 .eyebrow {
   font-family: 'DM Sans', sans-serif;
@@ -436,47 +424,6 @@
   font-size: 13px;
   color: rgba(255,255,255,0.35);
   align-self: center;
-}
-
-/* ── Empty state ── */
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  padding: 72px 32px;
-  gap: 14px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--hairline);
-}
-.emptyIcon {
-  opacity: 0.5;
-  margin-bottom: 4px;
-}
-.emptyTitle {
-  font-family: 'DM Sans', sans-serif;
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  color: #ffffff;
-  margin: 0;
-}
-.emptyBody {
-  font-family: 'DM Sans', sans-serif;
-  font-size: 14px;
-  line-height: 1.6;
-  color: rgba(255, 255, 255, 0.45);
-  margin: 0;
-  max-width: 360px;
-}
-.emptyCode {
-  font-family: 'DM Mono', ui-monospace, monospace;
-  font-size: 12.5px;
-  color: rgba(255, 255, 255, 0.55);
-  background: rgba(255, 255, 255, 0.06);
-  padding: 1px 6px;
-  border-radius: 2px;
 }
 
 /* ── Empty queue card (matches Signing page style) ── */

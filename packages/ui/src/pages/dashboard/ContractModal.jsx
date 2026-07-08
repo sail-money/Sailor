@@ -39,20 +39,15 @@ export default function ContractModal({
   onAuthorize,
   onReject,
   onRevoke,
-  // readOnly = the mandate has already been signed; the contract opens
-  // straight into a "signed" view with the EOA signature pre-painted
-  // and no Authorize/Reject footer. Used from the AgentPage SIGNED row.
-  readOnly = false,
   signedDate = null,
   /* mode controls the contract surface's purpose:
        'sign'   — drafting flow (default). Preview → signing → signed.
-       'view'   — read-only signed contract (implied by readOnly).
+       'view'   — read-only signed contract.
        'revoke' — revocation flow. Opens on signed contract,
                   destructive footer, plays a stamp animation. */
   mode = 'sign',
 }) {
-  // Effective mode: legacy readOnly prop maps to 'view'.
-  const effectiveMode = readOnly && mode === 'sign' ? 'view' : mode
+  const effectiveMode = mode
   // preview → signing → signed (sign mode)
   // preview → revoking → revoked (revoke mode)
   // signed (view mode, immediate)
@@ -470,7 +465,7 @@ export default function ContractModal({
                  onchain timestamp so the user can read the contract. */
               <div className={styles.readOnlyFoot}>
                 <span className={styles.readOnlyNote}>
-                  Signed onchain · revocable at any time from the agent page.
+                  Signed onchain · revocable at any time from the dashboard.
                 </span>
                 <button type="button" className={styles.readOnlyClose} onClick={onClose}>
                   Close
@@ -550,7 +545,7 @@ export default function ContractModal({
                 </button>
                 <p className={styles.docFooterNote}>
                   By signing you agree to the scope, limits, and permitted actions described above.
-                  Revocable at any time from the agent page.
+                  Revocable at any time from the dashboard.
                 </p>
               </>
             ) : (
@@ -729,8 +724,8 @@ function deriveSpec(mandate) {
 }
 
 function deriveAgentAddress(mandate) {
-  // Mirror AgentPage's hashStr-derived address so the same agent shows
-  // the same MPC wallet across both surfaces.
+  // Deterministically hashed from the mandate id so the same agent
+  // always shows the same MPC wallet.
   let h = 0
   const s = mandate.id ?? ''
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0

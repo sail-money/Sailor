@@ -169,7 +169,7 @@ function ChainRow({ chainId, rpcUrl, isActive, onSaved }) {
         </div>
         {!editing && (
           <button type="button" className={styles.editBtn} onClick={openEdit}>
-            {savedTick ? 'Saved ✓' : rpcUrl ? 'Edit' : 'Add'}
+            {savedTick ? 'Saved ✓' : rpcUrl ? 'Edit' : 'Add RPC'}
           </button>
         )}
       </div>

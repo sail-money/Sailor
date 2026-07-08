@@ -186,14 +186,3 @@
   margin-top: 4px;
   line-height: 1.6;
 }
-
-.kbd {
-  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  font-size: 11px;
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--glass-border);
-  border-radius: 2px;
-  padding: 1px 6px;
-  margin: 0 2px;
-}

@@ -7,8 +7,6 @@ import { WagmiProvider } from 'wagmi'
 import SigningStation from './pages/station/SigningStation'
 import Signing from './pages/signing/Signing'
 import Dashboard from './pages/dashboard/Dashboard'
-import AgentPage from './pages/dashboard/AgentPage'
-import MandatePage from './pages/dashboard/MandatePage'
 import JournalPage from './pages/dashboard/JournalPage'
 import { wagmiConfig } from './wagmi'
 import { useWalletLifecycle } from './hooks/useWalletLifecycle'
@@ -68,37 +66,11 @@ function Router() {
   if (route.startsWith('/home')) page = <Dashboard key={route} />
   else if (route.startsWith('/station')) page = <SigningStation key={route} />
   else if (route.startsWith('/signing')) page = <Signing key={route} />
-  else if (route.startsWith('/mandate/')) {
-    // /mandate/:id — the canonical home for contract + permissions
-    // detail. Revoking from here triggers the contract animation, then
-    // routes back to the dashboard.
-    const id = route.slice('/mandate/'.length).split('?')[0]
-    page = (
-      <MandatePage
-        key={route}
-        mandateId={id}
-        onBack={() => { window.location.hash = '#/dashboard' }}
-        onRevoke={() => { window.location.hash = '#/dashboard' }}
-      />
-    )
-  }
-  else if (route.startsWith('/agent/')) {
-    const id = route.slice('/agent/'.length).split('?')[0]
-    page = (
-      <AgentPage
-        key={route}
-        agentId={id}
-        onBack={() => { window.location.hash = '#/dashboard' }}
-        onEdit={() => { window.location.hash = '#/dashboard' }}
-        onRevoke={() => { window.location.hash = '#/dashboard' }}
-      />
-    )
-  }
   else if (route.startsWith('/journal/')) {
     // /journal/:entryId — full-page detail of one Decision Journal
     // entry. Replaces the older right-side drawer; users get the same
-    // visual chrome as MandatePage/AgentPage and can step through
-    // adjacent entries from inside the page.
+    // visual chrome as the dashboard and can step through adjacent
+    // entries from inside the page.
     const id = route.slice('/journal/'.length).split('?')[0]
     page = (
       <JournalPage

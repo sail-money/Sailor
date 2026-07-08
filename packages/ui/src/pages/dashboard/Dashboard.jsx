@@ -7,6 +7,7 @@ import {
   ChainGlyph,
   InfoTip,
   MandateStatus,
+  NativeCurrencyGlyph,
   Sai,
   SailButton,
 } from '../shared'
@@ -23,7 +24,6 @@ import CreateSMAModal from './CreateSMAModal'
 import RevokeMandateModal from './RevokeMandateModal'
 import AddSignerModal from './AddSignerModal'
 import RotateSignerModal from './RotateSignerModal'
-import SessionControlModal from './SessionControlModal'
 import FundGasModal from './FundGasModal'
 import RpcSection from './RpcSection'
 import {
@@ -171,7 +171,7 @@ const SIGNING_KIND_LABELS = {
   'create-sma': 'Create Safe (SMA)',
   'deploy-mandate': 'Deploy mandate',
   'register-permission': 'Register permission',
-  'attach-mandate': 'Attach mandate',
+  'attach-mandate': 'Register mandate',
   'set-delegate': 'Set agent as manager',
   'arbitrary-tx': 'Arbitrary transaction',
 }
@@ -203,7 +203,7 @@ const ACTIVITY_LABELS = {
   owner_rejected: 'rejected signing',
   sma_created: 'created Safe (SMA)',
   mandate_deployed: 'deployed mandate',
-  mandate_attached: 'attached mandate',
+  mandate_attached: 'registered mandate',
 }
 
 const SUCCESS_TYPES = new Set([
@@ -278,8 +278,8 @@ const BALANCE_STATUS = {
 }
 
 const SIGNER_ROLE = {
-  manager: { label: 'Agent', gasReason: 'Spends gas to submit every dispatch — keep it well funded.' },
-  owner: { label: 'Owner', gasReason: 'Only spends gas to deploy your SMA and register permissions.' },
+  manager: { label: 'Agent' },
+  owner: { label: 'Owner' },
   permissionSigner: { label: 'Permission signer' },
 }
 
@@ -575,6 +575,7 @@ function NetworkSelect({ chains, activeChainId, onSelect }) {
 function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSigner }) {
   const [copied, setCopied] = useState(false)
   const [fundOpen, setFundOpen] = useState(false)
+  const nativeSymbol = nativeCurrencySymbol(chainId)
   const role = signer.role === 'sma'
     ? { label: 'SMA' }
     : (SIGNER_ROLE[signer.role] ?? { label: signer.role })
@@ -679,7 +680,7 @@ function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSi
 
       <div className={styles.signerBalance}>
         {!unconfigured && (
-          <span className={styles.ethGlyph} aria-hidden><EthGlyph /></span>
+          <span className={styles.ethGlyph} aria-hidden><NativeCurrencyGlyph chainId={chainId} size={20} /></span>
         )}
         {unconfigured ? (
           <span className={styles.signerBalanceNum} style={{ opacity: 0.4 }}>—</span>
@@ -691,12 +692,12 @@ function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSi
             >
               0.0000
             </span>
-            <span className={`${styles.signerBalanceUnit} ${styles.signerBalanceNumLoading}`}>ETH</span>
+            <span className={`${styles.signerBalanceUnit} ${styles.signerBalanceNumLoading}`}>{nativeSymbol}</span>
           </>
         ) : (
           <>
             <span className={styles.signerBalanceNum}>{fmtEth(signer.balanceEth)}</span>
-            <span className={styles.signerBalanceUnit}>ETH</span>
+            <span className={styles.signerBalanceUnit}>{nativeSymbol}</span>
           </>
         )}
       </div>
@@ -759,7 +760,6 @@ function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSi
       <div className={styles.signerSpacer} />
       {needsTopUp && (
         <div className={styles.signerTopUp}>
-          {role.gasReason && <span className={styles.signerTopUpTitle}>{role.gasReason}</span>}
           <span className={styles.signerTopUpMsg}>
             {isCritical ? 'Out of gas — agent is stalled.' : 'Running low — top up soon.'}
           </span>
@@ -992,60 +992,6 @@ function TickCard({ tick, positions }) {
         </div>
       )}
     </li>
-  )
-}
-
-function AgentSourceBadge({ source, pid, pids }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-
-  useEffect(() => {
-    if (!open) return
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
-
-  const label = source === 'remote' ? 'remote agent'
-    : source === 'github-actions' ? 'github actions'
-    : 'Running'
-
-  const hasDetail = source === 'local' && pids.length > 0
-
-  return (
-    <div className={styles.agentSourceWrap} ref={ref}>
-      <button
-        type="button"
-        className={`${styles.agentRunningBadge} ${hasDetail ? styles.agentRunningBadgeClickable : ''}`}
-        onClick={() => hasDetail && setOpen((o) => !o)}
-        aria-haspopup={hasDetail ? 'true' : undefined}
-        aria-expanded={open}
-      >
-        <span className={styles.agentRunningDot} aria-hidden />
-        {label}
-        {hasDetail && (
-          <svg
-            className={`${styles.agentSourceChevron} ${open ? styles.agentSourceChevronOpen : ''}`}
-            width="8" height="8" viewBox="0 0 8 8" fill="none" aria-hidden="true"
-          >
-            <path d="M1.5 3L4 5.5L6.5 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        )}
-      </button>
-      {open && (
-        <div className={styles.agentSourcePanel}>
-          {pids.map(({ chainId, pid: p }) => {
-            const chainLabel = chainId ? (chainDisplayName(chainId) ?? `chain ${chainId}`) : 'unknown chain'
-            return (
-              <div key={chainId ?? p} className={styles.agentSourceRow}>
-                <span className={styles.agentSourceChain}>{chainLabel}</span>
-                <span className={styles.agentSourcePid}>PID {p}</span>
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
   )
 }
 
@@ -1300,8 +1246,17 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
   // cached snapshot instantly, so the switch feels immediate.
   const [refreshTick, setRefreshTick] = useState(0)
   // Multi-chain: which deployed chain the SMA view (wallets + mandates) shows.
-  // null falls back to the first deployed chain.
-  const [selectedChainId, setSelectedChainId] = useState(null)
+  // null falls back to the first deployed chain. Persisted so a reload keeps
+  // showing the chain the user was last looking at rather than resetting to
+  // an arbitrary one (the activeChainId fallback below already handles the
+  // case where the stored chain is no longer in deployedChains).
+  const [selectedChainId, setSelectedChainId] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('sail.selectedChainId') ?? 'null') } catch { return null }
+  })
+  useEffect(() => {
+    if (selectedChainId == null) return
+    try { localStorage.setItem('sail.selectedChainId', JSON.stringify(selectedChainId)) } catch {}
+  }, [selectedChainId])
   // Mandate section: "All chains" shows every chain's mandate at once; otherwise
   // it follows the selected chain. Independent of the wallets' chain selector.
   const [mandateAll, setMandateAll] = useState(false)
@@ -1313,15 +1268,6 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
   // modal must operate on the chain whose "Rotate" was clicked — not always the
   // primary overview. Null falls back to the active single-chain overview.
   const [rotateContext, setRotateContext] = useState(null)
-  // Session kill-switch modal state. sessionCtx carries the per-chain SMA/kernel and current
-  // paused state so pause/resume operates on the chain whose control was clicked.
-  const [sessionOpen, setSessionOpen] = useState(false)
-  const [sessionCtx, setSessionCtx] = useState(null)
-  // After a pause/resume tx confirms, the overview RPC read lags the new state. Track the
-  // expected result per chain so the button shows a transient "Pausing/Resuming…" state and
-  // re-polls until the overview reflects it — no manual refresh needed.
-  // Shape: { chainId, expectedActive } | null.
-  const [sessionPending, setSessionPending] = useState(null)
   const { account: realAccount, loading: accountLoading } = useSailorAccount(refreshTick)
   const { accounts: allAccounts } = useSailorAccounts(refreshTick)
   const { overview } = useSailorOverview(refreshTick)
@@ -1336,7 +1282,7 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
   const { mandates: liveMandates } = useSailorMandate(refreshTick)
   const { events: liveActivity } = useSailorActivity(refreshTick)
   const { positions: livePositions } = useSailorPositions(refreshTick)
-  const { running: agentRunning, pid: agentPid, pids: agentPids, source: agentSource } = useSailorAgentStatus()
+  const { running: agentRunning } = useSailorAgentStatus()
   const { pending } = useSailorPending()
 
   const [justCreatedAccount, setJustCreatedAccount] = useState(() => {
@@ -1423,17 +1369,6 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
   const activeChainOv = isMultiChain
     ? (chainOverviews.find((o) => Number(o.chainId) === activeChainId) ?? chainOverviews[0] ?? overview)
     : overview
-
-  // While a session change is pending, re-poll the overview until sessionActive reflects the
-  // expected value, then clear the pending state. (Normal overview polling is 15s — too slow.)
-  useEffect(() => {
-    if (!sessionPending) return
-    const ov = chainOverviews.find((o) => Number(o.chainId) === Number(sessionPending.chainId))
-    const cur = ov?.sma?.sessionActive
-    if (cur === sessionPending.expectedActive) { setSessionPending(null); return }
-    const t = setTimeout(() => setRefreshTick((x) => x + 1), 2000)
-    return () => clearTimeout(t)
-  }, [sessionPending, chainOverviews])
 
   const smaName = safeNames[activeAccount?.safe ?? 'live-sma'] ?? activeAccount?.name ?? sma?.name ?? 'My SMA'
   const currentSafeId = activeAccount?.safe ?? effectiveAccount?.safe ?? 'live-sma'
@@ -1654,11 +1589,6 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                 )}
               </div>
 
-              {/* Lead with plain language so a first-timer learns what the account
-                  IS before meeting the acronym; the formal definition lives in the ⓘ. */}
-              <p className={styles.idDefn}>
-                Your self-custodial wallet — it holds your funds, and your agent acts within the limits you set.
-              </p>
                 </div>
                 {/* Status chips, top-right, balance the identity block. */}
                 <div className={styles.identityStatus}>
@@ -1683,13 +1613,6 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                           {c.name}
                         </span>
                       ))
-                    )}
-                    {agentSource && (
-                      <AgentSourceBadge
-                        source={agentSource}
-                        pid={agentPid}
-                        pids={agentPids}
-                      />
                     )}
                   </div>
                 )
@@ -1747,16 +1670,14 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
               <div className={styles.idWalletsGroup}>
                 <div className={styles.idGroupHead}>
                   <span className={styles.idGroupLabel}>
-                    Wallets
+                    Gas Wallets
                     <InfoTip label="How these wallets work">
                       Two wallets act on this SMA: you — <strong>the owner</strong> — deploy it and
                       register your permissions; your <strong>agent</strong> submits each dispatch
-                      within them, never beyond.
+                      within them, never beyond. Both only hold gas to sign and submit
+                      transactions — your funds stay in the SMA.
                     </InfoTip>
                   </span>
-                  <p className={styles.idRelation}>
-                    These wallets only hold gas to sign and submit transactions — your funds stay in the SMA.
-                  </p>
                 </div>
                 <SignersPanel
                   overview={activeChainOv}
@@ -1779,53 +1700,6 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                 />
               </div>
 
-              {/* ── Session kill switch ───────────────────────────
-                  Pause halts ALL dispatch for this SMA (on-chain
-                  revokeSession); Resume re-enables it. Owner-signed,
-                  reversible, and it invalidates any pre-signed dispatch.
-                  Only shown for a registered SMA with a resolvable kernel. */}
-              {activeChainOv?.sma?.registered && activeChainOv?.kernel && activeChainOv?.sma?.address && (
-                <div className={styles.idWalletsGroup}>
-                  <div className={styles.idGroupHead}>
-                    <span className={styles.idGroupLabel}>
-                      Session
-                      <InfoTip label="What pausing does">
-                        The kill switch for this SMA. Pausing immediately halts <strong>all</strong>{' '}
-                        of the SMA’s activity (permissions stay registered); resume anytime without
-                        re-signing. Any transaction the SMA pre-signed is invalidated.
-                      </InfoTip>
-                    </span>
-                    <p className={styles.idRelation}>
-                      {activeChainOv.sma.sessionActive === false
-                        ? 'Paused — your SMA is on hold and can’t make any moves until you resume.'
-                        : 'Live — your SMA can act within the permissions you’ve set.'}
-                    </p>
-                  </div>
-                  {sessionPending
-                    && Number(sessionPending.chainId) === Number(activeChainOv.chainId)
-                    && activeChainOv.sma.sessionActive !== sessionPending.expectedActive ? (
-                    // Transient state: tx confirmed, waiting for the overview read to catch up.
-                    <SailButton variant="warning" disabled aria-busy="true">
-                      {sessionPending.expectedActive ? 'Resuming SMA…' : 'Pausing SMA…'}
-                    </SailButton>
-                  ) : (
-                    <SailButton
-                      variant={activeChainOv.sma.sessionActive === false ? 'primary' : 'danger'}
-                      onClick={() => {
-                        setSessionCtx({
-                          sma: activeChainOv.sma.address,
-                          kernel: activeChainOv.kernel,
-                          chainId: activeChainOv.chainId,
-                          paused: activeChainOv.sma.sessionActive === false,
-                        })
-                        setSessionOpen(true)
-                      }}
-                    >
-                      {activeChainOv.sma.sessionActive === false ? 'Resume SMA' : 'Pause SMA'}
-                    </SailButton>
-                  )}
-                </div>
-              )}
             </section>
 
             {/* ── Mandates + Account Details ──────────────────────
@@ -1873,15 +1747,15 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                 ? allBuilt.reduce((s, b) => s + b.perms.length, 0)
                 : active.perms.length
               return (
-                <section className={styles.mandatesSection} aria-label="Your mandates">
+                <section className={styles.mandatesSection} aria-label="Mandates">
                   <header className={styles.mandatesSectionHead}>
                     <h2 className={styles.mandatesSectionTitle}>
                       <DocGlyph />
-                      Your Mandates
+                      Mandates
                     </h2>
                     <span className={styles.mandatesSectionMeta}>
                       {permCount > 0
-                        ? `${permCount} permission${permCount === 1 ? '' : 's'}${!showAll && activeChainOv?.onchain ? ' · attached on-chain' : ''}`
+                        ? `${permCount} permission${permCount === 1 ? '' : 's'}${!showAll && activeChainOv?.onchain ? ' · registered on-chain' : ''}`
                         : 'No permissions registered yet'}
                     </span>
                   </header>
@@ -1941,7 +1815,7 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                     Network RPCs
                   </h2>
                   <p className={agentStyles.cardSub}>
-                    The connection your dashboard uses to read chains and broadcast transactions.
+                    How your dashboard reads chains and sends transactions.
                   </p>
                 </div>
               </header>
@@ -1956,9 +1830,6 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                     <ClockGlyph />
                     Recent Activity
                   </h2>
-                  <p className={agentStyles.cardSub}>
-                    Click any event to see the agent's reasoning and evidence.
-                  </p>
                 </div>
                 <div className={styles.activityFilter} role="tablist" aria-label="Filter by actor">
                   {ACTIVITY_FILTERS.map((f) => (
@@ -2008,9 +1879,8 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                 localhost; all project state is under .sail/ on disk. */}
             <footer className={styles.localFootnote}>
               <span className={styles.localFootnoteDot} aria-hidden />
-              Running locally at <code>{window.location.host}</code> · project state lives in
-              {' '}<code>.sail/</code>. There is no Sail-hosted backend; your wallet
-              talks to the chain directly.
+              Running locally at <code>{window.location.host}</code> · state in <code>.sail/</code>
+              {' '}· no hosted backend — your wallet talks to the chain directly.
             </footer>
           </>
         )}
@@ -2077,24 +1947,6 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
         onRotated={() => setRefreshTick((t) => t + 1)}
       />
 
-      <SessionControlModal
-        open={sessionOpen}
-        mode={sessionCtx?.paused ? 'resume' : 'pause'}
-        sma={sessionCtx?.sma}
-        kernel={sessionCtx?.kernel}
-        chainId={sessionCtx?.chainId}
-        onClose={() => { setSessionOpen(false); setSessionCtx(null) }}
-        onDone={() => {
-          // sessionCtx.paused = state BEFORE the action, so the expected new state is its inverse.
-          if (sessionCtx) {
-            setSessionPending({ chainId: sessionCtx.chainId, expectedActive: sessionCtx.paused })
-          }
-          setSessionOpen(false)
-          setSessionCtx(null)
-          setRefreshTick((t) => t + 1)
-        }}
-      />
-
       <CreateSMAModal
         open={createSMAOpen}
         onClose={() => setCreateSMAOpen(false)}
@@ -2118,9 +1970,7 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
         onRevoked={() => { setRevokeTarget(null); setRevokeContext(null) }}
       />
 
-      {/* Contract preview modal retired — viewing the signed contract
-          now lives inside MandatePage at /mandate/:id, which the
-          Your mandate card on the dashboard routes to. */}
+      {/* Contract preview modal retired. */}
     </div>
   )
 }
@@ -2372,7 +2222,7 @@ function NewMandateTile({ onClick }) {
       <span className={styles.newMandateTileText}>
         <span className={styles.newMandateTileLabel}>Register a permission</span>
         <span className={styles.newMandateTileHint}>
-          Draft one with your AI — sign each permission individually.
+          Draft with your AI.
         </span>
       </span>
     </button>
@@ -2609,19 +2459,6 @@ function PencilIcon() {
   return (
     <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M11.5 2.5a1.414 1.414 0 0 1 2 2L5 13H3v-2L11.5 2.5z" />
-    </svg>
-  )
-}
-/* Ethereum diamond — single accent hue at varied opacities (design manual §3). */
-function EthGlyph() {
-  return (
-    <svg viewBox="0 0 32 32" width="20" height="20" aria-hidden>
-      <path d="M16 3 7.8 16.6 16 12.9Z" fill="#1990ff" />
-      <path d="M16 3 24.2 16.6 16 12.9Z" fill="#1990ff" opacity="0.55" />
-      <path d="M16 20.2 7.8 16.6 16 12.9Z" fill="#1990ff" opacity="0.8" />
-      <path d="M16 20.2 24.2 16.6 16 12.9Z" fill="#1990ff" opacity="0.4" />
-      <path d="M16 29 7.8 18.2 16 21.7Z" fill="#1990ff" />
-      <path d="M16 29 24.2 18.2 16 21.7Z" fill="#1990ff" opacity="0.55" />
     </svg>
   )
 }

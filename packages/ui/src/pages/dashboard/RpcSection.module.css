@@ -121,47 +121,6 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ── Compact readout (legacy, kept for reference) ── */
-.compact {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s4, 16px);
-}
-.compactMain {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-.endpoint {
-  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
-  font-size: var(--t-sm, 13.5px);
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.compactMeta {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s2, 8px);
-}
-.chainChipStatic {
-  font-family: 'DM Sans', sans-serif;
-  font-size: var(--t-xs, 12.5px);
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-.compactSep { color: var(--text-quaternary); }
-.providerName {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: var(--t-micro, 10.5px);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-quaternary);
-}
-
 .editBtn {
   flex-shrink: 0;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
@@ -208,28 +167,6 @@
   border-bottom: 1px dotted rgba(255, 255, 255, 0.16);
 }
 
-/* Chain chips */
-.chainRow { display: flex; flex-wrap: wrap; gap: var(--s2, 8px); }
-.chainChip {
-  display: inline-flex; align-items: center; gap: 7px;
-  font-family: 'DM Sans', sans-serif; font-size: var(--t-sm, 13.5px); font-weight: 600;
-  color: var(--text-secondary);
-  background: #04060b;
-  border: 1px solid var(--hairline, rgba(255,255,255,0.10));
-  border-radius: var(--r-2, 2px); padding: 9px 13px; cursor: pointer;
-  transition: color 180ms var(--ease-sail), border-color 180ms var(--ease-sail), background 180ms var(--ease-sail), transform 180ms var(--ease-sail);
-}
-.chainChip:hover { border-color: rgba(25,144,255,0.4); transform: translateY(-1px); }
-.chainChipActive, .chainChipActive:hover {
-  color: #fff; border-color: rgba(25,144,255,0.55);
-  background: linear-gradient(180deg, rgba(25,144,255,0.10) 0%, rgba(25,144,255,0.02) 100%), #04060b;
-}
-.chainTag {
-  font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 8.5px; font-weight: 600;
-  letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-quaternary);
-  border: 1px solid var(--hairline); border-radius: var(--r-1, 0); padding: 1px 4px;
-}
-
 /* Provider option rows */
 .optionList {
   list-style: none;
@@ -271,24 +208,6 @@
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
     0 18px 48px -28px rgba(25, 144, 255, 0.55);
-}
-.optionTile {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10));
-  border-radius: var(--r-2, 2px);
-  transition: color 200ms var(--ease-sail), background 200ms var(--ease-sail), border-color 200ms var(--ease-sail);
-}
-.optionRowActive .optionTile {
-  color: #fff;
-  background: var(--accent-blue, #1990FF);
-  border-color: rgba(25, 144, 255, 0.5);
 }
 .optionBody { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .optionNameRow { display: inline-flex; align-items: center; gap: var(--s2, 8px); flex-wrap: wrap; }

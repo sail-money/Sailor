@@ -440,7 +440,7 @@ export default function RotateSignerModal({
               <strong>{created?.address}</strong> is now this SMA&rsquo;s delegated signer.
               {mandateAddrs.length > 0
                 ? ` ${mandateAddrs.length} mandate(s) were re-approved and bound to it.`
-                : ' No mandates were attached, so none needed re-approval.'}
+                : ' No mandates were registered, so none needed re-approval.'}
             </p>
             <p className={styles.body}>
               Fund the new agent wallet so it can pay gas for dispatches, then restart your agent.
@@ -479,7 +479,7 @@ export default function RotateSignerModal({
             )}
             {mandateAddrs.length > 0 && (
               <p className={styles.warn}>
-                Rotating clears all {mandateAddrs.length} attached mandate(s); you&rsquo;ll re-approve
+                Rotating clears all {mandateAddrs.length} registered mandate(s); you&rsquo;ll re-approve
                 them in your wallet right after, rebinding them to the new signer.
               </p>
             )}
@@ -523,7 +523,7 @@ export default function RotateSignerModal({
             <dl className={styles.meta}>
               <div><dt>SMA</dt><dd>{sma}</dd></div>
               {currentManager && <div><dt>Current agent</dt><dd>{currentManager}</dd></div>}
-              <div><dt>Attached mandates</dt><dd>{mandateAddrs.length}</dd></div>
+              <div><dt>Registered mandates</dt><dd>{mandateAddrs.length}</dd></div>
             </dl>
 
             <div className={form.segmented} role="tablist" aria-label="New agent source">

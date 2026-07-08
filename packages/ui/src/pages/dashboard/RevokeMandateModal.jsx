@@ -164,7 +164,7 @@ export default function RevokeMandateModal({ open, mandate, permissions, sma, ke
             <h2 className={styles.title}>Permission{toRevoke.length > 1 ? 's' : ''} revoked</h2>
             <p className={styles.body}>
               {toRevoke.length === 1
-                ? <><strong>{(isMulti ? permissions.find((p) => p.address === toRevoke[0])?.name : mandate?.name) ?? toRevoke[0]}</strong> is no longer attached to your SMA.</>
+                ? <><strong>{(isMulti ? permissions.find((p) => p.address === toRevoke[0])?.name : mandate?.name) ?? toRevoke[0]}</strong> is no longer registered to your SMA.</>
                 : <><strong>{toRevoke.length} permissions</strong> removed from your SMA.</>
               }
               {' '}It now appears in Recent Activity.

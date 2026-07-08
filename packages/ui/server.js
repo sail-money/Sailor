@@ -1582,46 +1582,6 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
   })
 
-  // GET /api/wizard-state — current wizard progress, or null.
-  app.get('/api/wizard-state', (_req, res) => {
-    try {
-      const raw = fs.readFileSync(at('.wizard-state.json'), 'utf-8')
-      res.json(JSON.parse(raw))
-    } catch {
-      res.json(null)
-    }
-  })
-
-  // POST /api/wizard-state — persist the wizard progress object.
-  app.post('/api/wizard-state', (req, res) => {
-    // Only a plain object is valid wizard state — reject anything else so the
-    // state file can't be poisoned. (express.json's 100kb default caps size.)
-    const body = req.body
-    if (body === null || typeof body !== 'object' || Array.isArray(body)) {
-      res.status(400).json({ error: 'wizard state must be an object' }); return
-    }
-    try {
-      fs.mkdirSync(sailDir, { recursive: true })
-      fs.writeFileSync(at('.wizard-state.json'), `${JSON.stringify(body, null, 2)}\n`)
-      res.json({ ok: true })
-    } catch (err) {
-      serverError(res, err)
-    }
-  })
-
-  // GET /api/positions — latest vault positions snapshot for the active SMA.
-  // Written by the agent at state/positions-<chainId>.json after each tick.
-  app.get('/api/positions', (_req, res) => {
-    try {
-      const account = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
-      const chainId = account?.chainId ?? 8453
-      const file = at(`state/positions-${chainId}.json`)
-      res.json(JSON.parse(fs.readFileSync(file, 'utf-8')))
-    } catch {
-      res.status(404).json({ error: 'no positions snapshot' })
-    }
-  })
-
   // Build a mandate list from state/mandates.json filtered to the active SMA.
   // Used as a fallback when on-chain reads are unavailable.
   function mandatesFromStore(at, account, nameByAddr, templateByAddr, network) {

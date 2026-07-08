@@ -17,7 +17,7 @@ const KIND_LABELS = {
   'create-sma': 'Create Safe (SMA)',
   'deploy-mandate': 'Deploy Mandate',
   'register-permission': 'Register Permission',
-  'attach-mandate': 'Attach Mandate',
+  'attach-mandate': 'Register Mandate',
   'set-delegate': 'Set Agent as Manager',
 }
 

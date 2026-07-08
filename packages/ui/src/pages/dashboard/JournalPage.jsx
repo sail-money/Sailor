@@ -15,7 +15,7 @@ import { explorerTxUrl } from '../../lib/explorer'
  *
  * Lives at /journal/:entryId. Replaces the previous JournalDrawer
  * (right-side slide-in) with a routed full-page surface that matches
- * the chrome of MandatePage and AgentPage.
+ * the dashboard's chrome.
  *
  * Sections (top to bottom):
  *   - Header (back to dashboard)

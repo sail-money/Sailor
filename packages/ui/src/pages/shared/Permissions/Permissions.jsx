@@ -103,7 +103,7 @@ function MetaBlock({ title, children }) {
 /* ──────────────────────────────────────────
    Atoms — chips for networks, assets, protocols
    ────────────────────────────────────────── */
-export function NetworkChip({ networkId, compact = false }) {
+function NetworkChip({ networkId, compact = false }) {
   const n = getNetwork(networkId)
   if (!n) return null
   return (
@@ -118,7 +118,7 @@ export function NetworkChip({ networkId, compact = false }) {
   )
 }
 
-export function AssetChip({ symbol, networkId, compact = false }) {
+function AssetChip({ symbol, networkId, compact = false }) {
   const t = getToken(symbol)
   if (!t) return <span className={styles.assetChip}>{symbol}</span>
 
@@ -156,7 +156,7 @@ export function AssetChip({ symbol, networkId, compact = false }) {
   )
 }
 
-export function ProtocolChip({ protocolId, networkId }) {
+function ProtocolChip({ protocolId, networkId }) {
   const p = getProtocol(protocolId)
   if (!p) return null
   const address = networkId ? getProtocolAddress(protocolId, networkId) : null
@@ -184,7 +184,7 @@ export function ProtocolChip({ protocolId, networkId }) {
    Defaults compact (icon + label + chips inline).
    "View contracts" toggle reveals onchain detail.
    ────────────────────────────────────────── */
-export function ActionCard({ action, index }) {
+function ActionCard({ action, index }) {
   const [expanded, setExpanded] = useState(false)
   const kind = ACTION_KINDS[action.kind] ?? { label: 'Action', accent: '#1990FF' }
 
