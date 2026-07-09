@@ -33,7 +33,7 @@ Skill: `.agents/skills/sailor-mandate-planner/SKILL.md` — it routes each actio
 Gate: complete `.sail/strategy.md` · Exit verifier: every permission registered AND `sailor mandate simulate` passing on must-pass samples and correctly rejecting must-fail samples. Order is always deploy → simulate → register: never register a permission that has not passed simulation.
 
 **4. AGENT — build the brain.**
-Skill: sailor-agent-build (dispatch mechanics: `.agents/skills/sailor-transactions/SKILL.md`) · Gate: registered, simulated mandate · Exit verifier: `sailor run --once` completes cleanly against the live mandate.
+Skill: `.agents/skills/sailor-agent-build/SKILL.md` (dispatch mechanics: `.agents/skills/sailor-transactions/SKILL.md`) · Gate: registered, simulated mandate · Exit verifier: `sailor run --once` completes cleanly against the live mandate.
 
 **5. SAIL — launch, operate, and own the ending.**
 Skills: `.agents/skills/sailor-automation/SKILL.md` (run unattended), sailor-operate (monitor, tune bounds, pause/resume, revoke, exit and withdraw), `.agents/skills/sailor-extend/SKILL.md` (notifications, custom dashboard — optional) · Gate: a clean `run --once`.

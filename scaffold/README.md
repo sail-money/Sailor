@@ -11,6 +11,7 @@ Your assistant will walk you through every step — chain selection, SMA deploym
 - `src/agent.ts` — your agent's tick loop (implement your strategy here)
 - `src/mandate.ts` — your strategy parameters and contract addresses
 - `mandates/` — Foundry workspace for your IPermission contracts
-- `examples/dca/` — worked reference: DCA (USDC→WETH) on Base via Uniswap V3
 - `contracts/` — neutral IPermission authoring scaffold + Foundry test
 - `.sail/` — local project state (keys, account, activity log)
+
+The canonical agent-loop skeleton lives in the `sailor-agent-build` skill (`.agents/skills/sailor-agent-build/SKILL.md`) — adapt it into `src/agent.ts`.

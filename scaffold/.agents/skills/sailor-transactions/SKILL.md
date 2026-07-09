@@ -21,9 +21,7 @@ The runner (`sailor run`) calls `agent.tick(ctx)` from `src/agent.ts` and submit
 
 - A dispatch is `{ calls: [{ target, value, data }, …] }`. One call = single dispatch; multiple calls = batch dispatch (single on-chain tx, all-or-nothing).
 - You do not name permissions: the runner probes each registered permission in registration order (off-chain `evaluate()` / `previewBatch` via `eth_call`) and routes to the first that accepts. Set `dispatch.permission` only as an explicit override to skip the probe.
-- **Approve + action — two non-mixable models** (details: `../sailor-mandates/references/approvals.md`):
-  - **Per-call (default):** two separate single-call dispatches, each gated by its own `IPermission`. Emit the approve only when on-chain allowance is insufficient (the `examples/dca/` pattern).
-  - **Atomic batch (advanced):** one `Dispatch` with `calls: [approveCall, actionCall]` authorized by a single `IBatchPermission`. A normal `IPermission` cannot authorize a batch (`PermissionNotBatchAware`). Do not mix the models.
+- **Approve + action** is either two single-call dispatches or one batch `Dispatch` (`calls: [approve, action]` authorized by a single `IBatchPermission`) — the two models are not mixable. Which to use, and how to cover the `approve()`, is owned by [`../sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md); follow the one the mandate plan chose.
 - `ctx` provides `read.balance/allowance/decimals`, `publicClient` (arbitrary reads), `log()`, and a persistent `data` slot.
 - Return `[]` to skip a tick — no gas spent.
 

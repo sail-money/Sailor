@@ -71,6 +71,7 @@ try {
     ".agents/skills/sailor-project-info/SKILL.md",
     ".agents/skills/sailor-servers/SKILL.md",
     ".agents/skills/sailor-transactions/SKILL.md",
+    ".agents/skills/sailor-agent-build/SKILL.md",
     ".agents/skills/sailor-mandates/SKILL.md",
     ".agents/skills/sailor-mandates/references/approvals.md",
     ".agents/skills/sailor-automation/SKILL.md",

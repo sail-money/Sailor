@@ -22,10 +22,7 @@ Examples are illustrations, not the supported set. Sail supports any token, venu
 
 ## Gate 2 — Enumerate approvals and pick the execution model
 
-List every ERC-20 `approve()` the strategy implies — protocol permissions never cover `approve()`, so each needs explicit coverage. How it is covered depends on the model you choose (read [references/approvals.md](references/approvals.md) before writing any contract):
-
-- **Per-call (default).** Approve and act are separate single-call dispatches, each gated by its own `IPermission`. Approve a sufficient allowance once and skip it when the on-chain allowance already covers the next action (the `examples/dca/` pattern). This is what the scaffolded `IPermission` supports out of the box.
-- **Atomic batch (advanced).** Approve + action run as one `dispatchBatch`. A batch consults exactly ONE batch-aware `IBatchPermission` (`evaluateBatch`) that validates the whole sequence — NOT two narrow `IPermission`s. Use this only when atomicity matters; see `references/approvals.md`. Do not mix the models.
+List every ERC-20 `approve()` the strategy implies — protocol permissions never cover `approve()`, so each needs explicit coverage. There are two non-mixable execution models — **per-call** (default; separate single-call dispatches) and **atomic batch** (one `IBatchPermission` for the whole `approve → action → reset` sequence). Which one to use, when, and how to author the coverage is owned by [references/approvals.md](references/approvals.md) — **read it before writing any contract.**
 
 ## Gate 3 — Author the permission contracts
 
@@ -100,8 +97,8 @@ Registering a permission charges a **per-permission fee**, paid on-chain by the 
 
 - **A mandate is a SET of permissions, so a mandate of N permissions costs `N × fee`** at whatever the live `fee` is.
 - **When it's charged:** once per permission, on registration (the `register` / `deploy-clone` step). Already-registered permissions are not re-charged when you re-run `sailor mandate sign`. Revoking does not refund.
-- **Disclosure before signing:** `sailor mandate prepare` reads the live fee and records it in the draft, and `sailor mandate sign` prints `Registration fee: <total> ETH (<N> permissions × <fee> ETH)` before you confirm. The browser sign-time screen shows the same total.
-- **Preflight:** before requesting the owner's signature, the agent wallet's ETH balance is checked against the total fee; an underfunded wallet fails early with `Insufficient ETH for the <X> ETH registration fee` instead of an on-chain revert. **Fund the agent wallet before registering.**
+- **Disclosure before signing:** `sailor mandate prepare` reads the live fee and records it in the draft, and `sailor mandate sign` prints `Registration fee: <total> <native> (<N> permissions × <fee> <native>)` before you confirm — where `<native>` is the chain's native token (ETH on most chains, BNB on BSC, HYPE on HyperEVM, …). The browser sign-time screen shows the same total.
+- **Preflight:** before requesting the owner's signature, the agent wallet's native-token balance is checked against the total fee; an underfunded wallet fails early with `Insufficient <native> for the <X> <native> registration fee` instead of an on-chain revert. **Fund the agent wallet before registering.**
 - **Recorded:** each `permission_registered` activity entry carries the fee actually paid (`fee` in wei, `feeEth` formatted), so Recent Activity shows the real cost.
 
 The fee is read via `readPermissionRegistrationFee()` in `packages/sdk/src/fees.ts` and applied as `fee × N` — the same number used for disclosure, the preflight, the tx `value`, and the activity record.

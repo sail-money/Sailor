@@ -35,6 +35,8 @@ jobs:
         run: pnpm run init:check
       - name: Update smoke test
         run: pnpm run update:check
+      - name: Skeleton typecheck
+        run: pnpm run skeleton:check
 
   # The "does the thing we ship actually work for a fresh user" gate. Unlike
   # init-smoke (fast, in-tree, file-existence only), this packs the PUBLISHABLE

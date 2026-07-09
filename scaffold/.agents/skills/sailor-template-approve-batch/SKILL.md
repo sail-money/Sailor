@@ -15,7 +15,9 @@ You typically arrive here from the mandate plan ([`sailor-mandate-planner`](../s
 
 Reuse the shared **`ApproveAndCallBatchPermission`** singleton — the safest way to bracket a
 single protocol interaction that needs an allowance. Family overview + flow:
-[`sailor-templates`](../sailor-templates/SKILL.md).
+[`sailor-templates`](../sailor-templates/SKILL.md). This template is the **atomic-batch** approve
+model; when to choose it over the per-call model is owned by
+[`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md).
 
 ## What it enforces (per account, from source)
 

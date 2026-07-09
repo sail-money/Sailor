@@ -1,6 +1,6 @@
 ---
 name: sailor-template-swap-no-oracle
-description: Gate an SMA's DEX swaps for tokens that have NO oracle by REUSING the shared SwapPermissionNoOracle singleton (Protocol/contracts/templates/SwapPermissionNoOracle.sol) — register + configure, no per-SMA deploy. Use when swapping a meme coin, an illiquid token, or any token with no price feed / no Chainlink oracle, on Uniswap V3/V3-02/V2 (and forks): router + token-in/out allowlists, a per-tx cap, recipient pinned to the SMA, and a per-pair live-pool "hallucination band". NOT manipulation-resistant — if the token HAS an oracle use sailor-template-swap instead; for the LI.FI aggregator author a bespoke permission via sailor-mandates. Deployed on all 11 Sailor-bundled chains (recorded in sailor-templates/deployed.json).
+description: Gate an SMA's DEX swaps for a token without a price oracle by REUSING the shared SwapPermissionNoOracle singleton (Protocol/contracts/templates/SwapPermissionNoOracle.sol) — register + configure, no per-SMA deploy. Use when there is no Chainlink feed / no price feed / no oracle adapter for the token, on Uniswap V3/V3-02/V2 (and forks): router + token-in/out allowlists, a per-tx cap, recipient pinned to the SMA, and a per-pair live-pool "hallucination band". NOT manipulation-resistant — if the token HAS an oracle use sailor-template-swap instead; for the LI.FI aggregator author a bespoke permission via sailor-mandates. Deployed on all 11 Sailor-bundled chains (recorded in sailor-templates/deployed.json).
 compatibility: A Sailor project (`@sail/sdk`, `sailor` CLI). Requires SwapPermissionNoOracle deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
 metadata:
   workspace: sailor-harness
@@ -76,9 +76,9 @@ reverts `PoolTokenMismatch`. `pool == 0` reverts `ZeroPool`.
 Size the cap with `sailor-swap-quote`. Verify the SDK encoder's param tuple matches the source blob
 above before using it (see [`sailor-templates`](../sailor-templates/SKILL.md) notes).
 
-### Worked example — small DCA into an illiquid token (Unichain)
+### Worked example — small DCA into a token without a price oracle (Unichain)
 
-A 10-USDC-per-tick DCA from USDC into a long-tail token that has no oracle adapter, using a live
+A 10-USDC-per-tick DCA from USDC into a token that has no oracle adapter, using a live
 V3 reference pool with a 10% tolerance band.
 
 > ⚠️ **This band is NOT manipulation-resistant.** `toleranceBps: 1000` (10%) only catches an
@@ -87,7 +87,7 @@ V3 reference pool with a 10% tolerance band.
 > protection. Keep `maxAmountPerTx` small so a manipulated fill can only ever move a small amount.
 
 `tokensIn` (USDC) and `routers` (Uniswap V3 SwapRouter02) are the verified Unichain continuity
-addresses. The **illiquid token and its reference pool vary per token** — resolve the token address
+addresses. The **oracle-less token and its reference pool vary per token** — resolve the token address
 via [`sailor-token-resolve`](../sailor-token-resolve/SKILL.md) and confirm the pool actually prices
 the pair on-chain before configuring; the placeholders below are not real addresses.
 
@@ -110,7 +110,7 @@ the pair on-chain before configuring; the placeholders below are not real addres
 ```
 
 `maxAmountPerTx: "10000000"` = 10 USDC (6 decimals). One `referencePools` entry is required per
-directional pair (the strict-coverage rule above) — a portfolio into several illiquid tokens needs
+directional pair (the strict-coverage rule above) — a portfolio into several oracle-less tokens needs
 one entry each. Then register → configure → simulate:
 
 ```bash

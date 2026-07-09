@@ -8,7 +8,7 @@ There are two ways to cover and execute an approve + action. Pick ONE; they are 
 
 ## Model A — per-call (default, simplest)
 
-Approve and action are **separate single-call dispatches**, each gated by its own `IPermission`. This is what the scaffolded `IPermission` interface and the `examples/dca/` agent use.
+Approve and action are **separate single-call dispatches**, each gated by its own `IPermission`. This is what the scaffolded `IPermission` interface and the `sailor-agent-build` skeleton use.
 
 1. Deploy a bounded-approve `IPermission` covering the `(token, spender, max amount)` triple — a clone where available:
    ```bash

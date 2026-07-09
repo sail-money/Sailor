@@ -20,6 +20,7 @@ const UPDATE_PATHS = [
 const STALE_PATHS = [
   ".agents/skills/sail-ci", // renamed to sailor-automation
   "examples/permissions", // retired per-protocol gallery — see sailor-mandates/references/authoring-patterns.md
+  "examples/dca", // retired — the canonical agent loop now lives inline in the sailor-agent-build skill
   "test/BoundedCallPermission.t.sol", // moved to contracts/test/BoundedCallPermission.t.sol
   // All 19 skills renamed sail-* → sailor-*. Remove the whole old-named dir from existing
   // projects (this also removes the retired sail-mandates/references/examples-index.md).
@@ -62,7 +63,8 @@ export async function updateCommand(): Promise<void> {
   // examples/custom-mandate/ to contracts/. It is user-editable and seed-once, so
   // never delete or overwrite it — move it, preserving every user edit. If the
   // project predates the move and has no contracts/ yet, rename it; if both exist,
-  // leave both and warn. (examples/ itself is left in place — dca/ still ships.)
+  // leave both and warn. (examples/dca/ is pruned via STALE_PATHS below; the empty
+  // examples/ directory is then removed by the empty-dir prune after pruning.)
   const migrated: string[] = [];
   const oldWorkspace = path.join(dest, "examples", "custom-mandate");
   const newWorkspace = path.join(dest, "contracts");
@@ -86,6 +88,14 @@ export async function updateCommand(): Promise<void> {
       fs.rmSync(target, { recursive: true, force: true });
       removed.push(p);
     }
+  }
+
+  // examples/ no longer ships (custom-mandate → contracts, dca → inline skeleton). Once its
+  // contents are gone, remove the empty directory so migrated projects shed it entirely.
+  const examplesDir = path.join(dest, "examples");
+  if (fs.existsSync(examplesDir) && fs.readdirSync(examplesDir).length === 0) {
+    fs.rmdirSync(examplesDir);
+    removed.push("examples (empty)");
   }
 
   // Always re-sync template-owned paths.

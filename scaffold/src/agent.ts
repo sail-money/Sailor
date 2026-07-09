@@ -8,8 +8,8 @@
  * The runner resolves which permission authorizes each call automatically — you
  * express what you want to do; you do not name permissions per call.
  *
- * For a worked end-to-end example (DCA / Uniswap V3 / Base):
- *   see examples/dca/agent.ts and examples/dca/mandate.ts
+ * For the canonical, typecheck-verified agent-loop skeleton to adapt here, see the
+ * sailor-agent-build skill (.agents/skills/sailor-agent-build/SKILL.md).
  */
 
 import type { Agent, AgentContext, Dispatch } from "@sail.money/sailor/sdk";
@@ -27,7 +27,7 @@ export const agent: Agent = {
     // ctx.publicClient — viem PublicClient for arbitrary on-chain reads
     // ctx.log(msg) — append a message to the activity log
     //
-    // Example (from examples/dca/agent.ts):
+    // The sailor-agent-build skill has the full read → decide → act skeleton to adapt:
     //   const balance = await ctx.read.balance(USDC_ADDRESS);
     //   if (balance < MIN_AMOUNT) return [];
     //   return [{ txHash: "0x", calls: [{ target: ROUTER, value: 0n, data: swapCalldata }], success: false, gasUsed: 0n }];

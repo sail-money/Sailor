@@ -35,6 +35,7 @@
     "docs:check": "node scripts/check-docs.mjs",
     "init:check": "node scripts/check-init.mjs",
     "update:check": "node scripts/check-update.mjs",
+    "skeleton:check": "node scripts/check-skeleton.mjs",
     "lint": "biome check ."
   },
   "devDependencies": {

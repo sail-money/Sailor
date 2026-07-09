@@ -42,13 +42,14 @@ is the checklist that sequences them correctly.
 
 ## Where everything lives (and why together)
 
-**Skills are the instructions; `scaffold/examples/` is the teaching material those
-instructions reference — and both are scaffolded together from `scaffold/`.**
+**Skills are the instructions, and the scaffold carries the workspaces they reference —
+both scaffolded together from `scaffold/`.**
 When `sailor init` creates a project, the entire template tree is copied in, so the skill that
 says "start from the scaffold" finds those exact files in the project: the `IPermission`
-authoring workspace at `contracts/` (with a Foundry test, per Gate 4) and a
-complete DCA agent at `examples/dca/`. Single source of truth in the repo; self-contained
-teaching material in every scaffold.
+authoring workspace at `contracts/` (with a Foundry test, per Gate 4). The canonical agent
+loop is the typecheck-verified skeleton inside the `sailor-agent-build` skill, not a separate
+examples directory. Single source of truth in the repo; self-contained teaching material in
+every scaffold.
 
 This page is an overview with pointers — the skills themselves (in your scaffold, or in this
 repo under `scaffold/.agents/skills/`) are the authoritative procedures, and they are

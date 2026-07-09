@@ -208,8 +208,8 @@ export async function initCommand(
     : null;
 
   // The scaffold tree carries everything a project receives, including the
-  // contracts/ permission-authoring workspace and the examples/dca/ reference
-  // agent that `sailor mandate templates` and the skills point the user at.
+  // contracts/ permission-authoring workspace. The canonical agent loop is the
+  // typecheck-verified skeleton inside the sailor-agent-build skill (no examples/ dir).
   copyDirSync(templateSrc, dest);
 
   // Patch package.json: set the project name and inject the Sailor CLI as a

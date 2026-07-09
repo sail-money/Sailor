@@ -12,7 +12,7 @@ Security vulnerabilities must NOT be filed as a PR — report privately per SECU
 - [ ] Description of the change and why (one logical unit).
 - [ ] Tests added/updated and passing (`pnpm --filter @sail/sdk test`, `pnpm --filter sailor test`, `pnpm test`).
 - [ ] Build and typecheck pass (`pnpm build`, `pnpm typecheck`).
-- [ ] Check suite passes (`pnpm run docs:check`, `pnpm run init:check`, `pnpm run update:check`).
+- [ ] Check suite passes (`pnpm run docs:check`, `pnpm run init:check`, `pnpm run update:check`, `pnpm run skeleton:check`).
 - [ ] Docs updated if behavior or the command surface changed.
 - [ ] No "audit"-as-assurance wording introduced (the codebase uses "security review").
 - [ ] No attribution footer in commits (no `Co-Authored-By`, no tool signatures).
