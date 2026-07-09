@@ -23,6 +23,10 @@ Read `.sail/strategy.md` first. AGENTS.md station 3: "Gate: complete `.sail/stra
 
 3. **Present the mandate plan to the user before any deployment.** One row per action: the action → its permission (template name, or "bespoke: <what it must gate>") → the bounds it will carry (from the spec's `caps` and `riskBounds`). Include the registration-fee disclosure — fee mechanics live in [`sailor-mandates`](../sailor-mandates/SKILL.md) (Registration fee section).
 
+   **Every bespoke row carries this disclosure:** a custom Solidity contract your coding agent authors in `contracts/` through [`sailor-mandates`](../sailor-mandates/SKILL.md)' authoring gates. The kernel evaluates it on every dispatch, but it does **not** verify that the contract's logic enforces what it claims — you are responsible for what you register (the protocol's own Known Limitations). If the plan has **no** bespoke rows, say nothing about Solidity.
+
+   **Toolchain precheck (only when any row is bespoke):** before presenting the plan as approvable, verify Foundry is installed — run `forge --version`. If it is missing, do not present an approvable plan; route the user to the Foundry install one-liner in [`sailor-mandates`](../sailor-mandates/SKILL.md) ("Prerequisite — Foundry"), then rerun the check.
+
 ## Ordering rules (enforced here, specified elsewhere)
 
 - **Shared singletons: register ≠ configure.** Follow [`sailor-templates`](../sailor-templates/SKILL.md)'s reuse flow exactly — register, configure, then simulate; a registered-but-unconfigured template denies everything.

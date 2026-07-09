@@ -39,6 +39,12 @@ Fill the dimensions by **infer-then-confirm**: extract everything the user's wor
 
 Render the full spec, walk the completeness checklist below with the user, get their explicit confirmation, then write `.sail/strategy.md`.
 
+**Disclose bespoke Solidity before the user approves.** Using the category reference's routing rows, count how many of the spec's actions map to a shared template vs. bespoke authoring. If any action is bespoke (M > 0), the confirmation summary must say so plainly before they approve:
+
+> This strategy uses <N> shared template(s) and <M> custom permission(s) that your coding agent will author in Solidity — compiled and tested in `contracts/`, reviewed and signed by you.
+
+Show this line **only when M > 0**. A fully template-backed strategy (M = 0) says nothing about Solidity — most strategies never touch it.
+
 ## Completeness gate (fail-closed — the station does not exit until every dimension is concrete)
 
 | Dimension | Concrete means |
