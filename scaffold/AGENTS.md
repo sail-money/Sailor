@@ -13,7 +13,7 @@ Sailor is the harness. Your job, working with the user, is to take them from a s
 What can be built here — any of these, or any combination:
 
 - **Trading** — spot, DCA, rebalancing
-- **Yield** — lending, borrowing, liquidity providing, looping
+- **Yield** — lending, borrowing, liquidity providing, staking, looping
 - **Payments & treasury** — transfers, scheduled moves, operational flows
 
 …or anything else on-chain. Permissions are arbitrary Solidity: if it's on-chain, it can be bounded.
@@ -30,7 +30,7 @@ Skill: `.agents/skills/sailor-strategy/SKILL.md` · Gate: doctor green · Exit v
 
 **3. MANDATE — turn the strategy into enforced bounds.**
 Skill: `.agents/skills/sailor-mandate-planner/SKILL.md` — it routes each action of the strategy to a shared template or to bespoke authoring; mixing both in one mandate is normal. Templates: start at `.agents/skills/sailor-templates/SKILL.md` (the registry + register→configure reuse flow), then the matching spoke — `.agents/skills/sailor-template-swap/SKILL.md`, `.agents/skills/sailor-template-swap-no-oracle/SKILL.md`, `.agents/skills/sailor-template-transfer/SKILL.md`, `.agents/skills/sailor-template-withdraw/SKILL.md`, `.agents/skills/sailor-template-deposit/SKILL.md`, `.agents/skills/sailor-template-borrow/SKILL.md`, `.agents/skills/sailor-template-approve-batch/SKILL.md`. Bespoke Solidity: `.agents/skills/sailor-mandates/SKILL.md`.
-Gate: complete `.sail/strategy.md` · Exit verifier: every permission registered AND `sailor mandate simulate` passing on must-pass samples and correctly rejecting must-fail samples. Order is always deploy → simulate → register: never register a permission that has not passed simulation.
+Gate: complete `.sail/strategy.md` · Exit verifier: every permission registered AND `sailor mandate simulate` passing on must-pass samples and correctly rejecting must-fail samples. Ordering: bespoke permissions are deploy → simulate → register; shared templates are register → configure → simulate (registering a singleton grants nothing by itself — an unconfigured template denies every call, fail-closed). Either way, the mandate is not complete until simulate passes its must-pass samples and correctly rejects its must-fail samples.
 
 **4. AGENT — build the brain.**
 Skill: `.agents/skills/sailor-agent-build/SKILL.md` (dispatch mechanics: `.agents/skills/sailor-transactions/SKILL.md`) · Gate: registered, simulated mandate · Exit verifier: `sailor run --once` completes cleanly against the live mandate.
@@ -47,7 +47,7 @@ Skills: `.agents/skills/sailor-automation/SKILL.md` (run unattended), `.agents/s
 
 ## Invariants — never violate these
 
-1. **Deploy → simulate → register.** Registration is authorization; nothing is authorized before its bounds are proven, including proven to reject what they must reject.
+1. **Bespoke permissions: deploy → simulate → register.** Registration is authorization; nothing is authorized before its bounds are proven, including proven to reject what they must reject.
 2. **Never widen a mandate without the user's explicit, informed approval.** Before any signature, state plainly what the change permits the agent to do.
 3. **A denied dispatch is the system working, not an error.** Read the denial reason, adjust within bounds, or ask the user to change the bounds deliberately. Never route around the kernel.
 4. **Registering permissions costs an onchain fee** — disclose it before asking for a registration signature (current rate: see `sailor-mandates`).

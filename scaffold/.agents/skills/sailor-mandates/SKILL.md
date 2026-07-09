@@ -114,3 +114,7 @@ The fee is read via `readPermissionRegistrationFee()` in `packages/sdk/src/fees.
 ## Clone templates (deploy-clone)
 
 `sailor mandate deploy-clone --template boundedApprove --sma <SMA> --tokens <csv> --spenders <csv> --max <wei> --json` deploys + registers an EIP-1167 clone of a published implementation in one transaction (owner signs `RegisterPermission` for the predicted clone address — BLOCKS; agent submits `deployAndAttach` — the on-chain function is named `deployAndAttach`; in Sailor and protocol vocabulary this operation is permission registration). The only template key is `boundedApprove`. Implementations come from the SDK deployment registry (`standaloneTemplates`) — that map is now populated with the shared swap/borrow/deposit/withdraw/transfer/approve-and-call-batch templates on all eleven chains, but no `boundedApprove` clone implementation is deployed yet, so deploy-clone errors with a clear message and you should write and deploy a bounded-approve permission with `sailor mandate deploy` instead. Check availability with `sailor mandate templates --json`.
+
+## Next
+
+Once this permission is deployed, simulate-verified (Gate 6), and registered (Gate 7), return to the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) for the next permission. When every permission in the plan is deployed/registered/configured and simulate-verified, proceed to Station 4 — the [`sailor-agent-build`](../sailor-agent-build/SKILL.md) skill (dispatch mechanics: [`sailor-transactions`](../sailor-transactions/SKILL.md)).

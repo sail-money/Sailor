@@ -37,7 +37,7 @@ sailor run --chain <id>    # override CHAIN_ID for this run
 
 ## Where results land
 
-Everything appends to `.sail/activity.jsonl` (one JSON per line): `tick_start`/`tick_end`, `dispatch_approved`, `dispatch_executed` (with `txHash`), `dispatch_reverted` (with `txHash`, `gasUsed`), `dispatch_denied` (with `reason`, e.g. `no_permission_match` plus the rejected selector), `error`, and owner-side `owner_signed`/`owner_rejected` events. On stderr, reverts surface as `reverted: <txHash>  (gas used: N)`; denials as `skipped: no registered permission authorizes call to <target> (selector 0x…)`. A failed dispatch never stops the loop.
+Everything appends to `.sail/activity.jsonl` (one JSON per line): `tick_start`/`tick_end`, `dispatch_approved`, `dispatch_executed` (with `txHash`), `dispatch_reverted` (with `txHash`, `gasUsed`), `dispatch_denied` (with `target`/`reason`, e.g. `no_permission_match`), `error`, and owner-side `owner_signed`/`owner_rejected` events. On stderr, reverts surface as `reverted: <txHash>  (gas used: N)`; denials as `skipped: no registered permission authorizes call to <target> (selector 0x…)` — the rejected selector is in this stderr line, not the JSON event. A failed dispatch never stops the loop.
 
 ## Commands that BLOCK on a browser signature
 

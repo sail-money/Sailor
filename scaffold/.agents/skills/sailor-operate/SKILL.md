@@ -20,7 +20,7 @@ Every tick appends to `.sail/activity.jsonl` — append-only JSON, one event per
 | `dispatch_approved` | `permission`, `target` | a permission accepted the call (about to submit) |
 | `dispatch_executed` | `permission`, `target`, `txHash` | on-chain success |
 | `dispatch_reverted` | `permission`, `target`, `txHash`, `gasUsed` | submitted but reverted on-chain |
-| `dispatch_denied` | `target`, `reason` | no permission authorized it (`reason`: `no calls`, `no_registered_permissions`, or the permission's own reason) |
+| `dispatch_denied` | `target`, `reason` | no permission authorized it (`reason`: `no calls`, `no_registered_permissions`, `no_permission_match` — the most common: no registered permission's `evaluate()` accepted the call — or the permission's own reason, falling back to `denied`) |
 | `error` | `reason`, `chainId` | the tick threw |
 
 Practical reads (plain shell):

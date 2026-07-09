@@ -12,7 +12,7 @@ Sailor provides the working environment a coding agent needs to build a DeFi age
 Autonomous AI agents that transact digital assets, for any use case:
 
 - **Trading**: spot, DCA, rebalancing
-- **Yield**: lending, borrowing, liquidity providing, staking
+- **Yield**: lending, borrowing, liquidity providing, staking, looping
 - **Payments & treasury**: transfers, scheduled moves, operational flows
 
 These are examples, not a boundary. Permissions are arbitrary Solidity, so anything in DeFi can be expressed as a permission and operated by an agent.

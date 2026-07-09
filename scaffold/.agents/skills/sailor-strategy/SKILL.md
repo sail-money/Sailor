@@ -1,6 +1,6 @@
 ---
 name: sailor-strategy
-description: Station 2 — turn the user's intent into a complete, concrete strategy spec at .sail/strategy.md. Use when the user says "I want to DCA", "earn yield on my USDC", "rebalance my portfolio", "pay contributors weekly", "invest", "what should my agent do", or asks to define, plan, or change their strategy — and whenever .sail/strategy.md is missing or incomplete while mandate work is being requested. Elicits category → archetype → every completeness dimension (chains, tokens, venues, amounts, caps, cadence, risk bounds, exit condition); every token is resolved (address + decimals + liquidity) before it enters the spec.
+description: Station 2 — turn the user's intent into a complete, concrete strategy spec at .sail/strategy.md. Use when the user says "I want to DCA", "earn yield on my USDC", "stake my ETH", "rebalance my portfolio", "pay contributors weekly", "invest", "what should my agent do", or asks to define, plan, or change their strategy — and whenever .sail/strategy.md is missing or incomplete while mandate work is being requested. Elicits category → archetype → every completeness dimension (chains, tokens, venues, amounts, caps, cadence, risk bounds, exit condition); every token is resolved (address + decimals + liquidity) before it enters the spec.
 ---
 
 # sailor-strategy — make the strategy concrete (Station 2)
@@ -22,7 +22,7 @@ You are an interviewer and a scribe, not an investment advisor. Never recommend 
 Present the three doors — but skip the menu entirely if the user's opening message already names a category or archetype; never ask what was already said:
 
 - **Trading** — spot, DCA, rebalancing → [references/trading.md](references/trading.md)
-- **Yield** — lending, borrowing, liquidity providing, looping → [references/yield.md](references/yield.md)
+- **Yield** — lending, borrowing, liquidity providing, staking, looping → [references/yield.md](references/yield.md)
 - **Payments & treasury** — transfers, scheduled moves, operational flows → [references/payments.md](references/payments.md)
 
 …or anything else on-chain — permissions are arbitrary Solidity; if it's on-chain, it can be bounded. A strategy outside the three doors is welcome: it still gets a complete spec here, and routes to bespoke mandate authoring at Station 3.
@@ -30,6 +30,8 @@ Present the three doors — but skip the menu entirely if the user's opening mes
 ### Act 2 — SPECIFY
 
 Load the matching reference file and offer its archetypes — an archetype pre-fills structural defaults for most dimensions. Defaults are **structural only** (cadences, band widths, caps as a fraction of allocated capital, conservative LTV): never an invented venue or token address, never an asset recommendation. Wherever a real address is needed, resolve it or elicit it.
+
+**No matching door (`category: "custom"`).** If the strategy matches none of the three doors, there is no reference file to load — every action in the spec routes to bespoke authoring at Station 3. The core completeness dimensions below still apply in full; elicit them the same way, just without an archetype's structural defaults. This is exactly the case the Act-3 disclosure's custom-permission count (M) exists for.
 
 Fill the dimensions by **infer-then-confirm**: extract everything the user's words already imply, draft the spec with each inference marked as such, and ask only about the genuine gaps — batched into few questions, never an interrogation.
 

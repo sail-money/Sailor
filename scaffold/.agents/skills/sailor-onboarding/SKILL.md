@@ -24,12 +24,12 @@ Here's the journey:
 1. Set up your **SMA** — a self-custodial Safe account only you own — and your agent's wallet.
 2. **Define your agent's strategy** together.
 3. Turn it into a **mandate** — onchain permissions enforced on every transaction; your agent can **never exceed it**, and you can **revoke it anytime**.
-4. **Launch your agent** — running on your machine, on your schedule, inside its bounds.
+4. **Build and run your agent** — on your machine, on your schedule, inside its bounds.
 
 So — **what should your agent do?**
 
 - **Trading** — spot, DCA, rebalancing
-- **Yield** — lending, borrowing, liquidity providing
+- **Yield** — lending, borrowing, liquidity providing, staking, looping
 - **Payments & treasury** — transfers, scheduled moves, operational flows
 
 …or anything else on-chain. **If it's on-chain, we can build it.**
@@ -44,7 +44,7 @@ Two permitted deviations from the verbatim script:
 Compose with these two standing rules:
 
 - If the user's first message is an npm install command, run it, then deliver the welcome immediately after it completes — do not wait for another message.
-- Do not describe, mention, or present any code in `src/` or `examples/` as the user's strategy — treat strategy definition as a blank slate; ask what they want.
+- Do not describe, mention, or present any code in `src/` as the user's strategy — treat strategy definition as a blank slate; ask what they want.
 
 After the welcome, the setup interface (`sailor ui start`, `sailor station start`) launches when you reach the SMA-deployment step below — not before the user has responded.
 
