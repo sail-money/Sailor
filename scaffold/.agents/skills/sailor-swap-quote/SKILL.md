@@ -11,7 +11,8 @@ right now, and the `amountOutMinimum` floor that protects against slippage.
 
 ## When to load
 
-- After `sailor-token-resolve` returned `swapReady: true`.
+**Precondition:** run [`sailor-token-resolve`](../sailor-token-resolve/SKILL.md) first — this skill's inputs (tokenIn/tokenOut addresses, decimals, and the fee tier) come from its output, and it must have returned `swapReady: true` for the pair. Do not hand-type these; a wrong decimals or a non-existent tier produces a wrong or reverting quote.
+
 - Before presenting a mandate to the user (show them the current price).
 - To validate `amountOutMinimum` before the agent dispatches a real swap.
 - Whenever the user asks "what's the price of X?" or "how much WETH for 25 USDC?".
@@ -70,7 +71,12 @@ is the most common reason a legitimate swap gets rejected.
 
 ## If it fails
 
-| Error | Meaning |
+| Error (verbatim from the script) | Meaning / fix |
 |---|---|
-| `QuoterV2 reverted` / `amountOut == 0` | No pool at this fee tier (despite resolve-token). Try the next tier from resolve-token's `probedTiers`, or re-run resolve-token — liquidity may have shifted. |
-| `No RPC for chain` | Run from the project root, or pass `--rpc`. |
+| `QuoterV2 returned 0 … pool is empty or does not exist at this tier` | No pool at this fee tier (despite resolve-token). Try the next tier from resolve-token's `probedTiers`, or re-run resolve-token — liquidity may have shifted. |
+| `QuoterV2 reverted: …` | The `eth_call` to the quoter reverted (bad token/tier/args, or a non-quoter address). Re-check the addresses and tier from resolve-token. |
+| `No RPC for <chain>. Pass --rpc or set RPC_URL in .sail/.env.local.` | No RPC configured for the chain — run from the project root, pass `--rpc`, or set `RPC_URL`. |
+| `Could not resolve chain` / `Unknown chain "<x>"` | No chain configured, or an unrecognized `--chain` value — pass `--chain` or set `CHAIN_ID` in `.sail/.env.local`. |
+| `Missing --<flag>` | A required flag (`--token-in`, `--token-out`, `--amount`, `--decimals-in`, `--decimals-out`, `--fee`) was not passed. |
+| `--slippage-bps must be an integer in [0, 10000]` | Out-of-range slippage — use `0`–`10000` (bps). |
+| `eth_call HTTP <status>` | The RPC endpoint returned a non-200 (dead or rate-limited RPC) — try another `--rpc`. |

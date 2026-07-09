@@ -26,6 +26,8 @@ Defaults: cadence = event-driven (each tick checks price against the levels); pe
 
 Both swap templates are ERC-20 → ERC-20 only (native value rejected) — an ETH leg trades as WETH.
 
+**Feasibility (verify, don't advise).** The pair's pool must actually exist with real liquidity on the target chain — [`sailor-token-resolve`](../../sailor-token-resolve/SKILL.md)'s venue map answers this. No pool on that chain → the leg can't be built there: pick a chain where the pool exists (loop back to Station 1 if it needs adding), or route it bespoke. This checks whether what the user chose is buildable — it never recommends what to trade.
+
 ## Routing (Station 3 reads this)
 
 | Action | Route |

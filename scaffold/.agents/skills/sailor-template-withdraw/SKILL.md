@@ -1,6 +1,6 @@
 ---
 name: sailor-template-withdraw
-description: Gate an SMA's ERC-20 withdrawals by REUSING the shared WithdrawPermission singleton (Protocol/contracts/templates/WithdrawPermission.sol) — register + configure, no per-SMA deploy. Use when the agent may move approved tokens, within a per-tx cap, only to ONE fixed recipient (typically the owner's Safe) for safe-to-safe consolidation. For a mutable multi-recipient allowlist, use sailor-template-transfer instead. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps).
+description: Gate an SMA's ERC-20 withdrawals by REUSING the shared WithdrawPermission singleton (Protocol/contracts/templates/WithdrawPermission.sol) — register + configure, no per-SMA deploy. Use to sweep, exit, cash out, or consolidate to my wallet — the agent may move approved tokens, within a per-tx cap, only to ONE fixed recipient (typically the owner's Safe) for safe-to-safe consolidation. For a mutable multi-recipient allowlist, use sailor-template-transfer instead. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps).
 compatibility: A Sailor project (`@sail/sdk`, `sailor` CLI). Requires WithdrawPermission deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
 metadata:
   workspace: sailor-harness
@@ -10,6 +10,8 @@ metadata:
 ---
 
 # sailor-template-withdraw — bounded withdraw to a fixed recipient via the shared singleton
+
+You typically arrive here from the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) with a complete strategy spec — this spoke covers the bounded-withdraw permission of that plan (often the strategy's exit/consolidation path).
 
 Reuse the shared **`WithdrawPermission`** singleton. Family overview + flow:
 [`sailor-templates`](../sailor-templates/SKILL.md).
@@ -36,6 +38,37 @@ abi.encode(address[] tokens, address allowedRecipient, uint256 maxAmountPerTx)
 | `allowedRecipient` | the single destination (e.g. owner's Safe) |
 | `maxAmountPerTx` | per-withdraw cap, base units |
 
+### Worked example — treasury sweep back to the owner (Unichain)
+
+Let the agent sweep USDC and WETH from the SMA back to the owner's wallet, capped per withdraw.
+The tokens are the verified Unichain continuity addresses; **`allowedRecipient` is the owner's own
+address — supplied by the user, confirm it is checksummed and correct on the target chain before
+configuring** (a wrong recipient here is where funds would go). The recipient placeholder below is
+not a real address.
+
+```json
+{
+  "tokens": [
+    "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+    "0x4200000000000000000000000000000000000006"
+  ],
+  "allowedRecipient": "0xOWNER_WALLET_confirm_with_user",
+  "maxAmountPerTx":   "5000000000"
+}
+```
+
+`maxAmountPerTx: "5000000000"` = 5,000 USDC (6 decimals) — note the cap is a single number in the
+token's base units and applies to **every** token in `tokens`, so a shared cap across tokens of
+different decimals is coarse; use one config per token if the caps must differ. Then register →
+configure → simulate:
+
+```bash
+sailor mandate register  --address <WITHDRAW_PERMISSION> --sma <SMA> --label "treasury-sweep"
+sailor mandate configure --address <WITHDRAW_PERMISSION> --sma <SMA> \
+  --template WithdrawPermission --args-file ./withdraw-config.json
+sailor mandate simulate  --address <WITHDRAW_PERMISSION> --sma <SMA> --calls ./probe.json
+```
+
 ## Steps
 
 Register → configure → simulate → reconfigure mechanics (and the encoding gotcha) live in
@@ -48,3 +81,7 @@ permission live. Template-specific bits:
 - **Blob:** `abi.encode(tokens[], allowedRecipient, maxAmountPerTx)` — **flat params, no wrapper**.
 - **Simulate (mandatory — unaudited example):** withdraw to the recipient within cap passes; any
   other `to`, wrong token, over-cap, or `transferFrom` with `from != SMA` is rejected.
+
+## Next
+
+Once this permission is configured and simulate passes (must-pass AND must-fail cases), return to the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) for the next permission. When every permission in the plan is registered, configured, and simulate-verified, proceed to Station 4 — the sailor-agent-build skill (dispatch mechanics: [`sailor-transactions`](../sailor-transactions/SKILL.md)).

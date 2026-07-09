@@ -96,9 +96,9 @@ When a strategy needs several permissions (e.g. a bounded-approve alongside the 
 
 ## Registration fee
 
-Registering a permission charges a **per-permission fee**, paid on-chain by the agent wallet at the moment of registration. It is a public protocol parameter — `permissionRegistrationFee()` on `SailGovernance` — read **live from the chain**, never hardcoded: it is `0` on the current deploy and higher in production, and the same flow surfaces whichever value the connected chain returns.
+Registering a permission charges a **per-permission fee**, paid on-chain by the agent wallet at the moment of registration. It is a governance-tunable protocol parameter — `permissionRegistrationFee()` on `SailGovernance` — so **read it live from the chain at plan time; never hardcode or quote a rate** (any number written here goes stale). The same flow surfaces whichever value the connected chain returns. The kernel requires `msg.value >= fee × n` for the registration and **refunds any excess**.
 
-- **A mandate is a SET of permissions, so a mandate of N permissions costs `N × fee`.** Three permissions at `0.00001 ETH` each cost `0.00003 ETH` total.
+- **A mandate is a SET of permissions, so a mandate of N permissions costs `N × fee`** at whatever the live `fee` is.
 - **When it's charged:** once per permission, on registration (the `register` / `deploy-clone` step). Already-registered permissions are not re-charged when you re-run `sailor mandate sign`. Revoking does not refund.
 - **Disclosure before signing:** `sailor mandate prepare` reads the live fee and records it in the draft, and `sailor mandate sign` prints `Registration fee: <total> ETH (<N> permissions × <fee> ETH)` before you confirm. The browser sign-time screen shows the same total.
 - **Preflight:** before requesting the owner's signature, the agent wallet's ETH balance is checked against the total fee; an underfunded wallet fails early with `Insufficient ETH for the <X> ETH registration fee` instead of an on-chain revert. **Fund the agent wallet before registering.**

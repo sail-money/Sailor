@@ -1,6 +1,6 @@
 ---
 name: sailor-template-swap
-description: Gate an SMA's DEX swaps by REUSING the shared SwapPermission singleton (Protocol/contracts/templates/SwapPermission.sol) — register + configure, no per-SMA deploy. Use for a bounded swap / DCA mandate on Uniswap V3, V3-02, or V2 with router + token-in/out allowlists, a per-tx cap, and a MANDATORY oracle slippage band (priceOracle is required — for no-oracle tokens use sailor-template-swap-no-oracle). For the LI.FI aggregator or Pendle, author a bespoke permission via sailor-mandates. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps).
+description: Gate an SMA's DEX swaps by REUSING the shared SwapPermission singleton (Protocol/contracts/templates/SwapPermission.sol) — register + configure, no per-SMA deploy. Use when the strategy is to buy, sell, trade, DCA, or rebalance tokens on Uniswap V3, V3-02, or V2 with router + token-in/out allowlists, a per-tx cap, a slippage limit, and a MANDATORY oracle slippage band (priceOracle is required — for no-oracle tokens use sailor-template-swap-no-oracle). For the LI.FI aggregator or Pendle, author a bespoke permission via sailor-mandates. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps).
 compatibility: A Sailor project (`@sail/sdk`, `sailor` CLI). Requires SwapPermission deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
 metadata:
   workspace: sailor-harness
@@ -10,6 +10,9 @@ metadata:
 ---
 
 # sailor-template-swap — bounded DEX swap via the shared singleton
+
+You typically arrive here from the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) with a complete strategy spec — this spoke covers the bounded-swap permission of that plan.
+
 Reuse the shared **`SwapPermission`** singleton instead of authoring/deploying a swap contract.
 Register its address on the SMA and `configure()` your routers, token allowlists, cap, and
 
@@ -100,6 +103,10 @@ adapter** for this pair on this chain (`0x0` reverts):
   "maxPriceAgeSec": 3600
 }
 ```
+
+> **A zero `priceOracle` is not a no-oracle mode — it reverts.** `configure()` reverts
+> `OracleRequired()` when `priceOracle == 0`; this template has no oracle-off setting. For a token
+> with no oracle adapter, use the separate [`sailor-template-swap-no-oracle`](../sailor-template-swap-no-oracle/SKILL.md).
 
 > The `priceOracle` above is the **default Unichain USDC/WETH `IOracle` adapter** — a verified
 > Uniswap V3 30-min TWAP (`UniV3TwapOracle`, pool `0x65081C…DBcF1`, 0.05% tier). It serves the
@@ -206,3 +213,7 @@ it is below `amountIn`.
 - Native value is rejected (`ctx.value != 0 ⇒ deny`) — ERC-20→ERC-20 only.
 - Unaudited example — step 4 is mandatory.
 - `recipient = SMA` is non-negotiable and enforced in the contract, not just config.
+
+## Next
+
+Once this permission is configured and simulate passes (must-pass AND must-fail cases), return to the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) for the next permission. When every permission in the plan is registered, configured, and simulate-verified, proceed to Station 4 — the sailor-agent-build skill (dispatch mechanics: [`sailor-transactions`](../sailor-transactions/SKILL.md)).

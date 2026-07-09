@@ -1,6 +1,6 @@
 ---
 name: sailor-template-approve-batch
-description: Gate an SMA's "approve → call → reset" interactions by REUSING the shared ApproveAndCallBatchPermission singleton (Protocol/contracts/templates/ApproveAndCallBatchPermission.sol) — register + configure, no per-SMA deploy. Use when an agent must approve an ERC-20 to a protocol, make one consuming call, and reset the allowance to zero — all in one atomic batch — with token/spender/target/selector allowlists and a per-token approval cap. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps).
+description: Gate an SMA's "approve → call → reset" interactions by REUSING the shared ApproveAndCallBatchPermission singleton (Protocol/contracts/templates/ApproveAndCallBatchPermission.sol) — register + configure, no per-SMA deploy. Use when an autonomous, recurring, or unattended agent must approve an ERC-20 to a protocol, make one consuming call, and reset the allowance to zero — all in one atomic batch — so no standing allowance is ever left open, with token/spender/target/selector allowlists and a per-token approval cap. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps).
 compatibility: A Sailor project (`@sail/sdk`, `sailor` CLI). Requires ApproveAndCallBatchPermission deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
 metadata:
   workspace: sailor-harness
@@ -10,6 +10,8 @@ metadata:
 ---
 
 # sailor-template-approve-batch — atomic approve/call/reset via the shared singleton
+
+You typically arrive here from the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) with a complete strategy spec — this spoke covers the atomic approve/call/reset permission that lets an autonomous agent run an approve-then-act step unattended.
 
 Reuse the shared **`ApproveAndCallBatchPermission`** singleton — the safest way to bracket a
 single protocol interaction that needs an allowance. Family overview + flow:
@@ -96,3 +98,7 @@ permission live. Template-specific bits:
   transfer/withdraw/deposit/borrow/swap, wrapping is required here; a flat blob reverts at configure.
 - **Simulate (mandatory — unaudited example):** the full allowed approve/call/reset batch passes;
   missing reset, off-list spender/target/selector, or over-cap approve is rejected.
+
+## Next
+
+Once this permission is configured and simulate passes (must-pass AND must-fail cases), return to the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) for the next permission. When every permission in the plan is registered, configured, and simulate-verified, proceed to Station 4 — the sailor-agent-build skill (dispatch mechanics: [`sailor-transactions`](../sailor-transactions/SKILL.md)).

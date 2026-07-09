@@ -1,6 +1,6 @@
 ---
 name: sailor-template-swap-no-oracle
-description: Gate an SMA's DEX swaps for tokens that have NO oracle by REUSING the shared SwapPermissionNoOracle singleton (Protocol/contracts/templates/SwapPermissionNoOracle.sol) — register + configure, no per-SMA deploy. Use for a bounded swap mandate on Uniswap V3/V3-02/V2 (and forks) where no manipulation-resistant price feed exists: router + token-in/out allowlists, a per-tx cap, recipient pinned to the SMA, and a per-pair live-pool "hallucination band". NOT manipulation-resistant — if the token HAS an oracle use sailor-template-swap instead; for the LI.FI aggregator author a bespoke permission via sailor-mandates. Deployed on all 11 Sailor-bundled chains (recorded in sailor-templates/deployed.json).
+description: Gate an SMA's DEX swaps for tokens that have NO oracle by REUSING the shared SwapPermissionNoOracle singleton (Protocol/contracts/templates/SwapPermissionNoOracle.sol) — register + configure, no per-SMA deploy. Use when swapping a meme coin, an illiquid token, or any token with no price feed / no Chainlink oracle, on Uniswap V3/V3-02/V2 (and forks): router + token-in/out allowlists, a per-tx cap, recipient pinned to the SMA, and a per-pair live-pool "hallucination band". NOT manipulation-resistant — if the token HAS an oracle use sailor-template-swap instead; for the LI.FI aggregator author a bespoke permission via sailor-mandates. Deployed on all 11 Sailor-bundled chains (recorded in sailor-templates/deployed.json).
 compatibility: A Sailor project (`@sail/sdk`, `sailor` CLI). Requires SwapPermissionNoOracle deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
 metadata:
   workspace: sailor-harness
@@ -10,6 +10,8 @@ metadata:
 ---
 
 # sailor-template-swap-no-oracle — bounded DEX swap for oracle-less tokens
+
+You typically arrive here from the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) with a complete strategy spec — this spoke covers the bounded-swap permission of that plan for a token with no oracle adapter.
 
 Reuse the shared **`SwapPermissionNoOracle`** singleton instead of authoring/deploying a swap
 contract. Register its address on the SMA and `configure()` your routers, token allowlists, cap,
@@ -74,6 +76,50 @@ reverts `PoolTokenMismatch`. `pool == 0` reverts `ZeroPool`.
 Size the cap with `sailor-swap-quote`. Verify the SDK encoder's param tuple matches the source blob
 above before using it (see [`sailor-templates`](../sailor-templates/SKILL.md) notes).
 
+### Worked example — small DCA into an illiquid token (Unichain)
+
+A 10-USDC-per-tick DCA from USDC into a long-tail token that has no oracle adapter, using a live
+V3 reference pool with a 10% tolerance band.
+
+> ⚠️ **This band is NOT manipulation-resistant.** `toleranceBps: 1000` (10%) only catches an
+> honest mis-quote against the pool's *live* spot price — a flash-loan/sandwich can move that spot
+> within the same transaction. The 10% is deliberately loose to fit a thin pool; it is not slippage
+> protection. Keep `maxAmountPerTx` small so a manipulated fill can only ever move a small amount.
+
+`tokensIn` (USDC) and `routers` (Uniswap V3 SwapRouter02) are the verified Unichain continuity
+addresses. The **illiquid token and its reference pool vary per token** — resolve the token address
+via [`sailor-token-resolve`](../sailor-token-resolve/SKILL.md) and confirm the pool actually prices
+the pair on-chain before configuring; the placeholders below are not real addresses.
+
+```json
+{
+  "routers":        ["0x73855d06DE49d0fe4A9c42636Ba96c62da12FF9C"],
+  "tokensIn":       ["0x078D782b760474a361dDA0AF3839290b0EF57AD6"],
+  "tokensOut":      ["0xILLIQUID_TOKEN_resolve_via_sailor-token-resolve"],
+  "maxAmountPerTx": "10000000",
+  "referencePools": [
+    {
+      "tokenIn":      "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+      "tokenOut":     "0xILLIQUID_TOKEN_resolve_via_sailor-token-resolve",
+      "pool":         "0xREFERENCE_POOL_verify_it_prices_this_pair_onchain",
+      "kind":         1,
+      "toleranceBps": 1000
+    }
+  ]
+}
+```
+
+`maxAmountPerTx: "10000000"` = 10 USDC (6 decimals). One `referencePools` entry is required per
+directional pair (the strict-coverage rule above) — a portfolio into several illiquid tokens needs
+one entry each. Then register → configure → simulate:
+
+```bash
+sailor mandate register  --address <SWAP_NO_ORACLE> --sma <SMA> --label "bounded-swap-no-oracle"
+sailor mandate configure --address <SWAP_NO_ORACLE> --sma <SMA> \
+  --template SwapPermissionNoOracle --args-file ./swap-no-oracle-config.json
+sailor mandate simulate  --address <SWAP_NO_ORACLE> --sma <SMA> --calls ./probe.json
+```
+
 ## Steps
 
 Register → configure → simulate → reconfigure mechanics (and the encoding gotcha) live in
@@ -98,3 +144,7 @@ Template-specific bits:
 - `toleranceBps` is capped at 50% in source; a wider band is meaningless and rejected at configure.
 - Unaudited example — step 4 is mandatory.
 - Aggregator routing (opaque calldata) → author a bespoke permission via [`sailor-mandates`](../sailor-mandates/SKILL.md).
+
+## Next
+
+Once this permission is configured and simulate passes (must-pass AND must-fail cases), return to the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) for the next permission. When every permission in the plan is registered, configured, and simulate-verified, proceed to Station 4 — the sailor-agent-build skill (dispatch mechanics: [`sailor-transactions`](../sailor-transactions/SKILL.md)).

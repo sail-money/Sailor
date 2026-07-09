@@ -1,6 +1,6 @@
 ---
 name: sailor-templates
-description: Registry + reuse guide for Sail's shared permission templates (Protocol/contracts/templates). Load this when you need to know which permission primitives are available as reusable templates and want to gate an SMA's mandate by REUSING a configurable singleton — deploy once, then register + configure per SMA (no per-SMA deploy). Covers swap (oracle-gated and no-oracle), borrow, transfer, deposit, withdraw, and approve-and-call-batch. All seven are deployed today, at the SAME address on every supported chain (CREATE2); addresses live in deployed.json.
+description: Registry + reuse guide for Sail's shared permission templates (Protocol/contracts/templates). Load this to gate my agent / set a spending cap / reuse a permission — to know which permission primitives are available as reusable templates and bound an SMA's mandate by REUSING a configurable singleton — deploy once, then register + configure per SMA (no per-SMA deploy). Covers swap (oracle-gated and no-oracle), borrow, transfer, deposit, withdraw, and approve-and-call-batch. All seven are deployed today, at the SAME address on every supported chain (CREATE2); addresses live in deployed.json.
 compatibility: Node 18+; a Sailor project (`@sail/sdk`, `sailor` CLI); read access to the workspace `Protocol/contracts/templates/` (or set SAIL_PROTOCOL_DIR).
 metadata:
   workspace: sailor-harness

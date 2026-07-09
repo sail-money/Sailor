@@ -1,6 +1,6 @@
 ---
 name: sailor-template-borrow
-description: Gate an SMA's lending borrows by REUSING the shared BorrowPermission singleton (Protocol/contracts/templates/BorrowPermission.sol) — register + configure, no per-SMA deploy. Use for a bounded borrow mandate against Aave / Morpho / Compound with a protocol + asset allowlist, per-tx cap, and an on-chain LTV check via collateral + borrow oracles. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps).
+description: Gate an SMA's lending borrows by REUSING the shared BorrowPermission singleton (Protocol/contracts/templates/BorrowPermission.sol) — register + configure, no per-SMA deploy. Use for a lending / leverage / looping strategy that borrows against Aave / Morpho / Compound with a protocol + asset allowlist, per-tx cap, and an on-chain LTV ceiling (health-factor guard) via collateral + borrow oracles. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps).
 compatibility: A Sailor project (`@sail/sdk`, `sailor` CLI). Requires BorrowPermission deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
 metadata:
   workspace: sailor-harness
@@ -10,6 +10,8 @@ metadata:
 ---
 
 # sailor-template-borrow — bounded lending borrow via the shared singleton
+
+You typically arrive here from the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) with a complete strategy spec — this spoke covers the bounded-borrow permission of that plan (the collateral-supply leg is a separate [`sailor-template-deposit`](../sailor-template-deposit/SKILL.md) permission).
 
 Reuse the shared **`BorrowPermission`** singleton. Family overview + flow:
 [`sailor-templates`](../sailor-templates/SKILL.md).
@@ -53,6 +55,41 @@ abi.encode(address[] protocols, address[] assets, uint256 maxAmountPerTx,
 > portfolio-level exposure, rely on the protocol's health factor or pair with a
 > position-monitoring permission.
 
+### Worked example — conservative USDC borrow with a 50% LTV ceiling (Unichain)
+
+Borrow USDC from one lending market, capped per borrow, with the LTV check **on** — a
+conservative 50% ceiling. USDC (the borrow asset) is the verified Unichain continuity address; the
+**lending pool and both oracles vary per chain/market — verify each on-chain before configuring.**
+The placeholders below are not real addresses.
+
+> **Oracles are both-or-none.** To enforce the LTV ceiling you must set **both** `collateralOracle`
+> and `borrowOracle`; setting exactly one reverts `OracleConfigInconsistent` at configure. Setting
+> **zero** oracles is legal but applies **no LTV ceiling at all** (amount-cap-only) even though
+> `maxLtvBps` is stored — so for a real leverage position, always configure both.
+
+```json
+{
+  "protocols":        ["0xLENDING_POOL_verify_onchain"],
+  "assets":           ["0x078D782b760474a361dDA0AF3839290b0EF57AD6"],
+  "maxAmountPerTx":   "500000000",
+  "maxLtvBps":        5000,
+  "collateralOracle": "0xCOLLATERAL_ORACLE_verify_onchain",
+  "borrowOracle":     "0xBORROW_ORACLE_verify_onchain",
+  "maxPriceAgeSec":   3600
+}
+```
+
+`maxAmountPerTx: "500000000"` = 500 USDC (6 decimals); `maxLtvBps: 5000` = 50%; `maxPriceAgeSec:
+3600` bounds oracle staleness to 1h. Aave variable-rate only (`rateMode == 2`). Then register →
+configure → simulate:
+
+```bash
+sailor mandate register  --address <BORROW_PERMISSION> --sma <SMA> --label "usdc-borrow"
+sailor mandate configure --address <BORROW_PERMISSION> --sma <SMA> \
+  --template BorrowPermission --args-file ./borrow-config.json
+sailor mandate simulate  --address <BORROW_PERMISSION> --sma <SMA> --calls ./probe.json
+```
+
 ## Steps
 
 Register → configure → simulate → reconfigure mechanics (and the encoding gotcha) live in
@@ -66,3 +103,7 @@ permission live. Template-specific bits:
   borrowOracle, maxPriceAgeSec)` — **flat params, no wrapper**.
 - **Simulate (mandatory — unaudited example):** allowed borrow within LTV passes; over-cap,
   over-LTV, or wrong recipient is rejected.
+
+## Next
+
+Once this permission is configured and simulate passes (must-pass AND must-fail cases), return to the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) for the next permission. When every permission in the plan is registered, configured, and simulate-verified, proceed to Station 4 — the sailor-agent-build skill (dispatch mechanics: [`sailor-transactions`](../sailor-transactions/SKILL.md)).

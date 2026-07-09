@@ -22,6 +22,8 @@ Defaults: schedule = the user's; per-tx cap = the largest scheduled move. The us
 | Schedule | The schedule is an agent-side cadence guard (permissions are stateless); wire and confirm it before go-live |
 | Native-ETH exclusion | `TransferPermission` and `WithdrawPermission` cover ERC-20 `transfer`/`transferFrom` only (`value == 0` — native ETH is rejected). Native-ETH payments need wrapped ETH or a bespoke permission |
 
+**Feasibility (verify, don't advise).** Recipients are user-supplied addresses — confirm each is checksummed and valid for the intended chain before it enters the spec. The token being paid must exist on that chain — resolve it via [`sailor-token-resolve`](../../sailor-token-resolve/SKILL.md). A recipient or token that isn't valid on the target chain is caught here, not after signing.
+
 ## Routing (Station 3 reads this)
 
 | Action | Route |

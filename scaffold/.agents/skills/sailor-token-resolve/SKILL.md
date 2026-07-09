@@ -41,6 +41,14 @@ the endpoint; `--all-chains` maps every Sail mainnet (even ones without an RPC c
 those use GeckoTerminal-only data) so you can recommend "put your SMA on chain Y"; `--json`
 forces the rich per-token map for a single token.
 
+> **Coverage caveat — curated tables cover 4 of the 11 supported chains.** The script ships
+> curated token tables + a Uniswap QuoterV2 address for **ethereum, unichain, base, arbitrum**
+> only (the four `--chain` values above). On the other supported chains (optimism, bsc, world
+> chain, hyperevm, megaeth, and the testnets) the script still runs, but the on-chain swap-ready
+> probe needs a QuoterV2 it doesn't have, so results there lean on **GeckoTerminal-only** liquidity
+> data — informational, not a swap-readiness guarantee. On those chains, verify the pool/tier
+> on-chain before binding a mandate.
+
 ## Output shapes (pick the right consumer)
 
 | Invocation | stdout shape |

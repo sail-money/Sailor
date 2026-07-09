@@ -1,6 +1,6 @@
 ---
 name: sailor-template-deposit
-description: Gate an SMA's deposits into vaults / lending pools by REUSING the shared DepositPermission singleton (Protocol/contracts/templates/DepositPermission.sol) — register + configure, no per-SMA deploy. Use for a bounded deposit mandate into ERC-4626 vaults (deposit/mint) or Aave v2/v3 (deposit/supply) with a target + token allowlist and a per-tx cap; the resulting position always accrues to the SMA. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps).
+description: Gate an SMA's deposits into vaults / lending pools by REUSING the shared DepositPermission singleton (Protocol/contracts/templates/DepositPermission.sol) — register + configure, no per-SMA deploy. Use for a yield / earn / APY / farm strategy that supplies tokens into ERC-4626 vaults (deposit/mint) or Aave v2/v3 (deposit/supply), with a target + token allowlist and a per-tx cap; the resulting position always accrues to the SMA. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps).
 compatibility: A Sailor project (`@sail/sdk`, `sailor` CLI). Requires DepositPermission deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
 metadata:
   workspace: sailor-harness
@@ -10,6 +10,8 @@ metadata:
 ---
 
 # sailor-template-deposit — bounded vault/lending deposit via the shared singleton
+
+You typically arrive here from the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) with a complete strategy spec — this spoke covers the bounded-deposit permission of that plan.
 
 Reuse the shared **`DepositPermission`** singleton. Family overview + flow:
 [`sailor-templates`](../sailor-templates/SKILL.md). The operator/agent chooses the target vault
@@ -48,6 +50,35 @@ abi.encode(address[] targets, address[] tokens, uint256 maxAmountPerTx)
 | `tokens` | ERC-20 allowlist (the asset for Aave; the vault itself for ERC-4626) |
 | `maxAmountPerTx` | per-deposit cap (assets, or shares for `mint`), base units |
 
+### Worked example — single-market USDC supply into Aave v3 (Unichain)
+
+Supply USDC into one lending market, capped per deposit; the position accrues to the SMA
+(`onBehalfOf == SMA` is enforced on-chain). USDC is the verified Unichain continuity address; the
+**lending-pool address varies per chain/market — verify it on-chain (the contract exists and
+exposes the expected `supply(...)` interface) before configuring.** The target placeholder below
+is not a real address.
+
+```json
+{
+  "targets": ["0xLENDING_POOL_verify_onchain"],
+  "tokens":  ["0x078D782b760474a361dDA0AF3839290b0EF57AD6"],
+  "maxAmountPerTx": "1000000000"
+}
+```
+
+`maxAmountPerTx: "1000000000"` = 1,000 USDC (6 decimals). This example uses Aave v3 `supply`, so
+the cap is in the **asset's** base units. For an ERC-4626 `mint` the cap would instead be in
+**shares** (effective asset cap = `maxAmountPerTx × sharePrice`) — size accordingly, and remember
+that for ERC-4626 the `tokens` allowlist must list the **vault** address (the deposit calldata
+carries no asset). Then register → configure → simulate:
+
+```bash
+sailor mandate register  --address <DEPOSIT_PERMISSION> --sma <SMA> --label "usdc-supply"
+sailor mandate configure --address <DEPOSIT_PERMISSION> --sma <SMA> \
+  --template DepositPermission --args-file ./deposit-config.json
+sailor mandate simulate  --address <DEPOSIT_PERMISSION> --sma <SMA> --calls ./probe.json
+```
+
 ## Steps
 
 Register → configure → simulate → reconfigure mechanics (and the encoding gotcha) live in
@@ -60,3 +91,7 @@ permission live. Template-specific bits:
 - **Blob:** `abi.encode(targets[], tokens[], maxAmountPerTx)` — **flat params, no wrapper**.
 - **Simulate (mandatory — unaudited example):** allowed deposit within cap passes; off-list
   target/token, over-cap, or `receiver != SMA` is rejected.
+
+## Next
+
+Once this permission is configured and simulate passes (must-pass AND must-fail cases), return to the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) for the next permission. When every permission in the plan is registered, configured, and simulate-verified, proceed to Station 4 — the sailor-agent-build skill (dispatch mechanics: [`sailor-transactions`](../sailor-transactions/SKILL.md)).
