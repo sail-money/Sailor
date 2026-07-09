@@ -99,18 +99,40 @@ export default function SigningStation() {
       }
       setRequests(requestsRef.current)
     } else if (msg.type === 'request-resolved') {
+      // Reaching here means an off-chain EIP-712 signature was captured (the
+      // daemon resolves owner-submitted transactions via 'request-confirmed'
+      // below instead, once the receipt is known) — the agent still has to
+      // submit the actual on-chain transaction, so this is NOT success yet.
       const remaining = requestsRef.current.filter((r) => r.id !== msg.requestId)
       requestsRef.current = remaining
       setRequests(remaining)
-      // Only show the full SuccessScreen when this was the last request.
+      // Only show the full-screen state when this was the last request.
       // When more requests remain, go idle so the next card shows immediately
       // instead of closing the station and sending the user to the dashboard.
       setPhase((p) => {
         if (p.requestId !== msg.requestId) return p
         if (p.phase === 'done' && remaining.length === 0) {
-          return { phase: 'success', requestId: msg.requestId, kind: p.kind }
+          return { phase: 'awaiting-confirmation', requestId: msg.requestId, kind: p.kind }
         }
         return { phase: 'idle' }
+      })
+    } else if (msg.type === 'request-confirmed') {
+      // The on-chain outcome is now known — either the daemon confirmed an
+      // owner-submitted transaction's receipt itself, or the agent reported
+      // back after submitting on the strength of a captured signature. Only
+      // now is it safe to say the request truly succeeded or failed.
+      setPhase((p) => {
+        if (p.requestId !== msg.requestId) return p
+        const { outcome, error } = msg.confirmation ?? {}
+        if (outcome === 'confirmed') {
+          return { phase: 'success', requestId: msg.requestId, kind: p.kind }
+        }
+        return {
+          phase: 'chain-failed',
+          requestId: msg.requestId,
+          kind: p.kind,
+          message: error ?? 'The transaction failed on-chain.',
+        }
       })
     }
   }, [])
@@ -144,6 +166,10 @@ export default function SigningStation() {
           </div>
         ) : phase.phase === 'success' ? (
           <SuccessScreen kind={phase.kind} onDone={() => { setPhase({ phase: 'idle' }); window.location.hash = '#/dashboard' }} />
+        ) : phase.phase === 'chain-failed' ? (
+          <FailureScreen message={phase.message} onDone={() => { setPhase({ phase: 'idle' }); window.location.hash = '#/dashboard' }} />
+        ) : phase.phase === 'awaiting-confirmation' ? (
+          <AwaitingConfirmationScreen onDone={() => { setPhase({ phase: 'idle' }); window.location.hash = '#/dashboard' }} />
         ) : hasDraft ? (
           <MandateSigningFlow draft={draft} embedded />
         ) : requests.length === 0 ? (
@@ -428,6 +454,57 @@ function SuccessScreen({ kind, onDone }) {
           {isPermission
             ? 'Your agent is authorized to dispatch within this permission.'
             : 'The request was signed and submitted.'}
+        </p>
+      </header>
+      <div className={styles.emptyCta}>
+        <SailButton fullWidth onClick={onDone}>
+          Back to dashboard →
+        </SailButton>
+      </div>
+    </GlassCard>
+  )
+}
+
+/* Shown for a typed-data signature (e.g. register-permission): the owner's
+   part is done, but the agent still has to submit the on-chain transaction —
+   this is deliberately NOT a success state. */
+function AwaitingConfirmationScreen({ onDone }) {
+  return (
+    <GlassCard className={styles.emptyCard}>
+      <div className={styles.emptyCardSai} aria-hidden>
+        <Sai size={64} animate />
+      </div>
+      <header className={styles.emptyCardHeader}>
+        <span className={styles.emptyKicker}>SIGNED</span>
+        <h1 className={`${shared.displayHeadline} ${styles.emptyHeadline}`}>
+          Signature received.
+        </h1>
+        <p className={`${shared.italicMannerism} ${styles.emptyTagline}`}>
+          The agent is submitting the on-chain transaction now — this page will update once it confirms.
+        </p>
+      </header>
+      <div className={styles.emptyCta}>
+        <SailButton fullWidth onClick={onDone}>
+          Back to dashboard →
+        </SailButton>
+      </div>
+    </GlassCard>
+  )
+}
+
+function FailureScreen({ message, onDone }) {
+  return (
+    <GlassCard className={styles.emptyCard}>
+      <div className={styles.emptyCardSai} aria-hidden>
+        <Sai size={64} animate />
+      </div>
+      <header className={styles.emptyCardHeader}>
+        <span className={styles.emptyKicker} style={{ color: 'var(--accent-red, #f87171)' }}>FAILED</span>
+        <h1 className={`${shared.displayHeadline} ${styles.emptyHeadline}`} style={{ color: 'var(--accent-red, #f87171)' }}>
+          ✕ Transaction failed on-chain.
+        </h1>
+        <p className={`${shared.italicMannerism} ${styles.emptyTagline}`}>
+          {message}
         </p>
       </header>
       <div className={styles.emptyCta}>

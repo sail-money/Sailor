@@ -137,11 +137,26 @@ export type SigningResponse =
   | { status: "signature"; requestId: string; signature: Hex }
   | { status: "rejected"; requestId: string; reason?: string };
 
+/**
+ * The final on-chain outcome of a signing request, reported once it is known
+ * — never assumed from "a wallet accepted it" or "a signature was captured".
+ * For `type: "transaction"` requests the daemon determines this itself (it
+ * has the txHash + chainId). For `type: "typed-data"` requests the owner's
+ * signature only authorizes the agent to submit a transaction later; the
+ * agent reports the outcome back once it knows it (see `confirmOutcome` on
+ * `SigningChannel`).
+ */
+export type SigningConfirmation =
+  | { outcome: "confirmed"; txHash?: Hex }
+  | { outcome: "reverted"; txHash?: Hex; error?: string }
+  | { outcome: "failed"; error?: string };
+
 /** WebSocket messages: server → UI. */
 export type ServerMessage =
   | { type: "pending"; requests: SigningRequest[] }
   | { type: "request"; request: SigningRequest }
-  | { type: "request-resolved"; requestId: string };
+  | { type: "request-resolved"; requestId: string }
+  | { type: "request-confirmed"; requestId: string; confirmation: SigningConfirmation };
 
 /** WebSocket messages: UI → server. */
 export type ClientMessage =

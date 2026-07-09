@@ -32,6 +32,7 @@ import {
 import {
   http,
   type Address,
+  type Hex,
   type PublicClient,
   createPublicClient,
   createWalletClient,
@@ -444,17 +445,32 @@ async function reattachMandates(
   });
 
   say(() => console.log(`Submitting re-approval (agent pays gas; fee ${fee} wei)…`));
-  const txHash = await walletClient.sendTransaction({
-    to: project.contracts.kernel,
-    data: registerData,
-    value: fee,
-    account: agentSigner.viemAccount,
-    chain,
-  });
+  let txHash: Hex;
+  try {
+    txHash = await walletClient.sendTransaction({
+      to: project.contracts.kernel,
+      data: registerData,
+      value: fee,
+      account: agentSigner.viemAccount,
+      chain,
+    });
+  } catch (err) {
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "failed",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
   if (receipt.status !== "success") {
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "reverted",
+      txHash,
+      error: `registerPermissions reverted (tx ${txHash})`,
+    });
     throw new Error(`registerPermissions reverted (tx ${txHash})`);
   }
+  await channel.confirmOutcome(response.requestId, { outcome: "confirmed", txHash });
 
   say(() => console.log("✓", `${permissions.length} mandate(s) re-approved`));
   appendActivity({

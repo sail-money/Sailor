@@ -1,6 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { SigningResponse, SigningTxRequest, SigningTypedDataRequest } from "@sail/sdk";
+import type {
+  SigningConfirmation,
+  SigningResponse,
+  SigningTxRequest,
+  SigningTypedDataRequest,
+} from "@sail/sdk";
 import type { Address } from "viem";
 import { SigningServer, reapStaleRuntimeState } from "./server.js";
 
@@ -23,6 +28,14 @@ export interface SigningChannel {
   stop(): void;
   requestSignature(req: SigningRequestInput, timeoutMs?: number): Promise<SigningResponse>;
   waitForWallet(timeoutMs?: number): Promise<Address>;
+  /**
+   * Report the final on-chain outcome for a `typed-data` request whose
+   * signature this command later submitted itself (e.g. register-permission)
+   * — the signing station has no way to observe that submission on its own.
+   * Best-effort: a failure to deliver this must never mask the command's
+   * real, already-known result.
+   */
+  confirmOutcome(requestId: string, confirmation: SigningConfirmation): Promise<void>;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -89,6 +102,19 @@ export class SigningClient implements SigningChannel {
       }
     }
     throw new Error(`Signing request "${req.title}" timed out after ${timeoutMs / 1000}s`);
+  }
+
+  async confirmOutcome(requestId: string, confirmation: SigningConfirmation): Promise<void> {
+    try {
+      await fetch(`${this.baseUrl}/requests/${encodeURIComponent(requestId)}/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-sailor-secret": this.requestSecret },
+        body: JSON.stringify(confirmation),
+      });
+    } catch {
+      // Best-effort UI notification — the command's own result (already
+      // determined by the caller) must never depend on this succeeding.
+    }
   }
 
   async waitForWallet(timeoutMs = 5 * 60 * 1000): Promise<Address> {

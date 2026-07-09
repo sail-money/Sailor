@@ -173,6 +173,31 @@ function publicClientFor(project: ProjectContext): PublicClient {
   }).extend(publicActions) as PublicClient;
 }
 
+/**
+ * Poll isConfigured with backoff after a receipt, so a node lagging behind the
+ * one that served the receipt doesn't produce a false "not configured" failure
+ * for a write that already succeeded (observed on Base). Mirrors
+ * mandate-contracts.ts's pollForPermission.
+ */
+async function pollIsConfigured(
+  publicClient: PublicClient,
+  singleton: Address,
+  sma: Address,
+  attempts = 6,
+): Promise<boolean> {
+  for (let i = 0; i < attempts; i++) {
+    const configured = await publicClient.readContract({
+      address: singleton,
+      abi: ConfigurablePermissionAbi,
+      functionName: "isConfigured",
+      args: [sma],
+    });
+    if (configured) return true;
+    if (i < attempts - 1) await new Promise((r) => setTimeout(r, 1500));
+  }
+  return false;
+}
+
 function announceSigningUrl(json: boolean): void {
   const url = signingPageUrl(projectPort(process.cwd()));
   if (json) {
@@ -460,13 +485,11 @@ async function runConfigure(
     throw new Error(`configureDirect transaction failed (tx ${response.txHash})`);
   }
 
-  // ── Verify isConfigured == true on-chain.
-  const configuredNow = await publicClient.readContract({
-    address: singleton,
-    abi: ConfigurablePermissionAbi,
-    functionName: "isConfigured",
-    args: [sma],
-  });
+  // ── Verify isConfigured == true on-chain. Retried with backoff: on fast-finality
+  // chains (e.g. Base) an RPC read immediately after the receipt can still hit a
+  // node lagging behind the one that served the receipt, reporting a false failure
+  // for a config write that actually succeeded.
+  const configuredNow = await pollIsConfigured(publicClient, singleton, sma);
   if (!configuredNow) {
     throw new Error(
       `Tx ${response.txHash} mined, but isConfigured(${sma}) is still false. Verify on-chain.`,

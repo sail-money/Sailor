@@ -7,6 +7,7 @@ import { findFreePort, isProcessAlive } from "../lib/process.js";
 import type {
   ClientMessage,
   ServerMessage,
+  SigningConfirmation,
   SigningRequest,
   SigningResponse,
   SigningTxRequest,
@@ -78,6 +79,8 @@ const RESULT_LONGPOLL_MS = 25_000;
  *   HTTP GET  /wallet              → { address }
  *   HTTP POST /requests            → { id }
  *   HTTP GET  /requests/:id/result → 200 + SigningResponse | 204 re-poll
+ *   HTTP POST /requests/:id/confirm → report a later-known on-chain outcome for a
+ *                                      typed-data request the agent itself submitted
  *   WS   /                         → server pushes ServerMessage, client sends ClientMessage
  */
 export class SigningServer {
@@ -289,7 +292,11 @@ export class SigningServer {
     return result;
   }
 
-  private recordResult(response: SigningResponse, request?: SigningRequest): void {
+  private recordResult(
+    response: SigningResponse,
+    request?: SigningRequest,
+    confirmation?: SigningConfirmation,
+  ): void {
     const id = response.requestId;
     // Guard against double-resolution: a concurrent WS message and a timeout
     // firing in the same event loop tick could both try to resolve the same request.
@@ -300,9 +307,71 @@ export class SigningServer {
       for (const w of waiters) w(response);
       this.resultWaiters.delete(id);
     }
-    this.broadcast({ type: "request-resolved", requestId: id });
+    // `confirmation` means we already know the on-chain outcome (owner-submitted
+    // transaction, checked below before this is ever called) — tell the UI that
+    // directly instead of the bare "resolved" message, so it never shows success
+    // for a request whose tx reverted.
+    if (confirmation) {
+      this.broadcast({ type: "request-confirmed", requestId: id, confirmation });
+    } else {
+      this.broadcast({ type: "request-resolved", requestId: id });
+    }
     setTimeout(() => this.results.delete(id), 10 * 60 * 1000).unref?.();
     this.logOwnerActivity(response, request);
+  }
+
+  /**
+   * Owner-submitted transactions (create-sma, deploy-mandate, set-delegate,
+   * arbitrary-tx) are broadcast by the browser wallet directly — a returned
+   * hash only means "accepted by the mempool", not "succeeded". Wait for the
+   * receipt before telling the UI the request is resolved, so a reverted tx
+   * (e.g. the owner's wallet ran out of ETH mid-flow) surfaces as a failure
+   * instead of the false "done" screen the UI used to show on a bare hash.
+   */
+  private async confirmSignedTransaction(
+    requestId: string,
+    txHash: Hex,
+    request?: SigningRequest,
+  ): Promise<void> {
+    const response: SigningResponse = { status: "signed", requestId, txHash };
+    const chainId = request?.chainId;
+    if (chainId == null) {
+      this.recordResult(response, request, {
+        outcome: "failed",
+        error: "Missing chain id — could not confirm the transaction on-chain.",
+      });
+      return;
+    }
+    try {
+      const rpcUrl = getRpcUrl(chainId);
+      if (!rpcUrl) throw new Error(`No RPC URL configured for chain ${chainId}`);
+      const client = createPublicClient({ transport: http(rpcUrl, { timeout: 10_000 }) });
+      const receipt = await client.waitForTransactionReceipt({ hash: txHash, timeout: 120_000 });
+      if (receipt.status === "success") {
+        this.recordResult(response, request, { outcome: "confirmed", txHash });
+      } else {
+        this.recordResult(response, request, {
+          outcome: "reverted",
+          txHash,
+          error: `Transaction reverted on-chain (${txHash}).`,
+        });
+      }
+    } catch (err) {
+      this.recordResult(response, request, {
+        outcome: "failed",
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  /**
+   * Report the final on-chain outcome for a `typed-data` request whose
+   * signature the agent later submitted itself (e.g. register-permission) —
+   * the daemon has no way to observe that submission on its own, so the
+   * agent process reports back once it knows. See `SigningChannel.confirmOutcome`.
+   */
+  async confirmOutcome(requestId: string, confirmation: SigningConfirmation): Promise<void> {
+    this.broadcast({ type: "request-confirmed", requestId, confirmation });
   }
 
   /**
@@ -653,6 +722,28 @@ export class SigningServer {
       return;
     }
 
+    const confirmMatch = url.match(/^\/requests\/([^/]+)\/confirm$/);
+    if (confirmMatch && req.method === "POST") {
+      if (!isAuthenticated) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "forbidden" }));
+        return;
+      }
+      const id = decodeURIComponent(confirmMatch[1]);
+      this.readBody(req)
+        .then((body) => {
+          const confirmation = JSON.parse(body) as SigningConfirmation;
+          this.confirmOutcome(id, confirmation);
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: true }));
+        })
+        .catch((err) => {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        });
+      return;
+    }
+
     // Static UI — serve the built signing UI if available.
     if (this.uiDist) {
       const rawPath = (req.url ?? "/").split("?")[0];
@@ -727,10 +818,7 @@ export class SigningServer {
     const { request } = entry;
 
     if (msg.type === "signed") {
-      this.recordResult(
-        { status: "signed", requestId: msg.requestId, txHash: msg.txHash as Hex },
-        request,
-      );
+      void this.confirmSignedTransaction(msg.requestId, msg.txHash as Hex, request);
     } else if (msg.type === "signature") {
       this.recordResult(
         { status: "signature", requestId: msg.requestId, signature: msg.signature as Hex },

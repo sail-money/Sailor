@@ -692,19 +692,34 @@ export async function registerMandate(
         args: [smaAddress, templateAddress, signature],
       });
 
-  const txHash = await walletClient.sendTransaction({
-    to: project.contracts.kernel,
-    data: registerData,
-    value: fee,
-    account: agentSigner.viemAccount,
-    chain,
-  });
+  let txHash: Hex;
+  try {
+    txHash = await walletClient.sendTransaction({
+      to: project.contracts.kernel,
+      data: registerData,
+      value: fee,
+      account: agentSigner.viemAccount,
+      chain,
+    });
+  } catch (err) {
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "failed",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
 
   say(() => console.log("Waiting for confirmation…"));
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
   if (receipt.status !== "success") {
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "reverted",
+      txHash,
+      error: `registerPermission reverted (tx ${txHash})`,
+    });
     throw new Error(`registerPermission reverted (tx ${txHash})`);
   }
+  await channel.confirmOutcome(response.requestId, { outcome: "confirmed", txHash });
 
   say(() => console.log("✓", `Permission "${template.label}" registered`));
   // The agent (manager) submits and pays for this on-chain registration; the

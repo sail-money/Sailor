@@ -52,6 +52,7 @@ import {
 } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { appendActivity, nowIso } from "../lib/io.js";
+import { registrationGate } from "../lib/registration-fee.js";
 import { explainPermission } from "../lib/permission-explainer.js";
 import { type DeployedMandate, MandateStore } from "../lib/mandates.js";
 import { emit } from "../lib/output.js";
@@ -721,26 +722,46 @@ async function runDeployClone(
     functionName: "deployAndAttach",
     args: [sma, impl, salt, initData, deadline, signature],
   });
-  const txHash = await walletClient.sendTransaction({
-    to: project.contracts.mandateFactory,
-    data,
-    value: fee,
-    account: agentSigner.viemAccount,
-    chain,
-  });
+  let txHash: Hex;
+  try {
+    txHash = await walletClient.sendTransaction({
+      to: project.contracts.mandateFactory,
+      data,
+      value: fee,
+      account: agentSigner.viemAccount,
+      chain,
+    });
+  } catch (err) {
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "failed",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
 
   say(() => console.log("Waiting for confirmation…"));
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
   if (receipt.status !== "success") {
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "reverted",
+      txHash,
+      error: `deployAndAttach reverted (tx ${txHash})`,
+    });
     throw new Error(`deployAndAttach reverted (tx ${txHash})`);
   }
 
   const permissionRegistered = await pollForPermission(publicClient, project.contracts.kernel, sma, clone);
   if (!permissionRegistered) {
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "reverted",
+      txHash,
+      error: `Tx ${txHash} mined, but clone ${clone} is not in getPermissions(${sma}).`,
+    });
     throw new Error(
       `Tx ${txHash} mined, but clone ${clone} is not in getPermissions(${sma}). Verify on-chain.`,
     );
   }
+  await channel.confirmOutcome(response.requestId, { outcome: "confirmed", txHash });
   say(() => console.log("✓", `Deployed + registered ${spec.label} at ${clone}`));
 
   const store = new MandateStore();
@@ -1231,6 +1252,23 @@ async function registerBatchOnSma(
   const flatFee = await readPermissionRegistrationFee(publicClient, project.contracts.governance);
   const fee = flatFee * BigInt(permissions.length);
 
+  // Preflight the agent wallet's balance BEFORE asking the owner to sign — an
+  // underfunded agent wallet fails on gas after the signature is spent, wasting
+  // the owner's approval for nothing. Same gate the single-address register
+  // path already applies (see onboard.ts registerMandate).
+  const agentBalanceWei = await publicClient.getBalance({
+    address: agentSigner.viemAccount.address,
+  });
+  const gate = registrationGate({
+    estimate: {
+      totalWei: fee,
+      perPermission: permissions.map((permission) => ({ permission, feeWei: flatFee })),
+    },
+    agentBalanceWei,
+    chainId: project.chainId,
+  });
+  say(() => console.log(gate.disclosure));
+
   const response = await channel.requestSignature({
     type: "typed-data",
     kind: "register-permission",
@@ -1273,17 +1311,32 @@ async function registerBatchOnSma(
   });
 
   say(() => console.log(`Submitting batch registration (agent pays gas; fee ${fee} wei)…`));
-  const txHash = await walletClient.sendTransaction({
-    to: project.contracts.kernel,
-    data: registerData,
-    value: fee,
-    account: agentSigner.viemAccount,
-    chain,
-  });
+  let txHash: Hex;
+  try {
+    txHash = await walletClient.sendTransaction({
+      to: project.contracts.kernel,
+      data: registerData,
+      value: fee,
+      account: agentSigner.viemAccount,
+      chain,
+    });
+  } catch (err) {
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "failed",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
   if (receipt.status !== "success") {
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "reverted",
+      txHash,
+      error: `registerPermissions reverted (tx ${txHash})`,
+    });
     throw new Error(`registerPermissions reverted (tx ${txHash})`);
   }
+  await channel.confirmOutcome(response.requestId, { outcome: "confirmed", txHash });
 
   for (const permission of permissions) {
     const present = await pollForPermission(publicClient, project.contracts.kernel, sma, permission);
