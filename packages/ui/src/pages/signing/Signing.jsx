@@ -421,6 +421,11 @@ function CreateSmaStep({ owner, managerAddress, chainId, onDone, progressIndex, 
   const [phase, setPhase] = useState('idle') // idle | building | wallet | confirming | error
   const [error, setError] = useState('')
   const [txHash, setTxHash] = useState(undefined)
+  // The salt build-create-tx chose (or was given) for this deploy — persisted to
+  // account.json below so `sailor account predict`/`add-chain` can reproduce the
+  // exact same CREATE2 address later instead of falling back to a default salt
+  // that was never actually used.
+  const [saltNonce, setSaltNonce] = useState(undefined)
   const { sendTransactionAsync } = useSendTransaction()
   const { data: receipt } = useWaitForTransactionReceipt({ hash: txHash, confirmations: 1 })
 
@@ -434,11 +439,11 @@ function CreateSmaStep({ owner, managerAddress, chainId, onDone, progressIndex, 
     fetch('/api/onboard/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ safe, owner, manager: managerAddress, txHash: receipt.transactionHash, chainId }),
+      body: JSON.stringify({ safe, owner, manager: managerAddress, txHash: receipt.transactionHash, chainId, saltNonce }),
     })
       .then(() => onDone(safe))
       .catch((err) => { setError(err.message); setPhase('error') })
-  }, [receipt, owner, managerAddress, chainId, onDone])
+  }, [receipt, owner, managerAddress, chainId, saltNonce, onDone])
 
   async function create() {
     setPhase('building')
@@ -449,8 +454,9 @@ function CreateSmaStep({ owner, managerAddress, chainId, onDone, progressIndex, 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ owner, manager: managerAddress, chainId }),
       })
-      const { to, data } = await buildRes.json()
+      const { to, data, saltNonce: chosenSaltNonce } = await buildRes.json()
       if (!buildRes.ok) throw new Error(data?.error ?? 'Build failed')
+      setSaltNonce(chosenSaltNonce)
       setPhase('wallet')
       // Pass the target chainId so wagmi resolves the configured viem chain object and
       // switches the wallet if needed. Without it, viem's sendTransaction sees

@@ -1527,7 +1527,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
   // account.json (same format as `sailor onboard`).
   app.post('/api/onboard/complete', async (req, res) => {
     try {
-      const { safe, owner, manager, txHash, chainId: reqChainId } = req.body ?? {}
+      const { safe, owner, manager, txHash, chainId: reqChainId, saltNonce } = req.body ?? {}
       if (!isAddress(safe) || !isAddress(owner)) {
         return res.status(400).json({ error: 'safe and owner must be valid addresses' })
       }
@@ -1560,6 +1560,11 @@ export function startServer(sailDir, { port = PORT } = {}) {
         chainId,
         createdAtBlock,
         ...(txHash ? { txHash } : {}),
+        // Persist the exact salt build-create-tx used — `sailor account predict`
+        // and `account add-chain` need this to reproduce the deployed CREATE2
+        // address; without it they silently fall back to a default salt that
+        // was never actually used, and predict disagrees with what's live.
+        ...(saltNonce != null ? { saltNonce: String(saltNonce) } : {}),
       }
       fs.mkdirSync(sailDir, { recursive: true })
       // Append to multi-SMA list before overwriting the active pointer.

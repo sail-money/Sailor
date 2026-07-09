@@ -768,7 +768,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
       const completeRes1 = await fetch('/api/onboard/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ safe, owner, manager: managerAddress, txHash: registerHash, chainId }),
+        body: JSON.stringify({ safe, owner, manager: managerAddress, txHash: registerHash, chainId, saltNonce }),
       })
       const completeData1 = await completeRes1.json()
       if (completeData1?.account) {
@@ -795,7 +795,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
     const completeRes2 = await fetch('/api/onboard/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ safe, owner, manager: managerAddress, txHash: hash, chainId }),
+      body: JSON.stringify({ safe, owner, manager: managerAddress, txHash: hash, chainId, saltNonce }),
     })
     const completeData2 = await completeRes2.json()
     if (completeData2?.account) {

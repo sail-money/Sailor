@@ -107,7 +107,15 @@ export async function accountPredict(options: PredictOptions): Promise<void> {
   if (options.salt != null && !/^\d+$/.test(options.salt)) {
     throw new Error(`Invalid --salt value: "${options.salt}" — must be a non-negative integer.`);
   }
-  const saltNonce = options.salt != null ? BigInt(options.salt) : 0n;
+  // Prefer the salt actually recorded for this SMA (e.g. from a UI deploy) over
+  // a bare default — otherwise predict silently disagrees with what's live
+  // on-chain whenever the deploy used a non-zero salt.
+  const saltNonce =
+    options.salt != null
+      ? BigInt(options.salt)
+      : stored?.saltNonce != null
+        ? BigInt(stored.saltNonce)
+        : 0n;
 
   // ── Determine chains ─────────────────────────────────────────────────────────
   let chainIds: SailChainId[];
