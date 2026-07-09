@@ -48,6 +48,8 @@ each command named here exists in the CLI source.
 | `sailor mandate update` | Update tracked-permission metadata (`--name`, `--source-path`, `--artifact-path`) |
 | `sailor mandate deploy-clone` | Deploy + register a standalone clone permission from a published template — use `mandate deploy` today; `deploy-clone` requires clone templates and none are deployed yet |
 
+> **Change a mandate's bounds** (new cap/allowlist) with `sailor mandate configure --force` — re-encode the blob on the same registered singleton, no re-register. `sailor mandate update` changes only *tracked metadata* (name, source/artifact paths), never bounds.
+
 ## Signing station
 
 | Command | What it does |

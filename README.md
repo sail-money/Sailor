@@ -61,24 +61,29 @@ Project files live on your host via the volume mount; prefix `sailor` commands w
 
 The recommended path is agent-driven: open the scaffolded folder in Claude Code, Cursor, Codex, or any AI coding agent and say **"start"** — the scaffold's `AGENTS.md` and skills walk the agent through everything below. The direct-CLI version of the same journey:
 
+The journey is five stations: **ARRIVE → STRATEGY → MANDATE → AGENT → SAIL** (`AGENTS.md` is the map). Directly on the CLI:
+
 ```bash
 npx sailor init my-agent && cd my-agent && npm install
 
-# 1. Generate the agent's encrypted signing key (geth keystore v3 on disk)
+# ARRIVE — encrypted signing key, owner wallet, and the SMA (a Safe) on-chain
 sailor keys generate --type agent-wallet
-
-# 2. Connect your wallet as owner, then deploy the SMA (a Safe) on-chain
 sailor owner connect
 sailor onboard --new-sma
 
-# 3. Give the agent a mandate — register + configure a shared permission
-#    template (swap, transfer, deposit, ...). The skills flow drives this
-#    conversationally; directly, it is register then configure:
-sailor mandate register --address <templateAddress> --sma <yourSMA>
-sailor mandate configure --address <templateAddress> --template SwapPermission --args-file swap-config.json
+# STRATEGY — make the strategy concrete (.sail/strategy.md). No CLI step; the
+#   skills flow runs it as a guided conversation, then every later stage reads it.
 
-# 4. Run the agent loop (or --once for a single tick)
+# MANDATE — register + configure a shared permission singleton (both required;
+#   a registered-but-unconfigured singleton denies every call):
+sailor mandate register  --address <singleton> --sma <yourSMA>
+sailor mandate configure --address <singleton> --sma <yourSMA> --template SwapPermission --args-file swap-config.json
+
+# AGENT — adapt the tick loop in src/agent.ts, then run a single tick
 sailor run --once
+
+# SAIL — launch unattended, then operate (monitor / tune / pause / revoke / withdraw)
+sailor service install
 ```
 
 **See an action get blocked.** The fail-closed guarantee is testable before anything is at risk — probe the mandate off-chain with `sailor mandate simulate` (an `eth_call`; spends no gas, signs nothing):

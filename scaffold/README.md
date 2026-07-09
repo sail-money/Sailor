@@ -4,7 +4,7 @@ A blank Sail Protocol agent project. Open this folder in your AI coding assistan
 
 > start
 
-Your assistant will walk you through every step — chain selection, SMA deployment, strategy design, mandate authoring, and automation.
+Your assistant will walk you through the five stations — **ARRIVE** (project, keys, account, chain) → **STRATEGY** (define what the agent does) → **MANDATE** (the onchain bounds it runs inside) → **AGENT** (the tick loop) → **SAIL** (launch, operate, exit). `AGENTS.md` is the map: each station's owning skill, entry gate, and exit check.
 
 ## Project layout
 
