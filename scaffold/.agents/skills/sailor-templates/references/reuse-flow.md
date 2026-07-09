@@ -98,11 +98,21 @@ When the owner IS the SMA's `permissionSigner` (the default Sailor onboarding), 
 `configureDirect(account, <config blob>)` as a plain owner transaction — `msg.sender ==
 permissionSigner` holds and no EIP-712 signature is needed — via the shipped command:
 ```bash
+# --template + --args-file only works when the CLI has a wired-in encoder for that template —
+# today that's SwapPermission only (packages/cli/src/commands/mandate-configure.ts's
+# TEMPLATE_REGISTRY). For every other shared template (Withdraw/Deposit/Borrow/Transfer/
+# ApproveAndCallBatch) there is no CLI encoder: build the blob yourself (step 2, `cast abi-encode`
+# or `encodeAbiParameters`) and pass it pre-encoded:
+sailor mandate configure --address <SHARED_ADDRESS> --sma <SMA> --params <0x-blob>
+# only for templates the CLI knows how to encode (currently SwapPermission):
 sailor mandate configure --address <SHARED_ADDRESS> --sma <SMA> \
   --template <TemplateName> --args-file ./config.json
-# or with a pre-encoded blob:
-sailor mandate configure --address <SHARED_ADDRESS> --sma <SMA> --params <0x-blob>
 ```
+Either way, `--address` is checked against the chain's known-shared-template registry
+(`@sail/sdk`'s `getSailDeployment(chainId).knownTemplates`) and the signing card's "what you're
+signing" explanation renders automatically for any of the seven shared templates — `--template`/
+`--label` are only needed to override the auto-detected name, not to get the explanation.
+
 It does, in order:
 1. **Pre-flight (no gas):** an `eth_call` simulation of `configureDirect` from `permissionSigner`. A revert here means the config is invalid before any gas is spent — fix the blob (see the encoding gotcha) and retry. Pass `--simulate-only` to stop here.
 2. **Send it:** pushes the `configureDirect` call to the owner wallet as an `arbitrary-tx` request through the signing station; the owner approves in the browser and the owner wallet sends the transaction.

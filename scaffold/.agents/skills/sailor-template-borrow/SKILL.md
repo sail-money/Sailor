@@ -84,10 +84,21 @@ The placeholders below are not real addresses.
 configure → simulate:
 
 ```bash
-sailor mandate register  --address <BORROW_PERMISSION> --sma <SMA> --label "usdc-borrow"
-sailor mandate configure --address <BORROW_PERMISSION> --sma <SMA> \
-  --template BorrowPermission --args-file ./borrow-config.json
-sailor mandate simulate  --address <BORROW_PERMISSION> --sma <SMA> --calls ./probe.json
+sailor mandate register --address <BORROW_PERMISSION> --sma <SMA> --label "usdc-borrow"
+
+# BorrowPermission has no CLI --template encoder (only SwapPermission does today) — build the
+# blob yourself and pass --params. --address is a known shared-template singleton, so the signing
+# card's "what you're signing" explanation still renders automatically without --template/--label.
+BLOB=$(cast abi-encode "f(address[],address[],uint256,uint256,address,address,uint256)" \
+  "[0xLENDING_POOL_verify_onchain]" \
+  "[0x078D782b760474a361dDA0AF3839290b0EF57AD6]" \
+  500000000 5000 \
+  0xCOLLATERAL_ORACLE_verify_onchain \
+  0xBORROW_ORACLE_verify_onchain \
+  3600)
+sailor mandate configure --address <BORROW_PERMISSION> --sma <SMA> --params "$BLOB"
+
+sailor mandate simulate --address <BORROW_PERMISSION> --sma <SMA> --calls ./probe.json
 ```
 
 ## Steps
@@ -100,7 +111,9 @@ permission live. Template-specific bits:
 - **Singleton:** `BorrowPermission` — `node .agents/skills/sailor-templates/catalog.mjs --chain <id>`.
 - **Spec to confirm:** protocols, assets, cap, max LTV, oracles.
 - **Blob:** `abi.encode(protocols[], assets[], maxAmountPerTx, maxLtvBps, collateralOracle,
-  borrowOracle, maxPriceAgeSec)` — **flat params, no wrapper**.
+  borrowOracle, maxPriceAgeSec)` — **flat params, no wrapper**. No CLI `--template` encoder for
+  this template — build via `cast abi-encode` / `encodeAbiParameters` and pass `--params` (see
+  worked example above).
 - **Simulate (mandatory — unaudited example):** allowed borrow within LTV passes; over-cap,
   over-LTV, or wrong recipient is rejected.
 

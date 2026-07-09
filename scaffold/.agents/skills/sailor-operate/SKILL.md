@@ -48,8 +48,11 @@ Never route around the kernel. A denial is corrected by fixing the bounds or the
 Retune a shared template in place with `configure --force` — re-encode the blob with the new cap/allowlist and re-run; the address stays registered, no re-register:
 
 ```bash
-sailor mandate configure --address <SINGLETON> --sma <SMA> --template <Name> --args-file ./new-config.json --force
+sailor mandate configure --address <SINGLETON> --sma <SMA> --params <0x-new-blob> --force
 ```
+(`--template <Name> --args-file ./new-config.json` only works for `SwapPermission` today — every
+other shared template needs the blob pre-built and passed via `--params`; see
+[`sailor-templates` reuse-flow](../sailor-templates/references/reuse-flow.md).)
 
 Follow the template's own steps ([`sailor-templates`](../sailor-templates/SKILL.md) reuse flow + the matching `sailor-template-*` spoke). (`sailor mandate update` changes only tracked *metadata* — name/source/artifact paths — not bounds.)
 

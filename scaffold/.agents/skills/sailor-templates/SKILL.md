@@ -104,11 +104,14 @@ add it here and write a skill.)
 4. **Configure** the per-account bounds — this is the step that makes the permission actually
    allow calls:
    ```bash
-   sailor mandate configure --address <DEPLOYED_ADDRESS> --sma <SMA> \
-     --template <TemplateName> --args-file ./config.json
+   sailor mandate configure --address <DEPLOYED_ADDRESS> --sma <SMA> --params <0x-encoded-blob>
    ```
    This drives `configureDirect(account, <config blob>)` as an owner transaction (the owner is
-   the `permissionSigner`), pre-flighted with an `eth_call` before any signing or gas. See
+   the `permissionSigner`), pre-flighted with an `eth_call` before any signing or gas. The signing
+   card's "what you're signing" explanation auto-resolves from `--address` for any of the seven
+   shared templates — no `--template`/`--label` needed just for that. Only `SwapPermission` has a
+   CLI-side `--template`/`--args-file` encoder today; every other template's blob must be built
+   yourself (`cast abi-encode` / `encodeAbiParameters`) and passed via `--params`. See
    [references/reuse-flow.md](references/reuse-flow.md) for the exact encoding gotcha and the
    signing-station path.
 5. **Simulate** off-chain (no gas) — prove allowed calls pass and bad ones fail:

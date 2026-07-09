@@ -63,10 +63,18 @@ different decimals is coarse; use one config per token if the caps must differ. 
 configure → simulate:
 
 ```bash
-sailor mandate register  --address <WITHDRAW_PERMISSION> --sma <SMA> --label "treasury-sweep"
-sailor mandate configure --address <WITHDRAW_PERMISSION> --sma <SMA> \
-  --template WithdrawPermission --args-file ./withdraw-config.json
-sailor mandate simulate  --address <WITHDRAW_PERMISSION> --sma <SMA> --calls ./probe.json
+sailor mandate register --address <WITHDRAW_PERMISSION> --sma <SMA> --label "treasury-sweep"
+
+# WithdrawPermission has no CLI --template encoder (only SwapPermission does today) — build the
+# blob yourself and pass --params. --address is a known shared-template singleton, so the signing
+# card's "what you're signing" explanation still renders automatically without --template/--label.
+BLOB=$(cast abi-encode "f(address[],address,uint256)" \
+  "[0x078D782b760474a361dDA0AF3839290b0EF57AD6,0x4200000000000000000000000000000000000006]" \
+  0xOWNER_WALLET_confirm_with_user \
+  5000000000)
+sailor mandate configure --address <WITHDRAW_PERMISSION> --sma <SMA> --params "$BLOB"
+
+sailor mandate simulate --address <WITHDRAW_PERMISSION> --sma <SMA> --calls ./probe.json
 ```
 
 ## Steps
@@ -78,7 +86,9 @@ permission live. Template-specific bits:
 
 - **Singleton:** `WithdrawPermission` — `node .agents/skills/sailor-templates/catalog.mjs --chain <id>`.
 - **Spec to confirm:** tokens, the single recipient, cap.
-- **Blob:** `abi.encode(tokens[], allowedRecipient, maxAmountPerTx)` — **flat params, no wrapper**.
+- **Blob:** `abi.encode(tokens[], allowedRecipient, maxAmountPerTx)` — **flat params, no
+  wrapper**. No CLI `--template` encoder for this template — build via `cast abi-encode` /
+  `encodeAbiParameters` and pass `--params` (see worked example above).
 - **Simulate (mandatory — unaudited example):** withdraw to the recipient within cap passes; any
   other `to`, wrong token, over-cap, or `transferFrom` with `from != SMA` is rejected.
 

@@ -65,10 +65,18 @@ across the whole allowlist** (one cap per config, not per recipient). Then regis
 simulate:
 
 ```bash
-sailor mandate register  --address <TRANSFER_PERMISSION> --sma <SMA> --label "payroll"
-sailor mandate configure --address <TRANSFER_PERMISSION> --sma <SMA> \
-  --template TransferPermission --args-file ./transfer-config.json
-sailor mandate simulate  --address <TRANSFER_PERMISSION> --sma <SMA> --calls ./probe.json
+sailor mandate register --address <TRANSFER_PERMISSION> --sma <SMA> --label "payroll"
+
+# TransferPermission has no CLI --template encoder (only SwapPermission does today) — build the
+# blob yourself and pass --params. --address is a known shared-template singleton, so the signing
+# card's "what you're signing" explanation still renders automatically without --template/--label.
+BLOB=$(cast abi-encode "f(address[],address[],uint256)" \
+  "[0xRECIPIENT_A_user_supplied,0xRECIPIENT_B_user_supplied,0xRECIPIENT_C_user_supplied]" \
+  "[0x078D782b760474a361dDA0AF3839290b0EF57AD6]" \
+  1000000000)
+sailor mandate configure --address <TRANSFER_PERMISSION> --sma <SMA> --params "$BLOB"
+
+sailor mandate simulate --address <TRANSFER_PERMISSION> --sma <SMA> --calls ./probe.json
 ```
 
 ## Steps
@@ -81,7 +89,8 @@ permission live. Template-specific bits:
 - **Singleton:** `TransferPermission` — `node .agents/skills/sailor-templates/catalog.mjs --chain <id>`.
 - **Spec to confirm:** recipients, tokens, cap.
 - **Blob:** `abi.encode(allowedRecipients[], allowedTokens[], maxAmountPerTx)` — **flat params, no
-  wrapper**.
+  wrapper**. No CLI `--template` encoder for this template — build via `cast abi-encode` /
+  `encodeAbiParameters` and pass `--params` (see worked example above).
 - **Simulate (mandatory — unaudited example):** allowed recipient/token within cap passes; off-list
   recipient, wrong token, over-cap, or `transferFrom` with `from != SMA` is rejected.
 

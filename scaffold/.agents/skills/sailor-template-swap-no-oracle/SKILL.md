@@ -114,10 +114,21 @@ directional pair (the strict-coverage rule above) — a portfolio into several o
 one entry each. Then register → configure → simulate:
 
 ```bash
-sailor mandate register  --address <SWAP_NO_ORACLE> --sma <SMA> --label "bounded-swap-no-oracle"
-sailor mandate configure --address <SWAP_NO_ORACLE> --sma <SMA> \
-  --template SwapPermissionNoOracle --args-file ./swap-no-oracle-config.json
-sailor mandate simulate  --address <SWAP_NO_ORACLE> --sma <SMA> --calls ./probe.json
+sailor mandate register --address <SWAP_NO_ORACLE> --sma <SMA> --label "bounded-swap-no-oracle"
+
+# SwapPermissionNoOracle has no CLI --template encoder (only SwapPermission does today) — build
+# the blob yourself and pass --params. --address is a known shared-template singleton, so the
+# signing card's "what you're signing" explanation still renders automatically without
+# --template/--label. ReferencePool is a struct array: (tokenIn, tokenOut, pool, kind, toleranceBps).
+BLOB=$(cast abi-encode "f(address[],address[],address[],uint256,(address,address,address,uint8,uint256)[])" \
+  "[0x73855d06DE49d0fe4A9c42636Ba96c62da12FF9C]" \
+  "[0x078D782b760474a361dDA0AF3839290b0EF57AD6]" \
+  "[0xILLIQUID_TOKEN_resolve_via_sailor-token-resolve]" \
+  10000000 \
+  "[(0x078D782b760474a361dDA0AF3839290b0EF57AD6,0xILLIQUID_TOKEN_resolve_via_sailor-token-resolve,0xREFERENCE_POOL_verify_it_prices_this_pair_onchain,1,1000)]")
+sailor mandate configure --address <SWAP_NO_ORACLE> --sma <SMA> --params "$BLOB"
+
+sailor mandate simulate --address <SWAP_NO_ORACLE> --sma <SMA> --calls ./probe.json
 ```
 
 ## Steps
@@ -134,7 +145,9 @@ Template-specific bits:
   pair the reference pool + tolerance. **Explicitly confirm the no-oracle trade-off** with the user:
   this is a hallucination guard, not slippage/manipulation protection.
 - **Blob:** `abi.encode(routers[], tokensIn[], tokensOut[], maxAmountPerTx, ReferencePool[])` —
-  **flat params, no wrapper**; `ReferencePool{tokenIn, tokenOut, pool, kind, toleranceBps}`.
+  **flat params, no wrapper**; `ReferencePool{tokenIn, tokenOut, pool, kind, toleranceBps}`. No CLI
+  `--template` encoder for this template — build via `cast abi-encode` / `encodeAbiParameters` and
+  pass `--params` (see worked example above).
 - **Simulate (mandatory — unaudited example):** an allowed swap passes; wrong recipient, over-cap,
   disallowed token, and an `amountOutMin` below the pool-implied floor are rejected.
 

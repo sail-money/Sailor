@@ -95,10 +95,18 @@ that for ERC-4626 the `tokens` allowlist must list the **vault** address (the de
 carries no asset). Then register → configure → simulate:
 
 ```bash
-sailor mandate register  --address <DEPOSIT_PERMISSION> --sma <SMA> --label "usdc-supply"
-sailor mandate configure --address <DEPOSIT_PERMISSION> --sma <SMA> \
-  --template DepositPermission --args-file ./deposit-config.json
-sailor mandate simulate  --address <DEPOSIT_PERMISSION> --sma <SMA> --calls ./probe.json
+sailor mandate register --address <DEPOSIT_PERMISSION> --sma <SMA> --label "usdc-supply"
+
+# DepositPermission has no CLI --template encoder (only SwapPermission does today) — build the
+# blob yourself and pass --params. --address is a known shared-template singleton, so the signing
+# card's "what you're signing" explanation still renders automatically without --template/--label.
+BLOB=$(cast abi-encode "f(address[],address[],uint256)" \
+  "[0xLENDING_POOL_verify_onchain]" \
+  "[0x078D782b760474a361dDA0AF3839290b0EF57AD6]" \
+  1000000000)
+sailor mandate configure --address <DEPOSIT_PERMISSION> --sma <SMA> --params "$BLOB"
+
+sailor mandate simulate --address <DEPOSIT_PERMISSION> --sma <SMA> --calls ./probe.json
 ```
 
 ## Steps
@@ -110,7 +118,9 @@ permission live. Template-specific bits:
 
 - **Singleton:** `DepositPermission` — `node .agents/skills/sailor-templates/catalog.mjs --chain <id>`.
 - **Spec to confirm:** targets, tokens, cap (note the share-price caveat for `mint`).
-- **Blob:** `abi.encode(targets[], tokens[], maxAmountPerTx)` — **flat params, no wrapper**.
+- **Blob:** `abi.encode(targets[], tokens[], maxAmountPerTx)` — **flat params, no wrapper**. No
+  CLI `--template` encoder for this template — build via `cast abi-encode` / `encodeAbiParameters`
+  and pass `--params` (see worked example above).
 - **Simulate (mandatory — unaudited example):** allowed deposit within cap passes; off-list
   target/token, over-cap, or `receiver != SMA` is rejected.
 

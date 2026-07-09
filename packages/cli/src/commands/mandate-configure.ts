@@ -282,6 +282,24 @@ function announceSigningUrl(json: boolean): void {
   }
 }
 
+/**
+ * Resolve `--address` against the chain's bundled known-templates registry
+ * (`@sail/sdk`'s `getSailDeployment(chainId).knownTemplates`, the same CREATE2
+ * addresses recorded in Protocol/deployments/<chain>/templates.shared.json) so
+ * a raw `--params` configure — with no `--template`/`--label` — still gets the
+ * "what you're signing" explanation and a friendly title instead of the bare
+ * "shared-template" fallback. Explicit `--template` always wins.
+ */
+function resolveKnownTemplate(
+  project: ProjectContext,
+  singleton: Address,
+): { kind: string; label: string } | undefined {
+  const match = project.deployment.knownTemplates?.find(
+    (t) => getAddress(t.address) === singleton,
+  );
+  return match ? { kind: match.kind, label: match.label } : undefined;
+}
+
 /** Resolve the config blob from --params (hex) or --args-file + --template. */
 function resolveBlob(options: ConfigureOptions): { blob: Hex; via: string } {
   const hasParams = options.params !== undefined;
@@ -514,7 +532,12 @@ async function runConfigure(
   }
 
   // ── Request the owner transaction through the signing station.
-  const label = options.label ?? (options.template ?? "shared-template");
+  // Explicit --template always wins; otherwise auto-resolve --address against the
+  // chain's known-templates registry so a raw --params configure still gets the
+  // "what you're signing" explanation instead of the bare "shared-template" fallback.
+  const knownTemplate = resolveKnownTemplate(project, singleton);
+  const resolvedTemplateKind = options.template ?? knownTemplate?.kind;
+  const label = options.label ?? knownTemplate?.label ?? options.template ?? "shared-template";
   announceSigningUrl(json);
   say(() =>
     console.log(
@@ -532,11 +555,11 @@ async function runConfigure(
     chainId: project.chainId,
     to: singleton,
     data: configureDirectData,
-    explanation: options.template ? SHARED_TEMPLATE_EXPLANATIONS[options.template] : undefined,
+    explanation: resolvedTemplateKind ? SHARED_TEMPLATE_EXPLANATIONS[resolvedTemplateKind] : undefined,
     details: [
       { label: "SMA", value: sma },
       { label: "Singleton", value: singleton },
-      { label: "Template", value: options.template ?? "(raw blob)" },
+      { label: "Template", value: resolvedTemplateKind ?? "(raw blob)" },
       { label: "Mandate signer", value: permissionSigner },
       { label: "Config blob (bytes)", value: String(Math.floor((blob.length - 2) / 2)) },
       ...(decoded

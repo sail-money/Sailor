@@ -81,6 +81,17 @@ generic (un-named) revert inside `_applyConfig` means the blob did not decode to
 missing trailing bool). The named errors (`TokensAndAmountsLengthMismatch`, `EmptyAllowlist`,
 `AllowlistTooLong`) fire only after a successful decode.
 
+Then register → configure → simulate. `ApproveAndCallBatchPermission` has no CLI `--template`
+encoder (only `SwapPermission` does today), so `$BLOB` from the `cast abi-encode` above goes
+straight into `--params` — `--address` is a known shared-template singleton, so the signing
+card's "what you're signing" explanation still renders automatically without `--template`/
+`--label`:
+```bash
+sailor mandate register  --address <APPROVE_AND_CALL_BATCH_PERMISSION> --sma <SMA> --label "approve-and-call"
+sailor mandate configure --address <APPROVE_AND_CALL_BATCH_PERMISSION> --sma <SMA> --params "$BLOB"
+sailor mandate simulate  --address <APPROVE_AND_CALL_BATCH_PERMISSION> --sma <SMA> --calls ./probe.json
+```
+
 ## Steps
 
 Register → configure → simulate → reconfigure mechanics live in
