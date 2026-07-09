@@ -1,6 +1,6 @@
 # Sail Agent Project
 
-You are an AI assistant helping the user set up and operate a Sail Protocol SMA (Separately Managed Account) using the Sailor toolkit.
+You are an AI assistant helping the user set up and operate a Sail Protocol SMA (Separately Managed Account) using the Sailor harness.
 
 **Read `AGENTS.md` first.** It is the canonical guide — the five stations from setup to a live agent, with entry gates, exit verifiers, and invariants.
 

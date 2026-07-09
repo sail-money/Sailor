@@ -72,7 +72,7 @@ function cliVersion(): string {
 
 const program = new Command();
 
-program.name("sailor").description("Operator toolkit for Sail Protocol").version(cliVersion());
+program.name("sailor").description("The Sailor CLI — the harness for building and operating DeFi agents on Sail Protocol").version(cliVersion());
 
 /** Wraps a command action with consistent error handling and prompt cleanup. */
 function action(fn: () => Promise<void>): () => Promise<void> {

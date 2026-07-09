@@ -32,6 +32,7 @@ Defaults: LTV ceiling = a conservative 50% of the market's own max LTV (the user
 | Borrows — Aave variable-rate, Morpho Optimizer/Morpho-Aave, Compound cTokens | [`sailor-template-borrow`](../../sailor-template-borrow/SKILL.md) |
 | Withdrawals back to the owner | [`sailor-template-withdraw`](../../sailor-template-withdraw/SKILL.md) |
 | Approve → deposit → reset in one atomic batch | [`sailor-template-approve-batch`](../../sailor-template-approve-batch/SKILL.md) |
+| Staking wrapped as an ERC-4626 vault (stake via `deposit`/`mint`) | [`sailor-template-deposit`](../../sailor-template-deposit/SKILL.md) — same as any vault; native/LST staking with no vault interface is bespoke via [`sailor-mandates`](../../sailor-mandates/SKILL.md) |
 | Markets outside those selectors (Morpho Blue, exotic vaults, staking contracts) | bespoke via [`sailor-mandates`](../../sailor-mandates/SKILL.md) |
 
 Capability limits (from the templates' own schemas): `BorrowPermission` covers Aave **variable-rate only** (stable-rate debt is rejected), Morpho **Optimizer/Morpho-Aave** (Morpho Blue's ABI won't match — fails closed), and Compound cTokens with an `underlying()` (cETH is denied). Deposit and borrow positions always accrue to the SMA (`receiver`/`onBehalfOf == account` is enforced on-chain).

@@ -3,7 +3,7 @@
 Start a new agent project with `npx @sail.money/sailor init <name>` from inside your
 AI coding agent, or install globally for direct command use and CI/CD.
 
-CLI operator toolkit for Sail Protocol. Run `sailor --help` to see all commands.
+The Sailor CLI — the harness for building and operating DeFi agents on Sail Protocol. Run `sailor --help` to see all commands.
 
 The published package is `@sail.money/sailor`. The bare name `sailor` is an unrelated
 npm package — always install/invoke with the scoped name. Once installed, the `sailor`

@@ -2,7 +2,16 @@
   "name": "sailor",
   "private": true,
   "version": "2.0.0",
-  "description": "Operator toolkit for Sail Protocol",
+  "description": "The open-source harness for building and operating DeFi agents on Sail Protocol.",
+  "keywords": [
+    "harness",
+    "agents",
+    "ai-agents",
+    "defi-agents",
+    "defi",
+    "sail-protocol",
+    "sma"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/sail-money/Sailor.git"

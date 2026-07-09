@@ -2,9 +2,9 @@
 
 This guide is for contributors to the Sailor codebase. The user-facing agent guide ships in scaffold/AGENTS.md.
 
-Sailor is the operator toolkit for Sail Protocol. It does **not** deploy the protocol or author
+Sailor is the harness for building and operating DeFi agents on Sail Protocol. It does **not** deploy the protocol or author
 permission templates — it targets already-deployed SailKernel instances and gives operators the
-tooling to create SMAs, register permission contracts, and run strategy agents.
+tooling to create SMAs, construct mandates, and build and run strategy agents. Sailor guides; the protocol enforces.
 
 ## Repo structure
 
