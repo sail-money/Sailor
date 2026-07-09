@@ -378,8 +378,11 @@ function printWelcome(dest: string, name: string, inPlace: boolean, _hasRpc: boo
   console.log([
     "",
     "⛵ Sailor — your project is ready.",
-    "Your AI agent will now walk you through it: account → strategy → mandate → launch.",
-    "Everything self-custodial, every action bounded onchain.",
+    "",
+    'Open this folder in Claude Code, Cursor, or another AI coding agent — that\'s where',
+    'the guided setup happens. Once it\'s open, say "start".',
+    "",
+    "No coding agent? Run `sailor ui start` for the browser dashboard instead.",
   ].join("\n"));
   console.log([
     "",
