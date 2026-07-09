@@ -128,11 +128,14 @@ function statusFor(deployed, name) {
 
 function main() {
   const protocolDir = findProtocolDir();
-  if (!protocolDir) {
-    console.error("Could not locate Protocol/contracts/templates. Pass --protocol <path> or set SAIL_PROTOCOL_DIR.");
-    process.exit(1);
-  }
-  const templates = detectTemplates(protocolDir);
+  // Standalone (scaffolded) projects don't ship Protocol/ — only the monorepo
+  // dev checkout does. Fall back to the curated META list so deployment status
+  // (read from deployed.json, which IS shipped alongside this script) is still
+  // usable; only source-tracking (auto-detecting new/removed templates) needs
+  // the Protocol checkout and is unavailable here.
+  const templates = protocolDir
+    ? detectTemplates(protocolDir)
+    : Object.keys(META).sort().map((name) => ({ name, file: null }));
   const deployed = loadDeployed();
   const onlyChain = argValue("--chain");
 
@@ -152,7 +155,7 @@ function main() {
   }
 
   if (hasFlag("--json")) {
-    console.log(JSON.stringify({ protocolDir, templates: catalog, oracles }, null, 2));
+    console.log(JSON.stringify({ protocolDir, sourceAvailable: !!protocolDir, templates: catalog, oracles }, null, 2));
     return;
   }
 
@@ -161,12 +164,20 @@ function main() {
   console.log("address via register (`sailor mandate register`) + configure (no per-SMA deploy).");
   console.log("NOTE: `sailor mandate register` registers ONLY — you must also configure per-account");
   console.log("(configureDirect today); see SKILL.md / references/reuse-flow.md.\n");
+  if (!protocolDir) {
+    console.log(
+      "NOTE: Protocol/ source not found in this project (expected in a standalone/scaffolded\n" +
+        "project) — showing the curated template list below. New/removed templates added to\n" +
+        "Protocol won't be reflected until run from a checkout with Protocol/, or with\n" +
+        "--protocol <path> / SAIL_PROTOCOL_DIR set. Deployment status is still live from deployed.json.\n",
+    );
+  }
   const anyUncurated = catalog.some((t) => !META[t.name]);
   for (const t of catalog) {
     const flag = META[t.name] ? "" : "  ⚠️ NEW/uncurated — add to META + write a skill";
     console.log(`━━ ${t.name}${flag} ━━`);
     console.log(`   primitive: ${t.primitive}`);
-    console.log(`   source:    ${t.file}`);
+    if (t.file) console.log(`   source:    ${t.file}`);
     if (t.skill) console.log(`   skill:     ${t.skill}`);
     console.log(`   config:    ${t.config}`);
     const live = t.deployments.filter((d) => d.address);

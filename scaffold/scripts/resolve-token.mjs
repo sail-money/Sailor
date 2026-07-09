@@ -873,7 +873,7 @@ async function main() {
   if (tokens.length === 0) throw new Error("Pass at least one token symbol or address.");
 
   const configured = configuredChains();
-  const configuredNames = configured.map((c) => c.name);
+  let configuredNames = configured.map((c) => c.name);
 
   // ── legacy single-token path (back-compat with sailor-swap-quote / sailor-template-swap)
   // One token, no --json/--all-chains → today's bare object or array.
@@ -930,7 +930,14 @@ async function main() {
       try {
         const c = resolveChain(null);
         const rpc = resolveRpc(c, null);
-        if (rpc) chainSet = [{ ...c, rpc }];
+        if (rpc) {
+          chainSet = [{ ...c, rpc }];
+          // This IS the project's configured chain for routing purposes — a
+          // generic RPC_URL project has no chain-specific var so configuredNames
+          // was empty, which made recommendCrossChain treat a routable token here
+          // as "not configured" and wrongly suggest deploying an SMA elsewhere.
+          configuredNames = [c.name];
+        }
       } catch {
         // no configured chain — only valid with --all-chains
       }
