@@ -48,3 +48,7 @@ Cloud options commit only the **encrypted** keystore (`ci-keystore.json`); `SAIL
 Regardless of host, the on-chain **mandate is the backstop** — it bounds the manager's permissions no matter where or how the agent runs.
 
 A failing run's logs show the same stderr as the local runner (`reverted: <txHash>`, `skipped: no registered permission…`) — debug with the sailor-transactions skill.
+
+## Once it's running
+
+This skill covers **launch**. Everything after — reading activity, tuning bounds, pausing, revoking, and exiting funds to the owner — lives in [`sailor-operate`](../sailor-operate/SKILL.md).

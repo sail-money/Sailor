@@ -79,6 +79,7 @@ try {
     ".agents/skills/sailor-automation/references/github-actions.md",
     ".agents/skills/sailor-automation/references/local-daemon.md",
     ".agents/skills/sailor-automation/references/self-hosted-runner.md",
+    ".agents/skills/sailor-operate/SKILL.md",
     ".agents/skills/sailor-extend/SKILL.md",
   ];
   for (const rel of mustExist) {
