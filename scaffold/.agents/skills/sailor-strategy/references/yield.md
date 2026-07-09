@@ -22,7 +22,7 @@ Defaults: LTV ceiling = a conservative 50% of the market's own max LTV (the user
 | LTV ceiling + oracles | `maxLtvBps` AND both a collateral oracle and a borrow oracle. The pair is all-or-nothing: with zero oracles the template enforces amount-cap-only and **no LTV ceiling at all**; exactly one oracle reverts at configure |
 | Unwind path | How the position exits (withdraw/redeem route) and where funds land |
 
-**Feasibility (verify, don't advise).** The named market or vault must exist on the target chain — verify the address on-chain (the contract exists and exposes the expected interface, e.g. Aave `supply` / ERC-4626 `deposit`) before it enters the spec. If the user hasn't chosen a market, the harness does **not** pick one for them (that would be investment advice): point them to research it outside, then return with an address to verify — interviewer and scribe, not advisor.
+**Feasibility (verify, don't advise).** The named market or vault must exist on the target chain — verify the address on-chain (the contract exists and exposes the expected interface, e.g. a lending market's `supply` / a vault's `deposit`) before it enters the spec. If the user hasn't chosen a market, the harness does **not** pick one for them (that would be investment advice): point them to research it outside, then return with an address to verify — interviewer and scribe, not advisor.
 
 ## Routing (Station 3 reads this)
 

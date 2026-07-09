@@ -13,7 +13,9 @@ Read `.sail/strategy.md` first. AGENTS.md station 3: "Gate: complete `.sail/stra
 
 ## Routing method
 
-1. **Enumerate the actions.** From the spec's JSON block, list each distinct action the strategy implies — every swap leg, deposit, borrow, transfer, withdrawal, and the ERC-20 approves those actions need. For each, consult the routing rows of the category reference the strategy used (`sailor-strategy/references/<category>.md`) — those rows are canonical; they are not restated here.
+1. **Enumerate the actions.** From the spec's JSON block, list each distinct action the strategy implies — every swap leg, deposit, borrow (including the collateral-supply leg, which is itself a deposit), transfer, and withdrawal. For each, consult the routing rows of the category reference the strategy used (`sailor-strategy/references/<category>.md`) — those rows are canonical; they are not restated here.
+
+   **Check every action on that list against [`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md) — not swap alone.** Protocol permissions (swap, deposit, borrow's collateral-supply leg, …) never cover the ERC-20 `approve()` their call depends on; approvals.md is the single source on which actions need coverage and how — do not re-derive the logic here. Do this check per action, at enumeration time, not as an afterthought once the plan looks otherwise done — a deposit or collateral-supply leg needs the same scrutiny as a swap.
 
 2. **Decide template vs bespoke, per action:**
    - **Reuse a shared template whenever it can express the bound** — register + configure, no Solidity, no per-SMA deploy. Start at [`sailor-templates`](../sailor-templates/SKILL.md) (the registry), then the matching spoke skill.
@@ -31,7 +33,7 @@ Read `.sail/strategy.md` first. AGENTS.md station 3: "Gate: complete `.sail/stra
 
 - **Shared singletons: register ≠ configure.** Follow [`sailor-templates`](../sailor-templates/SKILL.md)'s reuse flow exactly — register, configure, then simulate; a registered-but-unconfigured template denies everything.
 - **Bespoke permissions:** AGENTS.md invariant 1 — "**Deploy → simulate → register.** Registration is authorization; nothing is authorized before its bounds are proven, including proven to reject what they must reject."
-- **Autonomous strategies must answer the approve-coverage question before the plan is final.** Every ERC-20 `approve()` the strategy implies needs explicit coverage — read [`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md) and pick the execution model as part of the plan, not after it.
+- **Every plan must answer the approve-coverage question before it is final** — not only for swap, for every action that needs one (step 1 above). Read [`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md) and pick the execution model as part of the plan, not after it.
 
 ## Handoff
 

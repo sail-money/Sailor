@@ -47,6 +47,16 @@ Render the full spec, walk the completeness checklist below with the user, get t
 
 Show this line **only when M > 0**. A fully template-backed strategy (M = 0) says nothing about Solidity — most strategies never touch it.
 
+**Disclose approve-coverage impact before the user approves.** Check the spec's actions against [`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md) — protocol permissions never cover the ERC-20 `approve()` their call depends on. If any action needs one, say so plainly, without the execution-model detail (per-call vs. atomic batch is decided at Station 3, not here):
+
+> <N> action(s) in this strategy will also need an ERC-20 approval covered — the mandate will end up with more permissions than there are actions, not a 1:1 count.
+
+Show this line only when at least one action needs approve coverage; say nothing about it otherwise.
+
+**Disclose cadence enforcement before the user approves.** If the spec has a cadence (anything other than "no cadence"), state in one line that the schedule or trigger is enforced by the agent's own logic, not by the onchain kernel — the kernel has no notion of time or frequency, only of what each dispatch is allowed to do:
+
+> Cadence ("<cadence value>") is enforced by your agent's code, not by the mandate — the kernel checks each dispatch against its bounds but has no concept of schedule; if the agent stops running, nothing fires.
+
 ## Completeness gate (fail-closed — the station does not exit until every dimension is concrete)
 
 | Dimension | Concrete means |

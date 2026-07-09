@@ -46,7 +46,7 @@ Compose with these two standing rules:
 - If the user's first message is an npm install command, run it, then deliver the welcome immediately after it completes — do not wait for another message.
 - Do not describe, mention, or present any code in `src/` as the user's strategy — treat strategy definition as a blank slate; ask what they want.
 
-After the welcome, the setup interface (`sailor ui start`, `sailor station start`) launches when you reach the SMA-deployment step below — not before the user has responded.
+After the welcome, the setup interface (`sailor ui start`, `sailor station start`) launches when you reach the SMA-deployment step below — not before the user has responded. "Responded" means any of: saying "start" (or similar) again, confirming readiness in any form ("yes", "let's go", "ready"), or stating a strategy category/intent ("I want to DCA", "earn yield on my USDC") — the last of these already implies readiness and also triggers the skip-to-intent deviation above. What it does **not** mean: launching the interface off the user's very first message, before the welcome script above has been shown at all — the point of this gate is to never open a signing surface before the user has seen what they're agreeing to.
 
 ## Running the CLI
 
@@ -124,3 +124,5 @@ During setup, always ask before anything that costs gas.
 ## Station 1 exit verifier
 
 `sailor doctor` — read-only preflight: kernel dispatch model, permission health, RPC reachability, chain-id match, gas balances in both wallets. **Station 1 is not complete until `doctor` is all green** (RPC connected, chain-id matches, keys present, gas funded). Then → [`sailor-strategy`](../sailor-strategy/SKILL.md) (Station 2).
+
+**`doctor` green does not guarantee every RPC-dependent script can run.** `doctor` resolves the RPC via `getRpcUrl()`, which falls back to a shell-level environment variable (`RPC_URL` or a chain-named var) if `.sail/.env.local` has nothing — so it can report green off a shell var alone. [`sailor-token-resolve`](../sailor-token-resolve/SKILL.md)'s `resolve-token.mjs` and [`sailor-swap-quote`](../sailor-swap-quote/SKILL.md)'s `quote-swap.mjs` are standalone scripts that read **only** `.sail/.env.local` — a shell-only `RPC_URL` is invisible to them, and they fail with `No RPC for <chain>. Pass --rpc or set RPC_URL in .sail/.env.local.` even with `doctor` all green. Before leaving Station 1, confirm the RPC is actually written into `.sail/.env.local` (named var, e.g. `UNICHAIN_RPC_URL`, or the generic `RPC_URL`) — not just present in the shell — since Station 2 depends on those scripts.

@@ -39,6 +39,28 @@ allowlist enforced — Aave checks the `asset` arg, ERC-4626 requires the `targe
 > allowlist is the last line of defence (no asset in calldata) — only allowlist vaults whose
 > accepted token you trust.
 
+## ⚠️ Approve coverage — the hidden precondition
+
+`DepositPermission` authorizes the `deposit`/`mint`/`supply` **call** only. Every one of those
+selectors pulls the asset via an ERC-20 allowance, and the `approve(target, amount)` that
+establishes it is a **separate transaction this permission does not cover** (same rule as every
+protocol permission — see
+[`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md)). A
+deposit with no/insufficient allowance reverts inside the vault or lending pool and the tick
+fails. **Every** bounded deposit needs the allowance handled — decide how at mandate-build time,
+not when the first tick reverts. This applies identically when the deposit is the
+collateral-supply leg of a borrow strategy ([`sailor-template-borrow`](../sailor-template-borrow/SKILL.md)) — supplying collateral is a deposit, so it needs the same approve coverage.
+
+- **Autonomous agent (yield/looping strategy) — default:** do NOT use `DepositPermission` alone;
+  register the shared **`ApproveAndCallBatchPermission`** singleton and dispatch each deposit as
+  one atomic `[approve(target, amount), deposit/supply, approve(target, 0)]` batch — no
+  lingering allowance, no per-tick owner signature. See
+  [`sailor-template-approve-batch`](../sailor-template-approve-batch/SKILL.md).
+- **Owner in the loop per deposit:** keep `DepositPermission`; the owner pre-approves the
+  vault/lending pool. The agent must read `allowance(SMA, target)` and **stall (never
+  self-approve)** when it is below the deposit amount — `approve()` is an owner-side action the
+  agent cannot take on its own.
+
 ## Config blob (authoritative — `config-schemas.md`)
 
 ```
