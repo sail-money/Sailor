@@ -85,6 +85,81 @@ type TemplateEntry = {
   bigintFields: readonly string[];
 };
 
+/**
+ * "What you're signing" summaries for Sail's shared reference templates
+ * (Protocol/contracts/templates/*.sol), condensed from each contract's own
+ * "WHAT IT ENFORCES" NatSpec so the configure signing card explains the
+ * permission the same way the register-permission card does for user-authored
+ * mandates (via explainPermission, which needs a local .sol file these shared
+ * singletons don't have in a standalone project — hence hand-curated here).
+ * Keep in sync with the source NatSpec if it changes.
+ */
+const SHARED_TEMPLATE_EXPLANATIONS: Record<string, { protocol: string; enforced: string[]; notEnforced: string[] }> = {
+  SwapPermission: {
+    protocol: "Sail reference template",
+    enforced: [
+      "Input/output tokens and the router must be on the account's allowlist",
+      "Input amount ≤ the per-tx cap; output recipient must be the account itself",
+      "Minimum-out must clear a slippage band priced against an injected oracle — an oracle is REQUIRED (reverts OracleRequired() if none is configured)",
+    ],
+    notEnforced: [],
+  },
+  SwapPermissionNoOracle: {
+    protocol: "Sail reference template",
+    enforced: [
+      "Input/output tokens and the router must be on the account's allowlist",
+      "Input amount ≤ the per-tx cap; output recipient must be the account itself; minimum-out must be non-zero",
+      "Minimum-out is checked against a live operator-named reference pool with a set tolerance — a hallucination guard, NOT manipulation-resistant oracle pricing",
+    ],
+    notEnforced: [],
+  },
+  BorrowPermission: {
+    protocol: "Sail reference template",
+    enforced: [
+      "Protocol (call target) and asset must be on the account's allowlist",
+      "Amount ≤ the per-tx cap; the borrowed position must be credited to the account itself",
+      "If oracles are configured, loan-to-value must stay within maxLtvBps — with zero oracles, only the cap and allowlists apply (no LTV ceiling)",
+    ],
+    notEnforced: [],
+  },
+  TransferPermission: {
+    protocol: "Sail reference template",
+    enforced: [
+      "Token (call target) must be on the account's allowlist; amount ≤ the per-tx cap",
+      "Destination must be on the recipient allowlist",
+      "On transferFrom, the source must be the account itself — the manager can't pull tokens a third party approved to it",
+    ],
+    notEnforced: [],
+  },
+  DepositPermission: {
+    protocol: "Sail reference template",
+    enforced: [
+      "Target (vault/pool) and deposited token must be on the account's allowlist; amount ≤ the per-tx cap",
+      "Position recipient (receiver/onBehalfOf) must be the account itself, never an arbitrary address",
+      "Only standard ERC-4626 deposit/mint and Aave v2/v3 deposit/supply selectors are recognized — anything else is denied",
+    ],
+    notEnforced: [],
+  },
+  WithdrawPermission: {
+    protocol: "Sail reference template",
+    enforced: [
+      "Token (call target) must be on the account's allowlist; amount ≤ the per-tx cap",
+      "Destination must equal the single configured allowedRecipient — not an open set",
+      "On transferFrom, the source must be the account itself",
+    ],
+    notEnforced: [],
+  },
+  ApproveAndCallBatchPermission: {
+    protocol: "Sail reference template",
+    enforced: [
+      "Exact 3-call shape only: approve → allowlisted consuming call → reset approval to zero",
+      "Approved token/spender/amount must be within the per-token cap; the pre-batch allowance must already be zero",
+      "The consuming call's (target, selector) must be an allowlisted pair and must consume the very token/spender approved in call 1 — fails closed if the consumed asset can't be located safely",
+    ],
+    notEnforced: [],
+  },
+};
+
 const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   SwapPermission: {
     label: "Bounded Swap (Uniswap V3)",
@@ -457,6 +532,7 @@ async function runConfigure(
     chainId: project.chainId,
     to: singleton,
     data: configureDirectData,
+    explanation: options.template ? SHARED_TEMPLATE_EXPLANATIONS[options.template] : undefined,
     details: [
       { label: "SMA", value: sma },
       { label: "Singleton", value: singleton },
