@@ -52,7 +52,7 @@ import {
 } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { appendActivity, nowIso } from "../lib/io.js";
-import { registrationGate } from "../lib/registration-fee.js";
+import { estimateRegistrationGasBudgetWei, registrationGate } from "../lib/registration-fee.js";
 import { explainPermission } from "../lib/permission-explainer.js";
 import { type DeployedMandate, MandateStore } from "../lib/mandates.js";
 import { emit } from "../lib/output.js";
@@ -1283,13 +1283,14 @@ async function registerBatchOnSma(
   const flatFee = await readPermissionRegistrationFee(publicClient, project.contracts.governance);
   const fee = flatFee * BigInt(permissions.length);
 
-  // Preflight the agent wallet's balance BEFORE asking the owner to sign — an
-  // underfunded agent wallet fails on gas after the signature is spent, wasting
-  // the owner's approval for nothing. Same gate the single-address register
-  // path already applies (see onboard.ts registerMandate).
+  // Preflight the agent wallet's balance (fee + gas) BEFORE asking the owner to
+  // sign — otherwise an agent wallet holding only the fee clears the check, the
+  // owner signs, and the tx then fails on gas, wasting the approval for nothing.
+  // Same gate the single-address register path applies (see onboard.ts registerMandate).
   const agentBalanceWei = await publicClient.getBalance({
     address: agentSigner.viemAccount.address,
   });
+  const gasBudgetWei = await estimateRegistrationGasBudgetWei(publicClient, permissions.length);
   const gate = registrationGate({
     estimate: {
       totalWei: fee,
@@ -1297,6 +1298,7 @@ async function registerBatchOnSma(
     },
     agentBalanceWei,
     chainId: project.chainId,
+    gasBudgetWei,
   });
   say(() => console.log(gate.disclosure));
 

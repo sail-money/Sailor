@@ -51,7 +51,7 @@ import { MandateStore } from "../lib/mandates.js";
 import { explainPermission } from "../lib/permission-explainer.js";
 import { emit } from "../lib/output.js";
 import { ProjectContext } from "../lib/project.js";
-import { registrationGate } from "../lib/registration-fee.js";
+import { estimateRegistrationGasBudgetWei, registrationGate } from "../lib/registration-fee.js";
 import { type StoredAccount, upsertAccountInList } from "../lib/state.js";
 import { type SigningChannel, createSigningChannel, signingPageUrl } from "../signing/client.js";
 import { projectPort } from "../lib/packagePaths.js";
@@ -573,13 +573,20 @@ export async function registerMandate(
   );
   const fee = feeEstimate.totalWei;
 
-  // Preflight + disclose BEFORE asking the owner to sign, so an underfunded
-  // signer fails early (via a typed RegistrationFeeError) instead of after a
-  // wasted signature / on-chain revert.
+  // Preflight (fee + gas) + disclose BEFORE asking the owner to sign, so an
+  // underfunded signer fails early (via a typed RegistrationFeeError) instead of
+  // after a wasted signature / on-chain revert — including the case where the
+  // wallet holds exactly the fee but nothing for gas.
   const agentBalanceWei = await publicClient.getBalance({
     address: agentSigner.viemAccount.address,
   });
-  const gate = registrationGate({ estimate: feeEstimate, agentBalanceWei, chainId: project.chainId });
+  const gasBudgetWei = await estimateRegistrationGasBudgetWei(publicClient, 1);
+  const gate = registrationGate({
+    estimate: feeEstimate,
+    agentBalanceWei,
+    chainId: project.chainId,
+    gasBudgetWei,
+  });
   say(() => console.log(gate.disclosure));
 
   say(() => console.log(`\nPushing signing request for "${template.label}" permission…`));
