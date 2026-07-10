@@ -750,19 +750,30 @@ async function runDeployClone(
     throw new Error(`deployAndAttach reverted (tx ${txHash})`);
   }
 
+  // The receipt already succeeded, so the tx did NOT revert. A clone not yet
+  // visible in getPermissions() after the poll is read-after-write lag, not a
+  // failure — report `confirmed` with a note (never `reverted` for a mined tx),
+  // warn, and continue, mirroring registerBatchOnSma's per-permission handling.
   const permissionRegistered = await pollForPermission(publicClient, project.contracts.kernel, sma, clone);
-  if (!permissionRegistered) {
-    await channel.confirmOutcome(response.requestId, {
-      outcome: "reverted",
-      txHash,
-      error: `Tx ${txHash} mined, but clone ${clone} is not in getPermissions(${sma}).`,
-    });
-    throw new Error(
-      `Tx ${txHash} mined, but clone ${clone} is not in getPermissions(${sma}). Verify on-chain.`,
-    );
-  }
-  await channel.confirmOutcome(response.requestId, { outcome: "confirmed", txHash });
-  say(() => console.log("✓", `Deployed + registered ${spec.label} at ${clone}`));
+  await channel.confirmOutcome(response.requestId, {
+    outcome: "confirmed",
+    txHash,
+    ...(permissionRegistered
+      ? {}
+      : {
+          note: `Mined, but ${clone} not yet visible in getPermissions(${sma}) — indexing may lag; verify with 'sailor mandate list'.`,
+        }),
+  });
+  say(() => {
+    if (permissionRegistered) {
+      console.log("✓", `Deployed + registered ${spec.label} at ${clone}`);
+    } else {
+      console.log(
+        "✓",
+        `Deployed + registered ${spec.label} at ${clone} (tx ${txHash} confirmed; not yet visible in getPermissions — verify with 'sailor mandate list').`,
+      );
+    }
+  });
 
   const store = new MandateStore();
   const storedClone = store.add({
@@ -1068,19 +1079,39 @@ async function runRevoke(
     transport: http(getRpcUrl(project.chainId)),
   });
 
+  // The agent submits and pays; the station is sitting on "awaiting
+  // confirmation" after the owner's signature, so this command owns the outcome
+  // it shows — reported at every exit below (a revocation is the emergency-exit
+  // path; leaving the station hung there is the worst place to do it).
   say(() => console.log("Submitting kernel.revokePermissions (agent pays gas)…"));
-  const txHash = await walletClient.writeContract({
-    address: kernel,
-    abi: REVOKE_PERMISSIONS_ABI,
-    functionName: "revokePermissions",
-    args: [sma, targets, deadline, response.signature],
-  });
+  let txHash: Hex;
+  try {
+    txHash = await walletClient.writeContract({
+      address: kernel,
+      abi: REVOKE_PERMISSIONS_ABI,
+      functionName: "revokePermissions",
+      args: [sma, targets, deadline, response.signature],
+    });
+  } catch (err) {
+    // The submission itself errored — the transaction was never sent.
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "failed",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
 
   say(() => console.log("Waiting for confirmation…"));
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
   if (receipt.status !== "success") {
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "reverted",
+      txHash,
+      error: `revokePermissions reverted on-chain (tx ${txHash})`,
+    });
     throw new Error(`revokePermissions reverted (tx ${txHash})`);
   }
+  await channel.confirmOutcome(response.requestId, { outcome: "confirmed", txHash });
   say(() => console.log("✓", `Revoked ${targets.length} permission(s) — tx ${txHash}`));
 
   // The agent (manager) submitted and paid; the owner's authorization signature

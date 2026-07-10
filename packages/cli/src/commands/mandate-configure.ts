@@ -578,9 +578,29 @@ async function runConfigure(
     throw new Error(`Expected a signed transaction, got: ${response.status}`);
   }
 
+  // The owner submitted this tx in the browser; the daemon does NOT confirm
+  // `arbitrary-tx` itself (it can't verify configureDirect took effect), so this
+  // command owns the outcome the signing station shows — reported at every exit.
   say(() => console.log("Waiting for confirmation…"));
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: response.txHash });
+  let receipt: Awaited<ReturnType<typeof publicClient.waitForTransactionReceipt>>;
+  try {
+    receipt = await publicClient.waitForTransactionReceipt({ hash: response.txHash });
+  } catch (err) {
+    // The tx was submitted (we have a hash) but its receipt could not be
+    // observed — "unverified", not a failure verdict.
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "unverified",
+      txHash: response.txHash,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
   if (receipt.status !== "success") {
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "reverted",
+      txHash: response.txHash,
+      error: `configureDirect reverted on-chain (tx ${response.txHash})`,
+    });
     throw new Error(`configureDirect transaction failed (tx ${response.txHash})`);
   }
 
@@ -590,10 +610,22 @@ async function runConfigure(
   // for a config write that actually succeeded.
   const configuredNow = await pollIsConfigured(publicClient, singleton, sma);
   if (!configuredNow) {
+    // Receipt succeeded, so the tx did NOT revert — but the config did not read
+    // back as applied even after retries. Report `unverified` (verify on-chain),
+    // never `reverted`, for a transaction that mined successfully.
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "unverified",
+      txHash: response.txHash,
+      error: `Tx mined, but isConfigured(${sma}) is still false — verify on-chain.`,
+    });
     throw new Error(
       `Tx ${response.txHash} mined, but isConfigured(${sma}) is still false. Verify on-chain.`,
     );
   }
+  await channel.confirmOutcome(response.requestId, {
+    outcome: "confirmed",
+    txHash: response.txHash,
+  });
   say(() => console.log("✓", `Configured ${singleton} for ${sma} (isConfigured == true).`));
 
   appendActivity({

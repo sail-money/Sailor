@@ -292,11 +292,7 @@ export class SigningServer {
     return result;
   }
 
-  private recordResult(
-    response: SigningResponse,
-    request?: SigningRequest,
-    confirmation?: SigningConfirmation,
-  ): void {
+  private recordResult(response: SigningResponse, request?: SigningRequest): void {
     const id = response.requestId;
     // Guard against double-resolution: a concurrent WS message and a timeout
     // firing in the same event loop tick could both try to resolve the same request.
@@ -307,38 +303,49 @@ export class SigningServer {
       for (const w of waiters) w(response);
       this.resultWaiters.delete(id);
     }
-    // `confirmation` means we already know the on-chain outcome (owner-submitted
-    // transaction, checked below before this is ever called) — tell the UI that
-    // directly instead of the bare "resolved" message, so it never shows success
-    // for a request whose tx reverted.
-    if (confirmation) {
-      this.broadcast({ type: "request-confirmed", requestId: id, confirmation });
-    } else {
-      this.broadcast({ type: "request-resolved", requestId: id });
-    }
+    // A resolved request is NOT a confirmed one: for a transaction the browser
+    // wallet only returned a hash (mempool-accepted, not mined); for typed-data
+    // only a signature was captured. The UI treats "resolved" as "signed, not
+    // yet confirmed" and waits for a later `request-confirmed` before it ever
+    // shows success. The command that actually submits/verifies reports that
+    // outcome via `confirmOutcome` (for the few owner-submitted kinds no command
+    // verifies, the daemon reports it — see the `signed` branch of
+    // `handleClientMessage`).
+    this.broadcast({ type: "request-resolved", requestId: id });
     setTimeout(() => this.results.delete(id), 10 * 60 * 1000).unref?.();
     this.logOwnerActivity(response, request);
   }
 
   /**
-   * Owner-submitted transactions (create-sma, deploy-mandate, set-delegate,
-   * arbitrary-tx) are broadcast by the browser wallet directly — a returned
-   * hash only means "accepted by the mempool", not "succeeded". Wait for the
-   * receipt before telling the UI the request is resolved, so a reverted tx
-   * (e.g. the owner's wallet ran out of ETH mid-flow) surfaces as a failure
-   * instead of the false "done" screen the UI used to show on a bare hash.
+   * Confirm an owner-submitted transaction's receipt for the UI ONLY, without
+   * blocking the command that requested the signature. Every owner-submitted
+   * kind's command (create-sma, deploy-mandate, set-delegate) already waits for
+   * its own receipt against its own RPC and would report `arbitrary-tx` itself;
+   * this exists purely so the browser station advances past "awaiting
+   * confirmation" for the kinds whose command does NOT call back with an
+   * outcome. It runs fire-and-forget after `recordResult` has already returned
+   * the signed response to the caller.
+   *
+   * Distinct outcomes matter: a receipt we could not observe (no RPC for the
+   * chain, or the wait timed out) is reported `unverified`, NOT `failed` — the
+   * transaction was submitted and may well have succeeded; only a genuinely
+   * reverted receipt is a `reverted` verdict.
    */
-  private async confirmSignedTransaction(
+  private async confirmReceiptForUi(
     requestId: string,
     txHash: Hex,
     request?: SigningRequest,
   ): Promise<void> {
-    const response: SigningResponse = { status: "signed", requestId, txHash };
     const chainId = request?.chainId;
     if (chainId == null) {
-      this.recordResult(response, request, {
-        outcome: "failed",
-        error: "Missing chain id — could not confirm the transaction on-chain.",
+      this.broadcast({
+        type: "request-confirmed",
+        requestId,
+        confirmation: {
+          outcome: "unverified",
+          txHash,
+          error: "No chain id on the request — could not confirm the transaction on-chain.",
+        },
       });
       return;
     }
@@ -348,27 +355,43 @@ export class SigningServer {
       const client = createPublicClient({ transport: http(rpcUrl, { timeout: 10_000 }) });
       const receipt = await client.waitForTransactionReceipt({ hash: txHash, timeout: 120_000 });
       if (receipt.status === "success") {
-        this.recordResult(response, request, { outcome: "confirmed", txHash });
+        this.broadcast({
+          type: "request-confirmed",
+          requestId,
+          confirmation: { outcome: "confirmed", txHash },
+        });
       } else {
-        this.recordResult(response, request, {
-          outcome: "reverted",
-          txHash,
-          error: `Transaction reverted on-chain (${txHash}).`,
+        this.broadcast({
+          type: "request-confirmed",
+          requestId,
+          confirmation: {
+            outcome: "reverted",
+            txHash,
+            error: `Transaction reverted on-chain (${txHash}).`,
+          },
         });
       }
     } catch (err) {
-      this.recordResult(response, request, {
-        outcome: "failed",
-        error: err instanceof Error ? err.message : String(err),
+      // Could not observe the receipt (no RPC / timeout / transient error) — the
+      // tx was submitted, so this is "unverified", not a failure verdict.
+      this.broadcast({
+        type: "request-confirmed",
+        requestId,
+        confirmation: {
+          outcome: "unverified",
+          txHash,
+          error: err instanceof Error ? err.message : String(err),
+        },
       });
     }
   }
 
   /**
-   * Report the final on-chain outcome for a `typed-data` request whose
-   * signature the agent later submitted itself (e.g. register-permission) —
-   * the daemon has no way to observe that submission on its own, so the
-   * agent process reports back once it knows. See `SigningChannel.confirmOutcome`.
+   * Report the final outcome for a request whose submission the command itself
+   * observed — typed-data kinds (register/revoke/rotate) the agent submits, and
+   * `arbitrary-tx` (configure) the owner submits but the command verifies. The
+   * daemon can't see that submission on its own, so the command reports back
+   * once it knows. See `SigningChannel.confirmOutcome`.
    */
   async confirmOutcome(requestId: string, confirmation: SigningConfirmation): Promise<void> {
     this.broadcast({ type: "request-confirmed", requestId, confirmation });
@@ -818,7 +841,19 @@ export class SigningServer {
     const { request } = entry;
 
     if (msg.type === "signed") {
-      void this.confirmSignedTransaction(msg.requestId, msg.txHash as Hex, request);
+      // Return the signed response to the waiting command immediately — it does
+      // its own receipt confirmation against its own RPC (and reports the true
+      // outcome back via confirmOutcome). Blocking here on the daemon's own
+      // receipt wait made every owner-submitted command hang after signing and
+      // could surface a false failure when the daemon's RPC lagged or differed.
+      this.recordResult({ status: "signed", requestId: msg.requestId, txHash: msg.txHash as Hex }, request);
+      // `arbitrary-tx` (configure) reports its own outcome via confirmOutcome, so
+      // the daemon must not also confirm it (a second, RPC-divergent verdict).
+      // For the owner-submitted kinds whose command does NOT call back, drive the
+      // UI's confirmed/unverified/reverted state here — fire-and-forget.
+      if (request?.kind !== "arbitrary-tx") {
+        void this.confirmReceiptForUi(msg.requestId, msg.txHash as Hex, request);
+      }
     } else if (msg.type === "signature") {
       this.recordResult(
         { status: "signature", requestId: msg.requestId, signature: msg.signature as Hex },

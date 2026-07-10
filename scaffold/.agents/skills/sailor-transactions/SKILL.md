@@ -52,9 +52,20 @@ These open a signing channel, push a request, and wait (default timeout 10 minut
 | `sailor mandate register` | `RegisterPermission` EIP-712 — one permission; a comma-separated `--address` list signs `RegisterPermissions` once for all (off-chain signature; agent submits and pays gas) |
 | `sailor mandate deploy-clone` | `RegisterPermission` EIP-712 for the predicted clone address (use `mandate deploy` instead — deploy-clone is currently unavailable, no clone templates are deployed on any chain) |
 | `sailor mandate revoke` | `RevokePermissions` EIP-712 (agent submits and pays gas) |
+| `sailor mandate configure` | The `configureDirect` transaction as an `arbitrary-tx` — the mandate signer approves and sends it in the browser (they must be the on-chain `permissionSigner`) |
 | `sailor owner connect` | Nothing — blocks up to 300s waiting for a wallet to connect |
 
 All take `--json` for machine-readable output; in `--json` mode the blocking commands emit a `waiting_for_signature` status with the URL before blocking.
+
+### After the owner signs: the station shows a confirmation, not "done"
+
+A captured signature (or a wallet-returned tx hash) is **not** a confirmed result — the command still has to submit and/or confirm the transaction on-chain against its own RPC. The command returns as soon as the signature is captured and then reports the real outcome back to the station, which shows one of:
+
+- **Confirmed** — mined with a successful receipt (the only success state). May carry a note when an on-chain read is still catching up after the receipt.
+- **Reverted** — mined, but the transaction reverted on-chain.
+- **Unverified ("could not verify")** — the transaction was submitted (there is a tx hash) but its receipt could not be read (no RPC configured for the chain, or the wait timed out). This is **not** a failure — the transaction may have succeeded; verify with `sailor mandate list`.
+
+Because the command no longer blocks on the daemon's own receipt wait, it does not hang after the owner signs. If the station is stuck on "Signature received / awaiting confirmation", the command process reporting the outcome has not finished (or exited early) — check the command's own output, which is authoritative.
 
 ## Session control
 

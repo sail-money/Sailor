@@ -90,6 +90,14 @@ export default function SigningStation() {
   const requestsRef = useRef([])
 
   const handleMessage = useCallback((msg) => {
+    // Remove a request from the local pending list and return what remains.
+    // Idempotent — request-resolved and request-confirmed both prune the same id.
+    const pruneRequest = (requestId) => {
+      const remaining = requestsRef.current.filter((r) => r.id !== requestId)
+      requestsRef.current = remaining
+      setRequests(remaining)
+      return remaining
+    }
     if (msg.type === 'pending') {
       requestsRef.current = msg.requests
       setRequests(msg.requests)
@@ -99,16 +107,12 @@ export default function SigningStation() {
       }
       setRequests(requestsRef.current)
     } else if (msg.type === 'request-resolved') {
-      // Reaching here means an off-chain EIP-712 signature was captured (the
-      // daemon resolves owner-submitted transactions via 'request-confirmed'
-      // below instead, once the receipt is known) — the agent still has to
-      // submit the actual on-chain transaction, so this is NOT success yet.
-      const remaining = requestsRef.current.filter((r) => r.id !== msg.requestId)
-      requestsRef.current = remaining
-      setRequests(remaining)
-      // Only show the full-screen state when this was the last request.
-      // When more requests remain, go idle so the next card shows immediately
-      // instead of closing the station and sending the user to the dashboard.
+      // A signature/hash was captured, but nothing is confirmed on-chain yet —
+      // the submitting command (or the daemon, for kinds it verifies) reports
+      // the real outcome later via 'request-confirmed'. So this is NOT success:
+      // prune the request and, only if it was the last one, park on the
+      // "awaiting confirmation" screen until that outcome arrives.
+      const remaining = pruneRequest(msg.requestId)
       setPhase((p) => {
         if (p.requestId !== msg.requestId) return p
         if (p.phase === 'done' && remaining.length === 0) {
@@ -117,20 +121,28 @@ export default function SigningStation() {
         return { phase: 'idle' }
       })
     } else if (msg.type === 'request-confirmed') {
-      // The on-chain outcome is now known — either the daemon confirmed an
-      // owner-submitted transaction's receipt itself, or the agent reported
-      // back after submitting on the strength of a captured signature. Only
-      // now is it safe to say the request truly succeeded or failed.
+      // The outcome is now known. Mirror request-resolved's queue semantics:
+      // prune this request, and only take over the full screen when no requests
+      // remain — otherwise advance to the next pending card instead of yanking
+      // the user to a success/failure screen while other approvals are waiting.
+      const remaining = pruneRequest(msg.requestId)
       setPhase((p) => {
         if (p.requestId !== msg.requestId) return p
-        const { outcome, error } = msg.confirmation ?? {}
+        if (remaining.length > 0) return { phase: 'idle' }
+        const { outcome, error, note } = msg.confirmation ?? {}
         if (outcome === 'confirmed') {
-          return { phase: 'success', requestId: msg.requestId, kind: p.kind }
+          return { phase: 'success', requestId: msg.requestId, kind: p.kind, note }
         }
+        if (outcome === 'unverified') {
+          // Submitted but not observable (no RPC / timeout) — never a failure verdict.
+          return { phase: 'unverified', requestId: msg.requestId, kind: p.kind, message: error }
+        }
+        // 'reverted' (mined & reverted) or 'failed' (never submitted) — a real failure.
         return {
           phase: 'chain-failed',
           requestId: msg.requestId,
           kind: p.kind,
+          outcome,
           message: error ?? 'The transaction failed on-chain.',
         }
       })
@@ -165,9 +177,11 @@ export default function SigningStation() {
             <NotConnectedCard eyebrow="SIGNING STATION" title="Connect to approve requests." sub="Connect the owner wallet to review and sign pending agent requests." />
           </div>
         ) : phase.phase === 'success' ? (
-          <SuccessScreen kind={phase.kind} onDone={() => { setPhase({ phase: 'idle' }); window.location.hash = '#/dashboard' }} />
+          <SuccessScreen kind={phase.kind} note={phase.note} onDone={() => { setPhase({ phase: 'idle' }); window.location.hash = '#/dashboard' }} />
         ) : phase.phase === 'chain-failed' ? (
-          <FailureScreen message={phase.message} onDone={() => { setPhase({ phase: 'idle' }); window.location.hash = '#/dashboard' }} />
+          <FailureScreen outcome={phase.outcome} message={phase.message} onDone={() => { setPhase({ phase: 'idle' }); window.location.hash = '#/dashboard' }} />
+        ) : phase.phase === 'unverified' ? (
+          <UnverifiedScreen message={phase.message} onDone={() => { setPhase({ phase: 'idle' }); window.location.hash = '#/dashboard' }} />
         ) : phase.phase === 'awaiting-confirmation' ? (
           <AwaitingConfirmationScreen onDone={() => { setPhase({ phase: 'idle' }); window.location.hash = '#/dashboard' }} />
         ) : hasDraft ? (
@@ -438,7 +452,7 @@ function DetailRow({ label, value, mono = true, chainId }) {
   )
 }
 
-function SuccessScreen({ kind, onDone }) {
+function SuccessScreen({ kind, note, onDone }) {
   const isPermission = kind === 'register-permission' || kind === 'attach-mandate'
   return (
     <GlassCard className={styles.emptyCard}>
@@ -446,15 +460,20 @@ function SuccessScreen({ kind, onDone }) {
         <Sai size={64} animate />
       </div>
       <header className={styles.emptyCardHeader}>
-        <span className={styles.emptyKicker}>SIGNED</span>
+        <span className={styles.emptyKicker}>CONFIRMED</span>
         <h1 className={`${shared.displayHeadline} ${styles.emptyHeadline}`} style={{ color: 'var(--accent-green, #4ade80)' }}>
-          ✓ {isPermission ? 'Permission registered.' : 'Done.'}
+          ✓ {isPermission ? 'Permission registered.' : 'Confirmed on-chain.'}
         </h1>
         <p className={`${shared.italicMannerism} ${styles.emptyTagline}`}>
           {isPermission
             ? 'Your agent is authorized to dispatch within this permission.'
-            : 'The request was signed and submitted.'}
+            : 'The transaction was confirmed on-chain.'}
         </p>
+        {note && (
+          <p className={`${shared.italicMannerism} ${styles.emptyTagline}`} style={{ opacity: 0.8 }}>
+            {note}
+          </p>
+        )}
       </header>
       <div className={styles.emptyCta}>
         <SailButton fullWidth onClick={onDone}>
@@ -492,19 +511,54 @@ function AwaitingConfirmationScreen({ onDone }) {
   )
 }
 
-function FailureScreen({ message, onDone }) {
+function FailureScreen({ outcome, message, onDone }) {
+  // 'reverted' = mined then reverted on-chain; 'failed' = the submission itself
+  // errored, so the transaction was never sent. Word them distinctly.
+  const reverted = outcome === 'reverted'
   return (
     <GlassCard className={styles.emptyCard}>
       <div className={styles.emptyCardSai} aria-hidden>
         <Sai size={64} animate />
       </div>
       <header className={styles.emptyCardHeader}>
-        <span className={styles.emptyKicker} style={{ color: 'var(--accent-red, #f87171)' }}>FAILED</span>
+        <span className={styles.emptyKicker} style={{ color: 'var(--accent-red, #f87171)' }}>
+          {reverted ? 'REVERTED' : 'FAILED'}
+        </span>
         <h1 className={`${shared.displayHeadline} ${styles.emptyHeadline}`} style={{ color: 'var(--accent-red, #f87171)' }}>
-          ✕ Transaction failed on-chain.
+          ✕ {reverted ? 'Transaction reverted on-chain.' : 'Transaction was not submitted.'}
         </h1>
         <p className={`${shared.italicMannerism} ${styles.emptyTagline}`}>
           {message}
+        </p>
+      </header>
+      <div className={styles.emptyCta}>
+        <SailButton fullWidth onClick={onDone}>
+          Back to dashboard →
+        </SailButton>
+      </div>
+    </GlassCard>
+  )
+}
+
+/* Signed and submitted (we have a tx hash), but the receipt could not be
+   observed — no RPC for the chain, or the wait timed out. Deliberately NOT a
+   red failure: the transaction may well have succeeded. */
+function UnverifiedScreen({ message, onDone }) {
+  return (
+    <GlassCard className={styles.emptyCard}>
+      <div className={styles.emptyCardSai} aria-hidden>
+        <Sai size={64} animate />
+      </div>
+      <header className={styles.emptyCardHeader}>
+        <span className={styles.emptyKicker} style={{ color: 'var(--accent-amber, #fbbf24)' }}>UNCONFIRMED</span>
+        <h1 className={`${shared.displayHeadline} ${styles.emptyHeadline}`} style={{ color: 'var(--accent-amber, #fbbf24)' }}>
+          Signed &amp; submitted — could not confirm.
+        </h1>
+        <p className={`${shared.italicMannerism} ${styles.emptyTagline}`}>
+          {message ?? 'The transaction was submitted but its on-chain result could not be read here.'}
+        </p>
+        <p className={`${shared.italicMannerism} ${styles.emptyTagline}`} style={{ opacity: 0.8 }}>
+          It may still have succeeded — verify with <code>sailor mandate list</code>.
         </p>
       </header>
       <div className={styles.emptyCta}>
