@@ -254,11 +254,15 @@ function publicClientFor(project: ProjectContext): PublicClient {
  * for a write that already succeeded (observed on Base). Mirrors
  * mandate-contracts.ts's pollForPermission.
  */
-async function pollIsConfigured(
-  publicClient: PublicClient,
+// Exported + delay-injectable so the F14 retry behaviour (false-then-true across
+// RPC read-after-write lag resolves as success; false through all retries does
+// not) is testable deterministically without a chain or real backoff waits.
+export async function pollIsConfigured(
+  publicClient: Pick<PublicClient, "readContract">,
   singleton: Address,
   sma: Address,
   attempts = 6,
+  delayMs = 1500,
 ): Promise<boolean> {
   for (let i = 0; i < attempts; i++) {
     const configured = await publicClient.readContract({
@@ -268,7 +272,7 @@ async function pollIsConfigured(
       args: [sma],
     });
     if (configured) return true;
-    if (i < attempts - 1) await new Promise((r) => setTimeout(r, 1500));
+    if (i < attempts - 1 && delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
   }
   return false;
 }

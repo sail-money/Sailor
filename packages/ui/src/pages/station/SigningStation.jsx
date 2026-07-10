@@ -12,6 +12,7 @@ import { useSailorAccount, useSailorMandateDraft } from '../../hooks/useSailorDa
 import { useSigningSocket } from '../../hooks/useSigningSocket'
 import { MandateSigningFlow } from '../signing/Signing'
 import { explorerCodeUrl, explorerTxUrl } from '../../lib/explorer'
+import { nextSigningPhase, failureCopy } from './signingPhase'
 
 const KIND_LABELS = {
   'create-sma': 'Create Safe (SMA)',
@@ -106,46 +107,14 @@ export default function SigningStation() {
         requestsRef.current = [...requestsRef.current, msg.request]
       }
       setRequests(requestsRef.current)
-    } else if (msg.type === 'request-resolved') {
-      // A signature/hash was captured, but nothing is confirmed on-chain yet —
-      // the submitting command (or the daemon, for kinds it verifies) reports
-      // the real outcome later via 'request-confirmed'. So this is NOT success:
-      // prune the request and, only if it was the last one, park on the
-      // "awaiting confirmation" screen until that outcome arrives.
+    } else if (msg.type === 'request-resolved' || msg.type === 'request-confirmed') {
+      // Both prune the request from the local queue; nextSigningPhase (pure,
+      // unit-tested in signingPhase.test.js) decides whether to advance to the
+      // next card or take the terminal screen — so both handlers are locked to
+      // the same queue/screen invariant. Compute inside the setPhase updater so
+      // it reads the freshest phase (the child sets 'done'/'submitting' directly).
       const remaining = pruneRequest(msg.requestId)
-      setPhase((p) => {
-        if (p.requestId !== msg.requestId) return p
-        if (p.phase === 'done' && remaining.length === 0) {
-          return { phase: 'awaiting-confirmation', requestId: msg.requestId, kind: p.kind }
-        }
-        return { phase: 'idle' }
-      })
-    } else if (msg.type === 'request-confirmed') {
-      // The outcome is now known. Mirror request-resolved's queue semantics:
-      // prune this request, and only take over the full screen when no requests
-      // remain — otherwise advance to the next pending card instead of yanking
-      // the user to a success/failure screen while other approvals are waiting.
-      const remaining = pruneRequest(msg.requestId)
-      setPhase((p) => {
-        if (p.requestId !== msg.requestId) return p
-        if (remaining.length > 0) return { phase: 'idle' }
-        const { outcome, error, note } = msg.confirmation ?? {}
-        if (outcome === 'confirmed') {
-          return { phase: 'success', requestId: msg.requestId, kind: p.kind, note }
-        }
-        if (outcome === 'unverified') {
-          // Submitted but not observable (no RPC / timeout) — never a failure verdict.
-          return { phase: 'unverified', requestId: msg.requestId, kind: p.kind, message: error }
-        }
-        // 'reverted' (mined & reverted) or 'failed' (never submitted) — a real failure.
-        return {
-          phase: 'chain-failed',
-          requestId: msg.requestId,
-          kind: p.kind,
-          outcome,
-          message: error ?? 'The transaction failed on-chain.',
-        }
-      })
+      setPhase((p) => nextSigningPhase(p, remaining.length, msg))
     }
   }, [])
 
@@ -513,8 +482,8 @@ function AwaitingConfirmationScreen({ onDone }) {
 
 function FailureScreen({ outcome, message, onDone }) {
   // 'reverted' = mined then reverted on-chain; 'failed' = the submission itself
-  // errored, so the transaction was never sent. Word them distinctly.
-  const reverted = outcome === 'reverted'
+  // errored, so the transaction was never sent. Worded distinctly (failureCopy).
+  const copy = failureCopy(outcome)
   return (
     <GlassCard className={styles.emptyCard}>
       <div className={styles.emptyCardSai} aria-hidden>
@@ -522,10 +491,10 @@ function FailureScreen({ outcome, message, onDone }) {
       </div>
       <header className={styles.emptyCardHeader}>
         <span className={styles.emptyKicker} style={{ color: 'var(--accent-red, #f87171)' }}>
-          {reverted ? 'REVERTED' : 'FAILED'}
+          {copy.kicker}
         </span>
         <h1 className={`${shared.displayHeadline} ${styles.emptyHeadline}`} style={{ color: 'var(--accent-red, #f87171)' }}>
-          ✕ {reverted ? 'Transaction reverted on-chain.' : 'Transaction was not submitted.'}
+          {copy.headline}
         </h1>
         <p className={`${shared.italicMannerism} ${styles.emptyTagline}`}>
           {message}

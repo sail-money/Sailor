@@ -22,6 +22,24 @@ import { type StoredAccount, upsertAccountInList } from "../lib/state.js";
 
 const _signingPort = parseInt(process.env.SAILOR_STATION_PORT ?? "", 10);
 export const DEFAULT_SIGNING_PORT = Number.isFinite(_signingPort) && _signingPort >= 1 && _signingPort <= 65535 ? _signingPort : 3141; // π — memorable, thematic
+
+/**
+ * Observe an owner-submitted transaction's receipt for the UI's confirmation.
+ * Resolves to the receipt status; THROWS when the receipt cannot be observed
+ * (no RPC configured for the chain, or the wait timed out) — the daemon maps a
+ * throw to the `unverified` outcome, never a failure verdict. Injectable so the
+ * confirmation protocol can be tested without a chain (see SigningServer opts).
+ */
+export type ReceiptChecker = (chainId: number, txHash: Hex) => Promise<"success" | "reverted">;
+
+/** The real receipt checker: resolve the chain's RPC and wait for the receipt. */
+const defaultReceiptChecker: ReceiptChecker = async (chainId, txHash) => {
+  const rpcUrl = getRpcUrl(chainId);
+  if (!rpcUrl) throw new Error(`No RPC URL configured for chain ${chainId}`);
+  const client = createPublicClient({ transport: http(rpcUrl, { timeout: 10_000 }) });
+  const receipt = await client.waitForTransactionReceipt({ hash: txHash, timeout: 120_000 });
+  return receipt.status === "success" ? "success" : "reverted";
+};
 const RUNTIME_SUBDIR = join(".sail", "runtime");
 const SERVER_STATE_FILE = "server.json";
 const REQUEST_SECRET_HEADER = "x-sailor-secret";
@@ -110,18 +128,27 @@ export class SigningServer {
    * on a discovery race. The browser UI finds servers by port-probing anyway.
    */
   private readonly advertise: boolean;
+  /** How the daemon observes a receipt for UI confirmation — injectable for tests. */
+  private readonly checkReceipt: ReceiptChecker;
   /** Random secret generated at startup. Required on POST /requests to prevent
    *  cross-origin pages from injecting signing requests. */
   private requestSecret = "";
 
   constructor(
-    opts: { projectRoot?: string; port?: number; uiDist?: string; advertise?: boolean } = {},
+    opts: {
+      projectRoot?: string;
+      port?: number;
+      uiDist?: string;
+      advertise?: boolean;
+      checkReceipt?: ReceiptChecker;
+    } = {},
   ) {
     this.projectRoot = opts.projectRoot ?? process.cwd();
     this.runtimeDir = join(this.projectRoot, RUNTIME_SUBDIR);
     this.port = opts.port ?? DEFAULT_SIGNING_PORT;
     this.uiDist = opts.uiDist ?? findUiDist();
     this.advertise = opts.advertise ?? true;
+    this.checkReceipt = opts.checkReceipt ?? defaultReceiptChecker;
   }
 
   get url(): string {
@@ -350,11 +377,8 @@ export class SigningServer {
       return;
     }
     try {
-      const rpcUrl = getRpcUrl(chainId);
-      if (!rpcUrl) throw new Error(`No RPC URL configured for chain ${chainId}`);
-      const client = createPublicClient({ transport: http(rpcUrl, { timeout: 10_000 }) });
-      const receipt = await client.waitForTransactionReceipt({ hash: txHash, timeout: 120_000 });
-      if (receipt.status === "success") {
+      const status = await this.checkReceipt(chainId, txHash);
+      if (status === "success") {
         this.broadcast({
           type: "request-confirmed",
           requestId,
