@@ -46,6 +46,8 @@ Compose with these two standing rules:
 - If the user's first message is an npm install command, run it, then deliver the welcome immediately after it completes — do not wait for another message.
 - Do not describe, mention, or present any code in `src/` as the user's strategy — treat strategy definition as a blank slate; ask what they want.
 
+**Ask for things at the moment they're needed, never before.** Two applications, both load-bearing: (1) chain choice and agent-wallet creation are **setup UI decisions** — the chat may discuss chains (mechanics, fees, what Sail supports) but never fixes one; the wizard below is where the user actually decides, and it also creates the agent wallet + passphrase (never ask for a passphrase in chat — it is a secret and must never appear in the transcript). (2) RPC endpoints are asked for at the first step that genuinely needs the user's own RPC — never here. Station 1 runs entirely on public fallbacks; see the exit verifier below for where the real ask lives.
+
 After the welcome, the setup interface (`sailor ui start`, `sailor station start`) launches when you reach the SMA-deployment step below — not before the user has responded. "Responded" means any of: saying "start" (or similar) again, confirming readiness in any form ("yes", "let's go", "ready"), or stating a strategy category/intent ("I want to DCA", "earn yield on my USDC") — the last of these already implies readiness and also triggers the skip-to-intent deviation above. What it does **not** mean: launching the interface off the user's very first message, before the welcome script above has been shown at all — the point of this gate is to never open a signing surface before the user has seen what they're agreeing to.
 
 ## Running the CLI
@@ -65,8 +67,7 @@ This skill owns **Station 1 (ARRIVE)**. Read `.sail/` to find where the project 
 
 | `.sail/` state | Where you are |
 |---|---|
-| `config.json` has `chainId: null` | Station 1, step 1 — chain not chosen; ask which chain, write it to `config.json` |
-| No `account.json` | Station 1, step 2 — SMA not deployed (deploy it below) |
+| No `account.json` (chain chosen or not — `config.json.chainId` may still be `null`) | Station 1 — hand the user to the setup UI below for ALL of: chain choice, agent wallet + passphrase, SMA deploy. Do not ask which chain, or for a passphrase, in chat — `sailor init` is chain-neutral by design; the wizard decides |
 | `account.json` exists, no `.sail/strategy.md` | Station 1 complete → **Station 2**: hand off to [`sailor-strategy`](../sailor-strategy/SKILL.md) |
 | `account.json` + a complete `.sail/strategy.md`, no tracked mandates | Strategy defined → **Station 3**: hand off to [`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md) |
 | `account.json` + tracked mandates in `state/mandates.json` | Mandate exists → **Stations 4–5**: build/run the agent (dispatch mechanics in [`sailor-transactions`](../sailor-transactions/SKILL.md)), then run unattended ([`sailor-automation`](../sailor-automation/SKILL.md)) and offer notifications + a dashboard ([`sailor-extend`](../sailor-extend/SKILL.md)) |
@@ -75,19 +76,23 @@ Supported chains: Ethereum (1), Base (8453), Arbitrum (42161), Optimism (10), Un
 
 ## Step 2 — Deploy the SMA and create the agent wallet
 
-In the browser. Run `sailor ui start`, open the printed URL, connect the owner wallet, choose the network, deploy the SMA, then create the agent wallet — a separate signing key the agent uses to submit transactions. **Both wallets need gas, and the split is not what it looks like:** the owner *signs* (SMA deployment, mandate authorization) but the **agent wallet submits and pays for every on-chain transaction** — including `mandate deploy` and `mandate register` during setup, not just dispatches once running. Fund the agent wallet before registering permissions (Station 3) or the transaction fails with a node error like "gas required exceeds allowance" (the exact message text varies by RPC). The owner wallet needs gas only for transactions it submits directly in the browser (the SMA deployment). The owner key never leaves the browser.
+**Canonical path — the setup UI, for every first-time SMA.** Run `sailor ui start`, hand the user the printed bare URL (no hash — it opens the wizard, never the signing station). In the wizard the user: chooses the network, connects the owner wallet, sets a passphrase and generates the agent wallet — a separate signing key the agent uses to submit transactions — then deploys the SMA. All four of those are the user's decisions, made by clicking and typing in that UI; your job is to get them there and narrate what's happening, not to ask for or decide any of it in chat. The passphrase in particular never appears in this conversation — it's a browser form field, end to end.
 
-Headless alternative (the agent drives, the owner only signs in the browser):
+**Both wallets need gas, and the split is not what it looks like:** the owner *signs* (SMA deployment, mandate authorization) but the **agent wallet submits and pays for every on-chain transaction** — including `mandate deploy` and `mandate register` during setup, not just dispatches once running. Fund the agent wallet before registering permissions (Station 3) or the transaction fails with a node error like "gas required exceeds allowance" (the exact message text varies by RPC). The owner wallet needs gas only for transactions it submits directly in the browser (the SMA deployment). The owner key never leaves the browser.
+
+**Advanced/headless alternative — CLI-only, no wizard.** Only reach for this when the user explicitly wants CLI-driven control over onboarding itself (not the common case — the wizard above is simpler and is where the decisions belong):
 
 ```bash
-sailor keys generate                 # create the agent wallet (interactive: role + passphrase)
+sailor keys generate                 # create the agent wallet — interactive terminal prompt for role
+                                      # + passphrase; the TERMINAL's hidden input reads it, never you —
+                                      # do not ask for or relay the passphrase in chat
 sailor station start --json &        # signing daemon — BLOCKS; run in background
 sailor owner connect --json          # BLOCKS up to 300s waiting for a wallet to connect in the browser
 sailor scan --json                   # discover the owner's Safes and state
 sailor onboard --new-sma --json      # deploy SMA — BLOCKS waiting for the owner's browser signature
 ```
 
-`onboard --new-sma` pushes a `create-sma` signing request to the browser, waits for the owner to approve (default timeout 10 minutes), then persists the SMA to `.sail/account.json`. Tell the user: "approve the request in the signing station in your browser."
+`sailor ui start` must ALSO be running before this path prints a usable URL — the station route it prints (`.../#/station`) is served by the dashboard, not the daemon itself. `onboard --new-sma` pushes a `create-sma` signing request to the browser, waits for the owner to approve (default timeout 10 minutes), then persists the SMA to `.sail/account.json`. Tell the user: "approve the request in the signing station in your browser."
 
 ## Deterministic address (salt)
 
@@ -123,6 +128,4 @@ During setup, always ask before anything that costs gas.
 
 ## Station 1 exit verifier
 
-`sailor doctor` — read-only preflight: kernel dispatch model, permission health, RPC reachability, chain-id match, gas balances in both wallets. **Station 1 is not complete until `doctor` is all green** (RPC connected, chain-id matches, keys present, gas funded). Then → [`sailor-strategy`](../sailor-strategy/SKILL.md) (Station 2).
-
-**`doctor` green does not guarantee every RPC-dependent script can run.** `doctor` resolves the RPC via `getRpcUrl()`, which falls back to a shell-level environment variable (`RPC_URL` or a chain-named var) if `.sail/.env.local` has nothing — so it can report green off a shell var alone. [`sailor-token-resolve`](../sailor-token-resolve/SKILL.md)'s `resolve-token.mjs` and [`sailor-swap-quote`](../sailor-swap-quote/SKILL.md)'s `quote-swap.mjs` are standalone scripts that read **only** `.sail/.env.local` — a shell-only `RPC_URL` is invisible to them, and they fail with `No RPC for <chain>. Pass --rpc or set RPC_URL in .sail/.env.local.` even with `doctor` all green. Before leaving Station 1, confirm the RPC is actually written into `.sail/.env.local` (named var, e.g. `UNICHAIN_RPC_URL`, or the generic `RPC_URL`) — not just present in the shell — since Station 2 depends on those scripts.
+`sailor doctor` — read-only preflight: kernel dispatch model, permission health, RPC reachability, chain-id match, gas balances in both wallets. **Station 1 is not complete until `doctor` is all green** (RPC connected, chain-id matches, keys present, gas funded). `doctor`'s RPC check tolerates the public fallback (no RPC_URL needed to go green) — Station 1 never needs the user's own RPC endpoint. Then → [`sailor-strategy`](../sailor-strategy/SKILL.md) (Station 2), which will ask for it at the first step that genuinely needs it (token resolution) — not here.

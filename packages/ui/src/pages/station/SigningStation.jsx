@@ -13,6 +13,7 @@ import { useSigningSocket } from '../../hooks/useSigningSocket'
 import { MandateSigningFlow } from '../signing/Signing'
 import { explorerCodeUrl, explorerTxUrl } from '../../lib/explorer'
 import { nextSigningPhase, failureCopy } from './signingPhase'
+import { decideStationEntry } from './stationEntry'
 
 const KIND_LABELS = {
   'create-sma': 'Create Safe (SMA)',
@@ -84,7 +85,19 @@ export default function SigningStation() {
   const { address: walletAddress, isConnected } = useAccount()
   const chains = useChains()
   const { disconnect } = useDisconnect()
-  const { account: realAccount } = useSailorAccount()
+  const { account: realAccount, loading: accountLoading } = useSailorAccount()
+
+  // First-load routing: never show the bare "connect your wallet" station
+  // chrome to a user who hasn't onboarded yet and has nothing pending to
+  // approve — send them to the wizard instead (see stationEntry.js).
+  const stationEntry = decideStationEntry({
+    stateLoaded: !accountLoading,
+    hasAccount: !!realAccount,
+    pendingCount: requests.length,
+  })
+  useEffect(() => {
+    if (stationEntry === 'wizard') window.location.hash = '#/dashboard'
+  }, [stationEntry])
 
   // Mirror of requests in a ref so handleMessage can read the current length
   // inside setPhase's updater without a stale closure.
@@ -141,7 +154,14 @@ export default function SigningStation() {
       />
 
       <main className={styles.main}>
-        {!isConnected ? (
+        {stationEntry === 'loading' || stationEntry === 'wizard' ? (
+          // Neutral loading beat — either state hasn't resolved yet, or we're
+          // about to redirect to the wizard (the effect above fires this render).
+          // Never the station's interactive chrome before we know it's the right view.
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, padding: '40px 0' }}>
+            <Sai size={64} animate />
+          </div>
+        ) : !isConnected ? (
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, padding: '40px 0' }}>
             <NotConnectedCard eyebrow="SIGNING STATION" title="Connect to approve requests." sub="Connect the owner wallet to review and sign pending agent requests." />
           </div>

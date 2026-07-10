@@ -41,6 +41,18 @@ the endpoint; `--all-chains` maps every Sail mainnet (even ones without an RPC c
 those use GeckoTerminal-only data) so you can recommend "put your SMA on chain Y"; `--json`
 forces the rich per-token map for a single token.
 
+**RPC — ask here, the first time it's genuinely needed, once.** This script reads **only**
+`.sail/.env.local` — no shell-var fallback, no public-RPC fallback (unlike `sailor doctor`,
+which tolerates a public fallback and can go green with none configured). If nothing is
+written there yet, it fails with `No RPC for <chain>. Pass --rpc or set RPC_URL in
+.sail/.env.local.` — that failure is the FIRST point in the whole journey where the user's own
+RPC is actually required; nothing before this station needed it. When it fires, ask, didactically,
+in one breath: public RPCs are unreliable for real work (rate-limited, no SLA) — a free-tier key
+from Alchemy or Infura takes a couple of minutes to get. Guide them to the signup, take the URL,
+write it to `.sail/.env.local` (`RPC_URL=…` for a single chain, or the chain-named var for
+multi-chain projects), then re-run. Written once, never asked again — every later RPC-dependent
+script (`sailor-swap-quote`'s `quote-swap.mjs`, `doctor`, the runner) reads the same file.
+
 > **Coverage caveat — curated tables cover 4 of the 11 supported chains.** The script ships
 > curated token tables + a Uniswap QuoterV2 address for **ethereum, unichain, base, arbitrum**
 > only (the four `--chain` values above). On the other supported chains (optimism, bsc, world
