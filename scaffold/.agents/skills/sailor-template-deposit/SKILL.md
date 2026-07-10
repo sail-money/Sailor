@@ -106,7 +106,10 @@ BLOB=$(cast abi-encode "f(address[],address[],uint256)" \
   1000000000)
 sailor mandate configure --address <DEPOSIT_PERMISSION> --sma <SMA> --params "$BLOB"
 
-sailor mandate simulate --address <DEPOSIT_PERMISSION> --sma <SMA> --calls ./probe.json
+# ONE mandatory safety gate — generate the lean probes from the same $BLOB, then run simulate once.
+# Uses the ERC-4626 deposit(assets,receiver) shape; for an Aave-style pool, probe that path with
+# cast call. See sailor-templates/references/reuse-flow.md step 5.
+node scripts/probe-mandate.mjs --template DepositPermission --params "$BLOB" --sma <SMA> --address <DEPOSIT_PERMISSION>
 ```
 
 ## Steps

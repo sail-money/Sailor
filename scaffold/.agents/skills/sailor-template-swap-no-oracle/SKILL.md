@@ -128,7 +128,9 @@ BLOB=$(cast abi-encode "f(address[],address[],address[],uint256,(address,address
   "[(0x078D782b760474a361dDA0AF3839290b0EF57AD6,0xILLIQUID_TOKEN_resolve_via_sailor-token-resolve,0xREFERENCE_POOL_verify_it_prices_this_pair_onchain,1,1000)]")
 sailor mandate configure --address <SWAP_NO_ORACLE> --sma <SMA> --params "$BLOB"
 
-sailor mandate simulate --address <SWAP_NO_ORACLE> --sma <SMA> --calls ./probe.json
+# ONE mandatory safety gate — generate the lean probes from the same $BLOB, then run simulate once
+# (picks the correct swap selector per router). See sailor-templates/references/reuse-flow.md step 5.
+node scripts/probe-mandate.mjs --template SwapPermissionNoOracle --params "$BLOB" --sma <SMA> --address <SWAP_NO_ORACLE>
 ```
 
 ## Steps

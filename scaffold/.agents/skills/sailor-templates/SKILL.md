@@ -64,6 +64,7 @@ something changes, edit it in ONE place:
 | Which templates exist | source contracts, auto-detected by [`catalog.mjs`](catalog.mjs) | — |
 | Deployed addresses (per chain) | [`deployed.json`](deployed.json) | link here |
 | Register → configure → simulate flow | [references/reuse-flow.md](references/reuse-flow.md) | link here, don't restate |
+| Lean safety probes (generated from the config blob) | [`scripts/probe-mandate.mjs`](../../../scripts/probe-mandate.mjs) — `node scripts/probe-mandate.mjs --template <Name> --params <blob> --sma <SMA> --address <ADDR>` | link here |
 | Config tuples + invariants | [references/config-schemas.md](references/config-schemas.md) | quote only their own tuple |
 
 So a change to the CLI flow is a single edit to

@@ -161,11 +161,14 @@ adapter** for this pair on this chain (`0x0` reverts):
    verifies `isConfigured(<SMA>) == true` on receipt. Pass `--simulate-only` to stop after the
    pre-flight (no signing, no gas).
    *(The signed `configure(account, params, deadline, sig)` path uses EIP-712 domain `("SwapPermission","2")`.)*
-4. **Simulate** — prove an allowed swap passes and a bad one (wrong recipient / over-cap /
-   disallowed token) fails:
+4. **Simulate** — the ONE mandatory safety gate, run once. Don't hand-write probes: generate the
+   lean set from the config blob (it derives the wrong-recipient / over-cap / disallowed-token
+   rejections and picks the correct swap selector for your router), then run the printed command:
    ```bash
-   sailor mandate simulate --address <SWAP_PERMISSION> --sma <SMA> --calls ./swap-probe.json
+   node scripts/probe-mandate.mjs --template SwapPermission --params <0x-config-blob> \
+     --sma <SMA> --address <SWAP_PERMISSION>
    ```
+   See [sailor-templates/references/reuse-flow.md](../sailor-templates/references/reuse-flow.md) step 5.
 5. **Reconfigure** later (new cap / extra output token) — re-run step 3b with a new blob; same
    address, no re-register.
 

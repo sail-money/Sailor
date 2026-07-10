@@ -74,7 +74,9 @@ BLOB=$(cast abi-encode "f(address[],address,uint256)" \
   5000000000)
 sailor mandate configure --address <WITHDRAW_PERMISSION> --sma <SMA> --params "$BLOB"
 
-sailor mandate simulate --address <WITHDRAW_PERMISSION> --sma <SMA> --calls ./probe.json
+# ONE mandatory safety gate — generate the lean probes from the same $BLOB, then run simulate once.
+# See sailor-templates/references/reuse-flow.md step 5.
+node scripts/probe-mandate.mjs --template WithdrawPermission --params "$BLOB" --sma <SMA> --address <WITHDRAW_PERMISSION>
 ```
 
 ## Steps

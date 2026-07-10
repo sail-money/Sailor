@@ -124,14 +124,24 @@ If the owner is **not** the `permissionSigner` (e.g. a separate mandate-signer /
 submit. `sailor mandate configure` does not build this signature for you — that path is still
 manual.
 
-### 5. Verify off-chain (no gas)
-Prove it accepts what you want and rejects what you don't, before trusting it:
+### 5. Verify off-chain (no gas) — the ONE mandatory safety gate, run ONCE
+This is the safety verification: prove the configured bounds REJECT what they must reject and
+ACCEPT a representative good call. Run it exactly once, here — after configure, before the agent
+goes live. (The `eth_call` pre-flight inside step 4 is only an encoding check that
+`configureDirect` decodes; it is NOT this gate — don't count it as a second simulation.)
+
+Don't hand-write the probes. Generate the lean set mechanically from the SAME config blob you
+configured with — it derives the cap / allowlist / recipient / floor rejections and picks the
+correct swap selector for your router:
 ```bash
-sailor mandate simulate --address <SHARED_ADDRESS> --sma <SMA> \
-  --target <router> --calldata <hex> --expect pass
-# or a batch file:
-sailor mandate simulate --address <SHARED_ADDRESS> --sma <SMA> --calls ./probe.json
+node scripts/probe-mandate.mjs --template <TemplateName> --params <0x-config-blob> \
+  --sma <SMA> --address <SHARED_ADDRESS>
+# → writes mandate-probes.<Template>.json and prints the exact command to run:
+sailor mandate simulate --address <SHARED_ADDRESS> --sma <SMA> --calls mandate-probes.<Template>.json --json
 ```
+Covers Transfer, Withdraw, Deposit, SwapPermission, SwapPermissionNoOracle. `BorrowPermission`
+(needs the lending-protocol family) and `ApproveAndCallBatchPermission` (enforced by
+`evaluateBatch` — probe with `cast call`) are not generated; derive those probes yourself.
 
 ### 6. Reconfigure when bounds change
 New cap or allowlist? Re-encode the blob and repeat step 4 (`sailor mandate configure --force`,

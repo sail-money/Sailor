@@ -31,7 +31,7 @@ Read `.sail/strategy.md` first. AGENTS.md station 3: "Gate: complete `.sail/stra
 
 ## Ordering rules (enforced here, specified elsewhere)
 
-- **Shared singletons: register ≠ configure.** Follow [`sailor-templates`](../sailor-templates/SKILL.md)'s reuse flow exactly — register, configure, then simulate; a registered-but-unconfigured template denies everything.
+- **Shared singletons: register ≠ configure.** Follow [`sailor-templates`](../sailor-templates/SKILL.md)'s reuse flow exactly — register, configure, then simulate ONCE (the single safety gate, [reuse-flow](../sailor-templates/references/reuse-flow.md) step 5, using `scripts/probe-mandate.mjs` to generate the probes); a registered-but-unconfigured template denies everything. The exit-verifier below checks that this one simulation passed — it does not call for a second run.
 - **Bespoke permissions:** AGENTS.md invariant 1 — "**Deploy → simulate → register.** Registration is authorization; nothing is authorized before its bounds are proven, including proven to reject what they must reject."
 - **Every plan must answer the approve-coverage question before it is final** — not only for swap, for every action that needs one (step 1 above). Read [`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md) and pick the execution model as part of the plan, not after it.
 
