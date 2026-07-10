@@ -1,6 +1,6 @@
 # Trading — archetypes, extension dimensions, routing
 
-Conforms to the category contract in [../SKILL.md](../SKILL.md). Defaults below are structural only — never an invented address, never an asset recommendation.
+A routing aid consulted when the intent fits this category — not the boundary of what can be built. Conforms to the category contract in [../SKILL.md](../SKILL.md). Defaults below are structural only — never an invented address, never an asset recommendation.
 
 ## Archetypes
 
