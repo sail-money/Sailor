@@ -20,9 +20,13 @@ Defaults: cadence = event-driven (each tick checks price against the levels); pe
 | Pair(s) | tokenIn/tokenOut per leg, both resolved via `sailor-token-resolve` |
 | Venue + fee tier | The exact router and pool fee tier the leg trades on (token-resolve reports swap-ready tiers) |
 | Slippage tolerance | `maxSlippageBps` — sized with a live quote from [`sailor-swap-quote`](../../sailor-swap-quote/SKILL.md) |
-| Price source | Oracle-gated vs pool-referenced — see below; this decides which swap template Station 3 uses |
+| Price source | `SwapPermissionNoOracle` by default; `SwapPermission` (oracle-gated) only when size vs pool depth warrants it — see below |
 
-**Price source — surface this risk difference to the user.** `SwapPermission` (oracle-gated) enforces a manipulation-resistant slippage band via a mandatory `IOracle` adapter — use it whenever an adapter exists for the pair. `SwapPermissionNoOracle` replaces the oracle with a live reference-pool band that is **NOT manipulation-resistant** (a single pool's spot price, movable within one transaction) — it catches an honest mis-quote, not an attack; only for tokens with no oracle adapter, and the user should know the difference before choosing it.
+**No-oracle is the default.** For regular-sized trades, `SwapPermissionNoOracle`'s live-pool band is the right, honest choice — cheap, no extra infrastructure, and it catches a confused manager/agent's bad quote. The reason to reach for an oracle is SIZE, not manager trust: a compromised key is already caught by the amount cap and allowlists either way, but a single pool's spot price is movable within one transaction, and that only matters once a trade is large enough relative to the pool for moving it to be worth an attacker's effort.
+
+**Soft trigger — cap vs pool depth.** `sailor-token-resolve` reports pool liquidity. Cap large relative to the target pool's depth → raise the oracle option explicitly, in the moment ("at this size in this pool, price manipulation is a real consideration — an oracle-gated permission protects against it; here's whether one is available"). Cap small vs a deep pool → say nothing, default silently. Never a hard gate — the user may proceed no-oracle at any size; the decision is theirs.
+
+**Detect-and-route when the oracle path is wanted.** Check `sailor-templates/deployed.json`'s `oracles` section for an adapter covering this pair on this chain. Adapter exists → route to `SwapPermission` with that address, zero user Solidity. None deployed → say so plainly: no adapter exists for this pair here; using the oracle tier means deploying one — a custom `IOracle` wrapper around a price feed, real work with real safety stakes (a wrong oracle is worse than none: false confidence) — and `SwapPermissionNoOracle` remains appropriate for most sizes. If the user still wants one built, route via [`sailor-mandates`](../../sailor-mandates/SKILL.md), flagged as the most safety-critical bespoke work in the catalog — no adapter generator, no shortcuts.
 
 Both swap templates are ERC-20 → ERC-20 only (native value rejected) — an ETH leg trades as WETH.
 

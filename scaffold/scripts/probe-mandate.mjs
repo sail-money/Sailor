@@ -266,6 +266,16 @@ export function generateProbes(template, config, account) {
         { label: "OFF-ALLOWLIST router must reject", target: OFF_ALLOWLIST, calldata: mk(false, acct, minOut), value: "0", expect: "fail" },
         { label: "WRONG recipient (≠ SMA) must reject", target: router, calldata: mk(false, WRONG_RECIPIENT, minOut), value: "0", expect: "fail" },
       ];
+      // Directional proof: tokensIn/tokensOut are two SEPARATE allowlists (verified against
+      // evaluate() @ d5bc27a — tokenIn is checked only against isAllowedTokenIn, tokenOut only
+      // against isAllowedTokenOut). Prove the config doesn't accidentally also authorize the
+      // reverse leg (tokenOut → tokenIn) — meaningful only when the two tokens actually differ.
+      if (tokenIn.toLowerCase() !== tokenOut.toLowerCase()) {
+        const reversed = swapCalldata(family, { tokenIn: tokenOut, tokenOut: tokenIn, recipient: acct, amountIn: cap, amountOutMinimum: minOut });
+        probes.push({ label: "REVERSED direction (tokenOut→tokenIn) must reject — tokensIn/tokensOut are directional, not a shared set", target: router, calldata: reversed, value: "0", expect: "fail" });
+      } else {
+        notes.push("tokensIn[0] and tokensOut[0] are the same token in this config — the directional-reversal probe is not meaningful here and was skipped.");
+      }
       if (template === "SwapPermissionNoOracle") {
         probes.push({ label: "ZERO min-out (no slippage floor) must reject", target: router, calldata: mk(false, acct, 0n), value: "0", expect: "fail" });
       }

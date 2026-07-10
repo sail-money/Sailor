@@ -1,6 +1,6 @@
 ---
 name: sailor-template-swap-no-oracle
-description: Gate an SMA's DEX swaps for a token without a price oracle by REUSING the shared SwapPermissionNoOracle singleton (Protocol/contracts/templates/SwapPermissionNoOracle.sol) — register + configure, no per-SMA deploy. Use when there is no Chainlink feed / no price feed / no oracle adapter for the token, on Uniswap V3/V3-02/V2 (and forks): router + token-in/out allowlists, a per-tx cap, recipient pinned to the SMA, and a per-pair live-pool "hallucination band". NOT manipulation-resistant — if the token HAS an oracle use sailor-template-swap instead; for the LI.FI aggregator author a bespoke permission via sailor-mandates. Deployed on all 11 Sailor-bundled chains (recorded in sailor-templates/deployed.json).
+description: Gate an SMA's DEX swaps by REUSING the shared SwapPermissionNoOracle singleton (Protocol/contracts/templates/SwapPermissionNoOracle.sol) — register + configure, no per-SMA deploy. The DEFAULT bounded-swap tier for regular trade sizes, on Uniswap V3/V3-02/V2 (and forks): router + token-in/out allowlists, a per-tx cap, recipient pinned to the SMA, and a per-pair live-pool sanity band (catches a bad quote, not a manipulation attack). For trades large relative to pool depth, or a token that already has a price feed, see sailor-template-swap (oracle-gated); for the LI.FI aggregator author a bespoke permission via sailor-mandates. Deployed on all 11 Sailor-bundled chains (recorded in sailor-templates/deployed.json).
 compatibility: A Sailor project (`@sail/sdk`, `sailor` CLI). Requires SwapPermissionNoOracle deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
 metadata:
   workspace: sailor-harness
@@ -11,7 +11,7 @@ metadata:
 
 # sailor-template-swap-no-oracle — bounded DEX swap for oracle-less tokens
 
-You typically arrive here from the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) with a complete strategy spec — this spoke covers the bounded-swap permission of that plan for a token with no oracle adapter.
+You typically arrive here from the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) with a complete strategy spec — this spoke covers the bounded-swap permission of that plan, and is the default tier for regular trade sizes.
 
 Reuse the shared **`SwapPermissionNoOracle`** singleton instead of authoring/deploying a swap
 contract. Register its address on the SMA and `configure()` your routers, token allowlists, cap,
@@ -19,12 +19,13 @@ and a **reference pool per tradeable pair**. Family overview + flow:
 [`sailor-templates`](../sailor-templates/SKILL.md). For the oracle-gated tier see
 [`sailor-template-swap`](../sailor-template-swap/SKILL.md).
 
-> ⚠️ **Pick the right tier.** This template provides **NO manipulation-resistant slippage
-> protection**. Its price band reads a *single pool's live spot price*, which any party can move
-> within the same transaction (flash-loan / sandwich / MEV). It only catches an **honest mistake**
-> — a confused manager/agent quoting a wildly wrong number (a "hallucination guard"). If the token
-> has an independent, freshness-checked price feed, use [`sailor-template-swap`](../sailor-template-swap/SKILL.md)
-> instead. Only reach for this when no such oracle exists.
+**The default swap permission.** Its price band reads a *single pool's live spot price* — it
+catches an honest mistake (a confused manager/agent quoting a wildly wrong number, a "hallucination
+guard"), not an attack: any party can move that spot price within one transaction, so it provides
+no manipulation-resistant slippage protection. That is the right trade-off for most sizes. Once a
+trade is large relative to the pool's depth, moving the price becomes worth an attacker's effort —
+at that size, [`sailor-template-swap`](../sailor-template-swap/SKILL.md)'s oracle-gated band is
+worth the extra setup (an `IOracle` adapter must exist, or be deployed, for the pair).
 
 ## What it enforces (per account, from source)
 

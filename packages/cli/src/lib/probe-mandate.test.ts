@@ -117,6 +117,33 @@ describe("probe-mandate: SwapPermissionNoOracle — F15 selector per router + ze
     const zero = probes.find((p: any) => /ZERO min-out/i.test(p.label));
     assert.ok(zero && zero.expect === "fail", "zero-min-out must be a must-fail proof");
   });
+
+  test("includes a REVERSED-direction must-fail proof (tokensIn/tokensOut are directional, not a shared set)", () => {
+    const cfg = decodeConfig("SwapPermissionNoOracle", mkSwapBlob("0x2626664c2603336E57B271c5C0b26F421741e481" as Address));
+    const { probes } = generateProbes("SwapPermissionNoOracle", cfg, SMA);
+    const reversed = probes.find((p: any) => /REVERSED direction/i.test(p.label));
+    assert.ok(reversed && reversed.expect === "fail", "reversed-direction swap must be a must-fail proof");
+    // The reversed probe's calldata pulls tokenOut (WETH) rather than tokenIn (USDC) — assert the
+    // tokenIn/tokenOut ordering is genuinely flipped, not a duplicate of the pass probe.
+    const pass = probes.find((p: any) => p.expect === "pass")!;
+    assert.notEqual(reversed!.calldata, pass.calldata);
+  });
+
+  test("skips the reversed-direction probe (with a note) when tokensIn and tokensOut share a token", () => {
+    const sameTokenBlob = encodeAbiParameters(
+      [
+        { type: "address[]" }, { type: "address[]" }, { type: "address[]" }, { type: "uint256" },
+        { type: "tuple[]", components: [
+          { type: "address" }, { type: "address" }, { type: "address" }, { type: "uint8" }, { type: "uint256" },
+        ] },
+      ],
+      [["0x2626664c2603336E57B271c5C0b26F421741e481"], [USDC], [USDC], 10_000_000n, []],
+    );
+    const cfg = decodeConfig("SwapPermissionNoOracle", sameTokenBlob);
+    const { probes, notes } = generateProbes("SwapPermissionNoOracle", cfg, SMA);
+    assert.ok(!probes.some((p: any) => /REVERSED direction/i.test(p.label)));
+    assert.ok(notes.some((n: string) => /same token/i.test(n)));
+  });
 });
 
 const POOL = "0xA238Dd80C259a72e81d7e4664a9801593F98d1c5" as Address;
