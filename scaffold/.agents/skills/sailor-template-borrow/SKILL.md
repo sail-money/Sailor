@@ -98,7 +98,11 @@ BLOB=$(cast abi-encode "f(address[],address[],uint256,uint256,address,address,ui
   3600)
 sailor mandate configure --address <BORROW_PERMISSION> --sma <SMA> --params "$BLOB"
 
-sailor mandate simulate --address <BORROW_PERMISSION> --sma <SMA> --calls ./probe.json
+# ONE mandatory safety gate — generate the lean probes from the same $BLOB, then run simulate once.
+# --protocol picks the borrow calldata shape (aave|morpho|compound); the LTV probe is config-honest
+# (must-fail LTV proof only when both oracles are set). See sailor-templates/references/reuse-flow.md step 5.
+node scripts/probe-mandate.mjs --template BorrowPermission --params "$BLOB" --protocol <aave|morpho|compound> \
+  --sma <SMA> --address <BORROW_PERMISSION>
 ```
 
 ## Steps

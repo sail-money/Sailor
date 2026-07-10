@@ -139,9 +139,13 @@ node scripts/probe-mandate.mjs --template <TemplateName> --params <0x-config-blo
 # → writes mandate-probes.<Template>.json and prints the exact command to run:
 sailor mandate simulate --address <SHARED_ADDRESS> --sma <SMA> --calls mandate-probes.<Template>.json --json
 ```
-Covers Transfer, Withdraw, Deposit, SwapPermission, SwapPermissionNoOracle. `BorrowPermission`
-(needs the lending-protocol family) and `ApproveAndCallBatchPermission` (enforced by
-`evaluateBatch` — probe with `cast call`) are not generated; derive those probes yourself.
+Covers **all seven** shared templates. Two carry an extra wrinkle the script handles:
+- `BorrowPermission` needs `--protocol <aave|morpho|compound>` (the borrow calldata shape is
+  per-family, not in the blob). Its LTV probe is config-honest: a both-oracle config gets a
+  must-fail LTV proof, a zero-oracle config gets none (no LTV ceiling applies).
+- `ApproveAndCallBatchPermission` is enforced by `evaluateBatch()`, so its probes are BATCH arrays —
+  the script emits them and prints the direct `evaluateBatch` staticcall mechanism (single-call
+  `sailor mandate simulate` can't exercise a batch).
 
 ### 6. Reconfigure when bounds change
 New cap or allowlist? Re-encode the blob and repeat step 4 (`sailor mandate configure --force`,

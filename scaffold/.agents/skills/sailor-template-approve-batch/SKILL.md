@@ -89,7 +89,12 @@ card's "what you're signing" explanation still renders automatically without `--
 ```bash
 sailor mandate register  --address <APPROVE_AND_CALL_BATCH_PERMISSION> --sma <SMA> --label "approve-and-call"
 sailor mandate configure --address <APPROVE_AND_CALL_BATCH_PERMISSION> --sma <SMA> --params "$BLOB"
-sailor mandate simulate  --address <APPROVE_AND_CALL_BATCH_PERMISSION> --sma <SMA> --calls ./probe.json
+# ONE mandatory safety gate — generate the lean batch probes from the same $BLOB. This template is
+# enforced by evaluateBatch(), so the probes are BATCH arrays and the script prints the direct
+# evaluateBatch() staticcall mechanism (single-call `sailor mandate simulate` can't exercise a batch).
+# See sailor-templates/references/reuse-flow.md step 5.
+node scripts/probe-mandate.mjs --template ApproveAndCallBatchPermission --params "$BLOB" \
+  --sma <SMA> --address <APPROVE_AND_CALL_BATCH_PERMISSION>
 ```
 
 ## Steps
