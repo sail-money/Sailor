@@ -68,7 +68,7 @@ Constructor args: `--args '["0xToken","1000000"]'` (JSON array, inline, bash) or
 
 ## Gate 6 — Simulate against must-pass AND must-fail samples
 
-`evaluate()` lives on the deployed contract, so simulate after deploy and before the irreversible authorization. Generate sample calls from the user's stated strategy — ones the permission MUST accept and ones it MUST reject:
+`evaluate()` lives on the deployed contract, so simulate after deploy and before the irreversible authorization. Derive the calls from the bounds you just encoded — the probe pattern (one bound → one must-fail, plus one must-pass) with a worked example is in [references/simulate-calls.md](references/simulate-calls.md). The standard is the same one shared templates are held to: a must-fail probe PROVEN TO REJECT is what "passed" means — a happy-path-only run is not a passed simulation.
 
 ```bash
 sailor mandate simulate --address <PermissionOrName> --sma <SMA> --calls calls.json --json

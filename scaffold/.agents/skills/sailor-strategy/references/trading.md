@@ -36,8 +36,8 @@ Both swap templates are ERC-20 → ERC-20 only (native value rejected) — an ET
 
 | Action | Route |
 |---|---|
-| Bounded swap, pair has an oracle adapter | [`sailor-template-swap`](../../sailor-template-swap/SKILL.md) |
-| Bounded swap, no oracle exists for the pair | [`sailor-template-swap-no-oracle`](../../sailor-template-swap-no-oracle/SKILL.md) (state the risk difference) |
+| Bounded swap (the common case) | [`sailor-template-swap-no-oracle`](../../sailor-template-swap-no-oracle/SKILL.md) — the default; see the price-source decision above |
+| Bounded swap where size vs pool depth warrants an oracle | [`sailor-template-swap`](../../sailor-template-swap/SKILL.md) — see detect-and-route above |
 | Autonomous approve → swap → reset each run | [`sailor-template-approve-batch`](../../sailor-template-approve-batch/SKILL.md) |
 | Live quotes / `amountOutMinimum` sizing | [`sailor-swap-quote`](../../sailor-swap-quote/SKILL.md) |
 | Venues the swap templates don't cover (aggregators, perps, exotic routers) | bespoke via [`sailor-mandates`](../../sailor-mandates/SKILL.md) |
