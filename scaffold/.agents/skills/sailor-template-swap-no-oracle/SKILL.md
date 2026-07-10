@@ -155,12 +155,9 @@ Template-specific bits:
   disallowed token, and an `amountOutMin` below the pool-implied floor are rejected.
 
 ## Notes
-- The band is **not** manipulation-resistant — re-state this whenever authorizing. Prefer
-  [`sailor-template-swap`](../sailor-template-swap/SKILL.md) wherever an oracle exists.
 - `toleranceBps` is capped at 50% in source; a wider band is meaningless and rejected at configure.
-- Unaudited example — step 4 is mandatory.
 - Aggregator routing (opaque calldata) → author a bespoke permission via [`sailor-mandates`](../sailor-mandates/SKILL.md).
 
 ## Next
 
-Once this permission is configured and simulate passes (must-pass AND must-fail cases), return to the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) for the next permission. When every permission in the plan is registered, configured, and simulate-verified, proceed to Station 4 — the sailor-agent-build skill (dispatch mechanics: [`sailor-transactions`](../sailor-transactions/SKILL.md)).
+Simulate passing → back to the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) for the next permission.

@@ -1,10 +1,6 @@
 # Docker — run locally or deploy to any machine
 
-**Who this is for:** users with basic Docker knowledge. Works on your local machine, a cloud VM, or any managed container service.
-
-**Best for:** users who want a portable, self-contained execution environment — build once, run anywhere. Also the right choice if you want to test locally and then move to a cloud VM or container service without changing anything.
-
----
+(Who it's for / best for: see [`sailor-automation`](../SKILL.md)'s comparison table.)
 
 ## Requirements
 
@@ -30,7 +26,7 @@ docker build -t sailor-agent .
 docker run -d --restart=always \
   -e RPC_URL=<your-rpc-url> \
   -e SAIL_PASSPHRASE=<your-passphrase> \
-  -e CHAIN_ID=8453 \
+  -e CHAIN_ID=8453 \  # example: Base — use your project's chain id
   -e AGENT_INTERVAL=300 \
   --name sailor-agent \
   sailor-agent
@@ -44,8 +40,6 @@ docker run -d --restart=always \
 ---
 
 ## Push to a registry (to deploy elsewhere)
-
-Build the image once, push to a registry, pull it on any machine.
 
 **Docker Hub**
 
@@ -74,12 +68,10 @@ docker pull <registry>/<image>:latest
 docker run -d --restart=always \
   -e RPC_URL=<your-rpc-url> \
   -e SAIL_PASSPHRASE=<your-passphrase> \
-  -e CHAIN_ID=8453 \
+  -e CHAIN_ID=8453 \  # example: Base — use your project's chain id
   -e AGENT_INTERVAL=300 \
   <registry>/<image>:latest
 ```
-
-No code changes — the same image runs everywhere that has Docker.
 
 ---
 

@@ -5,7 +5,7 @@ description: Recipes for extending a live agent with notifications (Telegram, em
 
 # Sail extend — notifications and custom dashboards
 
-These are user-land code the assistant writes into this project — not Sailor features. Once the agent is live (Station 5), proactively offer the operator run/transaction notifications and a strategy-specific dashboard — one line on each — and build whatever they accept. Build only once the agent is live; the operator may decline, but the offer is not optional. (For operating the running agent itself — reading activity, tuning, pausing, revoking, exiting — see [`sailor-operate`](../sailor-operate/SKILL.md); this skill is the optional notifications/dashboard layer on top.)
+These are user-land code the assistant writes into this project — not Sailor features. (For operating the running agent itself — reading activity, tuning, pausing, revoking, exiting — see [`sailor-operate`](../sailor-operate/SKILL.md); this skill is the optional notifications/dashboard layer on top.)
 
 ## Notifications
 

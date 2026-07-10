@@ -10,6 +10,7 @@ const UPDATE_PATHS = [
   ".agents",       // all sailor-* skills
   ".cursor",       // cursor IDE rules
   ".env.example",  // documents env vars; not meant to be edited directly
+  "soul.md",       // identity/voice — shipped, not user-tunable
 ];
 
 // Paths removed or renamed in past template versions. Deleted on update if present.

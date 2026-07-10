@@ -60,6 +60,7 @@ try {
     "foundry.toml",
     "mandates",
     "AGENTS.md",
+    "soul.md",
     "CLAUDE.md",
     "Dockerfile",
     ".dockerignore",

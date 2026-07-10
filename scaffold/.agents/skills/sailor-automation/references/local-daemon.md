@@ -1,10 +1,6 @@
 # Local daemon — run on the project machine
 
-**Who this is for:** any user who wants simple automation without cloud accounts or containers. The agent runs directly on the machine where the project lives.
-
-**Best for:** development, testing, daily/slow strategies, or users who keep their machine on 24/7. Not suitable for strategies that require guaranteed execution at a precise time — if the machine is off or disconnected, the run is silently skipped.
-
----
+(Who it's for / best for: see [`sailor-automation`](../SKILL.md)'s comparison table.)
 
 ## Setup
 

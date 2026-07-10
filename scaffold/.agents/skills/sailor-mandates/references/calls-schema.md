@@ -39,4 +39,4 @@ A non-empty JSON array. Each entry is one sample call probed against the permiss
 
 - Derive samples from the user's stated strategy: every call the agent must make → `expect: "pass"`; boundary violations (too-large amount, wrong token, wrong recipient, wrong venue) → `expect: "fail"`.
 - Do not authorize until every sample matches — zero mismatches.
-- Batch permissions: simulate exercises single-call `evaluate()` only. Probe `evaluateBatch(calls, ctx)` directly with `cast call` for batch verification.
+- Batch permissions: simulate doesn't cover `evaluateBatch()` — see [approvals.md](approvals.md) (Model B).

@@ -1,16 +1,16 @@
 # Decision data — where the agent's inputs come from
 
-Guidance by **question**, not by vendor. Two rules run through all of it: prefer permissionless, no-key paths first; and **verify every off-chain answer on-chain before acting on it**. Decision data lives inside the mandate's blast radius — a wrong answer produces a bounded trade or a kernel denial, never a drain (that is the protocol's job, and it is why the harness can be liberal about where data comes from).
+Guidance by **question**, not by vendor. Two rules run through all of it: prefer permissionless, no-key paths first; and **verify every off-chain answer on-chain before acting on it**. Decision data lives inside the mandate's blast radius — a wrong answer produces a bounded trade or a kernel denial, never a drain.
 
 ## Prices — what is X worth right now?
 
 - **On-chain first.** The quoter the project already uses (`sailor-swap-quote` / the venue's QuoterV2) and the mandate's own price oracle are the most trustworthy sources — they are the same numbers the kernel will check against. Use `ctx.publicClient` for arbitrary reads.
-- **Breadth:** GeckoTerminal's keyless API covers many chains and DEXes for cross-venue liquidity/price — `sailor-token-resolve` already uses it (precedent). Fine for discovery; confirm the acting price on-chain.
+- **Breadth:** GeckoTerminal's keyless API covers many chains and DEXes for cross-venue liquidity/price — `sailor-token-resolve` already uses it (precedent).
 
 ## Yields — which market pays what?
 
 - DefiLlama's free API is the common choice for an APY/TVL survey across protocols; **any equivalent works** — it is a category, not an endorsement.
-- Whatever a survey returns, **verify the specific market on-chain** (the contract exists, exposes the expected interface, the rate is live) before the agent supplies into it. A yield number is a lead, not a decision.
+- Whatever a survey returns, **verify the specific market on-chain** (the contract exists, exposes the expected interface, the rate is live) before the agent supplies into it.
 
 ## Token metadata — address, decimals, is it swap-ready?
 
@@ -29,7 +29,7 @@ An earlier entry wins. `sailor doctor` re-validates whatever resolves.
 
 ## MCP servers — if your coding agent supports them
 
-Data providers increasingly ship MCP servers; if the operator's coding agent supports MCP, that is a convenient way to pull prices/yields/news into the loop. A category pointer only — no vendor endorsement, and the same verify-on-chain rule applies.
+Data providers increasingly ship MCP servers; if the operator's coding agent supports MCP, that is a convenient way to pull prices/yields/news into the loop. A category pointer only — no vendor endorsement.
 
 ## Non-negotiables
 

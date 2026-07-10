@@ -62,10 +62,7 @@ conservative 50% ceiling. USDC (the borrow asset) is the verified Unichain conti
 **lending pool and both oracles vary per chain/market — verify each on-chain before configuring.**
 The placeholders below are not real addresses.
 
-> **Oracles are both-or-none.** To enforce the LTV ceiling you must set **both** `collateralOracle`
-> and `borrowOracle`; setting exactly one reverts `OracleConfigInconsistent` at configure. Setting
-> **zero** oracles is legal but applies **no LTV ceiling at all** (amount-cap-only) even though
-> `maxLtvBps` is stored — so for a real leverage position, always configure both.
+> Zero-or-both oracles — see "Oracle modes" above. For a real leverage position, always configure both.
 
 ```json
 {
@@ -123,4 +120,4 @@ permission live. Template-specific bits:
 
 ## Next
 
-Once this permission is configured and simulate passes (must-pass AND must-fail cases), return to the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) for the next permission. When every permission in the plan is registered, configured, and simulate-verified, proceed to Station 4 — the sailor-agent-build skill (dispatch mechanics: [`sailor-transactions`](../sailor-transactions/SKILL.md)).
+Simulate passing → back to the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) for the next permission.

@@ -1,10 +1,6 @@
 # GitHub Actions — cloud-managed runner
 
-**Who this is for:** any user. No infrastructure setup beyond a GitHub account.
-
-**Best for:** daily DCA, slow rebalances, treasury strategies — anything where execution does not need to happen at a precise minute. If your strategy requires guaranteed timing (LP, perps, liquidations), use the [self-hosted runner](self-hosted-runner.md) or [Docker](docker-vm.md) options instead.
-
----
+(Who it's for / best for: see [`sailor-automation`](../SKILL.md)'s comparison table.)
 
 ## How it works
 
@@ -12,9 +8,7 @@ Your repo contains `.github/workflows/agent-tick.yml`. GitHub runs this on a cro
 
 ## Timing limitation
 
-GitHub's cron queue is shared across all users. Under load, scheduled jobs drift 5–30 minutes or are skipped entirely. This is a platform constraint — there is no workaround on GitHub's shared runners.
-
-**Use `workflow_dispatch` as your primary trigger** and treat cron as a heartbeat/backstop. Fire `workflow_dispatch` from an external event (price alert, on-chain event, keeper) via:
+GitHub's cron queue is shared across all users — under load, scheduled jobs drift 5–30 minutes or skip entirely (no workaround on shared runners). **Use `workflow_dispatch` as your primary trigger** and treat cron as a heartbeat/backstop. Fire it from an external event (price alert, on-chain event, keeper) via:
 
 ```bash
 sailor trigger github

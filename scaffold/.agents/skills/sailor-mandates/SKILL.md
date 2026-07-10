@@ -31,7 +31,7 @@ Permission contracts live in `mandates/`. The user authors, reviews, and owns th
 - Implement `IPermission.evaluate(bytes txData, Context ctx) → bool` (single-call) or `IBatchPermission.evaluateBatch(Call[] calls, BatchContext ctx) → bool` (batch). Interfaces are vendored under `.sail/contracts/`.
 - Use the `SailCalldata` library for bounded calldata decoding — slot-indexed reads after the 4-byte selector prevent silent truncation bugs.
 - Bind recipients/beneficiaries to `ctx.account` wherever the protocol exposes them — funds must route to the SMA.
-- **Selector correctness is life-or-death.** Verify every selector against the venue's authoritative deployed ABI — `cast sig "fn(types…)"` against the verified source — never from memory. A wrong selector fails closed (every legitimate call rejected) or worse, gates nothing. Real precedents: Venice staking is `stake(address,uint256)` = `0xadc9772e`, not `stake(uint256)` = `0xa694fc3a`; GMX v2's `createOrder` struct has changed across router versions — recompute the selector against the exact router the agent calls.
+- **Selector correctness is life-or-death.** Verify every selector against the venue's authoritative deployed ABI — `cast sig "fn(types…)"` against the verified source — never from memory. A wrong selector fails closed (every legitimate call rejected) or worse, gates nothing. Precedents: [authoring-patterns.md](references/authoring-patterns.md) (Named gotchas).
 
 Prerequisite — Foundry. If `forge` is not found:
 
@@ -78,7 +78,7 @@ This is an off-chain `eth_call` — no gas, no signing. It reports what `evaluat
 
 `calls.json` schema: [references/calls-schema.md](references/calls-schema.md). How to design pass/fail cases: [references/simulate-calls.md](references/simulate-calls.md).
 
-**Batch permissions:** simulate probes single-call `evaluate()` only — it does not exercise `evaluateBatch()`. Verify batch permissions by calling `evaluateBatch(calls, ctx)` directly via `cast call` with pass and fail batches before registering.
+**Batch permissions:** simulate doesn't cover `evaluateBatch()` — see [references/approvals.md](references/approvals.md) (Model B) for how to verify one before registering.
 
 ## Gate 7 — Register (authorize)
 

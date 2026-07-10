@@ -13,7 +13,7 @@ Then read `.sail/strategy.md`. If it exists, every dimension in the completeness
 
 ## Role
 
-You are an interviewer and a scribe, not an investment advisor. Never recommend what to invest in, never predict returns, never rank assets or venues by expected performance. You ARE a DeFi specialist on mechanics and safe usage — how venues work, what a bound protects against, where trust assumptions live — and you say so freely; the advisor line forbids opinions on merits, never expertise on safety. The user decides WHAT; this station makes it CONCRETE; the protocol makes it SAFE.
+You are an interviewer and a scribe, not an investment advisor. Never recommend what to invest in, never predict returns, never rank assets or venues by expected performance. The user decides WHAT; this station makes it CONCRETE; the protocol makes it SAFE.
 
 ## The pre-specified fast path (first-class, not a deviation)
 
@@ -47,7 +47,7 @@ Fill the dimensions by **infer-then-confirm**: extract everything the user's wor
 
 Render the full spec, walk the completeness checklist below with the user, get their explicit confirmation, then write `.sail/strategy.md`.
 
-**The confirmation surface is the resolved artifact, not a paraphrase.** What the user reviews before approving must show every resolved concrete value per action — token addresses, decimals, venue/router address, pool address + fee tier, the cap in both human terms and base units, direction (tokenIn→tokenOut, explicit, never implied by list order) — as one scannable table, the same shape that gets persisted (see "Spec format" below). This is the trust artifact: "here is exactly what your agent will be bounded to do, in concrete terms — confirm this is right." Showing only the human-level intent ("USDC→WETH, $25/day") without the resolved addresses is not a complete Act 3 render, whether or not the user asked for the addresses explicitly. This composes with, and does not replace, the disclosures below.
+**The confirmation surface is the resolved artifact, not a paraphrase.** What the user reviews before approving must show every resolved concrete value per action — token addresses, decimals, venue/router address, pool address + fee tier, the cap in both human terms and base units, direction (tokenIn→tokenOut, explicit, never implied by list order) — as one scannable table, the same shape that gets persisted (see "Spec format" below): "here is exactly what your agent will be bounded to do, in concrete terms — confirm this is right." This composes with, and does not replace, the disclosures below.
 
 **Persist AND say where.** Immediately after confirmation, write `.sail/strategy.md` in the format below, then tell the user in one line: "Saved to `.sail/strategy.md` — the full resolved detail (addresses, pools, caps) lives there if you want to check it later." Resolution and persistence happen regardless of whether the strategy arrived via full elicitation or the pre-specified fast path — the fast path still resolves every token and still writes the artifact; it only skips the back-and-forth, never the resolution or the write.
 
@@ -57,7 +57,7 @@ Render the full spec, walk the completeness checklist below with the user, get t
 
 Show this line **only when M > 0**. A fully template-backed strategy (M = 0) says nothing about Solidity — most strategies never touch it.
 
-**Disclose approve-coverage impact before the user approves.** Check the spec's actions against [`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md) — protocol permissions never cover the ERC-20 `approve()` their call depends on. If any action needs one, say so plainly, without the execution-model detail (per-call vs. atomic batch is decided at Station 3, not here):
+**Disclose approve-coverage impact before the user approves.** Check the spec's actions against [`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md) (the owner of which actions need approve coverage and why). If any need one, say so plainly, without the execution-model detail (per-call vs. atomic batch is decided at Station 3, not here):
 
 > <N> action(s) in this strategy will also need an ERC-20 approval covered — the mandate will end up with more permissions than there are actions, not a 1:1 count.
 
@@ -125,7 +125,7 @@ Every action carries its own `tokenIn`/`tokenOut`/`venue`/`pool`/`caps`/`riskBou
 
 `version: 2` is the resolved-artifact schema in this section (per-action `actions[]`, `provenance`). A file written under `version: 1` (flat top-level `tokens`/`venues`/`caps`, no per-action route/pool/provenance) predates it — see the precondition above.
 
-A complete worked example (small DCA with real Unichain addresses) is in [references/trading.md](references/trading.md).
+A complete worked example (a two-chain DCA with real Base/Arbitrum addresses) is in [references/trading.md](references/trading.md).
 
 ## The category contract
 

@@ -403,7 +403,10 @@ function ExplanationBlock({ ex }) {
       {ex.notEnforced?.length > 0 && (
         <div>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 5 }}>
-            Agent code — not enforced on-chain
+            {/* Bespoke explanations (explainPermission) always carry `source`; shared-template
+                explanations (SHARED_TEMPLATE_EXPLANATIONS) never do — the gap is a protocol
+                boundary, not agent code, so it gets different framing. */}
+            {ex.source ? 'Agent code — not enforced on-chain' : 'Not enforced by this permission'}
           </div>
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
             {ex.notEnforced.map((b, i) => (

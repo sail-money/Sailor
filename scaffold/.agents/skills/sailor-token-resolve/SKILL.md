@@ -6,12 +6,8 @@ description: Resolve the tokens a user names by symbol or address into on-chain 
 # sailor-token-resolve — tokens → addresses + where the liquidity lives
 
 Users name tokens by symbol ("WETH", "UNI", "HYPE", "MORPHO") far more often than by
-address, and they think in *portfolios* ("a DCA of USDC, UNI and MORPHO"), not single
-legs. This skill takes **one or many** symbols and, for each, returns: the verified
-on-chain **address + decimals** per chain, a **liquidity venue map** (which chain, which
-DEX/protocol, which pool, how deep), whether it is **swap-ready**, and a **recommendation**
-when there's a discrepancy — liquidity split across chains, no pool on your chain but a deep
-one elsewhere, or no pool on any Sail chain at all.
+address, and they think in *portfolios* ("a DCA of USDC, UNI and MORPHO"), not single legs —
+pass every symbol in one call.
 
 **"token exists" ≠ "token is swap-ready."** A token can have a valid contract with zero
 routable liquidity. Swap-ready (on-chain confirmed) means Uniswap V3 QuoterV2 returns a
@@ -46,9 +42,9 @@ forces the rich per-token map for a single token.
 which tolerates a public fallback and can go green with none configured). If nothing is
 written there yet, it fails with `No RPC for <chain>. Pass --rpc or set RPC_URL in
 .sail/.env.local.` — that failure is the FIRST point in the whole journey where the user's own
-RPC is actually required; nothing before this station needed it. When it fires, ask, didactically,
-in one breath: public RPCs are unreliable for real work (rate-limited, no SLA) — a free-tier key
-from Alchemy or Infura takes a couple of minutes to get. Guide them to the signup, take the URL,
+RPC is actually required; nothing before this station needed it. When it fires: public RPCs are
+unreliable for real work (rate-limited, no SLA) — a free-tier key from Alchemy or Infura takes a
+couple of minutes to get. Guide them to the signup, take the URL,
 write it to `.sail/.env.local` (`RPC_URL=…` for a single chain, or the chain-named var for
 multi-chain projects), then re-run. Written once, never asked again — every later RPC-dependent
 script (`sailor-swap-quote`'s `quote-swap.mjs`, `doctor`, the runner) reads the same file.

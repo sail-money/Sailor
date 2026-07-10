@@ -37,7 +37,7 @@ sailor run --chain <id>    # override CHAIN_ID for this run
 
 ## Where results land
 
-Everything appends to `.sail/activity.jsonl` (one JSON per line): `tick_start`/`tick_end`, `dispatch_approved`, `dispatch_executed` (with `txHash`), `dispatch_reverted` (with `txHash`, `gasUsed`), `dispatch_denied` (with `target`/`reason`, e.g. `no_permission_match`), `error`, and owner-side `owner_signed`/`owner_rejected` events. On stderr, reverts surface as `reverted: <txHash>  (gas used: N)`; denials as `skipped: no registered permission authorizes call to <target> (selector 0x…)` — the rejected selector is in this stderr line, not the JSON event. A failed dispatch never stops the loop.
+Everything appends to `.sail/activity.jsonl` (event schema: [`sailor-operate`](../sailor-operate/SKILL.md)). On stderr, reverts surface as `reverted: <txHash>  (gas used: N)`; denials as `skipped: no registered permission authorizes call to <target> (selector 0x…)` — the rejected selector is in this stderr line, not the JSON event. A failed dispatch never stops the loop.
 
 ## Commands that BLOCK on a browser signature
 
@@ -57,15 +57,15 @@ These open a signing channel, push a request, and wait (default timeout 10 minut
 
 All take `--json` for machine-readable output; in `--json` mode the blocking commands emit a `waiting_for_signature` status with the URL before blocking.
 
-### After the owner signs: the station shows a confirmation, not "done"
+### After the owner signs: the signing page shows a confirmation, not "done"
 
-A captured signature (or a wallet-returned tx hash) is **not** a confirmed result — the command still has to submit and/or confirm the transaction on-chain against its own RPC. The command returns as soon as the signature is captured and then reports the real outcome back to the station, which shows one of:
+The command still has to submit and/or confirm the transaction on-chain against its own RPC — a captured signature is not yet a confirmed result. It returns as soon as the signature is captured, then reports the real outcome back to the signing page, which shows one of:
 
 - **Confirmed** — mined with a successful receipt (the only success state). May carry a note when an on-chain read is still catching up after the receipt.
 - **Reverted** — mined, but the transaction reverted on-chain.
 - **Unverified ("could not verify")** — the transaction was submitted (there is a tx hash) but its receipt could not be read (no RPC configured for the chain, or the wait timed out). This is **not** a failure — the transaction may have succeeded; verify with `sailor mandate list`.
 
-Because the command no longer blocks on the daemon's own receipt wait, it does not hang after the owner signs. If the station is stuck on "Signature received / awaiting confirmation", the command process reporting the outcome has not finished (or exited early) — check the command's own output, which is authoritative.
+The command no longer blocks on the daemon's own receipt wait, so it won't hang after the owner signs. If the signing page is stuck on "Signature received / awaiting confirmation", the command process reporting the outcome hasn't finished (or exited early) — check its own output, which is authoritative.
 
 ## Session control
 

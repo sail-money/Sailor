@@ -39,7 +39,7 @@ Confirm `sailor run --once` works first. Four options; pick by latency, infra co
 
 ## Cadence
 
-Match the interval to volatility: **LP / perp → minutes; DCA / rebalance → daily; treasury → hourly–daily.** GitHub Actions cron is a *heartbeat/backstop* that drifts and skips under load — not low-latency; for that, use the self-hosted runner or local execution options.
+Match the interval to volatility: **LP / perp → minutes; DCA / rebalance → daily; treasury → hourly–daily.** GitHub Actions cron drifts (see above) — for LP/perp cadence, use the self-hosted runner or local execution options instead.
 
 ## Keys & trust
 

@@ -44,7 +44,7 @@ Plus **one must-pass**: `target = pool`, `asset` allowlisted, `amount = cap`, `o
 
 **The standard: a must-fail probe PROVEN TO REJECT is what "passed" means — for a bespoke permission exactly as much as a template.** A run with only the must-pass case is not a passed simulation; it's an untested permission that happens not to have been asked a hard question yet. You are both the author of the permission and the author of its adversarial probes — no one else will write these for you, and skipping them is how a too-permissive contract makes it to registration undetected.
 
-**Honest cost note.** Deriving these by hand costs reasoning — there is no script to do it for you, because there is no schema to read it from. That cost is inherent to expressiveness, not a defect in the process: the same freedom that lets you gate any venue Sail doesn't have a template for is the reason its probes aren't free. Budget for it; don't skip it to save the tokens.
+**Honest cost note.** Deriving these by hand costs reasoning, with no script to shortcut it — budget for it, don't skip it to save tokens.
 
 ## Running
 

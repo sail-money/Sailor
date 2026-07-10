@@ -1,6 +1,6 @@
 # Payments & treasury — archetypes, extension dimensions, routing
 
-A routing aid consulted when the intent fits this category — not the boundary of what can be built. Conforms to the category contract in [../SKILL.md](../SKILL.md). Defaults below are structural only — never an invented address.
+A routing aid consulted when the intent fits this category — not the boundary of what can be built. Conforms to the category contract in [../SKILL.md](../SKILL.md), including its structural-only-defaults rule.
 
 ## Archetypes
 

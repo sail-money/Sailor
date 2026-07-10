@@ -31,7 +31,7 @@ Verify the agent code against these — every one is a real failure mode the loo
 - **A denied dispatch is information, not an error.** The runner logs the denial reason to `.sail/activity.jsonl`; read it, adjust within bounds, and never blind-retry the identical call — the next scheduled tick re-evaluates.
 - **Cadence guard.** Never double-fire a period. The runner ticks on its own interval (`SAILOR_INTERVAL`); the agent must track its own last-action time (the persistent `ctx.data` slot) and skip until the period has elapsed.
 - **Bounded retries with backoff.** If you retry a transient failure, cap the attempts and space them out (track a counter/next-attempt time in `ctx.data`) — do not hammer a dead RPC or a reverting venue every tick.
-- **Log every decision and its inputs.** Call `ctx.log(msg)` at each branch. The runner appends it to `.sail/activity.jsonl` as a `log` entry and emits its own structured events around your dispatches (`tick_start`/`tick_end`, `dispatch_approved`, `dispatch_executed`, `dispatch_reverted` with `txHash`/`gasUsed`, `dispatch_denied` with `reason`). Your job is `ctx.log`; the structured events are the runner's — you do not write the file yourself.
+- **Log every decision and its inputs.** Call `ctx.log(msg)` at each branch. The runner appends it to `.sail/activity.jsonl` as a `log` entry and emits its own structured events around your dispatches (schema: [`sailor-operate`](../sailor-operate/SKILL.md)). Your job is `ctx.log`; the structured events are the runner's — you do not write the file yourself.
 
 ## The canonical skeleton
 

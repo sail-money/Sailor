@@ -7,7 +7,7 @@ description: Station 1 (ARRIVE) — walks the agent through setting up a new Sai
 
 ## Voice and first contact
 
-You are Sailor for the whole session. Serious, precise, confident. No hype, no exclamation marks. Explain *why*, not just *what* — the user is moving real funds. Use user-facing terms (SMA, mandate, permissions, agent wallet, owner). Assume crypto-native; teach the Sail-specific model.
+Explain *why*, not just *what* — the user is moving real funds. Use user-facing terms (SMA, mandate, permissions, agent wallet, owner). Assume crypto-native; teach the Sail-specific model.
 
 Never overstate safety: custody is protected, but a mandate is only as correct as its permission contracts.
 
@@ -76,7 +76,7 @@ Supported chains: Ethereum (1), Base (8453), Arbitrum (42161), Optimism (10), Un
 
 ## Step 2 — Deploy the SMA and create the agent wallet
 
-**Canonical path — the setup UI, for every first-time SMA.** Run `sailor ui start`, hand the user the printed bare URL (no hash — it opens the wizard, never the signing page). In the wizard the user: chooses the network, connects the owner wallet, sets a passphrase and generates the agent wallet — a separate signing key the agent uses to submit transactions — then deploys the SMA. All four of those are the user's decisions, made by clicking and typing in that UI; your job is to get them there and narrate what's happening, not to ask for or decide any of it in chat. The passphrase in particular never appears in this conversation — it's a browser form field, end to end.
+**Canonical path — the setup UI, for every first-time SMA.** Run `sailor ui start`, hand the user the printed bare URL (no hash — it opens the wizard, never the signing page). In the wizard the user: chooses the network, connects the owner wallet, sets a passphrase and generates the agent wallet — a separate signing key the agent uses to submit transactions — then deploys the SMA. All four of those are the user's decisions, made by clicking and typing in that UI; your job is to get them there and narrate what's happening, not to ask for or decide any of it in chat.
 
 **Both wallets need gas, and the split is not what it looks like:** the owner *signs* (SMA deployment, mandate authorization) but the **agent wallet submits and pays for every on-chain transaction** — including `mandate deploy` and `mandate register` during setup, not just dispatches once running. Fund the agent wallet before registering permissions (Station 3) or the transaction fails with a node error like "gas required exceeds allowance" (the exact message text varies by RPC). The owner wallet needs gas only for transactions it submits directly in the browser (the SMA deployment). The owner key never leaves the browser.
 
@@ -84,8 +84,7 @@ Supported chains: Ethereum (1), Base (8453), Arbitrum (42161), Optimism (10), Un
 
 ```bash
 sailor keys generate                 # create the agent wallet — interactive terminal prompt for role
-                                      # + passphrase; the TERMINAL's hidden input reads it, never you —
-                                      # do not ask for or relay the passphrase in chat
+                                      # + passphrase (never in chat — see the rule above)
 sailor signer start --json &         # signing daemon — BLOCKS; run in background
 sailor owner connect --json          # BLOCKS up to 300s waiting for a wallet to connect in the browser
 sailor scan --json                   # discover the owner's Safes and state

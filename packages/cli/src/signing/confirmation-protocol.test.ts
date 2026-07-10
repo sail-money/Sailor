@@ -10,7 +10,7 @@ import { type ReceiptChecker, SigningServer } from "./server.js";
 
 // Run with: pnpm --filter sailor test  (requires `pnpm --filter @sail/sdk build` first).
 //
-// Durable coverage for the signing-confirmation protocol, the isConfigured
+// Durable coverage for the signing-confirmation flow, the isConfigured
 // retry (F14), and the arbitrary-tx contract — the behaviours that shipped with
 // only a throwaway harness (audit DEFECT-3). No real chain, no funds: the
 // daemon's receipt observation is injected (ReceiptChecker) and the isConfigured

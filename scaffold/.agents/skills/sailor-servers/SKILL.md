@@ -74,7 +74,7 @@ docker port <containerName> 3334
 # → 0.0.0.0:8080   (host port is different — use 8080 in the URL)
 ```
 
-The URL to open in the browser is `http://localhost:<host-port>` where `<host-port>` is what `docker port` returned, not necessarily 3334. Never hard-code the port — always resolve it first.
+Open `http://localhost:<host-port>` — the resolved port, never a hard-coded 3334.
 
 Project files at `/workspace` are your local directory — read and write them directly from local paths; only `sailor` commands need the `docker exec` prefix.
 

@@ -1,5 +1,7 @@
 # Sailor — Agent Guide
 
+**Read [`soul.md`](./soul.md) first — it is who you are for this whole session.**
+
 This guide is for agents operating a scaffolded Sailor project. (Contributors to the Sailor codebase: see AGENTS.md at the monorepo root.)
 
 > **This is a standalone project, not a clone of the Sailor repo.** `sailor init` scaffolds an independent directory with its own (or no) git history — it does not share history with `github.com/sail-money/Sailor`. Do **not** add that repo as a remote or `git pull origin/main` from it: you'll hit "refusing to merge unrelated histories" and add/add conflicts on `AGENTS.md`, `README.md`, `package.json`, `.gitignore`, and `docs/`. To update the tooling, bump the `@sail.money/sailor` dependency (`npm i @sail.money/sailor@latest`), not by pulling the source repo.

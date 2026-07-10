@@ -28,7 +28,7 @@ export const DEFAULT_SIGNING_PORT = Number.isFinite(_signingPort) && _signingPor
  * Resolves to the receipt status; THROWS when the receipt cannot be observed
  * (no RPC configured for the chain, or the wait timed out) — the daemon maps a
  * throw to the `unverified` outcome, never a failure verdict. Injectable so the
- * confirmation protocol can be tested without a chain (see SigningServer opts).
+ * signing-confirmation flow can be tested without a chain (see SigningServer opts).
  */
 export type ReceiptChecker = (chainId: number, txHash: Hex) => Promise<"success" | "reverted">;
 

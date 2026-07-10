@@ -89,10 +89,8 @@ is not a real address.
 ```
 
 `maxAmountPerTx: "1000000000"` = 1,000 USDC (6 decimals). This example uses Aave v3 `supply`, so
-the cap is in the **asset's** base units. For an ERC-4626 `mint` the cap would instead be in
-**shares** (effective asset cap = `maxAmountPerTx × sharePrice`) — size accordingly, and remember
-that for ERC-4626 the `tokens` allowlist must list the **vault** address (the deposit calldata
-carries no asset). Then register → configure → simulate:
+the cap is in the **asset's** base units — for an ERC-4626 `mint` it's shares instead (see above).
+Then register → configure → simulate:
 
 ```bash
 sailor mandate register --address <DEPOSIT_PERMISSION> --sma <SMA> --label "usdc-supply"
@@ -129,4 +127,4 @@ permission live. Template-specific bits:
 
 ## Next
 
-Once this permission is configured and simulate passes (must-pass AND must-fail cases), return to the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) for the next permission. When every permission in the plan is registered, configured, and simulate-verified, proceed to Station 4 — the sailor-agent-build skill (dispatch mechanics: [`sailor-transactions`](../sailor-transactions/SKILL.md)).
+Simulate passing → back to the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) for the next permission.

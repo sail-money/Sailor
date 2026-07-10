@@ -1,10 +1,7 @@
 # Self-hosted runner — reliable timing on a dedicated machine
 
-**Who this is for:** users who need time-precise execution. Requires a dedicated always-on machine that you manage.
-
-**Best for:** LP strategies, perps, liquidations, or any strategy where the agent must run within seconds of the scheduled time. A self-hosted runner polls GitHub directly — it picks up jobs immediately, with no shared queue and no drift.
-
----
+(Who it's for / best for: see [`sailor-automation`](../SKILL.md)'s comparison table.) A self-hosted
+runner polls GitHub directly — it picks up jobs immediately, with no shared queue and no drift.
 
 ## How it works
 
@@ -66,7 +63,6 @@ gh run view --log                        # check for errors
 ## Your responsibility
 
 Sail does not manage this machine. You are responsible for:
-- Keeping it powered on and connected
 - OS updates and security patches
 - Restarting the runner service if it stops (configure it to start on boot during setup)
 - Monitoring that runs are completing as expected
