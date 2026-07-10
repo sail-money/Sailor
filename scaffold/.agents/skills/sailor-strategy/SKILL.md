@@ -9,7 +9,7 @@ description: Station 2 — turn the user's intent into a complete, concrete stra
 
 Station 2 requires Station 1 complete. Run `sailor doctor` — if it is not green (RPC connected, chain-id matches, keys present, gas funded), hand back to [`sailor-onboarding`](../sailor-onboarding/SKILL.md) and return here once it passes.
 
-Then read `.sail/strategy.md`. If it exists, every dimension in the completeness gate below is concrete, and its JSON block has `"confirmedByUser": true` — this station is already done: confirm the existing spec with the user instead of re-eliciting. If it exists but is incomplete, resume from the gaps only.
+Then read `.sail/strategy.md`. If it exists, every dimension in the completeness gate below is concrete, its JSON block has `"confirmedByUser": true`, AND `"version": 2` — this station is already done: confirm the existing spec with the user instead of re-eliciting. An older `version` (or none) predates the resolved-artifact schema below — its addresses/pools were never captured, so treat it as incomplete and re-run Act 2/3 to backfill the current shape. If it exists but is incomplete, resume from the gaps only.
 
 ## Role
 
@@ -41,11 +41,15 @@ Elicit in the user's financial vocabulary — accumulate, earn, provide liquidit
 
 Fill the dimensions by **infer-then-confirm**: extract everything the user's words already imply, draft the spec with each inference marked as such, and ask only about the genuine gaps — batched into few questions, never an interrogation.
 
-**Resolve every token before it enters the spec.** Run [`sailor-token-resolve`](../sailor-token-resolve/SKILL.md) for each token: on-chain address, decimals, and where the liquidity lives. No symbol is ever written into the spec unresolved.
+**Resolve every token before it enters the spec.** Run [`sailor-token-resolve`](../sailor-token-resolve/SKILL.md) for each token: on-chain address, decimals, and where the liquidity lives. No symbol is ever written into the spec unresolved. **Carry the resolution forward, don't discard it.** `sailor-token-resolve`'s output already carries the token address/decimals, the chosen venue, the pool address, its fee tier, and its observed liquidity — hold onto that output per action; Act 3 writes it into the artifact verbatim. Never re-resolve at write time, and never let a resolved value fall back to "USDC→WETH" prose with the addresses dropped.
 
 ### Act 3 — CONFIRM
 
 Render the full spec, walk the completeness checklist below with the user, get their explicit confirmation, then write `.sail/strategy.md`.
+
+**The confirmation surface is the resolved artifact, not a paraphrase.** What the user reviews before approving must show every resolved concrete value per action — token addresses, decimals, venue/router address, pool address + fee tier, the cap in both human terms and base units, direction (tokenIn→tokenOut, explicit, never implied by list order) — as one scannable table, the same shape that gets persisted (see "Spec format" below). This is the trust artifact: "here is exactly what your agent will be bounded to do, in concrete terms — confirm this is right." Showing only the human-level intent ("USDC→WETH, $25/day") without the resolved addresses is not a complete Act 3 render, whether or not the user asked for the addresses explicitly. This composes with, and does not replace, the disclosures below.
+
+**Persist AND say where.** Immediately after confirmation, write `.sail/strategy.md` in the format below, then tell the user in one line: "Saved to `.sail/strategy.md` — the full resolved detail (addresses, pools, caps) lives there if you want to check it later." Resolution and persistence happen regardless of whether the strategy arrived via full elicitation or the pre-specified fast path — the fast path still resolves every token and still writes the artifact; it only skips the back-and-forth, never the resolution or the write.
 
 **Disclose bespoke Solidity before the user approves.** Using the per-action routes established in Act 2 (from the category reference's routing rows, or the possibility map), count how many of the spec's actions map to a shared template vs. bespoke authoring. If any action is bespoke (M > 0), the confirmation summary must say so plainly before they approve:
 
@@ -68,32 +72,58 @@ Show this line only when at least one action needs approve coverage; say nothing
 | Dimension | Concrete means |
 |---|---|
 | Chains | Named chain IDs, each doctor-green. If the strategy needs a chain this project isn't configured for, loop back to Station 1 to add it before proceeding. |
-| Tokens | Resolved address + decimals, per chain — from `sailor-token-resolve`, never from memory. |
-| Venues/protocols | The exact DEX/router, lending market, vault, or recipient set — named and address-resolved. |
-| Amounts & caps | Per-tx cap AND total or per-period exposure, in the token's base units. |
+| Tokens | Resolved address + decimals, per chain, per action — from `sailor-token-resolve`, never from memory. Direction (which is tokenIn, which is tokenOut) explicit per action, never implied by list order. |
+| Venues/protocols | The exact DEX/router, lending market, vault, or recipient set — named and address-resolved, per action. A swap action also carries the pool address, fee tier, and observed liquidity `sailor-token-resolve` reported. |
+| Route | Per action: which shared template it maps to, or "bespoke" — established in Act 2, carried into the artifact so Station 3 verifies rather than re-derives. |
+| Amounts & caps | Per-tx cap AND total or per-period exposure, per action, in BOTH the token's base units and human terms (e.g. "25 USDC" and its base-units form). |
 | Cadence | Event-driven or scheduled — and the actual schedule or trigger. |
-| Risk bounds | Category-specific (slippage floor, LTV ceiling, tolerance band, …) — the reference file's extension dimensions. |
+| Risk bounds | Category-specific (slippage floor, LTV ceiling, tolerance band, …) — the reference file's extension dimensions, per action where they vary by pair/market. |
 | Exit condition | When the strategy stops or unwinds, and where funds go. "No exit condition — runs until revoked" is acceptable ONLY if the user says it explicitly. |
+| Provenance | When each token/pool was resolved, and against which RPC per chain — so a stale artifact (a pool that's moved, a resolution from weeks ago) is detectable before it's trusted. |
 
 ## Spec format — `.sail/strategy.md`
 
-Human-readable markdown (title, category, archetype, one-paragraph intent in the user's own words, the dimensions as a table) plus **one** fenced ```json block carrying the machine form. Later stations read the JSON; the markdown is for humans.
+Human-readable markdown (title, category, archetype, one-paragraph intent in the user's own words, a strategy-wide dimensions table, and an **Actions** table — one row per action, the resolved detail: route, direction with addresses, venue/pool, caps in both forms, risk bounds) plus **one** fenced ```json block carrying the machine form. Later stations read the JSON; the markdown is for humans. The two are the same data in two shapes — never let them drift (the JSON is regenerated from the same resolved values the table renders, not typed separately).
+
+Every action carries its own `tokenIn`/`tokenOut`/`venue`/`pool`/`caps`/`riskBounds` — a strategy is one or more actions, and two actions (even the "same" swap on two chains, as in a multi-chain DCA) never share one entry, because their addresses differ per chain.
 
 ```json
 {
   "category": "trading | yield | payments | custom",
   "archetype": "<archetype id or 'custom'>",
   "chains": [<chainId>, ...],
-  "tokens": [{ "symbol": "", "address": "0x…", "decimals": 0, "chain": 0 }],
-  "venues": [{ "name": "", "address": "0x…", "chain": 0 }],
-  "caps": { "perTx": "<base units>", "...": "per-period exposures as elicited" },
+  "actions": [
+    {
+      "id": "<short id, e.g. 'swap-base'>",
+      "kind": "swap | deposit | borrow | transfer | withdraw | custom",
+      "chain": <chainId>,
+      "route": { "type": "template | bespoke", "name": "<TemplateName, or null if bespoke>" },
+      "tokenIn": { "symbol": "", "address": "0x…", "decimals": 0 },
+      "tokenOut": { "symbol": "", "address": "0x…", "decimals": 0 },
+      "venue": { "name": "", "address": "0x…" },
+      "pool": { "address": "0x…", "feeTier": 0, "observedLiquidityUsd": 0 },
+      "recipients": ["0x…", "..."],
+      "caps": {
+        "perTx": { "baseUnits": "<string>", "human": "<e.g. '25 USDC'>" },
+        "...": "one entry per elicited period (perDay, perMonth, …), same {baseUnits, human} shape"
+      },
+      "riskBounds": { "...": "action-specific, e.g. maxSlippageBps, maxLtvBps" }
+    }
+  ],
   "cadence": "<event-driven trigger or schedule>",
-  "riskBounds": { "...": "category-specific, e.g. maxSlippageBps, maxLtvBps" },
   "exitCondition": "<when it stops/unwinds and where funds go>",
+  "provenance": {
+    "resolvedAt": "<ISO 8601 UTC, e.g. '2026-07-10T21:14:00Z'>",
+    "chains": { "<chainId>": { "rpc": "<label — which RPC endpoint/provider resolved this chain>" } }
+  },
   "confirmedByUser": true,
-  "version": 1
+  "version": 2
 }
 ```
+
+`tokenOut`/`venue`/`pool` are swap-shaped fields — omit them on an action whose `kind` doesn't have them (a `transfer`/`withdraw` action has `tokenIn` + `recipients`, no `tokenOut`/`pool`; a `deposit`/`borrow` action has `tokenIn` + `venue`, no `pool` unless the market itself is a pool). Never emit an empty placeholder for a field that doesn't apply — omit the key.
+
+`version: 2` is the resolved-artifact schema in this section (per-action `actions[]`, `provenance`). A file written under `version: 1` (flat top-level `tokens`/`venues`/`caps`, no per-action route/pool/provenance) predates it — see the precondition above.
 
 A complete worked example (small DCA with real Unichain addresses) is in [references/trading.md](references/trading.md).
 
@@ -109,4 +139,4 @@ Adding a category to Sailor = one door line in `AGENTS.md` + one conforming refe
 
 ## Handoff
 
-Exit verifier: every dimension concrete, user explicitly confirmed, `.sail/strategy.md` written with `"confirmedByUser": true`. Next: **Station 3 — [`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)**, which routes each action of the spec to a shared template or bespoke authoring.
+Exit verifier: every dimension concrete, user explicitly confirmed, `.sail/strategy.md` written with `"confirmedByUser": true` and `"version": 2` — the resolved summary presented to the user AND persisted, not just the latter. Next: **Station 3 — [`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)**, which routes each action of the spec to a shared template or bespoke authoring.
