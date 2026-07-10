@@ -164,7 +164,7 @@ function fail(err: unknown, json = false): never {
 
 /**
  * Tell the operator where to approve the request — BEFORE the long blocking wait
- * on the signature. In human mode this prints the dashboard station URL. In
+ * on the signature. In human mode this prints the dashboard signing-page URL. In
  * --json mode it emits a single `waiting_for_signature` record up front. The
  * write happens before requestSignature() is awaited, so stdout drains as the
  * event loop yields into the wait — scripted/redirected callers see the URL
@@ -371,7 +371,7 @@ async function runDeploy(
 // functions are registerPermission/registerPermissions.)
 //
 // Authorization mirrors `registerMandate`: the owner (mandate signer) signs the
-// kernel RegisterPermission EIP-712 in the browser signing station — for the
+// kernel RegisterPermission EIP-712 in the browser signing page — for the
 // clone's *predicted* address, since the clone does not exist until the tx
 // lands — and the agent submits deployAndAttach (paying gas). No new dashboard
 // signing event is needed: the owner only ever signs the existing
@@ -1079,10 +1079,10 @@ async function runRevoke(
     transport: http(getRpcUrl(project.chainId)),
   });
 
-  // The agent submits and pays; the station is sitting on "awaiting
+  // The agent submits and pays; the signing page is sitting on "awaiting
   // confirmation" after the owner's signature, so this command owns the outcome
   // it shows — reported at every exit below (a revocation is the emergency-exit
-  // path; leaving the station hung there is the worst place to do it).
+  // path; leaving the page hung there is the worst place to do it).
   say(() => console.log("Submitting kernel.revokePermissions (agent pays gas)…"));
   let txHash: Hex;
   try {

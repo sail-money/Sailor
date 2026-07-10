@@ -157,7 +157,7 @@ adapter** for this pair on this chain (`0x0` reverts):
    owner only when they collapse to the same address); the command pre-flights the blob with an
    `eth_call` BEFORE any signing or gas — it **reverts** on `priceOracle == 0` (`OracleRequired`),
    `maxPriceAgeSec == 0` (`MissingPriceAge`), or `maxSlippageBps > 9_999` (`SlippageBpsTooLarge`) —
-   then requests the `configureDirect` tx from `permissionSigner` through the signing station and
+   then requests the `configureDirect` tx from `permissionSigner` through the signing page and
    verifies `isConfigured(<SMA>) == true` on receipt. Pass `--simulate-only` to stop after the
    pre-flight (no signing, no gas).
    *(The signed `configure(account, params, deadline, sig)` path uses EIP-712 domain `("SwapPermission","2")`.)*

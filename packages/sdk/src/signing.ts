@@ -1,11 +1,11 @@
 import type { Address, Hex } from "viem";
 
 // ---------------------------------------------------------------------------
-// Signing handoff — CLI ↔ browser signing station protocol
+// Signing handoff — CLI ↔ browser signing server protocol
 //
 // The agent (CLI) cannot hold the owner's wallet key, so any owner-authorized
 // action (deploy a Safe, deploy a mandate, authorize a permission, or any
-// arbitrary call) is handed off to a browser signing station over a small
+// arbitrary call) is handed off to a browser signing page over a small
 // HTTP + WebSocket channel. The agent enqueues a SigningRequest; the browser
 // renders an approval card, the owner signs/submits with their wallet, and a
 // SigningResponse comes back.

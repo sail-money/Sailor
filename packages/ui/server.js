@@ -10,8 +10,8 @@ import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem
 
 const PORT = Number(process.env.PORT ?? 3334)
 
-// Allowed CORS origins for the local data server / signing-station relay.
-// Defaults to the local dashboard only. Operators exposing the station over a
+// Allowed CORS origins for the local data server / signing-server relay.
+// Defaults to the local dashboard only. Operators exposing the signer over a
 // tailnet or a custom HTTPS host (F8) can add origins via SAILOR_CORS_ORIGINS,
 // a comma-separated list — e.g. `SAILOR_CORS_ORIGINS=https://hermes.example.ts.net`.
 const DEFAULT_CORS_ORIGINS = ['http://localhost:3333']
@@ -1032,7 +1032,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
       if (receipt.status !== 'success') throw new Error(`registerPermissions reverted (tx ${txHash})`)
 
       // Record each registration in the activity log so the fee actually paid
-      // surfaces in Recent Activity — the station path otherwise writes only
+      // surfaces in Recent Activity — the signer path otherwise writes only
       // mandate.json and its registrations never appeared. Each permission in
       // the batch is charged the same flat fee.
       const feeEth = formatEther(flatFee)
@@ -1207,9 +1207,10 @@ export function startServer(sailDir, { port = PORT } = {}) {
     res.json({ ok: true, running: false })
   })
 
-  // GET /api/station/pending — proxy to the signing station daemon, or [] if not running.
-  // Discovery order: runtime/server.json (written by `sailor station start`),
-  // then port-scan 3141–3150 (same range the UI station page uses), with a
+  // GET /api/station/pending — proxy to the signing server daemon, or [] if not running.
+  // (Endpoint path unrenamed — internal-only, never surfaced to a user/agent.)
+  // Discovery order: runtime/server.json (written by `sailor signer start`),
+  // then port-scan 3141–3150 (same range the UI signing page uses), with a
   // short timeout so a stale/hanging daemon never blocks the dashboard.
   //
   // The daemon gates /pending behind the per-startup requestSecret (see
@@ -1246,7 +1247,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
         }
       }
     } catch { /* fall through to port-scan */ }
-    // 2. Port-scan the known range (same as the station UI page does), reading
+    // 2. Port-scan the known range (same as the signing UI page does), reading
     //    the secret out of /config's wsUrl.
     for (const port of STATION_PORTS) {
       try {
@@ -2022,8 +2023,9 @@ export function startServer(sailDir, { port = PORT } = {}) {
     console.log(`Sailor UI running at http://localhost:${port} (reading ${sailDir})`)
   })
 
-  // ── Signing-station WebSocket proxy ───────────────────────────────────────
-  // The signing station page (#/station) needs a live WebSocket to the daemon
+  // ── Signing-server WebSocket proxy ────────────────────────────────────────
+  // The signing page (#/signer, `#/station` kept as a v1.2.0-compatible alias)
+  // needs a live WebSocket to the daemon
   // to receive requests and send the owner's signed/rejected decisions. The
   // daemon authenticates that socket with the per-startup requestSecret, and
   // deliberately withholds the secret from cross-origin /config responses — so a

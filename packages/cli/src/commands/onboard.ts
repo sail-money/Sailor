@@ -8,7 +8,7 @@
  *   4. Optionally register one mandate template
  *   5. Persist the SMA to .sail/account.json and print a summary
  *
- * Signing requests are pushed to the signing station (a running `sailor station`
+ * Signing requests are pushed to the signing server (a running `sailor signer`
  * daemon if one exists, otherwise an ephemeral in-process server) so the owner
  * approves them in the browser UI. Fully agent-driveable: pass --sma/--new-sma +
  * --template/--skip-mandate and --json to run without interactive prompts.

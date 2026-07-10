@@ -115,7 +115,7 @@ signing" explanation renders automatically for any of the seven shared templates
 
 It does, in order:
 1. **Pre-flight (no gas):** an `eth_call` simulation of `configureDirect` from `permissionSigner`. A revert here means the config is invalid before any gas is spent — fix the blob (see the encoding gotcha) and retry. Pass `--simulate-only` to stop here.
-2. **Send it:** pushes the `configureDirect` call to the owner wallet as an `arbitrary-tx` request through the signing station; the owner approves in the browser and the owner wallet sends the transaction.
+2. **Send it:** pushes the `configureDirect` call to the owner wallet as an `arbitrary-tx` request through the signing page; the owner approves in the browser and the owner wallet sends the transaction.
 3. **Verify:** reads `isConfigured(<SMA>)` on the singleton and errors if it isn't `true`.
 
 If the owner is **not** the `permissionSigner` (e.g. a separate mandate-signer / multisig), use

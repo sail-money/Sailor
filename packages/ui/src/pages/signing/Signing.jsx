@@ -35,7 +35,7 @@ function NoPendingFlow() {
               <Sai size={64} animate />
             </div>
             <header className={styles.cardHeader}>
-              <span className={styles.kicker}>SIGNING STATION</span>
+              <span className={styles.kicker}>SIGNING</span>
               <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
                 No pending signatures.
               </h1>

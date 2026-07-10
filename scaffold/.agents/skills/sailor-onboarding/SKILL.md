@@ -48,7 +48,7 @@ Compose with these two standing rules:
 
 **Ask for things at the moment they're needed, never before.** Two applications, both load-bearing: (1) chain choice and agent-wallet creation are **setup UI decisions** — the chat may discuss chains (mechanics, fees, what Sail supports) but never fixes one; the wizard below is where the user actually decides, and it also creates the agent wallet + passphrase (never ask for a passphrase in chat — it is a secret and must never appear in the transcript). (2) RPC endpoints are asked for at the first step that genuinely needs the user's own RPC — never here. Station 1 runs entirely on public fallbacks; see the exit verifier below for where the real ask lives.
 
-After the welcome, the setup interface (`sailor ui start`, `sailor station start`) launches when you reach the SMA-deployment step below — not before the user has responded. "Responded" means any of: saying "start" (or similar) again, confirming readiness in any form ("yes", "let's go", "ready"), or stating a strategy category/intent ("I want to DCA", "earn yield on my USDC") — the last of these already implies readiness and also triggers the skip-to-intent deviation above. What it does **not** mean: launching the interface off the user's very first message, before the welcome script above has been shown at all — the point of this gate is to never open a signing surface before the user has seen what they're agreeing to.
+After the welcome, the setup interface (`sailor ui start`, `sailor signer start`) launches when you reach the SMA-deployment step below — not before the user has responded. "Responded" means any of: saying "start" (or similar) again, confirming readiness in any form ("yes", "let's go", "ready"), or stating a strategy category/intent ("I want to DCA", "earn yield on my USDC") — the last of these already implies readiness and also triggers the skip-to-intent deviation above. What it does **not** mean: launching the interface off the user's very first message, before the welcome script above has been shown at all — the point of this gate is to never open a signing surface before the user has seen what they're agreeing to.
 
 ## Running the CLI
 
@@ -76,7 +76,7 @@ Supported chains: Ethereum (1), Base (8453), Arbitrum (42161), Optimism (10), Un
 
 ## Step 2 — Deploy the SMA and create the agent wallet
 
-**Canonical path — the setup UI, for every first-time SMA.** Run `sailor ui start`, hand the user the printed bare URL (no hash — it opens the wizard, never the signing station). In the wizard the user: chooses the network, connects the owner wallet, sets a passphrase and generates the agent wallet — a separate signing key the agent uses to submit transactions — then deploys the SMA. All four of those are the user's decisions, made by clicking and typing in that UI; your job is to get them there and narrate what's happening, not to ask for or decide any of it in chat. The passphrase in particular never appears in this conversation — it's a browser form field, end to end.
+**Canonical path — the setup UI, for every first-time SMA.** Run `sailor ui start`, hand the user the printed bare URL (no hash — it opens the wizard, never the signing page). In the wizard the user: chooses the network, connects the owner wallet, sets a passphrase and generates the agent wallet — a separate signing key the agent uses to submit transactions — then deploys the SMA. All four of those are the user's decisions, made by clicking and typing in that UI; your job is to get them there and narrate what's happening, not to ask for or decide any of it in chat. The passphrase in particular never appears in this conversation — it's a browser form field, end to end.
 
 **Both wallets need gas, and the split is not what it looks like:** the owner *signs* (SMA deployment, mandate authorization) but the **agent wallet submits and pays for every on-chain transaction** — including `mandate deploy` and `mandate register` during setup, not just dispatches once running. Fund the agent wallet before registering permissions (Station 3) or the transaction fails with a node error like "gas required exceeds allowance" (the exact message text varies by RPC). The owner wallet needs gas only for transactions it submits directly in the browser (the SMA deployment). The owner key never leaves the browser.
 
@@ -86,13 +86,13 @@ Supported chains: Ethereum (1), Base (8453), Arbitrum (42161), Optimism (10), Un
 sailor keys generate                 # create the agent wallet — interactive terminal prompt for role
                                       # + passphrase; the TERMINAL's hidden input reads it, never you —
                                       # do not ask for or relay the passphrase in chat
-sailor station start --json &        # signing daemon — BLOCKS; run in background
+sailor signer start --json &         # signing daemon — BLOCKS; run in background
 sailor owner connect --json          # BLOCKS up to 300s waiting for a wallet to connect in the browser
 sailor scan --json                   # discover the owner's Safes and state
 sailor onboard --new-sma --json      # deploy SMA — BLOCKS waiting for the owner's browser signature
 ```
 
-`sailor ui start` must ALSO be running before this path prints a usable URL — the station route it prints (`.../#/station`) is served by the dashboard, not the daemon itself. `onboard --new-sma` pushes a `create-sma` signing request to the browser, waits for the owner to approve (default timeout 10 minutes), then persists the SMA to `.sail/account.json`. Tell the user: "approve the request in the signing station in your browser."
+`sailor ui start` must ALSO be running before this path prints a usable URL — the signing-page route it prints (`.../#/signer`) is served by the dashboard, not the daemon itself. `onboard --new-sma` pushes a `create-sma` signing request to the browser, waits for the owner to approve (default timeout 10 minutes), then persists the SMA to `.sail/account.json`. Tell the user: "approve the request on the signing page in your browser."
 
 ## Deterministic address (salt)
 

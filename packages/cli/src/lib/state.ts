@@ -53,7 +53,7 @@ export type AccountListEntry = StoredAccount & {
  * backfill reads the previously-active account.json, so overwriting first would
  * lose the prior SMA.
  *
- * `baseSailDir` defaults to the current project's `.sail/`. The signing-station
+ * `baseSailDir` defaults to the current project's `.sail/`. The signing-server
  * daemon passes its own `projectRoot/.sail` so a browser-created SMA lands in
  * the right project even when the daemon runs from a different cwd.
  */

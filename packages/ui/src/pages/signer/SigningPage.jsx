@@ -6,14 +6,14 @@ import ChainIcon from '../shared/ChainIcon'
 import NotConnectedCard from '../shared/NotConnectedCard'
 import ProfileModal from '../dashboard/ProfileModal'
 import AIHandoffModal from '../dashboard/AIHandoffModal'
-import styles from './SigningStation.module.css'
+import styles from './SigningPage.module.css'
 import shared from '../shared/shared.module.css'
 import { useSailorAccount, useSailorMandateDraft } from '../../hooks/useSailorData'
 import { useSigningSocket } from '../../hooks/useSigningSocket'
 import { MandateSigningFlow } from '../signing/Signing'
 import { explorerCodeUrl, explorerTxUrl } from '../../lib/explorer'
 import { nextSigningPhase, failureCopy } from './signingPhase'
-import { decideStationEntry } from './stationEntry'
+import { decideSignerEntry } from './signerEntry'
 
 const KIND_LABELS = {
   'create-sma': 'Create Safe (SMA)',
@@ -73,7 +73,7 @@ function ChainDropdown({ open, onClose }) {
   )
 }
 
-export default function SigningStation() {
+export default function SigningPage() {
   const { draft } = useSailorMandateDraft()
   const hasDraft = draft && (draft.permissions ?? draft.items ?? []).length > 0
 
@@ -87,17 +87,17 @@ export default function SigningStation() {
   const { disconnect } = useDisconnect()
   const { account: realAccount, loading: accountLoading } = useSailorAccount()
 
-  // First-load routing: never show the bare "connect your wallet" station
+  // First-load routing: never show the bare "connect your wallet" signing-page
   // chrome to a user who hasn't onboarded yet and has nothing pending to
-  // approve — send them to the wizard instead (see stationEntry.js).
-  const stationEntry = decideStationEntry({
+  // approve — send them to the wizard instead (see signerEntry.js).
+  const signerEntry = decideSignerEntry({
     stateLoaded: !accountLoading,
     hasAccount: !!realAccount,
     pendingCount: requests.length,
   })
   useEffect(() => {
-    if (stationEntry === 'wizard') window.location.hash = '#/dashboard'
-  }, [stationEntry])
+    if (signerEntry === 'wizard') window.location.hash = '#/dashboard'
+  }, [signerEntry])
 
   // Mirror of requests in a ref so handleMessage can read the current length
   // inside setPhase's updater without a stale closure.
@@ -148,22 +148,22 @@ export default function SigningStation() {
       <HorizonBackground />
 
       <PageHeader
-        eyebrow="Signing Station"
+        eyebrow="Signing"
         title="Pending Signatures"
         backTo="#/dashboard"
       />
 
       <main className={styles.main}>
-        {stationEntry === 'loading' || stationEntry === 'wizard' ? (
+        {signerEntry === 'loading' || signerEntry === 'wizard' ? (
           // Neutral loading beat — either state hasn't resolved yet, or we're
           // about to redirect to the wizard (the effect above fires this render).
-          // Never the station's interactive chrome before we know it's the right view.
+          // Never the signing page's interactive chrome before we know it's the right view.
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, padding: '40px 0' }}>
             <Sai size={64} animate />
           </div>
         ) : !isConnected ? (
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, padding: '40px 0' }}>
-            <NotConnectedCard eyebrow="SIGNING STATION" title="Connect to approve requests." sub="Connect the owner wallet to review and sign pending agent requests." />
+            <NotConnectedCard eyebrow="SIGNING" title="Connect to approve requests." sub="Connect the owner wallet to review and sign pending agent requests." />
           </div>
         ) : phase.phase === 'success' ? (
           <SuccessScreen kind={phase.kind} note={phase.note} onDone={() => { setPhase({ phase: 'idle' }); window.location.hash = '#/dashboard' }} />
@@ -198,7 +198,7 @@ export default function SigningStation() {
       <AIHandoffModal
         open={aiOpen}
         variant="new"
-        context="station"
+        context="signer"
         onClose={() => setAiOpen(false)}
       />
     </div>
@@ -566,14 +566,14 @@ function EmptyQueue({ daemonConnected, onAsk }) {
         <Sai size={64} animate />
       </div>
       <header className={styles.emptyCardHeader}>
-        <span className={styles.emptyKicker}>SIGNING STATION</span>
+        <span className={styles.emptyKicker}>SIGNING</span>
         <h1 className={`${shared.displayHeadline} ${styles.emptyHeadline}`}>
           No signatures pending.
         </h1>
         <p className={`${shared.italicMannerism} ${styles.emptyTagline}`}>
           {daemonConnected
             ? 'The agent will push approval requests here as it works.'
-            : <>Run <code style={{ fontSize: 13, opacity: 0.8 }}>sailor station start</code> to connect — this page will reconnect automatically.</>}
+            : <>Run <code style={{ fontSize: 13, opacity: 0.8 }}>sailor signer start</code> to connect — this page will reconnect automatically.</>}
         </p>
       </header>
       <div className={styles.emptyCta}>

@@ -88,7 +88,7 @@ describe("A1 — every caller-reported request kind reports an outcome (DEFECT-1
       gaps,
       [],
       `A request whose outcome the command owns must call confirmOutcome on every exit, ` +
-        `or the signing station hangs on 'awaiting-confirmation' (DEFECT-1). Gaps:\n${gaps.join("\n")}`,
+        `or the signing page hangs on 'awaiting-confirmation' (DEFECT-1). Gaps:\n${gaps.join("\n")}`,
     );
   });
 

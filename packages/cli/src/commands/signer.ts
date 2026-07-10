@@ -1,15 +1,18 @@
 /**
- * sailor station — manage the persistent signing daemon.
+ * sailor signer — manage the persistent signing server.
  *
- * The signing station is a local HTTP + WebSocket server bridging the agent
- * (CLI) and the browser signing UI. Running it once as a daemon (rather than
+ * The signing server is a local HTTP + WebSocket server bridging the agent
+ * (CLI) and the browser signing page. Running it once as a daemon (rather than
  * letting each command spawn its own) lets an agent start it, have the owner
  * connect their wallet once, then drive a whole sequence of commands that push
  * signing events to the same open browser tab.
  *
- *   sailor station start    # start the daemon (blocks; run in the background)
- *   sailor station status   # is a daemon running for this project?
- *   sailor station stop     # stop the running daemon
+ *   sailor signer start    # start the daemon (blocks; run in the background)
+ *   sailor signer status   # is a daemon running for this project?
+ *   sailor signer stop     # stop the running daemon
+ *
+ * (`sailor station …` is a hidden, deprecated alias kept for v1.2.0
+ * compatibility — see index.ts. Remove it no earlier than the next major.)
  */
 
 import { existsSync, readFileSync, rmSync } from "node:fs";
@@ -34,7 +37,7 @@ function readState(projectRoot: string): RuntimeServerState | null {
   }
 }
 
-export async function stationStart(options: { json?: boolean }): Promise<void> {
+export async function signerStart(options: { json?: boolean }): Promise<void> {
   const projectRoot = process.cwd();
   if (!ProjectContext.exists()) {
     emit(options.json, () => console.log('No Sailor project found. Run "sailor init" first.'), {
@@ -51,8 +54,8 @@ export async function stationStart(options: { json?: boolean }): Promise<void> {
     emit(
       options.json,
       () => {
-        console.log("A signing station is already running for this project.");
-        console.log(`  http://localhost:${projectPort(projectRoot)}/#/station`);
+        console.log("A signing server is already running for this project.");
+        console.log(`  http://localhost:${projectPort(projectRoot)}/#/signer`);
       },
       { status: "already-running", url: existing.url, ...state },
     );
@@ -65,12 +68,12 @@ export async function stationStart(options: { json?: boolean }): Promise<void> {
   emit(
     options.json,
     () => {
-      const dashboardUrl = `http://localhost:${projectPort(projectRoot)}/#/station`;
-      console.log("✓ Signing station started");
-      console.log("→ Open the signing station in your browser:");
+      const dashboardUrl = `http://localhost:${projectPort(projectRoot)}/#/signer`;
+      console.log("✓ Signing server started");
+      console.log("→ Open the signing page in your browser:");
       console.log(`  ${dashboardUrl}`);
       console.log("\nLeave this running. Other `sailor` commands will push signing requests here.");
-      console.log("Stop it with: sailor station stop");
+      console.log("Stop it with: sailor signer stop");
     },
     { status: "running", url: server.url, pid: process.pid },
   );
@@ -79,7 +82,7 @@ export async function stationStart(options: { json?: boolean }): Promise<void> {
   // SIGINT/SIGTERM handlers that stop it and clean up .sail/runtime/server.json.
 }
 
-export async function stationStatus(options: { json?: boolean }): Promise<void> {
+export async function signerStatus(options: { json?: boolean }): Promise<void> {
   const projectRoot = process.cwd();
   const daemon = await discoverDaemon(projectRoot);
   const state = readState(projectRoot);
@@ -94,17 +97,17 @@ export async function stationStatus(options: { json?: boolean }): Promise<void> 
       { status: "running", url: daemon.url, ...state },
     );
   } else {
-    emit(options.json, () => console.log("○ no signing station running for this project"), {
+    emit(options.json, () => console.log("○ no signing server running for this project"), {
       status: "stopped",
     });
   }
 }
 
-export async function stationStop(options: { json?: boolean }): Promise<void> {
+export async function signerStop(options: { json?: boolean }): Promise<void> {
   const projectRoot = process.cwd();
   const state = readState(projectRoot);
   if (!state?.pid) {
-    emit(options.json, () => console.log("No signing station appears to be running."), {
+    emit(options.json, () => console.log("No signing server appears to be running."), {
       status: "stopped",
     });
     return;
@@ -121,7 +124,7 @@ export async function stationStop(options: { json?: boolean }): Promise<void> {
     } catch {
       /* ignore */
     }
-    emit(options.json, () => console.log("Station process not found; cleared stale state."), {
+    emit(options.json, () => console.log("Signer process not found; cleared stale state."), {
       status: "stopped",
       note: "process-not-found",
     });
@@ -130,7 +133,7 @@ export async function stationStop(options: { json?: boolean }): Promise<void> {
 
   try {
     process.kill(state.pid, "SIGTERM");
-    emit(options.json, () => console.log(`✓ Stopped signing station (pid ${state.pid})`), {
+    emit(options.json, () => console.log(`✓ Stopped signing server (pid ${state.pid})`), {
       status: "stopped",
       pid: state.pid,
     });
@@ -141,7 +144,7 @@ export async function stationStop(options: { json?: boolean }): Promise<void> {
     } catch {
       /* ignore */
     }
-    emit(options.json, () => console.log("Station process not found; cleared stale state."), {
+    emit(options.json, () => console.log("Signer process not found; cleared stale state."), {
       status: "stopped",
       note: "process-not-found",
     });

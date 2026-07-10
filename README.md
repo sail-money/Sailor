@@ -117,7 +117,7 @@ The scaffold follows the open [Agent Skills](https://agentskills.io) standard: a
 ## Security model
 
 - The agent signs dispatches; the **kernel evaluates the named permission on every call**. A permission returning false, reverting, or exceeding its gas cap is a denial — fail-closed.
-- The **Owner key controls the Safe and is never read by Sailor**. Mandate registration requires a deliberate signature from the permission signer in the browser signing station.
+- The **Owner key controls the Safe and is never read by Sailor**. Mandate registration requires a deliberate signature from the permission signer on the browser signing page.
 - The **manager (agent) key is encrypted on disk** (geth keystore v3: scrypt + aes-128-ctr) and never transmitted.
 - The session can be **paused instantly** (`sailor session pause` or the dashboard) — revoking dispatch rights without touching Safe custody.
 - All addresses are EIP-55 normalized before any on-chain call or state write.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { failureCopy, nextSigningPhase } from '../../src/pages/station/signingPhase.js'
+import { failureCopy, nextSigningPhase } from '../../src/pages/signer/signingPhase.js'
 
-// Group B — the signing-station state machine (the DEFECT-2 guard + the
+// Group B — the signing-page state machine (the DEFECT-2 guard + the
 // reverted/failed/unverified/confirmed screen mapping). Pure, so it runs in the
 // repo's node-env vitest without rendering React.
 

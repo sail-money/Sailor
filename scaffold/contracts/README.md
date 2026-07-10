@@ -82,7 +82,7 @@ a single signature by passing a comma-separated list:
 sailor mandate register --address <addr1>,<addr2>,<addr3> --sma <SMA>
 ```
 
-These register commands open the browser signing station so the owner authorizes the registration
+These register commands open the browser signing page so the owner authorizes the registration
 (EIP-712 `RegisterPermission`); the agent submits the on-chain transaction.
 
 ## Prerequisites

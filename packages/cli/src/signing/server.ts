@@ -123,7 +123,7 @@ export class SigningServer {
   private readonly uiDist: string | null;
   /**
    * Whether to publish .sail/runtime/server.json (the daemon-discovery hint).
-   * The persistent daemon (`sailor station start`) advertises; ephemeral
+   * The persistent daemon (`sailor signer start`) advertises; ephemeral
    * per-command servers do not, so they never clobber a running daemon's state
    * on a discovery race. The browser UI finds servers by port-probing anyway.
    */
@@ -348,7 +348,7 @@ export class SigningServer {
    * blocking the command that requested the signature. Every owner-submitted
    * kind's command (create-sma, deploy-mandate, set-delegate) already waits for
    * its own receipt against its own RPC and would report `arbitrary-tx` itself;
-   * this exists purely so the browser station advances past "awaiting
+   * this exists purely so the browser signing page advances past "awaiting
    * confirmation" for the kinds whose command does NOT call back with an
    * outcome. It runs fire-and-forget after `recordResult` has already returned
    * the signed response to the caller.
@@ -621,8 +621,8 @@ export class SigningServer {
     const origin = req.headers.origin;
     // CORS strategy:
     //   - /config (discovery): allow any localhost origin so the dashboard and other
-    //     local tools can discover the station. The secret is NOT in the response body.
-    //   - All other endpoints: restrict to the exact station origin (same port).
+    //     local tools can discover the signer. The secret is NOT in the response body.
+    //   - All other endpoints: restrict to the exact signer origin (same port).
     //     This prevents any other localhost page from reading state or injecting requests.
     const url0 = (req.url ?? "/").split("?")[0];
     const isDiscoveryEndpoint = url0 === "/config";
@@ -651,7 +651,7 @@ export class SigningServer {
       // Same-origin requests (Origin absent — the signed UI served at this port)
       // and exact-origin requests receive the secret embedded in wsUrl as a query
       // parameter so the WebSocket connection can be authenticated.
-      // This ensures cross-origin pages that can discover the station cannot
+      // This ensures cross-origin pages that can discover the signer cannot
       // obtain the secret needed to inject signing requests or read pending state.
       const isTrustedOrigin = !origin || origin === this._url;
       const wsUrlForClient = isTrustedOrigin
@@ -727,7 +727,7 @@ export class SigningServer {
     }
 
     // ── SMA persistence ────────────────────────────────────────────────────
-    // The station daemon serves the dashboard, but unlike `sailor ui`'s data
+    // The signer daemon serves the dashboard, but unlike `sailor ui`'s data
     // server it has no Express /api. So a Safe deployed from the dashboard's
     // Create/Import flow (CreateSMAModal → POST /api/account) had nowhere to
     // land: the request 404'd and the SMA lived only in browser localStorage,

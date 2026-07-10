@@ -382,11 +382,11 @@ export async function accountDeployChain(options: DeployChainOptions): Promise<v
   try {
     await channel.start();
 
-    const stationUrl = signingPageUrl(projectPort(process.cwd()));
+    const signingUrl = signingPageUrl(projectPort(process.cwd()));
     if (json) {
       console.log(
         JSON.stringify(
-          { status: "waiting_for_signature", url: stationUrl, chainId: targetChainId },
+          { status: "waiting_for_signature", url: signingUrl, chainId: targetChainId },
           null,
           2,
         ),
@@ -394,7 +394,7 @@ export async function accountDeployChain(options: DeployChainOptions): Promise<v
     } else {
       console.log(
         `\n→ Open the Sailor dashboard and switch your wallet to ${getChainById(targetChainId).name}:\n` +
-          `  ${stationUrl}\n`,
+          `  ${signingUrl}\n`,
       );
     }
 

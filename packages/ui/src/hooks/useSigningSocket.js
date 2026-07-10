@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 /**
  * Shared WebSocket connection to the signing daemon.
  *
- * Both the signing station (which renders pending requests) and the onboarding
+ * Both the signing page (which renders pending requests) and the onboarding
  * connect screen (which tells the CLI the owner's wallet connected) need a live,
  * authenticated socket to the daemon. The daemon gates that socket behind the
  * per-startup requestSecret, and only hands the secret to same-origin pages — so
@@ -13,12 +13,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  *     secret, so connect directly to the daemon.
  *   • sailor-ui-served (port 3333): the daemon withholds the secret from a
  *     cross-origin /config, so route through the same-origin /api/station/ws
- *     proxy (server.js), which holds the secret server-side. The proxy closes
- *     the socket if no daemon is running.
+ *     proxy (server.js — the server's internal endpoint path, unrenamed), which
+ *     holds the secret server-side. The proxy closes the socket if no daemon is
+ *     running.
  *
- * This hook centralises that logic so the station and the connect screen stay in
- * lockstep — and so neither hand-rolls a raw `ws://host` socket that the hardened
- * daemon would reject with 1008.
+ * This hook centralises that logic so the signing page and the connect screen
+ * stay in lockstep — and so neither hand-rolls a raw `ws://host` socket that the
+ * hardened daemon would reject with 1008.
  */
 
 const POLL_INTERVAL_MS = 3_000

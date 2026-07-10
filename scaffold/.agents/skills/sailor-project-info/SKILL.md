@@ -25,7 +25,7 @@ Every command here is read-only and supports `--json` for machine reading. Prefe
 - "What can the agent do right now?" — on-chain `getPermissions()` is the truth; `mandate sign` reconciles against it. `state/mandates.json` is an append-only historical record — a permission revoked on-chain still appears there.
 - "Is the RPC working / is there gas?" — `sailor doctor --json`.
 - "Same address on another chain?" — `account.json` `deployedChains`, verified by `sailor account predict`.
-- "Is anything running?" — `.sail/runtime/ui.json` (dashboard), `.sail/runtime/server.json` (signing station), agent pid via `sailor status`.
+- "Is anything running?" — `.sail/runtime/ui.json` (dashboard), `.sail/runtime/server.json` (signing server), agent pid via `sailor status`.
 
 Run `sailor doctor` before any operation that spends gas — it is the cheapest way to catch a dead RPC, an unfunded wallet, or a kernel mismatch first. (Full preflight semantics and its role as Station 1's exit verifier: [`sailor-onboarding`](../sailor-onboarding/SKILL.md).)
 

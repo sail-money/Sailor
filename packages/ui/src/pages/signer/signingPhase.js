@@ -1,5 +1,5 @@
-// Pure phase-decision + copy for the signing station, extracted from
-// SigningStation.jsx so the confirmation-protocol invariants are unit-testable
+// Pure phase-decision + copy for the signing page, extracted from
+// SigningPage.jsx so the confirmation-protocol invariants are unit-testable
 // without rendering React:
 //  - queue handling: confirming/resolving ONE request must advance to the next
 //    pending card, and only take the terminal full screen when none remain

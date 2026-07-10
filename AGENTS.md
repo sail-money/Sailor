@@ -74,7 +74,7 @@ addresses remain. This file is the source of truth this guide mirrors.
 | `packages/cli/src/commands/mandate-contracts.ts` | Deploy / register / revoke permission contracts |
 | `packages/cli/src/lib/mandates.ts` | `MandateStore` — `.sail/state/mandates.json` source of truth |
 | `packages/sdk/src/fees.ts` | `readPermissionRegistrationFee` (live governance read) + per-permission fee math/disclosure/preflight |
-| `packages/ui/server.js` | Local API + WebSocket proxy; signing station relay |
+| `packages/ui/server.js` | Local API + WebSocket proxy; signing server relay |
 
 Per-permission registration fee (read live from governance, surfaced at sign time / activity / preflight): see `scaffold/.agents/skills/sailor-mandates/SKILL.md` → "Registration fee".
 

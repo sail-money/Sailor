@@ -32,6 +32,6 @@ sailor init my-fund
 - `sailor doctor` — read-only preflight before dispatching (gas-free)
 - `sailor run` — run the agent execution loop
 - `sailor session pause|resume` — control the agent session
-- `sailor station start|status|stop` — manage the browser signing daemon
+- `sailor signer start|status|stop` — manage the browser signing daemon (`station` is a deprecated alias)
 - `sailor ui start|stop|status` — start/stop the local dashboard
 ```

@@ -41,7 +41,7 @@ Everything appends to `.sail/activity.jsonl` (one JSON per line): `tick_start`/`
 
 ## Commands that BLOCK on a browser signature
 
-These open a signing channel, push a request, and wait (default timeout 10 minutes) for the owner to approve in the browser. When one is pending, tell the user: "approve the request in the signing station in your browser" and give them the station URL the command printed.
+These open a signing channel, push a request, and wait (default timeout 10 minutes) for the owner to approve in the browser. When one is pending, tell the user: "approve the request on the signing page in your browser" and give them the signing-page URL the command printed.
 
 | Command | What the owner signs |
 |---|---|

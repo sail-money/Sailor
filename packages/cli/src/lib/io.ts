@@ -56,7 +56,7 @@ export function nowIso(): string {
  * Appends one JSON line to `activity.jsonl`, creating the `.sail/` dir if
  * needed. The unified activity log holds events from both actors — the
  * delegated signer/agent (`sailor run` dispatches) and the owner (signing-
- * station approvals + mandate lifecycle). Every event SHOULD carry an `actor`
+ * page approvals + mandate lifecycle). Every event SHOULD carry an `actor`
  * field (`"owner"` | `"agent"`); readers treat a missing actor as `"agent"`
  * for back-compat with logs written before the field existed.
  *

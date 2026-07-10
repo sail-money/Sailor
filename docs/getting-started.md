@@ -26,7 +26,7 @@ docker exec agent sailor init
 
 ```bash
 sailor keys generate --type agent-wallet   # the manager key the agent signs dispatches with
-sailor owner connect                       # opens the browser signing station; connect your wallet
+sailor owner connect                       # opens the browser signing page; connect your wallet
 ```
 
 The agent key is encrypted on disk (`.sail/keys/`, geth keystore v3) behind a passphrase you choose (or `SAIL_PASSPHRASE` for non-interactive use). Your owner key never leaves your wallet — Sailor records the address and asks your wallet to sign when a step needs owner authority.

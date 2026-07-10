@@ -1,7 +1,7 @@
 /**
  * sailor owner — detect and persist the project owner (the user's wallet).
  *
- *   sailor owner connect   # open the signing station, wait for the wallet to
+ *   sailor owner connect   # open the signing page, wait for the wallet to
  *                          # connect, then save it as the owner
  *   sailor owner show      # print the saved owner
  *
@@ -32,13 +32,13 @@ export async function ownerConnect(options: { json?: boolean; timeout?: string }
     await channel.start();
 
     if (!options.json) {
-      // Point at the signing station route explicitly. The bare URL redirects to
+      // Point at the signing page route explicitly. The bare URL redirects to
       // the dashboard, which has no wallet-connect relay for an already-onboarded
-      // project — so `waitForWallet` would never resolve. `#/station` exposes a
+      // project — so `waitForWallet` would never resolve. `#/signer` exposes a
       // Connect button and relays `wallet-connected` to this daemon in any state.
       console.log("→ Open the Sailor dashboard and connect your wallet:");
       console.log(`  ${signingPageUrl(projectPort(projectRoot))}`);
-      if (channel.remote) console.log("  (using the running signing station)");
+      if (channel.remote) console.log("  (using the running signing server)");
       console.log("\nWaiting for a wallet connection…");
     }
 

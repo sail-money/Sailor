@@ -77,7 +77,7 @@ ABI for the detected model — you don't sign by hand. `client.dispatch.batch` /
 | Role | Authority |
 |------|-----------|
 | **Owner** | Holds the Safe; custody anchor. |
-| **Permission Signer** | Authorizes which `IPermission` contracts apply (EIP-712 `RegisterPermissions` / `RevokePermissions`). Signed in the browser signing station — the agent never holds this key. |
+| **Permission Signer** | Authorizes which `IPermission` contracts apply (EIP-712 `RegisterPermissions` / `RevokePermissions`). Signed on the browser signing page — the agent never holds this key. |
 | **Manager** | Executes dispatches within the registered permissions (ECDSA / ERC-1271). The agent's hot key. |
 
 ## Preflight before spending gas

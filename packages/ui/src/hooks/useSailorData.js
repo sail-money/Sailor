@@ -132,7 +132,7 @@ export function useSailorAgentStatus() {
   }
 }
 
-/** Pending signing requests from the station daemon, or []. Polls every 3s. */
+/** Pending signing requests from the signing daemon, or []. Polls every 3s. */
 export function useSailorPending() {
   const { data, loading } = usePolledJson('/api/station/pending', [], 3000)
   return { pending: Array.isArray(data) ? data : [], loading }

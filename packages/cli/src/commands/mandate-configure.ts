@@ -14,11 +14,11 @@
  * It drives `configureDirect(account, params)` — the path where the caller is the
  * SMA's `permissionSigner`. In the default Sailor onboarding the owner (browser
  * wallet) IS the permissionSigner, so this is a plain owner transaction routed
- * through the signing station: no EIP-712 `Configure` signature is required.
+ * through the signing page: no EIP-712 `Configure` signature is required.
  *
  * Flow: resolve template address → encode/validate the config blob → off-chain
  * pre-flight `eth_call` of `configureDirect` (aborts on revert, before any gas) →
- * request the owner transaction via the signing station → wait for receipt →
+ * request the owner transaction via the signing page → wait for receipt →
  * verify `isConfigured(<SMA>) == true`. `--simulate-only` stops after pre-flight.
  */
 
@@ -569,7 +569,7 @@ async function runConfigure(
     return;
   }
 
-  // ── Request the owner transaction through the signing station.
+  // ── Request the owner transaction through the signing page.
   // Explicit --template always wins; otherwise auto-resolve --address against the
   // chain's known-templates registry so a raw --params configure still gets the
   // "what you're signing" explanation instead of the bare "shared-template" fallback.
@@ -618,7 +618,7 @@ async function runConfigure(
 
   // The owner submitted this tx in the browser; the daemon does NOT confirm
   // `arbitrary-tx` itself (it can't verify configureDirect took effect), so this
-  // command owns the outcome the signing station shows — reported at every exit.
+  // command owns the outcome the signing page shows — reported at every exit.
   say(() => console.log("Waiting for confirmation…"));
   let receipt: Awaited<ReturnType<typeof publicClient.waitForTransactionReceipt>>;
   try {

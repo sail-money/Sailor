@@ -3,7 +3,7 @@ import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { useAccount, useChains, useDisconnect, useSwitchChain } from 'wagmi'
 import Sai from './Sai'
 import ChainIcon from './ChainIcon'
-import styles from '../station/SigningStation.module.css'
+import styles from '../signer/SigningPage.module.css'
 import pmStyles from '../dashboard/ProfileModal.module.css'
 
 function truncate(addr) {

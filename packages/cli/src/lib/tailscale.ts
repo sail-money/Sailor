@@ -1,10 +1,10 @@
 import { spawnSync } from "node:child_process";
 
 /**
- * Thin wrappers around the `tailscale` CLI for the opt-in HTTPS station exposure
- * (F9). The dashboard/station is local-only by default; passing
+ * Thin wrappers around the `tailscale` CLI for the opt-in HTTPS exposure of the
+ * dashboard (F9). The dashboard/signer is local-only by default; passing
  * `sailor ui start --expose tailscale` proxies it onto the tailnet over HTTPS so
- * a remote operator (e.g. a hermes box) can reach the signing station.
+ * a remote operator (e.g. a hermes box) can reach the signing page.
  *
  * Everything here shells out to a user-installed `tailscale` binary and is
  * best-effort: callers surface actionable errors and otherwise keep the local

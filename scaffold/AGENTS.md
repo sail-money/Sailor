@@ -41,7 +41,7 @@ Skills: `.agents/skills/sailor-automation/SKILL.md` (run unattended), `.agents/s
 ## Anytime utilities (not stations — load whenever needed)
 
 - `.agents/skills/sailor-project-info/SKILL.md` — read-only answers about state, account, mandate, chains, keys.
-- `.agents/skills/sailor-servers/SKILL.md` — the local dashboard and signing station.
+- `.agents/skills/sailor-servers/SKILL.md` — the local dashboard and signing server.
 - `.agents/skills/sailor-token-resolve/SKILL.md` — token symbol/address → on-chain address + decimals + where the liquidity lives. Run it before binding any token into a strategy or mandate.
 - `.agents/skills/sailor-swap-quote/SKILL.md` — live swap quote + the slippage-adjusted amountOutMinimum floor.
 

@@ -71,4 +71,4 @@ The stock dashboard (`sailor ui start`) shows account state, mandate health, bal
 - `.sail/account.json` / `.sail/state/mandates.json` — the SMA address and the permission set to display.
 - On-chain state via the SDK: `import { SailorClient } from '@sail.money/sailor/sdk'` for kernel/mandate reads, or any viem `PublicClient` for balances and protocol positions.
 
-Keep it local and read-only: a small server (or static page polling a tiny endpoint) that reads `.sail/` and the chain. Do not put keys, passphrases, or write operations in a dashboard. Pick a port outside 3333–3999 (reserved by per-project Sailor UIs) and 3141 (signing station).
+Keep it local and read-only: a small server (or static page polling a tiny endpoint) that reads `.sail/` and the chain. Do not put keys, passphrases, or write operations in a dashboard. Pick a port outside 3333–3999 (reserved by per-project Sailor UIs) and 3141 (signing server).

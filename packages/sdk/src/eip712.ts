@@ -210,7 +210,7 @@ export const REGISTER_PERMISSION_TYPES_NO_DEADLINE = {
 
 /**
  * Build a JSON-serializable RegisterPermission typed-data payload for the
- * browser signing station. Bigints are stringified so it survives transport;
+ * browser signing page. Bigints are stringified so it survives transport;
  * the UI re-parses decimal-string fields before signing.
  *
  * Pass `hasDeadline` from KernelCapabilities.registerPermissionHasDeadline.
@@ -290,7 +290,7 @@ export const REGISTER_ACCOUNT_TYPES = {
 
 /**
  * Build a JSON-serializable RegisterAccount typed-data payload for the browser signing
- * station. The Safe owner signs it; the signature becomes the `ownerSig` arg to
+ * page. The Safe owner signs it; the signature becomes the `ownerSig` arg to
  * registerAccount (submitted via the Safe's execTransaction). Bigints are stringified for
  * transport; the UI re-parses the decimal-string `deadline` before signing.
  *
@@ -349,7 +349,7 @@ export const REGISTER_PERMISSIONS_BATCH_TYPES = {
 
 /**
  * Build a JSON-serializable RegisterPermissions (batch) typed-data payload for
- * the browser signing station — the re-approval step after a manager rotation,
+ * the browser signing page — the re-approval step after a manager rotation,
  * which rebinds every previously-attached mandate to the new delegated signer in
  * a single owner signature + tx. Bigints are stringified for transport.
  */

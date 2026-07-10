@@ -38,7 +38,7 @@ exit check):
 4. **AGENT** — `sailor-agent-build`: the tick loop (dispatch mechanics in `sailor-transactions`).
 5. **SAIL** — `sailor-automation` (run unattended), `sailor-operate` (monitor, tune, pause, revoke, exit), `sailor-extend` (optional notifications/dashboards).
 
-Plus anytime utilities, not tied to a station: `sailor-project-info` (read-only state), `sailor-servers` (local dashboard + signing station), `sailor-token-resolve` (token → address/decimals/liquidity), `sailor-swap-quote` (live quote + slippage floor).
+Plus anytime utilities, not tied to a station: `sailor-project-info` (read-only state), `sailor-servers` (local dashboard + signing server), `sailor-token-resolve` (token → address/decimals/liquidity), `sailor-swap-quote` (live quote + slippage floor).
 
 A template spoke encodes the safe order of operations — register → configure → simulate → verify —
 with the exact parameter schemas and per-template footguns, so every agent follows the same vetted

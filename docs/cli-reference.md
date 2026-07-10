@@ -18,7 +18,7 @@ each command named here exists in the CLI source.
 | `sailor keys generate` | Generate + encrypt a key (`--type agent-wallet` or `mandate-signer`; `--passphrase`, else `SAIL_PASSPHRASE`, else prompt; `--force` to overwrite) |
 | `sailor keys show` | Addresses of stored keys |
 | `sailor keys export-ci` | Export key material for CI use |
-| `sailor owner connect` | Open the signing station, wait for your wallet, save it as owner (`--timeout <seconds>`) |
+| `sailor owner connect` | Open the signing page, wait for your wallet, save it as owner (`--timeout <seconds>`) |
 | `sailor owner show` | Show the saved project owner |
 
 ## SMA lifecycle
@@ -50,12 +50,14 @@ each command named here exists in the CLI source.
 
 > **Change a mandate's bounds** (new cap/allowlist) with `sailor mandate configure --force` — re-encode the blob on the same registered singleton, no re-register. `sailor mandate update` changes only *tracked metadata* (name, source/artifact paths), never bounds.
 
-## Signing station
+## Signing server
 
 | Command | What it does |
 |---|---|
-| `sailor station start` | Start the persistent browser-signing daemon (blocks — run in the background) |
-| `sailor station status` / `stop` | Inspect / stop it |
+| `sailor signer start` | Start the persistent browser-signing daemon (blocks — run in the background) |
+| `sailor signer status` / `stop` | Inspect / stop it |
+
+(`sailor station …` is a hidden, deprecated alias of `signer` kept for v1.2.0 compatibility.)
 
 ## Run and automate
 

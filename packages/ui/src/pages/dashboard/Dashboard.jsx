@@ -164,8 +164,8 @@ function fmtActivityTime(ts) {
   }
 }
 
-// Human labels for the signing-request kinds the agent pushes to the station.
-// Mirrors the station's own KIND_LABELS so the bell dropdown and the station
+// Human labels for the signing-request kinds the agent pushes to the signing page.
+// Mirrors the signing page's own KIND_LABELS so the bell dropdown and the page
 // read the same way.
 const SIGNING_KIND_LABELS = {
   'create-sma': 'Create Safe (SMA)',
@@ -198,7 +198,7 @@ const ACTIVITY_LABELS = {
   // Agent-submitted on-chain confirmations
   permission_registered: 'registered permission',
   permission_revoked: 'revoked permission',
-  // Owner — from the signing station + owner-paid txs
+  // Owner — from the signing page + owner-paid txs
   owner_signed: 'signed in wallet',
   owner_rejected: 'rejected signing',
   sma_created: 'created Safe (SMA)',
@@ -1445,8 +1445,8 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
             open={notifOpen}
             onToggle={() => setNotifOpen((o) => !o)}
             onClose={() => setNotifOpen(false)}
-            onOpenStation={() => { setNotifOpen(false); window.location.hash = '#/station' }}
-            onOpenSigning={() => { setNotifOpen(false); window.location.hash = '#/station' }}
+            onOpenSigner={() => { setNotifOpen(false); window.location.hash = '#/signer' }}
+            onOpenSigning={() => { setNotifOpen(false); window.location.hash = '#/signer' }}
           />
           <button
             type="button"
@@ -1507,13 +1507,13 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
             {draft && draftItemCount(draft) > 0 && (
               <DraftBanner
                 draft={draft}
-                onReview={() => { window.location.hash = '#/station' }}
+                onReview={() => { window.location.hash = '#/signer' }}
               />
             )}
             {pending.length > 0 && (
               <PendingBanner
                 count={pending.length}
-                onReview={() => { window.location.hash = '#/station' }}
+                onReview={() => { window.location.hash = '#/signer' }}
               />
             )}
 
@@ -2232,10 +2232,11 @@ function NewMandateTile({ onClick }) {
 
 /* ────────── Notifications bell + dropdown ──────────
    The bell badges the count of signing requests the agent has pushed to the
-   running station daemon (via /api/station/pending). The dropdown gives a brief
-   read on each pending tx/signature without leaving the dashboard; "Open
-   signing station" jumps to #/station to actually approve. */
-function NotificationsBell({ pending, draft, open, onToggle, onClose, onOpenStation, onOpenSigning }) {
+   running signing server (via /api/station/pending — the server's internal
+   endpoint path, unrenamed). The dropdown gives a brief read on each pending
+   tx/signature without leaving the dashboard; "Open signing page" jumps to
+   #/signer to actually approve. */
+function NotificationsBell({ pending, draft, open, onToggle, onClose, onOpenSigner, onOpenSigning }) {
   const wrapRef = useRef(null)
 
   useEffect(() => {
@@ -2284,7 +2285,7 @@ function NotificationsBell({ pending, draft, open, onToggle, onClose, onOpenStat
             <div className={styles.notifEmpty}>
               <p className={styles.notifEmptyBody}>
                 Nothing to approve right now. When your agent needs a signature it
-                appears here — start it with <code>sailor station start</code>.
+                appears here — start it with <code>sailor signer start</code>.
               </p>
             </div>
           ) : (
@@ -2308,7 +2309,7 @@ function NotificationsBell({ pending, draft, open, onToggle, onClose, onOpenStat
                   <button
                     type="button"
                     className={styles.notifItem}
-                    onClick={onOpenStation}
+                    onClick={onOpenSigner}
                   >
                     <span className={styles.notifItemTop}>
                       <span className={styles.notifItemKind}>
@@ -2332,8 +2333,8 @@ function NotificationsBell({ pending, draft, open, onToggle, onClose, onOpenStat
           )}
 
           {pending.length > 0 && (
-            <button type="button" className={styles.notifFootBtn} onClick={onOpenStation}>
-              Open signing station
+            <button type="button" className={styles.notifFootBtn} onClick={onOpenSigner}>
+              Open signing page
               <ArrowRightSm />
             </button>
           )}

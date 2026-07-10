@@ -40,10 +40,15 @@ function parseCliSurface() {
   const varToGroup = new Map(); // commander variable name → group command name
 
   // `const ui = program.command("ui")` — a group declared on a variable.
-  for (const m of src.matchAll(/const\s+(\w+)\s*=\s*program\s*\.command\(\s*"([^"]+)"/g)) {
+  // An immediately-chained `.alias("station")` registers a second name (e.g. a
+  // deprecated hidden alias) that resolves to the SAME subcommand set.
+  for (const m of src.matchAll(
+    /const\s+(\w+)\s*=\s*program\s*\.command\(\s*"([^"]+)"\s*\)(?:\s*\.alias\(\s*"([^"]+)"\s*\))?/g,
+  )) {
     const groupName = m[2].split(/\s+/)[0];
     varToGroup.set(m[1], groupName);
     if (!groups.has(groupName)) groups.set(groupName, new Set());
+    if (m[3]) groups.set(m[3], groups.get(groupName)); // alias shares the same Set
   }
 
   // `program.command("init [dir]")` — a top-level leaf (not assigned to a var).

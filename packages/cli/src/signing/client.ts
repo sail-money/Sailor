@@ -18,7 +18,7 @@ export type SigningRequestInput =
 /**
  * Common surface shared by the in-process {@link SigningServer} and the remote
  * {@link SigningClient}, so a command can talk to either an ephemeral server it
- * owns or a persistent daemon (`sailor station start`) in another process.
+ * owns or a persistent daemon (`sailor signer start`) in another process.
  */
 export interface SigningChannel {
   readonly url: string;
@@ -31,7 +31,7 @@ export interface SigningChannel {
   /**
    * Report the final on-chain outcome for a `typed-data` request whose
    * signature this command later submitted itself (e.g. register-permission)
-   * — the signing station has no way to observe that submission on its own.
+   * — the signing server has no way to observe that submission on its own.
    * Best-effort: a failure to deliver this must never mask the command's
    * real, already-known result.
    */
@@ -42,7 +42,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Talks to a running signing daemon over its HTTP control plane. Used when a
- * command finds a `sailor station` daemon for this project, so signing routes
+ * command finds a `sailor signer` daemon for this project, so signing routes
  * through the already-open browser UI instead of spawning a second server.
  */
 export class SigningClient implements SigningChannel {
@@ -59,7 +59,7 @@ export class SigningClient implements SigningChannel {
 
   async start(): Promise<void> {
     if (!(await this.ping())) {
-      throw new Error(`Signing station not reachable at ${this.baseUrl}`);
+      throw new Error(`Signing server not reachable at ${this.baseUrl}`);
     }
   }
 
@@ -98,7 +98,7 @@ export class SigningClient implements SigningChannel {
       });
       if (res.status === 200) return (await res.json()) as SigningResponse;
       if (res.status !== 204) {
-        throw new Error(`Unexpected result status ${res.status} from signing station`);
+        throw new Error(`Unexpected result status ${res.status} from signing server`);
       }
     }
     throw new Error(`Signing request "${req.title}" timed out after ${timeoutMs / 1000}s`);
@@ -131,7 +131,7 @@ export class SigningClient implements SigningChannel {
           if (address) return address;
         }
       } catch {
-        // station may be momentarily unreachable; keep polling
+        // signer may be momentarily unreachable; keep polling
       }
       await sleep(1_000);
     }
@@ -142,7 +142,7 @@ export class SigningClient implements SigningChannel {
 type RuntimeServerState = { url?: string; port?: number; pid?: number; requestSecret?: string };
 
 /**
- * Rewrite `localhost` to `127.0.0.1` for CLI-side network calls. The station
+ * Rewrite `localhost` to `127.0.0.1` for CLI-side network calls. The signer
  * binds 127.0.0.1 only, but Node's fetch (undici) may resolve `localhost` to
  * ::1 first and fail with ECONNREFUSED (observed on Node 18), which made every
  * command miss a healthy daemon and silently spawn a hidden ephemeral server.
@@ -172,10 +172,12 @@ function readRuntimeServerState(projectRoot: string): RuntimeServerState | null 
 /**
  * The URL a user should open to approve this channel's signing requests.
  * Always uses the project dashboard port — the hash route distinguishes
- * the station view from the main dashboard.
+ * the signing page from the main dashboard. (`#/station` is a v1.2.0-compatible
+ * alias the router also accepts — see main.jsx — but new URLs always print
+ * the canonical `#/signer`.)
  */
 export function signingPageUrl(dashboardPort: number): string {
-  return `http://localhost:${dashboardPort}/#/station`;
+  return `http://localhost:${dashboardPort}/#/signer`;
 }
 
 /** Return a {@link SigningClient} for a reachable daemon, or null if none runs. */
@@ -190,7 +192,7 @@ export async function discoverDaemon(
 
 /**
  * Resolve the signing channel a command should use:
- *  - a running `sailor station` daemon if one is reachable (preferred), or
+ *  - a running `sailor signer` daemon if one is reachable (preferred), or
  *  - a fresh ephemeral in-process {@link SigningServer} otherwise.
  *
  * Either way the caller does `await channel.start()` up front and
@@ -205,7 +207,7 @@ export async function createSigningChannel(
   const daemon = await discoverDaemon(projectRoot);
   if (daemon) return daemon;
   // Ephemeral fallback: advertise a discoverable runtime descriptor so the
-  // dashboard's /#/station page can find this server and display the pending
+  // dashboard's /#/signer page can find this server and display the pending
   // request — otherwise the operator sees nothing to approve. Reaching this
   // branch means no daemon was discoverable, so there is no daemon state to
   // clobber; SigningServer.stop() removes the descriptor only if it still points
