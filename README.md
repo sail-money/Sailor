@@ -10,7 +10,19 @@
 [![Discord](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Fv10%2Finvites%2F9GsxPsHzRv%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&suffix=%20members&label=discord&logo=discord&logoColor=white)](https://discord.com/invite/9GsxPsHzRv)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-Sailor provides the working environment a coding agent needs to build a DeFi agent correctly: a guided path, verification at every step, and the full context of the protocol. The work is structured as five stations: set up a self-custodial SMA, define the strategy, build the mandate, build the agent, launch and operate it. You open the scaffold in Claude Code, Cursor, Codex, or any AI coding agent, and the agent executes the journey with you, reading the harness natively through its skills. Every resulting agent operates inside a mandate, a set of onchain permissions the Sail kernel evaluates on every dispatch, fail-closed and revocable in one transaction. Sailor itself enforces nothing; enforcement belongs to the protocol. Sail enforces. Sailor guides.
+Sailor gives a coding agent the working environment it needs to build a DeFi agent correctly: a guided path, verification at every step, and the full context of the protocol.
+ 
+Open the scaffold in Claude Code, Cursor, Codex, or any AI coding agent and say **start**. The agent walks the journey with you, five stations end to end:
+ 
+1. **Arrive** — set up your self-custodial SMA
+2. **Strategy** — define what your agent does in DeFi 
+3. **Mandate** — the onchain bounds it runs inside
+4. **Agent** — build the tick loop
+5. **Sail** — launch, operate, exit
+ 
+Every agent built here runs inside a mandate — onchain permissions the Sail Protocol evaluates on every dispatch, fail-closed, revocable in one transaction. Sailor itself enforces nothing; enforcement belongs to the protocol.
+ 
+**Sail enforces. Sailor guides.**
 
 ## What you can build
 
