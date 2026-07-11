@@ -14,7 +14,7 @@ Sailor gives a coding agent the working environment it needs to build a DeFi age
 
 ## What you can build
 
-Autonomous AI agents that transact digital assets, for any use case:
+Autonomous DeFi agents for any use case:
 
 - **Trading**: spot, DCA, rebalancing
 - **Yield**: lending, borrowing, liquidity providing, staking, looping
@@ -37,10 +37,6 @@ Open the scaffold in Claude Code, Cursor, Codex, or any AI coding agent and say 
 3. **Mandate** — the onchain bounds it runs inside
 4. **Agent** — build the tick loop
 5. **Sail** — launch, operate, exit
-
-Sailor itself enforces nothing; enforcement belongs to the protocol.
-
-**Sail enforces. Sailor guides.**
 
 ## Components
 
