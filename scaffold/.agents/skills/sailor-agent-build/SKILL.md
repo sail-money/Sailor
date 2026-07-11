@@ -26,7 +26,7 @@ Walk the spec's actions into the loop, one at a time:
 Verify the agent code against these — every one is a real failure mode the loop must survive:
 
 - **Fail closed on zero or reverted reads.** A quote of `0`, or a read that reverts, is a **no**, not a maybe — return `[]` (skip the tick), never fall through to acting on a missing number.
-- **Check allowances before acting — never self-approve for a swap.** No registered permission authorizes a standalone `approve()` dispatch for a swap; the owner maintains a bounded standing approval to the router and the agent stalls (logs, skips) when it's short — it never submits its own approve. For other actions, which approve model to use (per-call vs atomic batch) is owned by [`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md) — follow the one the mandate plan chose.
+- **Check allowances before acting — never self-approve for a swap.** No registered permission authorizes a standalone `approve()` dispatch for a swap. Default: the owner sets an unlimited standing approval to the router once, so the allowance is never the limiting factor — the read below still runs (cheap, harmless) but should never actually block. Opt-in: if the user chose a bounded allowance instead, that same read is what makes the agent stall (log, skip) rather than dispatch when it's short. Either way the agent never submits its own approve. For other actions, which approve model to use (per-call vs atomic batch) is owned by [`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md) — follow the one the mandate plan chose.
 - **Respect caps client-side.** The kernel enforces the mandate's caps on-chain, but check them in code first so the agent doesn't burn gas on a dispatch that is certain to be denied.
 - **A denied dispatch is information, not an error.** The runner logs the denial reason to `.sail/activity.jsonl`; read it, adjust within bounds, and never blind-retry the identical call — the next scheduled tick re-evaluates.
 - **Cadence guard.** Never double-fire a period. The runner ticks on its own interval (`SAILOR_INTERVAL`); the agent must track its own last-action time (the persistent `ctx.data` slot) and skip until the period has elapsed.
@@ -134,9 +134,11 @@ export const agent: Agent = {
     }
 
     // Allowance check — never self-approve. No registered permission authorizes a standalone
-    // approve() dispatch for a swap, so the agent doesn't submit one; the owner maintains a
-    // bounded standing approval to ROUTER instead (see sailor-template-swap's "Approve
-    // coverage"). If it's short, stall and surface it — the owner tops it up, not the agent.
+    // approve() dispatch for a swap, so the agent doesn't submit one (see sailor-template-swap's
+    // "Approve coverage"). Default: the owner set an unlimited standing approval to ROUTER once,
+    // so this should never trip — it's a defensive read, not the normal path. If the owner chose
+    // a bounded allowance instead, this is what makes the agent stall rather than dispatch: the
+    // owner tops it up, not the agent.
     const allowance = await ctx.read.allowance(TOKEN_IN, ctx.safe, ROUTER);
     if (allowance < AMOUNT_IN) {
       ctx.log(`allowance ${allowance} < ${AMOUNT_IN} for ${ROUTER} — owner needs to top up the standing approval — skipping`);

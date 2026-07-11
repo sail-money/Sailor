@@ -56,10 +56,12 @@ Same rule as every protocol permission: `SwapPermissionNoOracle` authorizes the 
 `approve(router, amountIn)` that lets the router pull `tokenIn` is a separate transaction this
 permission does not cover. Identical mechanics to `SwapPermission` — see its "Approve coverage"
 section in [`sailor-template-swap`](../sailor-template-swap/SKILL.md) for the default (single-dispatch
-+ a bounded, owner-set standing allowance to the allowlisted router; the agent stalls rather than
-self-approves) and the atomic-batch alternative, including the honest caveat that
-`ApproveAndCallBatchPermission` does not check `amountOutMin` at all. Full reasoning: [`approvals.md`
-→ "Swaps are a special case"](../sailor-mandates/references/approvals.md#swaps-are-a-special-case).
++ an unlimited, owner-set standing allowance to the allowlisted router — allowance size plays no
+role in what the permission allows, so the agent never has to manage it), the bounded-allowance
+opt-in for capping router exposure, and the atomic-batch alternative, including the honest caveat
+that `ApproveAndCallBatchPermission` does not check `amountOutMin` at all. Full reasoning:
+[`approvals.md` → "Swaps are a special
+case"](../sailor-mandates/references/approvals.md#swaps-are-a-special-case).
 
 ## Config blob (authoritative — `config-schemas.md`)
 

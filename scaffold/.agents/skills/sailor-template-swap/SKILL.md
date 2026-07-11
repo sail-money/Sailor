@@ -59,18 +59,30 @@ needs the allowance handled — decide how at mandate-build time, not when the f
 
 - **Default (autonomous agent — DCA / rebalancer / treasury):** single-dispatch through
   `SwapPermission` — the model that actually checks `amountOutMinimum` against the oracle-implied
-  floor on every swap (see above). Cover the allowance with a **bounded, owner-set standing
-  approval**: the owner approves each allowlisted router for a finite amount sized to run for a
-  while — not `type(uint256).max`, not exactly one swap's worth — as a normal Safe-owner action,
-  independent of the kernel/mandate system (no permission evaluated for the approve itself). The
-  agent reads `allowance(SMA, router)` before every swap and **stalls (never self-approves)** when
-  it's below the next `amountIn`, surfacing a top-up request rather than failing silently; the
-  owner can size it for rare top-ups or refresh it before every swap — either way the mechanics are
-  the same. The standing allowance grants the router nothing beyond what `SwapPermission` already
-  gates per dispatch: router/token allowlist, the per-tx cap, and the min-out floor are all still
-  checked on every single swap regardless of how the allowance was set. Full reasoning on why this
-  is the safer default than the batch below: [`sailor-mandates/references/approvals.md` → "Swaps
-  are a special case"](../sailor-mandates/references/approvals.md#swaps-are-a-special-case).
+  floor on every swap (see above). Cover the allowance with an **unlimited standing approval**: the
+  owner approves each allowlisted router for `type(uint256).max`, once, as a normal Safe-owner
+  action, independent of the kernel/mandate system (no permission evaluated for the approve
+  itself) — revocable in one transaction at any time. The agent never has to manage the allowance
+  again and runs indefinitely. This is safe because allowance size plays no role in what
+  `SwapPermission` allows: the router/token allowlist, the per-tx cap, and the min-out floor are
+  all decoded from the swap call itself and checked on every dispatch regardless of how much is
+  approved — an unlimited allowance only changes exposure to a future, unrelated router-contract
+  bug, the same tail risk most wallets already accept by default. Full reasoning:
+  [`sailor-mandates/references/approvals.md` → "Swaps are a special
+  case"](../sailor-mandates/references/approvals.md#swaps-are-a-special-case).
+
+  > **Disclose this to the user before the owner approves — say it plainly, in these terms:** "You'll
+  > approve the router once, unlimited. Every trade still stays inside your per-transaction cap and
+  > price floor no matter what — the allowance only lets the router pull tokens; it doesn't widen
+  > what any single swap can do. Your agent runs indefinitely without needing you back for approvals.
+  > You can revoke this allowance in one transaction at any time. If you'd rather cap the router's
+  > exposure instead, tell me — I can size a bounded allowance and the agent will pause and ask you to
+  > top it up when it runs low."
+- **Want to cap router exposure instead?** Approve a **bounded** amount sized to run for a while
+  (not one swap's worth) rather than unlimited. The agent must then read `allowance(SMA, router)`
+  before every swap and **stall (never self-approve)** when it's below the next `amountIn`,
+  surfacing a top-up request rather than failing silently — the owner tops it up periodically. This
+  trades some availability (the agent can stall) for a smaller standing exposure.
 - **Zero standing allowance instead?** The atomic **`ApproveAndCallBatchPermission`** batch
   (`[approve(router, amountIn), swap, approve(router, 0)]`, see
   [`sailor-template-approve-batch`](../sailor-template-approve-batch/SKILL.md)) never leaves an
@@ -150,8 +162,8 @@ adapter** for this pair on this chain (`0x0` reverts):
 1. **Address:** `node .agents/skills/sailor-templates/catalog.mjs --chain <id>` → `SwapPermission`
    address. It's the same address on every chain (CREATE2); see `deployed.json`.
 2. **Confirm the spec with the user** (sell/buy tokens, per-swap cap, slippage, router/fee
-   tier, recipient = SMA) — print the explainer's humanReadable + warnings. No gas before
-   approval.
+   tier, recipient = SMA) — print the explainer's humanReadable + warnings, and the approve-model
+   disclosure above (unlimited by default, bounded on request). No gas before approval.
 3. **a. Register** the singleton on the SMA's kernel (does NOT configure):
    ```bash
    sailor mandate register --address <SWAP_PERMISSION> --sma <SMA> --label "bounded-swap"
@@ -203,14 +215,16 @@ The agent must re-quote via [`sailor-swap-quote`](../sailor-swap-quote/SKILL.md)
 and embed the floor `amountOutMinimum` in the swap calldata — under single-dispatch `SwapPermission`
 (the default) the on-chain `maxSlippageBps` genuinely enforces it: `evaluate()` decodes
 `amountOutMinimum` from the call and rejects anything below the oracle-implied floor. **Match the
-tick's dispatch shape to your approve model:** under the default, single-dispatch model the agent
-emits a plain single-call swap and MUST read `allowance(SMA, router)` first, **stalling (never
-self-approving)** when it is below `amountIn` instead of dispatching; under the atomic-batch
-alternative the agent returns one `Dispatch` whose `calls` is the 3-element
-`[approve(router, amountIn), swap, approve(router, 0)]` and must NOT pre-approve out of band (the
-batch requires a zero pre-batch allowance) — and must accept that the batch's `evaluateBatch()`
-does not check `amountOutMinimum` at all, so the embedded floor is a courtesy to the router, not a
-kernel-enforced bound.
+tick's dispatch shape to your approve model:** under the default, single-dispatch model with an
+unlimited standing approval, the agent just emits a plain single-call swap — no allowance check
+needed, since the owner-set approval never runs out; under the bounded-allowance opt-in, the same
+single-call swap is preceded by an `allowance(SMA, router)` read, **stalling (never
+self-approving)** when it is below `amountIn`; either way the agent never submits its own
+`approve()` dispatch. Under the atomic-batch alternative the agent instead returns one `Dispatch`
+whose `calls` is the 3-element `[approve(router, amountIn), swap, approve(router, 0)]` and must NOT
+pre-approve out of band (the batch requires a zero pre-batch allowance) — and must accept that the
+batch's `evaluateBatch()` does not check `amountOutMinimum` at all, so the embedded floor is a
+courtesy to the router, not a kernel-enforced bound.
 
 ## Beyond this template — routing
 - **Token has no `IOracle` adapter** → this template REQUIRES a non-zero oracle and will not
