@@ -10,6 +10,8 @@
 [![Discord](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Fv10%2Finvites%2F9GsxPsHzRv%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&suffix=%20members&label=discord&logo=discord&logoColor=white)](https://discord.com/invite/9GsxPsHzRv)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
+Your capital stays in a self-custodial **separately manage account** (SMA) you own, while your agent operates inside a **mandate**: a set of onchain permissions the protocol enforces on each transaction.This is what makes **AI agents safe to run with real capital**: the agent may hallucinate but the mandate cannot. Permissions are deterministic smart contracts evaluated on every transaction, so a wrong decision can never become an unauthorized transaction.
+
 Sailor gives a coding agent the working environment it needs to build a DeFi agent correctly: a guided path, verification at every step, and the full context of the protocol.
 
 ## What you can build
@@ -18,13 +20,9 @@ Autonomous DeFi agents for any use case:
 
 - **Trading**: spot, DCA, rebalancing
 - **Yield**: lending, borrowing, liquidity providing, staking, looping
-- **Payments & treasury**: transfers, scheduled moves, operational flows
+- **Payments**: transfers, scheduled moves, operational flows
 
 These are examples, not a boundary. Permissions are arbitrary Solidity, so anything in DeFi can be expressed as a permission and operated by an agent.
-
-Every agent operates inside a **mandate**: a set of onchain permissions the protocol enforces on each transaction, fail-closed. The agent can't exceed it; you can revoke it in one transaction.
-
-Sailor takes you end to end: deploy your SMA, define your strategy, sign its mandate, and **run the agent on your own machine**.
 
 The full trust model, what the contracts enforce versus what stays off-chain, is in the [Sail Protocol repo](https://github.com/sail-money/protocol) and the [whitepaper](https://github.com/sail-money/protocol/blob/main/docs/whitepaper/Sail_Protocol_Whitepaper.pdf).
 
@@ -36,7 +34,7 @@ Open the scaffold in Claude Code, Cursor, Codex, or any AI coding agent and say 
 2. **Strategy** — define what your agent does in DeFi
 3. **Mandate** — the onchain bounds it runs inside
 4. **Agent** — build the tick loop
-5. **Sail** — launch, operate, exit
+5. **Sail** — launch, operate, **run locally** 
 
 ## Components
 
