@@ -26,7 +26,7 @@ Walk the spec's actions into the loop, one at a time:
 Verify the agent code against these — every one is a real failure mode the loop must survive:
 
 - **Fail closed on zero or reverted reads.** A quote of `0`, or a read that reverts, is a **no**, not a maybe — return `[]` (skip the tick), never fall through to acting on a missing number.
-- **Check allowances before acting.** Emit an approve only when the on-chain allowance is short. Which approve model to use (per-call vs atomic batch) is owned by [`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md) — follow the one the mandate plan chose.
+- **Check allowances before acting — never self-approve for a swap.** No registered permission authorizes a standalone `approve()` dispatch for a swap; the owner maintains a bounded standing approval to the router and the agent stalls (logs, skips) when it's short — it never submits its own approve. For other actions, which approve model to use (per-call vs atomic batch) is owned by [`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md) — follow the one the mandate plan chose.
 - **Respect caps client-side.** The kernel enforces the mandate's caps on-chain, but check them in code first so the agent doesn't burn gas on a dispatch that is certain to be denied.
 - **A denied dispatch is information, not an error.** The runner logs the denial reason to `.sail/activity.jsonl`; read it, adjust within bounds, and never blind-retry the identical call — the next scheduled tick re-evaluates.
 - **Cadence guard.** Never double-fire a period. The runner ticks on its own interval (`SAILOR_INTERVAL`); the agent must track its own last-action time (the persistent `ctx.data` slot) and skip until the period has elapsed.
@@ -58,19 +58,6 @@ const SLIPPAGE_BPS = 100; // FROM SPEC: slippage limit (<= the mandate's maxSlip
 const PERIOD_SEC = 86_400; // FROM SPEC: cadence — minimum seconds between actions
 
 // ── ABI fragments (only what the loop calls) ────────────────────────────────
-const ERC20_ABI = [
-  {
-    name: "approve",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "spender", type: "address" },
-      { name: "amount", type: "uint256" },
-    ],
-    outputs: [{ type: "bool" }],
-  },
-] as const;
-
 const QUOTER_ABI = [
   {
     name: "quoteExactInputSingle",
@@ -146,20 +133,14 @@ export const agent: Agent = {
       return [];
     }
 
-    // Allowance gap — per-call approve model (see sailor-mandates/references/approvals.md).
-    // Emit the approve as its own dispatch; the swap fires on a later tick once it is set.
-    // (Under the atomic-batch model you'd instead return one Dispatch whose `calls` are
-    // [approve, swap, approve-to-zero], authorized by a single IBatchPermission.)
+    // Allowance check — never self-approve. No registered permission authorizes a standalone
+    // approve() dispatch for a swap, so the agent doesn't submit one; the owner maintains a
+    // bounded standing approval to ROUTER instead (see sailor-template-swap's "Approve
+    // coverage"). If it's short, stall and surface it — the owner tops it up, not the agent.
     const allowance = await ctx.read.allowance(TOKEN_IN, ctx.safe, ROUTER);
     if (allowance < AMOUNT_IN) {
-      ctx.log(`allowance ${allowance} < ${AMOUNT_IN} — approving`);
-      return [
-        intent({
-          target: TOKEN_IN,
-          value: 0n,
-          data: encodeFunctionData({ abi: ERC20_ABI, functionName: "approve", args: [ROUTER, AMOUNT_IN] }),
-        }),
-      ];
+      ctx.log(`allowance ${allowance} < ${AMOUNT_IN} for ${ROUTER} — owner needs to top up the standing approval — skipping`);
+      return [];
     }
 
     // Read — quote the swap. FAIL CLOSED: a revert or a 0 result is a "no", not a "maybe".
@@ -181,7 +162,9 @@ export const agent: Agent = {
       return [];
     }
 
-    // Decide — the slippage floor. The mandate's maxSlippageBps enforces this on-chain regardless.
+    // Decide — the slippage floor. This dispatch is a single call under SwapPermission, which
+    // decodes amountOutMinimum from the call and rejects anything below its oracle-implied
+    // floor — genuinely enforced on-chain, not a courtesy the router alone honors.
     const minOut = (expectedOut * BigInt(10_000 - SLIPPAGE_BPS)) / 10_000n;
 
     // Act — one dispatch. Advance the cadence marker; a stricter agent advances it only after
