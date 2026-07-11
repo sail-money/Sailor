@@ -11,18 +11,6 @@
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
 Sailor gives a coding agent the working environment it needs to build a DeFi agent correctly: a guided path, verification at every step, and the full context of the protocol.
- 
-Open the scaffold in Claude Code, Cursor, Codex, or any AI coding agent and say **start**. The agent walks the journey with you, five stations end to end:
- 
-1. **Arrive** — set up your self-custodial SMA
-2. **Strategy** — define what your agent does in DeFi 
-3. **Mandate** — the onchain bounds it runs inside
-4. **Agent** — build the tick loop
-5. **Sail** — launch, operate, exit
- 
-Every agent built here runs inside a mandate — onchain permissions the Sail Protocol evaluates on every dispatch, fail-closed, revocable in one transaction. Sailor itself enforces nothing; enforcement belongs to the protocol.
- 
-**Sail enforces. Sailor guides.**
 
 ## What you can build
 
@@ -34,11 +22,25 @@ Autonomous AI agents that transact digital assets, for any use case:
 
 These are examples, not a boundary. Permissions are arbitrary Solidity, so anything in DeFi can be expressed as a permission and operated by an agent.
 
-Every agent operates inside a **mandate**: a set of onchain permissions the protocol enforces on each transaction. The agent can't exceed it; you can revoke it in one transaction.
+Every agent operates inside a **mandate**: a set of onchain permissions the protocol enforces on each transaction, fail-closed. The agent can't exceed it; you can revoke it in one transaction.
 
 Sailor takes you end to end: deploy your SMA, define your strategy, sign its mandate, and **run the agent on your own machine**.
 
 The full trust model, what the contracts enforce versus what stays off-chain, is in the [Sail Protocol repo](https://github.com/sail-money/protocol) and the [whitepaper](https://github.com/sail-money/protocol/blob/main/docs/whitepaper/Sail_Protocol_Whitepaper.pdf).
+
+## How it works
+
+Open the scaffold in Claude Code, Cursor, Codex, or any AI coding agent and say **start**. The agent walks the journey with you, five stations end to end:
+
+1. **Arrive** — set up your self-custodial SMA
+2. **Strategy** — define what your agent does in DeFi
+3. **Mandate** — the onchain bounds it runs inside
+4. **Agent** — build the tick loop
+5. **Sail** — launch, operate, exit
+
+Sailor itself enforces nothing; enforcement belongs to the protocol.
+
+**Sail enforces. Sailor guides.**
 
 ## Components
 
