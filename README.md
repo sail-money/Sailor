@@ -2,7 +2,12 @@
 
 > The open-source harness for building and operating DeFi agents on [Sail Protocol](https://github.com/sail-money/protocol).
 
+<p align="center">
+  <img src=".github/assets/banner.jpg" alt="Sailor — the harness for DeFi agents on Sail Protocol" width="880">
+</p>
+
 [![npm version](https://img.shields.io/npm/v/%40sail.money%2Fsailor)](https://www.npmjs.com/package/@sail.money/sailor)
+[![Discord](https://img.shields.io/discord/1418319517544611872?logo=discord&logoColor=white&label=discord)](https://discord.com/invite/9GsxPsHzRv)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
 Sailor provides the working environment a coding agent needs to build a DeFi agent correctly: a guided path, verification at every step, and the full context of the protocol. The work is structured as five stations: set up a self-custodial SMA, define the strategy, build the mandate, build the agent, launch and operate it. You open the scaffold in Claude Code, Cursor, Codex, or any AI coding agent, and the agent executes the journey with you, reading the harness natively through its skills. Every resulting agent operates inside a mandate, a set of onchain permissions the Sail kernel evaluates on every dispatch, fail-closed and revocable in one transaction. Sailor itself enforces nothing; enforcement belongs to the protocol. Sail enforces. Sailor guides.
