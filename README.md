@@ -10,11 +10,9 @@
 [![Discord](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Fv10%2Finvites%2F9GsxPsHzRv%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&suffix=%20members&label=discord&logo=discord&logoColor=white)](https://discord.com/invite/9GsxPsHzRv)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-Sailor agents operate with **separately managed accounts (SMAs)**. Funds are held in a self-custodial Safe, and the agent is bounded by a **mandate**: set of onchain permissions the protocol enforces on every transaction. The agent receives authority, never custody, and the owner can revoke that authority in a single transaction.
+**Sailor** turns any AI coding agent into a builder and operator of DeFi agents. Say **start** in an empty folder and it takes you to a running agent: DeFi strategy, onchain mandate, local automation. 
 
-Permissions are deterministic smart contracts evaluated on every dispatch, so a wrong decision — including hallucinations — never becomes an unauthorized transaction. That is what makes an **AI agent safe to run with real capital**.
-
-Sailor gives a coding agent the working environment it needs to build a DeFi agent correctly: a guided path, verification at every step, and the full context of the protocol. 
+Funds never leave your own **separately managed account (SMA)**. The agent never holds your private key and acts only through a **mandate** — deterministic onchain permissions checked on every transaction. This makes **Sailor Agents safe to run with real capital**. 
 
 ## What you can build
 
