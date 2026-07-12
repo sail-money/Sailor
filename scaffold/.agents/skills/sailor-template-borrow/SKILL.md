@@ -34,6 +34,32 @@ value (via `borrowOracle`) against collateral value (via `collateralOracle`) mus
 > applied at all, despite `maxLtvBps` being stored) or **both** — exactly one oracle reverts
 > `OracleConfigInconsistent` at configure (a single feed can't price a ratio). When both are set,
 > the check still depends on their honesty/freshness — see staleness via `maxPriceAgeSec`.
+>
+> **⚠️ Neither oracle is a plain token-pair price feed — and the only adapter this harness ships
+> doesn't implement either role.** `collateralOracle` is called as `getPrice(account,
+> address(0))` — `base` is the **SMA address itself**, not a token, and the adapter must return
+> the account's **aggregate portfolio value** in a common numeraire. `borrowOracle` is called as
+> `getPrice(asset, address(0))` — the numeraire quote side is `address(0)`, not a real token.
+> Full contract: `Protocol/docs/oracle-adapters.md` (workspace-only reference — not shipped into
+> a scaffolded project; ask the harness if you need it read out).
+> The one adapter that ships in this repo, [`UniV3TwapOracle`](../sailor-templates/oracles/UniV3TwapOracle.sol),
+> only serves the **swap-oracle** role — its `getPrice` reverts `UnsupportedPair` unless both
+> `base` and `quote` are its pool's actual `token0`/`token1`, which `address(0)` (and an account
+> address) never is. **Wiring `UniV3TwapOracle` in as `collateralOracle`/`borrowOracle` does not
+> silently misbehave — it reverts every borrow, fully fail-closed** — but it means oracle-gated
+> LTV mode has no ready-made adapter today: authoring one (an account-level portfolio-value feed,
+> and a numeraire-denominated asset-price feed, sharing the same numeraire — see the doc above)
+> is a bespoke prerequisite, not a config choice, before choosing "both oracles" over "zero
+> oracles" here.
+
+## ⚠️ Approve coverage — what this permission does and doesn't need
+
+`borrow()` pulls no ERC-20 from the SMA — the lending pool pushes the borrowed asset *to*
+`onBehalfOf`/`receiver == SMA` — so `BorrowPermission` alone needs **no** approve coverage. Two
+adjacent legs of the same strategy do, and this permission covers neither:
+
+- **The collateral-supply leg is a separate [`sailor-template-deposit`](../sailor-template-deposit/SKILL.md) permission** (`deposit`/`supply` on the collateral asset) — that call pulls via allowance and needs its own approve coverage exactly as documented in deposit's "Approve coverage" section. Configure it alongside `BorrowPermission`, not instead of it.
+- **The unwind leg (`repay`) pulls the debt asset from the SMA via allowance** and needs approve coverage too — but there is **no shared `RepayPermission` template**; it's bespoke via [`sailor-mandates`](../sailor-mandates/SKILL.md). See [`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md) for the rule and [references/yield.md](../sailor-strategy/references/yield.md)'s "Unwind path" dimension before assuming a borrow strategy is complete once `BorrowPermission` simulates clean.
 
 ## Config blob (authoritative — `config-schemas.md`)
 

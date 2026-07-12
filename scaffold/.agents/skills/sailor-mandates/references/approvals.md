@@ -2,7 +2,9 @@
 
 ## The rule
 
-Protocol permissions (supply, swap, deposit, stake, …) do NOT cover ERC-20 `approve()`. The kernel evaluates the approve as its own call: an agent that calls `approve()` without authorizing coverage for it is rejected, and the tick fails.
+Protocol permissions (supply, swap, deposit, stake, repay, …) do NOT cover ERC-20 `approve()`. The kernel evaluates the approve as its own call: an agent that calls `approve()` without authorizing coverage for it is rejected, and the tick fails. This is not specific to any one action kind — **any call whose selector pulls an ERC-20 from the SMA via `transferFrom` needs its own approve covered**, whether or not a shared template exists for the action itself. Deposit, swap, and a borrow position's repay leg all pull via allowance; `borrow()` and `withdraw()`/`transfer()` do not (they push funds *to* the SMA, or move tokens the SMA already unconditionally owns) — check the venue's own calldata, don't assume from the action's category.
+
+**Repay has no shared template today.** Unlike deposit/swap/borrow, there is no `RepayPermission` singleton in `Protocol/contracts/templates/` — a borrow/looping strategy's unwind leg is bespoke via [`sailor-mandates`](../SKILL.md) (Gate 2 still applies: enumerate the repay's approve need and pick a model before authoring). Do not assume `sailor-template-borrow` or `sailor-template-deposit` cover it; neither does.
 
 There are two ways to cover and execute an approve + action. Pick ONE; they are not mixable.
 
@@ -16,6 +18,16 @@ Approve and action are **separate single-call dispatches**, each gated by its ow
      --tokens <token,...> --spenders <spender,...> --max <amount>
    ```
    or a custom `IPermission` that bounds the approve's spender and amount.
+
+   > **⚠️ `boundedApprove` is not deployed on any chain today — this command currently errors.**
+   > `deploy-clone` only works against a clone *implementation* already recorded in the SDK's
+   > `standaloneTemplates` registry, and no `boundedApprove` implementation has been published
+   > there yet (verify live with `sailor mandate templates --json` — an empty `community` array
+   > confirms it). Running the command above fails with `deploy-clone is unavailable on chain
+   > <id>: no clone templates are deployed against this kernel`. Until a `boundedApprove`
+   > implementation ships, use a custom `IPermission` deployed directly with `sailor mandate
+   > deploy` instead — same bound (token/spender/max-amount), just not a reusable clone. This
+   > does not block Model A generally, only the "clone where available" shortcut in this step.
 2. Deploy the protocol `IPermission` (swap/supply/…). Register both in one signing session.
 3. At runtime, manage the allowance instead of approving every tick: read the on-chain allowance, emit an approve dispatch ONLY when it is insufficient, approving a large amount so subsequent ticks skip it. The DCA example does exactly this — it returns the approve as its own tick's dispatch, then swaps on later ticks once the allowance is set.
 

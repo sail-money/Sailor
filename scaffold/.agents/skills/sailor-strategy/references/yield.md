@@ -20,7 +20,7 @@ Defaults: LTV ceiling = a conservative 50% of the market's own max LTV (the user
 | Market/vault addresses | Exact contract addresses per chain, resolved and verified — never from memory |
 | Cap semantics | ERC-4626 `mint` caps are in **shares**, not underlying: effective asset cap = cap × share price — size accordingly (see `sailor-template-deposit`) |
 | LTV ceiling + oracles | `maxLtvBps` AND both a collateral oracle and a borrow oracle. The pair is all-or-nothing: with zero oracles the template enforces amount-cap-only and **no LTV ceiling at all**; exactly one oracle reverts at configure |
-| Unwind path | How the position exits (withdraw/redeem route) and where funds land |
+| Unwind path | How the position exits, and where funds land. A **vault/lending deposit** exits by withdraw/redeem. A **borrow position** exits by `repay` first (pulls the debt asset from the SMA via allowance — approve coverage required, and there is no shared template for it, see routing row below), then withdraw of the freed collateral — two legs, not one |
 
 **Feasibility (verify, don't advise).** The named market or vault must exist on the target chain — verify the address on-chain (the contract exists and exposes the expected interface, e.g. a lending market's `supply` / a vault's `deposit`) before it enters the spec. If the user hasn't chosen a market, the harness does **not** pick one for them (that would be investment advice): point them to research it outside, then return with an address to verify.
 
@@ -29,7 +29,8 @@ Defaults: LTV ceiling = a conservative 50% of the market's own max LTV (the user
 | Action | Route |
 |---|---|
 | Deposits into ERC-4626 vaults (`deposit`/`mint`) or Aave v2/v3 (`deposit`/`supply`) | [`sailor-template-deposit`](../../sailor-template-deposit/SKILL.md) |
-| Borrows — Aave variable-rate, Morpho Optimizer/Morpho-Aave, Compound cTokens | [`sailor-template-borrow`](../../sailor-template-borrow/SKILL.md) |
+| Borrows — Aave variable-rate, Morpho Optimizer/Morpho-Aave, Compound cTokens | [`sailor-template-borrow`](../../sailor-template-borrow/SKILL.md) — covers the borrow call only; the collateral-supply leg is a deposit action (row above) with its own approve coverage |
+| Repay / unwind a borrow position | **Bespoke via [`sailor-mandates`](../../sailor-mandates/SKILL.md)** — no shared `RepayPermission` template exists today. `repay` pulls the debt asset from the SMA via allowance, so it needs approve coverage exactly like deposit/swap (see [`sailor-mandates/references/approvals.md`](../../sailor-mandates/references/approvals.md)); do not treat a borrow strategy as complete once `BorrowPermission` alone simulates clean if the strategy has an exit condition |
 | Withdrawals back to the owner | [`sailor-template-withdraw`](../../sailor-template-withdraw/SKILL.md) |
 | Approve → deposit → reset in one atomic batch | [`sailor-template-approve-batch`](../../sailor-template-approve-batch/SKILL.md) |
 | Staking wrapped as an ERC-4626 vault (stake via `deposit`/`mint`) | [`sailor-template-deposit`](../../sailor-template-deposit/SKILL.md) — same as any vault; native/LST staking with no vault interface is bespoke via [`sailor-mandates`](../../sailor-mandates/SKILL.md) |

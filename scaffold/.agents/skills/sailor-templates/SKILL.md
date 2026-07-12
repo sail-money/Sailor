@@ -130,10 +130,17 @@ Full mechanics (EIP-712 sigs, `configure`/`configureDirect`, `registerBatch`, `r
 
 The seven templates cover the bounded swap, transfer, withdraw, deposit, borrow, and
 approve-and-call-batch primitives. A strategy that needs any other venue or bound — perps
-(GMX, Gains, Synthetix), prediction markets (Azuro, Limitless), the LI.FI aggregator, or
-anything else on-chain — is authored as a bespoke `IPermission` via
+(GMX, Gains, Synthetix), prediction markets (Azuro, Limitless), the LI.FI aggregator, **`repay`
+to unwind a borrow position (no shared template — `BorrowPermission` covers `borrow()` only)**,
+or anything else on-chain — is authored as a bespoke `IPermission` via
 [`sailor-mandates`](../sailor-mandates/SKILL.md), starting from the `contracts/`
 scaffold: full expressiveness, same kernel guarantees.
+
+Any bespoke permission that gates a call pulling an ERC-20 from the SMA via allowance (repay,
+an unlisted vault's `deposit`, an LP `mint`, …) needs the same approve-coverage treatment as the
+templates above — `sailor-mandates`' Gate 2 (enumerate approvals, pick per-call vs. atomic
+batch) applies to bespoke authoring exactly as it does here; a bespoke permission is not exempt
+just because it has no pre-built spoke skill to remind you.
 
 ## Notes
 
