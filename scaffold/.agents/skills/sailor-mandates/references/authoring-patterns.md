@@ -43,3 +43,52 @@ Permissions bind on-chain calls. For a venue with off-chain order matching (e.g.
 ## Where to actually write one
 
 Start from `contracts/` — a neutral, protocol-agnostic Foundry scaffold (`BoundedCallPermission.sol` + `test/BoundedCallPermission.t.sol`) that bounds allowed targets, allowed selectors, and max ETH value. Extend it with calldata-specific checks (amount caps, recipient binding, allowlists) for the venue you're targeting, following the patterns above. See [Gate 3](../SKILL.md) for the full authoring procedure and [Gate 4](../SKILL.md) for writing tests before any deployment.
+
+## Worked example — a bounded ERC-20 approve
+
+One of the simplest bespoke permissions there is, and the natural companion to a swap mandate: it lets the agent grant its own router allowance instead of sending the owner to approve it manually. Bounds a standalone `approve(spender, amount)` call — nothing else. See [approvals.md → "Swaps are a special case"](approvals.md#swaps-are-a-special-case) for when to reach for this.
+
+```solidity
+// ENFORCES ON-CHAIN (kernel calls evaluate() on every dispatch; false ⇒ dispatch blocked):
+//   approve(address,uint256)  selector 0x095ea7b3
+//     • target == the bound ERC-20 token
+//     • spender ∈ an allowlist (the routers/venues this mandate already trusts)
+//     • amount ≤ MAX_APPROVAL (0 disables the cap — an unbounded standing approve)
+//     • ctx.value == 0 (approve never carries native value)
+//
+// AGENT-ENFORCED / NOT BOUNDED HERE (off-chain — can change without redeploying this contract):
+//   • how often the agent re-approves, and to what amount within the cap
+//   • which of the allowlisted spenders it approves on a given tick
+contract BoundedErc20Approve is IPermission {
+    bytes32 private constant DISCRIMINATOR = keccak256("BoundedErc20Approve");
+    bytes4 private constant APPROVE_SELECTOR = 0x095ea7b3; // approve(address,uint256)
+
+    address public immutable TOKEN;
+    uint256 public immutable MAX_APPROVAL; // 0 == uncapped
+    mapping(address => bool) public isAllowedSpender;
+
+    constructor(address token, address[] memory spenders, uint256 maxApproval) {
+        TOKEN = token;
+        MAX_APPROVAL = maxApproval;
+        for (uint256 i = 0; i < spenders.length; i++) isAllowedSpender[spenders[i]] = true;
+    }
+
+    function evaluate(bytes calldata txData, Context calldata ctx) external view returns (bool) {
+        if (ctx.target != TOKEN) return false;
+        if (ctx.selector != APPROVE_SELECTOR) return false;
+        if (ctx.value != 0) return false;
+        if (!SailCalldata.hasParams(txData, 2)) return false;
+        address spender = SailCalldata.asAddress(txData, 0);
+        uint256 amount = SailCalldata.asUint256(txData, 1);
+        if (!isAllowedSpender[spender]) return false;
+        if (MAX_APPROVAL != 0 && amount > MAX_APPROVAL) return false;
+        return true;
+    }
+
+    function discriminator() external pure returns (bytes32) { return DISCRIMINATOR; }
+}
+```
+
+Five checks, no calldata-decoding surprises — `approve(address,uint256)` has exactly two static params, both at fixed slots (see the header discipline above: the first block is everything this contract holds; the second is everything left to the agent). `MAX_APPROVAL == 0` is a deliberate escape hatch for a standing max approve; set it non-zero to cap every approve the agent can make to an allowlisted spender — the size choice belongs to the user, not this contract. Test both directions (Gate 4): an allowlisted spender at/under the cap accepts; an unlisted spender, an over-cap amount, or `ctx.value != 0` rejects; and, if capped, a same-spender re-approve for a smaller amount still accepts — the agent re-approving itself on a later tick is the whole reason this permission exists.
+
+Register it alongside the swap permission in one signing session (Gate 7); simulate it like any other single-call `IPermission` (Gate 6, `sailor mandate simulate`).

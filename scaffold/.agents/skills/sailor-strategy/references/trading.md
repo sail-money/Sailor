@@ -38,7 +38,7 @@ Both swap templates are ERC-20 → ERC-20 only (native value rejected) — an ET
 |---|---|
 | Bounded swap (the common case) | [`sailor-template-swap-no-oracle`](../../sailor-template-swap-no-oracle/SKILL.md) — the default; see the price-source decision above |
 | Bounded swap where size vs pool depth warrants an oracle | [`sailor-template-swap`](../../sailor-template-swap/SKILL.md) — see detect-and-route above |
-| Swap's approve coverage | Unlimited, owner-set standing allowance to the router (default — see either swap spoke's "Approve coverage"; allowance size doesn't affect what any swap may do); bounded-with-stall is an opt-in for capping router exposure; zero-standing-allowance alternative: [`sailor-template-approve-batch`](../../sailor-template-approve-batch/SKILL.md) (does not check min-out) |
+| Swap's approve coverage | The agent grants its own allowance via a small bespoke permission (default — see either swap spoke's "Approve coverage"; standing or bounded-per-trade, the user's choice, neither one stalls); owner-set-on-the-Safe is a simpler opt-out; zero-standing-allowance alternative: [`sailor-template-approve-batch`](../../sailor-template-approve-batch/SKILL.md) (does not check min-out) |
 | Live quotes / `amountOutMinimum` sizing | [`sailor-swap-quote`](../../sailor-swap-quote/SKILL.md) |
 | Venues the swap templates don't cover (aggregators, perps, exotic routers) | bespoke via [`sailor-mandates`](../../sailor-mandates/SKILL.md) |
 

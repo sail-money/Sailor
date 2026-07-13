@@ -26,7 +26,7 @@ Walk the spec's actions into the loop, one at a time:
 Verify the agent code against these — every one is a real failure mode the loop must survive:
 
 - **Fail closed on zero or reverted reads.** A quote of `0`, or a read that reverts, is a **no**, not a maybe — return `[]` (skip the tick), never fall through to acting on a missing number.
-- **Check allowances before acting — never self-approve for a swap.** No registered permission authorizes a standalone `approve()` dispatch for a swap. Default: the owner sets an unlimited standing approval to the router once, so the allowance is never the limiting factor — the read below still runs (cheap, harmless) but should never actually block. Opt-in: if the user chose a bounded allowance instead, that same read is what makes the agent stall (log, skip) rather than dispatch when it's short. Either way the agent never submits its own approve. For other actions, which approve model to use (per-call vs atomic batch) is owned by [`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md) — follow the one the mandate plan chose.
+- **Check allowances before acting — match the check to which approve model the mandate actually registered.** Default (agent-granted): a bespoke bounded-approve permission is registered for the router, so the agent MAY dispatch its own `approve()` when the allowance is short — one single-call dispatch, gated by that permission, no one else's signature needed — then swap on a later tick once it clears. Opt-out (owner-set standing): the owner approved the router directly on the Safe instead, so no permission covers a standalone approve; the agent must never self-approve in that case — the same read instead makes it stall (log, skip) until the owner tops it up. Get this wrong in either direction and it breaks: self-approving with no covering permission is denied on-chain; stalling when a covering permission exists just means the agent never uses the capability it was given. For other actions, which approve model to use (per-call vs atomic batch) is owned by [`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md) — follow the one the mandate plan chose.
 - **Respect caps client-side.** The kernel enforces the mandate's caps on-chain, but check them in code first so the agent doesn't burn gas on a dispatch that is certain to be denied.
 - **A denied dispatch is information, not an error.** The runner logs the denial reason to `.sail/activity.jsonl`; read it, adjust within bounds, and never blind-retry the identical call — the next scheduled tick re-evaluates.
 - **Cadence guard.** Never double-fire a period. The runner ticks on its own interval (`SAILOR_INTERVAL`); the agent must track its own last-action time and skip until the period has elapsed. Read it from the memory ledger (`sailor-memory`), not `ctx.data` — `ctx.data` resets on every fresh process (exactly what the shipped GitHub Actions / Docker hosts start per tick), so a cadence guard sourced from it is not a guard at all.
@@ -124,6 +124,28 @@ const ERC20_TRANSFER_ABI = [
     ],
   },
 ] as const;
+
+const ERC20_APPROVE_ABI = [
+  {
+    name: "approve",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "spender", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+] as const;
+
+// Approve model (FROM SPEC — decided at mandate-build time, sailor-mandates/references/approvals.md):
+//   true  = agent-granted (featured default): a bounded-approve IPermission is registered for
+//           ROUTER (the BoundedErc20Approve worked example in
+//           sailor-mandates/references/authoring-patterns.md) — the agent may dispatch its own
+//           approve() when the allowance is short, gated by that permission, no owner involved.
+//   false = owner-set standing: the owner approved ROUTER directly on the Safe, outside the
+//           mandate — no permission covers a standalone approve(), so the agent must stall instead.
+const AGENT_GRANTS_APPROVAL: boolean = true;
 
 // ── Memory ledger (.sail/memory/ledger.jsonl) — see the sailor-memory skill ─
 // Append-only, chain-reconciled record of every tick: what was actually
@@ -329,14 +351,28 @@ export const agent: Agent = {
       return [];
     }
 
-    // Allowance check — never self-approve. No registered permission authorizes a standalone
-    // approve() dispatch for a swap, so the agent doesn't submit one (see sailor-template-swap's
-    // "Approve coverage"). Default: the owner set an unlimited standing approval to ROUTER once,
-    // so this should never trip — it's a defensive read, not the normal path. If the owner chose
-    // a bounded allowance instead, this is what makes the agent stall rather than dispatch: the
-    // owner tops it up, not the agent.
+    // Allowance check. Which branch fires must match what the mandate actually registered
+    // (AGENT_GRANTS_APPROVAL above) — see sailor-template-swap's "Approve coverage".
     const allowance = await ctx.read.allowance(TOKEN_IN, ctx.safe, ROUTER);
     if (allowance < AMOUNT_IN) {
+      if (AGENT_GRANTS_APPROVAL) {
+        // Agent-granted: dispatch our own approve() this tick, gated by the registered
+        // bounded-approve permission — no one else's signature needed. Skip the swap this
+        // tick; the next tick's allowance read sees it satisfied and swaps.
+        const approveAmount = AMOUNT_IN; // FROM SPEC: per-trade cap; use a standing max instead to re-approve less often
+        const reason = `allowance ${allowance} < ${AMOUNT_IN} for ${ROUTER} — self-approving`;
+        ctx.log(`${reason} — skipping swap this tick`);
+        appendLedger({ ts: ctx.timestamp, block: Number(ctx.blockNumber), chainId: ctx.chainId, kind: "skipped", reason });
+        return [
+          intent({
+            target: TOKEN_IN,
+            value: 0n,
+            data: encodeFunctionData({ abi: ERC20_APPROVE_ABI, functionName: "approve", args: [ROUTER, approveAmount] }),
+          }),
+        ];
+      }
+      // Owner-set standing: no permission authorizes a standalone approve() dispatch in this
+      // model, so the agent must never self-approve — stall and wait for the owner to top up.
       const reason = `allowance ${allowance} < ${AMOUNT_IN} for ${ROUTER} — owner top-up needed`;
       ctx.log(`${reason} — skipping`);
       appendLedger({ ts: ctx.timestamp, block: Number(ctx.blockNumber), chainId: ctx.chainId, kind: "skipped", reason });

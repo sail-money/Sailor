@@ -57,32 +57,37 @@ permission does not cover** (same rule as every protocol permission — see
 no/insufficient allowance reverts inside the router and the tick fails. **Every** bounded swap
 needs the allowance handled — decide how at mandate-build time, not when the first tick reverts.
 
-- **Default (autonomous agent — DCA / rebalancer / treasury):** single-dispatch through
-  `SwapPermission` — the model that actually checks `amountOutMinimum` against the oracle-implied
-  floor on every swap (see above). Cover the allowance with an **unlimited standing approval**: the
-  owner approves each allowlisted router for `type(uint256).max`, once, as a normal Safe-owner
-  action, independent of the kernel/mandate system (no permission evaluated for the approve
-  itself) — revocable in one transaction at any time. The agent never has to manage the allowance
-  again and runs indefinitely. This is safe because allowance size plays no role in what
-  `SwapPermission` allows: the router/token allowlist, the per-tx cap, and the min-out floor are
+- **Default (autonomous agent — DCA / rebalancer / treasury): the agent grants its own
+  allowance.** Deploy a small bespoke `IPermission` bounding a standalone `approve(router, amount)`
+  call (target == token, selector == `approve`, spender ∈ the router allowlist, value == 0 — the
+  `BoundedErc20Approve` worked example in
+  [`sailor-mandates/references/authoring-patterns.md`](../sailor-mandates/references/authoring-patterns.md))
+  and register it alongside `SwapPermission` in the same signing session. At runtime the agent
+  reads `allowance(SMA, router)` and, when it's short, dispatches its own `approve()` first — gated
+  by that permission, needing no one else's signature — before swapping on a later tick. Size the
+  approve **standing** (`type(uint256).max`, rarely revisited) or **bounded-per-trade** (the
+  agent's choice, re-approved as it runs low): allowance size plays no role in what
+  `SwapPermission` allows — the router/token allowlist, the per-tx cap, and the min-out floor are
   all decoded from the swap call itself and checked on every dispatch regardless of how much is
-  approved — an unlimited allowance only changes exposure to a future, unrelated router-contract
-  bug, the same tail risk most wallets already accept by default. Full reasoning:
-  [`sailor-mandates/references/approvals.md` → "Swaps are a special
+  approved — and since the agent (not the owner) does the re-approving, neither size ever stalls
+  it. An unlimited allowance's only real-world difference from a bounded one is exposure to a
+  future, unrelated router-contract bug, the same tail risk most wallets already accept by default.
+  Full reasoning: [`sailor-mandates/references/approvals.md` → "Swaps are a special
   case"](../sailor-mandates/references/approvals.md#swaps-are-a-special-case).
 
-  > **Disclose this to the user before the owner approves — say it plainly, in these terms:** "You'll
-  > approve the router once, unlimited. Every trade still stays inside your per-transaction cap and
-  > price floor no matter what — the allowance only lets the router pull tokens; it doesn't widen
-  > what any single swap can do. Your agent runs indefinitely without needing you back for approvals.
-  > You can revoke this allowance in one transaction at any time. If you'd rather cap the router's
-  > exposure instead, tell me — I can size a bounded allowance and the agent will pause and ask you to
-  > top it up when it runs low."
-- **Want to cap router exposure instead?** Approve a **bounded** amount sized to run for a while
-  (not one swap's worth) rather than unlimited. The agent must then read `allowance(SMA, router)`
-  before every swap and **stall (never self-approve)** when it's below the next `amountIn`,
-  surfacing a top-up request rather than failing silently — the owner tops it up periodically. This
-  trades some availability (the agent can stall) for a smaller standing exposure.
+  > **Disclose this to the user before they sign — say it plainly, in these terms:** "Your agent
+  > will hold a permission that lets it approve <ROUTER> for itself, so it can trade indefinitely
+  > without you coming back to sign anything. Every trade still stays inside your per-transaction
+  > cap and price floor no matter what — the allowance only lets the router pull tokens; it doesn't
+  > widen what any single swap can do. You choose the size: unlimited (fewer approve dispatches) or
+  > capped per trade (a smaller standing exposure, at the cost of one extra self-issued approve now
+  > and then) — either way the agent never needs you for a top-up, and you can revoke the allowance
+  > in one transaction at any time."
+- **Don't want a bespoke approve permission at all?** The owner can sign a one-time
+  `approve(router, type(uint256).max)` directly on the Safe instead — independent of the
+  kernel/mandate system, no permission evaluated for the approve itself. A legitimate, simpler
+  choice for an owner who doesn't mind the one manual step; just not the default, and never a
+  required station of the golden path.
 - **Zero standing allowance instead?** The atomic **`ApproveAndCallBatchPermission`** batch
   (`[approve(router, amountIn), swap, approve(router, 0)]`, see
   [`sailor-template-approve-batch`](../sailor-template-approve-batch/SKILL.md)) never leaves an
@@ -163,7 +168,8 @@ adapter** for this pair on this chain (`0x0` reverts):
    address. It's the same address on every chain (CREATE2); see `deployed.json`.
 2. **Confirm the spec with the user** (sell/buy tokens, per-swap cap, slippage, router/fee
    tier, recipient = SMA) — print the explainer's humanReadable + warnings, and the approve-model
-   disclosure above (unlimited by default, bounded on request). No gas before approval.
+   disclosure above (agent-granted by default — standing or bounded-per-trade, the user's choice —
+   with owner-set-on-the-Safe available as a simpler opt-out). No gas before approval.
 3. **a. Register** the singleton on the SMA's kernel (does NOT configure):
    ```bash
    sailor mandate register --address <SWAP_PERMISSION> --sma <SMA> --label "bounded-swap"
@@ -215,12 +221,14 @@ The agent must re-quote via [`sailor-swap-quote`](../sailor-swap-quote/SKILL.md)
 and embed the floor `amountOutMinimum` in the swap calldata — under single-dispatch `SwapPermission`
 (the default) the on-chain `maxSlippageBps` genuinely enforces it: `evaluate()` decodes
 `amountOutMinimum` from the call and rejects anything below the oracle-implied floor. **Match the
-tick's dispatch shape to your approve model:** under the default, single-dispatch model with an
-unlimited standing approval, the agent just emits a plain single-call swap — no allowance check
-needed, since the owner-set approval never runs out; under the bounded-allowance opt-in, the same
-single-call swap is preceded by an `allowance(SMA, router)` read, **stalling (never
-self-approving)** when it is below `amountIn`; either way the agent never submits its own
-`approve()` dispatch. Under the atomic-batch alternative the agent instead returns one `Dispatch`
+tick's dispatch shape to your approve model:** under the default, agent-granted model, the agent
+reads `allowance(SMA, router)` before every swap and, when it's short, dispatches its own
+`approve()` first — gated by the registered `BoundedErc20Approve`-shaped permission, one single-call
+dispatch, then swaps on a later tick once the allowance clears; under the owner-set-standing
+opt-out, the same read instead **stalls (never self-approves)** when short, since no permission
+covers a standalone approve in that model and the owner is the only one who can top it up. See
+[sailor-agent-build](../sailor-agent-build/SKILL.md)'s canonical skeleton for both branches.
+Under the atomic-batch alternative the agent instead returns one `Dispatch`
 whose `calls` is the 3-element `[approve(router, amountIn), swap, approve(router, 0)]` and must NOT
 pre-approve out of band (the batch requires a zero pre-batch allowance) — and must accept that the
 batch's `evaluateBatch()` does not check `amountOutMinimum` at all, so the embedded floor is a
