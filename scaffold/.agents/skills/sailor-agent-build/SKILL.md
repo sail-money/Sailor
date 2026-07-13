@@ -5,13 +5,13 @@ description: Station 4 — build the agent's brain, the tick loop in src/agent.t
 
 # sailor-agent-build — build the brain (Station 4)
 
-You typically arrive here from the mandate plan with a registered, simulate-verified, **signed** mandate. This station turns the strategy spec into the agent's tick loop in `src/agent.ts`. Dispatch mechanics (the selective model, signing, permission resolution) live in [`sailor-transactions`](../sailor-transactions/SKILL.md) — this skill is about the decision logic that sits on top of them.
+You typically arrive here from the mandate plan with a registered, simulate-verified, **signed** mandate. This station turns the strategy spec into the agent's tick loop in `src/agent.ts`. Dispatch mechanics (the selective model, signing, permission resolution) live in [`sailor-transactions`](../sailor-transactions/SKILL.md); the agent's own memory of what it's done — the append-only, chain-reconciled ledger the skeleton reads and writes every tick — is owned by [`sailor-memory`](../sailor-memory/SKILL.md). This skill is about the decision logic that sits on top of both.
 
 ## Gate (fail-closed)
 
 Station 4 requires a **registered, configured, simulate-verified, and signed mandate** — `.sail/mandate.json` exists (AGENTS.md station 4 gate). If it doesn't, `sailor run --once` refuses with "Run `sailor mandate sign` first" — go back to [`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md) (its Handoff step signs the mandate) rather than writing agent code against permissions that aren't runnable yet.
 
-Read `.sail/strategy.md`'s JSON block and the current mandate state first. **The agent is built FROM the spec** — its tokens, venues, caps, cadence, risk bounds, and exit condition are already decided and confirmed there. Never re-ask the user for values the spec already carries.
+Read `.sail/strategy.md`'s JSON block and the current mandate state first. **The agent is built FROM the spec** — its tokens, venues, caps, cadence, risk bounds, and exit condition are already decided and confirmed there. Never re-ask the user for values the spec already carries. `.sail/strategy.md` stays the fixed intent throughout — the memory ledger records what actually happened against it, and never the other way around.
 
 ## The translation method
 
@@ -29,9 +29,9 @@ Verify the agent code against these — every one is a real failure mode the loo
 - **Check allowances before acting — never self-approve for a swap.** No registered permission authorizes a standalone `approve()` dispatch for a swap. Default: the owner sets an unlimited standing approval to the router once, so the allowance is never the limiting factor — the read below still runs (cheap, harmless) but should never actually block. Opt-in: if the user chose a bounded allowance instead, that same read is what makes the agent stall (log, skip) rather than dispatch when it's short. Either way the agent never submits its own approve. For other actions, which approve model to use (per-call vs atomic batch) is owned by [`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md) — follow the one the mandate plan chose.
 - **Respect caps client-side.** The kernel enforces the mandate's caps on-chain, but check them in code first so the agent doesn't burn gas on a dispatch that is certain to be denied.
 - **A denied dispatch is information, not an error.** The runner logs the denial reason to `.sail/activity.jsonl`; read it, adjust within bounds, and never blind-retry the identical call — the next scheduled tick re-evaluates.
-- **Cadence guard.** Never double-fire a period. The runner ticks on its own interval (`SAILOR_INTERVAL`); the agent must track its own last-action time (the persistent `ctx.data` slot) and skip until the period has elapsed.
-- **Bounded retries with backoff.** If you retry a transient failure, cap the attempts and space them out (track a counter/next-attempt time in `ctx.data`) — do not hammer a dead RPC or a reverting venue every tick.
-- **Log every decision and its inputs.** Call `ctx.log(msg)` at each branch. The runner appends it to `.sail/activity.jsonl` as a `log` entry and emits its own structured events around your dispatches (schema: [`sailor-operate`](../sailor-operate/SKILL.md)). Your job is `ctx.log`; the structured events are the runner's — you do not write the file yourself.
+- **Cadence guard.** Never double-fire a period. The runner ticks on its own interval (`SAILOR_INTERVAL`); the agent must track its own last-action time and skip until the period has elapsed. Read it from the memory ledger (`sailor-memory`), not `ctx.data` — `ctx.data` resets on every fresh process (exactly what the shipped GitHub Actions / Docker hosts start per tick), so a cadence guard sourced from it is not a guard at all.
+- **Bounded retries with backoff.** If you retry a transient failure, cap the attempts and space them out (track a counter/next-attempt time in `ctx.data`) — do not hammer a dead RPC or a reverting venue every tick. Unlike cadence, a lost retry counter after a restart is harmless (worst case: one extra retry), so `ctx.data` is fine here.
+- **Log every decision and its inputs.** Call `ctx.log(msg)` at each branch. The runner appends it to `.sail/activity.jsonl` as a `log` entry and emits its own structured events around your dispatches (schema: [`sailor-operate`](../sailor-operate/SKILL.md)). Your job is `ctx.log`; the structured events are the runner's — you do not write the file yourself. Separately, every acted-or-skipped decision the agent itself makes is recorded to the memory ledger — see [`sailor-memory`](../sailor-memory/SKILL.md).
 
 ## The canonical skeleton
 
@@ -43,12 +43,16 @@ A complete `tick()` in the **read → decide → act** shape, derived from the D
 // Adapt into src/agent.ts. Every value marked FROM SPEC comes from .sail/strategy.md;
 // do not re-ask the user for it. Replace the 0x0…0 placeholders with the spec's addresses.
 
+import fs from "node:fs";
+import path from "node:path";
 import type { Agent, AgentContext, Address, Call, Dispatch } from "@sail.money/sailor/sdk";
-import { encodeFunctionData } from "viem";
+import { decodeFunctionData, encodeFunctionData, formatUnits, parseEventLogs } from "viem";
 
 // ── Strategy constants (FROM SPEC — .sail/strategy.md) ──────────────────────
 const TOKEN_IN: Address = "0x0000000000000000000000000000000000000000"; // FROM SPEC: sell-side token (resolved address)
+const TOKEN_IN_SYMBOL = "TOKEN_IN"; // FROM SPEC: sell-side token symbol — ledger "human" strings only
 const TOKEN_OUT: Address = "0x0000000000000000000000000000000000000000"; // FROM SPEC: buy-side token
+const TOKEN_OUT_SYMBOL = "TOKEN_OUT"; // FROM SPEC: buy-side token symbol — ledger "human" strings only
 const ROUTER: Address = "0x0000000000000000000000000000000000000000"; // FROM SPEC: venue router (must be in the mandate's allowlist)
 const QUOTER: Address = "0x0000000000000000000000000000000000000000"; // the venue's off-chain quoter (see sailor-swap-quote)
 const AMOUNT_IN = 25_000_000n; // FROM SPEC: per-tick spend, base units (<= the mandate's maxAmountPerTx)
@@ -109,6 +113,185 @@ const ROUTER_ABI = [
   },
 ] as const;
 
+const ERC20_TRANSFER_ABI = [
+  {
+    type: "event",
+    name: "Transfer",
+    inputs: [
+      { name: "from", type: "address", indexed: true },
+      { name: "to", type: "address", indexed: true },
+      { name: "value", type: "uint256", indexed: false },
+    ],
+  },
+] as const;
+
+// ── Memory ledger (.sail/memory/ledger.jsonl) — see the sailor-memory skill ─
+// Append-only, chain-reconciled record of every tick: what was actually
+// confirmed on-chain (never the agent's stated intention), and every tick the
+// agent chose not to act, with why. A fresh process recovers its own history
+// by reading this file — readLastActedSec() below replaces ctx.data as the
+// cadence guard's source of truth, because ctx.data resets on every process
+// restart and the ledger doesn't.
+const LEDGER_PATH = path.join(process.cwd(), ".sail", "memory", "ledger.jsonl");
+const ACTIVITY_PATH = path.join(process.cwd(), ".sail", "activity.jsonl");
+
+const readLines = (file: string): string[] => {
+  try {
+    return fs.readFileSync(file, "utf-8").split("\n").filter(Boolean);
+  } catch {
+    return [];
+  }
+};
+
+const appendLedger = (entry: Record<string, unknown>): void => {
+  fs.mkdirSync(path.dirname(LEDGER_PATH), { recursive: true });
+  fs.appendFileSync(LEDGER_PATH, `${JSON.stringify(entry)}\n`);
+};
+
+// Last CONFIRMED "acted" entry's timestamp — the cadence guard's only input.
+// Read fresh every tick, on purpose: a restart loses nothing, because "when did
+// I last act" lives in the ledger, not in memory.
+const readLastActedSec = (): number => {
+  const lines = readLines(LEDGER_PATH);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    try {
+      const entry = JSON.parse(lines[i]);
+      if (entry.kind === "acted" && entry.outcome === "confirmed") return entry.ts;
+    } catch {
+      // a malformed line is skipped, never fatal to the loop
+    }
+  }
+  return 0;
+};
+
+// txHashes already recorded, so reconciliation never double-ledgers a dispatch.
+// Bounded scan: a dispatch is only ever pending for one tick, so the ledger's
+// tail is enough — no need to keep a cursor across restarts.
+const ledgeredTxHashes = (): Set<string> => {
+  const set = new Set<string>();
+  for (const line of readLines(LEDGER_PATH).slice(-50)) {
+    try {
+      const entry = JSON.parse(line);
+      if (entry.kind === "acted" && typeof entry.txHash === "string") set.add(entry.txHash);
+    } catch {
+      // ignore a malformed line
+    }
+  }
+  return set;
+};
+
+/**
+ * Chain-reconcile every dispatch this agent submitted that the runner has
+ * since confirmed or reverted. `sailor run` appends `dispatch_executed` /
+ * `dispatch_reverted` to `.sail/activity.jsonl` only AFTER
+ * `execClient.dispatch.single/batch` has already awaited the receipt — so by
+ * the time this tick starts (whether it's the same process or a fresh one),
+ * the outcome of the LAST tick's dispatch is always already sitting on disk.
+ *
+ * Every field below comes from the receipt, the submitted calldata, or a
+ * fresh balance read — never from what the agent meant to do. If the receipt
+ * can't be read, the entry is recorded `unverified`, never a fabricated
+ * success (mirrors the signing flow's confirmed/reverted/unverified
+ * doctrine — see sailor-transactions).
+ */
+async function reconcilePending(ctx: AgentContext): Promise<void> {
+  const already = ledgeredTxHashes();
+  const pending = readLines(ACTIVITY_PATH)
+    .slice(-20) // a pending dispatch is always from the immediately preceding tick
+    .map((line) => {
+      try {
+        return JSON.parse(line);
+      } catch {
+        return null;
+      }
+    })
+    .filter(
+      (e): e is Record<string, unknown> =>
+        !!e &&
+        (e.type === "dispatch_executed" || e.type === "dispatch_reverted") &&
+        typeof e.target === "string" &&
+        e.target.toLowerCase() === ROUTER.toLowerCase() &&
+        typeof e.txHash === "string" &&
+        !already.has(e.txHash as string),
+    );
+
+  for (const event of pending) {
+    const txHash = event.txHash as `0x${string}`;
+    const permission = (event.permission as Address | undefined) ?? null;
+    try {
+      const [tx, receipt] = await Promise.all([
+        ctx.publicClient.getTransaction({ hash: txHash }),
+        ctx.publicClient.getTransactionReceipt({ hash: txHash }),
+      ]);
+      const { args } = decodeFunctionData({ abi: ROUTER_ABI, data: tx.input });
+      const [params] = args;
+      const outcome: "confirmed" | "reverted" = receipt.status === "success" ? "confirmed" : "reverted";
+
+      // amountOut is only knowable once the swap actually ran — decode it from
+      // the tokenOut Transfer landing on the SMA, never from the pre-trade
+      // amountOutMinimum floor (that's a bound, not what was received).
+      let amountOut: bigint | null = null;
+      if (outcome === "confirmed") {
+        const transfers = parseEventLogs({ abi: ERC20_TRANSFER_ABI, logs: receipt.logs, eventName: "Transfer" });
+        const toSma = transfers.find(
+          (t) =>
+            t.address.toLowerCase() === params.tokenOut.toLowerCase() &&
+            t.args.to.toLowerCase() === ctx.safe.toLowerCase(),
+        );
+        amountOut = toSma?.args.value ?? null;
+      }
+
+      const [balIn, balOut, decIn, decOut] = await Promise.all([
+        ctx.read.balance(params.tokenIn),
+        ctx.read.balance(params.tokenOut),
+        ctx.read.decimals(params.tokenIn),
+        ctx.read.decimals(params.tokenOut),
+      ]);
+
+      appendLedger({
+        ts: ctx.timestamp,
+        block: Number(receipt.blockNumber),
+        chainId: ctx.chainId,
+        kind: "acted",
+        action: "swap",
+        permission,
+        outcome,
+        txHash,
+        gasUsed: receipt.gasUsed.toString(),
+        tokenIn: params.tokenIn,
+        tokenOut: params.tokenOut,
+        amountIn: { baseUnits: params.amountIn.toString(), human: `${formatUnits(params.amountIn, decIn)} ${TOKEN_IN_SYMBOL}` },
+        amountOut:
+          amountOut === null
+            ? null
+            : { baseUnits: amountOut.toString(), human: `${formatUnits(amountOut, decOut)} ${TOKEN_OUT_SYMBOL}` },
+        balancesAfter: { [params.tokenIn]: balIn.toString(), [params.tokenOut]: balOut.toString() },
+      });
+    } catch (e) {
+      // Receipt or calldata unobservable (RPC hiccup, pruned node, timeout) —
+      // the dispatch WAS submitted, so this is "unverified", never silently
+      // dropped and never recorded as a success we didn't actually see.
+      appendLedger({
+        ts: ctx.timestamp,
+        block: Number(ctx.blockNumber),
+        chainId: ctx.chainId,
+        kind: "acted",
+        action: "swap",
+        permission,
+        outcome: "unverified",
+        txHash,
+        gasUsed: null,
+        tokenIn: TOKEN_IN,
+        tokenOut: TOKEN_OUT,
+        amountIn: null,
+        amountOut: null,
+        balancesAfter: null,
+        note: (e as Error).message.slice(0, 160),
+      });
+    }
+  }
+}
+
 // One call becomes one dispatch; the runner submits it against a matching permission.
 const intent = (call: Call): Dispatch => ({ txHash: "0x", calls: [call], success: false, gasUsed: 0n });
 
@@ -119,17 +302,30 @@ export const agent: Agent = {
   async tick(ctx: AgentContext): Promise<Dispatch[]> {
     ctx.log(`tick — block ${ctx.blockNumber}, sma ${ctx.safe}`);
 
-    // Cadence guard — never double-fire a period. ctx.data persists across ticks.
-    const lastActed = Number(ctx.data.lastActedSec ?? 0);
+    // Reconcile first — before deciding anything, catch up the ledger on any
+    // dispatch a PRIOR tick submitted that has since confirmed or reverted.
+    // This also doubles as this tick's memory read: the cadence guard below
+    // reads the ledger this just brought current, not ctx.data.
+    await reconcilePending(ctx);
+
+    // Cadence guard — never double-fire a period. Sourced from the ledger, not
+    // ctx.data: ctx.data resets on every fresh process (the shipped GitHub
+    // Actions / Docker hosts start one per tick), so it can't be trusted as a
+    // cadence memory. The ledger's last CONFIRMED acted entry can.
+    const lastActed = readLastActedSec();
     if (ctx.timestamp - lastActed < PERIOD_SEC) {
-      ctx.log(`within cadence window (${ctx.timestamp - lastActed}s < ${PERIOD_SEC}s) — skipping`);
+      const reason = `cadence: last acted ${ctx.timestamp - lastActed}s ago, interval ${PERIOD_SEC}s`;
+      ctx.log(`${reason} — skipping`);
+      appendLedger({ ts: ctx.timestamp, block: Number(ctx.blockNumber), chainId: ctx.chainId, kind: "skipped", reason });
       return [];
     }
 
     // Precondition — enough balance to act. Skipping spends no gas.
     const balance = await ctx.read.balance(TOKEN_IN);
     if (balance < MIN_BALANCE) {
-      ctx.log(`balance ${balance} < min ${MIN_BALANCE} — skipping`);
+      const reason = `balance ${balance} < min ${MIN_BALANCE}`;
+      ctx.log(`${reason} — skipping`);
+      appendLedger({ ts: ctx.timestamp, block: Number(ctx.blockNumber), chainId: ctx.chainId, kind: "skipped", reason });
       return [];
     }
 
@@ -141,7 +337,9 @@ export const agent: Agent = {
     // owner tops it up, not the agent.
     const allowance = await ctx.read.allowance(TOKEN_IN, ctx.safe, ROUTER);
     if (allowance < AMOUNT_IN) {
-      ctx.log(`allowance ${allowance} < ${AMOUNT_IN} for ${ROUTER} — owner needs to top up the standing approval — skipping`);
+      const reason = `allowance ${allowance} < ${AMOUNT_IN} for ${ROUTER} — owner top-up needed`;
+      ctx.log(`${reason} — skipping`);
+      appendLedger({ ts: ctx.timestamp, block: Number(ctx.blockNumber), chainId: ctx.chainId, kind: "skipped", reason });
       return [];
     }
 
@@ -156,11 +354,15 @@ export const agent: Agent = {
       });
       expectedOut = (q.result as readonly [bigint, bigint, number, bigint])[0];
     } catch (e) {
-      ctx.log(`quote unavailable: ${(e as Error).message.slice(0, 120)} — skipping`);
+      const reason = `quote unavailable: ${(e as Error).message.slice(0, 120)}`;
+      ctx.log(`${reason} — skipping`);
+      appendLedger({ ts: ctx.timestamp, block: Number(ctx.blockNumber), chainId: ctx.chainId, kind: "skipped", reason });
       return [];
     }
     if (expectedOut === 0n) {
-      ctx.log("quote returned 0 — skipping");
+      const reason = "quote returned 0";
+      ctx.log(`${reason} — skipping`);
+      appendLedger({ ts: ctx.timestamp, block: Number(ctx.blockNumber), chainId: ctx.chainId, kind: "skipped", reason });
       return [];
     }
 
@@ -169,9 +371,8 @@ export const agent: Agent = {
     // floor — genuinely enforced on-chain, not a courtesy the router alone honors.
     const minOut = (expectedOut * BigInt(10_000 - SLIPPAGE_BPS)) / 10_000n;
 
-    // Act — one dispatch. Advance the cadence marker; a stricter agent advances it only after
-    // seeing dispatch_executed in activity.jsonl, so a denied tick can retry (see the checklist).
-    ctx.data.lastActedSec = ctx.timestamp;
+    // Act — one dispatch. No optimistic cadence update here: the ledger only advances once
+    // reconcilePending() sees this confirmed on-chain, on a later tick — terrain over map.
     ctx.log(`swapping ${AMOUNT_IN} for >= ${minOut} (floor ${SLIPPAGE_BPS} bps)`);
     return [
       intent({
@@ -204,4 +405,4 @@ For where decision data comes from (prices, yields, RPC upgrades), see [referenc
 
 ## Next
 
-Run `sailor run --once` and confirm it completes cleanly against the live mandate (a clean tick, or a deliberate `[]` skip — not a crash). That is Station 4's exit verifier. Then proceed to Station 5: [`sailor-automation`](../sailor-automation/SKILL.md) to launch it unattended, and the sailor-operate skill to monitor, tune, pause/resume, revoke, and exit.
+Run `sailor run --once` and confirm it completes cleanly against the live mandate (a clean tick, or a deliberate `[]` skip — not a crash). That is Station 4's exit verifier. A first `--once` run only ever produces a `skipped` ledger entry (there's nothing yet to reconcile) — that's expected, not a bug; the first `acted` entry lands once a later tick reconciles a confirmed dispatch. See [`sailor-memory`](../sailor-memory/SKILL.md) for the ledger this loop maintains. Then proceed to Station 5: [`sailor-automation`](../sailor-automation/SKILL.md) to launch it unattended, and the sailor-operate skill to monitor, tune, pause/resume, revoke, and exit.
