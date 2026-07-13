@@ -78,7 +78,7 @@ Supported chains: Ethereum (1), Base (8453), Arbitrum (42161), Optimism (10), Un
 
 **Canonical path — the setup UI, for every first-time SMA.** Run `sailor ui start`, hand the user the printed bare URL (no hash — it opens the wizard, never the signing page). In the wizard the user: chooses the network, connects the owner wallet, sets a passphrase and generates the agent wallet — a separate signing key the agent uses to submit transactions — then deploys the SMA. All four of those are the user's decisions, made by clicking and typing in that UI; your job is to get them there and narrate what's happening, not to ask for or decide any of it in chat.
 
-**Both wallets need gas, and the split is not what it looks like:** the owner *signs* (SMA deployment, mandate authorization) but the **agent wallet submits and pays for every on-chain transaction** — including `mandate deploy` and `mandate register` during setup, not just dispatches once running. Fund the agent wallet before registering permissions (Station 3) or the transaction fails with a node error like "gas required exceeds allowance" (the exact message text varies by RPC). The owner wallet needs gas only for transactions it submits directly in the browser (the SMA deployment). The owner key never leaves the browser.
+**Both wallets need gas, and the split is not what it looks like:** the owner wallet pays for every transaction it submits directly in the browser — SMA deployment, and (a common surprise) **`mandate deploy`**, a contract-creation transaction the owner signs and pays for, not the agent. The **agent wallet submits and pays for `mandate register` and every dispatch submission once the agent runs**. Fund the agent wallet before registering permissions (Station 3) or the transaction fails with a node error like "gas required exceeds allowance" (the exact message text varies by RPC); fund the owner wallet before Station 3 too, for the deploy step. The owner key never leaves the browser.
 
 **Advanced/headless alternative — CLI-only, no wizard.** Only reach for this when the user explicitly wants CLI-driven control over onboarding itself (not the common case — the wizard above is simpler and is where the decisions belong):
 
@@ -120,8 +120,8 @@ If `deploy-chain` refuses with an address mismatch, the SMA was deployed against
 
 ## Gas requirements
 
-- Owner wallet: SMA deployment, mandate signing (EIP-712), any additional-chain deployment.
-- Agent wallet: `mandate deploy`, `mandate register`, `mandate revoke`, and every dispatch submission once the agent runs, plus the per-permission registration fee. Fund it before registering. Fee mechanics (per-permission charge, `N × fee`, disclosure, preflight) are owned by [`sailor-mandates`](../sailor-mandates/SKILL.md) (Registration fee section).
+- Owner wallet: SMA deployment, mandate signing (EIP-712), any additional-chain deployment, and `mandate deploy` (a contract-creation transaction the owner pays for in the browser).
+- Agent wallet: `mandate register`, `mandate revoke`, and every dispatch submission once the agent runs, plus the per-permission registration fee. Fund it before registering. Fee mechanics (per-permission charge, `N × fee`, disclosure, preflight) are owned by [`sailor-mandates`](../sailor-mandates/SKILL.md) (Registration fee section).
 
 During setup, always ask before anything that costs gas.
 

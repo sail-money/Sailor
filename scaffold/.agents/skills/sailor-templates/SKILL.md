@@ -1,7 +1,7 @@
 ---
 name: sailor-templates
 description: Registry + reuse guide for Sail's shared permission templates (Protocol/contracts/templates). Load this to gate my agent / set a spending cap / reuse a permission — to know which permission primitives are available as reusable templates and bound an SMA's mandate by REUSING a configurable singleton — deploy once, then register + configure per SMA (no per-SMA deploy). Covers swap (oracle-gated and no-oracle), borrow, transfer, deposit, withdraw, and approve-and-call-batch. All seven are deployed today, at the SAME address on every supported chain (CREATE2); addresses live in deployed.json.
-compatibility: Node 18+; a Sailor project (`@sail/sdk`, `sailor` CLI); read access to the workspace `Protocol/contracts/templates/` (or set SAIL_PROTOCOL_DIR).
+compatibility: Node 18+; a Sailor project (`@sail.money/sailor/sdk`, `sailor` CLI); read access to the workspace `Protocol/contracts/templates/` (or set SAIL_PROTOCOL_DIR).
 metadata:
   workspace: sailor-harness
   classification: generic
@@ -149,10 +149,9 @@ just because it has no pre-built spoke skill to remind you.
   the superseded 2026-06-09 deploy) is never valid against a different generation's kernel.
   Always resolve both from the same `deployed.json` entry / SDK deployment.
 - Caps/amounts are in **base units**. Size them with `sailor-swap-quote`.
-- The config encoder must match each contract's `_applyConfig` decode exactly — use the SDK
-  builder under `@sail/sdk/templates` **only after** verifying its param tuple equals the
-  source blob in `config-schemas.md` (the SDK builders track a previously-deployed set and may
-  differ from these source contracts).
+- The config encoder must match each contract's `_applyConfig` decode exactly — encode with
+  `abi.encode(...)` (viem's `encodeAbiParameters`) following the tuples in `config-schemas.md`,
+  the source of truth.
 - **CLI gap:** `sailor mandate register` and `sailor mandate configure` are
   still separate commands — no combined one-step call ships yet. Always run both.
 

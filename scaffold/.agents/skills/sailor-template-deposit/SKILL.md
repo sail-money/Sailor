@@ -1,7 +1,7 @@
 ---
 name: sailor-template-deposit
 description: Gate an SMA's deposits into vaults / lending pools by REUSING the shared DepositPermission singleton (Protocol/contracts/templates/DepositPermission.sol) — register + configure, no per-SMA deploy. Use for a yield / earn / APY / farm strategy that supplies tokens into ERC-4626 vaults (deposit/mint) or Aave v2/v3 (deposit/supply), with a target + token allowlist and a per-tx cap; the resulting position always accrues to the SMA. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps).
-compatibility: A Sailor project (`@sail/sdk`, `sailor` CLI). Requires DepositPermission deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
+compatibility: A Sailor project (`@sail.money/sailor/sdk`, `sailor` CLI). Requires DepositPermission deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
 metadata:
   workspace: sailor-harness
   classification: generic

@@ -3,8 +3,8 @@
 Each shared template stores per-account config under `mapping(address => …)` and decodes a
 `configure(...)` blob in `_applyConfig`. The tuples below are taken **directly from
 `Protocol/contracts/templates/*.sol`** and are the source of truth — encode with
-`abi.encode(...)` in that exact order. (The `@sail/sdk/templates` builders track a
-previously-deployed set; verify a builder's params match the tuple here before using it.)
+`abi.encode(...)` in that exact order (viem's `encodeAbiParameters` is the TypeScript
+equivalent).
 
 All caps/amounts are in the relevant token's **base units**. Every template runs under the
 kernel's `staticcall` + gas cap + fail-closed semantics: a revert ⇒ deny.

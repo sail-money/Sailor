@@ -1,7 +1,7 @@
 ---
 name: sailor-template-withdraw
 description: Gate an SMA's ERC-20 withdrawals by REUSING the shared WithdrawPermission singleton (Protocol/contracts/templates/WithdrawPermission.sol) — register + configure, no per-SMA deploy. Use to sweep, exit, cash out, or consolidate to my wallet — the agent may move approved tokens, within a per-tx cap, only to ONE fixed recipient (typically the owner's Safe) for safe-to-safe consolidation. For a mutable multi-recipient allowlist, use sailor-template-transfer instead. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps).
-compatibility: A Sailor project (`@sail/sdk`, `sailor` CLI). Requires WithdrawPermission deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
+compatibility: A Sailor project (`@sail.money/sailor/sdk`, `sailor` CLI). Requires WithdrawPermission deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
 metadata:
   workspace: sailor-harness
   classification: generic

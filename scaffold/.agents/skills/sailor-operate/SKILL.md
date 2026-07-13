@@ -92,7 +92,7 @@ Use (b) for routine consolidation while running; use (a) whenever you want certa
 
 1. `sailor session pause` — freeze the manager first, so nothing moves while you exit.
 2. Withdraw the funds — Safe app (a) for certainty, or a withdraw dispatch (b) if that permission exists.
-3. `sailor mandate revoke --all` — remove the permissions so the account is inert.
+3. `sailor mandate revoke --all --sma <SMA>` — remove the permissions so the account is inert.
 
 Pausing before withdrawing prevents the agent from acting mid-exit; revoking last leaves the mandate intact until the funds are safely out.
 

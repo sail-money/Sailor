@@ -104,7 +104,7 @@ Registering a permission charges a **per-permission fee**, paid on-chain by the 
 - **Preflight:** before requesting the owner's signature, the agent wallet's native-token balance is checked against the total fee; an underfunded wallet fails early with `Insufficient <native> for the <X> <native> registration fee` instead of an on-chain revert. **Fund the agent wallet before registering.**
 - **Recorded:** each `permission_registered` activity entry carries the fee actually paid (`fee` in wei, `feeEth` formatted), so Recent Activity shows the real cost.
 
-The fee is read via `readPermissionRegistrationFee()` in `packages/sdk/src/fees.ts` and applied as `fee × N` — the same number used for disclosure, the preflight, the tx `value`, and the activity record.
+The fee is read via `readPermissionRegistrationFee()` (from `@sail.money/sailor/sdk`) and applied as `fee × N` — the same number used for disclosure, the preflight, the tx `value`, and the activity record.
 
 ## Maintenance
 
@@ -116,7 +116,7 @@ The fee is read via `readPermissionRegistrationFee()` in `packages/sdk/src/fees.
 
 ## Clone templates (deploy-clone)
 
-`sailor mandate deploy-clone --template boundedApprove --sma <SMA> --tokens <csv> --spenders <csv> --max <wei> --json` deploys + registers an EIP-1167 clone of a published implementation in one transaction (owner signs `RegisterPermission` for the predicted clone address — BLOCKS; agent submits `deployAndAttach` — the on-chain function is named `deployAndAttach`; in Sailor and protocol vocabulary this operation is permission registration). The only template key is `boundedApprove`. Implementations come from the SDK deployment registry (`standaloneTemplates`) — that map is now populated with the shared swap/borrow/deposit/withdraw/transfer/approve-and-call-batch templates on all eleven chains, but no `boundedApprove` clone implementation is deployed yet, so deploy-clone errors with a clear message and you should write and deploy a bounded-approve permission with `sailor mandate deploy` instead. Check availability with `sailor mandate templates --json`.
+`sailor mandate deploy-clone --template boundedApprove --sma <SMA> --tokens <csv> --spenders <csv> --max <wei> --json` deploys + registers an EIP-1167 clone of a published implementation in one transaction (owner signs `RegisterPermission` for the predicted clone address — BLOCKS; agent submits `deployAndAttach` — the on-chain function is named `deployAndAttach`; in Sailor and protocol vocabulary this operation is permission registration). The only template key is `boundedApprove`. Implementations come from the SDK deployment registry (`standaloneTemplates`) — that map is **empty today** (the seven shared templates you reuse via `register`/`configure` live in `knownTemplates`, a separate registry — see [references/approvals.md](references/approvals.md)), so deploy-clone errors with a clear message and you should write and deploy a bounded-approve permission with `sailor mandate deploy` instead. Check availability with `sailor mandate templates --json`.
 
 ## Next
 

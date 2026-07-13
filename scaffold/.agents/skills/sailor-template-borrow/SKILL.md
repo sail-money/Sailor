@@ -1,7 +1,7 @@
 ---
 name: sailor-template-borrow
 description: Gate an SMA's lending borrows by REUSING the shared BorrowPermission singleton (Protocol/contracts/templates/BorrowPermission.sol) — register + configure, no per-SMA deploy. Use for a lending / leverage / looping strategy that borrows against Aave / Morpho / Compound with a protocol + asset allowlist, per-tx cap, and an on-chain LTV ceiling (health-factor guard) via collateral + borrow oracles. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps).
-compatibility: A Sailor project (`@sail/sdk`, `sailor` CLI). Requires BorrowPermission deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
+compatibility: A Sailor project (`@sail.money/sailor/sdk`, `sailor` CLI). Requires BorrowPermission deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
 metadata:
   workspace: sailor-harness
   classification: generic

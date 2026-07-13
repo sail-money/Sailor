@@ -55,27 +55,17 @@ a revert or over-gas is treated as `false` (fail-closed), never a kernel revert.
 ```bash
 node .agents/skills/sailor-templates/catalog.mjs --chain <id>
 ```
-The address comes from [`deployed.json`](../deployed.json). **If the template isn't deployed on
-your chain yet** (e.g. `SwapPermissionNoOracle` is not deployed anywhere), that's the
-prerequisite: deploy the singleton once (Protocol team / `DeploySharedTemplates`) and record
-its address there. A template address is only meaningful paired with that chain's kernel.
+The address comes from [`deployed.json`](../deployed.json). All seven shared templates are
+deployed on all 11 supported chains today (`SwapPermissionNoOracle` included — it's the DEFAULT
+bounded-swap tier). **If a future chain is missing a template's entry**, that's the prerequisite:
+deploy the singleton once (Protocol team / `DeploySharedTemplates`) and record its address there.
+A template address is only meaningful paired with that chain's kernel.
 
 ### 2. Build the config blob
 Encode the config tuple **exactly as the contract's `_applyConfig` decodes it** — the
 authoritative tuples are in [config-schemas.md](config-schemas.md). Use `abi.encode(...)` in
-that order, or the typed builder under `@sail/sdk/templates` **only after** verifying its param
-tuple equals the source tuple (the SDK builders track a previously-deployed set and may differ
-from these source contracts):
-```ts
-import { boundedSwapTemplate } from "@sail/sdk/templates"; // verify params vs config-schemas.md first
-
-const params = { routers, tokensIn, tokensOut, maxAmountPerTx, maxSlippageBps,
-                 priceOracle, maxPriceAgeSec };
-const blob = boundedSwapTemplate.encoder.encode(params);
-
-// Always surface the human-readable summary + warnings to the user first:
-const explanation = boundedSwapTemplate.explainer.explain(params);
-```
+that order — viem's `encodeAbiParameters` is the TypeScript equivalent, and it's already a
+scaffold dependency.
 
 > ⚠️ **Encoding gotcha (fails closed).** Templates do NOT all encode the same way.
 > `TransferPermission` / `WithdrawPermission` / `DepositPermission` decode **flat top-level
@@ -99,19 +89,19 @@ When the owner IS the SMA's `permissionSigner` (the default Sailor onboarding), 
 permissionSigner` holds and no EIP-712 signature is needed — via the shipped command:
 ```bash
 # --template + --args-file only works when the CLI has a wired-in encoder for that template —
-# today that's SwapPermission only (packages/cli/src/commands/mandate-configure.ts's
-# TEMPLATE_REGISTRY). For every other shared template (Withdraw/Deposit/Borrow/Transfer/
-# ApproveAndCallBatch) there is no CLI encoder: build the blob yourself (step 2, `cast abi-encode`
-# or `encodeAbiParameters`) and pass it pre-encoded:
+# today that's SwapPermission only (the CLI's built-in template registry). For every other
+# shared template (Withdraw/Deposit/Borrow/Transfer/ApproveAndCallBatch) there is no CLI
+# encoder: build the blob yourself (step 2, `cast abi-encode` or `encodeAbiParameters`) and
+# pass it pre-encoded:
 sailor mandate configure --address <SHARED_ADDRESS> --sma <SMA> --params <0x-blob>
 # only for templates the CLI knows how to encode (currently SwapPermission):
 sailor mandate configure --address <SHARED_ADDRESS> --sma <SMA> \
   --template <TemplateName> --args-file ./config.json
 ```
 Either way, `--address` is checked against the chain's known-shared-template registry
-(`@sail/sdk`'s `getSailDeployment(chainId).knownTemplates`) and the signing card's "what you're
-signing" explanation renders automatically for any of the seven shared templates — `--template`/
-`--label` are only needed to override the auto-detected name, not to get the explanation.
+(`@sail.money/sailor/sdk`'s `getSailDeployment(chainId).knownTemplates`) and the signing card's
+"what you're signing" explanation renders automatically for any of the seven shared templates —
+`--template`/`--label` are only needed to override the auto-detected name, not to get the explanation.
 
 It does, in order:
 1. **Pre-flight (no gas):** an `eth_call` simulation of `configureDirect` from `permissionSigner`. A revert here means the config is invalid before any gas is spent — fix the blob (see the encoding gotcha) and retry. Pass `--simulate-only` to stop here.

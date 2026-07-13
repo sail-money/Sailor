@@ -1,7 +1,7 @@
 ---
 name: sailor-template-swap
 description: Gate an SMA's DEX swaps by REUSING the shared SwapPermission singleton (Protocol/contracts/templates/SwapPermission.sol) — register + configure, no per-SMA deploy. The oracle-gated tier: use when a trade is large relative to the target pool's depth (manipulation-resistant slippage band via a MANDATORY IOracle adapter — priceOracle is required), or the pair already has a deployed adapter. For regular trade sizes, sailor-template-swap-no-oracle is the default. On Uniswap V3, V3-02, or V2 with router + token-in/out allowlists, a per-tx cap, and a slippage limit. For the LI.FI aggregator or Pendle, author a bespoke permission via sailor-mandates. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps).
-compatibility: A Sailor project (`@sail/sdk`, `sailor` CLI). Requires SwapPermission deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
+compatibility: A Sailor project (`@sail.money/sailor/sdk`, `sailor` CLI). Requires SwapPermission deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
 metadata:
   workspace: sailor-harness
   classification: generic

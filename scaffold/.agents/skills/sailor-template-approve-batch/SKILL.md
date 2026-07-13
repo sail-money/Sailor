@@ -1,7 +1,7 @@
 ---
 name: sailor-template-approve-batch
 description: Gate an SMA's "approve → call → reset" interactions by REUSING the shared ApproveAndCallBatchPermission singleton (Protocol/contracts/templates/ApproveAndCallBatchPermission.sol) — register + configure, no per-SMA deploy. Use when an autonomous, recurring, or unattended agent must approve an ERC-20 to a protocol, make one consuming call, and reset the allowance to zero — all in one atomic batch — so no standing allowance is ever left open, with token/spender/target/selector allowlists and a per-token approval cap. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps).
-compatibility: A Sailor project (`@sail/sdk`, `sailor` CLI). Requires ApproveAndCallBatchPermission deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
+compatibility: A Sailor project (`@sail.money/sailor/sdk`, `sailor` CLI). Requires ApproveAndCallBatchPermission deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
 metadata:
   workspace: sailor-harness
   classification: generic
