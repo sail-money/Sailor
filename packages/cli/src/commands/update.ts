@@ -23,6 +23,15 @@ const STALE_PATHS = [
   "examples/permissions", // retired per-protocol gallery — see sailor-mandates/references/authoring-patterns.md
   "examples/dca", // retired — the canonical agent loop now lives inline in the sailor-agent-build skill
   "test/BoundedCallPermission.t.sol", // moved to contracts/test/BoundedCallPermission.t.sol
+  // A second, root-level Foundry workspace used to be scaffolded alongside contracts/ —
+  // `sailor mandate deploy --build` compiled and read artifacts from THIS one, not the
+  // one every skill told users to author and test in, so a tested edit in contracts/
+  // could be silently deployed as its stale root copy. contracts/ is now the only
+  // workspace; these are the retired root-level twin (foundry.toml, the pristine
+  // example, and its vendored interfaces) — framework-owned files, never hand-authored.
+  "foundry.toml",
+  "mandates",
+  ".sail/contracts",
   // All 19 skills renamed sail-* → sailor-*. Remove the whole old-named dir from existing
   // projects (this also removes the retired sail-mandates/references/examples-index.md).
   ".agents/skills/sail-onboarding",

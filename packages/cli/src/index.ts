@@ -206,9 +206,9 @@ mandate
 mandate
   .command("deploy")
   .description("Deploy a Foundry-compiled permission contract via the browser signing UI")
-  .option("--artifact <path>", "Path to the Foundry artifact JSON (out/<Name>.sol/<Name>.json)")
+  .option("--artifact <path>", "Path to the Foundry artifact JSON (contracts/out/<Name>.sol/<Name>.json)")
   .option("--contract <name>", "Contract name; resolves to <out>/<name>.sol/<name>.json")
-  .option("--out <dir>", "Foundry output directory", "out")
+  .option("--out <dir>", "Foundry output directory — the contracts/ workspace's out/", "contracts/out")
   .option("--name <label>", "Label to track this permission under (defaults to contract name)")
   .option("--args <json>", 'Constructor args as JSON array. Bash: \'["0x..","1"]\'. PowerShell: \'[\\"0x..\\",\\"1\\"]\'. Use --args-file to avoid quoting.')
   .option("--args-file <path>", "Path to a JSON file containing constructor args array (recommended on PowerShell)")

@@ -57,15 +57,17 @@ try {
   const mustExist = [
     ".sail/config.json",
     "package.json",
-    "foundry.toml",
-    "mandates",
     "AGENTS.md",
     "soul.md",
     "CLAUDE.md",
     "Dockerfile",
     ".dockerignore",
-    ".sail/contracts/interfaces/IPermission.sol",
-    ".sail/contracts/interfaces/IBatchPermission.sol",
+    // contracts/ is the ONE Foundry workspace a project gets (no root-level twin —
+    // `sailor mandate deploy --build` builds and reads artifacts from here).
+    "contracts/foundry.toml",
+    "contracts/mandates",
+    "contracts/.sail/contracts/interfaces/IPermission.sol",
+    "contracts/.sail/contracts/interfaces/IBatchPermission.sol",
     "contracts/test/BoundedCallPermission.t.sol",
     "contracts/README.md",
     ".agents/skills/sailor-onboarding/SKILL.md",
@@ -85,6 +87,17 @@ try {
   ];
   for (const rel of mustExist) {
     if (!fs.existsSync(path.join(dest, rel))) fail(`expected scaffolded "${rel}" — not found`);
+  }
+
+  // Regression guard: exactly ONE Foundry workspace. A second, root-level twin
+  // used to be scaffolded here — `mandate deploy --build` compiled THAT one while
+  // every skill sent users to author and test in contracts/, so a tested edit
+  // could be silently deployed as a stale root copy. Assert the twin never comes back.
+  const mustNotExist = ["foundry.toml", "mandates"];
+  for (const rel of mustNotExist) {
+    if (fs.existsSync(path.join(dest, rel))) {
+      fail(`found root-level "${rel}" — a second Foundry workspace was scaffolded alongside contracts/`);
+    }
   }
 
   // config.json is valid JSON named after the project.

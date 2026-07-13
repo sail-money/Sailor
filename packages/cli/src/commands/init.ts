@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { chains } from "@sail/sdk";
-import { scaffoldFoundryWorkspace } from "../lib/foundry.js";
 import { packageRoot } from "../lib/packagePaths.js";
 import { copyDirSync, writeIfMissing } from "../lib/template.js";
 
@@ -260,7 +259,11 @@ export async function initCommand(
   }
 
   scaffoldProjectWorkspace(dest, name, options);
-  scaffoldFoundryWorkspace(dest);
+  // The one Foundry workspace a project needs (contracts/, with IPermission.sol
+  // and IBatchPermission.sol vendored, its own foundry.toml, and the example
+  // test) already came from copyDirSync above — there is no second workspace
+  // to scaffold. `sailor mandate deploy --build` builds and reads artifacts
+  // from contracts/ (see runForgeBuild in mandate-contracts.ts).
 
   // Print transition advisory when install mode changes on a re-init (--force).
   const newMode = process.env.SAILOR_INSTALL_MODE === "docker" ? "docker" : "local";

@@ -26,9 +26,9 @@ List every ERC-20 `approve()` the strategy implies — protocol permissions neve
 
 ## Gate 3 — Author the permission contracts
 
-Permission contracts live in `mandates/`. The user authors, reviews, and owns them. Start from `contracts/` — a neutral, protocol-agnostic `IPermission` scaffold (`BoundedCallPermission.sol` + a Foundry test) — and extend it for the venue at hand. See [references/authoring-patterns.md](references/authoring-patterns.md) for the header discipline, named gotchas (selector verification, ABI drift, opaque-calldata boundaries), and the fail-closed authoring idiom. Never present a bespoke permission as audited.
+Permission contracts live in `contracts/mandates/` — `contracts/` is the project's one Foundry workspace, self-contained (its own `foundry.toml`, `out/`, vendored interfaces). The user authors, reviews, and owns them. Start from `BoundedCallPermission.sol` there — a neutral, protocol-agnostic `IPermission` scaffold (+ a Foundry test) — and extend it for the venue at hand. See [references/authoring-patterns.md](references/authoring-patterns.md) for the header discipline, named gotchas (selector verification, ABI drift, opaque-calldata boundaries), and the fail-closed authoring idiom. Never present a bespoke permission as audited.
 
-- Implement `IPermission.evaluate(bytes txData, Context ctx) → bool` (single-call) or `IBatchPermission.evaluateBatch(Call[] calls, BatchContext ctx) → bool` (batch). Interfaces are vendored under `.sail/contracts/`.
+- Implement `IPermission.evaluate(bytes txData, Context ctx) → bool` (single-call) or `IBatchPermission.evaluateBatch(Call[] calls, BatchContext ctx) → bool` (batch). Both interfaces are vendored under `contracts/.sail/contracts/interfaces/`.
 - Use the `SailCalldata` library for bounded calldata decoding — slot-indexed reads after the 4-byte selector prevent silent truncation bugs.
 - Bind recipients/beneficiaries to `ctx.account` wherever the protocol exposes them — funds must route to the SMA.
 - **Selector correctness is life-or-death.** Verify every selector against the venue's authoritative deployed ABI — `cast sig "fn(types…)"` against the verified source — never from memory. A wrong selector fails closed (every legitimate call rejected) or worse, gates nothing. Precedents: [authoring-patterns.md](references/authoring-patterns.md) (Named gotchas).
@@ -47,7 +47,10 @@ foundryup
 - **Accept cases**: every call the strategy must make.
 - **Reject cases**: out-of-bounds amounts, wrong tokens, wrong recipients, wrong selectors, unbound venues.
 
+Run these from inside `contracts/` — it's its own Foundry workspace, not the project root:
+
 ```bash
+cd contracts
 forge build
 forge test
 ```
@@ -60,7 +63,7 @@ This gate comes before deployment because it is the only gate that exercises you
 sailor mandate deploy --contract <Name> --sma <SMA> --json   # BLOCKS — owner signs the contract-creation tx in the browser
 ```
 
-The owner pays gas; the deployed address is read from the receipt and tracked in `.sail/state/mandates.json`. Add `--build` to run `forge build` first.
+Run this from the **project root**, not from inside `contracts/` — unlike `forge build`/`forge test` above, `sailor` commands always run from the project root. The owner pays gas; the deployed address is read from the receipt and tracked in `.sail/state/mandates.json`. Add `--build` and the CLI runs `forge build` in `contracts/` for you, then reads the artifact straight from `contracts/out/` — the same tree Gate 4 just tested, never a stale copy.
 
 When a strategy needs several permissions, **deploy all of them first** (don't `register` yet). Each deploy is its own owner-signed contract-creation transaction — those cannot be combined — but registering them is a single signature (Gate 7), so deploy the full set, then register it in one step.
 

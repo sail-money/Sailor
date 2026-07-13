@@ -1645,12 +1645,16 @@ function ensureForgeHint(): void {
   }
 }
 
+// The ONE Foundry workspace a scaffolded project has is `contracts/` — where
+// every skill (sailor-mandates, approvals.md) tells the user to author and
+// test permissions. Building anywhere else would compile a different tree
+// than the one the user just tested, so this is not configurable.
 function runForgeBuild(): void {
   if (!forgeAvailable()) {
     ensureForgeHint();
     throw new Error("Cannot run `forge build` — Foundry is not installed.");
   }
-  console.log("Running forge build…");
-  const r = spawnSync("forge", ["build"], { stdio: "inherit" });
+  console.log("Running forge build (in contracts/)…");
+  const r = spawnSync("forge", ["build"], { cwd: join(process.cwd(), "contracts"), stdio: "inherit" });
   if (r.status !== 0) throw new Error("forge build failed");
 }
