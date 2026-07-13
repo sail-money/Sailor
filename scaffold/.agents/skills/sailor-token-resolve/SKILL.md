@@ -135,7 +135,9 @@ Read `crossChain.action` (per token) and the portfolio `summary`, then advise:
   (e.g. "MORPHO has no Uniswap pool on Base; the deep pool is Uniswap V3 on Unichain — consider
   an SMA on Unichain"). Don't silently drop it.
 - **`manual-address`** — liquidity exists but only on a DEX Sail can't fast-route (e.g. only on
-  Aerodrome). Offer a custom mandate via `sailor-mandates`, or hold the leg.
+  Aerodrome). Offer a custom mandate via `sailor-mandates`, or hold the leg — `sailor-strategy`'s
+  Act 3 discloses what bespoke authoring against this venue actually entails before the user
+  confirms; no need to explain it here.
 - **`hold-skip`** — no pool on any scanned Sail chain (the token may live on a chain this
   project isn't configured for). Recommend holding/dropping it from the strategy.
 

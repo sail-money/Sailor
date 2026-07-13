@@ -32,6 +32,7 @@ Permission contracts live in `contracts/mandates/` — `contracts/` is the proje
 - Use the `SailCalldata` library for bounded calldata decoding — slot-indexed reads after the 4-byte selector prevent silent truncation bugs.
 - Bind recipients/beneficiaries to `ctx.account` wherever the protocol exposes them — funds must route to the SMA.
 - **Selector correctness is life-or-death.** Verify every selector against the venue's authoritative deployed ABI — `cast sig "fn(types…)"` against the verified source — never from memory. A wrong selector fails closed (every legitimate call rejected) or worse, gates nothing. Precedents: [authoring-patterns.md](references/authoring-patterns.md) (Named gotchas).
+- **Pin every struct/ABI shape against the deployed contract, never the SDK.** A venue's SDK can be newer than what's actually on-chain — see [references/dark-reverts.md](references/dark-reverts.md) for the flagship example (a struct field the current Uniswap `v4-sdk` had dropped that the deployed Base router still required) and the full diagnostic ladder for a call that reverts with no data at all.
 
 Prerequisite — Foundry. If `forge` is not found:
 
@@ -78,6 +79,8 @@ sailor mandate simulate --address <PermissionOrName> --sma <SMA> --calls calls.j
 ```
 
 This is an off-chain `eth_call` — no gas, no signing. It reports what `evaluate()` returns per call, flags any target with no contract code on this chain (wrong or wrong-chain address), and checks whether each 4-byte selector actually routes on the target's bytecode. A mismatch between `expect` and the actual result exits non-zero. **Zero mismatches required before proceeding.** Simulate proves what the permission DOES; it does not guarantee it is correct.
+
+If simulate passes clean but the live dispatch still reverts with no error data at all, the failure has moved from the permission to the venue call itself — see [references/dark-reverts.md](references/dark-reverts.md) for the diagnostic ladder (trace it) rather than guessing at the encoding.
 
 `calls.json` schema: [references/calls-schema.md](references/calls-schema.md). How to design pass/fail cases: [references/simulate-calls.md](references/simulate-calls.md).
 

@@ -55,6 +55,8 @@ Render the full spec, walk the completeness checklist below with the user, get t
 
 > This strategy uses <N> shared template(s) and <M> custom permission(s) that your coding agent will author in Solidity — compiled and tested in `contracts/`, reviewed and signed by you.
 
+**When M > 0, say what that work actually is — once, here, plainly, as capability, not warning:** authoring a permission against a venue's real interface is genuinely deeper work than configuring a template. A venue can have multiple deployed generations or forks (Uniswap V3 vs V4, a fork's own variant, …), the SDK or docs you'd naturally reach for can drift from what's actually deployed, and a shape mismatch at this layer often fails as a bare revert with no explanation rather than a helpful error. None of that is a reason not to proceed — bespoke is the protocol working as designed (`sailor-mandates`) — it's why the authoring flow simulates against the real venue before every register, and why [`sailor-mandates/references/dark-reverts.md`](../sailor-mandates/references/dark-reverts.md) exists: worth reading before authoring against an exotic or multi-generation venue, not after the first unexplained revert.
+
 Show this line **only when M > 0**. A fully template-backed strategy (M = 0) says nothing about Solidity — most strategies never touch it.
 
 **Disclose approve-coverage impact before the user approves.** Check the spec's actions against [`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md) (the owner of which actions need approve coverage and why). If any need one, say so plainly, without the execution-model detail (per-call vs. atomic batch is decided at Station 3, not here):
