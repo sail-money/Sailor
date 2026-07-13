@@ -55,4 +55,5 @@ describe.
 
 Venue-specific fixes (V4 `PoolKey` construction, settle-first call ordering, the exact viem tuple
 shapes for a given router version) are cookbook material, not this reference's — this is the
-general diagnostic method, not a per-venue recipe book.
+general diagnostic method, not a per-venue recipe book. See
+[venue-cookbook.md](venue-cookbook.md) for those field-derived patterns.
