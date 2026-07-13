@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAccount, useChains, useDisconnect, useSendTransaction, useSignTypedData, useSwitchChain } from 'wagmi'
-import { HorizonBackground, GlassCard, Sai, SailButton, BadgeRow } from '../shared'
+import { GlassCard, Sai, SailButton, BadgeRow } from '../shared'
 import PageHeader from '../shared/PageHeader'
-import ChainIcon from '../shared/ChainIcon'
 import NotConnectedCard from '../shared/NotConnectedCard'
 import ProfileModal from '../dashboard/ProfileModal'
 import AIHandoffModal from '../dashboard/AIHandoffModal'
@@ -17,61 +16,15 @@ import { decideSignerEntry } from './signerEntry'
 
 const KIND_LABELS = {
   'create-sma': 'Create Safe (SMA)',
-  'deploy-mandate': 'Deploy Mandate',
-  'register-permission': 'Register Permission',
-  'attach-mandate': 'Register Mandate',
-  'set-delegate': 'Set Agent as Manager',
+  'deploy-mandate': 'Deploy mandate',
+  'register-permission': 'Register permission',
+  'attach-mandate': 'Register mandate',
+  'set-delegate': 'Set agent as manager',
+  'arbitrary-tx': 'Arbitrary transaction',
 }
 
 const shortHex = (a) => `${a.slice(0, 6)}…${a.slice(-4)}`
 const chainName = (chains, id) => chains.find((c) => c.id === id)?.name ?? `Chain ${id}`
-
-/* ── Chain dropdown ── */
-function ChainDropdown({ open, onClose }) {
-  const chains = useChains()
-  const { chainId } = useAccount()
-  const { switchChainAsync } = useSwitchChain()
-  const [switching, setSwitching] = useState(null)
-
-  useEffect(() => {
-    if (!open) return
-    const close = (e) => { if (!e.target?.closest?.(`.${styles.chainDropdownWrap}`)) onClose() }
-    const key = (e) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('click', close)
-    window.addEventListener('keydown', key)
-    return () => { window.removeEventListener('click', close); window.removeEventListener('keydown', key) }
-  }, [open, onClose])
-
-  if (!open) return null
-
-  return (
-    <div className={styles.chainMenu}>
-      <header className={styles.chainMenuHeader}>Switch network</header>
-      <ul className={styles.chainMenuList}>
-        {chains.map((c) => (
-          <li key={c.id}>
-            <button
-              type="button"
-              className={`${styles.chainOption} ${c.id === chainId ? styles.chainOptionActive : ''}`}
-              disabled={switching === c.id}
-              onClick={async () => {
-                setSwitching(c.id)
-                try { await switchChainAsync({ chainId: c.id }) } catch { /* user rejected */ }
-                setSwitching(null)
-                onClose()
-              }}
-            >
-              <ChainIcon chainId={c.id} size={18} />
-              <span className={styles.chainOptionName}>{c.name}</span>
-              {c.id === chainId && <span className={styles.chainCheck}>✓</span>}
-              {switching === c.id && <span className={styles.chainSwitching}>…</span>}
-            </button>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
 
 export default function SigningPage() {
   const { draft } = useSailorMandateDraft()
@@ -145,12 +98,11 @@ export default function SigningPage() {
 
   return (
     <div className={styles.shell}>
-      <HorizonBackground />
-
       <PageHeader
         eyebrow="Signing"
         title="Pending Signatures"
         backTo="#/dashboard"
+        leaveLabel={requests.length > 0 || hasDraft ? 'Sign later' : 'Back to dashboard'}
       />
 
       <main className={styles.main}>
@@ -162,7 +114,8 @@ export default function SigningPage() {
             <Sai size={64} animate />
           </div>
         ) : !isConnected ? (
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, padding: '40px 0' }}>
+          // Left-aligned like every other gate — the card carries its own layout.
+          <div style={{ display: 'flex', flex: 1, padding: '24px 0' }}>
             <NotConnectedCard eyebrow="SIGNING" title="Connect to approve requests." sub="Connect the owner wallet to review and sign pending agent requests." />
           </div>
         ) : phase.phase === 'success' ? (
@@ -362,7 +315,7 @@ function OperationCard({ request, chains, phase, onSign, onReject, otherActive }
           <span className={styles.connectHint}>Connect wallet to sign</span>
         ) : (
           <button type="button" className={styles.primary} disabled={submitting || done || wrongChain || otherActive} onClick={() => onSign(request)}>
-            {otherActive ? 'Waiting…' : submitting ? (request.type === 'typed-data' ? 'Signing…' : 'Submitting…') : done ? 'Signed ✓' : request.type === 'typed-data' ? 'Sign Message' : 'Sign & Submit'}
+            {otherActive ? 'Waiting…' : submitting ? (request.type === 'typed-data' ? 'Signing…' : 'Submitting…') : done ? 'Signed ✓' : request.type === 'typed-data' ? 'Sign message' : 'Sign & submit'}
           </button>
         )}
       </div>
@@ -388,13 +341,13 @@ function ExplanationBlock({ ex }) {
       <BadgeRow items={[ex.protocol, ex.chain, ex.version]} />
       {ex.enforced?.length > 0 && (
         <div style={{ marginBottom: ex.notEnforced?.length > 0 ? 8 : 0 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5dde8b', marginBottom: 5 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#4DABFF', marginBottom: 5 }}>
             Enforced on-chain
           </div>
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
             {ex.enforced.map((b, i) => (
               <li key={i} style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', paddingLeft: 12, position: 'relative' }}>
-                <span style={{ position: 'absolute', left: 0, color: '#5dde8b' }}>·</span>{b}
+                <span style={{ position: 'absolute', left: 0, color: '#4DABFF' }}>·</span>{b}
               </li>
             ))}
           </ul>
@@ -453,7 +406,7 @@ function SuccessScreen({ kind, note, onDone }) {
       </div>
       <header className={styles.emptyCardHeader}>
         <span className={styles.emptyKicker}>CONFIRMED</span>
-        <h1 className={`${shared.displayHeadline} ${styles.emptyHeadline}`} style={{ color: 'var(--accent-green, #4ade80)' }}>
+        <h1 className={`${shared.displayHeadline} ${styles.emptyHeadline}`} style={{ color: '#4DABFF' }}>
           ✓ {isPermission ? 'Permission registered.' : 'Confirmed on-chain.'}
         </h1>
         <p className={`${shared.italicMannerism} ${styles.emptyTagline}`}>
@@ -513,10 +466,10 @@ function FailureScreen({ outcome, message, onDone }) {
         <Sai size={64} animate />
       </div>
       <header className={styles.emptyCardHeader}>
-        <span className={styles.emptyKicker} style={{ color: 'var(--accent-red, #f87171)' }}>
+        <span className={styles.emptyKicker} style={{ color: 'var(--danger)' }}>
           {copy.kicker}
         </span>
-        <h1 className={`${shared.displayHeadline} ${styles.emptyHeadline}`} style={{ color: 'var(--accent-red, #f87171)' }}>
+        <h1 className={`${shared.displayHeadline} ${styles.emptyHeadline}`} style={{ color: 'var(--danger)' }}>
           {copy.headline}
         </h1>
         <p className={`${shared.italicMannerism} ${styles.emptyTagline}`}>
@@ -542,8 +495,8 @@ function UnverifiedScreen({ message, onDone }) {
         <Sai size={64} animate />
       </div>
       <header className={styles.emptyCardHeader}>
-        <span className={styles.emptyKicker} style={{ color: 'var(--accent-amber, #fbbf24)' }}>UNCONFIRMED</span>
-        <h1 className={`${shared.displayHeadline} ${styles.emptyHeadline}`} style={{ color: 'var(--accent-amber, #fbbf24)' }}>
+        <span className={styles.emptyKicker} style={{ color: 'var(--warn)' }}>UNCONFIRMED</span>
+        <h1 className={`${shared.displayHeadline} ${styles.emptyHeadline}`} style={{ color: 'var(--warn)' }}>
           Signed &amp; submitted — could not confirm.
         </h1>
         <p className={`${shared.italicMannerism} ${styles.emptyTagline}`}>

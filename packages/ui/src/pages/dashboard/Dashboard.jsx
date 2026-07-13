@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import OnboardingWizard from '../onboarding/OnboardingWizard'
-import { ConnectButton, useConnectModal } from '@rainbow-me/rainbowkit'
+import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { useAccount, useDisconnect } from 'wagmi'
+import { sailDeployments } from '@sail/sdk/deployments'
 import { explorerAddressUrl, explorerCodeUrl as libExplorerCodeUrl, explorerTxUrl, nativeCurrencySymbol } from '../../lib/explorer'
 import {
   ChainGlyph,
@@ -13,14 +14,13 @@ import {
 } from '../shared'
 import SailBackground from '../shared/SailBackground'
 import debankIcon from '../shared/debank.png'
+import sailorMark from '../shared/sailor-mark.png'
 import shared from '../shared/shared.module.css'
 import styles from './Dashboard.module.css'
 import agentStyles from './SharedLayout.module.css'
 import AIHandoffModal from './AIHandoffModal'
 import VersionWarning from './VersionWarning'
 import ProfileModal from './ProfileModal'
-import NotConnectedCard from '../shared/NotConnectedCard'
-import CreateSMAModal from './CreateSMAModal'
 import RevokeMandateModal from './RevokeMandateModal'
 import AddSignerModal from './AddSignerModal'
 import RotateSignerModal from './RotateSignerModal'
@@ -37,7 +37,6 @@ import {
   useSailorOverviews,
   useSailorPending,
   useSailorPositions,
-  useDiscoverSafes,
   switchSailorAccount,
   renameSailorAccount,
 } from '../../hooks/useSailorData'
@@ -85,6 +84,7 @@ const CHAIN_NAMES = {
   999: 'hyperevm',
   4326: 'megaeth',
   84532: 'base sepolia',
+  11155111: 'ethereum sepolia',
 }
 // Proper-cased display labels for chains whose slug doesn't render cleanly under
 // CSS `text-transform: capitalize` (which only upper-cases the first letter, so
@@ -100,6 +100,10 @@ const CHAIN_DISPLAY_NAMES = {
 function chainDisplayName(chainId) {
   return CHAIN_DISPLAY_NAMES[chainId] ?? CHAIN_NAMES[chainId]
 }
+// Chains an SMA can actually be deployed to — those with a live Sail kernel.
+// Drives the "Add network" picker (deployable − already-deployed). Same source
+// the onboarding wizard uses so the two never drift.
+const DEPLOYABLE_CHAIN_IDS = Object.keys(sailDeployments).map(Number)
 function safeAppUrl(network, address) {
   const prefix = SAFE_CHAIN_PREFIX[network] ?? 'eth'
   return `https://app.safe.global/home?safe=${prefix}:${address}`
@@ -118,7 +122,7 @@ function truncateAddr(addr) {
 }
 function truncateSma(addr) {
   if (!addr) return ''
-  return `${addr.slice(0, 10)}...${addr.slice(-7)}`
+  return `${addr.slice(0, 10)}…${addr.slice(-7)}`
 }
 
 // ── Live data (.sail/) helpers ────────────────────────────────────────────────
@@ -312,85 +316,8 @@ function buildMandatePermissions(overviewMandates, liveMandates, addressByTempla
   return (liveMandates ?? []).flatMap((lm) => lm.permissions ?? [])
 }
 
-function ChainSection({ chainOverview, liveMandates, sma, onNewMandate, onAddSigner, onRotateSigner, onRevoke }) {
-  const chainId = chainOverview.chainId
-  const network = chainOverview.network ?? CHAIN_NAMES[chainId] ?? null
-  const chainName = network ? (network.charAt(0).toUpperCase() + network.slice(1)) : `Chain ${chainId}`
-  const overviewMandates = chainOverview.mandates ?? []
-  const addressByTemplate = new Map(overviewMandates.map((m) => [m.name ?? m.template, m.address]))
-
-  // One Mandate (the signed contract on this SMA) wrapping every on-chain
-  // permission, enriched with local mandate.json data. Driven by the on-chain
-  // set so all registered permissions show even when mandate.json is partial.
-  const displayMandates = (overviewMandates.length > 0 || liveMandates.length > 0)
-    ? [{
-        chainId,
-        registeredOnChain: overviewMandates.length > 0,
-        safe: sma?.address,
-        permissions: buildMandatePermissions(overviewMandates, liveMandates, addressByTemplate),
-      }]
-    : []
-
-  const totalPerms = displayMandates.reduce((n, m) => n + (m.permissions ?? []).length, 0)
-
-  return (
-    <div className={styles.chainSection}>
-      <div className={styles.chainSectionHeader}>
-        <span className={styles.chainSectionBadge}>
-          <ChainGlyph chainId={chainId} size={14} />
-          {chainName}
-        </span>
-        {chainOverview.onchainError && (
-          <span className={styles.chainSectionMeta}>RPC unavailable</span>
-        )}
-      </div>
-
-      <section className={styles.mandatesSection} aria-label={`${chainName} mandates`}>
-        <header className={styles.mandatesSectionHead}>
-          <h2 className={styles.mandatesSectionTitle}><DocGlyph />Your Mandates</h2>
-          <span className={styles.mandatesSectionMeta}>
-            {totalPerms > 0
-              ? `${totalPerms} permission${totalPerms === 1 ? '' : 's'}${chainOverview.onchain ? ' · on-chain' : ''}`
-              : 'No permissions yet'}
-          </span>
-        </header>
-        <div className={styles.mandateList}>
-          {displayMandates.length > 0 ? (
-            displayMandates.map((m, i) => (
-              <LiveMandateCard
-                key={m.signedAt ?? i}
-                mandate={m}
-                network={network}
-                addressByTemplate={addressByTemplate}
-                onRevoke={onRevoke}
-              />
-            ))
-          ) : (
-            <NewMandateTile onClick={onNewMandate} />
-          )}
-        </div>
-      </section>
-
-      <section className={styles.signersSection} aria-label={`${chainName} account details`}>
-        <header className={styles.mandatesSectionHead}>
-          <h2 className={styles.mandatesSectionTitle}><KeyGlyph />Your Wallets</h2>
-          <span className={styles.mandatesSectionMeta}>
-            {chainOverview.onchain ? 'live balances · refill when low' : 'Add RPC URL to enable balance tracking'}
-          </span>
-        </header>
-        <SignersPanel
-          overview={chainOverview}
-          sma={sma}
-          onAddSigner={onAddSigner}
-          onRotateSigner={onRotateSigner}
-        />
-      </section>
-    </div>
-  )
-}
-
 /** Delegated-signer balances with top-up status. */
-function SignersPanel({ overview, sma, onAddSigner, onRotateSigner }) {
+function SignersPanel({ overview, sma, onAddSigner, onRotateSigner, stacked = false }) {
   const { address: wagmiAddress } = useAccount()
   const rawSigners = overview?.signers ?? []
   const ownerLower = overview?.sma?.owner?.toLowerCase() ?? null
@@ -498,7 +425,7 @@ function SignersPanel({ overview, sma, onAddSigner, onRotateSigner }) {
     )
   }
   return (
-    <div className={styles.signerGrid}>
+    <div className={`${styles.signerGrid} ${stacked ? styles.signerGridStacked : ''}`}>
       {displaySigners.map((s) => (
         <SignerCard
           key={s.address ? `${s.role}:${s.address}` : s.role}
@@ -522,13 +449,17 @@ function ChevronDownSm() {
   )
 }
 
-// Network selector for a multi-chain SMA — picking a chain focuses the SMA view
-// (wallets + mandates) on it by driving selectedChainId.
-function NetworkSelect({ chains, activeChainId, onSelect }) {
+// Network selector on the identity card — picking a chain focuses the SMA view
+// (wallets + mandates) via selectedChainId, and "Add network" deploys the SMA to
+// another chain. Shown for single-chain SMAs too, so "Add network" is reachable.
+function NetworkSelect({ chains, activeChainId, onSelect, deployable = [], onAddNetwork }) {
   const [open, setOpen] = useState(false)
+  const [addMode, setAddMode] = useState(false)
+  const [pendingChain, setPendingChain] = useState(null)
+  const [addResult, setAddResult] = useState(null) // { chainId, reason } when a deploy can't be kicked off from here
   const ref = useRef(null)
   useEffect(() => {
-    if (!open) return undefined
+    if (!open) { setAddMode(false); setPendingChain(null); setAddResult(null); return undefined }
     const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
     const onKey = (e) => { if (e.key === 'Escape') setOpen(false) }
     document.addEventListener('mousedown', onDoc)
@@ -536,6 +467,8 @@ function NetworkSelect({ chains, activeChainId, onSelect }) {
     return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey) }
   }, [open])
   const active = chains.find((c) => c.id === activeChainId) ?? chains[0]
+  const label = chains.length > 1 ? `${chains.length} networks` : 'Network'
+  const canAdd = !!onAddNetwork && deployable.length > 0
   return (
     <div className={styles.netSelect} ref={ref}>
       <button
@@ -544,28 +477,76 @@ function NetworkSelect({ chains, activeChainId, onSelect }) {
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label={`Network: ${active?.name}. Choose a network.`}
+        aria-label={`Network: ${active?.name}. Choose a network or add one.`}
       >
+        <span className={styles.netSelectLabel}>{label}</span>
         {active?.id != null && <ChainGlyph chainId={active.id} size={14} />}
         <span className={styles.netSelectName}>{active?.name}</span>
         <span className={styles.netSelectChevron} aria-hidden><ChevronDownSm /></span>
       </button>
       {open && (
         <div className={styles.netSelectMenu} role="listbox">
-          {chains.map((c) => (
-            <button
-              key={c.name}
-              type="button"
-              role="option"
-              aria-selected={c.id === activeChainId}
-              className={`${styles.netSelectOption} ${c.id === activeChainId ? styles.netSelectOptionActive : ''}`}
-              onClick={() => { if (c.id != null) onSelect(Number(c.id)); setOpen(false) }}
-            >
-              {c.id != null && <ChainGlyph chainId={c.id} size={14} />}
-              <span className={styles.netSelectOptionName}>{c.name}</span>
-              {c.id === activeChainId && <span className={styles.netSelectCheck} aria-hidden><CheckSm /></span>}
-            </button>
-          ))}
+          {!addMode ? (
+            <>
+              {chains.map((c) => (
+                <button
+                  key={c.name}
+                  type="button"
+                  role="option"
+                  aria-selected={c.id === activeChainId}
+                  className={`${styles.netSelectOption} ${c.id === activeChainId ? styles.netSelectOptionActive : ''}`}
+                  onClick={() => { if (c.id != null) onSelect(Number(c.id)); setOpen(false) }}
+                >
+                  {c.id != null && <ChainGlyph chainId={c.id} size={14} />}
+                  <span className={styles.netSelectOptionName}>{c.name}</span>
+                  {c.id === activeChainId && <span className={styles.netSelectCheck} aria-hidden><CheckSm /></span>}
+                </button>
+              ))}
+              {canAdd && (
+                <button type="button" className={styles.netSelectAdd} onClick={() => setAddMode(true)}>
+                  <span className={styles.netSelectAddPlus} aria-hidden>+</span>
+                  <span className={styles.netSelectOptionName}>Add network</span>
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <button type="button" className={styles.netSelectBack} onClick={() => { setAddMode(false); setAddResult(null) }}>
+                ‹ Add network
+              </button>
+              <span className={styles.netSelectHint}>Deploy this SMA to another chain — same address everywhere.</span>
+              {deployable.map((c) => {
+                const isPending = pendingChain === c.id
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className={styles.netSelectOption}
+                    disabled={pendingChain != null}
+                    onClick={async () => {
+                      setPendingChain(c.id); setAddResult(null)
+                      const r = await onAddNetwork(c.id)
+                      setPendingChain(null)
+                      if (r?.ok) { setOpen(false); return }
+                      setAddResult({ chainId: c.id, reason: r?.reason ?? 'error' })
+                    }}
+                  >
+                    {c.id != null && <ChainGlyph chainId={c.id} size={14} />}
+                    <span className={styles.netSelectOptionName}>{c.name}</span>
+                    {isPending && <span className={styles.netSelectStatus}>Requesting…</span>}
+                  </button>
+                )
+              })}
+              {addResult && (
+                <p className={styles.netSelectNote}>
+                  {addResult.reason === 'offline'
+                    ? 'Backend offline — start the Sailor dev server and try again.'
+                    : 'Adding a network isn’t wired into the dashboard yet. Deploy it from the CLI:'}
+                  <code className={styles.netSelectNoteCmd}>sailor account deploy-chain --chain {addResult.chainId}</code>
+                </p>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>
@@ -608,7 +589,8 @@ function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSi
   const needsTopUp = !balanceLoading && (signer.status === 'low' || isCritical || (isLocal && (localBal === null || localBal < 0.002)))
 
   function copy() {
-    if (navigator?.clipboard?.writeText) navigator.clipboard.writeText(signer.address)
+    if (!navigator?.clipboard?.writeText) return // don't claim "copied" without a clipboard
+    navigator.clipboard.writeText(signer.address)
     setCopied(true)
     setTimeout(() => setCopied(false), 1400)
   }
@@ -639,10 +621,10 @@ function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSi
             {isOwnerActiveManager ? (
               <span
                 className={styles.balancePill}
-                style={{ color: '#1990FF' }}
+                style={{ color: 'var(--accent-blue)' }}
                 title="This EOA is also registered as the SMA's delegated manager on-chain"
               >
-                <span className={styles.balancePillDot} aria-hidden style={{ background: '#1990FF' }} />
+                <span className={styles.balancePillDot} aria-hidden style={{ background: 'var(--accent-blue)' }} />
                 Active manager
               </span>
             ) : isOwnerManager ? (
@@ -768,7 +750,7 @@ function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSi
             className={styles.signerFundBtn}
             onClick={() => setFundOpen(true)}
           >
-            Fund Gas
+            Fund gas
           </button>
         </div>
       )}
@@ -794,6 +776,26 @@ function LiveMandateCard({ mandate, network, addressByTemplate, onRevoke }) {
     return n ? n.charAt(0).toUpperCase() + n.slice(1) : null
   })()
 
+  // Custom mandate name — browser-local (there's no backend field for mandate
+  // names; the on-chain record has none either). Keyed by SMA + chain so each
+  // card renames independently. Falls back to "Mandate · <chain>".
+  const nameKey = `sail.mandateName.${(mandate?.safe ?? 'sma').toLowerCase()}.${mandate?.chainId ?? 'single'}`
+  const defaultTitle = networkLabel ? `Mandate · ${networkLabel}` : 'Mandate'
+  const [customName, setCustomName] = useState(() => {
+    try { return localStorage.getItem(nameKey) ?? '' } catch { return '' }
+  })
+  const [editingName, setEditingName] = useState(false)
+  const [nameInput, setNameInput] = useState('')
+  function saveName() {
+    const trimmed = nameInput.trim()
+    try {
+      if (trimmed && trimmed !== defaultTitle) localStorage.setItem(nameKey, trimmed)
+      else localStorage.removeItem(nameKey)
+    } catch { /* private mode — rename just doesn't persist */ }
+    setCustomName(trimmed && trimmed !== defaultTitle ? trimmed : '')
+    setEditingName(false)
+  }
+
   // Only permissions with a known on-chain address can be revoked; dedup by address
   const revokeablePool = onRevoke
     ? (() => {
@@ -817,9 +819,30 @@ function LiveMandateCard({ mandate, network, addressByTemplate, onRevoke }) {
           <span className={styles.mandateSummaryKicker}>
             Live mandate{signed ? ` · signed ${signed}` : ''}
           </span>
-          <h3 className={styles.mandateSummaryTitle}>
-            {networkLabel ? `Mandate · ${networkLabel}` : 'Mandate'}
-          </h3>
+          {editingName ? (
+            <input
+              className={styles.mandateTitleInput}
+              value={nameInput}
+              autoFocus
+              maxLength={40}
+              onChange={(e) => setNameInput(e.target.value)}
+              onBlur={saveName}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.target.blur()
+                if (e.key === 'Escape') setEditingName(false)
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              className={styles.mandateTitleBtn}
+              onClick={() => { setNameInput(customName || defaultTitle); setEditingName(true) }}
+              title="Click to rename"
+            >
+              <h3 className={styles.mandateSummaryTitle}>{customName || defaultTitle}</h3>
+              <PencilIcon />
+            </button>
+          )}
         </div>
         <div className={styles.mandateSummaryHeadRight}>
           <MandateStatus status={status} />
@@ -999,11 +1022,10 @@ function ActivityChainFilter({ deployedChains, chainFilter, onChainFilterChange 
   if (deployedChains.length <= 1) return null
   // Same chip style as the mandate switcher (glyph + name), kept as buttons.
   return (
-    <div className={styles.chainSwitcher} role="tablist" aria-label="Filter by chain" style={{ marginBottom: 14 }}>
+    <div className={styles.chainSwitcher} role="group" aria-label="Filter by chain" style={{ marginBottom: 14 }}>
       <button
         type="button"
-        role="tab"
-        aria-selected={chainFilter === 'all'}
+        aria-pressed={chainFilter === 'all'}
         className={`${styles.chainSwitchBtn} ${chainFilter === 'all' ? styles.chainSwitchBtnActive : ''}`}
         onClick={() => onChainFilterChange('all')}
       >
@@ -1016,8 +1038,7 @@ function ActivityChainFilter({ deployedChains, chainFilter, onChainFilterChange 
           <button
             key={cid}
             type="button"
-            role="tab"
-            aria-selected={chainFilter === String(cid)}
+            aria-pressed={chainFilter === String(cid)}
             className={`${styles.chainSwitchBtn} ${chainFilter === String(cid) ? styles.chainSwitchBtnActive : ''}`}
             onClick={() => onChainFilterChange(String(cid))}
             title={label}
@@ -1129,7 +1150,7 @@ function LiveActivityFeed({ events, positions, network, permToChain = new Map(),
               <button
                 type="button"
                 onClick={() => setVisibleCount((c) => c + 10)}
-                style={{ padding: '6px 14px', fontSize: '13px', borderRadius: '6px', border: '1px solid #3a3f4a', background: 'transparent', color: '#9aa0ae', cursor: 'pointer' }}
+                style={{ padding: '6px 14px', fontSize: '13px', borderRadius: '2px', border: '1px solid var(--hairline-strong)', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer' }}
               >
                 Load more
               </button>
@@ -1163,7 +1184,6 @@ export default function Dashboard() {
   const [onboardState, setOnboardState] = useState(() => _onboardCache ?? localStorageOnboardHint())
   const [onboardChecked, setOnboardChecked] = useState(() => _onboardCache !== null || localStorageOnboardHint() !== null)
   const { draft } = useSailorMandateDraft()
-  const [wizardSkipped, setWizardSkipped] = useState(false)
   // True from the moment the wizard's multi-chain CreateSmaStep starts deploying
   // until the user actually leaves the wizard (Go to dashboard / Skip). account.json
   // is written after each chain succeeds (not after all of them), so the poll below
@@ -1217,27 +1237,28 @@ export default function Dashboard() {
       <SailBackground />
     </div>
   )
-  // Show the guided wizard whenever there's no SMA and the user hasn't explicitly
-  // skipped it. Wallet-connection state is NOT a gate here: the wizard owns the
-  // connect step, so a wallet that's already connected on load (wagmi
-  // auto-reconnect) must keep the user in the flow through key generation and
-  // SMA creation — not eject them into the dashboard's create-SMA modal. Users
-  // who already have an SMA elsewhere use the wizard's "Skip to dashboard" link.
-  if (!onboardState?.hasAccount && !wizardSkipped) {
-    return (
-      <OnboardingWizard
-        onboardState={onboardState}
-        onComplete={handleOnboardComplete}
-        onSkip={() => { activeDeployRef.current = false; setWizardSkipped(true) }}
-        onActiveDeployChange={(active) => { activeDeployRef.current = active }}
-      />
-    )
-  }
-
-  return <DashboardContent draft={draft} onReset={refreshOnboard} wizardSkipped={wizardSkipped} />
+  // First-run onboarding renders inside the dashboard frame (DashboardContent),
+  // so the persistent left rail — SMAs list, create/import, connect wallet —
+  // stays visible while the wizard runs in the main column. The wizard is the
+  // single no-SMA surface: it owns both the create flow and the import branch
+  // (there is no "skip" — an accountless dashboard has nothing to show).
+  // Wallet-connection state is NOT a gate — the wizard owns the connect step.
+  return (
+    <DashboardContent
+      draft={draft}
+      onReset={refreshOnboard}
+      onboardState={onboardState}
+      onOnboardComplete={handleOnboardComplete}
+      onActiveDeployChange={(active) => { activeDeployRef.current = active }}
+    />
+  )
 }
 
-function DashboardContent({ draft, onReset, wizardSkipped }) {
+function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onActiveDeployChange }) {
+  const onboarding = !onboardState?.hasAccount
+  // Sidebar Create/Import clicks while onboarding: bump this to steer the
+  // wizard to a step ('welcome' or 'import') instead of opening the modals.
+  const [wizardStepReq, setWizardStepReq] = useState(null)
   const { isConnected, address: wagmiAddress } = useAccount()
   const { disconnect } = useDisconnect()
   const { openConnectModal } = useConnectModal()
@@ -1290,14 +1311,30 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
   })
 
   // We no longer auto-adopt the first Safe the connected wallet owns. An
-  // existing Safe is surfaced only inside the explicit Import flow (SetupHero),
-  // where the user picks which one to adopt as their SMA — so the dashboard
-  // starts from a clean "create or import" state instead of silently binding to
-  // whatever Safe happens to be associated with the wallet.
+  // existing Safe is surfaced only inside the explicit Import flow (the
+  // wizard's import step), where the user picks which one to adopt as their
+  // SMA — so the dashboard starts from a clean "create or import" state
+  // instead of silently binding to whatever Safe happens to be associated
+  // with the wallet.
   const [copiedAddr, setCopiedAddr] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [createSMAOpen, setCreateSMAOpen] = useState(false)
+
+  // Close the additional-create flow if the wallet disconnects midway — the
+  // wizard reads its owner from useAccount, so continuing without a wallet
+  // would build deploy txs with an undefined owner. The connect gate takes over.
+  useEffect(() => {
+    if (!isConnected && createSMAOpen) setCreateSMAOpen(false)
+  }, [isConnected, createSMAOpen])
+  // Same guard for the profile modal: on an out-of-band disconnect (wallet
+  // extension, session expiry) the owner filter loses its address and the SMA
+  // list would fall back to every owner's accounts — close it instead.
+  useEffect(() => {
+    if (!isConnected && profileOpen) setProfileOpen(false)
+  }, [isConnected, profileOpen])
+  // Which dashboard page is showing in the tab strip (populated state only).
+  const [dashTab, setDashTab] = useState('sma')
   const [handoff, setHandoff] = useState(null)
   const [revokeTarget, setRevokeTarget] = useState(null)
   const [revokeContext, setRevokeContext] = useState(null) // { sma, kernel, chainId } for multi-chain revoke
@@ -1321,8 +1358,56 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
         chainId: overview.chainId,
       }
     : null
-  const effectiveAccount = overviewAccount ?? realAccount ?? justCreatedAccount
+  // The localStorage-seeded fallback is only trusted for the CONNECTED wallet.
+  // It's written on every deploy/import and never expires, so without this
+  // scope a previous wallet's record leaks into effectiveAccount whenever the
+  // backend is briefly unreachable — showing wallet A's SMA to wallet B.
+  const scopedJustCreated = justCreatedAccount &&
+    (!wagmiAddress || !justCreatedAccount.owner ||
+      justCreatedAccount.owner.toLowerCase() === wagmiAddress.toLowerCase())
+    ? justCreatedAccount
+    : null
+  const effectiveAccount = overviewAccount ?? realAccount ?? scopedJustCreated
   const hasSMA = effectiveAccount != null
+  // The wizard is the single no-SMA surface: first run (no account.json yet)
+  // and the account-missing recovery state both land there.
+  const showWizard = onboarding || (!accountLoading && !hasSMA)
+  // Pre-populated states, computed once so the main column and the sidebar
+  // section nav stay in sync. The nav (My SMA / Mandates / Activity / RPCs)
+  // lives in the sidebar and is only meaningful on the populated dashboard.
+  const walletMismatch = isConnected && hasSMA && wagmiAddress && effectiveAccount?.owner &&
+    wagmiAddress.toLowerCase() !== effectiveAccount.owner.toLowerCase()
+  const showNotConnected = !isConnected
+  const showScanning = !hasSMA && accountLoading
+  const showTabs = !showWizard && !createSMAOpen && !walletMismatch && !showNotConnected && !showScanning
+
+  // ── Auto-activate: recover the active SMA from the project's accounts list.
+  // `hasAccount` is derived from account.json (a single "active" pointer), which
+  // "Reset project" deletes — but state/accounts.json keeps every SMA ever
+  // registered here. Without this, an owner whose pointer is gone gets dumped
+  // into onboarding ("no SMA") despite owning SMAs in this very project, and a
+  // second owner's wallet hits the wrong-wallet card instead of its own SMA.
+  // If the connected wallet owns an SMA in the list but the pointer is missing
+  // or belongs to a different owner, switch to the wallet's newest SMA.
+  // Client-side stopgap for the backend owner-lookup (FOR_ALVARO.md §2).
+  const autoActivatedRef = useRef(null)
+  useEffect(() => {
+    if (!isConnected || !wagmiAddress || accountLoading) return
+    const owned = allAccounts.filter((a) => a.owner?.toLowerCase() === wagmiAddress.toLowerCase())
+    if (owned.length === 0) return // truly nothing here for this wallet — onboarding/mismatch are correct
+    const needsSwitch = onboarding || walletMismatch
+    if (!needsSwitch) return
+    const target = owned[owned.length - 1] // list is append-ordered → newest
+    const key = `${wagmiAddress.toLowerCase()}:${target.safe.toLowerCase()}`
+    if (autoActivatedRef.current === key) return // one attempt per wallet+target; don't loop on failure
+    autoActivatedRef.current = key
+    switchSailorAccount(target.safe)
+      .then(() => {
+        setRefreshTick((t) => t + 1)
+        onReset?.() // refresh onboarding state so hasAccount flips without waiting for the poll
+      })
+      .catch(() => { /* backend offline — the usual gates stay up */ })
+  }, [isConnected, wagmiAddress, accountLoading, allAccounts, onboarding, walletMismatch, onReset])
   const overviewMandates = overview?.mandates ?? []
   // The locally-signed mandate (.sail/mandate.json) is a single global file. In a
   // multi-SMA project it would otherwise render against whatever SMA is active —
@@ -1346,7 +1431,12 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
       }
     : null
 
-  const ownerAddr = effectiveAccount?.owner ?? wagmiAddress ?? null
+  // The CONNECTED wallet's identity — used by the avatar button and as the
+  // owner recorded on add-by-address imports. The connected address must win:
+  // preferring the active account's owner showed wallet A's address on the
+  // avatar while wallet B was connected, and stamped A as the owner of SMAs
+  // B imported (which owner-scoping then hid from B).
+  const ownerAddr = wagmiAddress ?? effectiveAccount?.owner ?? null
 
   const activeAccount = allAccounts.find((a) => a.active) ?? allAccounts[0] ?? null
   // Resolve the chains this SMA spans by unioning the account's own list with
@@ -1361,6 +1451,29 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
     return [...chains].filter((c) => Number.isFinite(c) && c > 0)
   })()
   const isMultiChain = deployedChains.length > 1
+  // Deploy the current SMA to another chain. This is a wallet-driven flow, not a
+  // server action: the owner must switch chains, send the factory-deploy tx and
+  // sign the RegisterAccount digest (see deployChain() in OnboardingWizard) —
+  // the server can build those txs but can't sign for the user. The one-shot
+  // POST /api/account/deploy-chain that would kick it off doesn't exist in
+  // server.js yet, so until it lands this surfaces the CLI fallback instead of
+  // silently failing. Returns a structured result the menu renders inline.
+  const onAddNetwork = async (chainId) => {
+    try {
+      const res = await fetch('/api/account/deploy-chain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chainId }),
+      })
+      // A missing route resolves as 404 (fetch only rejects on network failure),
+      // so success has to be checked explicitly — otherwise a no-op reads as done.
+      if (!res.ok) return { ok: false, reason: res.status === 404 ? 'unavailable' : 'error' }
+      setRefreshTick((t) => t + 1)
+      return { ok: true }
+    } catch {
+      return { ok: false, reason: 'offline' }
+    }
+  }
   // The chain currently in view. For a single-chain SMA this is just `overview`;
   // for multi-chain it's the switcher's selection (falling back to the first chain).
   const activeChainId = selectedChainId != null && deployedChains.includes(Number(selectedChainId))
@@ -1372,10 +1485,18 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
 
   const smaName = safeNames[activeAccount?.safe ?? 'live-sma'] ?? activeAccount?.name ?? sma?.name ?? 'My SMA'
   const currentSafeId = activeAccount?.safe ?? effectiveAccount?.safe ?? 'live-sma'
-  const profileSafes = allAccounts.length > 0
+  // The SMA list is scoped to the CONNECTED wallet. state/accounts.json is
+  // project-global (it accumulates every SMA registered here, across owners),
+  // so without this filter a user who switches wallets sees other owners' SMAs
+  // mixed into their list. Entries with no recorded owner are kept — hiding
+  // them would strand legacy records with no way to reach them.
+  const ownedAccounts = wagmiAddress
+    ? allAccounts.filter((a) => !a.owner || a.owner.toLowerCase() === wagmiAddress.toLowerCase())
+    : allAccounts
+  const profileSafes = ownedAccounts.length > 0
     ? (() => {
         const byId = new Map()
-        for (const a of allAccounts) {
+        for (const a of ownedAccounts) {
           const key = a.safe.toLowerCase()
           const net = CHAIN_NAMES[a.chainId] ?? 'ethereum'
           const isCurrent = a.safe?.toLowerCase() === currentSafeId?.toLowerCase()
@@ -1402,7 +1523,12 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
         }
         return [...byId.values()]
       })()
-    : sma
+    // Fallback (no accounts list yet, e.g. pre-backfill project): the ACTIVE
+    // SMA — but only when the connected wallet is its owner. Without the owner
+    // gate this branch showed wallet A's SMA to a freshly connected wallet B
+    // whenever B owned nothing here (ownedAccounts empty → fell through).
+    : sma && effectiveAccount?.owner && wagmiAddress &&
+      effectiveAccount.owner.toLowerCase() === wagmiAddress.toLowerCase()
     ? [{ ...sma, name: smaName, networks: deployedChains.length > 0 ? deployedChains.map((id) => CHAIN_NAMES[id] ?? 'ethereum').filter(Boolean) : [realNetwork], mandateCount: isMultiChain && chainOverviews.length > 0 ? chainOverviews.reduce((sum, ov) => sum + (ov.mandateCount ?? 0), 0) : (overview?.mandateCount ?? 0), createdAt: null }]
     : []
 
@@ -1410,35 +1536,93 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
   const debankUrl = sma ? `https://debank.com/profile/${sma.address}` : '#'
 
   function copySma() {
-    if (!sma) return
-    if (navigator?.clipboard?.writeText) navigator.clipboard.writeText(sma.address)
+    if (!sma || !navigator?.clipboard?.writeText) return // don't claim "copied" without a clipboard
+    navigator.clipboard.writeText(sma.address)
     setCopiedAddr(true)
     setTimeout(() => setCopiedAddr(false), 1400)
   }
 
   return (
-    <div className={`${shared.pageShell} ${styles.shell}`}>
-      <SailBackground />
+    <div className={`${shared.pageShell} ${styles.shell} ${styles.dashRoot}`}>
 
-      {/* ── Top bar — kept minimal. The brand mascot anchors the left,
-          and the right cluster is just notifications + wallet identity.
-          Quick links (DeBank/Safe) no longer live here; they have
-          first-class cards in the body, where they belong now that the
-          SMA is the dashboard's primary subject. */}
-      <header className={styles.header}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+      {/* ── Left menu: brand · SMA list · create/import · EOA identity.
+          Replaces the old top header so the app reads like a full
+          dashboard with a persistent side rail. */}
+      <aside className={styles.dashSidebar}>
+        <div className={styles.sidebarBrand}>
           <button
             type="button"
-            className={styles.brand}
-            onClick={() => { window.location.hash = '#/dashboard' }}
-            aria-label="Go to dashboard"
+            className={styles.brandMarkBtn}
+            // Always hard-refresh: go to the dashboard route and reload so the
+            // logo doubles as a "reset the view / re-fetch everything" action,
+            // even when already on the dashboard (a hash change alone is a no-op
+            // there and wouldn't refresh).
+            onClick={() => { window.location.hash = '#/dashboard'; window.location.reload() }}
+            aria-label="Go to dashboard (refresh)"
           >
-            <Sai size={48} animate />
+            <img src={sailorMark} alt="" className={styles.brandMark} />
           </button>
+          <span className={styles.brandTitle}>Sailor Dashboard</span>
           <VersionWarning />
         </div>
 
-        <div className={styles.topActionsPill}>
+        {/* Portfolio (Debank) sits at the top, above the section nav — it's the
+            primary "where's my money" jump-off, not a footer utility. */}
+        {showTabs && sma && (
+          <a
+            className={styles.sidebarUtilLink}
+            href={debankUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <span className={styles.sidebarUtilIcon} aria-hidden>
+              <img src={debankIcon} alt="" className={styles.sidebarUtilImg} />
+            </span>
+            <span className={styles.sidebarUtilLabel}>View portfolio</span>
+            <ArrowOutIcon />
+          </a>
+        )}
+
+        {/* Section nav — the dashboard's pages live here in the side rail
+            (moved off the old top tab strip). Only meaningful on the
+            populated dashboard; hidden during onboarding/create/scanning. */}
+        {showTabs && (
+          /* Plain navigation semantics (not role=tablist): these are page
+             sections, and claiming tab semantics without the full keyboard
+             pattern (roving tabindex, aria-controls) misleads screen readers. */
+          <nav className={styles.sidebarNav} aria-label="Dashboard sections">
+            {[['sma', 'Overview'], ['gas', 'Gas wallets'], ['mandates', 'Mandates'], ['activity', 'Activity'], ['rpc', 'RPCs']].map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                aria-current={dashTab === key ? 'page' : undefined}
+                className={`${styles.sidebarNavItem} ${dashTab === key ? styles.sidebarNavItemActive : ''}`}
+                onClick={() => setDashTab(key)}
+              >
+                {label}
+                {key === 'mandates' && pending.length > 0 && <span className={styles.dashTabDot} aria-hidden />}
+              </button>
+            ))}
+          </nav>
+        )}
+
+        {/* Docs pinned to the bottom of the rail — external destination, not a
+            dashboard section. Creating/importing SMAs now lives entirely in the
+            profile modal (opened from the EOA button), not the sidebar. */}
+        <div className={styles.sidebarUtils}>
+          <a
+            className={styles.sidebarUtilLink}
+            href="https://docs.sail.money"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <span className={styles.sidebarUtilIcon} aria-hidden><DocsGlyph /></span>
+            <span className={styles.sidebarUtilLabel}>Docs</span>
+            <ArrowOutIcon />
+          </a>
+        </div>
+
+        <div className={styles.sidebarEoa}>
           <NotificationsBell
             pending={pending}
             draft={draft}
@@ -1463,12 +1647,33 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
             </span>
           </button>
         </div>
-      </header>
+      </aside>
 
-      <main className={agentStyles.main}>
-        {/* Wallet mismatch: connected wallet ≠ account owner in .sail/account.json */}
-        {isConnected && hasSMA && wagmiAddress && effectiveAccount?.owner &&
-          wagmiAddress.toLowerCase() !== effectiveAccount.owner.toLowerCase() ? (
+      <main className={`${agentStyles.main} ${styles.dashMain}`}>
+        {/* No SMA yet: the wizard is the single onboarding surface — it owns
+            both the create flow and the import branch, and runs in the main
+            column (no tab strip — nothing to navigate yet). Checked first so
+            a disconnected new user gets the wizard, not the not-connected
+            card (the wizard owns the connect step). */}
+        {showWizard ? (
+          <OnboardingWizard
+            onboardState={onboardState}
+            onComplete={onOnboardComplete}
+            onActiveDeployChange={onActiveDeployChange}
+            requestedStep={wizardStepReq}
+          />
+        ) : createSMAOpen ? (
+          // Create another SMA: the same onboarding flow, but the owner is
+          // already connected and the agent key exists, so it runs network →
+          // deploy only (additional mode). Replaces the old FIRST-AGENT modal.
+          <OnboardingWizard
+            additional
+            onboardState={onboardState}
+            onActiveDeployChange={onActiveDeployChange}
+            onCancel={() => setCreateSMAOpen(false)}
+            onComplete={() => { setCreateSMAOpen(false); setRefreshTick((t) => t + 1) }}
+          />
+        ) : walletMismatch ? (
           <WalletMismatchCard
             projectOwner={effectiveAccount.owner}
             connectedAddress={wagmiAddress}
@@ -1476,34 +1681,26 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
               await fetch('/api/account', { method: 'DELETE' }).catch(() => {})
               onReset()
             }}
-            onConnect={openConnectModal}
-          />
-        ) : !isConnected ? (
-          <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '40px 24px' }}>
-            <NotConnectedCard eyebrow="DASHBOARD" title="Connect to view your SMA." sub="Connect the owner wallet you used to set up this project." />
-          </div>
-        ) : !hasSMA && accountLoading ? (
-          <ScanningHero />
-        ) : !hasSMA ? (
-          <SetupHero
+            // RainbowKit's openConnectModal is undefined while a wallet is
+            // connected — and on this card one always is. Disconnect instead:
+            // the app falls to the connect gate, where the user picks the
+            // owner wallet.
+            onConnect={() => disconnect()}
+            // Non-destructive path for a new wallet: the additional-create
+            // wizard deploys an SMA owned by the CONNECTED wallet (it reads
+            // useAccount) and appends it to the project — nothing is reset.
+            // createSMAOpen renders before this branch, so it swaps the card
+            // for the wizard.
             onCreate={() => setCreateSMAOpen(true)}
-            initialShowImport={wizardSkipped}
-            onImport={(account) => {
-              setJustCreatedAccount(account)
-              try { localStorage.setItem('sail.account', JSON.stringify(account)) } catch {}
-              // Persist server-side so /api/overview can read on-chain balances
-              // and the CLI/agent see the same SMA — not just this browser.
-              fetch('/api/account', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(account),
-              }).catch(() => {})
-              setRefreshTick((t) => t + 1)
-            }}
-            ownerAddr={ownerAddr}
           />
+        ) : showNotConnected ? (
+          <ConnectGate onConnect={openConnectModal} />
+        ) : showScanning ? (
+          <ScanningHero />
         ) : (
           <>
+            {/* Section nav now lives in the left rail (styles.sidebarNav) —
+                the old top tab strip was removed. */}
             {draft && draftItemCount(draft) > 0 && (
               <DraftBanner
                 draft={draft}
@@ -1524,6 +1721,13 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                 deposit UI) and created-date meta. */}
             {/* ── Identity card: SMA + Owner + Agent grouped, each with an
                 info tooltip, so the three roles read as one connected unit. ── */}
+            {dashTab === 'sma' && (
+            <>
+            <PageHead
+              icon={<OverviewGlyph />}
+              title="Overview"
+              sub="Your SMA at a glance — name, address, and the networks it runs on."
+            />
             <section className={styles.identityCard} aria-label="Account identity">
               {/* Two-column header: identity + purpose on the left, status chips
                   on the right — fills the wide card instead of left-stacking. */}
@@ -1560,7 +1764,7 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                       onClick={() => { setNameInput(smaName); setEditingName(true) }}
                       title="Click to rename"
                     >
-                      <h1 className={agentStyles.title}>{smaName}</h1>
+                      <h2 className={agentStyles.title}>{smaName}</h2>
                       <PencilIcon />
                     </button>
                     {/* The "manage account" action lives here as the Safe mark next
@@ -1595,25 +1799,25 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                 {overview?.sma && (() => {
                 const chainList = deployedChains.length > 0
                   ? deployedChains.map((id) => ({ id, name: chainDisplayName(id) })).filter((c) => c.name)
-                  : overview.network ? [{ id: overview.chainId, name: overview.network }] : []
+                  // Fallback for a bare overview: prefer the display name so
+                  // special-cased chains keep their casing (HyperEVM, not Hyperevm).
+                  : overview.network ? [{ id: overview.chainId, name: chainDisplayName(overview.chainId) ?? overview.network }] : []
+                // Chains this SMA isn't on yet — the "Add network" picker.
+                const deployableChains = DEPLOYABLE_CHAIN_IDS
+                  .filter((id) => !chainList.some((c) => Number(c.id) === id))
+                  .map((id) => ({ id, name: chainDisplayName(id) }))
+                  .filter((c) => c.name)
                 return (
                   <div className={styles.idStatusRow}>
-                    {chainList.length > 1 ? (
-                      // Multichain SMAs get a network selector — picking a chain
-                      // focuses the wallets + mandates on it (drives selectedChainId).
-                      <NetworkSelect
-                        chains={chainList}
-                        activeChainId={activeChainId}
-                        onSelect={setSelectedChainId}
-                      />
-                    ) : (
-                      chainList.map((c) => (
-                        <span key={c.name} className={styles.smaBadge}>
-                          {c.id != null && <ChainGlyph chainId={c.id} size={13} />}
-                          {c.name}
-                        </span>
-                      ))
-                    )}
+                    {/* Always a selector (even single-chain) so "Add network" is
+                        reachable — it's the only in-app way to add a chain today. */}
+                    <NetworkSelect
+                      chains={chainList}
+                      activeChainId={activeChainId}
+                      onSelect={setSelectedChainId}
+                      deployable={deployableChains}
+                      onAddNetwork={onAddNetwork}
+                    />
                   </div>
                 )
               })()}
@@ -1655,31 +1859,55 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                       </span>
                     </button>
                   </div>
-                  <a className={styles.portfolioCard} href={debankUrl} target="_blank" rel="noreferrer">
-                    <span className={styles.portfolioText}>
-                      <span className={styles.portfolioTitle}>View portfolio</span>
-                      <span className={styles.portfolioSub}>Open DeBank <ArrowOutIcon /></span>
-                    </span>
-                    <span className={styles.portfolioLogo} aria-hidden>
-                      <img src={debankIcon} alt="" className={styles.portfolioImg} />
-                    </span>
-                  </a>
+                  {/* Portfolio — the funds grid's second slot. Everything the SMA
+                      holds, without the dashboard doing oracle/RPC work: Debank
+                      reads the address directly. */}
+                  <div className={styles.fundCard}>
+                    <span className={styles.fundCardLabel}>Portfolio</span>
+                    <a
+                      className={styles.fundAddr}
+                      href={debankUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="View this SMA's portfolio on Debank"
+                    >
+                      <span className={styles.fundPortfolioBody}>
+                        <img src={debankIcon} alt="" className={styles.fundPortfolioImg} />
+                        View portfolio
+                      </span>
+                      <span className={styles.fundAddrIcons} aria-hidden>
+                        <span className={styles.fundAddrIcon}><ArrowOutIcon /></span>
+                      </span>
+                    </a>
+                  </div>
                 </div>
               </div>
 
+            </section>
+            </>
+            )}
+
+            {/* ── Gas Wallets — own subpage. Owner + agent gas balances,
+                funded by copying each address (see FundGasModal). ── */}
+            {dashTab === 'gas' && (
+            <>
+            <PageHead
+              icon={<GasGlyph />}
+              title="Gas wallets"
+              sub={<>
+                The two wallets that pay for signatures and dispatches — your funds stay in the SMA.{' '}
+                <InfoTip label="How these wallets work">
+                  Two wallets act on this SMA: you — <strong>the owner</strong> — deploy it and
+                  register your permissions; your <strong>agent</strong> submits each dispatch
+                  within them, never beyond. Both only hold gas to sign and submit
+                  transactions — your funds stay in the SMA.
+                </InfoTip>
+              </>}
+            />
+            <section className={styles.identityCard} aria-label="Gas wallets">
               <div className={styles.idWalletsGroup}>
-                <div className={styles.idGroupHead}>
-                  <span className={styles.idGroupLabel}>
-                    Gas Wallets
-                    <InfoTip label="How these wallets work">
-                      Two wallets act on this SMA: you — <strong>the owner</strong> — deploy it and
-                      register your permissions; your <strong>agent</strong> submits each dispatch
-                      within them, never beyond. Both only hold gas to sign and submit
-                      transactions — your funds stay in the SMA.
-                    </InfoTip>
-                  </span>
-                </div>
                 <SignersPanel
+                  stacked
                   overview={activeChainOv}
                   sma={sma}
                   onAddSigner={() => setAddSignerOpen(true)}
@@ -1699,15 +1927,16 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                     : undefined}
                 />
               </div>
-
             </section>
+            </>
+            )}
 
             {/* ── Mandates + Account Details ──────────────────────
                 Multi-chain SMAs get one section per deployed chain.
                 Single-chain SMAs get the original layout. */}
             {/* ── Your Mandates — ONE section. A multi-chain SMA filters per chain
                 with the switcher below, rather than repeating a section per chain. ── */}
-            {(() => {
+            {dashTab === 'mandates' && (() => {
               // Build the mandate-card data for a single chain overview.
               const buildForOverview = (ov, requireChainMatch) => {
                 const oms = ov?.mandates ?? []
@@ -1747,12 +1976,14 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                 ? allBuilt.reduce((s, b) => s + b.perms.length, 0)
                 : active.perms.length
               return (
+                <>
+                <PageHead
+                  icon={<DocGlyph />}
+                  title="Mandates"
+                  sub="The on-chain permissions that scope exactly what your agent can do — revocable anytime."
+                />
                 <section className={styles.mandatesSection} aria-label="Mandates">
                   <header className={styles.mandatesSectionHead}>
-                    <h2 className={styles.mandatesSectionTitle}>
-                      <DocGlyph />
-                      Mandates
-                    </h2>
                     <span className={styles.mandatesSectionMeta}>
                       {permCount > 0
                         ? `${permCount} permission${permCount === 1 ? '' : 's'}${!showAll && activeChainOv?.onchain ? ' · registered on-chain' : ''}`
@@ -1760,11 +1991,10 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                     </span>
                   </header>
                   {isMultiChain && (
-                    <div className={styles.chainSwitcher} role="tablist" aria-label="View mandates by chain">
+                    <div className={styles.chainSwitcher} role="group" aria-label="View mandates by chain">
                       <button
                         type="button"
-                        role="tab"
-                        aria-selected={mandateAll}
+                        aria-pressed={mandateAll}
                         className={`${styles.chainSwitchBtn} ${mandateAll ? styles.chainSwitchBtnActive : ''}`}
                         onClick={() => setMandateAll(true)}
                       >
@@ -1778,8 +2008,7 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                           <button
                             key={cid}
                             type="button"
-                            role="tab"
-                            aria-selected={isActive}
+                            aria-pressed={isActive}
                             className={`${styles.chainSwitchBtn} ${isActive ? styles.chainSwitchBtnActive : ''}`}
                             onClick={() => { setMandateAll(false); setSelectedChainId(Number(cid)) }}
                             title={label}
@@ -1803,41 +2032,40 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                     )}
                   </div>
                 </section>
+                </>
               )
             })()}
 
             {/* ── RPC / Network config ─────────────────────────────── */}
+            {dashTab === 'rpc' && (
+            <>
+            <PageHead
+              icon={<NetworkGlyph />}
+              title="Network RPCs"
+              sub="How your dashboard reads chains and sends transactions."
+            />
             <section className={agentStyles.card}>
-              <header className={agentStyles.cardHead}>
-                <div className={agentStyles.cardHeadText}>
-                  <h2 className={styles.mandatesSectionTitle}>
-                    <NetworkGlyph />
-                    Network RPCs
-                  </h2>
-                  <p className={agentStyles.cardSub}>
-                    How your dashboard reads chains and sends transactions.
-                  </p>
-                </div>
-              </header>
               <RpcSection deployedChains={deployedChains} embedded />
             </section>
+            </>
+            )}
 
             {/* ── Recent activity / Decision Journal ─────────────── */}
+            {dashTab === 'activity' && (
+            <>
+            <PageHead
+              icon={<ClockGlyph />}
+              title="Recent Activity"
+              sub="Every agent decision and on-chain action on this SMA, newest first."
+            />
             <section className={agentStyles.card}>
               <header className={agentStyles.cardHead}>
-                <div className={agentStyles.cardHeadText}>
-                  <h2 className={styles.mandatesSectionTitle}>
-                    <ClockGlyph />
-                    Recent Activity
-                  </h2>
-                </div>
-                <div className={styles.activityFilter} role="tablist" aria-label="Filter by actor">
+                <div className={styles.activityFilter} role="group" aria-label="Filter by actor">
                   {ACTIVITY_FILTERS.map((f) => (
                     <button
                       key={f.key}
                       type="button"
-                      role="tab"
-                      aria-selected={activityActorFilter === f.key}
+                      aria-pressed={activityActorFilter === f.key}
                       className={`${styles.activityFilterBtn} ${activityActorFilter === f.key ? styles.activityFilterBtnActive : ''}`}
                       onClick={() => setActivityActorFilter(f.key)}
                     >
@@ -1872,6 +2100,8 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
                 </div>
               )}
             </section>
+            </>
+            )}
 
             {/* Local-first disclosure — calm footer so the user knows
                 Sail runs entirely on their machine. No hosted backend,
@@ -1900,14 +2130,26 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
         safes={profileSafes}
         currentSafeId={currentSafeId}
         hasSMA={hasSMA}
+        accountLoading={accountLoading}
         onClose={() => setProfileOpen(false)}
         onDisconnect={() => {
           setProfileOpen(false)
-          setJustCreatedAccount(null)
-          try { localStorage.removeItem('sail.account') } catch {}
+          // Disconnect ONLY disconnects the wallet. It must never touch the
+          // project's account registration — an earlier version DELETEd
+          // account.json here, which silently wiped a freshly created SMA from
+          // the project (the record, not the on-chain Safe). The dashboard
+          // falls back to the "Connect to view your SMA" gate, and reconnecting
+          // the owner restores the full view. Destructive reset stays where it
+          // is explicit: the wallet-mismatch card's reset action.
           disconnect()
         }}
-        onCreateSMA={() => { setProfileOpen(false); setCreateSMAOpen(true) }}
+        onCreateSMA={() => {
+          setProfileOpen(false)
+          // No SMA yet → the wizard is the create path; the modal is only for
+          // adding another SMA once one exists.
+          if (showWizard) setWizardStepReq({ name: 'welcome', tick: Date.now() })
+          else setCreateSMAOpen(true)
+        }}
         onImportSMA={(account) => {
           setJustCreatedAccount(account)
           try { localStorage.setItem('sail.account', JSON.stringify(account)) } catch {}
@@ -1947,18 +2189,6 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
         onRotated={() => setRefreshTick((t) => t + 1)}
       />
 
-      <CreateSMAModal
-        open={createSMAOpen}
-        onClose={() => setCreateSMAOpen(false)}
-        onComplete={(account) => {
-          if (account) {
-            setJustCreatedAccount(account)
-            try { localStorage.setItem('sail.account', JSON.stringify(account)) } catch {}
-          }
-          setCreateSMAOpen(false)
-        }}
-      />
-
       <RevokeMandateModal
         open={revokeTarget != null}
         mandate={Array.isArray(revokeTarget) ? undefined : revokeTarget}
@@ -1969,54 +2199,88 @@ function DashboardContent({ draft, onReset, wizardSkipped }) {
         onClose={() => { setRevokeTarget(null); setRevokeContext(null) }}
         onRevoked={() => { setRevokeTarget(null); setRevokeContext(null) }}
       />
-
-      {/* Contract preview modal retired. */}
     </div>
   )
 }
 
-/* ────────── Scanning hero ────────── */
-function WalletMismatchCard({ projectOwner, connectedAddress, onReset, onConnect }) {
+/* ────────── Gated states (connect / wrong-wallet) ──────────
+   Both render embedded + left-aligned in the main column (sidebar stays), so
+   they read as part of the dashboard rather than a floating modal — matching
+   the onboarding wizard's bare, left-aligned treatment. */
+function ConnectGate({ onConnect }) {
+  return (
+    <div className={styles.gate}>
+      <div className={styles.gateMark} aria-hidden>
+        <Sai size={52} animate />
+      </div>
+      <span className={styles.gateKicker}>Dashboard</span>
+      <h2 className={styles.gateTitle}>Connect to view your SMA.</h2>
+      <p className={styles.gateSub}>
+        Connect your wallet — its SMAs load automatically. New wallet? You can
+        create an SMA right after connecting.
+      </p>
+      <div className={styles.gateActions}>
+        <SailButton onClick={onConnect}>Connect wallet</SailButton>
+      </div>
+      <p className={styles.gateFineprint}>Self-custody. Sail never holds your keys.</p>
+    </div>
+  )
+}
+
+function WalletMismatchCard({ projectOwner, connectedAddress, onReset, onConnect, onCreate }) {
   const [resetting, setResetting] = useState(false)
   return (
-    <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '40px 24px' }}>
-      <div style={{
-        maxWidth: 440, width: '100%',
-        background: 'rgba(255,255,255,0.03)',
-        border: '1px solid rgba(255,255,255,0.08)',
-        borderRadius: 20,
-        padding: '36px 32px',
-        display: 'flex', flexDirection: 'column', gap: 16,
-      }}>
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,165,0,0.7)' }}>
-          Wrong wallet
-        </span>
-        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 600, color: '#fff', lineHeight: 1.2 }}>
-          This project belongs to a different wallet.
-        </h2>
-        <p style={{ margin: 0, fontSize: 14, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6 }}>
-          Project owner: <code style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)' }}>{truncateAddr(projectOwner)}</code><br />
-          Connected: <code style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)' }}>{truncateAddr(connectedAddress)}</code>
-        </p>
-        <p style={{ margin: 0, fontSize: 13, color: 'rgba(255,255,255,0.4)', lineHeight: 1.5 }}>
-          Connect the owner wallet to manage this SMA, or reset to start a new project with the current wallet.
-        </p>
-        <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-          <SailButton onClick={onConnect} style={{ flex: 1 }}>
-            Switch wallet
-          </SailButton>
+    <div className={styles.gate}>
+      <span className={`${styles.gateKicker} ${styles.gateKickerWarn}`}>Different owner</span>
+      <h2 className={styles.gateTitle}>
+        This wallet has no SMA in this project yet.
+        <InfoTip label="What is a project?">
+          A project is the local <code>.sail/</code> folder this dashboard runs on — it holds the
+          list of SMAs set up here, their keys, and config, all on your machine. One project can
+          hold SMAs from several wallets; each wallet only sees its own.
+        </InfoTip>
+      </h2>
+      <dl className={styles.gateMeta}>
+        <div className={styles.gateMetaRow}>
+          <dt>Active SMA owner</dt>
+          <dd><code>{truncateAddr(projectOwner)}</code></dd>
+        </div>
+        <div className={styles.gateMetaRow}>
+          <dt>Connected</dt>
+          <dd><code>{truncateAddr(connectedAddress)}</code></dd>
+        </div>
+      </dl>
+      {/* One decision per row: action + what it does. The old three-buttons-
+          in-a-row read as a puzzle — no room to explain any of them. */}
+      <div className={styles.gateChoices}>
+        {onCreate && (
+          <div className={styles.gateChoice}>
+            <SailButton fullWidth onClick={onCreate}>Create an SMA with this wallet →</SailButton>
+            <p className={styles.gateChoiceSub}>
+              Sets up a new SMA owned by {truncateAddr(connectedAddress)}. Existing SMAs are untouched.
+            </p>
+          </div>
+        )}
+        <div className={styles.gateChoice}>
+          <SailButton fullWidth variant="secondary" onClick={onConnect}>Switch wallet</SailButton>
+          <p className={styles.gateChoiceSub}>
+            Disconnect, then reconnect with the owner wallet ({truncateAddr(projectOwner)}) to manage its SMA.
+          </p>
+        </div>
+        <div className={styles.gateChoice}>
           <button
             type="button"
+            className={styles.gateResetBtn}
             disabled={resetting}
             onClick={async () => { setResetting(true); await onReset() }}
-            style={{
-              flex: 1, padding: '10px 16px', borderRadius: 12, fontSize: 14, fontWeight: 500,
-              color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.1)', cursor: resetting ? 'default' : 'pointer',
-            }}
           >
             {resetting ? 'Resetting…' : 'Reset project'}
           </button>
+          <p className={styles.gateChoiceSub}>
+            Clears the active SMA and returns you to setup. Your SMA list and keys stay
+            saved in this project, and nothing is touched on-chain — reconnecting the
+            owner brings it all back.
+          </p>
         </div>
       </div>
     </div>
@@ -2024,144 +2288,17 @@ function WalletMismatchCard({ projectOwner, connectedAddress, onReset, onConnect
 }
 
 function ScanningHero() {
+  // Same left-aligned gate language as ConnectGate — this brief loading state
+  // was the last surface still using the old centered-mascot hero.
   return (
-    <section className={styles.noSMAHero}>
-      <div className={styles.noSMAMascot} aria-hidden>
-        <Sai size={64} animate />
+    <div className={styles.gate}>
+      <div className={styles.gateMark} aria-hidden>
+        <Sai size={52} animate />
       </div>
-      <h2 className={styles.noSMATitle}>Loading your project…</h2>
-      <p className={styles.noSMASub}>Reading local state from <code>.sail/</code>.</p>
-    </section>
-  )
-}
-
-/* ────────── Setup hero (wallet connected, no .sail/account.json yet) ──────────
-   The SMA section starts empty: the user either creates their first SMA or
-   imports an existing Safe. Import discovers the Safes the connected wallet
-   owns (Safe Transaction Service, the same source the old auto-load used) and
-   lets the user pick which to adopt — with a manual-address fallback for Safes
-   on chains the service doesn't index. */
-function SetupHero({ onCreate, onImport, ownerAddr, initialShowImport }) {
-  const [showImport, setShowImport] = useState(initialShowImport ?? false)
-  const [manual, setManual] = useState(false)
-  const [safeInput, setSafeInput] = useState('')
-  const [chainInput, setChainInput] = useState('8453')
-  const [err, setErr] = useState('')
-  const { safes, scanning, done } = useDiscoverSafes(ownerAddr, showImport && !manual)
-
-  function importSafe(safe, chainId) {
-    onImport?.({
-      safe,
-      owner: ownerAddr ?? safe,
-      permissionSigner: ownerAddr ?? safe,
-      manager: ownerAddr ?? safe,
-      chainId,
-      createdAtBlock: '0',
-    })
-  }
-
-  function handleManualImport() {
-    const safe = safeInput.trim()
-    if (!/^0x[0-9a-fA-F]{40}$/.test(safe)) {
-      setErr('Enter a valid 0x address.')
-      return
-    }
-    const chainId = Number(chainInput)
-    if (!chainId) { setErr('Enter a valid chain ID.'); return }
-    importSafe(safe, chainId)
-  }
-
-  return (
-    <section className={styles.noSMAHero}>
-      <div className={styles.noSMAMascot} aria-hidden>
-        <Sai size={64} animate />
-      </div>
-      <div className={styles.noSMAStatus}>
-        <span className={styles.noSMAStatusDot} aria-hidden />
-        No SMA yet
-      </div>
-      <h2 className={styles.noSMATitle}>Your wallet is connected.</h2>
-      <p className={styles.noSMASub}>
-        Create a new Separately Managed Account for your AI to operate — you only pay gas when there&rsquo;s something for it to do — or import an existing Safe you already own.
-      </p>
-
-      {!showImport ? (
-        <>
-          <div className={styles.noSMACta}>
-            <SailButton onClick={onCreate}>Create your first agent</SailButton>
-          </div>
-          <button type="button" className={styles.noSMAImportLink} onClick={() => setShowImport(true)}>
-            Already have a Safe? Import it as your SMA
-          </button>
-        </>
-      ) : manual ? (
-        <div className={styles.noSMAImport}>
-          <input
-            className={styles.noSMAImportInput}
-            type="text"
-            placeholder="Safe address  0x…"
-            value={safeInput}
-            onChange={(e) => { setSafeInput(e.target.value); setErr('') }}
-            spellCheck={false}
-          />
-          <input
-            className={styles.noSMAImportInput}
-            type="text"
-            placeholder="Chain ID  e.g. 8453"
-            value={chainInput}
-            onChange={(e) => { setChainInput(e.target.value); setErr('') }}
-          />
-          {err && <span className={styles.noSMAImportErr}>{err}</span>}
-          <div className={styles.noSMAImportActions}>
-            <SailButton onClick={handleManualImport}>Import SMA</SailButton>
-            <button type="button" className={styles.noSMAImportLink} onClick={() => { setManual(false); setErr('') }}>
-              Back to discovered Safes
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className={styles.noSMAImport}>
-          {scanning && safes.length === 0 && (
-            <span className={styles.noSMAImportScan}>
-              Scanning for Safes owned by {truncateAddr(ownerAddr)}…
-            </span>
-          )}
-          {safes.length > 0 && (
-            <ul className={styles.importSafeList}>
-              {safes.map((s) => (
-                <li key={`${s.chainId}-${s.safe}`}>
-                  <button
-                    type="button"
-                    className={styles.importSafeRow}
-                    onClick={() => importSafe(s.safe, s.chainId)}
-                  >
-                    <span className={styles.importSafeAddr}>{truncateSma(s.safe)}</span>
-                    <span className={styles.importSafeNet}>
-                      {chainDisplayName(s.chainId) ?? `chain ${s.chainId}`}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {done && safes.length === 0 && (
-            <span className={styles.noSMAImportScan}>
-              No Safes found for this wallet on supported chains.
-            </span>
-          )}
-          <div className={styles.noSMAImportActions}>
-            <button type="button" className={styles.noSMAImportLink} onClick={() => setManual(true)}>
-              Enter an address manually
-            </button>
-            <button type="button" className={styles.noSMAImportLink} onClick={() => setShowImport(false)}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      <p className={styles.noSMAFine}>Self-custody. Sail never holds your keys.</p>
-    </section>
+      <span className={styles.gateKicker}>Dashboard</span>
+      <h2 className={styles.gateTitle}>Loading your project…</h2>
+      <p className={styles.gateSub}>Reading local state from <code>.sail/</code>.</p>
+    </div>
   )
 }
 
@@ -2361,6 +2498,15 @@ function ArrowOutIcon() {
     </svg>
   )
 }
+// Docs — a square-shouldered book/page glyph matching the utility-link icons.
+function DocsGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square" strokeLinejoin="miter" aria-hidden>
+      <path d="M4 2.5h6l2 2v9H4z" />
+      <path d="M6 6h4M6 8.5h4M6 11h2.5" />
+    </svg>
+  )
+}
 function RotateIcon() {
   return (
     <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -2429,6 +2575,34 @@ function DocGlyph() {
     </svg>
   )
 }
+function OverviewGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="2.5" y="2.5" width="4.6" height="4.6" rx="0.6" />
+      <rect x="8.9" y="2.5" width="4.6" height="4.6" rx="0.6" />
+      <rect x="2.5" y="8.9" width="4.6" height="4.6" rx="0.6" />
+      <rect x="8.9" y="8.9" width="4.6" height="4.6" rx="0.6" />
+    </svg>
+  )
+}
+function GasGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M8 2.2S4 6.6 4 9.4a4 4 0 0 0 8 0C12 6.6 8 2.2 8 2.2z" />
+    </svg>
+  )
+}
+
+/* Page head: icon tile + mono title + one-line description. Rendered at the
+   top of every dashboard page, outside any card surface. */
+function PageHead({ icon, title, sub }) {
+  return (
+    <header className={styles.pageHead}>
+      <h1 className={styles.pageHeadTitle}>{icon}{title}</h1>
+      <p className={styles.pageHeadSub}>{sub}</p>
+    </header>
+  )
+}
 function NetworkGlyph() {
   return (
     <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -2445,14 +2619,6 @@ function ClockGlyph() {
     <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <circle cx="8" cy="8" r="5.5" />
       <path d="M8 5v3.2l2.1 1.5" />
-    </svg>
-  )
-}
-function KeyGlyph() {
-  return (
-    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="5.5" cy="6" r="2.8" />
-      <path d="M7.7 7.8l4.3 4.3M10.4 10.5l1.2-1.2M12 12.1l1.2-1.2" />
     </svg>
   )
 }
