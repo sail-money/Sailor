@@ -38,7 +38,7 @@ Gate: complete `.sail/strategy.md` · Exit verifier: every permission registered
 Skill: `.agents/skills/sailor-agent-build/SKILL.md` (dispatch mechanics: `.agents/skills/sailor-transactions/SKILL.md`; the agent's own memory of what it's done: `.agents/skills/sailor-memory/SKILL.md`) · Gate: registered, simulated, signed mandate (`.sail/mandate.json` exists) · Exit verifier: `sailor run --once` completes cleanly against the live mandate.
 
 **5. SAIL — launch, operate, and own the ending.**
-Skills: `.agents/skills/sailor-automation/SKILL.md` (run unattended), `.agents/skills/sailor-operate/SKILL.md` (monitor, tune bounds, pause/resume, revoke, exit and withdraw), `.agents/skills/sailor-extend/SKILL.md` (notifications, custom dashboard — optional) · Gate: a clean `run --once`.
+Skills: `.agents/skills/sailor-automation/SKILL.md` (run unattended), `.agents/skills/sailor-operate/SKILL.md` (monitor, tune bounds, pause/resume, revoke, exit and withdraw), `.agents/skills/sailor-extend/SKILL.md` (notifications, custom dashboard — optional) · Gate: a clean `run --once`, AND the SMA funded with the strategy's trading capital — sailor-agent-build's Next section owns this step; do not launch unattended before it.
 
 ## Anytime utilities (not stations — load whenever needed)
 
