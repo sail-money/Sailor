@@ -1,9 +1,9 @@
 ---
 name: sailor-onboarding
-description: Station 1 (ARRIVE) — walks the agent through setting up a new Sailor project or resuming a partially set-up one: SMA deployment, agent wallet creation, address prediction, and multi-chain deployment. Use when the project has no SMA yet, when .sail/account.json is missing or incomplete, when the user says "start", "continue", "set up my wallet", "connect my wallet", "deploy my agent", or "fund the agent", or when deploying the SMA to an additional chain.
+description: "Station 1 (ARRIVE) — walks the agent through setting up a new Sailor project or resuming a partially set-up one: SMA deployment, agent wallet creation, address prediction, and multi-chain deployment. Use when the project has no SMA yet, when .sail/account.json is missing or incomplete, when the user says \"start\", \"continue\", \"set up my wallet\", \"connect my wallet\", \"deploy my agent\", or \"fund the agent\", or when deploying the SMA to an additional chain."
 ---
 
-# Sail onboarding
+# sailor-onboarding — set up the project, keys, account, and chain (Station 1)
 
 ## Voice and first contact
 

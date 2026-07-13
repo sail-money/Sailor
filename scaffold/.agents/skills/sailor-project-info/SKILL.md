@@ -3,7 +3,7 @@ name: sailor-project-info
 description: Anytime read-only utility — commands and state files that answer questions about the project, account, mandate, chains, keys, or environment. Use when the user asks "what's the state of…", "is X set up", "am I ready", "check my setup", "run a preflight", "which chains…", "what permissions are registered", or before any operation that needs current state.
 ---
 
-# Sail project info
+# sailor-project-info — read-only state: account, mandate, chains, keys
 
 Every command here is read-only and supports `--json` for machine reading. Prefer `--json`; parse, don't scrape. None of them block on the browser.
 

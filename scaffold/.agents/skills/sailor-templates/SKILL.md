@@ -9,7 +9,7 @@ metadata:
   origin: Protocol/contracts/templates source contracts
 ---
 
-# Sail shared permission templates — registry & reuse
+# sailor-templates — registry & reuse
 
 `Protocol/contracts/templates/` holds seven **shared permission templates** — reusable
 `IPermission` patterns covering the most common DeFi primitives. Each extends
@@ -157,7 +157,7 @@ just because it has no pre-built spoke skill to remind you.
 
 ## Next
 
-Chose a template? Open its matching spoke skill (`sail-template-*`) and follow its steps.
+Chose a template? Open its matching spoke skill (`sailor-template-*`) and follow its steps.
 Authoring bespoke? [`sailor-mandates`](../sailor-mandates/SKILL.md). Either way, return to the
 mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) — the mandate is
 complete only when every permission in the plan is registered, configured, and

@@ -1,9 +1,9 @@
 ---
 name: sailor-mandates
-description: The full permission-contract lifecycle — designing bounds with the user, authoring Solidity permissions, Foundry testing, deploying, simulating, and authorizing on the SMA, plus revoke/update/list and clone templates. Use when anything touches a permission contract or the mandate: writing or changing what the agent is allowed to do, deploying or registering permissions, or verifying them before authorization.
+description: "The full permission-contract lifecycle — designing bounds with the user, authoring Solidity permissions, Foundry testing, deploying, simulating, and authorizing on the SMA, plus revoke/update/list and clone templates. Use when anything touches a permission contract or the mandate: writing or changing what the agent is allowed to do, deploying or registering permissions, or verifying them before authorization."
 ---
 
-# Sail mandates
+# sailor-mandates — the bespoke permission-contract lifecycle
 
 The lifecycle is an ordered set of gates. **The order is the correctness model** — skipping a gate or reordering them is how funds get lost. Never authorize (register) anything that has not passed every earlier gate.
 

@@ -1,9 +1,9 @@
 ---
 name: sailor-automation
-description: Run the agent unattended — four options by reliability and infra overhead: (1) GitHub Actions cloud runner (zero infra, cron drifts), (2) self-hosted runner (reliable timing, user-managed machine), (3) Docker image — run locally or on any cloud VM via a registry, (4) local daemon on the project machine (no Docker, simplest). See references/ for each option. Use after sailor run --once works.
+description: "Run the agent unattended — four options by reliability and infra overhead: (1) GitHub Actions cloud runner (zero infra, cron drifts), (2) self-hosted runner (reliable timing, user-managed machine), (3) Docker image — run locally or on any cloud VM via a registry, (4) local daemon on the project machine (no Docker, simplest). See references/ for each option. Use after sailor run --once works."
 ---
 
-# Sail automation — running the agent unattended
+# sailor-automation — running the agent unattended (Station 5)
 
 Confirm `sailor run --once` works first. Four options; pick by latency, infra comfort, and uptime needs:
 

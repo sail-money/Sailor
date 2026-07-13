@@ -20,7 +20,7 @@ Same `agent-tick.yml` workflow as the GitHub Actions option. One change: `runs-o
 Go to your repo: **Settings → Actions → Runners → New self-hosted runner**
 
 Follow the official GitHub guide for your OS:
-https://docs.github.com/es/actions/how-tos/manage-runners/self-hosted-runners/add-runners
+https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/add-runners
 
 The guide walks you through downloading the runner application, configuring it, and starting it as a service so it restarts automatically on reboot.
 

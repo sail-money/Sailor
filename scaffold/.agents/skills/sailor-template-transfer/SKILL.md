@@ -1,6 +1,6 @@
 ---
 name: sailor-template-transfer
-description: Gate an SMA's ERC-20 transfers by REUSING the shared TransferPermission singleton (Protocol/contracts/templates/TransferPermission.sol) — register + configure, no per-SMA deploy. Use for payment, payroll, paying contributors, treasury moves, or any strategy that sends approved tokens — within a per-tx cap, only to a recipient allowlist (a whitelist of partner protocols, CEX deposit addrs, co-manager wallets). For returning funds to a single fixed Safe, prefer sailor-template-withdraw. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps).
+description: "Gate an SMA's ERC-20 transfers by REUSING the shared TransferPermission singleton (Protocol/contracts/templates/TransferPermission.sol) — register + configure, no per-SMA deploy. Use for payment, payroll, paying contributors, treasury moves, or any strategy that sends approved tokens — within a per-tx cap, only to a recipient allowlist (a whitelist of partner protocols, CEX deposit addrs, co-manager wallets). For returning funds to a single fixed Safe, prefer sailor-template-withdraw. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps)."
 compatibility: A Sailor project (`@sail.money/sailor/sdk`, `sailor` CLI). Requires TransferPermission deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
 metadata:
   workspace: sailor-harness

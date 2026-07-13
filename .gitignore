@@ -21,6 +21,7 @@ broadcast/
 .vitest/
 *.tsbuildinfo
 packages/ui/test-results/
+scaffold/.skeleton-check/
 
 # Environment — never commit real secrets
 .env

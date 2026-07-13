@@ -1,6 +1,6 @@
 ---
 name: sailor-operate
-description: Station 5 — operate a live agent. Answers the operator's running-agent questions: "what did my agent do", "is my agent working", "why was it denied", "pause my agent", "stop the agent", "change the caps", "widen the mandate", "narrow the mandate", "withdraw my funds", "get my money out", "shut it all down", "my agent seems stuck". Reading .sail/activity.jsonl, tuning bounds, pausing, revoking, and exiting to the owner.
+description: "Station 5 — operate a live agent. Answers the operator's running-agent questions: \"what did my agent do\", \"is my agent working\", \"why was it denied\", \"pause my agent\", \"stop the agent\", \"change the caps\", \"widen the mandate\", \"narrow the mandate\", \"withdraw my funds\", \"get my money out\", \"shut it all down\", \"my agent seems stuck\". Reading .sail/activity.jsonl, tuning bounds, pausing, revoking, and exiting to the owner."
 ---
 
 # sailor-operate — monitor, tune, revoke, exit (Station 5)

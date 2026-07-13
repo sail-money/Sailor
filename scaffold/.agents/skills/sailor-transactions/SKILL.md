@@ -3,7 +3,7 @@ name: sailor-transactions
 description: How dispatches and EVM transactions work in a Sailor project — the selective dispatch model, signing, batching, permission resolution, running the agent, and which CLI commands block on a browser signature. Use when building or debugging dispatches, writing agent tick code, running the agent, or reasoning about why a transaction was denied or reverted.
 ---
 
-# Sail transactions
+# sailor-transactions — dispatch mechanics: signing, batching, permission resolution
 
 ## The dispatch model
 
