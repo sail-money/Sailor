@@ -64,8 +64,14 @@ is the most common reason a legitimate swap gets rejected.
 
 1. **Show the user** the `human.price` line before they approve the mandate.
 2. **Record `amountOutMinimum`** as the floor the agent's dispatch logic must
-   respect. Hand the full quote to [`sailor-template-swap`](../sailor-template-swap/SKILL.md)
-   — the mandate's `maxSlippageBps` bound is the on-chain enforcement of this.
+   respect. Hand the full quote to [`sailor-template-swap`](../sailor-template-swap/SKILL.md) or
+   [`sailor-template-swap-no-oracle`](../sailor-template-swap-no-oracle/SKILL.md) — the mandate's
+   `maxSlippageBps`/`toleranceBps` bound is the on-chain enforcement of this, but **do not copy
+   `--slippage-bps` verbatim into that field** — this quote's `amountOut` already has the pool's
+   fee baked in, while the mandate's band is checked against a fee-*exclusive* reference price. The
+   band tolerance needs its own, larger number: see
+   [`sailor-template-swap-no-oracle` → "Tolerance vs. pool
+   fee"](../sailor-template-swap-no-oracle/SKILL.md) (the "⚠️ Tolerance vs. pool fee" section).
 
 ## If it fails
 

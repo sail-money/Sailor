@@ -50,6 +50,45 @@ truncates to zero.
 > any plausible intermediate token is acceptable. Does NOT cover Universal Router, Uniswap V4, or
 > aggregators (opaque calldata).
 
+## ⚠️ Tolerance vs. pool fee — size it wrong and the band silently rejects every trade
+
+`toleranceBps` bounds `amountOutMin` against `expectedOut`, and `expectedOut` is read straight off
+the reference pool's live spot price (`getReserves`/`slot0`) — **before** the venue's own swap fee
+is taken out. A real fill always receives less than that fee-exclusive spot price implies (the pool
+takes its cut on the way through), while the agent's own `amountOutMin` — sized from a live quote
+plus its own slippage cushion (see [`sailor-swap-quote`](../sailor-swap-quote/SKILL.md)) — is
+fee-*inclusive*:
+
+```
+band floor   = expectedOut × (1 − toleranceBps)           [expectedOut is fee-EXCLUSIVE spot]
+agent minOut ≈ expectedOut × (1 − fee) × (1 − slippage)    [the live quote is fee-INCLUSIVE]
+```
+
+The band only clears when `toleranceBps` is bigger than `fee + slippage` — plus some headroom for
+real price movement between the quote and the mined transaction. A `toleranceBps` at or below
+`fee + slippage` doesn't make the guard stricter; it makes every legitimate trade fail the band,
+silently — `_sanityCheck` just returns `false` and the tick logs a denial, with nothing pointing at
+"your tolerance is too tight."
+
+**Concrete example (a real field incident):** `toleranceBps: 100` (1%), the agent's own slippage
+cushion also 100 bps (1%), trading against a 30-bps-fee pool (Uniswap V3 `feeTier: 3000`). Band
+floor = 99.0% of spot. Real minOut ≈ (1 − 0.30%) × (1 − 1%) ≈ 98.7% of spot. Every single buy
+denied — the band looked "tight but reasonable" and was in fact tight-and-broken; nothing about the
+numbers alone makes that visible without doing this arithmetic.
+
+**Set `toleranceBps` comfortably above `fee + slippage`** — fee + slippage + roughly 100–200 bps of
+headroom for price movement between quote and execution is a reasonable floor. The pool's fee tier
+is already in [`sailor-token-resolve`](../sailor-token-resolve/SKILL.md)'s output (Uniswap V3
+`feeTier` is in hundredths of a bip — divide by 100 to get bps: `feeTier: 3000` → 30 bps); the
+agent's slippage is whatever [`sailor-swap-quote`](../sailor-swap-quote/SKILL.md) sizes for the live
+quote. **Never just copy the agent's slippage number into `toleranceBps`** — that's exactly the
+mistake above. [`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md) checks this before the
+mandate is registered; this is the reasoning behind that check.
+
+This applies identically to [`sailor-template-swap`](../sailor-template-swap/SKILL.md)'s
+`maxSlippageBps` — same fee-exclusive-reference-vs-fee-inclusive-minOut gap, an oracle price in
+place of the pool's live spot price.
+
 ## ⚠️ Approve coverage — the hidden precondition
 
 Same rule as every protocol permission: `SwapPermissionNoOracle` authorizes the swap call only; the

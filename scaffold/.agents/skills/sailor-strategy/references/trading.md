@@ -19,7 +19,7 @@ Defaults: cadence = event-driven (each tick checks price against the levels); pe
 |---|---|
 | Pair(s) | tokenIn/tokenOut per leg, both resolved via `sailor-token-resolve` |
 | Venue + fee tier | The exact router and pool fee tier the leg trades on (token-resolve reports swap-ready tiers) |
-| Slippage tolerance | `maxSlippageBps` — sized with a live quote from [`sailor-swap-quote`](../../sailor-swap-quote/SKILL.md) |
+| Slippage tolerance | `maxSlippageBps` — sized with a live quote from [`sailor-swap-quote`](../../sailor-swap-quote/SKILL.md). This is the agent's own slippage, not the swap permission's on-chain band tolerance — copying it verbatim into the band silently rejects every trade once the pool's fee is added; [`sailor-mandate-planner`](../../sailor-mandate-planner/SKILL.md) checks this at plan time |
 | Price source | `SwapPermissionNoOracle` by default; `SwapPermission` (oracle-gated) only when size vs pool depth warrants it — see below |
 
 **No-oracle is the default.** For regular-sized trades, `SwapPermissionNoOracle`'s live-pool band is the right, honest choice — cheap, no extra infrastructure, and it catches a confused manager/agent's bad quote. The reason to reach for an oracle is SIZE, not manager trust: a compromised key is already caught by the amount cap and allowlists either way, but a single pool's spot price is movable within one transaction, and that only matters once a trade is large enough relative to the pool for moving it to be worth an attacker's effort.

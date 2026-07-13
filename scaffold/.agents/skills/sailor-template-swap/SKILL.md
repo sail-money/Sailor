@@ -113,9 +113,17 @@ abi.encode(address[] routers, address[] tokensIn, address[] tokensOut,
 | `priceOracle` | **REQUIRED, non-zero.** An `IOracle` adapter exposing `getPrice(tokenIn, tokenOut) → (price, dec, updatedAt)` — **not** a raw Chainlink/Pyth feed. `0` reverts `OracleRequired`. |
 | `maxPriceAgeSec` | **REQUIRED, `> 0`** (oracle staleness bound). `0` reverts `MissingPriceAge`. |
 
-Size the cap and slippage floor with `sailor-swap-quote`; `priceOracle` must be a real `IOracle`
-adapter for the pair (see above). The SDK `boundedSwapTemplate` encoder matches this tuple —
-fine to use after a quick verify.
+Size the cap with `sailor-swap-quote`; `priceOracle` must be a real `IOracle` adapter for the pair
+(see above). The SDK `boundedSwapTemplate` encoder matches this tuple — fine to use after a quick
+verify.
+
+**Don't set `maxSlippageBps` to `sailor-swap-quote`'s slippage number verbatim.** The oracle price
+this band is measured against is fee-exclusive; a real fill is fee-inclusive, so the band only
+clears when `maxSlippageBps` is bigger than the venue's swap fee plus the agent's own slippage — a
+tolerance at or below that sum silently rejects every trade. Formula, a field example, and the
+sizing recommendation: [`sailor-template-swap-no-oracle` → "Tolerance vs. pool
+fee"](../sailor-template-swap-no-oracle/SKILL.md) (the "⚠️ Tolerance vs. pool fee" section)
+(same mechanism, oracle price in place of pool spot).
 
 ### Worked example — single-leg USDC → WETH (Unichain)
 
@@ -143,13 +151,19 @@ adapter** for this pair on this chain (`0x0` reverts):
 > (`address(0)` reverts). Because it's a live TWAP, `updatedAt` is always current — `maxPriceAgeSec`
 > just needs to be a few minutes (e.g. `3600`).
 
+> ⚠️ **Verify this `maxSlippageBps: 100` against the rule above before reusing it as-is.** It only
+> clears the band if the router fee tier the agent actually swaps through, plus its own quote-time
+> slippage, together stay under 100 bps — check the real fee tier (`sailor-token-resolve`) rather
+> than assuming; on most Uniswap V3 pools (0.30% = 30 bps) this specific number is already too
+> tight once the agent's own slippage is added.
+
 | Field | From | Notes |
 |---|---|---|
 | `routers` | SwapRouter02 for the chain (resolve-token's chain table) | V3 router; the agent calls `exactInputSingle` on it |
 | `tokensIn` | `resolve-token` | sell-side allowlist (usually just USDC) |
 | `tokensOut` | `resolve-token` | buy-side allowlist; **multiple ⇒ portfolio DCA** |
 | `maxAmountPerTx` | user's per-swap size, **base units** (string) | `"25000000"` = 25 USDC (6 dec) |
-| `maxSlippageBps` | `quote-swap`'s recommendation | `100` = 1%. `0` = zero tolerance (strictest), not a bypass. `≤ 9_999`. |
+| `maxSlippageBps` | fee + `quote-swap`'s slippage + ~100-200bps headroom — **not** `quote-swap`'s slippage alone | `100` = 1%. `0` = zero tolerance (strictest), not a bypass. `≤ 9_999`. |
 | `priceOracle` | an `IOracle` adapter for the chain (Pyth/Chainlink-backed) | **REQUIRED, non-zero.** Must expose `getPrice(tokenIn,tokenOut)` — not the raw feed contract. |
 | `maxPriceAgeSec` | seconds | **REQUIRED, `> 0`** — staleness bound. e.g. `3600` = 1h. |
 
