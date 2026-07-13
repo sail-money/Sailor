@@ -5,11 +5,11 @@ description: Station 4 — build the agent's brain, the tick loop in src/agent.t
 
 # sailor-agent-build — build the brain (Station 4)
 
-You typically arrive here from the mandate plan with a registered, simulate-verified mandate. This station turns the strategy spec into the agent's tick loop in `src/agent.ts`. Dispatch mechanics (the selective model, signing, permission resolution) live in [`sailor-transactions`](../sailor-transactions/SKILL.md) — this skill is about the decision logic that sits on top of them.
+You typically arrive here from the mandate plan with a registered, simulate-verified, **signed** mandate. This station turns the strategy spec into the agent's tick loop in `src/agent.ts`. Dispatch mechanics (the selective model, signing, permission resolution) live in [`sailor-transactions`](../sailor-transactions/SKILL.md) — this skill is about the decision logic that sits on top of them.
 
 ## Gate (fail-closed)
 
-Station 4 requires a **registered, configured, simulate-verified mandate** (AGENTS.md station 4 gate). If the mandate is not in that state, go back to [`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md) — do not write agent code against permissions that don't exist yet.
+Station 4 requires a **registered, configured, simulate-verified, and signed mandate** — `.sail/mandate.json` exists (AGENTS.md station 4 gate). If it doesn't, `sailor run --once` refuses with "Run `sailor mandate sign` first" — go back to [`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md) (its Handoff step signs the mandate) rather than writing agent code against permissions that aren't runnable yet.
 
 Read `.sail/strategy.md`'s JSON block and the current mandate state first. **The agent is built FROM the spec** — its tokens, venues, caps, cadence, risk bounds, and exit condition are already decided and confirmed there. Never re-ask the user for values the spec already carries.
 

@@ -117,4 +117,4 @@ The fee is read via `readPermissionRegistrationFee()` in `packages/sdk/src/fees.
 
 ## Next
 
-Once this permission is deployed, simulate-verified (Gate 6), and registered (Gate 7), return to the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) for the next permission. When every permission in the plan is deployed/registered/configured and simulate-verified, proceed to Station 4 — the [`sailor-agent-build`](../sailor-agent-build/SKILL.md) skill (dispatch mechanics: [`sailor-transactions`](../sailor-transactions/SKILL.md)).
+Once this permission is deployed, simulate-verified (Gate 6), and registered (Gate 7), return to the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) for the next permission. When every permission in the plan is deployed/registered/configured and simulate-verified, return there one last time — its Handoff step signs the mandate (`sailor mandate sign`) and hands off to Station 4.

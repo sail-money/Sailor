@@ -47,4 +47,12 @@ Every permission in the plan needs a simulation path decided HERE, at planning t
 
 ## Handoff
 
-Exit verifier: every permission in the plan **registered, configured, and simulate-verified** — passing its must-pass samples AND correctly rejecting its must-fail samples (the standard above — must-fail proven, not just run). Next: **Station 4 — the agent-build skill**. Dispatch mechanics reference in the interim: [`sailor-transactions`](../sailor-transactions/SKILL.md).
+Once every row in the plan is registered, configured, and simulate-verified, sign the mandate — **once, for the whole plan, not per row**:
+
+```bash
+sailor mandate sign
+```
+
+This is the closing act of Station 3, not maintenance: it reviews the full set of permissions now tracked for the SMA (reconciled against on-chain truth), discloses any outstanding registration fee, takes one confirmation from the user, and writes `.sail/mandate.json` — the file `sailor run` hard-requires (absent it, `run`/`run --once` refuses with "Run `sailor mandate sign` first"). Run it after the last row's simulation passes, never before — signing reviews what's already registered, it doesn't register anything new on its own (though it will register any tracked-but-unregistered permission it finds, disclosing the fee first).
+
+Exit verifier: every permission in the plan **registered, configured, and simulate-verified** — passing its must-pass samples AND correctly rejecting its must-fail samples (the standard above — must-fail proven, not just run) — **AND the mandate signed** (`.sail/mandate.json` written by `sailor mandate sign`). Next: **Station 4 — the agent-build skill**. Dispatch mechanics reference in the interim: [`sailor-transactions`](../sailor-transactions/SKILL.md).
