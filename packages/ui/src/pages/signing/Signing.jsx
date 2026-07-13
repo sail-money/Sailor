@@ -3,57 +3,16 @@ import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { getChain } from '@sail/sdk/chains'
 import { zeroAddress } from 'viem'
 import { useAccount, usePublicClient, useSignTypedData, useSwitchChain } from 'wagmi'
-import { HorizonBackground, GlassCard, Sai, RevealCalldata, SailButton, BadgeRow } from '../shared'
+import { HorizonBackground, GlassCard, Sai, SailButton, BadgeRow } from '../shared'
 import PageHeader from '../shared/PageHeader'
 import shared from '../shared/shared.module.css'
 import styles from './Signing.module.css'
-import { useSailorMandateDraft } from '../../hooks/useSailorData'
 import { explorerCodeUrl } from '../../lib/explorer'
 
-/**
- * Top-level router for the signing page. When a mandate draft is present
- * (written by `sailor mandate prepare`), the page becomes the mandate review +
- * MetaMask signing flow. Otherwise it shows the wallet-connect onboarding.
- * Each branch is its own component so hook order stays stable.
- */
-export default function Signing() {
-  const { draft } = useSailorMandateDraft()
-
-  if (draft) return <MandateSigningFlow draft={draft} />
-  return <NoPendingFlow />
-}
-
-function NoPendingFlow() {
-  return (
-    <div className={styles.shell}>
-      <HorizonBackground />
-      <HeaderBar state="welcome" />
-      <main className={styles.stage}>
-        <div className={styles.stageInner}>
-          <GlassCard className={styles.welcomeCard}>
-            <div className={styles.cardSai} aria-hidden>
-              <Sai size={64} animate />
-            </div>
-            <header className={styles.cardHeader}>
-              <span className={styles.kicker}>SIGNING</span>
-              <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
-                No pending signatures.
-              </h1>
-              <p className={`${shared.italicMannerism} ${styles.cardTagline}`}>
-                Run <code style={{ fontSize: 13, opacity: 0.8 }}>sailor mandate prepare</code> to queue a mandate for signing.
-              </p>
-            </header>
-            <div className={styles.welcomeCta}>
-              <SailButton fullWidth onClick={() => { window.location.hash = '#/dashboard' }}>
-                Go to dashboard
-              </SailButton>
-            </div>
-          </GlassCard>
-        </div>
-      </main>
-    </div>
-  )
-}
+/* The standalone `#/signing` page wrapper (default `Signing()` + `NoPendingFlow`)
+   was removed: it predated the signing daemon and duplicated SigningPage's own
+   empty state. `MandateSigningFlow` below is the live mandate-review-and-sign
+   flow, embedded by SigningPage (#/signer) whenever a mandate draft exists. */
 
 /* ─────────── Mandate signing (MetaMask) ───────────
    Driven by a .sail/mandate-draft.json written by `sailor mandate prepare`.
@@ -76,13 +35,13 @@ function ExplanationPanel({ ex }) {
       <BadgeRow items={[ex.protocol, ex.chain, ex.version]} />
       {ex.enforced?.length > 0 && (
         <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5dde8b', marginBottom: 5 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#4DABFF', marginBottom: 5 }}>
             Enforced on-chain
           </div>
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
             {ex.enforced.map((b, i) => (
               <li key={i} style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', paddingLeft: 12, position: 'relative' }}>
-                <span style={{ position: 'absolute', left: 0, color: '#5dde8b' }}>·</span>
+                <span style={{ position: 'absolute', left: 0, color: '#4DABFF' }}>·</span>
                 {b}
               </li>
             ))}
@@ -371,7 +330,7 @@ export function MandateSigningFlow({ draft, embedded = false }) {
           {draft.registrationFee && <RegistrationFeeNote fee={draft.registrationFee} />}
 
           {errorMsg && (
-            <p style={{ color: '#ff6b6b', fontSize: 13, margin: '8px 0' }}>{errorMsg}</p>
+            <p style={{ color: 'var(--danger)', fontSize: 13, margin: '8px 0' }}>{errorMsg}</p>
           )}
 
           {wrongChain ? (
@@ -462,9 +421,9 @@ function MandatePreviewSummary({ draft, items }) {
         <div style={factStyle}><span style={dtStyle}>Network</span><span style={ddStyle}>{networkName}</span></div>
       </div>
       <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <li style={{ fontSize: 12.5, color: 'rgba(120,220,160,0.95)' }}>✓ Revocable on-chain anytime from your dashboard</li>
-        <li style={{ fontSize: 12.5, color: 'rgba(120,220,160,0.95)' }}>✓ Sail never holds your keys or funds — you sign every authorization</li>
-        <li style={{ fontSize: 12.5, color: 'rgba(255,180,120,0.95)' }}>✗ The agent cannot act outside the permissions listed below</li>
+        <li style={{ fontSize: 12.5, color: '#4DABFF' }}>✓ Revocable on-chain anytime from your dashboard</li>
+        <li style={{ fontSize: 12.5, color: '#4DABFF' }}>✓ Sail never holds your keys or funds — you sign every authorization</li>
+        <li style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.62)' }}>✗ The agent cannot act outside the permissions listed below</li>
       </ul>
     </div>
   )
@@ -511,7 +470,9 @@ function MandateSignedCard({ draft }) {
   const prompt = `My mandate is signed on Safe ${draft?.account ?? 'my Safe'}. ${permCount} permission${permCount === 1 ? '' : 's'} registered. Now deploy and start the agent — use SAIL_PASSPHRASE from my config and run sailor run.`
 
   function copy() {
-    navigator?.clipboard?.writeText(prompt)
+    // Don't claim "Copied" without a clipboard (same guard as every other copy affordance).
+    if (!navigator?.clipboard) return
+    navigator.clipboard.writeText(prompt)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }

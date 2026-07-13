@@ -5,88 +5,6 @@
   position: relative;
 }
 
-/* ────── Header ────── */
-.header {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  /* Two-end layout: brand mascot anchors the left, wallet/notif
-     cluster anchors the right. (The old 3-column grid with a centered
-     middle column is retired now that quick-links live in the body.) */
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 32px;
-  border-bottom: 1px solid var(--glass-border);
-  background: rgba(3, 5, 10, 0.5);
-  backdrop-filter: blur(32px) saturate(160%);
-  -webkit-backdrop-filter: blur(32px) saturate(160%);
-}
-@media (max-width: 720px) {
-  .header { padding: 12px 16px; }
-}
-
-/* DeBank quick-link in the center of the header. The wrap is a hover
-   anchor for the tooltip; the link itself is a compact pill matching
-   the LastUpdated chip on the right cluster so the header reads as a
-   single horizontal rhythm. */
-/* Paired quick-links container — DeBank + Safe sit side-by-side in
-   the header center cluster. Both pills share the existing .headerDebank
-   styling; the Safe variant gets a slightly more reserved background
-   so DeBank remains the visual primary. */
-/* Slightly bigger glyph + arrow to match the larger pill. */
-
-/* Tooltip — reuses the .infoTooltip pattern but centered on the
-   button (rather than offset by .infoWrap), and a touch narrower
-   for header context. */
-
-.brand {
-  display: inline-flex;
-  align-items: center;
-  background: none;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  cursor: pointer;
-  border-radius: 2px;
-  transition: transform 220ms var(--ease-sail), filter 220ms var(--ease-sail);
-}
-
-.brand:hover {
-  transform: translateY(-1px);
-}
-
-.brand:focus-visible {
-  outline: 2px solid var(--accent-blue);
-  outline-offset: 4px;
-}
-
-.brand:active {
-  transform: translateY(0);
-}
-
-/* ───── Top actions pill ───── */
-.topActionsPill {
-  position: relative;
-  z-index: 1;
-  justify-self: end;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 10px 6px 6px;
-  border-radius: 2px;
-  background:
-    radial-gradient(ellipse 90% 120% at 50% -20%, rgba(255,255,255,0.07) 0%, transparent 60%),
-    linear-gradient(165deg, rgba(255,255,255,0.045) 0%, rgba(255,255,255,0.018) 100%);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.10),
-    0 2px 10px rgba(0, 0, 0, 0.16);
-}
-
 .notifBtn {
   position: relative;
   width: 36px;
@@ -155,6 +73,9 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  /* Fill the sidebar row next to the bell instead of hugging its content. */
+  flex: 1;
+  min-width: 0;
   height: 36px;
   padding: 0 12px 0 4px;
   font-family: 'DM Sans', sans-serif;
@@ -225,167 +146,8 @@
    The first surface after wallet connect. Single centered column,
    generous whitespace, single CTA. No other UI competes for the
    user's attention. */
-.noSMAHero {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 14px;
-  padding: 96px 24px 112px;
-  max-width: 520px;
-  margin: 0 auto;
-}
-.noSMAMascot {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 4px;
-}
-.noSMAStatus {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 11.5px;
-  font-weight: 500;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--hairline);
-  border-radius: 2px;
-}
-.noSMAStatusDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--text-tertiary);
-  opacity: 0.7;
-}
-.noSMATitle {
-  font-family: 'Instrument Sans', 'DM Sans', serif;
-  font-size: clamp(26px, 4.6vw, 34px);
-  font-weight: 600;
-  letter-spacing: -0.028em;
-  line-height: 1.08;
-  color: var(--text-primary);
-  margin: 8px 0 0;
-  text-wrap: balance;
-}
-.noSMASub {
-  font-family: 'DM Sans', sans-serif;
-  font-size: 15px;
-  line-height: 1.55;
-  color: var(--text-secondary);
-  margin: 4px 0 0;
-  max-width: 44ch;
-}
-.noSMACta {
-  margin-top: 18px;
-  display: inline-flex;
-}
-.noSMAImportLink {
-  background: none;
-  border: none;
-  color: var(--text-tertiary);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 13px;
-  cursor: pointer;
-  margin-top: 12px;
-  padding: 0;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.noSMAImportLink:hover { color: var(--text-secondary); }
-.noSMAImport {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 100%;
-  max-width: 340px;
-  margin-top: 18px;
-}
-.noSMAImportInput {
-  width: 100%;
-  padding: 10px 14px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 2px;
-  color: var(--text-primary);
-  font-family: 'DM Mono', monospace;
-  font-size: 13px;
-  outline: none;
-  box-sizing: border-box;
-}
-.noSMAImportInput:focus { border-color: rgba(255,255,255,0.22); }
-.noSMAImportInput::placeholder { color: var(--text-tertiary); }
-.noSMAImportErr {
-  font-size: 12px;
-  color: #ff6b6b;
-}
-.noSMAImportScan {
-  font-family: 'DM Sans', sans-serif;
-  font-size: 13px;
-  color: var(--text-tertiary);
-  text-align: center;
-}
-.importSafeList {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 260px;
-  overflow-y: auto;
-}
-.importSafeRow {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 11px 14px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 2px;
-  cursor: pointer;
-  transition: border-color 0.16s ease, background 0.16s ease;
-}
-.importSafeRow:hover {
-  border-color: rgba(255,255,255,0.22);
-  background: rgba(255,255,255,0.08);
-}
-.importSafeAddr {
-  font-family: 'DM Mono', monospace;
-  font-size: 13px;
-  color: var(--text-primary);
-}
-.importSafeNet {
-  font-family: 'DM Sans', sans-serif;
-  font-size: 11px;
-  text-transform: capitalize;
-  color: var(--text-tertiary);
-  letter-spacing: 0.02em;
-}
-.noSMAImportActions {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  margin-top: 4px;
-}
-.noSMAFine {
-  font-family: 'DM Sans', sans-serif;
-  font-size: 12px;
-  line-height: 1.55;
-  color: var(--text-tertiary);
-  letter-spacing: 0.01em;
-  margin: 6px 0 0;
-}
 @media (max-width: 720px) {
-  .noSMAHero { padding: 56px 20px 80px; }
+  
 }
 
 /* ── Pending mandates banner ──
@@ -433,7 +195,7 @@
   position: relative;
   width: 10px;
   height: 10px;
-  border-radius: 50%;
+  border-radius: 2px;
   background: var(--accent-blue);
   box-shadow: 0 0 14px rgba(25, 144, 255, 0.85);
   flex-shrink: 0;
@@ -442,7 +204,7 @@
   content: '';
   position: absolute;
   inset: -4px;
-  border-radius: 50%;
+  border-radius: 3px;
   border: 1.5px solid rgba(25, 144, 255, 0.6);
   animation: pendingPulseRing 2.4s ease-out infinite;
 }
@@ -550,9 +312,6 @@
 
 /* ── Portfolio chart view ── */
 
-@media (max-width: 720px) {
-  .header { padding: 18px 20px; }
-}
 
 @keyframes section-arrive {
   from { opacity: 0; transform: translateY(4px); }
@@ -580,135 +339,6 @@
   from { opacity: 0; transform: translateY(4px) scale(0.98); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
-
-/* ────── Rows-view (compact landscape rows) ────── */
-/* ────── Rows view — clean grid: AI · Title · Duration · Status · Actions ────── */
-
-/* ── AI-brand "liquid glass" backgrounds ──
-   Layered effect:
-   1. A diagonal "light refraction" streak across the upper-left
-   2. A warm top-edge highlight (the rim where light enters the glass)
-   3. A brand-tinted counter-glow pooling at the bottom-right
-   4. A base diagonal wash carrying the brand color across the slab
-   Plus a brand-tinted outer drop-shadow so the card seems to bleed
-   colored light into the surface beneath it. */
-/* AI-brand tinted glass — the surface itself takes the brand color.
-   The .mCard base already supplies the frosted blur, top rim light,
-   and drop shadow — these variants just swap the surface tint. */
-
-/* Codex / OpenAI cards take a soft ChatGPT-green surface tint — same
-   green family as the Edit button so the brand cue is consistent. */
-
-/* mRow uses .mRowTitle now */
-
-/* ── Mascot slot — Sai mascot, blue+animated when active, gray+static otherwise ── */
-
-/* ────── New mandate tile ────── */
-
-/* Rows-view "new mandate" tile */
-
-/* ────── Empty state ────── */
-
-/* ────── History view (large, paginated, filterable) ────── */
-
-/* ────── Pagination ────── */
-
-/* ────── Execution table ────── */
-
-/* ────── Notifications ────── */
-
-/* ────── Revoke modal ────── */
-
-@keyframes modal-overlay-fade {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
-@keyframes modal-scale-in {
-  from {
-    opacity: 0;
-    transform: scale(0.94) translateY(10px);
-    filter: blur(6px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-    filter: blur(0);
-  }
-}
-
-/* ──────────────────────────────────────────────
-   Dashboard view switcher · Agents | Custom UIs
-   Segmented control. A single rounded pill holds two
-   buttons; the active one floats above with a soft brand-blue
-   highlight so it reads like a physical toggle.
-   ────────────────────────────────────────────── */
-
-/* ──────────────────────────────────────────────
-   Custom UIs view — master/detail reader pattern.
-   Modeled on the reference Pages portal: a compact left library list
-   + a typography-led right detail panel. The page leans on type
-   (kicker → title → body) and whitespace for hierarchy. No big
-   icon tiles, no gradient CTAs, no card-within-card chrome.
-   ────────────────────────────────────────────── */
-
-/* Hero strip — title + lede + 3-step flow. All inside a single
-   left-aligned column now; the action surface lives within the flow
-   itself (step 1 Copy + step 2 Open my AI). */
-
-/* ──────────────────────────────────────────────
-   "How to add one" — three-step flow.
-   Three premium glass cards laid out horizontally. Each card carries
-   its own state (active / next / done / rest) so the numbered badge,
-   icon tone, and surface depth progressively brighten as the user
-   moves through the flow. Cards stack vertically below 880px.
-   ────────────────────────────────────────────── */
-
-/* Single step card. Glass treatment with subtle radial blue lift,
-   24px padding, ~12px gap between elements. Hovers lift 1px and
-   carry a soft brand-blue shadow. */
-
-/* Step number badge — top-left corner pill. Numeric by default,
-   becomes a checkmark in the done state. Tone progresses:
-     active → solid brand blue
-     done   → solid success green
-     next   → soft brand blue
-     rest   → muted glass */
-
-/* Icon — sits above the kicker. Color picks up the step state so the
-   visual gradient runs blue (active) → soft-blue (next) → quiet (rest). */
-
-/* Inline info pill next to the step title — surfaces the longer
-   description on hover (native title tooltip) so the visible card
-   stays compact. */
-
-/* Inline step action — pill button. Step 1's "Copy" button picks up
-   the active brand-blue tone; step 2's "Open my AI" button uses the
-   primary filled blue treatment. */
-
-/* Step 1 preview — actual SMA + Agent names the user is about to
-   hand to their AI. Reads like a tiny manifest inside an inset
-   surface; the Copy affordance is tucked into the bottom-right so
-   the preview itself is the thing being copied. */
-
-/* Copy pill inside the preview block — bottom-right alignment so the
-   preview reads "this is what you're copying, and here's the button". */
-
-/* Step 3's resting affordance — a small pill with a live dot,
-   communicating that the rendered UI "lives here" once it's built. */
-
-/* Board — 2-column master/detail. The list is narrow and quiet; the
-   detail panel takes the remaining space and reads like an article. */
-
-/* ── Library list ── */
-
-/* Single library row — quiet button-shaped item. Selected state lifts
-   a subtle brand-blue surface with a 2px brand-blue left accent. */
-
-/* "Build a new UI" affordance at the bottom of the list. Quieter than
-   a button — dashed border, hint-of-blue on hover. */
-
-/* ── Detail panel ── */
 
 /* ─────────────────────────────────────────────
    SMA-centric dashboard additions.
@@ -825,108 +455,29 @@
 .fundAddrIcon { display: inline-flex; align-items: center; color: inherit; transition: color 150ms var(--ease-sail); }
 .fundAddrIcon:hover { color: #fff; }
 .fundAddr svg { display: block; }
-/* "Deposit address" framing — eyebrow label + helper line around the address
-   pill so it reads as a fundable wallet, not just an identifier. */
-/* Portfolio card — the SMA holds funds, so the primary action reads like a
-   wallet entry point: big "View portfolio", DeBank as the destination, brand
-   mark on the right. */
-.portfolioCard {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  width: 100%;
-  padding: 16px 18px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.10));
-  border-top-color: rgba(255, 255, 255, 0.16);
-  text-decoration: none;
-  transition: border-color 150ms var(--ease-sail), background 150ms var(--ease-sail), transform 150ms var(--ease-sail);
-}
-.portfolioCard:hover {
-  background: rgba(255, 255, 255, 0.055);
-  border-color: rgba(255, 255, 255, 0.22);
-  border-top-color: rgba(255, 255, 255, 0.28);
-  transform: translateY(-1px);
-}
-.portfolioText { display: flex; flex-direction: column; gap: 5px; }
-.portfolioTitle {
-  font-family: 'Instrument Sans', 'DM Sans', sans-serif;
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 1.1;
-  color: var(--text-primary);
-}
-.portfolioSub {
+/* Portfolio slot: the same blue row, worn by an anchor (Debank deep-link). */
+a.fundAddr { text-decoration: none; }
+.fundPortfolioBody {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
-  font-size: 10.5px;
+  gap: 9px;
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-  transition: color 150ms var(--ease-sail);
+  letter-spacing: 0.01em;
+  color: #fff;
 }
-.portfolioCard:hover .portfolioSub { color: var(--text-secondary); }
-.portfolioSub svg { width: 11px; height: 11px; opacity: 0.7; }
-.portfolioLogo { display: inline-flex; flex-shrink: 0; }
-/* Raster brand mark (DeBank) — slightly dimmed at rest, full on hover. */
-.portfolioImg {
-  display: block;
-  width: 32px;
-  height: 32px;
-  object-fit: contain;
-  opacity: 0.85;
-  transition: opacity 150ms var(--ease-sail);
-}
-.portfolioCard:hover .portfolioImg { opacity: 1; }
+.fundPortfolioImg { width: 16px; height: 16px; border-radius: 2px; display: block; }
+/* "Deposit address" framing — eyebrow label + helper line around the address
+   pill so it reads as a fundable wallet, not just an identifier. */
 /* Wallets sub-group inside the SMA card — hairline divider + eyebrow label so
    the identity (top) and the wallets (bottom) read as two clear tiers. */
 .idWalletsGroup {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-top: 4px;
-  padding-top: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  /* Sole content of the gas-wallets card now — no divider needed above it
+     (the hairline dated from when this group sat under the identity block). */
 }
-.idGroupLabel {
-  display: inline-flex;
-  align-items: center;
-  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
-/* One-line definition of the SMA, directly under the name. */
-.idDefn {
-  margin: 8px 0 2px;
-  max-width: 64ch;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-}
-/* Header above the two wallets: terse label + the relationship sentence that
-   makes the Owner ⇄ Agent ⇄ account hierarchy explicit. */
-.idGroupHead {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-.idRelation {
-  margin: 0;
-  max-width: 70ch;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--text-tertiary);
-}
-.idRelation strong { color: var(--text-secondary); font-weight: 600; }
 
 /* Per-chain switcher for a multi-chain SMA's mandates. */
 .chainSwitcher {
@@ -1173,12 +724,19 @@
   padding: 0 4px 12px;
   border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.07));
 }
-.mandatesSectionTitle {
+/* ── Page head: icon tile + mono title + one-line description ──
+   Sits at the top of every dashboard page, OUTSIDE any card — the card
+   surfaces below carry content only, never the page title. */
+.pageHead {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pageHeadTitle {
   display: inline-flex;
   align-items: center;
   gap: 11px;
   margin: 0;
-  /* Instrument-panel label: mono, uppercase, wide tracking (design manual §4). */
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 13px;
   font-weight: 600;
@@ -1186,8 +744,7 @@
   text-transform: uppercase;
   color: var(--text-tertiary);
 }
-/* Blue index badge — sharp corners (≤3px ceiling, design manual §5). */
-.mandatesSectionTitle svg {
+.pageHeadTitle svg {
   box-sizing: border-box;
   width: 26px;
   height: 26px;
@@ -1196,6 +753,13 @@
   background: var(--accent-blue);
   color: #fff;
   flex-shrink: 0;
+}
+.pageHeadSub {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  max-width: 62ch;
 }
 .mandatesSectionMeta {
   font-size: 11px;
@@ -1312,8 +876,8 @@
   width: 7px;
   height: 7px;
   border-radius: 2px;
-  background: var(--status-success, #22C55E);
-  box-shadow: 0 0 6px var(--status-success, #22C55E);
+  background: var(--status-success, #1990FF);
+  box-shadow: 0 0 6px var(--status-success, #1990FF);
   flex-shrink: 0;
 }
 
@@ -1391,6 +955,36 @@
   color: var(--text-primary);
   line-height: 1.15;
 }
+/* Rename affordance — same pattern as the SMA title (click title → edit). */
+.mandateTitleBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  text-align: left;
+}
+.mandateTitleBtn svg { opacity: 0; transition: opacity 140ms var(--ease-sail, ease); }
+.mandateTitleBtn:hover svg,
+.mandateTitleBtn:focus-visible svg { opacity: 0.7; }
+.mandateTitleInput {
+  font-family: 'Instrument Sans', 'DM Sans', sans-serif;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.012em;
+  line-height: 1.15;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(25, 144, 255, 0.5);
+  border-radius: 2px;
+  padding: 1px 8px;
+  outline: none;
+  max-width: 100%;
+}
 .mandateSummaryHeadRight {
   display: inline-flex;
   align-items: center;
@@ -1458,8 +1052,8 @@
   height: 20px;
   margin-top: 1px;
   border-radius: 2px;
-  color: var(--status-success, #22C55E);
-  background: rgba(34, 197, 94, 0.10);
+  color: var(--status-success, #1990FF);
+  background: rgba(25, 144, 255, 0.10);
 }
 .mandateSummaryPermBody {
   display: flex;
@@ -1518,25 +1112,8 @@
   background: rgba(229, 72, 77, 0.18);
   border-color: rgba(229, 72, 77, 0.4);
 }
-.mandateSummary:hover .mandateSummaryOpenHint { color: var(--ocean-light, #6ba3ff); }
 
 /* ────── SMA status badges (title block) ────── */
-.smaBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 2px;
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg);
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  color: var(--text-secondary);
-  text-transform: capitalize;
-}
-.smaBadge svg { color: var(--text-tertiary); }
-
 /* Network selector — choose which chain the SMA view (wallets + mandates) focuses on. */
 .netSelect {
   position: relative;
@@ -1559,6 +1136,23 @@
   transition: border-color 140ms var(--ease-sail), color 140ms var(--ease-sail), background 140ms var(--ease-sail);
 }
 .netSelectBtn svg { color: var(--text-tertiary); }
+/* The active chain's name inside the trigger button. */
+.netSelectName {
+  font-weight: 500;
+  text-transform: capitalize;
+  color: var(--text-primary);
+}
+/* Small uppercase eyebrow inside the button so it reads as a network selector,
+   not just a bare chain name. */
+.netSelectLabel {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-right: 2px;
+}
 .netSelectBtn:hover,
 .netSelectBtn[aria-expanded='true'] {
   border-color: rgba(255, 255, 255, 0.22);
@@ -1618,19 +1212,222 @@
 .netSelectOption:hover { background: rgba(255, 255, 255, 0.06); color: var(--text-primary); }
 .netSelectOptionName { flex: 1; }
 .netSelectOptionActive { color: var(--text-primary); }
+/* "+ Add network" row — separated from the deployed-chain list by a hairline. */
+.netSelectAdd {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 9px;
+  border: none;
+  border-top: 1px solid var(--glass-border);
+  border-radius: 0 0 2px 2px;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms var(--ease-sail), color 120ms var(--ease-sail);
+}
+.netSelectAdd:hover { background: rgba(25, 144, 255, 0.10); color: var(--text-primary); }
+.netSelectAddPlus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  color: var(--accent-blue, #1990FF);
+  font-size: 15px;
+  line-height: 1;
+}
+/* Add-network sub-view: back control + one-line explainer. */
+.netSelectBack {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: color 120ms var(--ease-sail);
+}
+.netSelectBack:hover { color: var(--text-primary); }
+.netSelectHint {
+  display: block;
+  padding: 0 9px 6px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-tertiary);
+}
 .netSelectCheck { display: inline-flex; color: var(--accent-blue, #1990FF); }
 .netSelectCheck svg { color: var(--accent-blue, #1990FF); }
+.netSelectOption:disabled { cursor: default; opacity: 0.55; }
+.netSelectOption:disabled:hover { background: none; color: var(--text-secondary); }
+/* Inline "Requesting…" tag while a deploy request is in flight. */
+.netSelectStatus {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+}
+/* Fallback note: adding a network is a wallet-driven deploy with no dashboard
+   entry point yet, so point the user at the CLI instead of failing silently. */
+.netSelectNote {
+  margin: 4px 3px 2px;
+  padding: 8px 9px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--glass-border);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+.netSelectNoteCmd {
+  display: block;
+  margin-top: 6px;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.01em;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .netSelectMenu { animation: none; }
   .netSelectChevron { transition: none; }
 }
 
+/* ────── Gated states: connect / wrong-wallet ──────
+   Embedded + left-aligned in the main column (sidebar stays), matching the
+   onboarding wizard's bare treatment — no floating card, no stray radius. */
+.gate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 13px;
+  max-width: 560px;
+  /* dashMain carries 36px top padding — keep the gate's total offset. */
+  padding: 10px 0 48px;
+  animation: gateArrive 460ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+@keyframes gateArrive {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.gateMark {
+  width: 52px; height: 52px;
+  margin-bottom: 2px;
+  display: flex; align-items: center; justify-content: center;
+}
+.gateKicker {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent-blue, #1990FF);
+}
+/* Warnings read grey, per the design system — not amber. */
+.gateKickerWarn { color: rgba(255, 255, 255, 0.62); }
+.gateTitle {
+  margin: 0;
+  font-size: clamp(24px, 3.4vw, 30px);
+  line-height: 1.1;
+  letter-spacing: -0.028em;
+  color: var(--text-primary);
+  text-wrap: balance;
+}
+.gateSub {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  max-width: 48ch;
+}
+.gateMeta {
+  margin: 2px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.gateMetaRow {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.gateMetaRow dt {
+  min-width: 108px;
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+}
+.gateMetaRow dd {
+  margin: 0;
+}
+.gateMetaRow code {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.gateActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+/* Mismatch card: one decision per row — full-width action + one-line caption. */
+.gateChoices {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 10px;
+  width: 100%;
+  max-width: 480px;
+}
+.gateChoice {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.gateChoiceSub {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+.gateFineprint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  opacity: 0.85;
+}
+/* Reset wipes the project's account record — destructive, so it carries the
+   danger tone as a quiet secondary next to the primary Switch-wallet action. */
+.gateResetBtn {
+  padding: 0 18px;
+  height: 40px;
+  border-radius: 2px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--danger, #FF5C6C);
+  background: rgba(255, 92, 108, 0.06);
+  border: 1px solid rgba(255, 92, 108, 0.28);
+  cursor: pointer;
+  transition: background 140ms var(--ease-sail, ease), border-color 140ms var(--ease-sail, ease);
+}
+.gateResetBtn:hover { background: rgba(255, 92, 108, 0.12); border-color: rgba(255, 92, 108, 0.45); }
+.gateResetBtn:disabled { opacity: 0.5; cursor: default; }
+@media (prefers-reduced-motion: reduce) {
+  .gate { animation: none; }
+}
+
 /* ────── Attached mandates (on-chain permission rows) ────── */
 /* faint CRT scanlines, matching the other cards */
 
 /* ────── Delegated signers ────── */
-.signersSection { margin-top: 28px; display: flex; flex-direction: column; gap: 14px; }
 .signerGrid {
   display: grid;
   /* Fill the row: 1 card spans full width, 2 cards split it in half, a 3rd
@@ -1638,6 +1435,12 @@
      unused tracks so there's never a reserved empty slot. */
   grid-template-columns: repeat(auto-fit, minmax(228px, 1fr));
   gap: 16px;
+}
+/* Gas-wallets page: one card per row, reading top-to-bottom (owner, then
+   agent). Width-capped so a lone column doesn't stretch across the full pane. */
+.signerGridStacked {
+  grid-template-columns: 1fr;
+  max-width: 640px;
 }
 /* Collapse to 2-up on tablets and 1-up on phones so the cards never cram. */
 @media (max-width: 880px) {
@@ -1687,9 +1490,9 @@
     #04060b;
 }
 .signerCardCrit {
-  border-color: rgba(255, 86, 86, 0.5);
+  border-color: rgba(255, 92, 108, 0.5);
   background:
-    linear-gradient(rgba(255, 86, 86, 0.07), rgba(255, 86, 86, 0.07)),
+    linear-gradient(rgba(255, 92, 108, 0.07), rgba(255, 92, 108, 0.07)),
     radial-gradient(120% 60% at 50% 0%, rgba(25, 144, 255, 0.06), transparent 55%),
     #04060b;
 }
@@ -1859,9 +1662,9 @@
   color: rgba(255, 255, 255, 0.62);
 }
 .signerCardCrit .signerTopUp {
-  background: rgba(255, 86, 86, 0.12);
-  border-color: rgba(255, 86, 86, 0.32);
-  color: #ff8f8f;
+  background: rgba(255, 92, 108, 0.12);
+  border-color: rgba(255, 92, 108, 0.32);
+  color: var(--danger);
 }
 
 /* ────── Balance health pill ────── */
@@ -1899,21 +1702,30 @@
 }
 .balancePill_low .balancePillDot { background: #ffce5a; }
 .balancePill_critical {
-  color: #ff8f8f;
-  border-color: rgba(255, 86, 86, 0.4);
-  background: rgba(255, 86, 86, 0.1);
+  color: var(--danger);
+  border-color: rgba(255, 92, 108, 0.4);
+  background: rgba(255, 92, 108, 0.1);
 }
-.balancePill_critical .balancePillDot { background: #ff6b6b; }
+.balancePill_critical .balancePillDot { background: var(--danger); }
 
 /* ────── Notifications bell dropdown ────── */
-.notifWrap { position: relative; }
+/* The panel anchors to the EOA row (position: relative lives on .sidebarEoa),
+   not the bell: the sidebar has overflow:auto, so anything wider than the
+   sidebar gets visually clipped at its edge — a fixed 340px panel anchored to
+   the 36px bell was cut mid-sentence. Spanning the row keeps it inside the
+   sidebar's box, so nothing can clip it. */
+.notifWrap { position: static; }
 .notifPanel {
-  position: absolute;
-  top: calc(100% + 10px);
-  right: 0;
-  width: 340px;
-  max-width: calc(100vw - 32px);
-  z-index: 40;
+  /* Taken out of the sidebar's box (overflow:auto clips it) with position:fixed
+     — escapes the clip, so it can be wider than the sidebar and spill over the
+     main content. Pinned just above the bell at the bottom-left. No transformed
+     ancestor on the shell, so fixed stays viewport-anchored. */
+  position: fixed;
+  bottom: 74px;
+  left: 14px;
+  width: 380px;
+  max-width: calc(100vw - 28px);
+  z-index: 60;
   display: flex;
   flex-direction: column;
   border-radius: 2px;
@@ -1926,7 +1738,8 @@
   animation: notifPanelIn 160ms var(--ease-sail, ease);
 }
 @keyframes notifPanelIn {
-  from { opacity: 0; transform: translateY(-6px); }
+  /* Rises with the upward-opening panel. */
+  from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 .notifPanelHead {
@@ -2129,13 +1942,13 @@
 
 .tickDot {
   width: 7px; height: 7px;
-  border-radius: 50%;
+  border-radius: 2px;
   background: rgba(255,255,255,0.2);
   flex-shrink: 0;
 }
 .tickDotLive {
-  background: #22c55e;
-  box-shadow: 0 0 6px rgba(34,197,94,0.6);
+  background: var(--positive);
+  box-shadow: 0 0 6px rgba(25,144,255,0.6);
   animation: tickPulse 1.4s ease-in-out infinite;
 }
 @keyframes tickPulse { 0%,100% { opacity: 1 } 50% { opacity: 0.4 } }
@@ -2175,7 +1988,6 @@
 .tickPositionProto { font-size: 11px; color: rgba(255,255,255,0.3); }
 
 /* ── Fund agent button ───────────────────────────────────────────────────── */
-.signerTopUpTitle { display: block; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); margin-bottom: 2px; }
 .signerTopUpMsg { font-size: 12px; color: rgba(255,255,255,0.55); }
 .signerFundBtn {
   margin-top: 8px;
@@ -2193,61 +2005,15 @@
 .signerFundBtn:hover:not(:disabled) { background: rgba(25, 144, 255, 0.2); border-color: rgba(25, 144, 255, 0.7); }
 .signerFundBtn:disabled { opacity: 0.5; cursor: not-allowed; }
 .signerCardCrit .signerFundBtn {
-  border-color: rgba(255,86,86,0.4);
-  background: rgba(255,86,86,0.1);
-  color: #ff8f8f;
+  border-color: rgba(255,92,108,0.4);
+  background: rgba(255,92,108,0.1);
+  color: var(--danger);
 }
-.signerCardCrit .signerFundBtn:hover:not(:disabled) { background: rgba(255,86,86,0.16); border-color: rgba(255,86,86,0.55); }
+.signerCardCrit .signerFundBtn:hover:not(:disabled) { background: rgba(255,92,108,0.16); border-color: rgba(255,92,108,0.55); }
 
 
 .signerSpacer { flex: 1; }
 
-
-/* ── Multi-chain section ──────────────────────────────────────────────────── */
-.chainSection {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 20px 24px 24px;
-  border-radius: 2px;
-  /* Opaque sail-card surface so the animated field reads only in the gutters
-     between chain panels — never behind the panel's text, which killed
-     legibility when the squares passed under headings/balances. */
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background:
-    radial-gradient(120% 60% at 50% 0%, rgba(25, 144, 255, 0.06), transparent 55%),
-    #04060b;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.016),
-    0 40px 120px -50px rgba(0, 0, 0, 0.9),
-    0 0 80px -40px rgba(25, 144, 255, 0.25);
-}
-.chainSectionHeader {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-.chainSectionBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 4px 12px 4px 10px;
-  border-radius: 2px;
-  border: 1px solid var(--glass-border, rgba(255,255,255,0.1));
-  background: rgba(255,255,255,0.06);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-primary, #fff);
-}
-.chainSectionMeta {
-  font-size: 12px;
-  color: var(--text-tertiary, rgba(255,255,255,0.35));
-}
-.chainSection .mandatesSection { padding: 0; }
-.chainSection .signersSection { margin-top: 24px; }
 
 /* TRIAL: faint CRT scanlines on the wallet cards (full sail-card texture). */
 .signerCard::before {
@@ -2258,3 +2024,219 @@
   pointer-events: none;
   background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.016) 0 1px, transparent 1px 4px);
 }
+/* ══════════════════════════════════════════════════════════════
+   Dashboard restructure — persistent left menu + tabbed content.
+   Full-bleed app frame: no page background, components fill the
+   screen. Structure only; card surfaces are unchanged.
+   ══════════════════════════════════════════════════════════════ */
+.dashRoot {
+  /* Single source of truth for the side-rail width — the sidebar and the
+     scanline offset below both read it, so they can never drift apart. */
+  --dash-sidebar-w: 248px;
+  padding: 0;
+  min-height: 100vh;
+  height: 100vh;
+  background: var(--ocean-dark);
+  background-image: none;
+  flex-direction: row;
+  overflow: hidden;
+  position: relative;
+}
+/* CRT scanline texture across the main content area only (right of the side
+   rail) — one fixed layer so the faint lines read uniformly on every surface
+   there, not just inside the cards. Sits behind content; opaque cards keep
+   their own matching scanline on top. The left side menu stays clean. */
+.dashRoot::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: var(--dash-sidebar-w);
+  z-index: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.016) 0 1px, transparent 1px 4px);
+}
+.dashRoot .dashMain { position: relative; z-index: 1; }
+
+/* ── left menu ── */
+.dashSidebar {
+  width: var(--dash-sidebar-w);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 12px;
+  border-right: 1px solid var(--glass-border);
+  background: rgba(3, 5, 10, 0.4);
+  overflow: auto;
+}
+/* Narrow screens: slim the rail so the main column keeps usable width. The
+   brand mark scales down and the nav/actions stay tappable. */
+@media (max-width: 860px) {
+  .dashRoot { --dash-sidebar-w: 200px; }
+  .brandMark { width: 84px; height: 84px; border-radius: 17px; }
+}
+@media (max-width: 640px) {
+  .dashRoot { --dash-sidebar-w: 168px; }
+  .brandMark { width: 64px; height: 64px; border-radius: 14px; }
+  .brandTitle { font-size: 13px; }
+}
+.sidebarBrand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 4px 6px 16px;
+}
+/* Framed captain avatar mark — the drop-in lockup from sailor-avatar-mark:
+   a rounded, rimmed, softly-glowing frame around the render. */
+.brandMarkBtn {
+  display: inline-flex;
+  padding: 5px;
+  border-radius: 27px;
+  border: 1px solid rgba(120, 170, 255, 0.4);
+  background: rgba(3, 12, 28, 0.5);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 30px rgba(30, 111, 255, 0.35);
+  cursor: pointer;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.brandMarkBtn:hover { border-color: rgba(120, 170, 255, 0.6); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 40px rgba(30, 111, 255, 0.5); }
+.brandMarkBtn:focus-visible { outline: 2px solid var(--accent-blue, #1990FF); outline-offset: 2px; }
+.brandMark {
+  display: block;
+  width: 114px;
+  height: 114px;
+  border-radius: 22px;
+  object-fit: cover;
+}
+.brandTitle {
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+/* Section nav in the side rail (replaces the old top tab strip). */
+.sidebarNav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sidebarNavItem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  text-align: left;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 150ms ease, background 150ms ease;
+}
+.sidebarNavItem:hover { color: var(--text-secondary); background: rgba(255, 255, 255, 0.03); }
+.sidebarNavItemActive {
+  color: var(--text-primary);
+  background: rgba(25, 144, 255, 0.10);
+  box-shadow: inset 2px 0 0 var(--accent-blue, #1990FF);
+}
+
+/* Utility links (View portfolio at top, Docs pinned bottom). The bottom block
+   takes margin-top:auto so Docs + the EOA row sit at the foot of the rail. */
+.sidebarUtils {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 12px;
+}
+.sidebarUtilLink {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border-radius: 3px;
+  color: var(--text-tertiary);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 150ms ease, background 150ms ease;
+}
+.sidebarUtilLink:hover { color: var(--text-secondary); background: rgba(255, 255, 255, 0.03); }
+.sidebarUtilIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--text-tertiary);
+}
+.sidebarUtilImg {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  border-radius: 3px;
+  display: block;
+}
+.sidebarUtilLabel { flex: 1; min-width: 0; }
+.sidebarUtilLink svg { flex: none; opacity: 0.6; }
+
+.sidebarEoa {
+  /* Anchor for the notifications panel (see .notifPanel). */
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--glass-border);
+}
+
+/* ── main column: tab strip + full-bleed content ── */
+.dashRoot .dashMain {
+  max-width: none;
+  width: auto;
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  /* Breathing room above the page head — content shouldn't hug the top edge. */
+  padding: 36px 28px 0;
+  gap: 24px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Pin the local-first footnote to the bottom of the main scroll area,
+   mirroring the sticky tab strip at the top. */
+.dashRoot .localFootnote {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  margin: auto -28px 0;  /* margin-top:auto keeps it at the bottom on short pages */
+  padding: 14px 28px;
+  border: none;
+  border-top: 1px solid var(--glass-border);
+  border-radius: 0;
+  background: rgba(3, 5, 10, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+.dashTabDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 2px;
+  background: var(--accent-blue);
+  vertical-align: middle;
+}
+

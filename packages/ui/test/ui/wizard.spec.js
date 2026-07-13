@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 test('signing page loads without crash', async ({ page }) => {
-  await page.goto('/#/signing')
+  await page.goto('/#/signer')
   await page.waitForLoadState('networkidle')
 
   const body = await page.locator('body').innerText()
@@ -9,7 +9,7 @@ test('signing page loads without crash', async ({ page }) => {
 })
 
 test('mandate draft page shows no error boundary', async ({ page }) => {
-  await page.goto('/#/signing')
+  await page.goto('/#/signer')
   await page.waitForLoadState('networkidle')
 
   const content = await page.content()

@@ -28,7 +28,7 @@ import { explorerTxUrl } from '../../lib/explorer'
  *   - Prev / next navigation between adjacent entries
  */
 export default function JournalPage({ entryId, onBack }) {
-  const { events } = useSailorActivity()
+  const { events, loading: activityLoading } = useSailorActivity()
   const { mandates } = useSailorMandate()
   const mandate = mandates[0] ?? null
   const { account } = useSailorAccount()
@@ -56,6 +56,17 @@ export default function JournalPage({ entryId, onBack }) {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' })
   }, [entryId])
+
+  // Don't declare the entry missing while the first /api/activity fetch is
+  // still in flight — on direct navigation `events` starts as [] and a valid
+  // entry would flash "Activity not found" for one fetch round-trip.
+  if (!entry && activityLoading) {
+    return (
+      <div className={`${shared.pageShell} ${styles.shell}`}>
+        <HorizonBackground />
+      </div>
+    )
+  }
 
   if (!entry) {
     return (

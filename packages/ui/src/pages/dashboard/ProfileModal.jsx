@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import styles from './ProfileModal.module.css'
-import { useDiscoverSafes } from '../../hooks/useSailorData'
 
 function truncate(addr) {
   if (!addr || addr.length < 12) return addr ?? ''
@@ -51,6 +50,7 @@ export default function ProfileModal({
   safes = [],
   currentSafeId,
   hasSMA = true,
+  accountLoading = false,
   onClose,
   onDisconnect,
   onCreateSMA,
@@ -62,12 +62,10 @@ export default function ProfileModal({
   const [copiedKey, setCopiedKey] = useState(null) // 'eoa' | sma.id | null
   const [editingId, setEditingId] = useState(null)
   const [draftName, setDraftName] = useState('')
-  const [showImport, setShowImport] = useState(false)
   const [manualImport, setManualImport] = useState(false)
   const [importAddr, setImportAddr] = useState('')
   const [importChain, setImportChain] = useState('8453')
   const [importErr, setImportErr] = useState('')
-  const { safes: discovered, scanning, done: scanDone } = useDiscoverSafes(wallet, showImport && !manualImport)
 
   useEffect(() => {
     if (!open) return
@@ -79,12 +77,21 @@ export default function ProfileModal({
 
   function handleClose() {
     setClosing(true)
-    setTimeout(() => { setClosing(false); onClose?.() }, 320)
+    setTimeout(() => {
+      setClosing(false)
+      // Reset transient state so reopening shows the list/empty state, not a
+      // stale half-filled address form or a leftover rename input.
+      setManualImport(false)
+      setImportAddr('')
+      setImportErr('')
+      setEditingId(null)
+      onClose?.()
+    }, 320)
   }
 
   function copy(key, value) {
-    if (!value) return
-    if (navigator?.clipboard?.writeText) navigator.clipboard.writeText(value)
+    if (!value || !navigator?.clipboard?.writeText) return // don't claim "copied" without a clipboard
+    navigator.clipboard.writeText(value)
     setCopiedKey(key)
     setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1400)
   }
@@ -102,7 +109,6 @@ export default function ProfileModal({
 
   function handleImportSafe(safe, chainId) {
     onImportSMA?.({ safe, owner: wallet ?? safe, permissionSigner: wallet ?? safe, manager: wallet ?? safe, chainId, createdAtBlock: '0' })
-    setShowImport(false)
     handleClose()
   }
 
@@ -167,7 +173,14 @@ export default function ProfileModal({
             </span>
           </header>
 
-          {visibleSafes.length > 0 ? (
+          {/* Race guard: right after a hard refresh /api/account may not have
+              resolved yet — don't flash "No SMA created yet" at a user who has
+              one; hold a neutral placeholder until the account load settles. */}
+          {visibleSafes.length === 0 && accountLoading ? (
+            <div className={styles.noSMA}>
+              <span className={styles.noSMASub}>Loading accounts…</span>
+            </div>
+          ) : visibleSafes.length > 0 ? (
             <ul className={styles.smaList}>
               {visibleSafes.map((sma) => {
                 const isCurrent = sma.id?.toLowerCase() === currentSafeId?.toLowerCase()
@@ -296,93 +309,105 @@ export default function ProfileModal({
                 </li>
                 )
               })}
+              {manualImport && (
+                <li className={styles.smaImportSection}>
+                  <div className={styles.smaImportManual}>
+                    <input
+                      className={styles.smaImportInput}
+                      type="text"
+                      placeholder="Safe address  0x…"
+                      value={importAddr}
+                      onChange={(e) => { setImportAddr(e.target.value); setImportErr('') }}
+                      spellCheck={false}
+                      autoFocus
+                    />
+                    <input
+                      className={styles.smaImportInput}
+                      type="text"
+                      placeholder="Chain ID  e.g. 8453"
+                      value={importChain}
+                      onChange={(e) => { setImportChain(e.target.value); setImportErr('') }}
+                    />
+                    {importErr && <span className={styles.smaImportErr}>{importErr}</span>}
+                    <div className={styles.smaImportActions}>
+                      <button type="button" className={styles.smaImportConfirm} onClick={handleManualImport}>Add SMA</button>
+                      <button type="button" className={styles.smaImportBack} onClick={() => { setManualImport(false); setImportErr('') }}>← Back</button>
+                    </div>
+                  </div>
+                </li>
+              )}
               <li className={styles.smaActionRow}>
                 <button type="button" className={styles.smaActionBtn} onClick={onCreateSMA}>
                   <span className={styles.smaActionIcon} aria-hidden>+</span>
-                  Create
+                  Create new SMA
                 </button>
-                <button
-                  type="button"
-                  className={`${styles.smaActionBtn} ${showImport ? styles.smaActionBtnActive : ''}`}
-                  onClick={() => { setShowImport(v => !v); setManualImport(false); setImportErr('') }}
-                >
-                  <span className={styles.smaActionIcon} aria-hidden>↓</span>
-                  Import
-                </button>
+                {!manualImport && (
+                  <button
+                    type="button"
+                    className={styles.smaActionBtn}
+                    onClick={() => { setManualImport(true); setImportErr('') }}
+                  >
+                    <span className={styles.smaActionIcon} aria-hidden>↓</span>
+                    Add by address
+                  </button>
+                )}
               </li>
-              {showImport && (
-                <li className={styles.smaImportSection}>
-                  {manualImport ? (
-                    <div className={styles.smaImportManual}>
-                      <input
-                        className={styles.smaImportInput}
-                        type="text"
-                        placeholder="Safe address  0x…"
-                        value={importAddr}
-                        onChange={(e) => { setImportAddr(e.target.value); setImportErr('') }}
-                        spellCheck={false}
-                        autoFocus
-                      />
-                      <input
-                        className={styles.smaImportInput}
-                        type="text"
-                        placeholder="Chain ID  e.g. 8453"
-                        value={importChain}
-                        onChange={(e) => { setImportChain(e.target.value); setImportErr('') }}
-                      />
-                      {importErr && <span className={styles.smaImportErr}>{importErr}</span>}
-                      <div className={styles.smaImportActions}>
-                        <button type="button" className={styles.smaImportConfirm} onClick={handleManualImport}>Import SMA</button>
-                        <button type="button" className={styles.smaImportLink} onClick={() => { setManualImport(false); setImportErr('') }}>← Back</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      {scanning && discovered.length === 0 && (
-                        <span className={styles.smaImportScan}>Scanning for Safes…</span>
-                      )}
-                      {discovered.length > 0 && (
-                        <ul className={styles.smaImportList}>
-                          {discovered.map((s) => (
-                            <li key={`${s.chainId}-${s.safe}`}>
-                              <button type="button" className={styles.smaImportRow} onClick={() => handleImportSafe(s.safe, s.chainId)}>
-                                <span className={styles.smaImportRowAddr}>{truncate(s.safe)}</span>
-                                <span className={styles.smaImportRowNet}>{CHAIN_NAMES[s.chainId] ?? `chain ${s.chainId}`}</span>
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                      {scanDone && discovered.length === 0 && (
-                        <span className={styles.smaImportScan}>No Safes found for this wallet.</span>
-                      )}
-                      <button type="button" className={styles.smaImportLink} onClick={() => setManualImport(true)}>Enter address manually</button>
-                    </>
-                  )}
-                </li>
-              )}
             </ul>
+          ) : manualImport ? (
+            /* Add-by-address must be reachable with ZERO SMAs too: a wallet that
+               already owns SMAs elsewhere has no auto-lookup yet (that's the
+               backend owner-lookup — see FOR_ALVARO.md §2), so this is the only
+               way to load an existing SMA into a fresh project. */
+            <div className={styles.smaImportManual}>
+              <input
+                className={styles.smaImportInput}
+                type="text"
+                placeholder="SMA address  0x…"
+                value={importAddr}
+                onChange={(e) => { setImportAddr(e.target.value); setImportErr('') }}
+                spellCheck={false}
+                autoFocus
+              />
+              <input
+                className={styles.smaImportInput}
+                type="text"
+                placeholder="Chain ID  e.g. 8453"
+                value={importChain}
+                onChange={(e) => { setImportChain(e.target.value); setImportErr('') }}
+              />
+              {importErr && <span className={styles.smaImportErr}>{importErr}</span>}
+              <div className={styles.smaImportActions}>
+                <button type="button" className={styles.smaImportConfirm} onClick={handleManualImport}>Add SMA</button>
+                <button type="button" className={styles.smaImportBack} onClick={() => { setManualImport(false); setImportErr('') }}>← Back</button>
+              </div>
+            </div>
           ) : (
             <div className={styles.noSMA}>
-              <span className={styles.noSMAIcon} aria-hidden>
-                <VaultGlyph />
-              </span>
-              <div className={styles.noSMABody}>
-                <span className={styles.noSMAKicker}>Separately Managed Account</span>
-                <span className={styles.noSMATitle}>No SMA created yet</span>
-                <span className={styles.noSMASub}>
-                  Your SMA is deployed when you create your first agent.
+              <div className={styles.noSMAHead}>
+                <span className={styles.noSMAIcon} aria-hidden>
+                  <VaultGlyph />
                 </span>
+                <span className={styles.noSMATitle}>No SMA in this project yet</span>
               </div>
+              <span className={styles.noSMASub}>
+                Create a new SMA owned by this wallet, or add one you already own by address.
+              </span>
               <button
                 type="button"
                 className={styles.noSMACta}
                 onClick={onCreateSMA}
               >
-                Create your first agent
+                Create new SMA
                 <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <path d="M3 7h8M8 4l3 3-3 3" />
                 </svg>
+              </button>
+              <button
+                type="button"
+                className={styles.smaImportLink}
+                onClick={() => { setManualImport(true); setImportErr('') }}
+              >
+                Already have an SMA? Add it by address →
               </button>
             </div>
           )}
@@ -410,15 +435,6 @@ function CheckIcon() {
     </svg>
   )
 }
-function WalletGlyph() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden>
-      <rect x="2.5" y="5" width="15" height="11" rx="2.5" stroke="currentColor" strokeWidth="1.4"/>
-      <path d="M2.5 9h15" stroke="currentColor" strokeWidth="1.4"/>
-      <circle cx="14" cy="12.5" r="1" fill="currentColor"/>
-    </svg>
-  )
-}
 function PencilIcon() {
   return (
     <svg width="11" height="11" viewBox="0 0 14 14" fill="none" aria-hidden>
@@ -439,22 +455,6 @@ function VaultGlyph() {
       <rect x="2.5" y="3.5" width="15" height="13" rx="2.6" stroke="currentColor" strokeWidth="1.4"/>
       <circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.4"/>
       <path d="M10 7v.6M10 13.4v-.6M13 10h-.6M7.6 10H7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-    </svg>
-  )
-}
-function DepositArrowIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden>
-      <path d="M7 2.5v6M4.5 6L7 8.5 9.5 6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M3 11.2h8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-    </svg>
-  )
-}
-function WithdrawArrowIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden>
-      <path d="M7 11.5v-6M4.5 8L7 5.5 9.5 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M3 2.8h8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
     </svg>
   )
 }

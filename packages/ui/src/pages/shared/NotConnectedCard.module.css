@@ -1,0 +1,65 @@
+/* Not-connected gate — mirrors the dashboard's connect gate (Dashboard.module.css
+   .gate*) so every disconnected surface speaks the same left-aligned, bare
+   language: mark, mono kicker, headline, sub, primary action. Self-contained so
+   this shared card no longer borrows the signing page's legacy card styles. */
+
+.gate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 13px;
+  width: 100%;
+  max-width: 560px;
+  padding: 10px 0 48px;
+  animation: gateArrive 460ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+@keyframes gateArrive {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.gateMark {
+  width: 52px; height: 52px;
+  margin-bottom: 2px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.gateKicker {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent-blue, #1990FF);
+}
+
+.gateTitle {
+  margin: 0;
+  font-size: clamp(24px, 3.4vw, 30px);
+  line-height: 1.1;
+  letter-spacing: -0.028em;
+  color: var(--text-primary);
+  text-wrap: balance;
+}
+
+.gateSub {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  max-width: 48ch;
+}
+
+.gateActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.fineprint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}

@@ -1,40 +1,67 @@
-/* ── Shell / stage layout ── */
-.shell {
-  position: relative;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  /* Transparent so the SailBackground field shows through (the body provides
-     the dark base). Matches the dashboard shell. */
-  background: transparent;
-  color: var(--text-primary);
-  overflow: hidden;
-}
-
-.stage {
-  flex: 1;
-  width: 100%;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 18px;
-  padding: 96px 24px 40px;
-  position: relative;
-  z-index: 2;
-}
-.stageInner {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  animation: rise 480ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) both;
-}
 @keyframes rise {
   0%   { opacity: 0; transform: translateY(14px) scale(0.985); filter: blur(6px); }
   100% { opacity: 1; transform: translateY(0)    scale(1);     filter: blur(0); }
 }
+
+/* ── Embedded variant ──
+   Used when the wizard renders inside the dashboard's main column (first-run
+   onboarding). The steps sit directly on the page — left-aligned, no card
+   surface, no header. The step markup is unchanged; these rules just strip the
+   GlassCard chrome and un-center the content so it reads as a page, not a modal. */
+.embeddedRoot {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  /* dashMain now carries 36px top padding — keep the wizard's total offset. */
+  padding: 6px 0 48px;
+}
+.embeddedStage {
+  width: 100%;
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  animation: rise 480ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+/* Progress squares left-align with the heading (they centre by default, which
+   read as off-axis against the left-aligned embedded steps). */
+.embeddedStage .progressDots { justify-content: flex-start; }
+/* Let sub-copy breathe on the wider stage instead of wrapping early at 36ch. */
+.embeddedStage .cardSub { max-width: 52ch; }
+/* Strip the glass panel (the welcome/auth surface) so each step reads as bare
+   page content. (GlassCard's own base class hashes to a different module scope,
+   so it can't be targeted from here — welcomeCard/authCard cover every step.) */
+.embeddedStage .welcomeCard,
+.embeddedStage .authCard {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  padding: 0;
+  max-width: none;
+}
+/* Kill the card's own scanline overlays — embedded steps are transparent, so
+   the app-wide dashRoot scanline shows through; a card-level one would double
+   up into a denser patch. */
+.embeddedStage .welcomeCard::after,
+.embeddedStage .authCard::after { display: none; }
+/* Left-align the welcome step (its card centers its own header, logo, sub,
+   CTA, fineprint and skip link). */
+.embeddedStage .welcomeCard .cardHeader {
+  text-align: left;
+  align-items: flex-start;
+}
+.embeddedStage .cardSai {
+  align-self: flex-start;
+  margin-left: 0;
+}
+.embeddedStage .welcomeCard .cardSub,
+.embeddedStage .fineprint,
+.embeddedStage .skipLink { text-align: left; }
+.embeddedStage .welcomeCta > * { align-self: flex-start; }
 
 /* ── Cards ── */
 .welcomeCard,
@@ -142,6 +169,15 @@
   transition: opacity 0.15s;
 }
 .skipLink:hover { opacity: 1; }
+/* Shown on the welcome step when a wallet is connected but the backend knows no
+   SMA for it — states the fact instead of leaving a silent dead-end. */
+.welcomeConnectedNote {
+  margin: 14px 0 0;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.62);
+}
 .welcomeCta {
   display: flex;
   flex-direction: column;
@@ -150,6 +186,42 @@
 .welcomeCta > * { width: 100%; max-width: 360px; align-self: center; }
 
 /* ── Connect step: what this wallet does ── */
+/* Additional-mode confirm step: owner + agent rows with a switch affordance. */
+.confirmRows {
+  list-style: none;
+  display: flex; flex-direction: column;
+  margin: 16px 0 20px; padding: 0;
+}
+.confirmRow {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 14px 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.confirmRow:last-child { border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+.confirmRowMain { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.confirmRowLabel {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.confirmRowValue {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 14px; color: var(--text-primary);
+}
+.confirmRowState { color: var(--text-tertiary); font-size: 12.5px; }
+.confirmSwitch {
+  flex-shrink: 0;
+  padding: 7px 13px; border-radius: 2px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--text-secondary);
+  font-family: 'DM Sans', sans-serif; font-size: 12.5px; font-weight: 500;
+  cursor: pointer;
+  transition: background 150ms, color 150ms, border-color 150ms;
+}
+.confirmSwitch:hover { background: rgba(255, 255, 255, 0.08); color: var(--text-primary); }
+
 .connectPoints {
   list-style: none;
   display: flex; flex-direction: column;
@@ -168,7 +240,6 @@
   background: var(--accent-blue-bright, #4dabff);
   box-shadow: 0 0 8px -1px rgba(77, 171, 255, 0.7);
 }
-.connectGlyphMuted { background: rgba(255, 255, 255, 0.32); box-shadow: none; }
 .connectBody { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .connectName { font-size: 14px; font-weight: 500; line-height: 1.3; color: rgba(255, 255, 255, 0.92); }
 .connectDetail { font-size: 12.5px; line-height: 1.45; color: var(--text-secondary); }
@@ -244,17 +315,49 @@
   padding: 8px 12px; border-radius: 2px;
   background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
 }
-.chainDeployDot { width: 8px; height: 8px; border-radius: 2px; background: var(--net-color, rgba(255,255,255,0.3)); flex-shrink: 0; }
 .chainDeployName { font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.8); flex: 1; }
 .chainDeployStatus { font-size: 12px; color: rgba(255,255,255,0.4); white-space: nowrap; }
-.chainStatus_done     { color: #4ade80; }
+.chainStatus_done     { color: var(--positive-bright); }
 .chainStatus_skipped  { color: rgba(255, 255, 255, 0.62); }
-.chainStatus_error    { color: #f87171; }
+.chainStatus_error    { color: var(--danger); }
 .chainStatus_wallet   { color: rgba(255, 255, 255, 0.62); }
 .chainStatus_confirming { color: rgba(255,255,255,0.6); }
+.chainStatus_pending   { color: rgba(255, 255, 255, 0.35); }
+.chainStatus_switching { color: rgba(255, 255, 255, 0.6); }
+.chainStatus_building  { color: rgba(255, 255, 255, 0.6); }
+
+/* Per-chain reason + Remove: shown when a chain needs attention (no gas, wallet
+   doesn't support it, declined). Never trap — Remove drops the chain so the rest
+   can deploy, and it can be added later. */
+.chainDeployItem { display: flex; flex-direction: column; gap: 6px; }
+.chainDeployNote {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 0 12px 0 40px;
+}
+.chainDeployNoteText {
+  flex: 1;
+  font-size: 12px; line-height: 1.45;
+  color: rgba(255, 255, 255, 0.62); /* warning = grey, per the design system */
+}
+.chainRemoveBtn {
+  flex-shrink: 0;
+  padding: 4px 10px; border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500;
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease;
+}
+.chainRemoveBtn:hover { border-color: rgba(255, 92, 108, 0.5); color: #FF5C6C; }
+.chainDeployEmpty {
+  margin: 14px 0 0;
+  font-size: 12.5px; line-height: 1.5;
+  color: rgba(255, 255, 255, 0.62);
+  text-align: center;
+}
 
 /* ── SMA details ── */
-.smaDetails { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
 .detailRow {
   display: flex; justify-content: space-between; align-items: center;
   padding: 8px 12px; border-radius: 2px;
@@ -363,5 +466,4 @@
 @media (max-width: 720px) {
   .welcomeCard { padding: 32px 24px 22px; }
   .authCard    { padding: 28px 22px 22px; }
-  .stage       { padding: 88px 16px 32px; }
 }

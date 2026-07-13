@@ -1,26 +1,19 @@
 import { useConnectModal } from '@rainbow-me/rainbowkit'
-import { GlassCard, Sai, SailButton } from './index'
-import shared from './shared.module.css'
-import styles from '../signing/Signing.module.css'
+import { Sai, SailButton } from './index'
+import styles from './NotConnectedCard.module.css'
 
 export default function NotConnectedCard({ eyebrow = 'WELCOME TO SAIL', title = 'Separately Managed Accounts.', sub = 'Enforced by code, run by agents.' }) {
   const { openConnectModal } = useConnectModal()
 
   return (
-    <GlassCard className={styles.welcomeCard}>
-      <div className={styles.cardSai} aria-hidden>
-        <Sai size={64} animate />
+    <div className={styles.gate}>
+      <div className={styles.gateMark} aria-hidden>
+        <Sai size={52} animate />
       </div>
-      <header className={styles.cardHeader}>
-        <span className={styles.kicker}>{eyebrow}</span>
-        <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
-          {title}
-        </h1>
-        <p className={`${shared.italicMannerism} ${styles.cardTagline}`}>
-          {sub}
-        </p>
-      </header>
-      <div className={styles.welcomeCta}>
+      <span className={styles.gateKicker}>{eyebrow}</span>
+      <h2 className={styles.gateTitle}>{title}</h2>
+      <p className={styles.gateSub}>{sub}</p>
+      <div className={styles.gateActions}>
         <SailButton fullWidth onClick={openConnectModal}>
           Connect wallet
         </SailButton>
@@ -28,6 +21,6 @@ export default function NotConnectedCard({ eyebrow = 'WELCOME TO SAIL', title = 
       <p className={styles.fineprint}>
         Self-custody. Sail never holds your keys.
       </p>
-    </GlassCard>
+    </div>
   )
 }

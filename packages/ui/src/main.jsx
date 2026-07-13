@@ -5,7 +5,6 @@ import { RainbowKitProvider } from '@rainbow-me/rainbowkit'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WagmiProvider } from 'wagmi'
 import SigningPage from './pages/signer/SigningPage'
-import Signing from './pages/signing/Signing'
 import Dashboard from './pages/dashboard/Dashboard'
 import JournalPage from './pages/dashboard/JournalPage'
 import { wagmiConfig } from './wagmi'
@@ -67,8 +66,10 @@ function Router() {
   // `/signer` is the canonical signing-page route; `/station` is a
   // v1.2.0-compatible alias — any bookmark or printed URL from that release
   // still lands on the same component. Do not remove before the next major.
-  else if (route.startsWith('/signer') || route.startsWith('/station')) page = <SigningPage key={route} />
-  else if (route.startsWith('/signing')) page = <Signing key={route} />
+  // `/signer` is canonical; `/station` (v1.2.0) and `/signing` (pre-daemon
+  // standalone page, removed) are compat aliases so stale bookmarks and
+  // printed URLs still land on the live signing surface.
+  else if (route.startsWith('/signer') || route.startsWith('/station') || route.startsWith('/signing')) page = <SigningPage key={route} />
   else if (route.startsWith('/journal/')) {
     // /journal/:entryId — full-page detail of one Decision Journal
     // entry. Replaces the older right-side drawer; users get the same
