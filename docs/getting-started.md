@@ -9,7 +9,7 @@ The journey is five stations, in order: **ARRIVE → STRATEGY → MANDATE → AG
 **Install and scaffold.** npm (Node.js ≥ 18):
 
 ```bash
-mkdir my-agent && cd my-agent && npm i @sail.money/sailor && npx sailor init && npm install
+npx @sail.money/sailor init my-agent && cd my-agent && npm install
 ```
 
 Or Docker (no Node.js on the host) — then prefix every `sailor` command below with `docker exec agent` (project files are on your host via the volume mount; details in [docker.md](./docker.md)):

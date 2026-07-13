@@ -10,9 +10,11 @@
 [![Discord](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Fv10%2Finvites%2F9GsxPsHzRv%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&suffix=%20members&label=discord&logo=discord&logoColor=white)](https://discord.com/invite/9GsxPsHzRv)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-**Sailor** turns any AI coding agent into a builder and operator of DeFi agents. Say **start** in an empty folder and it takes you to a running agent: DeFi strategy, onchain mandate, local automation. 
+Sailor gives a coding agent the working environment it needs to build a DeFi agent correctly: a guided path, verification at every step, and the full context of the protocol.
 
-Funds never leave your own **separately managed account (SMA)**. The agent never holds your private key and acts only through a **mandate** — deterministic onchain permissions checked on every transaction. This makes **Sailor Agents safe to run with real capital**. 
+Sailor agents operate with a **separately managed account (SMA)**: funds are held in a self-custodial Safe, and the agent is bounded by a **mandate** — onchain permissions the protocol enforces on every transaction. The agent receives authority, never custody or keys, and the owner can revoke that authority in a single transaction.
+
+Because permissions are deterministic contracts evaluated on every dispatch, a wrong decision — including a hallucinated one — never becomes an unauthorized transaction. That is what makes an AI agent safe to run with real capital.
 
 ## What you can build
 
@@ -53,12 +55,12 @@ Open the scaffold in Claude Code, Cursor, Codex, or any AI coding agent and say 
 
 ```bash
 # bash / zsh (macOS, Linux)
-mkdir my-agent && cd my-agent && npm i @sail.money/sailor && npx sailor init
+npx @sail.money/sailor init my-agent && cd my-agent && npm install
 ```
 
 ```powershell
 # PowerShell (Windows)
-mkdir my-agent ; cd my-agent ; npm i @sail.money/sailor ; npx sailor init
+npx @sail.money/sailor init my-agent ; cd my-agent ; npm install
 ```
 
 Requires Node.js **>= 18**. For a global CLI instead: `npm install -g @sail.money/sailor`.
@@ -78,7 +80,7 @@ Project files live on your host via the volume mount; prefix `sailor` commands w
 The recommended path is agent-driven: open the scaffolded folder in Claude Code, Cursor, Codex, or any AI coding agent and say **"start"** — the scaffold's `AGENTS.md` and skills walk the agent through everything below. The journey is five stations: **ARRIVE → STRATEGY → MANDATE → AGENT → SAIL** (`AGENTS.md` is the map). The direct-CLI version of the same journey:
 
 ```bash
-npx sailor init my-agent && cd my-agent && npm install
+npx @sail.money/sailor init my-agent && cd my-agent && npm install
 
 # ARRIVE — encrypted signing key, owner wallet, and the SMA (a Safe) on-chain
 sailor keys generate --type agent-wallet
