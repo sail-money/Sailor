@@ -9,7 +9,7 @@ description: Station 2 — turn the user's intent into a complete, concrete stra
 
 Station 2 requires Station 1 complete. Run `sailor doctor` — if it is not green (RPC connected, chain-id matches, keys present, gas funded), hand back to [`sailor-onboarding`](../sailor-onboarding/SKILL.md) and return here once it passes.
 
-Then read `.sail/strategy.md`. If it exists, every dimension in the completeness gate below is concrete, its JSON block has `"confirmedByUser": true`, AND `"version": 2` — this station is already done: confirm the existing spec with the user instead of re-eliciting. An older `version` (or none) predates the resolved-artifact schema below — its addresses/pools were never captured, so treat it as incomplete and re-run Act 2/3 to backfill the current shape. If it exists but is incomplete, resume from the gaps only.
+Then read `.sail/strategy.md`. If it exists, every dimension in the completeness gate below is concrete, its JSON block has `"confirmedByUser": true`, AND `"version": 3` — this station is already done: confirm the existing spec with the user instead of re-eliciting. An older `version` predates the resolved-artifact schema below — `version: 1` never captured addresses/pools; `version: 2` captured those but never asked the per-action exit-path question — either way, treat it as incomplete and re-run Act 2/3 to backfill the current shape. If it exists but is incomplete, resume from the gaps only.
 
 ## Role
 
@@ -42,6 +42,8 @@ Elicit in the user's financial vocabulary — accumulate, earn, provide liquidit
 Fill the dimensions by **infer-then-confirm**: extract everything the user's words already imply, draft the spec with each inference marked as such, and ask only about the genuine gaps — batched into few questions, never an interrogation.
 
 **Resolve every token before it enters the spec.** Run [`sailor-token-resolve`](../sailor-token-resolve/SKILL.md) for each token: on-chain address, decimals, and where the liquidity lives. No symbol is ever written into the spec unresolved. **Carry the resolution forward, don't discard it.** `sailor-token-resolve`'s output already carries the token address/decimals, the chosen venue, the pool address, its fee tier, and its observed liquidity — hold onto that output per action; Act 3 writes it into the artifact verbatim. Never re-resolve at write time, and never let a resolved value fall back to "USDC→WETH" prose with the addresses dropped.
+
+**Ask the exit-path question, per position-opening action, batched with the rest.** Every action that builds a position over time — an accumulate-direction swap, a deposit, a borrow — gets one explicit question: who unwinds it? **Agent-managed** (a swap-out, withdraw, or repay leg lives in the mandate itself, alongside the entry) or **owner-managed** (the user exits manually, whenever they choose — the sovereign Safe exit always works regardless of mandate or agent state; see [`sailor-operate`](../sailor-operate/SKILL.md))? Frame it as capability, never a requirement: "I'll exit manually" is a complete, correct answer the instant the user says it explicitly — the failure this closes is the question never being asked, not the user declining to build an exit leg. Record the answer in the action's `exitPath` (see Spec format below); never leave it silently absent. This is a separate question from **Exit condition** below — that's *when* the strategy stops accumulating; `exitPath` is *how* the position it already built gets unwound.
 
 ### Act 3 — CONFIRM
 
@@ -80,14 +82,15 @@ Show this line only when at least one action needs approve coverage; say nothing
 | Amounts & caps | Per-tx cap AND total or per-period exposure, per action, in BOTH the token's base units and human terms (e.g. "25 USDC" and its base-units form). |
 | Cadence | Event-driven or scheduled — and the actual schedule or trigger. |
 | Risk bounds | Category-specific (slippage floor, LTV ceiling, tolerance band, …) — the reference file's extension dimensions, per action where they vary by pair/market. |
-| Exit condition | When the strategy stops or unwinds, and where funds go. "No exit condition — runs until revoked" is acceptable ONLY if the user says it explicitly. |
+| Exit condition | When the strategy *stops* — the trigger or schedule that ends accumulation. "No exit condition — runs until revoked" is acceptable ONLY if the user says it explicitly. Distinct from Exit path below. |
+| Exit path (per position-opening action) | *How* the position that action builds gets unwound — agent-managed, owner-managed, or explicitly declined. Recorded per action in `exitPath`; never silently absent. Applies to accumulate-direction swaps, deposits, and borrows — not to actions that are themselves an exit (withdraw/transfer/repay legs). |
 | Provenance | When each token/pool was resolved, and against which RPC per chain — so a stale artifact (a pool that's moved, a resolution from weeks ago) is detectable before it's trusted. |
 
 ## Spec format — `.sail/strategy.md`
 
-Human-readable markdown (title, category, archetype, one-paragraph intent in the user's own words, a strategy-wide dimensions table, and an **Actions** table — one row per action, the resolved detail: route, direction with addresses, venue/pool, caps in both forms, risk bounds) plus **one** fenced ```json block carrying the machine form. Later stations read the JSON; the markdown is for humans. The two are the same data in two shapes — never let them drift (the JSON is regenerated from the same resolved values the table renders, not typed separately).
+Human-readable markdown (title, category, archetype, one-paragraph intent in the user's own words, a strategy-wide dimensions table, and an **Actions** table — one row per action, the resolved detail: route, direction with addresses, venue/pool, caps in both forms, risk bounds, exit path) plus **one** fenced ```json block carrying the machine form. Later stations read the JSON; the markdown is for humans. The two are the same data in two shapes — never let them drift (the JSON is regenerated from the same resolved values the table renders, not typed separately).
 
-Every action carries its own `tokenIn`/`tokenOut`/`venue`/`pool`/`caps`/`riskBounds` — a strategy is one or more actions, and two actions (even the "same" swap on two chains, as in a multi-chain DCA) never share one entry, because their addresses differ per chain.
+Every action carries its own `tokenIn`/`tokenOut`/`venue`/`pool`/`caps`/`riskBounds` — a strategy is one or more actions, and two actions (even the "same" swap on two chains, as in a multi-chain DCA) never share one entry, because their addresses differ per chain. Position-opening actions also carry `exitPath` (see below).
 
 ```json
 {
@@ -109,23 +112,24 @@ Every action carries its own `tokenIn`/`tokenOut`/`venue`/`pool`/`caps`/`riskBou
         "perTx": { "baseUnits": "<string>", "human": "<e.g. '25 USDC'>" },
         "...": "one entry per elicited period (perDay, perMonth, …), same {baseUnits, human} shape"
       },
-      "riskBounds": { "...": "action-specific, e.g. maxSlippageBps, maxLtvBps" }
+      "riskBounds": { "...": "action-specific, e.g. maxSlippageBps, maxLtvBps" },
+      "exitPath": { "managedBy": "agent | owner | none-declined", "actionIds": ["<paired exit action id(s) — agent-managed only>"] }
     }
   ],
   "cadence": "<event-driven trigger or schedule>",
-  "exitCondition": "<when it stops/unwinds and where funds go>",
+  "exitCondition": "<when it stops accumulating>",
   "provenance": {
     "resolvedAt": "<ISO 8601 UTC, e.g. '2026-07-10T21:14:00Z'>",
     "chains": { "<chainId>": { "rpc": "<label — which RPC endpoint/provider resolved this chain>" } }
   },
   "confirmedByUser": true,
-  "version": 2
+  "version": 3
 }
 ```
 
-`tokenOut`/`venue`/`pool` are swap-shaped fields — omit them on an action whose `kind` doesn't have them (a `transfer`/`withdraw` action has `tokenIn` + `recipients`, no `tokenOut`/`pool`; a `deposit`/`borrow` action has `tokenIn` + `venue`, no `pool` unless the market itself is a pool). Never emit an empty placeholder for a field that doesn't apply — omit the key.
+`tokenOut`/`venue`/`pool` are swap-shaped fields — omit them on an action whose `kind` doesn't have them (a `transfer`/`withdraw` action has `tokenIn` + `recipients`, no `tokenOut`/`pool`; a `deposit`/`borrow` action has `tokenIn` + `venue`, no `pool` unless the market itself is a pool). Never emit an empty placeholder for a field that doesn't apply — omit the key. `exitPath` follows the same rule: only position-opening actions (accumulate-direction swap, deposit, borrow) carry it; an action that is itself an exit leg (withdraw/transfer/repay) omits it. `actionIds` is populated only when `managedBy: "agent"` — it names the id(s) of the paired exit action(s) already representable in `actions[]` today (a reverse-direction `kind: "swap"` row, a `kind: "withdraw"` row, or the repay/unwind leg); `owner` and `none-declined` carry no `actionIds`.
 
-`version: 2` is the resolved-artifact schema in this section (per-action `actions[]`, `provenance`). A file written under `version: 1` (flat top-level `tokens`/`venues`/`caps`, no per-action route/pool/provenance) predates it — see the precondition above.
+`version: 3` is the resolved-artifact schema in this section (per-action `actions[]`, `provenance`, `exitPath`). A file written under `version: 2` (no `exitPath` — the exit-path question was never asked) or `version: 1` (flat top-level `tokens`/`venues`/`caps`, no per-action route/pool/provenance) predates it — see the precondition above.
 
 A complete worked example (a two-chain DCA with real Base/Arbitrum addresses) is in [references/trading.md](references/trading.md).
 
@@ -141,4 +145,4 @@ Adding a category to Sailor = one door line in `AGENTS.md` + one conforming refe
 
 ## Handoff
 
-Exit verifier: every dimension concrete, user explicitly confirmed, `.sail/strategy.md` written with `"confirmedByUser": true` and `"version": 2` — the resolved summary presented to the user AND persisted, not just the latter. Next: **Station 3 — [`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)**, which routes each action of the spec to a shared template or bespoke authoring.
+Exit verifier: every dimension concrete (including each position-opening action's `exitPath`), user explicitly confirmed, `.sail/strategy.md` written with `"confirmedByUser": true` and `"version": 3` — the resolved summary presented to the user AND persisted, not just the latter. Next: **Station 3 — [`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)**, which routes each action of the spec to a shared template or bespoke authoring.

@@ -21,6 +21,7 @@ Defaults: cadence = event-driven (each tick checks price against the levels); pe
 | Venue + fee tier | The exact router and pool fee tier the leg trades on (token-resolve reports swap-ready tiers) |
 | Slippage tolerance | `maxSlippageBps` — sized with a live quote from [`sailor-swap-quote`](../../sailor-swap-quote/SKILL.md). This is the agent's own slippage, not the swap permission's on-chain band tolerance — copying it verbatim into the band silently rejects every trade once the pool's fee is added; [`sailor-mandate-planner`](../../sailor-mandate-planner/SKILL.md) checks this at plan time |
 | Price source | `SwapPermissionNoOracle` by default; `SwapPermission` (oracle-gated) only when size vs pool depth warrants it — see below |
+| Exit path (accumulate-direction actions only) | Agent-managed — a swap-out leg, same shared template, tokenIn/tokenOut reversed, reusing the entry's registration (see routing below for the shared-cap consequence) — or owner-managed (exit manually; the sovereign Safe exit always works, see `sailor-operate`) — or explicitly declined. Asked once per action; never silently absent |
 
 **No-oracle is the default.** For regular-sized trades, `SwapPermissionNoOracle`'s live-pool band is the right, honest choice — cheap, no extra infrastructure, and it catches a confused manager/agent's bad quote. The reason to reach for an oracle is SIZE, not manager trust: a compromised key is already caught by the amount cap and allowlists either way, but a single pool's spot price is movable within one transaction, and that only matters once a trade is large enough relative to the pool for moving it to be worth an attacker's effort.
 
@@ -40,6 +41,7 @@ Both swap templates are ERC-20 → ERC-20 only (native value rejected) — an ET
 | Bounded swap where size vs pool depth warrants an oracle | [`sailor-template-swap`](../../sailor-template-swap/SKILL.md) — see detect-and-route above |
 | Swap's approve coverage | The agent grants its own allowance via a small bespoke permission (default — see either swap spoke's "Approve coverage"; standing or bounded-per-trade, the user's choice, neither one stalls); owner-set-on-the-Safe is a simpler opt-out; zero-standing-allowance alternative: [`sailor-template-approve-batch`](../../sailor-template-approve-batch/SKILL.md) (does not check min-out) |
 | Live quotes / `amountOutMinimum` sizing | [`sailor-swap-quote`](../../sailor-swap-quote/SKILL.md) |
+| Agent-managed exit (swap-out) | Same shared template as the entry (`SwapPermission`/`SwapPermissionNoOracle`), reconfigured with the reverse pair added to `tokensIn`/`tokensOut` — a config-only leg, not a second permission. The template's `maxAmountPerTx` is ONE value shared across every configured pair on that registration (confirmed in the frozen source), so entry and exit cannot carry different caps on one registration — size the shared cap to whichever leg needs more (almost always the exit ceiling); a generous or effectively unbounded cap costs nothing extra since the price floor (`sailor-mandate-planner`'s position-exit sizing rule) protects every trade regardless of cap size |
 | Venues the swap templates don't cover (aggregators, perps, exotic routers) | bespoke via [`sailor-mandates`](../../sailor-mandates/SKILL.md) |
 
 ## Worked example — a complete `.sail/strategy.md` (example values, not a recommendation)
@@ -65,10 +67,10 @@ Intent (user's words): "Buy 25 USDC of ETH every day on Base AND on Arbitrum. Ke
 
 ### Actions
 
-| # | Route | Direction | Venue | Pool | Cap (human / base units) | Risk bounds |
-|---|---|---|---|---|---|---|
-| `swap-base` | `SwapPermissionNoOracle` | USDC `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` (6 dec) → WETH `0x4200000000000000000000000000000000000006` (18 dec) | Uniswap V3 SwapRouter02 `0x2626664c2603336E57B271c5C0b26F421741e481` | `0xd0b53D9277642d899DF5C87A3966A349A798F224`, 0.05% tier, ~$18M liquidity | 25 USDC / `25000000` per swap; ≤ 775 USDC / `775000000` per month | `maxSlippageBps` 100 (1%) |
-| `swap-arbitrum` | `SwapPermissionNoOracle` | USDC `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` (6 dec) → WETH `0x82aF49447D8a07e3bd95BD0d56f35241523fBab1` (18 dec) | Uniswap V3 SwapRouter02 `0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45` | `0xC6962004f452bE9203591991D15f6b388e09E8D0`, 0.05% tier, ~$22M liquidity | 25 USDC / `25000000` per swap; ≤ 775 USDC / `775000000` per month | `maxSlippageBps` 100 (1%) |
+| # | Route | Direction | Venue | Pool | Cap (human / base units) | Risk bounds | Exit path |
+|---|---|---|---|---|---|---|---|
+| `swap-base` | `SwapPermissionNoOracle` | USDC `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` (6 dec) → WETH `0x4200000000000000000000000000000000000006` (18 dec) | Uniswap V3 SwapRouter02 `0x2626664c2603336E57B271c5C0b26F421741e481` | `0xd0b53D9277642d899DF5C87A3966A349A798F224`, 0.05% tier, ~$18M liquidity | 25 USDC / `25000000` per swap; ≤ 775 USDC / `775000000` per month | `maxSlippageBps` 100 (1%) | Owner-managed (explicitly confirmed — user will exit manually via the Safe) |
+| `swap-arbitrum` | `SwapPermissionNoOracle` | USDC `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` (6 dec) → WETH `0x82aF49447D8a07e3bd95BD0d56f35241523fBab1` (18 dec) | Uniswap V3 SwapRouter02 `0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45` | `0xC6962004f452bE9203591991D15f6b388e09E8D0`, 0.05% tier, ~$22M liquidity | 25 USDC / `25000000` per swap; ≤ 775 USDC / `775000000` per month | `maxSlippageBps` 100 (1%) | Owner-managed (explicitly confirmed — user will exit manually via the Safe) |
 
 ```json
 {
@@ -90,7 +92,8 @@ Intent (user's words): "Buy 25 USDC of ETH every day on Base AND on Arbitrum. Ke
         "perDay": { "baseUnits": "25000000", "human": "25 USDC" },
         "perMonth": { "baseUnits": "775000000", "human": "775 USDC" }
       },
-      "riskBounds": { "maxSlippageBps": 100 }
+      "riskBounds": { "maxSlippageBps": 100 },
+      "exitPath": { "managedBy": "owner", "actionIds": [] }
     },
     {
       "id": "swap-arbitrum",
@@ -106,7 +109,8 @@ Intent (user's words): "Buy 25 USDC of ETH every day on Base AND on Arbitrum. Ke
         "perDay": { "baseUnits": "25000000", "human": "25 USDC" },
         "perMonth": { "baseUnits": "775000000", "human": "775 USDC" }
       },
-      "riskBounds": { "maxSlippageBps": 100 }
+      "riskBounds": { "maxSlippageBps": 100 },
+      "exitPath": { "managedBy": "owner", "actionIds": [] }
     }
   ],
   "cadence": "scheduled: one buy per day, per chain",
@@ -119,7 +123,7 @@ Intent (user's words): "Buy 25 USDC of ETH every day on Base AND on Arbitrum. Ke
     }
   },
   "confirmedByUser": true,
-  "version": 2
+  "version": 3
 }
 ```
 ````
