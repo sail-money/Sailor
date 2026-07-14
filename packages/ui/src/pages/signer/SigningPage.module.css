@@ -321,3 +321,122 @@
   margin: 26px 0 18px;
 }
 .emptyCta > * { width: 100%; max-width: 360px; align-self: center; }
+
+/* Open-in-explorer icon link (replaces the "View code on scanner ↗" text) —
+   sits next to a permission label or a contract address, coherent with the
+   dashboard's ArrowOutIcon utility links. */
+.scannerLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  color: #7eb8f7;
+  opacity: 0.6;
+  transition: opacity 160ms var(--ease-sail), background 160ms var(--ease-sail);
+}
+.scannerLink:hover {
+  opacity: 1;
+  background: rgba(25, 144, 255, 0.1);
+}
+
+/* Plain-language fallback description of a permission on a signing card, shown
+   when the CLI didn't supply a structured explanation. */
+.permFallback {
+  margin: 4px 0 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.72));
+}
+
+/* ── Transaction lifecycle card (signed → confirmed, in place) ── */
+.txCard { transition: border-color 300ms ease, box-shadow 300ms ease; }
+
+/* Indeterminate progress bar pinned to the card's top edge — the "still working,
+   waiting for on-chain confirmation" signal. Sharp corners + accent blue to match
+   the blueprint language; a segment sweeps across on a loop. */
+.txProgress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  overflow: hidden;
+  border-top-left-radius: 2px;
+  border-top-right-radius: 2px;
+  background: rgba(25, 144, 255, 0.12);
+}
+.txProgressBar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 38%;
+  background: linear-gradient(90deg, transparent 0%, #1990FF 50%, transparent 100%);
+  animation: txSlide 1.25s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes txSlide {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(360%); }
+}
+
+/* In-button spinner for the disabled "Waiting for confirmation…" CTA. */
+.txSpinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  border-top-color: #4DABFF;
+  animation: txSpin 0.7s linear infinite;
+}
+@keyframes txSpin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .txProgressBar { animation: none; width: 100%; opacity: 0.5; background: #1990FF; }
+  .txSpinner { animation: none; }
+}
+
+.txCardDone {
+  border-color: rgba(25, 144, 255, 0.4);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 28px 90px -28px rgba(0, 0, 0, 0.75),
+    0 0 70px -30px rgba(25, 144, 255, 0.5);
+}
+.txState {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.txStateDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 0; /* 2px square status glyph, per the design language */
+  flex-shrink: 0;
+}
+.txStateDotPending {
+  background: rgba(25, 144, 255, 0.85);
+  animation: txPulse 1.1s ease-in-out infinite;
+}
+/* Confirmed status glyph — pixel-art check (matches the Sai logo grid), accent
+   blue with a soft glow, popping in as the transaction confirms. */
+.txCheck {
+  color: #1990FF;
+  filter: drop-shadow(0 0 6px rgba(25, 144, 255, 0.7));
+  animation: txCheckPop 440ms var(--ease-out-expo) both;
+}
+@keyframes txCheckPop {
+  0%   { opacity: 0; transform: scale(0.5); }
+  60%  { opacity: 1; transform: scale(1.14); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes txPulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .txStateDotPending { animation: none; opacity: 0.7; }
+  .txCheck { animation: none; }
+}

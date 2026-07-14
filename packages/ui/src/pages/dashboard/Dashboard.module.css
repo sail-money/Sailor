@@ -371,15 +371,6 @@
   flex-wrap: wrap;
 }
 .identityMain { flex: 1 1 440px; min-width: 0; }
-.identityStatus { display: flex; justify-content: flex-end; flex-shrink: 0; padding-top: 6px; }
-/* Status row — chains + agent state, right-aligned in the header. */
-.idStatusRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-}
 /* Funds group — deposit + portfolio under one header, mirroring the Wallets
    group's hairline divider so the card reads identity → funds → wallets. */
 .fundsGroup {
@@ -387,6 +378,138 @@
   padding-top: 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
+/* "SMA live in" — networks the SMA is deployed to, shown horizontally under the
+   funds cards, with the Add-network deploy flow directly beneath. */
+.liveInGroup {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.addNetworkBtn {
+  -webkit-appearance: none;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 8px 14px;
+  border-radius: 2px;
+  border: 1px solid rgba(25, 144, 255, 0.4);
+  background: rgba(25, 144, 255, 0.08);
+  color: var(--accent-blue, #1990FF);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+.addNetworkBtn:hover { background: rgba(25, 144, 255, 0.16); border-color: rgba(25, 144, 255, 0.6); }
+.addNetworkPlus { font-size: 15px; line-height: 1; }
+
+/* ── Add-network modal ── */
+.addNetOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(2, 4, 8, 0.72);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.addNetModal {
+  width: 100%;
+  max-width: 460px;
+  max-height: 90vh;
+  overflow-y: auto;
+  /* Solid panel — the modal was previously a bare container with no surface, so
+     its content floated on the blurred dashboard. Matches the other dashboard
+     modals (FundGasModal card). */
+  padding: 28px 28px 24px;
+  background: #0e1420;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 28px 90px -28px rgba(0, 0, 0, 0.8),
+    0 2px 12px rgba(0, 0, 0, 0.3);
+}
+.addNetHead { margin-bottom: 16px; }
+.addNetKicker {
+  display: block;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-blue, #1990FF);
+  margin-bottom: 8px;
+}
+.addNetTitle {
+  margin: 0 0 8px;
+  font-family: 'Instrument Sans', 'DM Sans', sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.addNetSub { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--text-secondary); }
+.addNetList { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 16px; }
+.addNetOption {
+  -webkit-appearance: none;
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.addNetOption:hover { background: rgba(25, 144, 255, 0.08); border-color: rgba(25, 144, 255, 0.4); }
+.addNetOptionName { flex: 1; }
+.addNetOptionArrow { display: inline-flex; color: var(--accent-blue, #1990FF); opacity: 0.5; }
+.addNetOption:hover .addNetOptionArrow { opacity: 1; }
+.addNetNote {
+  margin: 4px 0 16px;
+  padding: 12px 14px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.addNetNoteCmd {
+  display: block;
+  margin-top: 8px;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+  font-size: 11.5px;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+.addNetCancel {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  padding: 10px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.addNetCancel:hover { background: rgba(255, 255, 255, 0.06); color: var(--text-primary); }
 .fundsLabel {
   display: block;
   margin-bottom: 10px;
@@ -735,31 +858,32 @@ a.fundAddr { text-decoration: none; }
 .pageHeadTitle {
   display: inline-flex;
   align-items: center;
-  gap: 11px;
+  gap: 10px;
   margin: 0;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
-.pageHeadTitle svg {
+/* Only the section glyph (a direct-child svg) gets the blue tile — NOT the
+   nested info-icon svg, which keeps its own clean circled-i styling. */
+.pageHeadTitle > svg {
   box-sizing: border-box;
-  width: 26px;
-  height: 26px;
-  padding: 5px;
-  border-radius: 2px;
+  width: 28px;
+  height: 28px;
+  padding: 6px;
+  border-radius: 3px;
   background: var(--accent-blue);
   color: #fff;
   flex-shrink: 0;
 }
-.pageHeadSub {
-  margin: 0;
-  font-size: 13.5px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-  max-width: 62ch;
+/* Title text + its info icon, grouped tightly (the icon tile keeps the wider gap). */
+.pageHeadLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 .mandatesSectionMeta {
   font-size: 11px;
@@ -1006,7 +1130,7 @@ a.fundAddr { text-decoration: none; }
 }
 .mandateSummaryPermRow {
   display: grid;
-  grid-template-columns: 22px 1fr;
+  grid-template-columns: 1fr;
   align-items: start;
   gap: 14px;
   padding: 10px 10px;
@@ -1044,16 +1168,12 @@ a.fundAddr { text-decoration: none; }
   opacity: 1;
   transform: translate(1px, -1px);
 }
-.mandateSummaryCheck {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  margin-top: 1px;
-  border-radius: 2px;
-  color: var(--status-success, #1990FF);
-  background: rgba(25, 144, 255, 0.10);
+.mandateSummaryDesc {
+  margin: 2px 0 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  max-width: 68ch;
 }
 .mandateSummaryPermBody {
   display: flex;
@@ -1103,204 +1223,18 @@ a.fundAddr { text-decoration: none; }
   padding: 6px 12px;
   border-radius: 2px;
   cursor: pointer;
-  color: var(--status-revoked, #e5484d);
-  background: var(--status-revoked-bg, rgba(229, 72, 77, 0.1));
-  border: 1px solid var(--status-revoked-border, rgba(229, 72, 77, 0.26));
-  transition: background 0.16s ease, border-color 0.16s ease;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
 }
 .mandateRevokeBtn:hover {
-  background: rgba(229, 72, 77, 0.18);
-  border-color: rgba(229, 72, 77, 0.4);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.26);
+  color: var(--text-primary);
 }
 
 /* ────── SMA status badges (title block) ────── */
-/* Network selector — choose which chain the SMA view (wallets + mandates) focuses on. */
-.netSelect {
-  position: relative;
-  display: inline-flex;
-}
-.netSelectBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px 4px 10px;
-  border-radius: 2px;
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg);
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  color: var(--text-secondary);
-  text-transform: capitalize;
-  cursor: pointer;
-  transition: border-color 140ms var(--ease-sail), color 140ms var(--ease-sail), background 140ms var(--ease-sail);
-}
-.netSelectBtn svg { color: var(--text-tertiary); }
-/* The active chain's name inside the trigger button. */
-.netSelectName {
-  font-weight: 500;
-  text-transform: capitalize;
-  color: var(--text-primary);
-}
-/* Small uppercase eyebrow inside the button so it reads as a network selector,
-   not just a bare chain name. */
-.netSelectLabel {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 9.5px;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-  margin-right: 2px;
-}
-.netSelectBtn:hover,
-.netSelectBtn[aria-expanded='true'] {
-  border-color: rgba(255, 255, 255, 0.22);
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.04);
-}
-.netSelectChevron {
-  display: inline-flex;
-  margin-left: 1px;
-  transition: transform 140ms var(--ease-sail);
-}
-.netSelectBtn[aria-expanded='true'] .netSelectChevron { transform: rotate(180deg); }
-.netSelectMenu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 40;
-  min-width: 180px;
-  max-height: 320px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px;
-  border-radius: 3px;
-  border: 1px solid var(--glass-border);
-  border-top-color: rgba(255, 255, 255, 0.18);
-  background: rgba(12, 18, 28, 0.97);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  animation: netSelectIn 120ms var(--ease-sail) both;
-}
-@keyframes netSelectIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.netSelectOption {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 7px 9px;
-  border: none;
-  border-radius: 2px;
-  background: none;
-  color: var(--text-secondary);
-  font-size: 12.5px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  text-transform: capitalize;
-  text-align: left;
-  cursor: pointer;
-  transition: background 120ms var(--ease-sail), color 120ms var(--ease-sail);
-}
-.netSelectOption svg { color: var(--text-tertiary); }
-.netSelectOption:hover { background: rgba(255, 255, 255, 0.06); color: var(--text-primary); }
-.netSelectOptionName { flex: 1; }
-.netSelectOptionActive { color: var(--text-primary); }
-/* "+ Add network" row — separated from the deployed-chain list by a hairline. */
-.netSelectAdd {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  margin-top: 4px;
-  padding: 8px 9px;
-  border: none;
-  border-top: 1px solid var(--glass-border);
-  border-radius: 0 0 2px 2px;
-  background: none;
-  color: var(--text-secondary);
-  font-size: 12.5px;
-  font-weight: 500;
-  text-align: left;
-  cursor: pointer;
-  transition: background 120ms var(--ease-sail), color 120ms var(--ease-sail);
-}
-.netSelectAdd:hover { background: rgba(25, 144, 255, 0.10); color: var(--text-primary); }
-.netSelectAddPlus {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  color: var(--accent-blue, #1990FF);
-  font-size: 15px;
-  line-height: 1;
-}
-/* Add-network sub-view: back control + one-line explainer. */
-.netSelectBack {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 5px 8px;
-  border: none;
-  background: none;
-  color: var(--text-tertiary);
-  font-size: 12px;
-  font-weight: 500;
-  text-align: left;
-  cursor: pointer;
-  transition: color 120ms var(--ease-sail);
-}
-.netSelectBack:hover { color: var(--text-primary); }
-.netSelectHint {
-  display: block;
-  padding: 0 9px 6px;
-  font-size: 11px;
-  line-height: 1.45;
-  color: var(--text-tertiary);
-}
-.netSelectCheck { display: inline-flex; color: var(--accent-blue, #1990FF); }
-.netSelectCheck svg { color: var(--accent-blue, #1990FF); }
-.netSelectOption:disabled { cursor: default; opacity: 0.55; }
-.netSelectOption:disabled:hover { background: none; color: var(--text-secondary); }
-/* Inline "Requesting…" tag while a deploy request is in flight. */
-.netSelectStatus {
-  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
-  font-size: 10.5px;
-  letter-spacing: 0.04em;
-  color: var(--text-tertiary);
-}
-/* Fallback note: adding a network is a wallet-driven deploy with no dashboard
-   entry point yet, so point the user at the CLI instead of failing silently. */
-.netSelectNote {
-  margin: 4px 3px 2px;
-  padding: 8px 9px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--glass-border);
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--text-tertiary);
-}
-.netSelectNoteCmd {
-  display: block;
-  margin-top: 6px;
-  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
-  font-size: 10.5px;
-  letter-spacing: 0.01em;
-  color: var(--text-secondary);
-  word-break: break-all;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .netSelectMenu { animation: none; }
-  .netSelectChevron { transition: none; }
-}
 
 /* ────── Gated states: connect / wrong-wallet ──────
    Embedded + left-aligned in the main column (sidebar stays), matching the
@@ -1436,11 +1370,16 @@ a.fundAddr { text-decoration: none; }
   grid-template-columns: repeat(auto-fit, minmax(228px, 1fr));
   gap: 16px;
 }
-/* Gas-wallets page: one card per row, reading top-to-bottom (owner, then
-   agent). Width-capped so a lone column doesn't stretch across the full pane. */
+/* Gas-wallets page: the wallet cards sit side by side (owner + agent), squared
+   and large, filling most of the pane. Width-capped so they stay card-shaped
+   rather than stretching into wide banners. */
 .signerGridStacked {
-  grid-template-columns: 1fr;
-  max-width: 640px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 960px;
+  gap: 20px;
+}
+@media (max-width: 760px) {
+  .signerGridStacked { grid-template-columns: 1fr; }
 }
 /* Collapse to 2-up on tablets and 1-up on phones so the cards never cram. */
 @media (max-width: 880px) {
@@ -1464,54 +1403,30 @@ a.fundAddr { text-decoration: none; }
 .signersOfflineMsg {
   margin: 0;
 }
+/* Wallet card: a rounded card with a coloured banner "lid" over a darker body —
+   squared and tall, like a real account card. overflow:hidden clips the banner
+   to the rounded corners. */
 .signerCard {
   position: relative;
   display: flex;
   flex-direction: column;
-  padding: 18px;
-  border-radius: 3px;
-  /* Sail terminal-panel surface — opaque so the animated field never bleeds through. */
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background:
-    radial-gradient(120% 60% at 50% 0%, rgba(25, 144, 255, 0.06), transparent 55%),
-    #04060b;
+  min-height: 300px;
+  /* Squared corners — a small radius, not a rounded/pill card. */
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #0a0f18;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.016),
-    0 40px 120px -50px rgba(0, 0, 0, 0.9),
-    0 0 80px -40px rgba(25, 144, 255, 0.25);
-  transition: border-color 0.18s ease;
+    0 1px 0 rgba(255, 255, 255, 0.03) inset,
+    0 30px 80px -40px rgba(0, 0, 0, 0.9),
+    0 0 60px -44px rgba(25, 144, 255, 0.3);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 .signerCard:hover { border-color: var(--glass-border-strong); }
-.signerCardWarn {
-  /* Warning is shown by the grey pill, not an amber card (manual §3). */
-  border-color: rgba(255, 255, 255, 0.14);
-  background:
-    radial-gradient(120% 60% at 50% 0%, rgba(25, 144, 255, 0.06), transparent 55%),
-    #04060b;
-}
+.signerCardWarn { border-color: rgba(255, 255, 255, 0.12); }
 .signerCardCrit {
   border-color: rgba(255, 92, 108, 0.5);
-  background:
-    linear-gradient(rgba(255, 92, 108, 0.07), rgba(255, 92, 108, 0.07)),
-    radial-gradient(120% 60% at 50% 0%, rgba(25, 144, 255, 0.06), transparent 55%),
-    #04060b;
-}
-.signerCardHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  /* On narrow (3-up) cards the status pill drops to its own line instead of
-     colliding with the role + Active tag. */
-  flex-wrap: wrap;
-  row-gap: 8px;
-  margin-bottom: 2px;
-}
-.signerRoleWrap {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
+  background: linear-gradient(rgba(255, 92, 108, 0.06), rgba(255, 92, 108, 0.06)), #0a0f18;
 }
 /* "Active" status tag, sitting right beside the role title — no square dot. */
 /* Right-side status zone of a wallet card header: Active indicator + balance pill. */
@@ -1522,17 +1437,56 @@ a.fundAddr { text-decoration: none; }
   gap: 8px;
   flex-wrap: wrap;
 }
-.signerRole {
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  color: var(--text-primary);
+/* Banner "lid": role icon + label, top-left, on a blue gradient header. */
+.signerBanner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 84px;
+  padding: 18px 20px;
+  color: #fff;
+  background:
+    radial-gradient(130% 150% at 12% 0%, rgba(255, 255, 255, 0.22), transparent 55%),
+    linear-gradient(135deg, #2f9cff 0%, #1a82f0 55%, #0f63d6 100%);
 }
+.signerBannerIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  color: #fff;
+}
+.signerBannerIcon svg { width: 30px; height: 30px; }
+.signerBannerRobot { width: 34px; height: 34px; display: block; }
+.signerBannerLabel {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
+/* Card body — balance, address, actions. Grows to fill the tall card. */
+.signerBodyNew {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+}
+.signerBalanceRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+/* Pushes the address/action footer to the bottom of the card. */
+.signerSpacer { flex: 1; }
 .signerBalance {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  margin-bottom: 4px;
 }
 /* Ethereum mark sits centred against the big mono figure. */
 .ethGlyph {
@@ -1543,7 +1497,7 @@ a.fundAddr { text-decoration: none; }
 .signerBalanceNum {
   /* Data is always mono so figures align and feel measured (manual §4). */
   font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 28px;
+  font-size: 34px;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text-primary);
@@ -1551,7 +1505,7 @@ a.fundAddr { text-decoration: none; }
 }
 .signerBalanceUnit {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text-tertiary);
 }
@@ -1650,22 +1604,6 @@ a.fundAddr { text-decoration: none; }
 }
 .signerRotateBtnSm:hover { border-color: var(--glass-border-strong); background: rgba(255, 255, 255, 0.06); color: var(--text-primary); }
 .signerRotateBtnSm svg { flex-shrink: 0; }
-.signerTopUp {
-  margin-top: 10px;
-  padding: 9px 11px;
-  border-radius: 2px;
-  /* Warning = grey, never amber (manual §3). */
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  font-size: 12px;
-  line-height: 1.4;
-  color: rgba(255, 255, 255, 0.62);
-}
-.signerCardCrit .signerTopUp {
-  background: rgba(255, 92, 108, 0.12);
-  border-color: rgba(255, 92, 108, 0.32);
-  color: var(--danger);
-}
 
 /* ────── Balance health pill ────── */
 .balancePill {
@@ -1911,6 +1849,26 @@ a.fundAddr { text-decoration: none; }
   border-color: rgba(25, 144, 255, 0.26);
 }
 
+/* Transaction link on an activity row — an open-in-explorer icon rather than the
+   raw hash, matching the ArrowOutIcon utility links used across the dashboard. */
+.activityTxLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: 4px;
+  border-radius: 2px;
+  color: var(--accent-blue, #1990ff);
+  opacity: 0.6;
+  vertical-align: middle;
+  transition: opacity 160ms var(--ease-sail), background 160ms var(--ease-sail);
+}
+.activityTxLink:hover {
+  opacity: 1;
+  background: rgba(25, 144, 255, 0.1);
+}
+
 /* Revoke action on an attached-mandate row. */
 
 /* ── GH Actions setup banner ─────────────────────────────────────────────── */
@@ -1988,16 +1946,22 @@ a.fundAddr { text-decoration: none; }
 .tickPositionProto { font-size: 11px; color: rgba(255,255,255,0.3); }
 
 /* ── Fund agent button ───────────────────────────────────────────────────── */
-.signerTopUpMsg { font-size: 12px; color: rgba(255,255,255,0.55); }
+.signerTopUpMsg { margin: 0; font-size: 12px; color: rgba(255,255,255,0.55); }
+.signerTopUpMsgCrit { color: var(--danger); }
+.signerFundIcon { display: inline-flex; }
+.signerFundIcon svg { width: 14px; height: 14px; }
 .signerFundBtn {
-  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   width: 100%;
-  padding: 8px 0;
-  border-radius: 2px;
+  padding: 11px 0;
+  border-radius: 6px;
   border: 1px solid rgba(25, 144, 255, 0.45);
   background: rgba(25, 144, 255, 0.12);
   color: #4dabff;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
   transition: background 150ms, border-color 150ms;
@@ -2012,7 +1976,6 @@ a.fundAddr { text-decoration: none; }
 .signerCardCrit .signerFundBtn:hover:not(:disabled) { background: rgba(255,92,108,0.16); border-color: rgba(255,92,108,0.55); }
 
 
-.signerSpacer { flex: 1; }
 
 
 /* TRIAL: faint CRT scanlines on the wallet cards (full sail-card texture). */

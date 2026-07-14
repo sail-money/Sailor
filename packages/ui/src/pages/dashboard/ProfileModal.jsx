@@ -42,7 +42,7 @@ function ArrowOutIcon() {
  * Network chip has been removed — chain context belongs on each
  * individual SMA row, not on the EOA itself.
  */
-const CHAIN_NAMES = { 1: 'Ethereum', 10: 'Optimism', 137: 'Polygon', 8453: 'Base', 42161: 'Arbitrum', 130: 'Unichain', 84532: 'Base Sepolia', 421614: 'Arb Sepolia' }
+const CHAIN_NAMES = { 1: 'Ethereum', 10: 'Optimism', 137: 'Polygon', 8453: 'Base', 42161: 'Arbitrum', 130: 'Unichain' }
 
 export default function ProfileModal({
   open,

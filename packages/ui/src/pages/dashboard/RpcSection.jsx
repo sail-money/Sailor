@@ -16,8 +16,6 @@ const CHAINS = [
   { id: 480,   name: 'World',        kind: 'mainnet' },
   { id: 999,   name: 'HyperEVM',     kind: 'mainnet' },
   { id: 4326,  name: 'MegaETH',      kind: 'mainnet' },
-  { id: 84532, name: 'Base Sepolia', kind: 'testnet' },
-  { id: 11155111, name: 'Eth Sepolia', kind: 'testnet' },
 ]
 
 const RPC_PROVIDERS = [

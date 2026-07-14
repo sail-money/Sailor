@@ -36,9 +36,7 @@ const SUPPORTED_NETWORKS = [
   { chainId: 480,    name: 'World Chain',    group: 'mainnet', description: 'Worldcoin L2.', color: '#dfe3e8' },
   { chainId: 999,    name: 'HyperEVM',       group: 'mainnet', description: 'Hyperliquid EVM.', color: '#50d2c1' },
   { chainId: 4326,   name: 'MegaETH',        group: 'mainnet', description: 'Real-time EVM.', color: '#ffffff' },
-  // ── Testnets ──
-  { chainId: 84532,    name: 'Base Sepolia',     group: 'testnet', description: 'Free to experiment.', color: '#0052ff' },
-  { chainId: 11155111, name: 'Ethereum Sepolia', group: 'testnet', description: 'Ethereum test network.', color: '#627eea' },
+  // Testnets (Base/Ethereum Sepolia) are intentionally not offered in the UI.
 ]
 
 // Steps that show progress dots (excludes welcome + done).
@@ -293,12 +291,16 @@ function NetworkStep({ selected, onToggle, onBack, onDone, progressIndex, progre
             <NetworkCard key={net.chainId} net={net} selected={selected.includes(net.chainId)} onToggle={onToggle} />
           ))}
         </div>
-        <span className={styles.networkGroupLabel}>Testnet</span>
-        <div className={styles.networkGrid}>
-          {testnets.map(net => (
-            <NetworkCard key={net.chainId} net={net} selected={selected.includes(net.chainId)} onToggle={onToggle} />
-          ))}
-        </div>
+        {testnets.length > 0 && (
+          <>
+            <span className={styles.networkGroupLabel}>Testnet</span>
+            <div className={styles.networkGrid}>
+              {testnets.map(net => (
+                <NetworkCard key={net.chainId} net={net} selected={selected.includes(net.chainId)} onToggle={onToggle} />
+              ))}
+            </div>
+          </>
+        )}
       </div>
       <SailButton fullWidth onClick={onDone} disabled={selected.length === 0}>
         {selected.length === 0
@@ -710,7 +712,7 @@ function classifyDeployError(raw) {
   return { kind: 'error', message: raw || 'Something went wrong. Try again, or remove this chain.' }
 }
 
-function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, deployedSoFar = [], onChainDeployed, onBack, onDone, onRunningChange, onRemoveChain, progressIndex, progressTotal }) {
+export function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, deployedSoFar = [], onChainDeployed, onBack, onDone, onRunningChange, onRemoveChain, progressIndex, progressTotal, compact = false, title, sub, cta }) {
   const { sendTransactionAsync } = useSendTransaction()
   const { signTypedDataAsync } = useSignTypedData()
   const { switchChainAsync } = useSwitchChain()
@@ -938,11 +940,11 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, deployedSoF
 
   return (
     <GlassCard className={styles.authCard}>
-      <ProgressDots current={progressIndex} total={progressTotal} />
+      {!compact && <ProgressDots current={progressIndex} total={progressTotal} />}
       <CardHeader
-        kicker={`STEP ${progressIndex + 1} OF ${progressTotal}`}
-        title="Deploy your SMAs"
-        sub="Same SMA address on every chain. Some chains need 2 transactions — your wallet will prompt for each."
+        kicker={compact ? 'ADD NETWORK' : `STEP ${progressIndex + 1} OF ${progressTotal}`}
+        title={title ?? 'Deploy your SMAs'}
+        sub={sub ?? 'Same SMA address on every chain. Some chains need 2 transactions — your wallet will prompt for each.'}
         onBack={running ? undefined : onBack}
       />
       <div className={styles.chainDeployList}>
@@ -990,7 +992,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, deployedSoF
       <Detail label="Agent key" value={managerAddress} />
       {!allSettled && (
         <SailButton fullWidth onClick={deployAll} disabled={running} style={{ marginTop: 14 }}>
-          {running ? 'Deploying…' : 'Deploy SMAs'}
+          {running ? 'Deploying…' : (cta ?? 'Deploy SMAs')}
         </SailButton>
       )}
       {allSettled && hasRetryableError && (

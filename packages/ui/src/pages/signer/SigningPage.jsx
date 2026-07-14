@@ -26,6 +26,52 @@ const KIND_LABELS = {
 const shortHex = (a) => `${a.slice(0, 6)}…${a.slice(-4)}`
 const chainName = (chains, id) => chains.find((c) => c.id === id)?.name ?? `Chain ${id}`
 
+// Pixel-art checkmark — drawn on the same 1px grid as the Sai boat logo so the
+// confirmed status glyph reads as part of the brand rather than a generic tick.
+// Rendered in accent blue with a soft glow; pops in when the tx confirms.
+function PixelCheck({ className = '' }) {
+  return (
+    <svg viewBox="0 0 7 6" width="16" height="14" className={className} role="img" aria-label="Confirmed">
+      <path
+        fill="currentColor"
+        d="M6 0h1v1h-1zM6 1h1v1h-1zM5 1h1v1h-1zM5 2h1v1h-1zM4 2h1v1h-1zM4 3h1v1h-1zM3 3h1v1h-1zM3 4h1v1h-1zM2 4h1v1h-1zM2 5h1v1h-1zM1 3h1v1h-1zM1 4h1v1h-1zM0 2h1v1h-1zM0 3h1v1h-1z"
+      />
+    </svg>
+  )
+}
+
+// Open-in-explorer glyph — the same square-shouldered "arrow out of a box" mark
+// used for utility links across the dashboard. Replaces the old "View code on
+// scanner ↗" text so the signing card stays coherent with the rest of the app.
+function ScannerLinkIcon() {
+  return (
+    <svg viewBox="0 0 14 14" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5 9 L9 5" />
+      <path d="M5.4 5 H9 V8.6" />
+    </svg>
+  )
+}
+
+// Plain-language fallback for what a permission/request authorizes, matched from
+// its name. The CLI supplies a structured `explanation` for most permissions;
+// this guarantees the user always sees a human description of what they're
+// signing, even for bespoke contracts that carry no explainer.
+function describePermission(name = '') {
+  const n = String(name).toLowerCase()
+  if (/permit2/.test(n)) return 'Lets the agent grant a capped Permit2 spend allowance — nothing above the limit.'
+  if (/universalrouter|router.*execute|\bexecute\b/.test(n)) return 'Lets the agent route swaps through the Universal Router within the bounds you set.'
+  if (/aero|slipstream/.test(n)) return 'Lets the agent swap on Aerodrome Slipstream pools within your limits.'
+  if (/erc20.*approve|approve.*erc20|bounded.*approve|\bapprove\b/.test(n)) return 'Lets the agent approve a capped token amount for a specific spender.'
+  if (/swap/.test(n)) return 'Lets the agent swap tokens within the size, slippage and token limits you set.'
+  if (/transfer/.test(n)) return 'Lets the agent transfer tokens only to the recipients you approved.'
+  if (/deposit/.test(n)) return 'Lets the agent deposit funds into an approved venue.'
+  if (/withdraw/.test(n)) return 'Lets the agent withdraw funds from an approved venue.'
+  if (/borrow|repay/.test(n)) return 'Lets the agent borrow or repay within the limits you set.'
+  if (/mandate/.test(n)) return 'Registers this mandate on-chain so your agent can act within its permissions.'
+  if (/delegate|manager/.test(n)) return 'Sets your agent wallet as the account manager so it can submit dispatches.'
+  return 'An on-chain rule that scopes exactly what your agent may do — it can never act beyond it.'
+}
+
 export default function SigningPage() {
   const { draft } = useSailorMandateDraft()
   const hasDraft = draft && (draft.permissions ?? draft.items ?? []).length > 0
@@ -119,13 +165,13 @@ export default function SigningPage() {
             <NotConnectedCard eyebrow="SIGNING" title="Connect to approve requests." sub="Connect the owner wallet to review and sign pending agent requests." />
           </div>
         ) : phase.phase === 'success' ? (
-          <SuccessScreen kind={phase.kind} note={phase.note} onDone={() => { setPhase({ phase: 'idle' }); window.location.hash = '#/dashboard' }} />
+          <TransactionStateCard state="confirmed" kind={phase.kind} note={phase.note} onDone={() => { setPhase({ phase: 'idle' }); window.location.hash = '#/dashboard' }} />
         ) : phase.phase === 'chain-failed' ? (
           <FailureScreen outcome={phase.outcome} message={phase.message} onDone={() => { setPhase({ phase: 'idle' }); window.location.hash = '#/dashboard' }} />
         ) : phase.phase === 'unverified' ? (
           <UnverifiedScreen message={phase.message} onDone={() => { setPhase({ phase: 'idle' }); window.location.hash = '#/dashboard' }} />
         ) : phase.phase === 'awaiting-confirmation' ? (
-          <AwaitingConfirmationScreen onDone={() => { setPhase({ phase: 'idle' }); window.location.hash = '#/dashboard' }} />
+          <TransactionStateCard state="submitting" kind={phase.kind} onDone={() => { setPhase({ phase: 'idle' }); window.location.hash = '#/dashboard' }} />
         ) : hasDraft ? (
           <MandateSigningFlow draft={draft} embedded />
         ) : requests.length === 0 ? (
@@ -241,19 +287,23 @@ function OperationCard({ request, chains, phase, onSign, onReject, otherActive }
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary, rgba(255,255,255,0.72))' }}>{p.label}</span>
                   {codeUrl && (
-                    <a href={codeUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: '#7eb8f7', textDecoration: 'none', fontSize: 12, whiteSpace: 'nowrap' }}>
-                      View code on scanner ↗
+                    <a href={codeUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className={styles.scannerLink} title="View verified code on scanner" aria-label={`View verified code for ${p.label} on the block explorer`}>
+                      <ScannerLinkIcon />
                     </a>
                   )}
                 </div>
-                {p.explanation && <ExplanationBlock ex={p.explanation} />}
+                {p.explanation
+                  ? <ExplanationBlock ex={p.explanation} />
+                  : <p className={styles.permFallback}>{describePermission(p.label)}</p>}
               </div>
             )
           })}
         </div>
       ) : request.explanation ? (
         <ExplanationBlock ex={request.explanation} />
-      ) : null}
+      ) : (
+        <p className={styles.permFallback}>{describePermission(request.title || request.kind)}</p>
+      )}
 
       <div className={styles.details}>
         {request.details.map((d) => <DetailRow key={d.label} label={d.label} value={d.value} chainId={request.chainId} />)}
@@ -388,8 +438,8 @@ function DetailRow({ label, value, mono = true, chainId }) {
       <span style={{ display: 'inline-flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
         {mono ? <code className={styles.detailValue}>{value}</code> : <span className={styles.detailValue}>{value}</span>}
         {codeUrl && (
-          <a href={codeUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: '#7eb8f7', textDecoration: 'none', fontSize: 12, whiteSpace: 'nowrap' }}>
-            View code on scanner ↗
+          <a href={codeUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className={styles.scannerLink} title="View verified code on scanner" aria-label="View verified contract code on the block explorer">
+            <ScannerLinkIcon />
           </a>
         )}
       </span>
@@ -397,60 +447,68 @@ function DetailRow({ label, value, mono = true, chainId }) {
   )
 }
 
-function SuccessScreen({ kind, note, onDone }) {
+/* ONE card for the whole post-signature lifecycle. After the owner signs, the
+   agent submits the tx (state='submitting') and then it confirms on-chain
+   (state='confirmed') — this single card transitions in place rather than
+   swapping between two different screens. The primary action stays grey
+   (secondary) while confirming and turns blue (primary) once confirmed. */
+function TransactionStateCard({ state, kind, note, onDone }) {
   const isPermission = kind === 'register-permission' || kind === 'attach-mandate'
+  const confirmed = state === 'confirmed'
+  const headline = confirmed
+    ? (isPermission ? 'Permission registered.' : 'Confirmed on-chain.')
+    : 'Signature received.'
+  const tagline = confirmed
+    ? (isPermission
+        ? 'Your agent is now authorized to dispatch within this permission.'
+        : 'The transaction is confirmed on-chain.')
+    : 'The agent is submitting the on-chain transaction — this updates automatically once it confirms.'
   return (
-    <GlassCard className={styles.emptyCard}>
+    <GlassCard className={`${styles.emptyCard} ${styles.txCard} ${confirmed ? styles.txCardDone : ''}`}>
+      {/* Indeterminate progress bar along the card's top edge — the primary
+          "actively confirming" signal while we wait for the on-chain receipt.
+          Only rendered in the pending state; it resolves away on confirmation. */}
+      {!confirmed && (
+        <div className={styles.txProgress} aria-hidden>
+          <span className={styles.txProgressBar} />
+        </div>
+      )}
       <div className={styles.emptyCardSai} aria-hidden>
         <Sai size={64} animate />
       </div>
       <header className={styles.emptyCardHeader}>
-        <span className={styles.emptyKicker}>CONFIRMED</span>
-        <h1 className={`${shared.displayHeadline} ${styles.emptyHeadline}`} style={{ color: '#4DABFF' }}>
-          ✓ {isPermission ? 'Permission registered.' : 'Confirmed on-chain.'}
+        <span className={styles.txState}>
+          {confirmed
+            ? <PixelCheck className={styles.txCheck} />
+            : <span className={`${styles.txStateDot} ${styles.txStateDotPending}`} aria-hidden />}
+          <span className={styles.emptyKicker}>{confirmed ? 'CONFIRMED' : 'SUBMITTING'}</span>
+        </span>
+        <h1 className={`${shared.displayHeadline} ${styles.emptyHeadline}`} style={confirmed ? { color: '#4DABFF' } : undefined}>
+          {headline}
         </h1>
         <p className={`${shared.italicMannerism} ${styles.emptyTagline}`}>
-          {isPermission
-            ? 'Your agent is authorized to dispatch within this permission.'
-            : 'The transaction was confirmed on-chain.'}
+          {tagline}
         </p>
-        {note && (
+        {confirmed && note && (
           <p className={`${shared.italicMannerism} ${styles.emptyTagline}`} style={{ opacity: 0.8 }}>
             {note}
           </p>
         )}
       </header>
       <div className={styles.emptyCta}>
-        <SailButton fullWidth onClick={onDone}>
-          Back to dashboard →
-        </SailButton>
-      </div>
-    </GlassCard>
-  )
-}
-
-/* Shown for a typed-data signature (e.g. register-permission): the owner's
-   part is done, but the agent still has to submit the on-chain transaction —
-   this is deliberately NOT a success state. */
-function AwaitingConfirmationScreen({ onDone }) {
-  return (
-    <GlassCard className={styles.emptyCard}>
-      <div className={styles.emptyCardSai} aria-hidden>
-        <Sai size={64} animate />
-      </div>
-      <header className={styles.emptyCardHeader}>
-        <span className={styles.emptyKicker}>SIGNED</span>
-        <h1 className={`${shared.displayHeadline} ${styles.emptyHeadline}`}>
-          Signature received.
-        </h1>
-        <p className={`${shared.italicMannerism} ${styles.emptyTagline}`}>
-          The agent is submitting the on-chain transaction now — this page will update once it confirms.
-        </p>
-      </header>
-      <div className={styles.emptyCta}>
-        <SailButton fullWidth onClick={onDone}>
-          Back to dashboard →
-        </SailButton>
+        {/* The primary action stays disabled until the transaction confirms, so the
+            owner can't leave mid-submission. The page header's "Back to dashboard"
+            remains available as an escape hatch if confirmation stalls. */}
+        {confirmed ? (
+          <SailButton fullWidth variant="primary" onClick={onDone}>
+            Back to dashboard →
+          </SailButton>
+        ) : (
+          <SailButton fullWidth variant="secondary" disabled aria-live="polite">
+            <span className={styles.txSpinner} aria-hidden />
+            Waiting for confirmation…
+          </SailButton>
+        )}
       </div>
     </GlassCard>
   )
@@ -528,8 +586,8 @@ function EmptyQueue({ daemonConnected, onAsk }) {
         </h1>
         <p className={`${shared.italicMannerism} ${styles.emptyTagline}`}>
           {daemonConnected
-            ? 'The agent will push approval requests here as it works.'
-            : <>Run <code style={{ fontSize: 13, opacity: 0.8 }}>sailor signer start</code> to connect — this page will reconnect automatically.</>}
+            ? 'Nothing to sign right now — your agent drops approval requests here as it works.'
+            : <>Run <code style={{ fontSize: 13, opacity: 0.8 }}>sailor station start</code> to connect — this page reconnects on its own.</>}
         </p>
       </header>
       <div className={styles.emptyCta}>

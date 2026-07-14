@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import OnboardingWizard from '../onboarding/OnboardingWizard'
+import OnboardingWizard, { CreateSmaStep } from '../onboarding/OnboardingWizard'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { useAccount, useDisconnect } from 'wagmi'
 import { sailDeployments } from '@sail/sdk/deployments'
@@ -15,6 +15,7 @@ import {
 import SailBackground from '../shared/SailBackground'
 import debankIcon from '../shared/debank.png'
 import sailorMark from '../shared/sailor-mark.png'
+import robotMark from '../shared/robot-mark.svg'
 import shared from '../shared/shared.module.css'
 import styles from './Dashboard.module.css'
 import agentStyles from './SharedLayout.module.css'
@@ -83,9 +84,11 @@ const CHAIN_NAMES = {
   480: 'world',
   999: 'hyperevm',
   4326: 'megaeth',
-  84532: 'base sepolia',
-  11155111: 'ethereum sepolia',
 }
+// Testnets we deliberately never surface in the Sailor UI (Base/Ethereum
+// Sepolia and their siblings). Filtered out of every chain list, the
+// Add-network picker, and the switchers so they can't render anywhere.
+const HIDDEN_CHAIN_IDS = new Set([84532, 11155111, 421614, 1301, 11155420, 4801])
 // Proper-cased display labels for chains whose slug doesn't render cleanly under
 // CSS `text-transform: capitalize` (which only upper-cases the first letter, so
 // 'hyperevm' → 'Hyperevm'). The slug in CHAIN_NAMES stays lowercase because it's
@@ -103,7 +106,7 @@ function chainDisplayName(chainId) {
 // Chains an SMA can actually be deployed to — those with a live Sail kernel.
 // Drives the "Add network" picker (deployable − already-deployed). Same source
 // the onboarding wizard uses so the two never drift.
-const DEPLOYABLE_CHAIN_IDS = Object.keys(sailDeployments).map(Number)
+const DEPLOYABLE_CHAIN_IDS = Object.keys(sailDeployments).map(Number).filter((id) => !HIDDEN_CHAIN_IDS.has(id))
 function safeAppUrl(network, address) {
   const prefix = SAFE_CHAIN_PREFIX[network] ?? 'eth'
   return `https://app.safe.global/home?safe=${prefix}:${address}`
@@ -156,6 +159,24 @@ function explainPermission(perm) {
   }
 }
 
+// Plain-language one-liner for what a permission lets the agent do, matched from
+// the permission/template name. Bespoke permissions rarely carry a structured
+// explainer, so this guarantees every row still reads in human terms (the
+// "always describe what they're signing" rule). Falls back to a generic line.
+function describePermission(name = '') {
+  const n = String(name).toLowerCase()
+  if (/permit2/.test(n)) return 'Lets the agent grant a capped Permit2 spend allowance — nothing above the limit.'
+  if (/universalrouter|router.*execute|execute/.test(n)) return 'Lets the agent route swaps through the Universal Router within the bounds you set.'
+  if (/aero|slipstream/.test(n)) return 'Lets the agent swap on Aerodrome Slipstream pools within your limits.'
+  if (/erc20.*approve|approve.*erc20|bounded.*approve/.test(n)) return 'Lets the agent approve a capped token amount for a specific spender.'
+  if (/swap/.test(n)) return 'Lets the agent swap tokens within the size, slippage and token limits you set.'
+  if (/transfer/.test(n)) return 'Lets the agent transfer tokens only to the recipients you approved.'
+  if (/deposit/.test(n)) return 'Lets the agent deposit funds into an approved venue.'
+  if (/withdraw/.test(n)) return 'Lets the agent withdraw funds from an approved venue.'
+  if (/borrow|repay/.test(n)) return 'Lets the agent borrow or repay within the limits you set.'
+  return 'A custom on-chain rule that scopes exactly what your agent may do — it can never act beyond it.'
+}
+
 function fmtActivityTime(ts) {
   try {
     const d = new Date(ts)
@@ -187,7 +208,6 @@ const SIGNING_CHAIN_NAMES = {
   8453: 'Base',
   42161: 'Arbitrum One',
   130: 'Unichain',
-  84532: 'Base Sepolia',
 }
 
 const ACTIVITY_LABELS = {
@@ -441,114 +461,106 @@ function SignersPanel({ overview, sma, onAddSigner, onRotateSigner, stacked = fa
   )
 }
 
-function ChevronDownSm() {
+
+// Shared chain switcher — one visual, used identically on Overview, Mandates and
+// Gas wallets. Always rendered (even for a single-chain SMA, so the user always
+// sees which chain they're on). `onAll`, when provided, prepends an "All chains"
+// chip (Mandates only). Chips carry the ChainGlyph + display name.
+function ChainSwitcher({ chains, activeChainId, onSelect, allActive = false, onAll, ariaLabel = 'Switch chain' }) {
+  if (!chains || chains.length === 0) return null
   return (
-    <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden>
-      <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <div className={styles.chainSwitcher} role="group" aria-label={ariaLabel}>
+      {onAll && (
+        <button
+          type="button"
+          aria-pressed={allActive}
+          className={`${styles.chainSwitchBtn} ${allActive ? styles.chainSwitchBtnActive : ''}`}
+          onClick={onAll}
+        >
+          All chains
+        </button>
+      )}
+      {chains.map((c) => {
+        const isActive = !allActive && Number(c.id) === Number(activeChainId)
+        return (
+          <button
+            key={c.id}
+            type="button"
+            aria-pressed={isActive}
+            className={`${styles.chainSwitchBtn} ${isActive ? styles.chainSwitchBtnActive : ''}`}
+            onClick={() => onSelect?.(Number(c.id))}
+            title={c.name}
+          >
+            {c.id != null && <ChainGlyph chainId={c.id} size={14} />}
+            <span>{c.name}</span>
+          </button>
+        )
+      })}
+    </div>
   )
 }
 
-// Network selector on the identity card — picking a chain focuses the SMA view
-// (wallets + mandates) via selectedChainId, and "Add network" deploys the SMA to
-// another chain. Shown for single-chain SMAs too, so "Add network" is reachable.
-function NetworkSelect({ chains, activeChainId, onSelect, deployable = [], onAddNetwork }) {
-  const [open, setOpen] = useState(false)
-  const [addMode, setAddMode] = useState(false)
-  const [pendingChain, setPendingChain] = useState(null)
-  const [addResult, setAddResult] = useState(null) // { chainId, reason } when a deploy can't be kicked off from here
-  const ref = useRef(null)
-  useEffect(() => {
-    if (!open) { setAddMode(false); setPendingChain(null); setAddResult(null); return undefined }
-    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    const onKey = (e) => { if (e.key === 'Escape') setOpen(false) }
-    document.addEventListener('mousedown', onDoc)
-    document.addEventListener('keydown', onKey)
-    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey) }
-  }, [open])
-  const active = chains.find((c) => c.id === activeChainId) ?? chains[0]
-  const label = chains.length > 1 ? `${chains.length} networks` : 'Network'
-  const canAdd = !!onAddNetwork && deployable.length > 0
+// "Add a new network" — deploy the current SMA to another chain. This is the
+// wallet-signed onboarding deploy (switch chain → factory deploy → sign the
+// RegisterAccount digest), reusing the wizard's CreateSmaStep verbatim so the
+// two never drift. It needs the SMA's ORIGINAL saltNonce (stored in
+// account.json) to land at the SAME CREATE2 address — without it we can't
+// guarantee the address, so we surface the CLI path instead of risking a
+// mismatched deploy.
+function AddNetworkModal({ open, onClose, owner, manager, saltNonce, deployable, onDeployed }) {
+  const [target, setTarget] = useState(null)
+  useEffect(() => { if (!open) setTarget(null) }, [open])
+  if (!open) return null
+  const canDeploy = saltNonce != null && owner && manager
   return (
-    <div className={styles.netSelect} ref={ref}>
-      <button
-        type="button"
-        className={styles.netSelectBtn}
-        onClick={() => setOpen((o) => !o)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label={`Network: ${active?.name}. Choose a network or add one.`}
-      >
-        <span className={styles.netSelectLabel}>{label}</span>
-        {active?.id != null && <ChainGlyph chainId={active.id} size={14} />}
-        <span className={styles.netSelectName}>{active?.name}</span>
-        <span className={styles.netSelectChevron} aria-hidden><ChevronDownSm /></span>
-      </button>
-      {open && (
-        <div className={styles.netSelectMenu} role="listbox">
-          {!addMode ? (
-            <>
-              {chains.map((c) => (
-                <button
-                  key={c.name}
-                  type="button"
-                  role="option"
-                  aria-selected={c.id === activeChainId}
-                  className={`${styles.netSelectOption} ${c.id === activeChainId ? styles.netSelectOptionActive : ''}`}
-                  onClick={() => { if (c.id != null) onSelect(Number(c.id)); setOpen(false) }}
-                >
-                  {c.id != null && <ChainGlyph chainId={c.id} size={14} />}
-                  <span className={styles.netSelectOptionName}>{c.name}</span>
-                  {c.id === activeChainId && <span className={styles.netSelectCheck} aria-hidden><CheckSm /></span>}
-                </button>
-              ))}
-              {canAdd && (
-                <button type="button" className={styles.netSelectAdd} onClick={() => setAddMode(true)}>
-                  <span className={styles.netSelectAddPlus} aria-hidden>+</span>
-                  <span className={styles.netSelectOptionName}>Add network</span>
-                </button>
-              )}
-            </>
-          ) : (
-            <>
-              <button type="button" className={styles.netSelectBack} onClick={() => { setAddMode(false); setAddResult(null) }}>
-                ‹ Add network
-              </button>
-              <span className={styles.netSelectHint}>Deploy this SMA to another chain — same address everywhere.</span>
-              {deployable.map((c) => {
-                const isPending = pendingChain === c.id
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    className={styles.netSelectOption}
-                    disabled={pendingChain != null}
-                    onClick={async () => {
-                      setPendingChain(c.id); setAddResult(null)
-                      const r = await onAddNetwork(c.id)
-                      setPendingChain(null)
-                      if (r?.ok) { setOpen(false); return }
-                      setAddResult({ chainId: c.id, reason: r?.reason ?? 'error' })
-                    }}
-                  >
-                    {c.id != null && <ChainGlyph chainId={c.id} size={14} />}
-                    <span className={styles.netSelectOptionName}>{c.name}</span>
-                    {isPending && <span className={styles.netSelectStatus}>Requesting…</span>}
+    <div className={styles.addNetOverlay} role="dialog" aria-modal="true" aria-label="Add a network" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      <div className={styles.addNetModal}>
+        {target == null ? (
+          <>
+            <header className={styles.addNetHead}>
+              <span className={styles.addNetKicker}>ADD NETWORK</span>
+              <h2 className={styles.addNetTitle}>Deploy your SMA to another chain</h2>
+              <p className={styles.addNetSub}>
+                Same address on every chain. Pick a network — your wallet will prompt you to
+                deploy and register it, exactly like first-run setup.
+              </p>
+            </header>
+            {!canDeploy ? (
+              <p className={styles.addNetNote}>
+                Adding a network from here needs this SMA’s deployment salt, which isn’t recorded
+                in this project. Deploy it from the CLI instead:
+                <code className={styles.addNetNoteCmd}>sailor account deploy-chain --chain &lt;id&gt;</code>
+              </p>
+            ) : deployable.length === 0 ? (
+              <p className={styles.addNetNote}>This SMA is already live on every supported chain.</p>
+            ) : (
+              <div className={styles.addNetList}>
+                {deployable.map((c) => (
+                  <button key={c.id} type="button" className={styles.addNetOption} onClick={() => setTarget(c.id)}>
+                    <ChainGlyph chainId={c.id} size={18} />
+                    <span className={styles.addNetOptionName}>{c.name}</span>
+                    <span className={styles.addNetOptionArrow} aria-hidden><ArrowOutIcon /></span>
                   </button>
-                )
-              })}
-              {addResult && (
-                <p className={styles.netSelectNote}>
-                  {addResult.reason === 'offline'
-                    ? 'Backend offline — start the Sailor dev server and try again.'
-                    : 'Adding a network isn’t wired into the dashboard yet. Deploy it from the CLI:'}
-                  <code className={styles.netSelectNoteCmd}>sailor account deploy-chain --chain {addResult.chainId}</code>
-                </p>
-              )}
-            </>
-          )}
-        </div>
-      )}
+                ))}
+              </div>
+            )}
+            <button type="button" className={styles.addNetCancel} onClick={onClose}>Cancel</button>
+          </>
+        ) : (
+          <CreateSmaStep
+            compact
+            owner={owner}
+            managerAddress={manager}
+            chainIds={[target]}
+            saltNonce={saltNonce}
+            title="Deploy to this network"
+            sub="Your wallet will prompt to deploy the SMA and register it on this chain — same address as everywhere else."
+            cta="Deploy to this network"
+            onBack={() => setTarget(null)}
+            onDone={(settled) => { onDeployed?.(settled); onClose() }}
+          />
+        )}
+      </div>
     </div>
   )
 }
@@ -601,159 +613,170 @@ function SignerCard({ signer, network, chainId, loading, onAddSigner, onRotateSi
         isCritical ? styles.signerCardCrit : ''
       }`}
     >
-      <header className={styles.signerCardHead}>
-        <span className={styles.signerRoleWrap}>
-          <span className={styles.signerRole}>{role.label} gas balance</span>
-        </span>
-        <span className={styles.signerStatusGroup}>
-          {/* While balances hydrate we can't vouch for a status — show a single
-              muted "Reading…" pill instead of a (possibly wrong) state badge. */}
-          {balanceLoading ? (
-          <span className={`${styles.balancePill} ${styles.balancePillLoading}`}>
-            <span className={styles.balancePillDot} aria-hidden />
-            Reading…
+      {/* Banner "lid" — the role icon + label sit top-left, over a coloured header. */}
+      <header className={styles.signerBanner}>
+        {(signer.role === 'owner' || signer.role === 'manager' || signer.role === 'sma') && (
+          <span className={styles.signerBannerIcon} aria-hidden>
+            {signer.role === 'owner'
+              ? <PersonGlyph />
+              : signer.role === 'manager'
+                ? <img src={robotMark} className={styles.signerBannerRobot} alt="" />
+                : <SafeMark />}
           </span>
-        ) : (
-          <>
-            {/* The manager card's own "Active" moved beside the title (above).
-                Owner EOA that is also the delegated manager — tag instead of a
-                duplicate manager card. */}
-            {isOwnerActiveManager ? (
-              <span
-                className={styles.balancePill}
-                style={{ color: 'var(--accent-blue)' }}
-                title="This EOA is also registered as the SMA's delegated manager on-chain"
-              >
-                <span className={styles.balancePillDot} aria-hidden style={{ background: 'var(--accent-blue)' }} />
-                Active manager
-              </span>
-            ) : isOwnerManager ? (
-              <span
-                className={styles.balancePill}
-                style={{ color: 'var(--text-secondary)' }}
-                title="This EOA is a known manager for this SMA, not currently active on-chain"
-              >
-                <span className={styles.balancePillDot} aria-hidden style={{ background: 'rgba(255,255,255,0.25)' }} />
-                Manager
-              </span>
-            ) : null}
-            {isIdle && (
-              <span className={styles.balancePill} style={{ color: 'var(--text-secondary)' }}>
-                <span className={styles.balancePillDot} aria-hidden style={{ background: 'rgba(255,255,255,0.25)' }} />
-                Idle
-              </span>
-            )}
-            {bal && (
-              <span className={`${styles.balancePill} ${styles[`balancePill_${signer.status}`] ?? ''}`}>
-                <span className={styles.balancePillDot} aria-hidden />
-                {bal.label}
-              </span>
-            )}
-            {isLocal && (
-              <span className={styles.balancePill} style={{ color: 'var(--text-secondary)' }}>
-                <span className={styles.balancePillDot} aria-hidden style={{ background: 'var(--accent-blue)' }} />
-                Not registered
-              </span>
-            )}
-          </>
-          )}
-        </span>
+        )}
+        <span className={styles.signerBannerLabel}>{role.label} gas wallet</span>
       </header>
 
-      <div className={styles.signerBalance}>
-        {!unconfigured && (
-          <span className={styles.ethGlyph} aria-hidden><NativeCurrencyGlyph chainId={chainId} size={20} /></span>
-        )}
-        {unconfigured ? (
-          <span className={styles.signerBalanceNum} style={{ opacity: 0.4 }}>—</span>
-        ) : balanceLoading ? (
-          <>
-            <span
-              className={`${styles.signerBalanceNum} ${styles.signerBalanceNumLoading}`}
-              aria-label="Loading balance"
-            >
-              0.0000
-            </span>
-            <span className={`${styles.signerBalanceUnit} ${styles.signerBalanceNumLoading}`}>{nativeSymbol}</span>
-          </>
-        ) : (
-          <>
-            <span className={styles.signerBalanceNum}>{fmtEth(signer.balanceEth)}</span>
-            <span className={styles.signerBalanceUnit}>{nativeSymbol}</span>
-          </>
-        )}
-      </div>
-      {(unconfigured || isLocal || isIdle) && (
-        <p className={styles.signerSub}>
-          {unconfigured
-            ? 'No agent wallet assigned yet — create or import one to let your agent sign.'
-            : isLocal
-              ? 'Local key — not yet delegated.'
-              : 'Known manager — not currently active on-chain.'}
-        </p>
-      )}
-
-      {unconfigured && (
-        <SailButton fullWidth variant="secondary" onClick={onAddSigner}>
-          Add agent wallet
-        </SailButton>
-      )}
-
-      {signer.address && (
-        <footer className={styles.signerFoot}>
-          <button
-            type="button"
-            className={styles.signerAddrPill}
-            onClick={copy}
-            title={signer.address}
-            aria-label="Copy signer address"
-          >
-            <span className={styles.signerAddrMono}>{truncateAddr(signer.address)}</span>
-            <span className={styles.signerAddrIcon} aria-hidden>
-              {copied ? <CheckSm /> : <CopyGlyph />}
-            </span>
-          </button>
-          <a
-            className={styles.signerAddrOpen}
-            href={explorerUrl(network, signer.address)}
-            target="_blank"
-            rel="noreferrer"
-            aria-label="Open on block explorer"
-          >
-            <ArrowOutIcon />
-          </a>
-          {/* Rotate sits beside the explorer link so both wallet cards stay
-              compact and uniform in height. */}
-          {canRotate && (
-            <button type="button" className={styles.signerRotateBtnSm} onClick={() => onRotateSigner()} title="Rotate agent keys">
-              <RotateIcon />
-              Rotate keys
-            </button>
-          )}
-          {signer.role === 'manager' && isIdle && onRotateSigner && (
-            <button type="button" className={styles.signerRotateBtnSm} onClick={() => onRotateSigner(signer.address)} title="Rotate to this key">
-              <RotateIcon />
-              Rotate to this
-            </button>
-          )}
-        </footer>
-      )}
-
-      <div className={styles.signerSpacer} />
-      {needsTopUp && (
-        <div className={styles.signerTopUp}>
-          <span className={styles.signerTopUpMsg}>
-            {isCritical ? 'Out of gas — agent is stalled.' : 'Running low — top up soon.'}
+      <div className={styles.signerBodyNew}>
+        {/* Balance is the hero, with the status pill beside it. */}
+        <div className={styles.signerBalanceRow}>
+          <div className={styles.signerBalance}>
+            {!unconfigured && (
+              <span className={styles.ethGlyph} aria-hidden><NativeCurrencyGlyph chainId={chainId} size={28} /></span>
+            )}
+            {unconfigured ? (
+              <span className={styles.signerBalanceNum} style={{ opacity: 0.4 }}>—</span>
+            ) : balanceLoading ? (
+              <>
+                <span
+                  className={`${styles.signerBalanceNum} ${styles.signerBalanceNumLoading}`}
+                  aria-label="Loading balance"
+                >
+                  0.0000
+                </span>
+                <span className={`${styles.signerBalanceUnit} ${styles.signerBalanceNumLoading}`}>{nativeSymbol}</span>
+              </>
+            ) : (
+              <>
+                <span className={styles.signerBalanceNum}>{fmtEth(signer.balanceEth)}</span>
+                <span className={styles.signerBalanceUnit}>{nativeSymbol}</span>
+              </>
+            )}
+          </div>
+          <span className={styles.signerStatusGroup}>
+            {balanceLoading ? (
+              <span className={`${styles.balancePill} ${styles.balancePillLoading}`}>
+                <span className={styles.balancePillDot} aria-hidden />
+                Reading…
+              </span>
+            ) : (
+              <>
+                {isOwnerActiveManager ? (
+                  <span
+                    className={styles.balancePill}
+                    style={{ color: 'var(--accent-blue)' }}
+                    title="This EOA is also registered as the SMA's delegated manager on-chain"
+                  >
+                    <span className={styles.balancePillDot} aria-hidden style={{ background: 'var(--accent-blue)' }} />
+                    Active manager
+                  </span>
+                ) : isOwnerManager ? (
+                  <span
+                    className={styles.balancePill}
+                    style={{ color: 'var(--text-secondary)' }}
+                    title="This EOA is a known manager for this SMA, not currently active on-chain"
+                  >
+                    <span className={styles.balancePillDot} aria-hidden style={{ background: 'rgba(255,255,255,0.25)' }} />
+                    Manager
+                  </span>
+                ) : null}
+                {isIdle && (
+                  <span className={styles.balancePill} style={{ color: 'var(--text-secondary)' }}>
+                    <span className={styles.balancePillDot} aria-hidden style={{ background: 'rgba(255,255,255,0.25)' }} />
+                    Idle
+                  </span>
+                )}
+                {bal && (
+                  <span className={`${styles.balancePill} ${styles[`balancePill_${signer.status}`] ?? ''}`}>
+                    <span className={styles.balancePillDot} aria-hidden />
+                    {bal.label}
+                  </span>
+                )}
+                {isLocal && (
+                  <span className={styles.balancePill} style={{ color: 'var(--text-secondary)' }}>
+                    <span className={styles.balancePillDot} aria-hidden style={{ background: 'var(--accent-blue)' }} />
+                    Not registered
+                  </span>
+                )}
+              </>
+            )}
           </span>
+        </div>
+
+        {(unconfigured || isLocal || isIdle) && (
+          <p className={styles.signerSub}>
+            {unconfigured
+              ? 'No agent wallet assigned yet — create or import one to let your agent sign.'
+              : isLocal
+                ? 'Local key — not yet delegated.'
+                : 'Known manager — not currently active on-chain.'}
+          </p>
+        )}
+        {unconfigured && (
+          <SailButton fullWidth variant="secondary" onClick={onAddSigner}>
+            Add agent wallet
+          </SailButton>
+        )}
+
+        <div className={styles.signerSpacer} />
+
+        {/* Address + actions sit at the foot of the card, like a wallet's details row. */}
+        {signer.address && (
+          <footer className={styles.signerFoot}>
+            <button
+              type="button"
+              className={styles.signerAddrPill}
+              onClick={copy}
+              title={signer.address}
+              aria-label="Copy signer address"
+            >
+              <span className={styles.signerAddrMono}>{truncateAddr(signer.address)}</span>
+              <span className={styles.signerAddrIcon} aria-hidden>
+                {copied ? <CheckSm /> : <CopyGlyph />}
+              </span>
+            </button>
+            <a
+              className={styles.signerAddrOpen}
+              href={explorerUrl(network, signer.address)}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Open on block explorer"
+            >
+              <ArrowOutIcon />
+            </a>
+            {canRotate && (
+              <button type="button" className={styles.signerRotateBtnSm} onClick={() => onRotateSigner()} title="Rotate agent keys">
+                <RotateIcon />
+                Rotate keys
+              </button>
+            )}
+            {signer.role === 'manager' && isIdle && onRotateSigner && (
+              <button type="button" className={styles.signerRotateBtnSm} onClick={() => onRotateSigner(signer.address)} title="Rotate to this key">
+                <RotateIcon />
+                Rotate to this
+              </button>
+            )}
+          </footer>
+        )}
+
+        {needsTopUp && (
+          <p className={`${styles.signerTopUpMsg} ${isCritical ? styles.signerTopUpMsgCrit : ''}`}>
+            {isCritical ? 'Out of gas — agent is stalled.' : 'Running low — top up soon.'}
+          </p>
+        )}
+
+        {/* Fund is always available — top the wallet up with gas at any time. */}
+        {signer.address && (
           <button
             type="button"
             className={styles.signerFundBtn}
             onClick={() => setFundOpen(true)}
           >
+            <span className={styles.signerFundIcon} aria-hidden><GasGlyph /></span>
             Fund gas
           </button>
-        </div>
-      )}
+        )}
+      </div>
       <FundGasModal
         open={fundOpen}
         onClose={() => setFundOpen(false)}
@@ -852,16 +875,24 @@ function LiveMandateCard({ mandate, network, addressByTemplate, onRevoke }) {
         </div>
       </header>
 
+      <p className={styles.mandateSummaryDesc}>
+        The full set of on-chain rules your agent runs under{networkLabel ? ` on ${networkLabel}` : ''} —
+        it can act only within the permissions below, and you can revoke them anytime.
+      </p>
+
       <ul className={styles.mandateSummaryPerms}>
         {permissions.map((p, i) => {
           const addr = addressByTemplate?.get(p.template)
+          // Prefer a structured explanation, then the template explainer; if
+          // neither exists, fall back to a plain-language line so every
+          // permission always says what it authorizes.
+          const lines = p.explanation
+            ? String(p.explanation).split('; ')
+            : (explainPermission(p).length > 0 ? explainPermission(p) : [describePermission(p.template)])
           const body = (
             <span className={styles.mandateSummaryPermBody}>
               <span className={styles.mandateSummaryPermLabel}>{p.template}</span>
-              {(p.explanation
-                ? String(p.explanation).split('; ')
-                : explainPermission(p)
-              ).map((line, j) => (
+              {lines.map((line, j) => (
                 <span key={j} className={styles.mandateSummaryPermSub}>
                   {line}
                 </span>
@@ -870,9 +901,6 @@ function LiveMandateCard({ mandate, network, addressByTemplate, onRevoke }) {
           )
           return (
             <li key={`${p.template}-${i}`} className={styles.mandateSummaryPermRow}>
-              <span className={styles.mandateSummaryCheck} aria-hidden>
-                <CheckMark />
-              </span>
               {addr ? (
                 <a
                   className={styles.mandateSummaryPermLink}
@@ -900,7 +928,7 @@ function LiveMandateCard({ mandate, network, addressByTemplate, onRevoke }) {
             className={styles.mandateRevokeBtn}
             onClick={() => onRevoke(revokeablePool)}
           >
-            Revoke permission
+            Revoke permissions
           </button>
         )}
       </footer>
@@ -1123,21 +1151,21 @@ function LiveActivityFeed({ events, positions, network, permToChain = new Map(),
                           {ACTIVITY_LABELS[e.type] ?? e.type}
                         </span>
                       </span>
-                      <span className={agentStyles.journalMeta}>
-                        {detail}
-                        {hasTx && (
-                          <>
-                            {detail ? ' · ' : ''}
-                            <a
-                              href={txUrl(network ?? 'ethereum', e.txHash)}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              {truncateAddr(e.txHash)}
-                            </a>
-                          </>
-                        )}
-                      </span>
+                    </span>
+                    <span className={agentStyles.journalMeta}>
+                      {detail}
+                      {hasTx && (
+                        <a
+                          className={styles.activityTxLink}
+                          href={txUrl(network ?? 'ethereum', e.txHash)}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="View transaction on explorer"
+                          aria-label="View transaction on explorer"
+                        >
+                          <ArrowOutIcon />
+                        </a>
+                      )}
                     </span>
                   </div>
                 </li>
@@ -1320,6 +1348,7 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
   const [notifOpen, setNotifOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [createSMAOpen, setCreateSMAOpen] = useState(false)
+  const [addNetworkOpen, setAddNetworkOpen] = useState(false)
 
   // Close the additional-create flow if the wallet disconnects midway — the
   // wizard reads its owner from useAccount, so continuing without a wallet
@@ -1448,32 +1477,12 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
     const chains = new Set(activeAccount?.deployedChains ?? [])
     for (const ov of chainOverviews) if (ov?.chainId != null) chains.add(Number(ov.chainId))
     if (activeAccount?.chainId != null) chains.add(Number(activeAccount.chainId))
-    return [...chains].filter((c) => Number.isFinite(c) && c > 0)
+    return [...chains].filter((c) => Number.isFinite(c) && c > 0 && !HIDDEN_CHAIN_IDS.has(c))
   })()
   const isMultiChain = deployedChains.length > 1
-  // Deploy the current SMA to another chain. This is a wallet-driven flow, not a
-  // server action: the owner must switch chains, send the factory-deploy tx and
-  // sign the RegisterAccount digest (see deployChain() in OnboardingWizard) —
-  // the server can build those txs but can't sign for the user. The one-shot
-  // POST /api/account/deploy-chain that would kick it off doesn't exist in
-  // server.js yet, so until it lands this surfaces the CLI fallback instead of
-  // silently failing. Returns a structured result the menu renders inline.
-  const onAddNetwork = async (chainId) => {
-    try {
-      const res = await fetch('/api/account/deploy-chain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chainId }),
-      })
-      // A missing route resolves as 404 (fetch only rejects on network failure),
-      // so success has to be checked explicitly — otherwise a no-op reads as done.
-      if (!res.ok) return { ok: false, reason: res.status === 404 ? 'unavailable' : 'error' }
-      setRefreshTick((t) => t + 1)
-      return { ok: true }
-    } catch {
-      return { ok: false, reason: 'offline' }
-    }
-  }
+  // "Add a new network" deploys the current SMA to another chain via the
+  // wallet-signed onboarding flow (AddNetworkModal → CreateSmaStep), not a
+  // server action — see the modal for the full rationale.
   // The chain currently in view. For a single-chain SMA this is just `overview`;
   // for multi-chain it's the switcher's selection (falling back to the first chain).
   const activeChainId = selectedChainId != null && deployedChains.includes(Number(selectedChainId))
@@ -1482,6 +1491,16 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
   const activeChainOv = isMultiChain
     ? (chainOverviews.find((o) => Number(o.chainId) === activeChainId) ?? chainOverviews[0] ?? overview)
     : overview
+
+  // Chip data for the shared ChainSwitcher (Overview / Mandates / Gas), and the
+  // chains this SMA isn't on yet (the Add-network picker). Display-cased names.
+  const capitalize = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
+  const deployedChainObjs = deployedChains
+    .map((id) => ({ id, name: capitalize(chainDisplayName(id) ?? `Chain ${id}`) }))
+  const deployableChainObjs = DEPLOYABLE_CHAIN_IDS
+    .filter((id) => !deployedChains.includes(id))
+    .map((id) => ({ id, name: capitalize(chainDisplayName(id) ?? `Chain ${id}`) }))
+    .filter((c) => c.name)
 
   const smaName = safeNames[activeAccount?.safe ?? 'live-sma'] ?? activeAccount?.name ?? sma?.name ?? 'My SMA'
   const currentSafeId = activeAccount?.safe ?? effectiveAccount?.safe ?? 'live-sma'
@@ -1726,7 +1745,7 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
             <PageHead
               icon={<OverviewGlyph />}
               title="Overview"
-              sub="Your SMA at a glance — name, address, and the networks it runs on."
+              info="This is your separately managed account: a Safe you own. It shows the account's address and the chains it's running on. To see the portfolio it holds, open View portfolio to review it on DeBank."
             />
             <section className={styles.identityCard} aria-label="Account identity">
               {/* Two-column header: identity + purpose on the left, status chips
@@ -1794,34 +1813,6 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
               </div>
 
                 </div>
-                {/* Status chips, top-right, balance the identity block. */}
-                <div className={styles.identityStatus}>
-                {overview?.sma && (() => {
-                const chainList = deployedChains.length > 0
-                  ? deployedChains.map((id) => ({ id, name: chainDisplayName(id) })).filter((c) => c.name)
-                  // Fallback for a bare overview: prefer the display name so
-                  // special-cased chains keep their casing (HyperEVM, not Hyperevm).
-                  : overview.network ? [{ id: overview.chainId, name: chainDisplayName(overview.chainId) ?? overview.network }] : []
-                // Chains this SMA isn't on yet — the "Add network" picker.
-                const deployableChains = DEPLOYABLE_CHAIN_IDS
-                  .filter((id) => !chainList.some((c) => Number(c.id) === id))
-                  .map((id) => ({ id, name: chainDisplayName(id) }))
-                  .filter((c) => c.name)
-                return (
-                  <div className={styles.idStatusRow}>
-                    {/* Always a selector (even single-chain) so "Add network" is
-                        reachable — it's the only in-app way to add a chain today. */}
-                    <NetworkSelect
-                      chains={chainList}
-                      activeChainId={activeChainId}
-                      onSelect={setSelectedChainId}
-                      deployable={deployableChains}
-                      onAddNetwork={onAddNetwork}
-                    />
-                  </div>
-                )
-              })()}
-                </div>
               </div>
 
               {/* Funds — deposit (money in) and portfolio (review) as two equal
@@ -1883,6 +1874,25 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
                 </div>
               </div>
 
+              {/* Networks this SMA is live on — shown horizontally, always (even
+                  a single chain), so the user always sees where it runs. The
+                  Add-network deploy flow lives directly under it. */}
+              {deployedChainObjs.length > 0 && (
+                <div className={styles.liveInGroup}>
+                  <span className={styles.fundsLabel}>SMA live in</span>
+                  <ChainSwitcher
+                    chains={deployedChainObjs}
+                    activeChainId={activeChainId}
+                    onSelect={setSelectedChainId}
+                    ariaLabel="Networks this SMA is live on"
+                  />
+                  <button type="button" className={styles.addNetworkBtn} onClick={() => setAddNetworkOpen(true)}>
+                    <span className={styles.addNetworkPlus} aria-hidden>+</span>
+                    Add a new network
+                  </button>
+                </div>
+              )}
+
             </section>
             </>
             )}
@@ -1894,17 +1904,17 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
             <PageHead
               icon={<GasGlyph />}
               title="Gas wallets"
-              sub={<>
-                The two wallets that pay for signatures and dispatches — your funds stay in the SMA.{' '}
-                <InfoTip label="How these wallets work">
-                  Two wallets act on this SMA: you — <strong>the owner</strong> — deploy it and
-                  register your permissions; your <strong>agent</strong> submits each dispatch
-                  within them, never beyond. Both only hold gas to sign and submit
-                  transactions — your funds stay in the SMA.
-                </InfoTip>
-              </>}
+              info="The two wallets that pay for signatures and dispatches. Your funds stay in the SMA."
             />
             <section className={styles.identityCard} aria-label="Gas wallets">
+              {deployedChainObjs.length > 0 && (
+                <ChainSwitcher
+                  chains={deployedChainObjs}
+                  activeChainId={activeChainId}
+                  onSelect={setSelectedChainId}
+                  ariaLabel="View gas wallets by chain"
+                />
+              )}
               <div className={styles.idWalletsGroup}>
                 <SignersPanel
                   stacked
@@ -1978,48 +1988,26 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
               return (
                 <>
                 <PageHead
-                  icon={<DocGlyph />}
+                  icon={<MandateGlyph />}
                   title="Mandates"
-                  sub="The on-chain permissions that scope exactly what your agent can do — revocable anytime."
+                  info="This is what your agent is allowed to do. The permissions live on-chain. Nothing slips past them, and you can revoke them any time."
                 />
                 <section className={styles.mandatesSection} aria-label="Mandates">
                   <header className={styles.mandatesSectionHead}>
                     <span className={styles.mandatesSectionMeta}>
                       {permCount > 0
-                        ? `${permCount} permission${permCount === 1 ? '' : 's'}${!showAll && activeChainOv?.onchain ? ' · registered on-chain' : ''}`
+                        ? `${permCount} permission${permCount === 1 ? '' : 's'}`
                         : 'No permissions registered yet'}
                     </span>
                   </header>
-                  {isMultiChain && (
-                    <div className={styles.chainSwitcher} role="group" aria-label="View mandates by chain">
-                      <button
-                        type="button"
-                        aria-pressed={mandateAll}
-                        className={`${styles.chainSwitchBtn} ${mandateAll ? styles.chainSwitchBtnActive : ''}`}
-                        onClick={() => setMandateAll(true)}
-                      >
-                        All chains
-                      </button>
-                      {deployedChains.map((cid) => {
-                        const nm = chainDisplayName(cid) ?? `Chain ${cid}`
-                        const label = nm.charAt(0).toUpperCase() + nm.slice(1)
-                        const isActive = !mandateAll && Number(cid) === activeChainId
-                        return (
-                          <button
-                            key={cid}
-                            type="button"
-                            aria-pressed={isActive}
-                            className={`${styles.chainSwitchBtn} ${isActive ? styles.chainSwitchBtnActive : ''}`}
-                            onClick={() => { setMandateAll(false); setSelectedChainId(Number(cid)) }}
-                            title={label}
-                          >
-                            <ChainGlyph chainId={cid} size={14} />
-                            <span>{label}</span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
+                  <ChainSwitcher
+                    chains={deployedChainObjs}
+                    activeChainId={activeChainId}
+                    onSelect={(id) => { setMandateAll(false); setSelectedChainId(id) }}
+                    allActive={showAll}
+                    onAll={isMultiChain ? () => setMandateAll(true) : undefined}
+                    ariaLabel="View mandates by chain"
+                  />
                   <div className={styles.mandateList}>
                     {showAll ? (
                       allBuilt.length > 0
@@ -2042,7 +2030,7 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
             <PageHead
               icon={<NetworkGlyph />}
               title="Network RPCs"
-              sub="How your dashboard reads chains and sends transactions."
+              info="How Sailor reads chains and sends transactions."
             />
             <section className={agentStyles.card}>
               <RpcSection deployedChains={deployedChains} embedded />
@@ -2054,9 +2042,9 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
             {dashTab === 'activity' && (
             <>
             <PageHead
-              icon={<ClockGlyph />}
+              icon={<ActivityGlyph />}
               title="Recent Activity"
-              sub="Every agent decision and on-chain action on this SMA, newest first."
+              info="Every agent decision and on-chain action on this SMA, newest first."
             />
             <section className={agentStyles.card}>
               <header className={agentStyles.cardHead}>
@@ -2110,7 +2098,7 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
             <footer className={styles.localFootnote}>
               <span className={styles.localFootnoteDot} aria-hidden />
               Running locally at <code>{window.location.host}</code> · state in <code>.sail/</code>
-              {' '}· no hosted backend — your wallet talks to the chain directly.
+              {' '}· no hosted backend.
             </footer>
           </>
         )}
@@ -2198,6 +2186,33 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
         chainId={revokeContext?.chainId ?? overview?.chainId}
         onClose={() => { setRevokeTarget(null); setRevokeContext(null) }}
         onRevoked={() => { setRevokeTarget(null); setRevokeContext(null) }}
+      />
+
+      <AddNetworkModal
+        open={addNetworkOpen}
+        onClose={() => setAddNetworkOpen(false)}
+        owner={effectiveAccount?.owner ?? overview?.sma?.owner}
+        manager={effectiveAccount?.manager ?? overview?.sma?.manager}
+        saltNonce={realAccount?.saltNonce}
+        deployable={deployableChainObjs}
+        onDeployed={(settled) => {
+          // Persist the SMA's new chain(s): same Safe address, expanded
+          // deployedChains list. The server reconciles account.json + accounts.json.
+          const newChains = (settled ?? []).map((s) => Number(s.chainId)).filter(Boolean)
+          if (newChains.length === 0 || !sma?.address) { setRefreshTick((t) => t + 1); return }
+          const merged = [...new Set([...deployedChains, ...newChains])]
+          fetch('/api/account', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              safe: sma.address,
+              owner: effectiveAccount?.owner ?? overview?.sma?.owner,
+              manager: effectiveAccount?.manager ?? overview?.sma?.manager,
+              chainId: effectiveAccount?.chainId ?? activeChainId,
+              deployedChains: merged,
+            }),
+          }).catch(() => {}).finally(() => setRefreshTick((t) => t + 1))
+        }}
       />
     </div>
   )
@@ -2422,7 +2437,7 @@ function NotificationsBell({ pending, draft, open, onToggle, onClose, onOpenSign
             <div className={styles.notifEmpty}>
               <p className={styles.notifEmptyBody}>
                 Nothing to approve right now. When your agent needs a signature it
-                appears here — start it with <code>sailor signer start</code>.
+                shows up here — start the station with <code>sailor station start</code>.
               </p>
             </div>
           ) : (
@@ -2484,7 +2499,7 @@ function NotificationsBell({ pending, draft, open, onToggle, onClose, onOpenSign
 /* ────────── Icons ────────── */
 function BellIcon() {
   return (
-    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="square" strokeLinejoin="miter" aria-hidden>
       <path d="M4.6 6.2a3.4 3.4 0 016.8 0v2.6c0 .9.3 1.7.9 2.3l.6.7H3.1l.6-.7c.6-.6.9-1.4.9-2.3V6.2z" />
       <path d="M6.8 12.5a1.4 1.4 0 002.4 0" />
     </svg>
@@ -2492,7 +2507,7 @@ function BellIcon() {
 }
 function ArrowOutIcon() {
   return (
-    <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="square" strokeLinejoin="miter" aria-hidden>
       <path d="M5 9 L9 5" />
       <path d="M5.4 5 H9 V8.6" />
     </svg>
@@ -2532,29 +2547,22 @@ function ArrowRightSm() {
 }
 function CopyGlyph() {
   return (
-    <svg viewBox="0 0 14 14" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <rect x="2.5" y="2.5" width="7" height="7" rx="1.6" />
-      <path d="M4 4V3a1 1 0 011-1h4.5a1 1 0 011 1v5a1 1 0 01-1 1H9" />
+    <svg viewBox="0 0 14 14" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="square" strokeLinejoin="miter" aria-hidden>
+      <rect x="2.6" y="4" width="6.4" height="7.4" />
+      <path d="M4.6 4V2.6h6.8V10H10" />
     </svg>
   )
 }
 function CheckSm() {
   return (
-    <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" aria-hidden>
       <path d="M3 7.4l2.6 2.6L11 4.4" />
-    </svg>
-  )
-}
-function CheckMark() {
-  return (
-    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M3.5 8.4l3 3L13 5.2" />
     </svg>
   )
 }
 function CrossSm() {
   return (
-    <svg viewBox="0 0 14 14" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg viewBox="0 0 14 14" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="square" strokeLinejoin="miter" aria-hidden>
       <path d="M3.5 3.5l7 7M10.5 3.5l-7 7" />
     </svg>
   )
@@ -2566,59 +2574,77 @@ function DotSm() {
     </svg>
   )
 }
-function DocGlyph() {
+// Mandate — a big pixel shield with a knocked-out check: the on-chain
+// permissions that guard and scope what the agent may do.
+function MandateGlyph() {
   return (
-    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M4 2.5h5l3 3v8a.5.5 0 01-.5.5h-7.5a.5.5 0 01-.5-.5v-10a.5.5 0 01.5-.5z" />
-      <path d="M9 2.5v3h3" />
-      <path d="M5.6 9h5M5.6 11.4h5" />
+    <svg {...pxSvg}>
+      <path fillRule="evenodd" d="M2 1h8v1H2Z M1 2h10v4H1Z M2 6h8v2H2Z M3 8h6v1H3Z M4 9h4v1H4Z M5 10h2v1H5Z M4 5h1v1H4Z M5 6h1v1H5Z M6 5h1v1H6Z M7 4h1v1H7Z M8 3h1v1H8Z" />
     </svg>
   )
 }
+/* ── Icon system — pixel-art, drawn on the Sai logo's grid ──────────────────
+   Every section/role glyph is bitmap pixel-art (unit-cell paths, crisp edges),
+   the same language as the Sai mascot and the PixelCheck — a retro-terminal
+   look that reads as Sail's own IP, not generic vector icons. White fill sits
+   on the accent-blue tile; knockouts (eyes, slots) let the tile show through.
+   ────────────────────────────────────────────────────────────────────────── */
+const pxSvg = { viewBox: '0 0 12 12', width: 14, height: 14, fill: 'currentColor', shapeRendering: 'crispEdges', 'aria-hidden': true }
+// Overview — four panes of a dashboard.
 function OverviewGlyph() {
   return (
-    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <rect x="2.5" y="2.5" width="4.6" height="4.6" rx="0.6" />
-      <rect x="8.9" y="2.5" width="4.6" height="4.6" rx="0.6" />
-      <rect x="2.5" y="8.9" width="4.6" height="4.6" rx="0.6" />
-      <rect x="8.9" y="8.9" width="4.6" height="4.6" rx="0.6" />
+    <svg {...pxSvg}>
+      <path d="M1 1h4v4H1Z M7 1h4v4H7Z M1 7h4v4H1Z M7 7h4v4H7Z" />
     </svg>
   )
 }
+// Gas — a pixel fuel pump (body + display slot + hose).
 function GasGlyph() {
   return (
-    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M8 2.2S4 6.6 4 9.4a4 4 0 0 0 8 0C12 6.6 8 2.2 8 2.2z" />
+    <svg {...pxSvg}>
+      <path fillRule="evenodd" d="M2 1h5v10H2Z M3 3h3v2H3Z" />
+      <path d="M1 11h7v1H1Z M7 3h2v1H7Z M8 3h1v5H8Z M9 7h1v2H9Z M10 8h1v1h-1Z" />
     </svg>
   )
 }
 
-/* Page head: icon tile + mono title + one-line description. Rendered at the
-   top of every dashboard page, outside any card surface. */
-function PageHead({ icon, title, sub }) {
+// Owner — a pixel person. The human who owns the SMA and signs the mandates.
+function PersonGlyph() {
   return (
-    <header className={styles.pageHead}>
-      <h1 className={styles.pageHeadTitle}>{icon}{title}</h1>
-      <p className={styles.pageHeadSub}>{sub}</p>
-    </header>
-  )
-}
-function NetworkGlyph() {
-  return (
-    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="8" cy="8" r="2" />
-      <circle cx="3.2" cy="4" r="1.4" />
-      <circle cx="12.8" cy="4" r="1.4" />
-      <circle cx="8" cy="13.4" r="1.4" />
-      <path d="M4.4 4.9 6.4 6.6M11.6 4.9 9.6 6.6M8 10v2" />
+    <svg {...pxSvg}>
+      <path d="M5 1h2v1H5Z M4 2h4v2H4Z M5 4h2v1H5Z M3 6h6v1H3Z M2 7h8v4H2Z" />
     </svg>
   )
 }
-function ClockGlyph() {
+
+/* Page head: icon tile + mono title, with the page's description tucked into an
+   info icon beside the title (rather than a subtitle) so the page stays clean. */
+function PageHead({ icon, title, info }) {
   return (
-    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="8" cy="8" r="5.5" />
-      <path d="M8 5v3.2l2.1 1.5" />
+    <header className={styles.pageHead}>
+      <h1 className={styles.pageHeadTitle}>
+        {icon}
+        <span className={styles.pageHeadLabel}>
+          {title}
+          {info && <InfoTip label={`About ${title}`} side="bottom">{info}</InfoTip>}
+        </span>
+      </h1>
+    </header>
+  )
+}
+// Network — a pixel chain: two interlocking links, for the RPC "connection".
+function NetworkGlyph() {
+  return (
+    <svg viewBox="0 0 14 14" width="14" height="14" fill="currentColor" shapeRendering="crispEdges" aria-hidden>
+      <path d="M3 1h5v1H3Z M2 2h1v5H2Z M8 2h1v5H8Z M3 7h5v1H3Z M7 6h5v1H7Z M6 7h1v5H6Z M12 7h1v5H12Z M7 12h5v1H7Z" />
+    </svg>
+  )
+}
+// Activity — a pixel log/journal: bulleted lines of decreasing length.
+function ActivityGlyph() {
+  return (
+    <svg {...pxSvg}>
+      <path d="M1 2h2v2H1Z M4 2h7v2H4Z M1 5h2v2H1Z M4 5h6v2H4Z M1 8h2v2H1Z M4 8h5v2H4Z" />
     </svg>
   )
 }
