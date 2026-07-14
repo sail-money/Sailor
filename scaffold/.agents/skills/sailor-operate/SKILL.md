@@ -41,7 +41,7 @@ A denial is information, not a failure (AGENTS.md invariant 3). Find the `dispat
 2. **The permission is misconfigured** (registered but not configured, wrong allowlist/cap) → retune it (below). `no_registered_permissions` means nothing is registered for that action yet — back to [`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md).
 3. **The agent built the wrong dispatch** (wrong selector/target/recipient) → fix the tick loop ([`sailor-agent-build`](../sailor-agent-build/SKILL.md)).
 
-Never route around the kernel. A denial is corrected by fixing the bounds or the code, never by bypassing the check.
+Never route around the kernel. A denial is corrected by fixing the bounds or the code, never by bypassing the check — and never by asking for or accepting a private key as a shortcut (AGENTS.md invariant 6). If none of the three causes above resolves it, that's an honest failure to report to the user, not a reason to reach for credentials.
 
 ## "Change the bounds" (tune)
 
