@@ -35,7 +35,7 @@ Permission contracts live in `contracts/mandates/` — `contracts/` is the proje
 - **Pin every struct/ABI shape against the deployed contract, never the SDK.** A venue's SDK can be newer than what's actually on-chain — see [references/dark-reverts.md](references/dark-reverts.md) for the flagship example (a struct field the current Uniswap `v4-sdk` had dropped that the deployed Base router still required) and the full diagnostic ladder for a call that reverts with no data at all.
 - **Integrating a venue beyond the shared templates** (a fork with its own generations, Uniswap V4, any venue whose ABI or call-ordering isn't obvious from the docs) — [references/venue-cookbook.md](references/venue-cookbook.md) collects nine field-derived patterns (pool→factory→router verification, fork field-count mismatches, V4 PoolKey recovery, live-liquidity re-checks, viem tuple encoding, never swallowing a failed leg, V4 action ordering, multi-hop-as-chained-single-hops, chain-derived nonces) — read it before, not after, the first unexplained failure.
 
-Prerequisite — Foundry. If `forge` is not found:
+Prerequisite — Foundry. If `forge` is not found, you (the coding agent) can usually just run this install yourself rather than handing it back to the user:
 
 ```bash
 curl -L https://foundry.paradigm.xyz | bash   # then restart shell
