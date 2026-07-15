@@ -3,8 +3,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { getChain } from '@sail/sdk/chains'
 import { zeroAddress } from 'viem'
 import { useAccount, usePublicClient, useSignTypedData, useSwitchChain } from 'wagmi'
-import { HorizonBackground, GlassCard, Sai, SailButton, BadgeRow } from '../shared'
-import PageHeader from '../shared/PageHeader'
+import { GlassCard, Sai, SailButton, BadgeRow } from '../shared'
 import shared from '../shared/shared.module.css'
 import styles from './Signing.module.css'
 import { explorerCodeUrl } from '../../lib/explorer'
@@ -182,7 +181,7 @@ function RegistrationFeeNote({ fee }) {
   )
 }
 
-export function MandateSigningFlow({ draft, embedded = false }) {
+export function MandateSigningFlow({ draft }) {
   const { isConnected, chainId: walletChainId } = useAccount()
   const { signTypedDataAsync } = useSignTypedData()
   const { switchChainAsync } = useSwitchChain()
@@ -363,21 +362,10 @@ export function MandateSigningFlow({ draft, embedded = false }) {
     </GlassCard>
   )
 
-  if (embedded) {
-    return <div className={styles.embeddedFlow}>{content}</div>
-  }
-
-  return (
-    <div className={styles.shell}>
-      <HorizonBackground />
-      <HeaderBar state={phase === 'done' ? 'confirming' : 'review'} />
-      <main className={styles.stage}>
-        <div className={styles.stageInner}>
-          {content}
-        </div>
-      </main>
-    </div>
-  )
+  // Always embedded by SigningPage (#/signer). The old standalone `#/signing`
+  // page wrapper (HorizonBackground + HeaderBar chrome) was removed with the
+  // route, so there's no non-embedded path to render.
+  return <div className={styles.embeddedFlow}>{content}</div>
 }
 
 /* ─────────── Mandate preview summary (F10) ───────────
@@ -430,17 +418,6 @@ function MandatePreviewSummary({ draft, items }) {
 }
 
 /* ─────────── Header bar ─────────── */
-function HeaderBar({ state }) {
-  return (
-    <PageHeader
-      eyebrow="Signing"
-      title={state === 'confirming' ? 'Signed' : 'Sail never sees your keys'}
-      backTo="#/dashboard"
-    />
-  )
-}
-
-
 /* ─────────── Shared atoms ─────────── */
 function CardHeader({ kicker, title, sub, onBack }) {
   return (

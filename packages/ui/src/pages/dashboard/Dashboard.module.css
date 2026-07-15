@@ -332,7 +332,7 @@
    stays quiet, destructive is hidden in the overflow menu. */
 
 /* Provider-tinted Edit button. Colors flow in via inline CSS vars
-   per provider (Claude coral, Cursor pale, Codex green). */
+   supplied per agent at render time. */
 
 /* Overflow trigger and menu */
 @keyframes mOverflowRise {
@@ -435,6 +435,15 @@
     0 1px 0 rgba(255, 255, 255, 0.05) inset,
     0 28px 90px -28px rgba(0, 0, 0, 0.8),
     0 2px 12px rgba(0, 0, 0, 0.3);
+}
+/* Deploy-step view: no outer panel (CreateSmaStep brings its own card), and
+   wider so the step reads as a proper, bigger modal. */
+.addNetModalStep {
+  max-width: 540px;
+  padding: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
 }
 .addNetHead { margin-bottom: 16px; }
 .addNetKicker {
@@ -2202,4 +2211,3 @@ a.fundAddr { text-decoration: none; }
   background: var(--accent-blue);
   vertical-align: middle;
 }
-

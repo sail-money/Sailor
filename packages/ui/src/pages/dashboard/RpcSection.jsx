@@ -51,7 +51,8 @@ const RPC_PROVIDERS = [
 
 // Managed-provider hosts. Only chains the provider actually serves are listed; for any other
 // chain composeRpcUrl returns '' and the key-based providers are disabled in the UI (the user
-// is steered to Public/Custom). Alchemy/Infura don't serve HyperEVM(999) or MegaETH(4326).
+// is steered to Public/Custom). Alchemy serves every Sail chain including HyperEVM(999) and
+// MegaETH(4326); Infura's coverage is narrower (no World, HyperEVM, or MegaETH).
 const ALCHEMY_HOST = {
   1: 'eth-mainnet.g.alchemy.com',
   8453: 'base-mainnet.g.alchemy.com', 42161: 'arb-mainnet.g.alchemy.com',
@@ -59,6 +60,8 @@ const ALCHEMY_HOST = {
   130: 'unichain-mainnet.g.alchemy.com', 84532: 'base-sepolia.g.alchemy.com',
   11155111: 'eth-sepolia.g.alchemy.com',
   56: 'bnb-mainnet.g.alchemy.com', 480: 'worldchain-mainnet.g.alchemy.com',
+  999: 'hyperliquid-mainnet.g.alchemy.com', 998: 'hyperliquid-testnet.g.alchemy.com',
+  4326: 'megaeth-mainnet.g.alchemy.com',
 }
 const INFURA_HOST = {
   1: 'mainnet.infura.io',

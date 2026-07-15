@@ -2,7 +2,7 @@ import styles from './Sai.module.css'
 
 // The Sail logo, exactly as delivered by design: a pixel-art sailboat with
 // rock / bob / sway / gaze / blink motion baked into the SVG. Encoded as a
-// data-URI and rendered via <img> — the same pattern as ChainIcon — so the
+// data-URI and rendered via <img> so the
 // markup stays byte-for-byte from the source asset and its CSS animations play
 // in an isolated document. prefers-reduced-motion is handled inside the SVG.
 const LOGO_SRC = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 36 34" width="288" height="272" role="img" aria-label="Sail logo" overflow="visible"><style>

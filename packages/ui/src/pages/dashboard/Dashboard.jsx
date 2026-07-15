@@ -12,7 +12,7 @@ import {
   Sai,
   SailButton,
 } from '../shared'
-import SailBackground from '../shared/SailBackground'
+import { describePermission } from '../../lib/permissions'
 import debankIcon from '../shared/debank.png'
 import sailorMark from '../shared/sailor-mark.png'
 import robotMark from '../shared/robot-mark.svg'
@@ -160,22 +160,8 @@ function explainPermission(perm) {
 }
 
 // Plain-language one-liner for what a permission lets the agent do, matched from
-// the permission/template name. Bespoke permissions rarely carry a structured
-// explainer, so this guarantees every row still reads in human terms (the
-// "always describe what they're signing" rule). Falls back to a generic line.
-function describePermission(name = '') {
-  const n = String(name).toLowerCase()
-  if (/permit2/.test(n)) return 'Lets the agent grant a capped Permit2 spend allowance — nothing above the limit.'
-  if (/universalrouter|router.*execute|execute/.test(n)) return 'Lets the agent route swaps through the Universal Router within the bounds you set.'
-  if (/aero|slipstream/.test(n)) return 'Lets the agent swap on Aerodrome Slipstream pools within your limits.'
-  if (/erc20.*approve|approve.*erc20|bounded.*approve/.test(n)) return 'Lets the agent approve a capped token amount for a specific spender.'
-  if (/swap/.test(n)) return 'Lets the agent swap tokens within the size, slippage and token limits you set.'
-  if (/transfer/.test(n)) return 'Lets the agent transfer tokens only to the recipients you approved.'
-  if (/deposit/.test(n)) return 'Lets the agent deposit funds into an approved venue.'
-  if (/withdraw/.test(n)) return 'Lets the agent withdraw funds from an approved venue.'
-  if (/borrow|repay/.test(n)) return 'Lets the agent borrow or repay within the limits you set.'
-  return 'A custom on-chain rule that scopes exactly what your agent may do — it can never act beyond it.'
-}
+// the permission/template name — see lib/permissions.js (shared with the signing
+// page so the two never drift).
 
 function fmtActivityTime(ts) {
   try {
@@ -338,7 +324,8 @@ function buildMandatePermissions(overviewMandates, liveMandates, addressByTempla
 
 /** Delegated-signer balances with top-up status. */
 function SignersPanel({ overview, sma, onAddSigner, onRotateSigner, stacked = false }) {
-  const { address: wagmiAddress } = useAccount()
+  const _wallet = useAccount()
+  const { address: wagmiAddress } = _wallet
   const rawSigners = overview?.signers ?? []
   const ownerLower = overview?.sma?.owner?.toLowerCase() ?? null
 
@@ -514,7 +501,10 @@ function AddNetworkModal({ open, onClose, owner, manager, saltNonce, deployable,
   const canDeploy = saltNonce != null && owner && manager
   return (
     <div className={styles.addNetOverlay} role="dialog" aria-modal="true" aria-label="Add a network" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div className={styles.addNetModal}>
+      {/* Picker view gets its own solid panel; the deploy step (CreateSmaStep)
+          already renders its own card, so the wrapper goes transparent + wider
+          there to avoid a card-inside-a-card. */}
+      <div className={`${styles.addNetModal} ${target != null ? styles.addNetModalStep : ''}`}>
         {target == null ? (
           <>
             <header className={styles.addNetHead}>
@@ -527,8 +517,9 @@ function AddNetworkModal({ open, onClose, owner, manager, saltNonce, deployable,
             </header>
             {!canDeploy ? (
               <p className={styles.addNetNote}>
-                Adding a network from here needs this SMA’s deployment salt, which isn’t recorded
-                in this project. Deploy it from the CLI instead:
+                Your SMA keeps the same address on every chain thanks to its deployment salt,
+                and this project doesn't have that salt on record. Nothing is wrong with your
+                SMA. To keep the address identical, add networks from the CLI instead:
                 <code className={styles.addNetNoteCmd}>sailor account deploy-chain --chain &lt;id&gt;</code>
               </p>
             ) : deployable.length === 0 ? (
@@ -1261,9 +1252,7 @@ export default function Dashboard() {
   }, [onboardState?.hasAccount])
 
   if (!onboardChecked) return (
-    <div className={`${shared.pageShell} ${styles.shell}`}>
-      <SailBackground />
-    </div>
+    <div className={`${shared.pageShell} ${styles.shell}`} />
   )
   // First-run onboarding renders inside the dashboard frame (DashboardContent),
   // so the persistent left rail — SMAs list, create/import, connect wallet —
@@ -1272,13 +1261,15 @@ export default function Dashboard() {
   // (there is no "skip" — an accountless dashboard has nothing to show).
   // Wallet-connection state is NOT a gate — the wizard owns the connect step.
   return (
-    <DashboardContent
-      draft={draft}
-      onReset={refreshOnboard}
-      onboardState={onboardState}
-      onOnboardComplete={handleOnboardComplete}
-      onActiveDeployChange={(active) => { activeDeployRef.current = active }}
-    />
+    <>
+      <DashboardContent
+        draft={draft}
+        onReset={refreshOnboard}
+        onboardState={onboardState}
+        onOnboardComplete={handleOnboardComplete}
+        onActiveDeployChange={(active) => { activeDeployRef.current = active }}
+      />
+    </>
   )
 }
 
@@ -1287,7 +1278,8 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
   // Sidebar Create/Import clicks while onboarding: bump this to steer the
   // wizard to a step ('welcome' or 'import') instead of opening the modals.
   const [wizardStepReq, setWizardStepReq] = useState(null)
-  const { isConnected, address: wagmiAddress } = useAccount()
+  const _wallet = useAccount()
+  const { isConnected, address: wagmiAddress } = _wallet
   const { disconnect } = useDisconnect()
   const { openConnectModal } = useConnectModal()
   // Bumped on SMA switch/rename to force every panel to refetch immediately
@@ -1448,6 +1440,16 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
     m.safe != null ? m.safe.toLowerCase() === activeSafe : allAccounts.length <= 1
   )
   const hasLiveMandate = activeLiveMandates.length > 0
+  // The unsigned draft (.sail/mandate-draft.json) is ALSO a single global file, so
+  // it must be scoped the same way — otherwise a draft prepared for account A shows
+  // its "ready to authorize" banner + notification on accounts B and C in a
+  // multi-SMA project. Only surface it against the SMA it was prepared for (its
+  // `account`/`safe`); a legacy draft with neither is trusted only on single-SMA
+  // projects where it's unambiguous.
+  const draftSafe = (draft?.account ?? draft?.safe)?.toLowerCase()
+  const scopedDraft = draft && (draftSafe != null ? draftSafe === activeSafe : allAccounts.length <= 1)
+    ? draft
+    : null
   const liveMode = hasLiveMandate || agentRunning
 
   const realNetwork = effectiveAccount ? (CHAIN_NAMES[effectiveAccount.chainId] ?? 'ethereum') : null
@@ -1479,6 +1481,26 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
     if (activeAccount?.chainId != null) chains.add(Number(activeAccount.chainId))
     return [...chains].filter((c) => Number.isFinite(c) && c > 0 && !HIDDEN_CHAIN_IDS.has(c))
   })()
+  // The union above is deliberately loose — a stale on-disk record (e.g. a
+  // deploy probe that mis-recorded a chain) makes it claim chains the SMA was
+  // never deployed to. For anything that *tells the user where the SMA is
+  // live* we drop the chains the kernel has CONFIRMED it is absent from: the
+  // overview's on-chain read succeeded (`onchain`) and `registered` came back
+  // false. An unreadable chain (RPC down, cold cache) keeps its chip — an
+  // unknown must never hide a real deployment. Display + Add-network picker
+  // only: RPC config, activity filters, and the deploy persist-merge keep the
+  // loose union, so a dropped chain's RPC row stays reachable and account.json
+  // is never rewritten with a shrunken list.
+  const confirmedNotLive = new Set(
+    chainOverviews
+      .filter((ov) => ov?.onchain === true && ov?.sma?.registered === false)
+      .map((ov) => Number(ov.chainId))
+  )
+  const liveChains = deployedChains.filter((c) => !confirmedNotLive.has(c))
+  // If the filter empties the list (e.g. an imported Safe registered nowhere),
+  // fall back to the loose union so the row never disappears for a working
+  // account.
+  const liveChainsDisplay = liveChains.length > 0 ? liveChains : deployedChains
   const isMultiChain = deployedChains.length > 1
   // "Add a new network" deploys the current SMA to another chain via the
   // wallet-signed onboarding flow (AddNetworkModal → CreateSmaStep), not a
@@ -1487,18 +1509,24 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
   // for multi-chain it's the switcher's selection (falling back to the first chain).
   const activeChainId = selectedChainId != null && deployedChains.includes(Number(selectedChainId))
     ? Number(selectedChainId)
-    : deployedChains[0]
+    // Default to the first CONFIRMED-live chain so a stale record can't make a
+    // phantom chain the landing view (identical to deployedChains[0] whenever
+    // nothing was filtered).
+    : liveChainsDisplay[0]
   const activeChainOv = isMultiChain
     ? (chainOverviews.find((o) => Number(o.chainId) === activeChainId) ?? chainOverviews[0] ?? overview)
     : overview
 
   // Chip data for the shared ChainSwitcher (Overview / Mandates / Gas), and the
   // chains this SMA isn't on yet (the Add-network picker). Display-cased names.
+  // Both derive from the confirmed-live set: the switchers claim "the SMA is
+  // here" and the picker claims "it isn't", so a confirmed-absent chain moves
+  // from the first list to the second instead of being stuck in neither.
   const capitalize = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
-  const deployedChainObjs = deployedChains
+  const deployedChainObjs = liveChainsDisplay
     .map((id) => ({ id, name: capitalize(chainDisplayName(id) ?? `Chain ${id}`) }))
   const deployableChainObjs = DEPLOYABLE_CHAIN_IDS
-    .filter((id) => !deployedChains.includes(id))
+    .filter((id) => !liveChains.includes(id))
     .map((id) => ({ id, name: capitalize(chainDisplayName(id) ?? `Chain ${id}`) }))
     .filter((c) => c.name)
 
@@ -1522,6 +1550,16 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
           const deployedNets = a.deployedChains
             ? a.deployedChains.map((id) => CHAIN_NAMES[id] ?? 'ethereum').filter(Boolean)
             : null
+          // Chain ids for the row's network badges. The ACTIVE SMA uses the
+          // confirmed-live set (stored deployedChains is stale for CLI and
+          // per-chain creates — it collapsed multi-chain SMAs to one badge);
+          // other SMAs have no overviews to consult, so their stored record
+          // is the best available.
+          const netIds = isCurrent && liveChainsDisplay.length > 0
+            ? liveChainsDisplay
+            : (Array.isArray(a.deployedChains) && a.deployedChains.length > 0
+                ? a.deployedChains.map(Number).filter((id) => Number.isFinite(id) && !HIDDEN_CHAIN_IDS.has(id))
+                : (a.chainId != null ? [Number(a.chainId)] : []))
           if (!byId.has(key)) {
             byId.set(key, {
               id: a.safe,
@@ -1529,6 +1567,7 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
               address: a.safe,
               network: net,
               networks: deployedNets ?? [net],
+              networkIds: [...netIds],
               mandateCount: isCurrent ? (isMultiChain && chainOverviews.length > 0 ? chainOverviews.reduce((sum, ov) => sum + (ov.mandateCount ?? 0), 0) : (overview?.mandateCount ?? 0)) : 0,
               createdAt: a.addedAt ?? null,
             })
@@ -1537,6 +1576,9 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
             const toMerge = deployedNets ?? [net]
             for (const n of toMerge) {
               if (!entry.networks.includes(n)) entry.networks.push(n)
+            }
+            for (const id of netIds) {
+              if (!entry.networkIds.includes(id)) entry.networkIds.push(id)
             }
           }
         }
@@ -1548,7 +1590,7 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
     // whenever B owned nothing here (ownedAccounts empty → fell through).
     : sma && effectiveAccount?.owner && wagmiAddress &&
       effectiveAccount.owner.toLowerCase() === wagmiAddress.toLowerCase()
-    ? [{ ...sma, name: smaName, networks: deployedChains.length > 0 ? deployedChains.map((id) => CHAIN_NAMES[id] ?? 'ethereum').filter(Boolean) : [realNetwork], mandateCount: isMultiChain && chainOverviews.length > 0 ? chainOverviews.reduce((sum, ov) => sum + (ov.mandateCount ?? 0), 0) : (overview?.mandateCount ?? 0), createdAt: null }]
+    ? [{ ...sma, name: smaName, networks: liveChainsDisplay.length > 0 ? liveChainsDisplay.map((id) => CHAIN_NAMES[id] ?? 'ethereum').filter(Boolean) : [realNetwork], networkIds: liveChainsDisplay, mandateCount: isMultiChain && chainOverviews.length > 0 ? chainOverviews.reduce((sum, ov) => sum + (ov.mandateCount ?? 0), 0) : (overview?.mandateCount ?? 0), createdAt: null }]
     : []
 
   const safeUrl = sma ? safeAppUrl(sma.network, sma.address) : '#'
@@ -1576,7 +1618,10 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
             // logo doubles as a "reset the view / re-fetch everything" action,
             // even when already on the dashboard (a hash change alone is a no-op
             // there and wouldn't refresh).
-            onClick={() => { window.location.hash = '#/dashboard'; window.location.reload() }}
+            onClick={() => {
+              window.location.hash = '#/dashboard'
+              window.location.reload()
+            }}
             aria-label="Go to dashboard (refresh)"
           >
             <img src={sailorMark} alt="" className={styles.brandMark} />
@@ -1644,7 +1689,7 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
         <div className={styles.sidebarEoa}>
           <NotificationsBell
             pending={pending}
-            draft={draft}
+            draft={scopedDraft}
             open={notifOpen}
             onToggle={() => setNotifOpen((o) => !o)}
             onClose={() => setNotifOpen(false)}
@@ -1720,9 +1765,9 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
           <>
             {/* Section nav now lives in the left rail (styles.sidebarNav) —
                 the old top tab strip was removed. */}
-            {draft && draftItemCount(draft) > 0 && (
+            {scopedDraft && draftItemCount(scopedDraft) > 0 && (
               <DraftBanner
-                draft={draft}
+                draft={scopedDraft}
                 onReview={() => { window.location.hash = '#/signer' }}
               />
             )}

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { getAddress } from 'viem'
 import { useAccount, useDisconnect, useSendTransaction, useSignTypedData, useSwitchChain } from 'wagmi'
+import { getAccount } from 'wagmi/actions'
+import { wagmiConfig } from '../../wagmi'
 // Import from subpaths, not the '@sail/sdk' barrel: the barrel re-exports the Node-only
 // keyring (node:crypto scryptSync), which breaks the browser (vite) build. safe/eip712 are
 // viem-only and browser-safe.
@@ -696,6 +698,14 @@ function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTo
 // the right next step (fund gas, switch/unsupported, or just retry/remove).
 function classifyDeployError(raw) {
   const m = (raw || '').toLowerCase()
+  // Marker thrown by deployChain when the wallet verifiably stayed on the
+  // wrong chain after a switch attempt (e.g. wallets without custom-network
+  // support cannot reach HyperEVM). Checked first: the raw provider error in
+  // that state is generic and would fall through to the useless default.
+  if (m.startsWith('wallet-switch-failed:')) {
+    const name = raw.slice('wallet-switch-failed:'.length).trim() || 'this network'
+    return { kind: 'switch', message: `Your wallet couldn't switch to ${name}. Some wallets don't support this network. Connect a wallet that does, like Rabby or MetaMask, and deploy again, or remove this chain.` }
+  }
   if (/insufficient funds|exceeds the balance|not enough|gas required exceeds/.test(m)) {
     return { kind: 'gas', message: 'Your wallet has no gas on this chain. Add funds on this network, then deploy again — or remove this chain and add it later.' }
   }
@@ -737,7 +747,23 @@ export function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, depl
 
   async function deployChain(chainId) {
     setStatus(chainId, 'switching')
-    try { await switchChainAsync({ chainId }) } catch { /* user may already be on this chain */ }
+    try {
+      await switchChainAsync({ chainId })
+    } catch (switchErr) {
+      // Some connectors throw here even when the wallet is already on the
+      // target chain, so the throw alone isn't conclusive — verify where the
+      // wallet actually landed. Proceeding blind sends the deploy tx against
+      // the wrong chain, which surfaces as a generic provider error that
+      // classifyDeployError can't read (seen with wallets that have no
+      // custom-network support trying to reach HyperEVM).
+      const sm = (switchErr?.shortMessage || switchErr?.message || '').toLowerCase()
+      if (/user rejected|user denied|rejected the request|denied/.test(sm)) throw switchErr
+      const liveChainId = getAccount(wagmiConfig).chainId
+      if (liveChainId != null && liveChainId !== chainId) {
+        const name = SUPPORTED_NETWORKS.find((n) => n.chainId === chainId)?.name ?? `chain ${chainId}`
+        throw new Error(`wallet-switch-failed: ${name}`)
+      }
+    }
 
     setStatus(chainId, 'building')
     const buildRes = await fetch('/api/onboard/build-create-tx', {
@@ -944,7 +970,7 @@ export function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, depl
       <CardHeader
         kicker={compact ? 'ADD NETWORK' : `STEP ${progressIndex + 1} OF ${progressTotal}`}
         title={title ?? 'Deploy your SMAs'}
-        sub={sub ?? 'Same SMA address on every chain. Some chains need 2 transactions — your wallet will prompt for each.'}
+        sub={sub ?? 'Same SMA address on every chain. Some chains need 2 transactions — your wallet will prompt for each. You can always add another network later from your dashboard.'}
         onBack={running ? undefined : onBack}
       />
       <div className={styles.chainDeployList}>

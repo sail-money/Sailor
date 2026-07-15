@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import styles from './ProfileModal.module.css'
+import ChainGlyph from '../shared/ChainGlyph'
 
 function truncate(addr) {
   if (!addr || addr.length < 12) return addr ?? ''
@@ -42,7 +43,10 @@ function ArrowOutIcon() {
  * Network chip has been removed — chain context belongs on each
  * individual SMA row, not on the EOA itself.
  */
-const CHAIN_NAMES = { 1: 'Ethereum', 10: 'Optimism', 137: 'Polygon', 8453: 'Base', 42161: 'Arbitrum', 130: 'Unichain' }
+const CHAIN_NAMES = {
+  1: 'Ethereum', 10: 'Optimism', 137: 'Polygon', 8453: 'Base', 42161: 'Arbitrum',
+  130: 'Unichain', 56: 'BNB', 480: 'World', 999: 'HyperEVM', 4326: 'MegaETH',
+}
 
 export default function ProfileModal({
   open,
@@ -240,7 +244,30 @@ export default function ProfileModal({
                       </span>
                       <span className={styles.smaAddress}>{truncate(sma.address)}</span>
                       <span className={styles.smaMeta}>
-                        {sma.networks && sma.networks.length > 1 ? (
+                        {/* Chain badges: brand glyphs from networkIds when the
+                            record carries chain ids; multichain rows collapse
+                            to the glyph row + "Multichain". Records without
+                            ids (legacy shape) keep the old name-keyed dots. */}
+                        {sma.networkIds && sma.networkIds.length > 1 ? (
+                          <>
+                            <span className={styles.smaNetGlyphs} aria-hidden>
+                              {sma.networkIds.slice(0, 5).map((id) => (
+                                <ChainGlyph key={id} chainId={id} size={12} />
+                              ))}
+                            </span>
+                            {sma.networkIds.length > 5 && (
+                              <span className={styles.smaNetMore}>+{sma.networkIds.length - 5}</span>
+                            )}
+                            <span className={styles.smaNetName}>Multichain</span>
+                          </>
+                        ) : sma.networkIds && sma.networkIds.length === 1 ? (
+                          <>
+                            <ChainGlyph chainId={sma.networkIds[0]} size={12} />
+                            <span className={styles.smaNetName}>
+                              {CHAIN_NAMES[sma.networkIds[0]] ?? capitalize(sma.network)}
+                            </span>
+                          </>
+                        ) : sma.networks && sma.networks.length > 1 ? (
                           <>
                             <span className={styles.smaNetStack} aria-hidden>
                               {sma.networks.slice(0, 4).map((n) => (
@@ -299,7 +326,7 @@ export default function ProfileModal({
                     <span className={styles.smaSafeLinkLabel}>
                       Open in Safe
                       <span className={styles.smaSafeLinkChain}>
-                        {sma.networks && sma.networks.length > 1
+                        {(sma.networkIds?.length ?? sma.networks?.length ?? 1) > 1
                           ? ` · ${capitalize(sma.network)} (home)`
                           : ` · ${capitalize(sma.network)}`}
                       </span>

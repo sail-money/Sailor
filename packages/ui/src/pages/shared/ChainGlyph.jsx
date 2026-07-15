@@ -1,7 +1,7 @@
 /* Flat, single-hue chain marks — the "precise · dark · electric" take on
-   chain identity. Unlike ChainIcon (full-colour circular badges), these are
-   monochrome geometry tinted with each chain's brand hue, so they sit cleanly
-   on the sail-card surfaces in both onboarding and the dashboard.
+   chain identity. Monochrome geometry tinted with each chain's brand hue, so
+   they sit cleanly on the sail-card surfaces in both onboarding and the
+   dashboard.
 
    One source of truth for both the mark and the brand colour, keyed by chainId
    (mainnet + matching testnet share a mark). */

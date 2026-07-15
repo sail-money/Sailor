@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAccount, useChains, useDisconnect, useSendTransaction, useSignTypedData, useSwitchChain } from 'wagmi'
-import { GlassCard, Sai, SailButton, BadgeRow } from '../shared'
+import { GlassCard, Sai, SailButton, BadgeRow, ChainGlyph } from '../shared'
 import PageHeader from '../shared/PageHeader'
 import NotConnectedCard from '../shared/NotConnectedCard'
 import ProfileModal from '../dashboard/ProfileModal'
@@ -11,6 +11,7 @@ import { useSailorAccount, useSailorMandateDraft } from '../../hooks/useSailorDa
 import { useSigningSocket } from '../../hooks/useSigningSocket'
 import { MandateSigningFlow } from '../signing/Signing'
 import { explorerCodeUrl, explorerTxUrl } from '../../lib/explorer'
+import { describePermission } from '../../lib/permissions'
 import { nextSigningPhase, failureCopy } from './signingPhase'
 import { decideSignerEntry } from './signerEntry'
 
@@ -52,25 +53,9 @@ function ScannerLinkIcon() {
   )
 }
 
-// Plain-language fallback for what a permission/request authorizes, matched from
-// its name. The CLI supplies a structured `explanation` for most permissions;
-// this guarantees the user always sees a human description of what they're
-// signing, even for bespoke contracts that carry no explainer.
-function describePermission(name = '') {
-  const n = String(name).toLowerCase()
-  if (/permit2/.test(n)) return 'Lets the agent grant a capped Permit2 spend allowance — nothing above the limit.'
-  if (/universalrouter|router.*execute|\bexecute\b/.test(n)) return 'Lets the agent route swaps through the Universal Router within the bounds you set.'
-  if (/aero|slipstream/.test(n)) return 'Lets the agent swap on Aerodrome Slipstream pools within your limits.'
-  if (/erc20.*approve|approve.*erc20|bounded.*approve|\bapprove\b/.test(n)) return 'Lets the agent approve a capped token amount for a specific spender.'
-  if (/swap/.test(n)) return 'Lets the agent swap tokens within the size, slippage and token limits you set.'
-  if (/transfer/.test(n)) return 'Lets the agent transfer tokens only to the recipients you approved.'
-  if (/deposit/.test(n)) return 'Lets the agent deposit funds into an approved venue.'
-  if (/withdraw/.test(n)) return 'Lets the agent withdraw funds from an approved venue.'
-  if (/borrow|repay/.test(n)) return 'Lets the agent borrow or repay within the limits you set.'
-  if (/mandate/.test(n)) return 'Registers this mandate on-chain so your agent can act within its permissions.'
-  if (/delegate|manager/.test(n)) return 'Sets your agent wallet as the account manager so it can submit dispatches.'
-  return 'An on-chain rule that scopes exactly what your agent may do — it can never act beyond it.'
-}
+// describePermission — plain-language fallback for what a permission/request
+// authorizes, matched from its name. See lib/permissions.js (shared with the
+// dashboard so the two never drift).
 
 export default function SigningPage() {
   const { draft } = useSailorMandateDraft()
@@ -81,7 +66,8 @@ export default function SigningPage() {
   const [profileOpen, setProfileOpen] = useState(false)
   const [aiOpen, setAiOpen] = useState(false)
 
-  const { address: walletAddress, isConnected } = useAccount()
+  const _wallet = useAccount()
+  const { address: walletAddress, isConnected } = _wallet
   const chains = useChains()
   const { disconnect } = useDisconnect()
   const { account: realAccount, loading: accountLoading } = useSailorAccount()
@@ -173,7 +159,7 @@ export default function SigningPage() {
         ) : phase.phase === 'awaiting-confirmation' ? (
           <TransactionStateCard state="submitting" kind={phase.kind} onDone={() => { setPhase({ phase: 'idle' }); window.location.hash = '#/dashboard' }} />
         ) : hasDraft ? (
-          <MandateSigningFlow draft={draft} embedded />
+          <MandateSigningFlow draft={draft} />
         ) : requests.length === 0 ? (
           <EmptyQueue daemonConnected={daemonStatus === 'connected'} onAsk={() => setAiOpen(true)} />
         ) : (
@@ -261,7 +247,8 @@ function Orchestrator({ requests, chains, phase, setPhase, send }) {
 }
 
 function OperationCard({ request, chains, phase, onSign, onReject, otherActive }) {
-  const { isConnected, chainId: walletChain } = useAccount()
+  const _wallet = useAccount()
+  const { isConnected, chainId: walletChain } = _wallet
   const { switchChain } = useSwitchChain()
 
   const mine = phase.requestId === request.id
@@ -352,9 +339,12 @@ function OperationCard({ request, chains, phase, onSign, onReject, otherActive }
       {hasError && <div className={`${styles.banner} ${styles.danger}`}>{phase.message}</div>}
       {wrongChain && (
         <div className={`${styles.banner} ${styles.warn}`}>
-          Wallet is on {chainName(chains, walletChain)}.{' '}
-          <button type="button" className={styles.linkBtn} onClick={() => switchChain({ chainId: request.chainId })}>
-            Switch to {chainName(chains, request.chainId)}
+          <span className={styles.chainSwitchFrom}>
+            <ChainGlyph chainId={walletChain} size={15} />
+            Wallet is on {chainName(chains, walletChain)}.
+          </span>
+          <button type="button" className={styles.chainSwitchBtn} onClick={() => switchChain({ chainId: request.chainId })}>
+            Switch to <ChainGlyph chainId={request.chainId} size={15} /> {chainName(chains, request.chainId)}
           </button>
         </div>
       )}
@@ -530,7 +520,10 @@ function FailureScreen({ outcome, message, onDone }) {
         <h1 className={`${shared.displayHeadline} ${styles.emptyHeadline}`} style={{ color: 'var(--danger)' }}>
           {copy.headline}
         </h1>
-        <p className={`${shared.italicMannerism} ${styles.emptyTagline}`}>
+        {/* Raw node/viem errors can be very long (they inline the full calldata),
+            so the message scrolls inside a clamped box instead of blowing out the
+            modal width. */}
+        <p className={styles.failMessage}>
           {message}
         </p>
       </header>

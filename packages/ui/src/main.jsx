@@ -6,7 +6,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WagmiProvider } from 'wagmi'
 import SigningPage from './pages/signer/SigningPage'
 import Dashboard from './pages/dashboard/Dashboard'
-import JournalPage from './pages/dashboard/JournalPage'
 import { wagmiConfig } from './wagmi'
 import { useWalletLifecycle } from './hooks/useWalletLifecycle'
 import './styles/globals.css'
@@ -70,20 +69,6 @@ function Router() {
   // standalone page, removed) are compat aliases so stale bookmarks and
   // printed URLs still land on the live signing surface.
   else if (route.startsWith('/signer') || route.startsWith('/station') || route.startsWith('/signing')) page = <SigningPage key={route} />
-  else if (route.startsWith('/journal/')) {
-    // /journal/:entryId — full-page detail of one Decision Journal
-    // entry. Replaces the older right-side drawer; users get the same
-    // visual chrome as the dashboard and can step through adjacent
-    // entries from inside the page.
-    const id = route.slice('/journal/'.length).split('?')[0]
-    page = (
-      <JournalPage
-        key={route}
-        entryId={id}
-        onBack={() => { window.location.hash = '#/dashboard' }}
-      />
-    )
-  }
   else if (route.startsWith('/dashboard')) page = <Dashboard key={route} />
   else page = <Dashboard key={route} />
 

@@ -440,6 +440,20 @@
   box-shadow: none;
 }
 .smaNetStack .smaNetDot:first-child { margin-left: 0; }
+/* Brand-glyph row for multichain SMAs. Marks sit side by side (chain logos
+   don't overlap cleanly the way anonymous dots do), sized to the 11.5px meta
+   line. The "+N" overflow counter matches the meta type. */
+.smaNetGlyphs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.smaNetMore {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.02em;
+}
 .smaNetName { color: var(--text-secondary); }
 .smaMetaSep { color: var(--text-tertiary); opacity: 0.6; }
 .smaAgentCount { color: var(--text-tertiary); }
