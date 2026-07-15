@@ -7,7 +7,7 @@ import ProfileModal from '../dashboard/ProfileModal'
 import AIHandoffModal from '../dashboard/AIHandoffModal'
 import styles from './SigningPage.module.css'
 import shared from '../shared/shared.module.css'
-import { useSailorAccount, useSailorMandateDraft } from '../../hooks/useSailorData'
+import { useSailorAccount, useSailorMandate, useSailorMandateDraft } from '../../hooks/useSailorData'
 import { useSigningSocket } from '../../hooks/useSigningSocket'
 import { MandateSigningFlow } from '../signing/Signing'
 import { explorerCodeUrl, explorerTxUrl } from '../../lib/explorer'
@@ -60,6 +60,14 @@ function ScannerLinkIcon() {
 export default function SigningPage() {
   const { draft } = useSailorMandateDraft()
   const hasDraft = draft && (draft.permissions ?? draft.items ?? []).length > 0
+  // There's exactly one mandate per SMA+chain (registered once, on the first
+  // signature); every draft after that adds permission(s) to it, not a new
+  // mandate. Matching this draft's account+chain against already-registered
+  // mandates tells the signing flow which copy to show.
+  const { mandates: registeredMandates } = useSailorMandate()
+  const isAdditionalPermission = !!draft && registeredMandates.some((m) =>
+    m.chainId === draft.chainId && m.safe?.toLowerCase() === draft.account?.toLowerCase(),
+  )
 
   const [requests, setRequests] = useState([])
   const [phase, setPhase] = useState({ phase: 'idle' })
@@ -159,7 +167,7 @@ export default function SigningPage() {
         ) : phase.phase === 'awaiting-confirmation' ? (
           <TransactionStateCard state="submitting" kind={phase.kind} onDone={() => { setPhase({ phase: 'idle' }); window.location.hash = '#/dashboard' }} />
         ) : hasDraft ? (
-          <MandateSigningFlow draft={draft} />
+          <MandateSigningFlow draft={draft} isAdditionalPermission={isAdditionalPermission} />
         ) : requests.length === 0 ? (
           <EmptyQueue daemonConnected={daemonStatus === 'connected'} onAsk={() => setAiOpen(true)} />
         ) : (

@@ -93,6 +93,12 @@
 }
 .welcomeCard { max-width: 560px; padding: 40px 44px 28px; }
 .authCard    { max-width: 420px; padding: 36px 36px 28px; }
+/* Compact variant (Dashboard's Add-network modal, deploy step): its wrapper
+   (addNetModalStep, in Dashboard.module.css) goes transparent and widens to
+   540px so this card is the only visible surface. Match that width and
+   center within it — otherwise the 420px card sits flush against the
+   wrapper's left edge, reading as an off-center modal. */
+.authCardCompact { max-width: 540px; margin: 0 auto; }
 /* Network step holds the most content (3-up chain grid) — give it room. */
 .networkStepCard { max-width: 560px; }
 

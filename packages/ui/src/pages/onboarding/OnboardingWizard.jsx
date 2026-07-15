@@ -965,7 +965,7 @@ export function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, depl
   const anyDeployed = chainIds.some(id => statuses[id] === 'done') || deployed.length > 0
 
   return (
-    <GlassCard className={styles.authCard}>
+    <GlassCard className={`${styles.authCard} ${compact ? styles.authCardCompact : ''}`}>
       {!compact && <ProgressDots current={progressIndex} total={progressTotal} />}
       <CardHeader
         kicker={compact ? 'ADD NETWORK' : `STEP ${progressIndex + 1} OF ${progressTotal}`}

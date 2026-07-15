@@ -181,7 +181,7 @@ function RegistrationFeeNote({ fee }) {
   )
 }
 
-export function MandateSigningFlow({ draft }) {
+export function MandateSigningFlow({ draft, isAdditionalPermission = false }) {
   const { isConnected, chainId: walletChainId } = useAccount()
   const { signTypedDataAsync } = useSignTypedData()
   const { switchChainAsync } = useSwitchChain()
@@ -200,6 +200,7 @@ export function MandateSigningFlow({ draft }) {
         address: p.address,
         permExplanation: p.explanation ?? null,
       }))
+  const permWord = items.length === 1 ? 'permission' : 'permissions'
 
   // The kernel address (EIP-712 verifyingContract) comes from the draft's
   // chainId via @sail/chains. Falls back to the zero address when the chain
@@ -295,11 +296,11 @@ export function MandateSigningFlow({ draft }) {
   }
 
   const content = phase === 'done' ? (
-    <MandateSignedCard draft={draft} />
+    <MandateSignedCard draft={draft} isAdditionalPermission={isAdditionalPermission} />
   ) : (
     <GlassCard className={styles.authCard}>
       <CardHeader
-        kicker="REVIEW MANDATE"
+        kicker={isAdditionalPermission ? `REVIEW ${permWord.toUpperCase()}` : 'REVIEW MANDATE'}
         title="Authorize your agent"
         sub="Sign with your wallet — Sail never holds your keys."
       />
@@ -335,7 +336,7 @@ export function MandateSigningFlow({ draft }) {
           {wrongChain ? (
             <>
               <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', margin: '0 0 10px' }}>
-                Your wallet is on a different network. Switch to sign this mandate.
+                Your wallet is on a different network. Switch to sign {isAdditionalPermission ? `this ${permWord}` : 'this mandate'}.
               </p>
               <div className={styles.actionRow}>
                 <SailButton fullWidth onClick={onSwitchChain}>
@@ -348,7 +349,7 @@ export function MandateSigningFlow({ draft }) {
             <>
               <div className={styles.actionRow}>
                 <SailButton fullWidth onClick={onSign} disabled={phase === 'signing'}>
-                  {phase === 'signing' ? 'Waiting for wallet…' : 'Sign mandate'}
+                  {phase === 'signing' ? 'Waiting for wallet…' : (isAdditionalPermission ? `Sign ${permWord}` : 'Sign mandate')}
                 </SailButton>
                 <button type="button" className={styles.rejectBtn} onClick={onReject} disabled={phase === 'signing'}>Reject</button>
               </div>
@@ -440,11 +441,14 @@ function CardHeader({ kicker, title, sub, onBack }) {
 }
 
 /* ── Mandate signed: contextual done state ── */
-function MandateSignedCard({ draft }) {
+function MandateSignedCard({ draft, isAdditionalPermission = false }) {
   const [copied, setCopied] = useState(false)
   const permCount = (draft?.items ?? draft?.permissions ?? []).length
+  const permWord = permCount === 1 ? 'permission' : 'permissions'
   const safeShort = draft?.account ? `${draft.account.slice(0, 10)}…${draft.account.slice(-6)}` : null
-  const prompt = `My mandate is signed on Safe ${draft?.account ?? 'my Safe'}. ${permCount} permission${permCount === 1 ? '' : 's'} registered. Now deploy and start the agent — use SAIL_PASSPHRASE from my config and run sailor run.`
+  const prompt = isAdditionalPermission
+    ? `My new ${permWord} ${permCount === 1 ? 'is' : 'are'} registered on Safe ${draft?.account ?? 'my Safe'}. ${permCount} ${permWord} registered. Tell the agent to pick it up.`
+    : `My mandate is signed on Safe ${draft?.account ?? 'my Safe'}. ${permCount} permission${permCount === 1 ? '' : 's'} registered. Now deploy and start the agent — use SAIL_PASSPHRASE from my config and run sailor run.`
 
   function copy() {
     // Don't claim "Copied" without a clipboard (same guard as every other copy affordance).
@@ -460,7 +464,7 @@ function MandateSignedCard({ draft }) {
         <Sai size={64} animate />
       </div>
       <header className={styles.cardHeader}>
-        <span className={styles.kicker}>MANDATE SIGNED</span>
+        <span className={styles.kicker}>{isAdditionalPermission ? `${permWord.toUpperCase()} REGISTERED` : 'MANDATE SIGNED'}</span>
         <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
           Permissions registered.
         </h1>
