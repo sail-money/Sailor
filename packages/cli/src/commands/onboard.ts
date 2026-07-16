@@ -8,7 +8,7 @@
  *   4. Optionally register one mandate template
  *   5. Persist the SMA to .sail/account.json and print a summary
  *
- * Signing requests are pushed to the signing station (a running `sailor station`
+ * Signing requests are pushed to the signing server (a running `sailor signer`
  * daemon if one exists, otherwise an ephemeral in-process server) so the owner
  * approves them in the browser UI. Fully agent-driveable: pass --sma/--new-sma +
  * --template/--skip-mandate and --json to run without interactive prompts.
@@ -51,7 +51,7 @@ import { MandateStore } from "../lib/mandates.js";
 import { explainPermission } from "../lib/permission-explainer.js";
 import { emit } from "../lib/output.js";
 import { ProjectContext } from "../lib/project.js";
-import { registrationGate } from "../lib/registration-fee.js";
+import { estimateRegistrationGasBudgetWei, registrationGate } from "../lib/registration-fee.js";
 import { type StoredAccount, upsertAccountInList } from "../lib/state.js";
 import { type SigningChannel, createSigningChannel, signingPageUrl } from "../signing/client.js";
 import { projectPort } from "../lib/packagePaths.js";
@@ -573,13 +573,20 @@ export async function registerMandate(
   );
   const fee = feeEstimate.totalWei;
 
-  // Preflight + disclose BEFORE asking the owner to sign, so an underfunded
-  // signer fails early (via a typed RegistrationFeeError) instead of after a
-  // wasted signature / on-chain revert.
+  // Preflight (fee + gas) + disclose BEFORE asking the owner to sign, so an
+  // underfunded signer fails early (via a typed RegistrationFeeError) instead of
+  // after a wasted signature / on-chain revert — including the case where the
+  // wallet holds exactly the fee but nothing for gas.
   const agentBalanceWei = await publicClient.getBalance({
     address: agentSigner.viemAccount.address,
   });
-  const gate = registrationGate({ estimate: feeEstimate, agentBalanceWei, chainId: project.chainId });
+  const gasBudgetWei = await estimateRegistrationGasBudgetWei(publicClient, 1);
+  const gate = registrationGate({
+    estimate: feeEstimate,
+    agentBalanceWei,
+    chainId: project.chainId,
+    gasBudgetWei,
+  });
   say(() => console.log(gate.disclosure));
 
   say(() => console.log(`\nPushing signing request for "${template.label}" permission…`));
@@ -692,19 +699,34 @@ export async function registerMandate(
         args: [smaAddress, templateAddress, signature],
       });
 
-  const txHash = await walletClient.sendTransaction({
-    to: project.contracts.kernel,
-    data: registerData,
-    value: fee,
-    account: agentSigner.viemAccount,
-    chain,
-  });
+  let txHash: Hex;
+  try {
+    txHash = await walletClient.sendTransaction({
+      to: project.contracts.kernel,
+      data: registerData,
+      value: fee,
+      account: agentSigner.viemAccount,
+      chain,
+    });
+  } catch (err) {
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "failed",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
 
   say(() => console.log("Waiting for confirmation…"));
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
   if (receipt.status !== "success") {
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "reverted",
+      txHash,
+      error: `registerPermission reverted (tx ${txHash})`,
+    });
     throw new Error(`registerPermission reverted (tx ${txHash})`);
   }
+  await channel.confirmOutcome(response.requestId, { outcome: "confirmed", txHash });
 
   say(() => console.log("✓", `Permission "${template.label}" registered`));
   // The agent (manager) submits and pays for this on-chain registration; the
@@ -754,11 +776,9 @@ async function persistAccount(
     createdAtBlock,
     ...(account.saltNonce != null ? { saltNonce: account.saltNonce.toString() } : {}),
   };
-  // Register the SMA in the multi-SMA list the dashboard switcher reads *before*
-  // overwriting account.json, so the previously-active SMA is backfilled into
-  // the list rather than dropped.
+  // Persist through the single account-state writer: it registers the SMA in the
+  // multi-SMA list AND mirrors it into account.json (both files in sync).
   upsertAccountInList(stored);
-  writeJsonFile(sailPath("account.json"), stored);
 }
 
 function printSummary(smaAddress: Address, agentAddress: Address, permissions: Address[]): void {

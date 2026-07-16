@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { getAddress } from 'viem'
-import { useAccount, useSendTransaction, useSignTypedData, useSwitchChain } from 'wagmi'
+import { useAccount, useDisconnect, useSendTransaction, useSignTypedData, useSwitchChain } from 'wagmi'
+import { getAccount } from 'wagmi/actions'
+import { wagmiConfig } from '../../wagmi'
 // Import from subpaths, not the '@sail/sdk' barrel: the barrel re-exports the Node-only
 // keyring (node:crypto scryptSync), which breaks the browser (vite) build. safe/eip712 are
 // viem-only and browser-safe.
@@ -10,21 +12,13 @@ import { buildRegisterAccountExecTransaction } from '@sail/sdk/safe'
 import { sailDeployments } from '@sail/sdk/deployments'
 import { defaultRpcUrls } from '@sail/sdk/chains'
 import { ChainGlyph, GlassCard, InfoTip, Sai, SailButton } from '../shared'
-import SailBackground from '../shared/SailBackground'
 import shared from '../shared/shared.module.css'
 import styles from './OnboardingWizard.module.css'
-import dashStyles from '../dashboard/Dashboard.module.css'
 import { useSigningSocket } from '../../hooks/useSigningSocket'
 
-function truncateAddr(addr) {
-  return addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : ''
-}
-
-// Set to true when the onboarding header avatar button initiates a connect flow.
-// Module-level so it survives component re-renders and re-mounts.
-let _headerConnectPending = false
-// Set to true when "Already have an SMA?" initiates a connect flow.
-let _skipConnectPending = false
+// Set to true when the welcome "Already have an SMA? Connect wallet" link starts
+// a connect flow, so we can route onward once the wallet connects.
+let _welcomeConnectPending = false
 
 // topic0 of AccountRegistered(address indexed account, address indexed permissionSigner, address indexed manager)
 const ACCOUNT_REGISTERED_TOPIC = '0x05f9a81a3b5e45d338f25347928e56b0aaaa0c65d4087a980c4e41370fcccfeb'
@@ -44,9 +38,7 @@ const SUPPORTED_NETWORKS = [
   { chainId: 480,    name: 'World Chain',    group: 'mainnet', description: 'Worldcoin L2.', color: '#dfe3e8' },
   { chainId: 999,    name: 'HyperEVM',       group: 'mainnet', description: 'Hyperliquid EVM.', color: '#50d2c1' },
   { chainId: 4326,   name: 'MegaETH',        group: 'mainnet', description: 'Real-time EVM.', color: '#ffffff' },
-  // ── Testnets ──
-  { chainId: 84532,    name: 'Base Sepolia',     group: 'testnet', description: 'Free to experiment.', color: '#0052ff' },
-  { chainId: 11155111, name: 'Ethereum Sepolia', group: 'testnet', description: 'Ethereum test network.', color: '#627eea' },
+  // Testnets (Base/Ethereum Sepolia) are intentionally not offered in the UI.
 ]
 
 // Steps that show progress dots (excludes welcome + done).
@@ -55,67 +47,31 @@ const PROGRESS_STEPS = ['network', 'connect', 'keygen', 'create-sma']
 /**
  * Browser-driven onboarding wizard.
  * Handles steps 1–4; generates an AI prompt for steps 5–8 on the done screen.
+ * Renders embedded in the dashboard's main column — the dashboard sidebar
+ * provides the persistent chrome.
  *
  * Props:
  *   onboardState  — result of GET /api/onboard/state (or null while loading)
  *   onComplete    — called when the user clicks "Go to dashboard" on the done step
  */
-function OnboardingHeader({ onSkip }) {
-  const { isConnected, address } = useAccount()
-  const { openConnectModal } = useConnectModal()
-
-  useEffect(() => {
-    if (isConnected && _headerConnectPending) {
-      _headerConnectPending = false
-      onSkip?.()
-    }
-  }, [isConnected, onSkip])
-
-  function handleClick() {
-    if (isConnected) {
-      onSkip?.()
-    } else {
-      _headerConnectPending = true
-      openConnectModal?.()
-    }
-  }
-
-  return (
-    <header className={dashStyles.header}>
-      <button
-        type="button"
-        className={dashStyles.brand}
-        aria-label="Sail"
-      >
-        <Sai size={48} animate />
-      </button>
-      <div className={dashStyles.topActionsPill}>
-        <button
-          type="button"
-          className={dashStyles.avatarBtn}
-          onClick={handleClick}
-          aria-label={isConnected && address ? `Connected (${truncateAddr(address)})` : 'Connect wallet'}
-          title={isConnected && address ? address : undefined}
-        >
-          <span className={dashStyles.avatarBtnMonogram} aria-hidden>
-            {isConnected && address ? address.slice(2, 4).toUpperCase() : '—'}
-          </span>
-          <span className={dashStyles.avatarBtnAddr}>
-            {isConnected && address ? truncateAddr(address) : 'Not connected'}
-          </span>
-        </button>
-      </div>
-    </header>
-  )
-}
-
-export default function OnboardingWizard({ onboardState, onComplete, onSkip, onActiveDeployChange }) {
+export default function OnboardingWizard({ onboardState, onComplete, onActiveDeployChange, requestedStep, additional, onCancel }) {
   const { address } = useAccount()
-  const [step, setStep] = useState('welcome')
+  // Additional-SMA mode (creating another SMA from the dashboard): the owner is
+  // already connected and the agent key already exists, so skip welcome / connect
+  // / keygen and run just network → deploy.
+  const [step, setStep] = useState(additional ? 'network' : 'welcome')
   // Multi-chain: user selects one or more chains; default to Base
   const [selectedChainIds, setSelectedChainIds] = useState([onboardState?.chainId ?? 8453])
   const [managerAddress, setManagerAddress] = useState(onboardState?.managerAddress ?? null)
   const [deployedSafes, setDeployedSafes] = useState([]) // [{ chainId, safe }]
+  // Deployed chains are recorded HERE (not just in the deploy step) the moment
+  // each chain succeeds, so navigating Back after a partial deploy can never
+  // forget a live deployment — on re-entry those chains show as done and are
+  // skipped, instead of being re-deployed into a CREATE2 revert.
+  const recordDeployed = (result) => {
+    if (!result?.safe) return
+    setDeployedSafes(prev => prev.some(p => p.chainId === result.chainId) ? prev : [...prev, result])
+  }
   // Fixed salt so the same Safe address is produced on every chain via CREATE2
   const [saltNonce] = useState(() => String(Date.now()))
 
@@ -126,6 +82,16 @@ export default function OnboardingWizard({ onboardState, onComplete, onSkip, onA
   // that inner step unmounts on the create-sma → done transition, which must keep
   // the flag held so the poll doesn't eject the user off the "done" summary.
   useEffect(() => () => { onActiveDeployChange?.(false) }, [])
+
+  // The dashboard's Create buttons route into the flow while onboarding is
+  // active: each click bumps `requestedStep` and the wizard jumps to that step.
+  // Never honored mid-deploy: yanking CreateSmaStep out while its loop runs
+  // would keep firing wallet prompts with no progress UI, and the welcome
+  // screen's "no SMA found" copy would be wrong seconds after a chain deployed.
+  useEffect(() => {
+    if (!requestedStep?.name) return
+    setStep(prev => (prev === 'create-sma' ? prev : requestedStep.name))
+  }, [requestedStep])
 
 
   // Note: we intentionally do NOT auto-advance past the welcome screen when a
@@ -143,47 +109,49 @@ export default function OnboardingWizard({ onboardState, onComplete, onSkip, onA
     )
   }
 
-  const progressIndex = PROGRESS_STEPS.indexOf(step)
+  // Progress steps in order. Additional-SMA mode runs a shorter flow (network →
+  // deploy, no connect/keygen), so the "STEP n OF m" counter reflects it.
+  // Both first-run and additional-SMA run the same four steps. Additional mode
+  // just starts at 'network' (no welcome) and shows confirmation states on the
+  // connect + keygen steps, since the wallet is connected and the agent key
+  // already exists — the steps stay visible, they don't silently skip.
+  const flowSteps = PROGRESS_STEPS
+  const progressIndex = flowSteps.indexOf(step)
+  const progressTotal = flowSteps.length
 
-  return (
-    <div className={styles.shell}>
-      <SailBackground />
-      {/* The header's connect-and-leave shortcut is one of the three welcome-screen
-          entry points. Once the user has chosen "Start setup" (any step past
-          welcome), the header must NOT navigate away — connecting the wallet is
-          part of the flow and has to keep them in the wizard. So skip is only
-          wired on the welcome step. */}
-      <OnboardingHeader onSkip={step === 'welcome' ? (onSkip ?? onComplete) : undefined} />
-      <main className={styles.stage}>
-        <div key={step} className={styles.stageInner}>
-          {step === 'welcome' && (
-            <WelcomeState onStart={() => setStep('network')} onSkip={onSkip ?? onComplete} />
+  const stepBody = (
+    <div key={step} className={styles.embeddedStage}>
+      {step === 'welcome' && (
+            <WelcomeState
+              onStart={() => setStep('network')}
+              onConnected={onComplete}
+            />
           )}
           {step === 'network' && (
             <NetworkStep
               selected={selectedChainIds}
               onToggle={toggleChain}
-              onBack={() => setStep('welcome')}
+              onBack={additional ? onCancel : () => setStep('welcome')}
               onDone={() => setStep('connect')}
               progressIndex={progressIndex}
-              progressTotal={PROGRESS_STEPS.length}
+              progressTotal={progressTotal}
             />
           )}
           {step === 'connect' && (
             <ConnectStep
               onBack={() => setStep('network')}
-              onDone={() => setStep(onboardState?.hasManagerKey ? 'create-sma' : 'keygen')}
+              onDone={() => setStep('keygen')}
               progressIndex={progressIndex}
-              progressTotal={PROGRESS_STEPS.length}
+              progressTotal={progressTotal}
             />
           )}
           {step === 'keygen' && (
             <KeygenStep
               existingAddress={onboardState?.managerAddress}
-              onBack={() => setStep('network')}
+              onBack={() => setStep('connect')}
               onDone={(addr) => { setManagerAddress(addr); setStep('create-sma') }}
               progressIndex={progressIndex}
-              progressTotal={PROGRESS_STEPS.length}
+              progressTotal={progressTotal}
             />
           )}
           {step === 'create-sma' && (
@@ -192,20 +160,28 @@ export default function OnboardingWizard({ onboardState, onComplete, onSkip, onA
               managerAddress={managerAddress ?? onboardState?.managerAddress}
               chainIds={selectedChainIds}
               saltNonce={saltNonce}
-              onBack={() => setStep(onboardState?.hasManagerKey ? 'connect' : 'keygen')}
-              onDone={(safes) => { setDeployedSafes(safes); setStep('done') }}
+              deployedSoFar={deployedSafes}
+              onChainDeployed={recordDeployed}
+              // Step back to keygen. Connect/keygen no longer auto-advance when
+              // already satisfied (they show confirmation states), so back-nav
+              // through them is safe — no bounce.
+              onBack={() => setStep('keygen')}
+              onDone={(safes) => { safes.forEach(recordDeployed); setStep('done') }}
               onRunningChange={onActiveDeployChange}
+              onRemoveChain={toggleChain}
               progressIndex={progressIndex}
-              progressTotal={PROGRESS_STEPS.length}
+              progressTotal={progressTotal}
             />
           )}
           {step === 'done' && (
-            <DoneStep deployedSafes={deployedSafes} onComplete={onComplete} />
+            <DoneStep deployedSafes={deployedSafes} onComplete={onComplete} additional={additional} />
           )}
-        </div>
-      </main>
     </div>
   )
+
+  // The steps render directly in the dashboard's main column — left-aligned, no
+  // shell, no background, no card surface (the sidebar provides the chrome).
+  return <div className={styles.embeddedRoot}>{stepBody}</div>
 }
 
 /* ── Progress dots ── */
@@ -223,24 +199,28 @@ function ProgressDots({ current, total }) {
 }
 
 /* ── Step 0: Welcome / setup overview ── */
-function WelcomeState({ onStart, onSkip }) {
+function WelcomeState({ onStart, onConnected }) {
   const { isConnected } = useAccount()
   const { openConnectModal } = useConnectModal()
 
+  // Once the wallet connects (from the "Connect wallet" link below), continue to
+  // the dashboard — the backend surfaces the SMAs this owner already has. This is
+  // purely "connect and go", not an add-a-new-SMA step.
   useEffect(() => {
-    if (isConnected && _skipConnectPending) {
-      _skipConnectPending = false
-      onSkip?.()
+    if (isConnected && _welcomeConnectPending) {
+      _welcomeConnectPending = false
+      onConnected?.()
     }
-  }, [isConnected, onSkip])
+  }, [isConnected, onConnected])
+  // Disarm on unmount (only) so a dismissed connect modal can't leave the flag
+  // set — otherwise a later visit to this step while connected would silently
+  // fire onConnected and eject the user to the dashboard.
+  useEffect(() => () => { _welcomeConnectPending = false }, [])
 
-  function handleSkip() {
-    if (isConnected) {
-      onSkip?.()
-    } else {
-      _skipConnectPending = true
-      openConnectModal?.()
-    }
+  function handleConnect() {
+    if (isConnected) { onConnected?.(); return }
+    _welcomeConnectPending = true
+    openConnectModal?.()
   }
 
   return (
@@ -250,7 +230,7 @@ function WelcomeState({ onStart, onSkip }) {
       </div>
       <header className={styles.cardHeader}>
         <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
-          Welcome to the Sail Dashboard
+          Welcome to the Sailor Dashboard
         </h1>
         <p className={styles.cardSub}>
           Set up your SMA, scope what your agent can do, and monitor every on-chain action — all from one place.
@@ -261,10 +241,21 @@ function WelcomeState({ onStart, onSkip }) {
         <SailButton fullWidth onClick={onStart}>Start setup →</SailButton>
       </div>
       <p className={styles.fineprint}>Self-custody. Sail never holds your keys.</p>
-      {onSkip && (
-        <button className={styles.skipLink} onClick={handleSkip}>
-          Already have an SMA? Skip to dashboard →
-        </button>
+      {/* "Already have an SMA?" is pure connect-and-go: connect the owner wallet
+          and land in the dashboard — the backend surfaces the SMAs this owner
+          already has. No address entry here (that lives in the SMA-list modal as
+          a fallback). This step only renders when the project has no SMA loaded,
+          so a still-connected wallet means none was found for this owner yet. */}
+      {onConnected && (
+        isConnected ? (
+          <p className={styles.welcomeConnectedNote}>
+            Wallet connected · no SMA loaded in this project yet.
+          </p>
+        ) : (
+          <button className={styles.skipLink} onClick={handleConnect}>
+            Already have an SMA? Connect wallet →
+          </button>
+        )
       )}
     </GlassCard>
   )
@@ -279,7 +270,7 @@ function NetworkStep({ selected, onToggle, onBack, onDone, progressIndex, progre
     <GlassCard className={`${styles.authCard} ${styles.networkStepCard}`}>
       <ProgressDots current={progressIndex} total={progressTotal} />
       <CardHeader
-        kicker="STEP 1 OF 4"
+        kicker={`STEP ${progressIndex + 1} OF ${progressTotal}`}
         title="Choose your networks"
         sub={
           <>
@@ -302,12 +293,16 @@ function NetworkStep({ selected, onToggle, onBack, onDone, progressIndex, progre
             <NetworkCard key={net.chainId} net={net} selected={selected.includes(net.chainId)} onToggle={onToggle} />
           ))}
         </div>
-        <span className={styles.networkGroupLabel}>Testnet</span>
-        <div className={styles.networkGrid}>
-          {testnets.map(net => (
-            <NetworkCard key={net.chainId} net={net} selected={selected.includes(net.chainId)} onToggle={onToggle} />
-          ))}
-        </div>
+        {testnets.length > 0 && (
+          <>
+            <span className={styles.networkGroupLabel}>Testnet</span>
+            <div className={styles.networkGrid}>
+              {testnets.map(net => (
+                <NetworkCard key={net.chainId} net={net} selected={selected.includes(net.chainId)} onToggle={onToggle} />
+              ))}
+            </div>
+          </>
+        )}
       </div>
       <SailButton fullWidth onClick={onDone} disabled={selected.length === 0}>
         {selected.length === 0
@@ -407,23 +402,66 @@ function NetworkCard({ net, selected, onToggle }) {
 function ConnectStep({ onBack, onDone, progressIndex, progressTotal }) {
   const { isConnected, address } = useAccount()
   const { openConnectModal } = useConnectModal()
+  const { disconnect } = useDisconnect()
   const { status, send } = useSigningSocket()
+  // Was a wallet already connected when this step opened? If so, DON'T
+  // auto-advance — render a confirmation so the step stays visible and the user
+  // can switch owner wallets. Only a fresh connect (during this step) advances.
+  // Captured once at mount, so returning here via Back also shows the confirm
+  // state (no bounce).
+  const [preConnected] = useState(isConnected)
 
   useEffect(() => {
-    if (!isConnected || !address) return
-    if (status === 'connected') {
-      send({ type: 'wallet-connected', address })
-      onDone?.()
-    } else if (status === 'disconnected') {
-      onDone?.()
+    if (preConnected) {
+      // Already connected on arrival: tell the signing daemon, but wait for the
+      // explicit Continue rather than skipping the step.
+      if (isConnected && address && status === 'connected') send({ type: 'wallet-connected', address })
+      return
     }
-  }, [isConnected, address, status, send, onDone])
+    if (!isConnected || !address) return
+    if (status === 'connected') { send({ type: 'wallet-connected', address }); onDone?.() }
+    else if (status === 'disconnected') { onDone?.() }
+  }, [preConnected, isConnected, address, status, send, onDone])
+
+  // Already-connected confirmation: name the owner wallet, offer a switch,
+  // continue explicitly. Keeps the step visible instead of silently skipping.
+  if (preConnected && isConnected && address) {
+    const short = `${address.slice(0, 6)}…${address.slice(-4)}`
+    return (
+      <GlassCard className={styles.authCard}>
+        <ProgressDots current={progressIndex} total={progressTotal} />
+        <CardHeader
+          kicker={`STEP ${progressIndex + 1} OF ${progressTotal}`}
+          title="Connect your wallet"
+          sub="This wallet owns the SMA and signs its mandates. It's already connected — continue, or switch to a different owner wallet."
+          onBack={onBack}
+        />
+        <ul className={styles.confirmRows}>
+          <li className={styles.confirmRow}>
+            <div className={styles.confirmRowMain}>
+              <span className={styles.confirmRowLabel}>
+                Owner wallet
+                <InfoTip label="What is the owner wallet?">
+                  The wallet that owns and controls the SMA — it signs the mandates that scope what
+                  your agent may do. You stay in full custody; Sail never holds your keys.
+                </InfoTip>
+              </span>
+              <span className={styles.confirmRowValue}>{short} <span className={styles.confirmRowState}>· connected</span></span>
+            </div>
+            <button type="button" className={styles.confirmSwitch} onClick={() => disconnect()}>Switch wallet</button>
+          </li>
+        </ul>
+        <SailButton fullWidth onClick={onDone}>Continue →</SailButton>
+        <p className={styles.fineprint}>Self-custody. Sail never holds your keys.</p>
+      </GlassCard>
+    )
+  }
 
   return (
     <GlassCard className={styles.authCard}>
       <ProgressDots current={progressIndex} total={progressTotal} />
       <CardHeader
-        kicker="STEP 2 OF 4"
+        kicker={`STEP ${progressIndex + 1} OF ${progressTotal}`}
         title="Connect your wallet"
         sub="This wallet sits at the center of your setup."
         onBack={onBack}
@@ -480,6 +518,18 @@ function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTo
   const [error, setError] = useState('')
   const [generated, setGenerated] = useState(existingAddress ?? null)
   const [copied, setCopied] = useState(false)
+  // The project already had an agent key when this step opened → this is a
+  // reuse, not a fresh generation. Drives the "no new passphrase" confirmation
+  // copy. Captured once so it survives the /api/onboard/state re-sync below.
+  const [reused] = useState(Boolean(existingAddress))
+
+  // Race guard: `existingAddress` comes from /api/onboard/state, which may
+  // resolve *after* this step mounts (fast click-through). Without this
+  // re-sync a returning user who already has a manager key would be walked
+  // through generating a second one. Never overrides a key generated here.
+  useEffect(() => {
+    if (existingAddress) setGenerated((g) => g ?? existingAddress)
+  }, [existingAddress])
 
   const strength = passwordStrength(passphrase)
   const meets8 = passphrase.length >= 8
@@ -507,7 +557,8 @@ function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTo
   }
 
   function copy(text) {
-    navigator?.clipboard?.writeText(text)
+    if (!navigator?.clipboard?.writeText) return // don't claim "copied" without a clipboard
+    navigator.clipboard.writeText(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }
@@ -516,16 +567,21 @@ function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTo
     <GlassCard className={styles.authCard}>
       <ProgressDots current={progressIndex} total={progressTotal} />
       <CardHeader
-        kicker="STEP 3 OF 4"
-        title="Set a passphrase"
-        sub={
+        kicker={`STEP ${progressIndex + 1} OF ${progressTotal}`}
+        title={reused ? 'Agent key' : 'Set a passphrase'}
+        sub={reused ? (
+          <>
+            <span className={styles.cardSubLead}>This project already has an encrypted agent wallet.</span>
+            Your new SMA reuses it — there's no new passphrase to set.
+          </>
+        ) : (
           <>
             <span className={styles.cardSubLead}>
               Sail generates your agent wallet and encrypts it on this device.
             </span>
             This passphrase unlocks it for every run — Sail never sees it.
           </>
-        }
+        )}
         onBack={onBack}
       />
       {!generated ? (
@@ -603,7 +659,7 @@ function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTo
       ) : (
         <>
           <div className={styles.generatedKey}>
-            <span className={styles.generatedKeyLabel}>Agent address</span>
+            <span className={styles.generatedKeyLabel}>Agent address{reused ? ' · reused' : ''}</span>
             <button
               type="button"
               className={styles.generatedKeyAddr}
@@ -614,7 +670,14 @@ function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTo
               <span className={styles.copyHint}>{copied ? '✓' : 'copy'}</span>
             </button>
           </div>
-          {passphrase && (
+          {reused ? (
+            <div className={styles.passphraseReminder}>
+              <span style={{ opacity: 0.6, fontSize: 12 }}>
+                This agent wallet and its passphrase were set up when the project was created and live in{' '}
+                <code>.sail/</code>. Your new SMA delegates to this same agent — nothing to re-enter.
+              </span>
+            </div>
+          ) : passphrase && (
             <div className={styles.passphraseReminder}>
               <span style={{ opacity: 0.6, fontSize: 12 }}>
                 Saved locally to <code>.sail/.env.local</code> (0600, gitignored). For CI, add this same
@@ -631,18 +694,61 @@ function KeygenStep({ existingAddress, onBack, onDone, progressIndex, progressTo
 }
 
 /* ── Step 4: Deploy SMAs — one per selected chain ── */
-function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onDone, onRunningChange, progressIndex, progressTotal }) {
+// Turn a raw deploy error into plain guidance + a category so the row can offer
+// the right next step (fund gas, switch/unsupported, or just retry/remove).
+function classifyDeployError(raw) {
+  const m = (raw || '').toLowerCase()
+  // Marker thrown by deployChain when the wallet verifiably stayed on the
+  // wrong chain after a switch attempt (e.g. wallets without custom-network
+  // support cannot reach HyperEVM). Checked first: the raw provider error in
+  // that state is generic and would fall through to the useless default.
+  if (m.startsWith('wallet-switch-failed:')) {
+    const name = raw.slice('wallet-switch-failed:'.length).trim() || 'this network'
+    return { kind: 'switch', message: `Your wallet couldn't switch to ${name}. Some wallets don't support this network. Connect a wallet that does, like Rabby or MetaMask, and deploy again, or remove this chain.` }
+  }
+  if (/insufficient funds|exceeds the balance|not enough|gas required exceeds/.test(m)) {
+    return { kind: 'gas', message: 'Your wallet has no gas on this chain. Add funds on this network, then deploy again — or remove this chain and add it later.' }
+  }
+  // Rejection is checked BEFORE unsupported: wallets phrase chain-switch
+  // rejections as e.g. "User denied request to switch chain", which would
+  // otherwise match the unsupported branch and wrongly tell the user to
+  // remove a chain they only need to re-sign.
+  if (/user rejected|user denied|rejected the request|denied transaction/.test(m)) {
+    return { kind: 'rejected', message: 'Signature declined. Deploy again to sign, or remove this chain.' }
+  }
+  if (/unsupported chain|does not support|chain .*not configured|unrecognized chain|add.* chain to.* wallet|failed to switch|switch(ing)? chain/.test(m)) {
+    return { kind: 'unsupported', message: "Your wallet doesn't support this chain. Remove it — you can always add it later." }
+  }
+  return { kind: 'error', message: raw || 'Something went wrong. Try again, or remove this chain.' }
+}
+
+// Add-network reproduces the SMA's address on a new chain from its stored saltNonce +
+// params. If the deployed address diverges, the params no longer match the original
+// deploy (most often a rotated signer) — throw so we never record a wrong/phantom SMA.
+function assertSameSafe(deployed, expected) {
+  if (deployed.toLowerCase() !== expected.toLowerCase()) {
+    throw new Error(
+      "This SMA's address couldn't be reproduced on that chain (the signer may have been rotated). " +
+      'Add the network from the CLI instead: sailor account deploy-chain --chain <id>.'
+    )
+  }
+}
+
+export function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, existingSafe, deployedSoFar = [], onChainDeployed, onBack, onDone, onRunningChange, onRemoveChain, progressIndex, progressTotal, compact = false, title, sub, cta }) {
   const { sendTransactionAsync } = useSendTransaction()
   const { signTypedDataAsync } = useSignTypedData()
   const { switchChainAsync } = useSwitchChain()
 
-  // Per-chain status: 'pending' | 'switching' | 'building' | 'wallet' | 'confirming' | 'done' | 'error'
+  // Per-chain status: 'pending' | 'switching' | 'building' | 'wallet' | 'confirming' | 'done' | 'error'.
+  // Chains the parent already recorded as deployed (e.g. the user went Back
+  // after a partial run) seed as 'done' so they are never re-deployed — a
+  // second CREATE2 deploy of the same salt would only revert.
   const [statuses, setStatuses] = useState(() =>
-    Object.fromEntries(chainIds.map(id => [id, 'pending']))
+    Object.fromEntries(chainIds.map(id => [id, deployedSoFar.some(d => d.chainId === id) ? 'done' : 'pending']))
   )
   const [errors, setErrors] = useState({})
   const [running, setRunning] = useState(false)
-  const [deployed, setDeployed] = useState([]) // [{ chainId, safe }]
+  const [deployed, setDeployed] = useState(() => deployedSoFar.filter(d => chainIds.includes(d.chainId))) // [{ chainId, safe }]
 
   function setStatus(chainId, status) {
     setStatuses(prev => ({ ...prev, [chainId]: status }))
@@ -653,7 +759,23 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
 
   async function deployChain(chainId) {
     setStatus(chainId, 'switching')
-    try { await switchChainAsync({ chainId }) } catch { /* user may already be on this chain */ }
+    try {
+      await switchChainAsync({ chainId })
+    } catch (switchErr) {
+      // Some connectors throw here even when the wallet is already on the
+      // target chain, so the throw alone isn't conclusive — verify where the
+      // wallet actually landed. Proceeding blind sends the deploy tx against
+      // the wrong chain, which surfaces as a generic provider error that
+      // classifyDeployError can't read (seen with wallets that have no
+      // custom-network support trying to reach HyperEVM).
+      const sm = (switchErr?.shortMessage || switchErr?.message || '').toLowerCase()
+      if (/user rejected|user denied|rejected the request|denied/.test(sm)) throw switchErr
+      const liveChainId = getAccount(wagmiConfig).chainId
+      if (liveChainId != null && liveChainId !== chainId) {
+        const name = SUPPORTED_NETWORKS.find((n) => n.chainId === chainId)?.name ?? `chain ${chainId}`
+        throw new Error(`wallet-switch-failed: ${name}`)
+      }
+    }
 
     setStatus(chainId, 'building')
     const buildRes = await fetch('/api/onboard/build-create-tx', {
@@ -742,7 +864,7 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
         primaryType: td.primaryType,
         // buildRegisterAccountTypedData emits JSON-safe values (uint256 as decimal strings).
         // Re-parse deadline to BigInt so the signing payload matches the numeric type across
-        // signTypedData implementations (same convention as the SigningStation).
+        // signTypedData implementations (same convention as the SigningPage).
         message: { ...td.message, deadline: BigInt(td.message.deadline) },
       })
 
@@ -765,10 +887,20 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
       const registerReceipt = await waitForReceipt(registerHash, chainId)
       if (registerReceipt?.status === '0x0') throw new Error('registerAccount reverted — check the kernel address and try again.')
 
+      // Add-network mode (existingSafe set): this is the SAME SMA on a new chain, not a
+      // new account. If the reproduced address doesn't match, the deploy used different
+      // params (e.g. a rotated signer) — refuse rather than mint a phantom SMA. On a
+      // match, DON'T hit /api/onboard/complete (the create path); the caller appends the
+      // chain to the selected SMA.
+      if (existingSafe) {
+        assertSameSafe(safe, existingSafe)
+        setStatus(chainId, 'done')
+        return { chainId, safe }
+      }
       const completeRes1 = await fetch('/api/onboard/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ safe, owner, manager: managerAddress, txHash: registerHash, chainId }),
+        body: JSON.stringify({ safe, owner, manager: managerAddress, txHash: registerHash, chainId, saltNonce }),
       })
       const completeData1 = await completeRes1.json()
       if (completeData1?.account) {
@@ -792,10 +924,17 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
     if (!log) throw new Error('AccountRegistered event not found in receipt. This may be a kernel version mismatch — please report this.')
     const safe = getAddress(`0x${log.topics[1].slice(26)}`)
 
+    // Add-network mode: same SMA on a new chain — guard the address and skip the
+    // create path (see the register-path branch above for the full rationale).
+    if (existingSafe) {
+      assertSameSafe(safe, existingSafe)
+      setStatus(chainId, 'done')
+      return { chainId, safe }
+    }
     const completeRes2 = await fetch('/api/onboard/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ safe, owner, manager: managerAddress, txHash: hash, chainId }),
+      body: JSON.stringify({ safe, owner, manager: managerAddress, txHash: hash, chainId, saltNonce }),
     })
     const completeData2 = await completeRes2.json()
     if (completeData2?.account) {
@@ -814,39 +953,40 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
     // NOT at loop end, so the error/retry and "done" screens stay visible.
     onRunningChange?.(true)
     const results = []
+    let errored = false
     for (const chainId of chainIds) {
       if (statuses[chainId] === 'done' || statuses[chainId] === 'skipped') continue
       try {
         const result = await deployChain(chainId)
         results.push(result)
         setDeployed(prev => [...prev, result])
+        // Record upward immediately — the parent keeps deployments across
+        // Back/re-entry, so a partial run is never forgotten.
+        onChainDeployed?.(result)
       } catch (err) {
         const msg = err?.shortMessage || err?.message || 'Failed'
         // UntrustedFactory = kernel config issue, not user error — skip, don't retry
         if (msg.includes('UntrustedFactory')) {
           setError(chainId, 'Factory not approved on this chain yet')
           setStatus(chainId, 'skipped')
-          // Continue to next chain rather than stopping
         } else {
-          setError(chainId, msg)
+          // Mark this chain and KEEP GOING — one chain that can't deploy (no gas,
+          // unsupported wallet, declined signature) must never block the others.
+          // The row shows the reason and a Remove control; the user is never
+          // locked. onRunningChange stays held so the poll can't eject them.
+          errored = true
+          setError(chainId, classifyDeployError(msg).message)
           setStatus(chainId, 'error')
-          setRunning(false)
-          // Do NOT release onRunningChange here: the wizard stays on this step
-          // showing "Retry failed chains", and the parent's poll must remain
-          // suppressed so it doesn't unmount the wizard before the user retries.
-          return // stop on real errors — user retries
         }
       }
     }
     setRunning(false)
     const settled = [...deployed, ...results]
-    // Every chain was skipped (e.g. UntrustedFactory everywhere): nothing was
-    // deployed and no account.json was written. Do NOT navigate to the "done"
-    // summary — it would falsely claim "Your SMA is live". Stay on this step so
-    // the in-place "No chains deployed successfully" branch shows the reasons.
-    // onRunningChange stays held; the wizard-unmount safety net releases it.
+    // Auto-advance only on a clean run — every chain deployed or was auto-skipped.
+    // If any chain errored (needs gas / unsupported / declined), stay put so the
+    // user can retry it, remove it (add later), or continue with what deployed.
     if (settled.length === 0) return
-    onDone(settled) // pass whatever succeeded
+    if (!errored) onDone(settled)
   }
 
   const allSettled = chainIds.every(id => statuses[id] === 'done' || statuses[id] === 'skipped' || statuses[id] === 'error')
@@ -854,12 +994,12 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
   const anyDeployed = chainIds.some(id => statuses[id] === 'done') || deployed.length > 0
 
   return (
-    <GlassCard className={styles.authCard}>
-      <ProgressDots current={progressIndex} total={progressTotal} />
+    <GlassCard className={`${styles.authCard} ${compact ? styles.authCardCompact : ''}`}>
+      {!compact && <ProgressDots current={progressIndex} total={progressTotal} />}
       <CardHeader
-        kicker="STEP 4 OF 4"
-        title="Deploy your SMAs"
-        sub="Same SMA address on every chain. Some chains need 2 transactions — your wallet will prompt for each."
+        kicker={compact ? 'ADD NETWORK' : `STEP ${progressIndex + 1} OF ${progressTotal}`}
+        title={title ?? 'Deploy your SMAs'}
+        sub={sub ?? 'Same SMA address on every chain. Some chains need 2 transactions — your wallet will prompt for each. You can always add another network later from your dashboard.'}
         onBack={running ? undefined : onBack}
       />
       <div className={styles.chainDeployList}>
@@ -867,20 +1007,38 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
           const net = SUPPORTED_NETWORKS.find(n => n.chainId === chainId)
           const status = statuses[chainId]
           const err = errors[chainId]
+          const needsAttention = status === 'error' || status === 'skipped'
+          // Never trap: any chain that isn't mid-deploy or already done can be
+          // dropped (kept while there's more than one, so you're left with at
+          // least one to deploy). Removed chains can be added later.
+          const canRemove = onRemoveChain && !running && chainIds.length > 1 &&
+            (status === 'pending' || status === 'error' || status === 'skipped')
           return (
-            <div key={chainId} className={styles.chainDeployRow}>
-              <ChainGlyph chainId={chainId} size={18} />
-              <span className={styles.chainDeployName}>{net?.name ?? `Chain ${chainId}`}</span>
-              <span className={`${styles.chainDeployStatus} ${styles[`chainStatus_${status}`]}`}>
-                {status === 'pending' && '—'}
-                {status === 'switching' && 'Switching…'}
-                {status === 'building' && 'Building…'}
-                {status === 'wallet' && 'Confirm in wallet'}
-                {status === 'confirming' && 'Confirming…'}
-                {status === 'done' && '✓ Deployed'}
-                {status === 'skipped' && `⚠ ${err ?? 'Skipped'}`}
-                {status === 'error' && `✗ ${err ?? 'Error'}`}
-              </span>
+            <div key={chainId} className={styles.chainDeployItem}>
+              <div className={styles.chainDeployRow}>
+                <ChainGlyph chainId={chainId} size={18} />
+                <span className={styles.chainDeployName}>{net?.name ?? `Chain ${chainId}`}</span>
+                <span className={`${styles.chainDeployStatus} ${styles[`chainStatus_${status}`] ?? ''}`}>
+                  {status === 'pending' && '—'}
+                  {status === 'switching' && 'Switching…'}
+                  {status === 'building' && 'Building…'}
+                  {status === 'wallet' && 'Confirm in wallet'}
+                  {status === 'confirming' && 'Confirming…'}
+                  {status === 'done' && '✓ Deployed'}
+                  {status === 'skipped' && '⚠ Skipped'}
+                  {status === 'error' && '✗ Needs attention'}
+                </span>
+              </div>
+              {(needsAttention && err) && (
+                <div className={styles.chainDeployNote}>
+                  <span className={styles.chainDeployNoteText}>{err}</span>
+                  {canRemove && (
+                    <button type="button" className={styles.chainRemoveBtn} onClick={() => onRemoveChain(chainId)}>
+                      Remove
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )
         })}
@@ -889,12 +1047,12 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
       <Detail label="Agent key" value={managerAddress} />
       {!allSettled && (
         <SailButton fullWidth onClick={deployAll} disabled={running} style={{ marginTop: 14 }}>
-          {running ? 'Deploying…' : 'Deploy SMAs'}
+          {running ? 'Deploying…' : (cta ?? 'Deploy SMAs')}
         </SailButton>
       )}
       {allSettled && hasRetryableError && (
         <SailButton fullWidth onClick={deployAll} disabled={running} style={{ marginTop: 14 }}>
-          Retry failed chains
+          Retry flagged chains
         </SailButton>
       )}
       {allSettled && anyDeployed && (
@@ -903,8 +1061,8 @@ function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, onBack, onD
         </SailButton>
       )}
       {allSettled && !anyDeployed && (
-        <p style={{ color: '#f87171', fontSize: 13, margin: '14px 0 0', textAlign: 'center' }}>
-          No chains deployed successfully. Go back and select a supported network.
+        <p className={styles.chainDeployEmpty}>
+          Nothing deployed yet. Add gas and retry, remove the flagged chains, or go back to pick a different network — you can always add a chain later.
         </p>
       )}
       <p className={styles.fineprint}>
@@ -951,7 +1109,7 @@ function Detail({ label, value, mono = true }) {
 }
 
 /* ── Step 5: Done ── */
-function DoneStep({ deployedSafes, onComplete }) {
+function DoneStep({ deployedSafes, onComplete, additional }) {
   const chains = deployedSafes
     .map(({ chainId }) => SUPPORTED_NETWORKS.find(n => n.chainId === chainId)?.name)
     .filter(Boolean)
@@ -963,16 +1121,16 @@ function DoneStep({ deployedSafes, onComplete }) {
         <Sai size={64} animate />
       </div>
       <header className={styles.cardHeader}>
-        <span className={styles.kicker}>SETUP COMPLETE</span>
+        <span className={styles.kicker}>{additional ? 'SMA CREATED' : 'SETUP COMPLETE'}</span>
         <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
-          You’re all set.
+          {additional ? 'New SMA is live.' : 'You’re all set.'}
         </h1>
         <p className={`${shared.italicMannerism} ${styles.cardTagline}`}>
           {chains ? `Your SMA is live on ${chains}.` : 'Your SMA is live.'}
         </p>
       </header>
       <div className={styles.welcomeCta}>
-        <SailButton fullWidth onClick={onComplete}>Go to dashboard →</SailButton>
+        <SailButton fullWidth onClick={onComplete}>{additional ? 'Back to dashboard →' : 'Go to dashboard →'}</SailButton>
       </div>
       <p className={styles.fineprint}>Manage your agent, mandates and RPCs from your dashboard.</p>
     </GlassCard>

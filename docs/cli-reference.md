@@ -18,17 +18,17 @@ each command named here exists in the CLI source.
 | `sailor keys generate` | Generate + encrypt a key (`--type agent-wallet` or `mandate-signer`; `--passphrase`, else `SAIL_PASSPHRASE`, else prompt; `--force` to overwrite) |
 | `sailor keys show` | Addresses of stored keys |
 | `sailor keys export-ci` | Export key material for CI use |
-| `sailor owner connect` | Open the signing station, wait for your wallet, save it as owner (`--timeout <seconds>`) |
+| `sailor owner connect` | Open the signing page, wait for your wallet, save it as owner (`--timeout <seconds>`) |
 | `sailor owner show` | Show the saved project owner |
 
 ## SMA lifecycle
 
 | Command | What it does |
 |---|---|
-| `sailor account predict` | Deterministic SMA address before deploying (`--owner`, `--salt`, `--chain`) |
+| `sailor account predict` | Deterministic SMA address before deploying (`--owner`, `--manager`, `--salt`, `--chain`, `--json`) |
 | `sailor onboard` | Set up an SMA end to end (`--new-sma` to create, `--sma <address>` to reuse, `--template <kindOrAddress>` to register a permission, `--skip-mandate`, `--salt <n>`) |
 | `sailor account deploy-chain` | Deploy the same SMA address on an additional chain (same owner/manager/salt) |
-| `sailor account rotate-signer` | Rotate the delegated agent wallet and re-approve mandates (`--to`, `--generate`, `--skip-reattach`, `--reattach-only`, `--list`) |
+| `sailor account rotate-signer` | Rotate the delegated agent wallet and re-approve mandates (`--to`, `--generate`, `--skip-reattach`, `--reattach-only`, `--list`, `--sma`) |
 | `sailor scan` | Discover the owner's SMAs, permissions, and local keys (`--owner <address>`) |
 | `sailor status` | Current account, permission, and session status |
 
@@ -46,21 +46,25 @@ each command named here exists in the CLI source.
 | `sailor mandate revoke` | Revoke permission(s) — owner-authorized (`--address <permissionOrName>` or `--all`) |
 | `sailor mandate list` | Permissions deployed from this project |
 | `sailor mandate update` | Update tracked-permission metadata (`--name`, `--source-path`, `--artifact-path`) |
-| `sailor mandate deploy-clone` | Deploy + register a standalone clone permission — currently unavailable (no clone templates deployed); use `mandate deploy` |
+| `sailor mandate deploy-clone` | Deploy + register a standalone clone permission from a published template — use `mandate deploy` today; `deploy-clone` requires clone templates and none are deployed yet |
 
-## Signing station
+> **Change a mandate's bounds** (new cap/allowlist) with `sailor mandate configure --force` — re-encode the blob on the same registered singleton, no re-register. `sailor mandate update` changes only *tracked metadata* (name, source/artifact paths), never bounds.
+
+## Signing server
 
 | Command | What it does |
 |---|---|
-| `sailor station start` | Start the persistent browser-signing daemon (blocks — run in the background) |
-| `sailor station status` / `stop` | Inspect / stop it |
+| `sailor signer start` | Start the persistent browser-signing daemon (blocks — run in the background) |
+| `sailor signer status` / `stop` | Inspect / stop it |
+
+(`sailor station …` is a hidden, deprecated alias of `signer` kept for v1.2.0 compatibility.)
 
 ## Run and automate
 
 | Command | What it does |
 |---|---|
-| `sailor run` | The agent execution loop (`--once` for a single tick, `--chain <id>`) |
-| `sailor service install` | Install the agent as an OS service that restarts on crash — launchd / systemd / Task Scheduler (`--interval <s>`, `--project <path>`, `--chain <id>`) |
+| `sailor run` | The agent execution loop (`--once` for a single tick, `--chain <id>`, `--reason <text>`) |
+| `sailor service install` | Install the agent as an OS service that restarts on crash — launchd / systemd / Task Scheduler (`--interval <s>`, `--project <path>`, `--chain <id>`, `--force`) |
 | `sailor service status` / `stop` / `uninstall` / `logs` | Manage the installed service |
 | `sailor trigger github` | Fire the scaffold's GitHub Actions agent workflow on demand (`--workflow`, `--ref`, `--reason`, `--repo`) |
 | `sailor session pause` / `resume` | Instantly revoke / restore the agent's dispatch rights — Safe custody untouched |

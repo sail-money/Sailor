@@ -48,7 +48,7 @@ import {
 } from "./commands/service.js";
 import { type TriggerGithubOptions, triggerGithub } from "./commands/trigger.js";
 import { sessionPause, sessionResume } from "./commands/session.js";
-import { stationStart, stationStatus, stationStop } from "./commands/station.js";
+import { signerStart, signerStatus, signerStop } from "./commands/signer.js";
 import { status } from "./commands/status.js";
 import { type UiOptions, uiCommand, uiStatus, uiStop } from "./commands/ui.js";
 import { closePrompts } from "./lib/io.js";
@@ -72,7 +72,7 @@ function cliVersion(): string {
 
 const program = new Command();
 
-program.name("sailor").description("Operator toolkit for Sail Protocol").version(cliVersion());
+program.name("sailor").description("The Sailor CLI — the harness for building and operating DeFi agents on Sail Protocol").version(cliVersion());
 
 /** Wraps a command action with consistent error handling and prompt cleanup. */
 function action(fn: () => Promise<void>): () => Promise<void> {
@@ -206,9 +206,9 @@ mandate
 mandate
   .command("deploy")
   .description("Deploy a Foundry-compiled permission contract via the browser signing UI")
-  .option("--artifact <path>", "Path to the Foundry artifact JSON (out/<Name>.sol/<Name>.json)")
+  .option("--artifact <path>", "Path to the Foundry artifact JSON (contracts/out/<Name>.sol/<Name>.json)")
   .option("--contract <name>", "Contract name; resolves to <out>/<name>.sol/<name>.json")
-  .option("--out <dir>", "Foundry output directory", "out")
+  .option("--out <dir>", "Foundry output directory — the contracts/ workspace's out/", "contracts/out")
   .option("--name <label>", "Label to track this permission under (defaults to contract name)")
   .option("--args <json>", 'Constructor args as JSON array. Bash: \'["0x..","1"]\'. PowerShell: \'[\\"0x..\\",\\"1\\"]\'. Use --args-file to avoid quoting.')
   .option("--args-file <path>", "Path to a JSON file containing constructor args array (recommended on PowerShell)")
@@ -249,7 +249,7 @@ mandate
   .command("configure")
   .description(
     "Write per-account bounds on an already-deployed shared permission singleton " +
-      "(configureDirect; owner tx via the signing station). Pairs with `mandate register`, " +
+      "(configureDirect; owner tx via the signing page). Pairs with `mandate register`, " +
       "which only registers — a registered-but-unconfigured singleton denies every call.",
   )
   .requiredOption("--address <singleton>", "Shared permission singleton address (deployed on this chain)")
@@ -328,31 +328,34 @@ program
   .option("--json", "Emit machine-readable JSON (implies non-interactive)")
   .action(actionWith<OnboardOptions>(onboard));
 
-const station = program
-  .command("station")
-  .description("Manage the persistent signing station (browser signing daemon)");
-station
+// `station` is a hidden, deprecated alias of `signer` for v1.2.0 compatibility
+// (the printed help never advertises it) — do not remove before the next major.
+const signer = program
+  .command("signer")
+  .alias("station")
+  .description("Manage the persistent signing server (browser signing daemon)");
+signer
   .command("start")
-  .description("Start the signing station and keep it running (blocks — run in the background)")
+  .description("Start the signing server and keep it running (blocks — run in the background)")
   .option("--json", "Emit machine-readable JSON")
-  .action(actionWith<{ json?: boolean }>(stationStart));
-station
+  .action(actionWith<{ json?: boolean }>(signerStart));
+signer
   .command("status")
-  .description("Show whether a signing station is running for this project")
+  .description("Show whether a signing server is running for this project")
   .option("--json", "Emit machine-readable JSON")
-  .action(actionWith<{ json?: boolean }>(stationStatus));
-station
+  .action(actionWith<{ json?: boolean }>(signerStatus));
+signer
   .command("stop")
-  .description("Stop the running signing station")
+  .description("Stop the running signing server")
   .option("--json", "Emit machine-readable JSON")
-  .action(actionWith<{ json?: boolean }>(stationStop));
+  .action(actionWith<{ json?: boolean }>(signerStop));
 
 const owner = program
   .command("owner")
   .description("Detect & persist the project owner (your connected wallet)");
 owner
   .command("connect")
-  .description("Open the signing station, wait for your wallet, and save it as owner")
+  .description("Open the signing page, wait for your wallet, and save it as owner")
   .option("--json", "Emit machine-readable JSON")
   .option("--timeout <seconds>", "How long to wait for a wallet connection", "300")
   .action(actionWith<{ json?: boolean; timeout?: string }>(ownerConnect));

@@ -26,6 +26,7 @@ import {
   resolvePermissionForCall,
 } from "../lib/permission-resolver.js";
 import { clearAgentPid, writeAgentPid } from "../lib/process.js";
+import { readActiveAccount } from "@sail/sdk/accounts";
 import type { StoredAccount, StoredMandate } from "../lib/state.js";
 
 const DEFAULT_INTERVAL_SEC = 60;
@@ -147,7 +148,7 @@ export async function runCommand(opts: {
   const once = opts.once === true;
 
   // ── Load required local state ──────────────────────────────────────────────
-  const account = readJsonFile<StoredAccount>(sailPath("account.json"));
+  const account = readActiveAccount();
   if (!account) {
     throw new Error('No account found at .sail/account.json.\nRun "sailor onboard --new-sma" first.');
   }

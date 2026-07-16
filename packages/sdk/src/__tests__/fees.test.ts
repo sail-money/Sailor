@@ -141,3 +141,26 @@ test("assertFeeAffordable: throws a TYPED RegistrationFeeError when short", () =
   assert.equal((caught as RegistrationFeeError).requiredWei, 30_000_000_000_000n);
   assert.equal((caught as RegistrationFeeError).balanceWei, 0n);
 });
+
+test("assertFeeAffordable: a wallet holding EXACTLY the fee is rejected when gas is needed (INC-2)", () => {
+  const fee = 30_000_000_000_000n;
+  const gas = 5_000_000_000_000n;
+  // Fee-only check would pass; fee + gas must not.
+  assert.doesNotThrow(() => assertFeeAffordable(fee, fee), "fee-only balance clears a fee-only check");
+  let caught: unknown;
+  try {
+    assertFeeAffordable(fee, fee, "ETH", gas);
+  } catch (err) {
+    caught = err;
+  }
+  assert.ok(caught instanceof RegistrationFeeError, "fee-only balance must fail the fee+gas gate");
+  assert.equal((caught as RegistrationFeeError).requiredWei, fee + gas, "requiredWei is fee + gas");
+  assert.match((caught as RegistrationFeeError).message, /for gas/, "message names the gas shortfall");
+});
+
+test("assertFeeAffordable: passes when the balance covers fee + gas", () => {
+  const fee = 30_000_000_000_000n;
+  const gas = 5_000_000_000_000n;
+  assert.doesNotThrow(() => assertFeeAffordable(fee + gas, fee, "ETH", gas));
+  assert.throws(() => assertFeeAffordable(fee + gas - 1n, fee, "ETH", gas), RegistrationFeeError);
+});

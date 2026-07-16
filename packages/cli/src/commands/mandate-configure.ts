@@ -14,11 +14,11 @@
  * It drives `configureDirect(account, params)` — the path where the caller is the
  * SMA's `permissionSigner`. In the default Sailor onboarding the owner (browser
  * wallet) IS the permissionSigner, so this is a plain owner transaction routed
- * through the signing station: no EIP-712 `Configure` signature is required.
+ * through the signing page: no EIP-712 `Configure` signature is required.
  *
  * Flow: resolve template address → encode/validate the config blob → off-chain
  * pre-flight `eth_call` of `configureDirect` (aborts on revert, before any gas) →
- * request the owner transaction via the signing station → wait for receipt →
+ * request the owner transaction via the signing page → wait for receipt →
  * verify `isConfigured(<SMA>) == true`. `--simulate-only` stops after pre-flight.
  */
 
@@ -83,6 +83,115 @@ type TemplateEntry = {
   decode: (blob: Hex) => Record<string, unknown>;
   /** Field names that must be coerced JSON → bigint (base units). */
   bigintFields: readonly string[];
+};
+
+/**
+ * "What you're signing" summaries for Sail's shared reference templates
+ * (Protocol/contracts/templates/*.sol), condensed from each contract's own
+ * "WHAT IT ENFORCES" and "HONEST BOUNDARY — what it does NOT do" NatSpec so the
+ * configure signing card explains the permission the same way the
+ * register-permission card does for user-authored mandates (via explainPermission,
+ * which needs a local .sol file these shared singletons don't have in a standalone
+ * project — hence hand-curated here). The `notEnforced` lines matter most: they
+ * are the residual risks an owner scans for before signing, and a shared-template
+ * card that hid them would disclose LESS than a bespoke card.
+ *
+ * PROVENANCE / STALENESS ANCHOR: sourced from the Protocol template NatSpec at
+ * github.com/sail-money/Protocol @ d5bc27a (2026-07-02), verified against each
+ * contract's evaluate()/evaluateBatch() logic. Re-verify against the source when
+ * bumping the deployed templates; a docs:check-style drift guard is deferred.
+ */
+const SHARED_TEMPLATE_EXPLANATIONS: Record<string, { protocol: string; enforced: string[]; notEnforced: string[] }> = {
+  SwapPermission: {
+    protocol: "Sail reference template",
+    enforced: [
+      "Input/output tokens and the router must be on the account's allowlist",
+      "Input amount ≤ the per-tx cap; output recipient must be the account itself",
+      "Minimum-out must clear a slippage band priced against an injected oracle — an oracle is REQUIRED (reverts OracleRequired() if none is configured)",
+    ],
+    notEnforced: [
+      "Price protection is only as good as the configured oracle — a manipulated, stale, or compromised oracle is not caught here",
+      "The cap is per-transaction, not cumulative — the agent can make many at-cap trades",
+      "It constrains the shape of the swap, not whether the trade itself is wise",
+    ],
+  },
+  SwapPermissionNoOracle: {
+    protocol: "Sail reference template",
+    enforced: [
+      "Input/output tokens and the router must be on the account's allowlist",
+      "Input amount ≤ the per-tx cap; output recipient must be the account itself; minimum-out must be non-zero",
+      "Minimum-out is checked against a live operator-named reference pool with a set tolerance — a hallucination guard, NOT manipulation-resistant oracle pricing",
+    ],
+    notEnforced: [
+      "NOT slippage protection: the reference is a single pool's live price, which anyone can move in the same transaction (sandwich / MEV / flash-loan) — against an in-transaction price manipulator it provides no protection at all",
+      "For manipulation-resistant price protection, use the oracle-gated SwapPermission instead",
+      "The cap is per-transaction, not cumulative — many at-cap trades are possible",
+    ],
+  },
+  BorrowPermission: {
+    protocol: "Sail reference template",
+    enforced: [
+      "Protocol (call target) and asset must be on the account's allowlist",
+      "Amount ≤ the per-tx cap; the borrowed position must be credited to the account itself",
+      "If oracles are configured, loan-to-value must stay within maxLtvBps — with zero oracles, only the cap and allowlists apply (no LTV ceiling)",
+    ],
+    notEnforced: [
+      "With no oracles configured there is NO loan-to-value ceiling — only the per-borrow size cap applies, despite maxLtvBps being stored",
+      "When oracles are set, the LTV check trusts those feeds and runs only at borrow time — it does not monitor position health afterwards, nor cap cumulative leverage built across multiple borrows",
+      "The cap is per-transaction, not cumulative",
+    ],
+  },
+  TransferPermission: {
+    protocol: "Sail reference template",
+    enforced: [
+      "Token (call target) must be on the account's allowlist; amount ≤ the per-tx cap",
+      "Destination must be on the recipient allowlist",
+      "On transferFrom, the source must be the account itself — the manager can't pull tokens a third party approved to it",
+    ],
+    notEnforced: [
+      "Recipients are an allowlist the mandate signer controls — not necessarily your own accounts, and a compromised signer can add one",
+      "An allowlisted recipient that is itself a malicious contract is not vetted here",
+      "The cap is per-transaction, not cumulative — many at-cap transfers are possible",
+    ],
+  },
+  DepositPermission: {
+    protocol: "Sail reference template",
+    enforced: [
+      "Target (vault/pool) and deposited token must be on the account's allowlist; amount ≤ the per-tx cap",
+      "Position recipient (receiver/onBehalfOf) must be the account itself, never an arbitrary address",
+      "Only standard ERC-4626 deposit/mint and Aave v2/v3 deposit/supply selectors are recognized — anything else is denied",
+    ],
+    notEnforced: [
+      "An allowlisted but malicious vault or pool is not vetted — it constrains where and how much you deposit, not the venue's honesty",
+      "On the ERC-4626 mint path the cap is measured in shares, so its value in underlying assets moves with the share price",
+      "The cap is per-transaction, not cumulative",
+    ],
+  },
+  WithdrawPermission: {
+    protocol: "Sail reference template",
+    enforced: [
+      "Token (call target) must be on the account's allowlist; amount ≤ the per-tx cap",
+      "Destination must equal the single configured allowedRecipient — not an open set",
+      "On transferFrom, the source must be the account itself",
+    ],
+    notEnforced: [
+      "The pinned destination can be changed by reconfiguring — it is only as trustworthy as the mandate-signer key",
+      "The cap is per-transaction, not cumulative — many at-cap withdrawals to the pinned address are possible",
+    ],
+  },
+  ApproveAndCallBatchPermission: {
+    protocol: "Sail reference template",
+    enforced: [
+      "Exact 3-call shape only: approve → allowlisted consuming call → reset approval to zero",
+      "Approved token/spender/amount must be within the per-token cap; the pre-batch allowance must already be zero",
+      "The consuming call's (target, selector) must be an allowlisted pair and must consume the very token/spender approved in call 1 — fails closed if the consumed asset can't be located safely",
+    ],
+    notEnforced: [
+      "It caps the approval and guarantees it is reset to zero, but does not otherwise constrain how the approved amount is consumed within the batch",
+      "If configured with allowUnconstrainedRecipient, the output of the consuming call can go anywhere — the default pins that recipient to your account",
+      "It does not inspect token balances or the outcome after the batch runs",
+    ],
+  },
 };
 
 const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
@@ -173,6 +282,35 @@ function publicClientFor(project: ProjectContext): PublicClient {
   }).extend(publicActions) as PublicClient;
 }
 
+/**
+ * Poll isConfigured with backoff after a receipt, so a node lagging behind the
+ * one that served the receipt doesn't produce a false "not configured" failure
+ * for a write that already succeeded (observed on Base). Mirrors
+ * mandate-contracts.ts's pollForPermission.
+ */
+// Exported + delay-injectable so the F14 retry behaviour (false-then-true across
+// RPC read-after-write lag resolves as success; false through all retries does
+// not) is testable deterministically without a chain or real backoff waits.
+export async function pollIsConfigured(
+  publicClient: Pick<PublicClient, "readContract">,
+  singleton: Address,
+  sma: Address,
+  attempts = 6,
+  delayMs = 1500,
+): Promise<boolean> {
+  for (let i = 0; i < attempts; i++) {
+    const configured = await publicClient.readContract({
+      address: singleton,
+      abi: ConfigurablePermissionAbi,
+      functionName: "isConfigured",
+      args: [sma],
+    });
+    if (configured) return true;
+    if (i < attempts - 1 && delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
+  }
+  return false;
+}
+
 function announceSigningUrl(json: boolean): void {
   const url = signingPageUrl(projectPort(process.cwd()));
   if (json) {
@@ -180,6 +318,24 @@ function announceSigningUrl(json: boolean): void {
   } else {
     console.log(`\n→ Open the Sailor dashboard to approve signing requests:\n  ${url}\n`);
   }
+}
+
+/**
+ * Resolve `--address` against the chain's bundled known-templates registry
+ * (`@sail/sdk`'s `getSailDeployment(chainId).knownTemplates`, the same CREATE2
+ * addresses recorded in Protocol/deployments/<chain>/templates.shared.json) so
+ * a raw `--params` configure — with no `--template`/`--label` — still gets the
+ * "what you're signing" explanation and a friendly title instead of the bare
+ * "shared-template" fallback. Explicit `--template` always wins.
+ */
+function resolveKnownTemplate(
+  project: ProjectContext,
+  singleton: Address,
+): { kind: string; label: string } | undefined {
+  const match = project.deployment.knownTemplates?.find(
+    (t) => getAddress(t.address) === singleton,
+  );
+  return match ? { kind: match.kind, label: match.label } : undefined;
 }
 
 /** Resolve the config blob from --params (hex) or --args-file + --template. */
@@ -413,8 +569,13 @@ async function runConfigure(
     return;
   }
 
-  // ── Request the owner transaction through the signing station.
-  const label = options.label ?? (options.template ?? "shared-template");
+  // ── Request the owner transaction through the signing page.
+  // Explicit --template always wins; otherwise auto-resolve --address against the
+  // chain's known-templates registry so a raw --params configure still gets the
+  // "what you're signing" explanation instead of the bare "shared-template" fallback.
+  const knownTemplate = resolveKnownTemplate(project, singleton);
+  const resolvedTemplateKind = options.template ?? knownTemplate?.kind;
+  const label = options.label ?? knownTemplate?.label ?? options.template ?? "shared-template";
   announceSigningUrl(json);
   say(() =>
     console.log(
@@ -432,10 +593,11 @@ async function runConfigure(
     chainId: project.chainId,
     to: singleton,
     data: configureDirectData,
+    explanation: resolvedTemplateKind ? SHARED_TEMPLATE_EXPLANATIONS[resolvedTemplateKind] : undefined,
     details: [
       { label: "SMA", value: sma },
       { label: "Singleton", value: singleton },
-      { label: "Template", value: options.template ?? "(raw blob)" },
+      { label: "Template", value: resolvedTemplateKind ?? "(raw blob)" },
       { label: "Mandate signer", value: permissionSigner },
       { label: "Config blob (bytes)", value: String(Math.floor((blob.length - 2) / 2)) },
       ...(decoded
@@ -454,24 +616,54 @@ async function runConfigure(
     throw new Error(`Expected a signed transaction, got: ${response.status}`);
   }
 
+  // The owner submitted this tx in the browser; the daemon does NOT confirm
+  // `arbitrary-tx` itself (it can't verify configureDirect took effect), so this
+  // command owns the outcome the signing page shows — reported at every exit.
   say(() => console.log("Waiting for confirmation…"));
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: response.txHash });
+  let receipt: Awaited<ReturnType<typeof publicClient.waitForTransactionReceipt>>;
+  try {
+    receipt = await publicClient.waitForTransactionReceipt({ hash: response.txHash });
+  } catch (err) {
+    // The tx was submitted (we have a hash) but its receipt could not be
+    // observed — "unverified", not a failure verdict.
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "unverified",
+      txHash: response.txHash,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
   if (receipt.status !== "success") {
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "reverted",
+      txHash: response.txHash,
+      error: `configureDirect reverted on-chain (tx ${response.txHash})`,
+    });
     throw new Error(`configureDirect transaction failed (tx ${response.txHash})`);
   }
 
-  // ── Verify isConfigured == true on-chain.
-  const configuredNow = await publicClient.readContract({
-    address: singleton,
-    abi: ConfigurablePermissionAbi,
-    functionName: "isConfigured",
-    args: [sma],
-  });
+  // ── Verify isConfigured == true on-chain. Retried with backoff: on fast-finality
+  // chains (e.g. Base) an RPC read immediately after the receipt can still hit a
+  // node lagging behind the one that served the receipt, reporting a false failure
+  // for a config write that actually succeeded.
+  const configuredNow = await pollIsConfigured(publicClient, singleton, sma);
   if (!configuredNow) {
+    // Receipt succeeded, so the tx did NOT revert — but the config did not read
+    // back as applied even after retries. Report `unverified` (verify on-chain),
+    // never `reverted`, for a transaction that mined successfully.
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "unverified",
+      txHash: response.txHash,
+      error: `Tx mined, but isConfigured(${sma}) is still false — verify on-chain.`,
+    });
     throw new Error(
       `Tx ${response.txHash} mined, but isConfigured(${sma}) is still false. Verify on-chain.`,
     );
   }
+  await channel.confirmOutcome(response.requestId, {
+    outcome: "confirmed",
+    txHash: response.txHash,
+  });
   say(() => console.log("✓", `Configured ${singleton} for ${sma} (isConfigured == true).`));
 
   appendActivity({

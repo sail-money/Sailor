@@ -5,7 +5,7 @@
  * PASS 1 — fresh init: scaffolds a new project and asserts expected files exist.
  *
  * Template files are read live from disk (not bundled), so no rebuild is needed
- * between runs — the in-tree templates/default/ IS the "latest version".
+ * between runs — the in-tree scaffold/ IS the "latest version".
  *
  * Run:  node scripts/check-init.mjs   (CI builds the CLI first)
  * Exit: 0 = all passes OK, 1 = failure (prints what went wrong).
@@ -57,31 +57,47 @@ try {
   const mustExist = [
     ".sail/config.json",
     "package.json",
-    "foundry.toml",
-    "mandates",
     "AGENTS.md",
+    "soul.md",
     "CLAUDE.md",
     "Dockerfile",
     ".dockerignore",
-    ".sail/contracts/interfaces/IPermission.sol",
-    ".sail/contracts/interfaces/IBatchPermission.sol",
-    "test/BoundedCallPermission.t.sol",
-    "examples/custom-mandate/README.md",
-    ".agents/skills/sail-onboarding/SKILL.md",
-    ".agents/skills/sail-project-info/SKILL.md",
-    ".agents/skills/sail-servers/SKILL.md",
-    ".agents/skills/sail-transactions/SKILL.md",
-    ".agents/skills/sail-mandates/SKILL.md",
-    ".agents/skills/sail-mandates/references/approvals.md",
-    ".agents/skills/sail-automation/SKILL.md",
-    ".agents/skills/sail-automation/references/docker-vm.md",
-    ".agents/skills/sail-automation/references/github-actions.md",
-    ".agents/skills/sail-automation/references/local-daemon.md",
-    ".agents/skills/sail-automation/references/self-hosted-runner.md",
-    ".agents/skills/sail-extend/SKILL.md",
+    // contracts/ is the ONE Foundry workspace a project gets (no root-level twin —
+    // `sailor mandate deploy --build` builds and reads artifacts from here).
+    "contracts/foundry.toml",
+    "contracts/mandates",
+    "contracts/.sail/contracts/interfaces/IPermission.sol",
+    "contracts/.sail/contracts/interfaces/IBatchPermission.sol",
+    "contracts/test/BoundedCallPermission.t.sol",
+    "contracts/README.md",
+    ".agents/skills/sailor-onboarding/SKILL.md",
+    ".agents/skills/sailor-project-info/SKILL.md",
+    ".agents/skills/sailor-servers/SKILL.md",
+    ".agents/skills/sailor-transactions/SKILL.md",
+    ".agents/skills/sailor-agent-build/SKILL.md",
+    ".agents/skills/sailor-mandates/SKILL.md",
+    ".agents/skills/sailor-mandates/references/approvals.md",
+    ".agents/skills/sailor-automation/SKILL.md",
+    ".agents/skills/sailor-automation/references/docker-vm.md",
+    ".agents/skills/sailor-automation/references/github-actions.md",
+    ".agents/skills/sailor-automation/references/local-daemon.md",
+    ".agents/skills/sailor-automation/references/self-hosted-runner.md",
+    ".agents/skills/sailor-operate/SKILL.md",
+    ".agents/skills/sailor-extend/SKILL.md",
   ];
   for (const rel of mustExist) {
     if (!fs.existsSync(path.join(dest, rel))) fail(`expected scaffolded "${rel}" — not found`);
+  }
+
+  // Regression guard: exactly ONE Foundry workspace. A second, root-level twin
+  // used to be scaffolded here — `mandate deploy --build` compiled THAT one while
+  // every skill sent users to author and test in contracts/, so a tested edit
+  // could be silently deployed as a stale root copy. Assert the twin never comes back.
+  const mustNotExist = ["foundry.toml", "mandates"];
+  for (const rel of mustNotExist) {
+    if (fs.existsSync(path.join(dest, rel))) {
+      fail(`found root-level "${rel}" — a second Foundry workspace was scaffolded alongside contracts/`);
+    }
   }
 
   // config.json is valid JSON named after the project.

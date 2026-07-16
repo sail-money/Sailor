@@ -8,7 +8,7 @@ operable.
 flowchart TD
     subgraph OFFCHAIN["Sailor (off-chain, this repo)"]
         CLI["CLI + SDK<br/>key mgmt · EIP-712 signing · dispatch submission"]
-        UI["Dashboard + signing station<br/>owner signatures · monitoring"]
+        UI["Dashboard + signing server<br/>owner signatures · monitoring"]
         AGENT["Agent loop (sailor run)<br/>strategy code · permission resolution · activity log"]
     end
     subgraph ONCHAIN["Sail Protocol (onchain, sail-money/protocol)"]
@@ -44,7 +44,7 @@ flowchart TD
 - **Key management** — generating and encrypting the manager key (geth keystore v3 under
   `.sail/keys/`); the owner key stays in the owner's own wallet, Sailor only requests signatures.
 - **EIP-712 signing** — building and signing dispatches (manager), and preparing
-  register/revoke/configure payloads for the owner to sign in the browser signing station. The
+  register/revoke/configure payloads for the owner to sign on the browser signing page. The
   Configure signer is version-adaptive: it reads the deployed template's schema (ERC-5267) and
   signs the matching version.
 - **Dispatch submission** — resolving which registered permission authorizes a planned call

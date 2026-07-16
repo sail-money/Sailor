@@ -5,6 +5,8 @@
  * PASS 1 — standard update:
  *   Deletes a template-owned file and a user skill, runs `sailor update`,
  *   asserts the template file is restored and the user skill is untouched.
+ *   Also asserts soul.md is re-synced byte-for-byte (shipped identity, not
+ *   user-space) — unlike AGENTS.md, which PASS 2 asserts is never overwritten.
  *
  * PASS 2 — seeds missing user-space files:
  *   Deletes a user-space file (package.json) and dir (src/), runs update,
@@ -13,7 +15,7 @@
  *
  * PASS 3 — stale path pruning:
  *   Manually creates .agents/skills/sail-ci/ (orphan from old template version),
- *   runs update, asserts it is deleted and sail-automation is present.
+ *   runs update, asserts it is deleted and sailor-automation is present.
  *
  * PASS 4 — init-on-existing errors:
  *   Runs `sailor init` inside the already-initialized project;
@@ -60,14 +62,17 @@ try {
 
   // ── PASS 1 — standard update ───────────────────────────────────────────────
   // Delete a template-owned file and add a user skill that must survive update.
-  const templateOwned = path.join(dest, ".agents/skills/sail-automation/SKILL.md");
+  const templateOwned = path.join(dest, ".agents/skills/sailor-automation/SKILL.md");
   const cursorRules    = path.join(dest, ".cursor/rules");
   const userSkill      = path.join(dest, ".agents/skills/my-custom-skill/SKILL.md");
+  const soulMd         = path.join(dest, "soul.md");
+  const soulSrc        = path.join(ROOT, "scaffold/soul.md");
 
   fs.rmSync(templateOwned);
   fs.rmSync(cursorRules);
   fs.mkdirSync(path.dirname(userSkill), { recursive: true });
   fs.writeFileSync(userSkill, "# custom skill\n", "utf-8");
+  fs.writeFileSync(soulMd, "# tampered — this must be overwritten by update\n", "utf-8");
 
   try {
     execFileSync(process.execPath, [BUNDLE, "update"], {
@@ -86,8 +91,11 @@ try {
     fail(`Pass 1: update did not restore "${path.relative(dest, cursorRules)}"`);
   if (!fs.existsSync(userSkill))
     fail(`Pass 1: update removed user file "${path.relative(dest, userSkill)}" — must be preserved`);
+  if (fs.readFileSync(soulMd, "utf-8") !== fs.readFileSync(soulSrc, "utf-8"))
+    fail(`Pass 1: update did not re-sync "soul.md" — it's shipped identity, not user-space`);
 
   console.log("✓ Pass 1 passed — template files restored, user skill preserved");
+  console.log("✓ Pass 1b passed — soul.md re-synced (shipped, not clobberable as user-space)");
 
   // ── PASS 2 — seeds missing user-space files ───────────────────────────────
   const agentsMd    = path.join(dest, "AGENTS.md");
@@ -147,10 +155,10 @@ try {
 
   if (fs.existsSync(path.join(dest, ".agents/skills/sail-ci")))
     fail(`Pass 3: stale ".agents/skills/sail-ci" was not removed`);
-  if (!fs.existsSync(path.join(dest, ".agents/skills/sail-automation/SKILL.md")))
-    fail(`Pass 3: ".agents/skills/sail-automation/SKILL.md" missing after update`);
+  if (!fs.existsSync(path.join(dest, ".agents/skills/sailor-automation/SKILL.md")))
+    fail(`Pass 3: ".agents/skills/sailor-automation/SKILL.md" missing after update`);
 
-  console.log("✓ Pass 3 passed — stale sail-ci skill pruned, sail-automation present");
+  console.log("✓ Pass 3 passed — stale sail-ci skill pruned, sailor-automation present");
 
   // ── PASS 4 — init-on-existing errors ──────────────────────────────────────
   let initRejected = false;

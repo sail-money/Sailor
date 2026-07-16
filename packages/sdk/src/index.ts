@@ -16,6 +16,7 @@ export type {
   ClientMessage,
   ServerMessage,
   SerializedTypedData,
+  SigningConfirmation,
   SigningRequest,
   SigningRequestBase,
   SigningRequestKind,

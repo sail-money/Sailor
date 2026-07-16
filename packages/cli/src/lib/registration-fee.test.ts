@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { type MandateFeeEstimate, RegistrationFeeError } from "@sail/sdk";
 import type { Address } from "viem";
-import { registrationGate } from "./registration-fee.js";
+import { estimateRegistrationGasBudgetWei, registrationGate } from "./registration-fee.js";
 
 // Run with: npx tsx --test packages/cli/src/lib/registration-fee.test.ts
 // (requires `pnpm --filter @sail/sdk build` first so @sail/sdk resolves.)
@@ -55,4 +55,41 @@ test("registrationGate: discloses the flat fee × N total", () => {
   const gate = registrationGate({ estimate: uniformEstimate(2) });
   assert.equal(gate.totalFeeWei, 20_000_000_000_000n);
   assert.equal(gate.disclosure, "Registration fee: 0.00002 ETH (2 permissions × 0.00001 ETH)");
+});
+
+test("registrationGate: rejects a wallet that covers the fee but not fee + gas (INC-2)", () => {
+  const gasBudgetWei = 5_000_000_000_000n;
+  let caught: unknown;
+  try {
+    registrationGate({
+      estimate: uniformEstimate(1), // fee = 0.00001 ETH
+      agentBalanceWei: 10_000_000_000_000n, // EXACTLY the fee, nothing for gas
+      gasBudgetWei,
+    });
+  } catch (err) {
+    caught = err;
+  }
+  assert.ok(caught instanceof RegistrationFeeError, "a fee-only balance must fail the fee+gas gate");
+  assert.equal((caught as RegistrationFeeError).requiredWei, 10_000_000_000_000n + gasBudgetWei);
+
+  // The same balance is fine once it also covers the gas budget.
+  assert.doesNotThrow(() =>
+    registrationGate({
+      estimate: uniformEstimate(1),
+      agentBalanceWei: 10_000_000_000_000n + gasBudgetWei,
+      gasBudgetWei,
+    }),
+  );
+});
+
+test("estimateRegistrationGasBudgetWei: scales with permission count at the live gas price", async () => {
+  const gasPrice = 1_000_000_000n; // 1 gwei
+  const client = { getGasPrice: async () => gasPrice };
+  const one = await estimateRegistrationGasBudgetWei(client, 1);
+  const five = await estimateRegistrationGasBudgetWei(client, 5);
+  assert.ok(one > 0n, "a single registration has a non-zero gas budget");
+  assert.ok(five > one, "more permissions ⇒ a larger gas budget");
+  // Budget is gasUnits × price, so it tracks the price linearly.
+  const dearer = { getGasPrice: async () => gasPrice * 3n };
+  assert.equal(await estimateRegistrationGasBudgetWei(dearer, 1), one * 3n);
 });

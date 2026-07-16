@@ -5,13 +5,14 @@ import cors from 'cors'
 import express from 'express'
 import { WebSocket, WebSocketServer } from 'ws'
 import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, defaultRpcUrls, getNativeCurrencySymbol, getSailDeployment, readPermissionRegistrationFee } from '@sail/sdk'
+import * as accountStore from '@sail/sdk/accounts'
 import { createPublicClient, createWalletClient, defineChain, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
 
 const PORT = Number(process.env.PORT ?? 3334)
 
-// Allowed CORS origins for the local data server / signing-station relay.
-// Defaults to the local dashboard only. Operators exposing the station over a
+// Allowed CORS origins for the local data server / signing-server relay.
+// Defaults to the local dashboard only. Operators exposing the signer over a
 // tailnet or a custom HTTPS host (F8) can add origins via SAILOR_CORS_ORIGINS,
 // a comma-separated list — e.g. `SAILOR_CORS_ORIGINS=https://hermes.example.ts.net`.
 const DEFAULT_CORS_ORIGINS = ['http://localhost:3333']
@@ -267,14 +268,6 @@ function signerEntry(role, address, balanceByAddr) {
   }
 }
 
-/** Deduplicated managers list that always includes both the old and new address. */
-function addManagerToList(existing, current, next) {
-  const base = existing ?? (current ? [getAddress(current)] : [])
-  const all = [...base, getAddress(next)]
-  const seen = new Set()
-  return all.filter((a) => { const l = a.toLowerCase(); if (seen.has(l)) return false; seen.add(l); return true })
-}
-
 const OVERVIEW_TTL_MS = 10_000
 
 /**
@@ -338,6 +331,13 @@ export function startServer(sailDir, { port = PORT } = {}) {
     } catch { /* best-effort: never block SMA creation on a config write */ }
   }
 
+  // All .sail/account.json + state/accounts.json access goes through the SDK's accounts
+  // module — the single owner of that on-disk state. These thin shims bind this server's
+  // sailDir so the handlers below read as before.
+  const readActiveAccount = () => accountStore.readActiveAccount(sailDir)
+  const listAccounts = () => accountStore.listAccounts(sailDir)
+  const upsertActiveAccount = (fields) => accountStore.persistAccount(fields, sailDir)
+
   // ── Per-SMA-per-chain overview cache ────────────────────────────────────
   // Keyed by `${safe}-${chainId}` so multi-chain SMAs get independent snapshots.
   const overviewCacheByAccount = new Map() // `${safeLower}-${chainId}` -> { at, data }
@@ -391,6 +391,32 @@ export function startServer(sailDir, { port = PORT } = {}) {
   //     find. This surfaces chains that were never recorded locally (e.g. a
   //     chain deployed from a different machine or before snapshots existed).
   //     Best-effort and cached; failures are ignored.
+  // Authoritative on-chain probe: which supported chains this SMA ACTUALLY has bytecode on.
+  // The address is deterministic across chains (CREATE2), so we check every configured chain
+  // for deployed code. This is the only trustworthy signal that an SMA exists on a chain —
+  // on-disk hints (a typed chainId, a stale snapshot) can claim chains it was never deployed
+  // to. Cached ~5m; an RPC failure or missing URL counts as "not deployed there".
+  const probeDeployedChains = async (safe) => {
+    const safeLower = safe.toLowerCase()
+    const cached = onchainChainsCache.get(safeLower)
+    if (cached && Date.now() - cached.at < ONCHAIN_CHAINS_TTL_MS) return cached.chains
+    const env = parseEnvFile(at('.env.local'))
+    const found = await Promise.all(
+      SUPPORTED_CHAIN_IDS.map(async (cid) => {
+        const url = resolveRpcUrl(env, cid)
+        if (!url) return null
+        try {
+          const client = createPublicClient({ transport: http(url) })
+          const code = await client.getBytecode({ address: safe })
+          return code && code !== '0x' ? cid : null
+        } catch { return null }
+      })
+    )
+    const discovered = found.filter((c) => c != null)
+    onchainChainsCache.set(safeLower, { at: Date.now(), chains: discovered })
+    return discovered
+  }
+
   const resolveDeployedChains = async (account) => {
     const safeLower = account.safe.toLowerCase()
     const chains = new Set()
@@ -399,12 +425,9 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
     if (account.chainId != null) chains.add(Number(account.chainId))
     // Registry entries for the same safe (each carries its own chainId).
-    try {
-      const accounts = JSON.parse(fs.readFileSync(at('state/accounts.json'), 'utf-8'))
-      for (const a of accounts) {
-        if (a?.safe?.toLowerCase() === safeLower && a.chainId != null) chains.add(Number(a.chainId))
-      }
-    } catch { /* registry may not exist */ }
+    for (const a of listAccounts()) {
+      if (a?.safe?.toLowerCase() === safeLower && a.chainId != null) chains.add(Number(a.chainId))
+    }
     // Per-chain overview snapshots: state/overview/<safe>-<chainId>.json
     try {
       for (const f of fs.readdirSync(at('state/overview'))) {
@@ -414,28 +437,25 @@ export function startServer(sailDir, { port = PORT } = {}) {
     } catch { /* directory may not exist */ }
 
     // On-chain discovery across supported chains (cached).
-    const cached = onchainChainsCache.get(safeLower)
-    if (cached && Date.now() - cached.at < ONCHAIN_CHAINS_TTL_MS) {
-      for (const c of cached.chains) chains.add(c)
-    } else {
-      const env = parseEnvFile(at('.env.local'))
-      const found = await Promise.all(
-        SUPPORTED_CHAIN_IDS.map(async (cid) => {
-          const url = resolveRpcUrl(env, cid)
-          if (!url) return null
-          try {
-            const client = createPublicClient({ transport: http(url) })
-            const code = await client.getBytecode({ address: account.safe })
-            return code && code !== '0x' ? cid : null
-          } catch { return null }
-        })
-      )
-      const discovered = found.filter((c) => c != null)
-      onchainChainsCache.set(safeLower, { at: Date.now(), chains: discovered })
-      for (const c of discovered) chains.add(c)
-    }
+    for (const c of await probeDeployedChains(account.safe)) chains.add(c)
 
     return [...chains].filter((c) => Number.isFinite(c) && c > 0)
+  }
+
+  // Sync a record's deployedChains with on-chain reality (best-effort). Called when an SMA
+  // becomes active — on import (POST /api/account) or selection (/switch) — because an SMA
+  // added on one chain may already be deployed on more (deterministic CREATE2 address). If
+  // discovery finds a chain the stored list is missing, persist the union so the switcher
+  // widget (which reads accounts.json) never under-reports. Failures leave the record as-is.
+  const syncDeployedChains = async (record) => {
+    try {
+      const chains = await resolveDeployedChains(record)
+      const known = new Set((record.deployedChains ?? []).map(Number))
+      if (chains.some((c) => !known.has(c))) {
+        return accountStore.persistAccount({ safe: record.safe, deployedChains: chains }, sailDir)
+      }
+    } catch { /* best-effort — never block the import/switch on discovery */ }
+    return record
   }
 
   // Delete all cached overview entries (memory + disk) for a safe across all chains.
@@ -455,20 +475,17 @@ export function startServer(sailDir, { port = PORT } = {}) {
     } catch { /* directory may not exist */ }
   }
 
-  // GET /api/account — the deployed SMA, or 404 before it exists.
+  // GET /api/account — the active SMA, or 404 before it exists.
   app.get('/api/account', (_req, res) => {
-    try {
-      const raw = fs.readFileSync(at('account.json'), 'utf-8')
-      res.json(JSON.parse(raw))
-    } catch {
-      res.status(404).json({ error: 'account not found' })
-    }
+    const account = readActiveAccount()
+    if (!account) { res.status(404).json({ error: 'account not found' }); return }
+    res.json(account)
   })
 
-  // DELETE /api/account — remove account.json so the onboarding wizard shows again.
+  // DELETE /api/account — clear the active pointer so the onboarding wizard shows again.
   app.delete('/api/account', (_req, res) => {
     try {
-      fs.rmSync(at('account.json'), { force: true })
+      accountStore.clearActiveAccount(sailDir)
       overviewCacheByAccount.clear()
       res.json({ ok: true })
     } catch (err) {
@@ -478,93 +495,81 @@ export function startServer(sailDir, { port = PORT } = {}) {
 
   // POST /api/account — persist a newly deployed SMA from the browser signing flow.
   app.post('/api/account', async (req, res) => {
-    const { safe, owner, permissionSigner, manager, chainId, createdAtBlock, deployedChains } = req.body ?? {}
+    const { safe, owner, permissionSigner, manager, managers, chainId, createdAtBlock, saltNonce, txHash, deployedChains, name } = req.body ?? {}
     if (!safe || !owner || !chainId) {
       res.status(400).json({ error: 'safe, owner, and chainId are required' })
       return
     }
     try {
-      fs.mkdirSync(at('state'), { recursive: true })
       // Source of truth for the SMA's signer/manager is the kernel, not the owner.
-      // Defaulting these to `owner` (the old behavior) desynced account.json from
-      // chain — read them on-chain and prefer that; fall back to body, then owner.
+      // Read them on-chain and prefer that; fall back to the body. Leave undefined
+      // when neither is known so the merge KEEPS the value already on disk (never
+      // clobber a stored signer with `owner` on a partial add-network write).
       const env = parseEnvFile(at('.env.local'))
-      const onchain = await readKernelSigners(safe, chainId, resolveRpcUrl(env, Number(chainId)))
-      const record = {
+      // An add-by-address import carries no deploy proof (no saltNonce/txHash) and no chain
+      // list — the chain the user picked is only a hint and may be one the SMA was NEVER
+      // deployed to. Verify on-chain: deployedChains must be exactly the chains that actually
+      // have bytecode, and the active chainId must be one of them. Deploy/add-network writes
+      // (which DO carry proof or an explicit chain list) keep their caller-supplied chains.
+      const importByAddress = saltNonce == null && txHash == null && !Array.isArray(deployedChains)
+      let activeChainId = Number(chainId)
+      let effectiveDeployed = deployedChains
+      if (importByAddress) {
+        const probed = await probeDeployedChains(safe)
+        if (probed.length > 0) {
+          effectiveDeployed = probed
+          if (!probed.includes(activeChainId)) activeChainId = probed[0]
+        }
+        // probed empty ⇒ no RPC reachable; can't verify, so fall through with the typed hint.
+      }
+      const onchain = await readKernelSigners(safe, activeChainId, resolveRpcUrl(env, activeChainId))
+      // upsertActiveAccount merges by `safe` and writes BOTH files identically, so a
+      // partial write here (add-network sends no saltNonce) can't drop stored fields,
+      // and it appends to the existing SMA rather than creating a duplicate.
+      const merged = upsertActiveAccount({
         safe,
         owner,
-        permissionSigner: onchain?.permissionSigner ?? permissionSigner ?? owner,
-        manager: onchain?.manager ?? manager ?? owner,
-        chainId,
-        createdAtBlock: createdAtBlock ?? '0',
-      }
-      // A multichain SMA (same address deployed across chains) carries the full
-      // list so the dashboard's per-chain panels + switcher show every chain.
-      if (Array.isArray(deployedChains) && deployedChains.length > 0) record.deployedChains = deployedChains
-
-      // Load the known-SMAs list. If it doesn't exist yet, the first SMA was
-      // created outside the browser (CLI / onboarding writes account.json
-      // directly and never seeds this list). Backfill it from the currently
-      // active account.json *before* we overwrite it, otherwise creating a
-      // second SMA would silently drop the first from the list.
-      const accountsPath = at('state/accounts.json')
-      let accounts = []
-      try {
-        accounts = JSON.parse(fs.readFileSync(accountsPath, 'utf-8'))
-      } catch {
-        try {
-          const prev = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
-          if (prev?.safe) accounts.push({ ...prev, name: 'SMA 1', addedAt: null })
-        } catch { /* truly the first SMA — nothing to backfill */ }
-      }
-
-      if (!accounts.find((a) => a.safe.toLowerCase() === safe.toLowerCase())) {
-        accounts.push({ ...record, name: `SMA ${accounts.length + 1}`, addedAt: new Date().toISOString() })
-      }
-      fs.writeFileSync(accountsPath, `${JSON.stringify(accounts, null, 2)}\n`)
-
-      // Make the new SMA the active one.
-      fs.writeFileSync(at('account.json'), `${JSON.stringify(record, null, 2)}\n`)
+        permissionSigner: onchain?.permissionSigner ?? permissionSigner ?? undefined,
+        manager: onchain?.manager ?? manager ?? undefined,
+        managers,
+        chainId: activeChainId,
+        createdAtBlock,
+        saltNonce: saltNonce != null ? String(saltNonce) : undefined,
+        txHash,
+        deployedChains: effectiveDeployed,
+        name,
+      })
+      // Non-import writes still reconcile against on-chain reality (cheap, cached); the import
+      // path already probed above, so its deployedChains are authoritative — skip the re-probe.
+      const synced = importByAddress ? merged : await syncDeployedChains(merged)
       // Keep config.json.chainId in step with the active SMA's chain (stage machine reads it).
-      syncConfigChainId(chainId)
-      res.json({ ok: true })
+      syncConfigChainId(activeChainId)
+      res.json({ ok: true, account: synced })
     } catch (err) {
       serverError(res, err)
     }
   })
 
-  // GET /api/accounts — all known SMAs in order of creation.
+  // GET /api/accounts — all known SMAs, each annotated with the derived `active` flag.
   app.get('/api/accounts', (_req, res) => {
-    try {
-      const accounts = JSON.parse(fs.readFileSync(at('state/accounts.json'), 'utf-8'))
-      // Annotate which one is currently active
-      let active = null
-      try { active = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8')).safe } catch { /* none */ }
-      res.json(accounts.map((a) => ({ ...a, active: a.safe.toLowerCase() === active?.toLowerCase() })))
-    } catch {
-      // Fall back to current account.json as a single-item list
-      try {
-        const a = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
-        res.json([{ ...a, name: 'My SMA', active: true, addedAt: null }])
-      } catch {
-        res.json([])
-      }
-    }
+    res.json(listAccounts())
   })
 
   // POST /api/account/switch — make a known SMA the active one.
-  app.post('/api/account/switch', (req, res) => {
+  app.post('/api/account/switch', async (req, res) => {
     const { safe } = req.body ?? {}
     if (!safe) { res.status(400).json({ error: 'safe is required' }); return }
     try {
-      const accounts = JSON.parse(fs.readFileSync(at('state/accounts.json'), 'utf-8'))
-      const target = accounts.find((a) => a.safe.toLowerCase() === safe.toLowerCase())
+      const target = accountStore.switchAccount(safe, sailDir)
       if (!target) { res.status(404).json({ error: 'SMA not found in accounts list' }); return }
-      fs.writeFileSync(at('account.json'), `${JSON.stringify(target, null, 2)}\n`)
+
+      // Reconcile deployedChains with on-chain reality on selection (see syncDeployedChains).
+      const active = await syncDeployedChains(target)
+
       // Switching to an SMA on a different chain must move config.json.chainId too,
       // or the stage machine / CLI active chain goes stale (multichain case).
-      syncConfigChainId(target.chainId)
-      res.json({ ok: true, active: target })
+      syncConfigChainId(active.chainId)
+      res.json({ ok: true, active })
     } catch (err) {
       serverError(res, err)
     }
@@ -581,12 +586,12 @@ export function startServer(sailDir, { port = PORT } = {}) {
       res.status(400).json({ error: 'name must be 1–100 characters' }); return
     }
     try {
-      const accountsPath = at('state/accounts.json')
-      const accounts = JSON.parse(fs.readFileSync(accountsPath, 'utf-8'))
-      const idx = accounts.findIndex((a) => a.safe.toLowerCase() === safe.toLowerCase())
-      if (idx === -1) { res.status(404).json({ error: 'SMA not found' }); return }
-      accounts[idx] = { ...accounts[idx], name: cleanName }
-      fs.writeFileSync(accountsPath, `${JSON.stringify(accounts, null, 2)}\n`)
+      if (!listAccounts().some((a) => a.safe.toLowerCase() === safe.toLowerCase())) {
+        res.status(404).json({ error: 'SMA not found' }); return
+      }
+      // renameAccount updates the list entry and keeps account.json in step when the
+      // renamed SMA is the active one, so the two files never drift on `name`.
+      accountStore.renameAccount(safe, cleanName, sailDir)
       res.json({ ok: true })
     } catch (err) {
       serverError(res, err)
@@ -594,13 +599,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
   })
 
   // The active SMA's address, or null before one exists.
-  const readActiveSafe = () => {
-    try {
-      return JSON.parse(fs.readFileSync(at('account.json'), 'utf-8')).safe ?? null
-    } catch {
-      return null
-    }
-  }
+  const readActiveSafe = () => accountStore.readActiveSafe(sailDir)
 
   // GET /api/activity — events for the *active* SMA only. Each event carries a
   // `safe` tag (stamped on write); legacy events written before per-SMA tagging
@@ -623,15 +622,9 @@ export function startServer(sailDir, { port = PORT } = {}) {
         .filter((e) => e !== null)
 
       const activeSafe = readActiveSafe()
-      let knownCount = 0
-      let legacySafe = activeSafe
-      try {
-        const accts = JSON.parse(fs.readFileSync(at('state/accounts.json'), 'utf-8'))
-        knownCount = accts.length
-        if (accts[0]?.safe) legacySafe = accts[0].safe
-      } catch {
-        /* no list yet — single-SMA project */
-      }
+      const accts = listAccounts()
+      const knownCount = accts.length
+      const legacySafe = accts[0]?.safe ?? activeSafe
 
       // Only one (or zero) SMA in play: nothing to disambiguate, return all.
       if (!activeSafe || knownCount < 2) {
@@ -650,7 +643,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
   // GET /api/positions — latest positions snapshot from state/positions-<chainId>.json
   app.get('/api/positions', (_req, res) => {
     try {
-      const account = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
+      const account = readActiveAccount()
       const chainId = account?.chainId ?? 8453
       const posFile = at(`state/positions-${chainId}.json`)
       const data = JSON.parse(fs.readFileSync(posFile, 'utf-8'))
@@ -788,26 +781,10 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
     try {
       const manager = getAddress(newManager)
-      // Update the active account.json.
-      try {
-        const account = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
-        if (account?.safe?.toLowerCase() === safe.toLowerCase()) {
-          const managers = addManagerToList(account.managers, account.manager, manager)
-          fs.writeFileSync(at('account.json'), `${JSON.stringify({ ...account, manager, managers }, null, 2)}\n`)
-        }
-      } catch { /* no account.json — nothing to update */ }
-      // Update the matching entry in the multi-SMA list.
-      try {
-        const listPath = at('state/accounts.json')
-        const list = JSON.parse(fs.readFileSync(listPath, 'utf-8'))
-        const idx = list.findIndex((a) => a.safe?.toLowerCase() === safe.toLowerCase())
-        if (idx !== -1) {
-          const entry = list[idx]
-          const managers = addManagerToList(entry.managers, entry.manager, manager)
-          list[idx] = { ...entry, manager, managers }
-          fs.writeFileSync(listPath, `${JSON.stringify(list, null, 2)}\n`)
-        }
-      } catch { /* no list yet */ }
+      // persistAccount sets the new active manager and folds it into managers[] (the
+      // rotation history), updating both the list entry and account.json. The on-chain
+      // rotation is the source of truth; this only keeps local state in sync.
+      accountStore.persistAccount({ safe, manager }, sailDir)
       // Record the rotation in the activity log.
       try {
         const ev = { ts: new Date().toISOString(), actor: 'owner', type: 'signer_rotated', newManager: manager, safe, ...(txHash ? { txHash } : {}) }
@@ -864,8 +841,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
     try {
       const files = listManagerKeyFiles()
       const activeSafe = readActiveSafe()
-      let activeManager = null
-      try { activeManager = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8')).manager ?? null } catch { /* none */ }
+      const activeManager = readActiveAccount()?.manager ?? null
       const activeFile = activeSafe ? `manager-${activeSafe.toLowerCase()}.json` : null
 
       const byAddress = new Map()
@@ -1032,7 +1008,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
       if (receipt.status !== 'success') throw new Error(`registerPermissions reverted (tx ${txHash})`)
 
       // Record each registration in the activity log so the fee actually paid
-      // surfaces in Recent Activity — the station path otherwise writes only
+      // surfaces in Recent Activity — the signer path otherwise writes only
       // mandate.json and its registrations never appeared. Each permission in
       // the batch is charged the same flat fee.
       const feeEth = formatEther(flatFee)
@@ -1207,9 +1183,10 @@ export function startServer(sailDir, { port = PORT } = {}) {
     res.json({ ok: true, running: false })
   })
 
-  // GET /api/station/pending — proxy to the signing station daemon, or [] if not running.
-  // Discovery order: runtime/server.json (written by `sailor station start`),
-  // then port-scan 3141–3150 (same range the UI station page uses), with a
+  // GET /api/station/pending — proxy to the signing server daemon, or [] if not running.
+  // (Endpoint path unrenamed — internal-only, never surfaced to a user/agent.)
+  // Discovery order: runtime/server.json (written by `sailor signer start`),
+  // then port-scan 3141–3150 (same range the UI signing page uses), with a
   // short timeout so a stale/hanging daemon never blocks the dashboard.
   //
   // The daemon gates /pending behind the per-startup requestSecret (see
@@ -1246,7 +1223,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
         }
       }
     } catch { /* fall through to port-scan */ }
-    // 2. Port-scan the known range (same as the station UI page does), reading
+    // 2. Port-scan the known range (same as the signing UI page does), reading
     //    the secret out of /config's wsUrl.
     for (const port of STATION_PORTS) {
       try {
@@ -1295,7 +1272,8 @@ export function startServer(sailDir, { port = PORT } = {}) {
   app.get('/api/onboard/state', (_req, res) => {
     const config = (() => { try { return JSON.parse(fs.readFileSync(at('config.json'), 'utf-8')) } catch { return null } })()
     const env = parseEnvFile(at('.env.local'))
-    const hasAccount = fs.existsSync(at('account.json'))
+    const activeAccount = readActiveAccount()
+    const hasAccount = activeAccount != null
     const managerKeyPath = at('keys/manager.json')
     let managerAddress = null
     try {
@@ -1305,9 +1283,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
     // Prefer config.json.chainId, but fall back to the active account.json when
     // config hasn't been synced yet (defends against a stale config.chainId:null
     // after browser onboarding). config still wins when explicitly set.
-    const accountChainId = (() => {
-      try { return JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))?.chainId ?? null } catch { return null }
-    })()
+    const accountChainId = activeAccount?.chainId ?? null
     const chainId = config?.chainId ?? accountChainId ?? 8453
     let deployment = null
     try { deployment = getSailDeployment(chainId) } catch {}
@@ -1527,7 +1503,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
   // account.json (same format as `sailor onboard`).
   app.post('/api/onboard/complete', async (req, res) => {
     try {
-      const { safe, owner, manager, txHash, chainId: reqChainId } = req.body ?? {}
+      const { safe, owner, manager, txHash, chainId: reqChainId, saltNonce } = req.body ?? {}
       if (!isAddress(safe) || !isAddress(owner)) {
         return res.status(400).json({ error: 'safe and owner must be valid addresses' })
       }
@@ -1552,26 +1528,20 @@ export function startServer(sailDir, { port = PORT } = {}) {
           resolvedManager = ks?.address ? getAddress(`0x${String(ks.address).replace(/^0x/, '')}`) : owner
         } catch { resolvedManager = owner }
       }
-      const record = {
+      // Merge-upsert into the master list and mirror into account.json (one writer).
+      // saltNonce is the exact salt build-create-tx used — `sailor account predict`
+      // and `account add-chain` need it to reproduce the deployed CREATE2 address;
+      // upsertActiveAccount guarantees it survives every later partial write.
+      const record = upsertActiveAccount({
         safe: getAddress(safe),
         owner: getAddress(owner),
         permissionSigner: onchain?.permissionSigner ?? getAddress(owner),
         manager: getAddress(resolvedManager),
         chainId,
         createdAtBlock,
-        ...(txHash ? { txHash } : {}),
-      }
-      fs.mkdirSync(sailDir, { recursive: true })
-      // Append to multi-SMA list before overwriting the active pointer.
-      const listPath = at('state/accounts.json')
-      try {
-        fs.mkdirSync(at('state'), { recursive: true })
-        const existing = (() => { try { return JSON.parse(fs.readFileSync(listPath, 'utf-8')) } catch { return [] } })()
-        const already = existing.find((a) => a.safe?.toLowerCase() === record.safe.toLowerCase())
-        if (!already) existing.push(record)
-        fs.writeFileSync(listPath, `${JSON.stringify(existing, null, 2)}\n`)
-      } catch {}
-      fs.writeFileSync(at('account.json'), `${JSON.stringify(record, null, 2)}\n`)
+        txHash: txHash || undefined,
+        saltNonce: saltNonce != null ? String(saltNonce) : undefined,
+      })
       // Sync the chosen chain into config.json. The onboarding stage machine keys
       // off config.json.chainId; leaving it null after SMA creation caused stage
       // misclassification on resume.
@@ -1614,10 +1584,8 @@ export function startServer(sailDir, { port = PORT } = {}) {
   // unreachable we still return the local account + a best-effort mandate list
   // so the UI degrades gracefully instead of going blank.
   app.get('/api/overview', async (_req, res) => {
-    let account = null
-    try {
-      account = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
-    } catch {
+    const account = readActiveAccount()
+    if (!account) {
       res.json(null)
       return
     }
@@ -1658,13 +1626,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
   // GET /api/overviews — one overview per deployed chain for the active SMA.
   // Used by the multi-chain dashboard to show per-chain mandates + signers.
   app.get('/api/overviews', async (_req, res) => {
-    let account = null
-    try {
-      account = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
-    } catch {
-      res.json([])
-      return
-    }
+    const account = readActiveAccount()
     if (!account?.safe) { res.json([]); return }
 
     const deployedChains = await resolveDeployedChains(account)
@@ -2017,8 +1979,9 @@ export function startServer(sailDir, { port = PORT } = {}) {
     console.log(`Sailor UI running at http://localhost:${port} (reading ${sailDir})`)
   })
 
-  // ── Signing-station WebSocket proxy ───────────────────────────────────────
-  // The signing station page (#/station) needs a live WebSocket to the daemon
+  // ── Signing-server WebSocket proxy ────────────────────────────────────────
+  // The signing page (#/signer, `#/station` kept as a v1.2.0-compatible alias)
+  // needs a live WebSocket to the daemon
   // to receive requests and send the owner's signed/rejected decisions. The
   // daemon authenticates that socket with the per-startup requestSecret, and
   // deliberately withholds the secret from cross-origin /config responses — so a

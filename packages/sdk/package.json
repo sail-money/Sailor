@@ -19,6 +19,10 @@
       "import": "./dist/safe.js",
       "types": "./dist/safe.d.ts"
     },
+    "./accounts": {
+      "import": "./dist/accounts.js",
+      "types": "./dist/accounts.d.ts"
+    },
     "./eip712": {
       "import": "./dist/eip712.js",
       "types": "./dist/eip712.d.ts"
@@ -70,7 +74,7 @@
     "prebuild": "node scripts/generate-intelligence.mjs",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test src/**/*.test.ts",
+    "test": "tsx --test \"src/**/*.test.ts\"",
     "generate:intelligence": "node scripts/generate-intelligence.mjs"
   },
   "peerDependencies": {

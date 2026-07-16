@@ -11,8 +11,7 @@ import { SailGovernanceAbi } from "./abis/SailGovernance.js";
  *
  * This is THE single source of truth for the registration fee. The kernel
  * charges `fee × N` for N permissions, bounded by MAX_PERMISSION_FEE_WEI
- * (0.01 ETH — the constitutional cap in SailGovernance; the seeded launch
- * default fee is 0.001 ETH) and refunding any excess; there is NO bytecode/size-based
+ * (0.01 ETH — the constitutional cap in SailGovernance) and refunding any excess; there is NO bytecode/size-based
  * component in the live contracts (that "variable" formula existed only in
  * stale protocol docs describing an abandoned design). Underpaying reverts with
  * InsufficientFee(required, provided).
@@ -101,18 +100,35 @@ export function feeShortfall(balanceWei: bigint, totalFeeWei: bigint): bigint {
 }
 
 /**
- * Throw a {@link RegistrationFeeError} when `balanceWei` cannot cover the total
- * registration fee. Call this BEFORE prompting the owner to sign so an
- * underfunded signer fails early rather than after a wasted signature or an
- * on-chain revert. Scoped to the fee itself — gas is a separate concern.
- * `symbol` is the chain's native gas token (defaults to "ETH").
+ * Throw a {@link RegistrationFeeError} when `balanceWei` cannot cover what the
+ * registration will actually cost the signer: the fee PLUS `gasBudgetWei`, the
+ * gas the registration transaction will burn. A wallet holding exactly the fee
+ * clears a fee-only check, the owner signs, and the tx then fails on gas —
+ * wasting the signature. Passing the gas budget closes that gap.
+ *
+ * Call this BEFORE prompting the owner to sign so an underfunded signer fails
+ * early rather than after a wasted signature or an on-chain revert. `symbol` is
+ * the chain's native gas token (defaults to "ETH"). `gasBudgetWei` defaults to
+ * 0 (fee-only) for callers that genuinely only care about the fee; the register
+ * paths pass a real estimate so `requiredWei` is fee + gas.
  */
-export function assertFeeAffordable(balanceWei: bigint, totalFeeWei: bigint, symbol = "ETH"): void {
-  if (balanceWei < totalFeeWei) {
+export function assertFeeAffordable(
+  balanceWei: bigint,
+  totalFeeWei: bigint,
+  symbol = "ETH",
+  gasBudgetWei = 0n,
+): void {
+  const requiredWei = totalFeeWei + gasBudgetWei;
+  if (balanceWei < requiredWei) {
+    const gasPart =
+      gasBudgetWei > 0n
+        ? ` plus ~${formatEther(gasBudgetWei)} ${symbol} for gas (~${formatEther(requiredWei)} ${symbol} total)`
+        : "";
     throw new RegistrationFeeError(
-      `Insufficient ${symbol} for the ${formatEther(totalFeeWei)} ${symbol} registration fee; ` +
-        `signer balance is ${formatEther(balanceWei)} ${symbol}.`,
-      totalFeeWei,
+      `Insufficient ${symbol}: registration needs ${formatEther(totalFeeWei)} ${symbol} for the fee${gasPart}; ` +
+        `agent wallet holds ${formatEther(balanceWei)} ${symbol}. ` +
+        `Fund it with at least ${formatEther(requiredWei)} ${symbol}.`,
+      requiredWei,
       balanceWei,
     );
   }

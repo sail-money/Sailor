@@ -1,6 +1,6 @@
 import { type SailDeployment, getSailDeployment } from "@sail/sdk";
 import { type Address, getAddress } from "viem";
-import { fileExists, parseEnvFile, readJsonFile, sailPath, writeJsonFile } from "./io.js";
+import { fileExists, parseEnvFile, readActiveAccount, readJsonFile, sailPath, writeJsonFile } from "./io.js";
 
 type ProjectConfigFile = {
   version?: number;
@@ -104,7 +104,7 @@ export class ProjectContext {
     // owner was never persisted via `sailor owner connect` (e.g. created through
     // the wizard/onboard path). Surface that so `owner show` and agents relying
     // on it resolve the connected wallet once an account exists.
-    const account = readJsonFile<{ owner?: string }>(sailPath("account.json"));
+    const account = readActiveAccount();
     return account?.owner ? getAddress(account.owner) : null;
   }
 

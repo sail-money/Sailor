@@ -19,9 +19,13 @@ export type BoundedSwapParams = {
   maxAmountPerTx: bigint;
   /** Maximum allowed slippage in basis points (e.g. 50 = 0.5%). */
   maxSlippageBps: number;
-  /** Price oracle used for the slippage check; `address(0)` disables it. */
+  /**
+   * Price oracle used for the slippage check. Mandatory on-chain: `_applyConfig`
+   * reverts `OracleRequired()` if this is `address(0)` — it cannot be used to
+   * disable the check. For tokens with no oracle, use `SwapPermissionNoOracle` instead.
+   */
   priceOracle: Address;
-  /** Maximum oracle price age in seconds. Must be > 0 when `priceOracle` is set. */
+  /** Maximum oracle price age in seconds. Mandatory: reverts `MissingPriceAge()` if `0`. */
   maxPriceAgeSec: number;
 };
 

@@ -1,11 +1,11 @@
 import type { Address, Hex } from "viem";
 
 // ---------------------------------------------------------------------------
-// Signing handoff — CLI ↔ browser signing station protocol
+// Signing handoff — CLI ↔ browser signing server protocol
 //
 // The agent (CLI) cannot hold the owner's wallet key, so any owner-authorized
 // action (deploy a Safe, deploy a mandate, authorize a permission, or any
-// arbitrary call) is handed off to a browser signing station over a small
+// arbitrary call) is handed off to a browser signing page over a small
 // HTTP + WebSocket channel. The agent enqueues a SigningRequest; the browser
 // renders an approval card, the owner signs/submits with their wallet, and a
 // SigningResponse comes back.
@@ -137,11 +137,39 @@ export type SigningResponse =
   | { status: "signature"; requestId: string; signature: Hex }
   | { status: "rejected"; requestId: string; reason?: string };
 
+/**
+ * The final outcome of a signing request, reported by whoever actually
+ * verified it — never assumed from "a wallet accepted it" or "a signature was
+ * captured". The command that submits the transaction (or, for the few
+ * owner-submitted kinds no command verifies, the daemon) reports back once the
+ * outcome is known, via `confirmOutcome` on `SigningChannel`.
+ *
+ * The four outcomes are deliberately distinct — a signed transaction we simply
+ * could not observe (`unverified`) is NOT a failure verdict and must never be
+ * shown as one:
+ *  - `confirmed`  — mined with a successful receipt. `note` carries a
+ *                   non-alarming caveat (e.g. an index/permission-set read that
+ *                   is still catching up after a confirmed receipt).
+ *  - `reverted`   — mined, but the receipt status was `reverted`.
+ *  - `failed`     — the submission itself errored; the transaction was never
+ *                   sent (e.g. the agent's `sendTransaction` threw).
+ *  - `unverified` — a transaction was submitted (we have a hash) but its
+ *                   receipt could not be observed (no RPC for the chain, or the
+ *                   receipt wait timed out). Verify manually; do not treat as
+ *                   failed.
+ */
+export type SigningConfirmation =
+  | { outcome: "confirmed"; txHash?: Hex; note?: string }
+  | { outcome: "reverted"; txHash?: Hex; error?: string }
+  | { outcome: "failed"; error?: string }
+  | { outcome: "unverified"; txHash?: Hex; error?: string };
+
 /** WebSocket messages: server → UI. */
 export type ServerMessage =
   | { type: "pending"; requests: SigningRequest[] }
   | { type: "request"; request: SigningRequest }
-  | { type: "request-resolved"; requestId: string };
+  | { type: "request-resolved"; requestId: string }
+  | { type: "request-confirmed"; requestId: string; confirmation: SigningConfirmation };
 
 /** WebSocket messages: UI → server. */
 export type ClientMessage =

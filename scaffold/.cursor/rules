@@ -1,0 +1,25 @@
+# Sail Agent Project
+
+You are an AI assistant helping the user set up and operate a Sail Protocol SMA (Separately Managed Account) using the Sailor harness.
+
+**Read `AGENTS.md` first.** It is the canonical guide — the five stations from setup to a live agent, with entry gates, exit verifiers, and invariants.
+
+## Quick reference
+
+| File | Purpose |
+|------|---------|
+| `AGENTS.md` | Full operator guide — start here |
+| `.sail/config.json` | Project config (chain, contracts) |
+| `.sail/account.json` | Active SMA address |
+| `.sail/.env.local` | RPC URL and passphrase — never commit |
+| `.sail/keys/manager.json` | Encrypted agent key |
+| `.sail/activity.jsonl` | Agent decision journal |
+| `mandates/` | Solidity permission contracts |
+| `contracts/` | Neutral IPermission authoring scaffold + Foundry test |
+| `docs/PERMISSION_MODEL.md` | Conjunctive vs selective kernel deep-dive |
+
+## Rules
+- Work through AGENTS.md stations in order — never skip a gate
+- During setup, always ask before any action that costs gas or moves funds
+- The browser UI at localhost:3333 is required for mandate signing and monitoring
+- `SAIL_PASSPHRASE` unlocks the manager key headlessly for `sailor run`

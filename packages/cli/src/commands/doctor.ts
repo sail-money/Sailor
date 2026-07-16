@@ -18,7 +18,7 @@ import {
 } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { checkContractExists } from "../lib/contract-check.js";
-import { readJsonFile, sailPath } from "../lib/io.js";
+import { parseEnvFile, readActiveAccount, readJsonFile, sailPath } from "../lib/io.js";
 import { keyExists, resolveKeyPath } from "../lib/keys.js";
 import { IPERMISSION_ABI } from "../lib/permission-resolver.js";
 import { ProjectContext } from "../lib/project.js";
@@ -177,7 +177,7 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
   }
 
   // Resolve the SMA: --account flag, else .sail/account.json.
-  const stored = readJsonFile<StoredAccount>(sailPath("account.json"));
+  const stored = readActiveAccount();
   const safe = options.account
     ? getAddress(options.account)
     : stored?.safe
@@ -232,7 +232,13 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
   // non-interactively (SAIL_PASSPHRASE unset) is the #1 reason `sailor run` works
   // locally but the CI cron fails. Flag it here, before any gas is spent.
   const managerKeystorePresent = keyExists("manager", stored?.safe);
-  const passphraseSet = Boolean(process.env.SAIL_PASSPHRASE);
+  // `keys generate` (and the dashboard) persist the passphrase to
+  // .sail/.env.local, and loadManagerSigner() reads it from there too — a
+  // shell-only check flagged that as "not set" even though `sailor run` would
+  // unlock the key fine locally. Only warn when it's genuinely missing from both.
+  const passphraseSet = Boolean(
+    process.env.SAIL_PASSPHRASE || parseEnvFile(sailPath(".env.local")).SAIL_PASSPHRASE,
+  );
   const passphraseGap = managerKeystorePresent && !passphraseSet;
 
   let ownerBal: BalanceInfo | null = null;

@@ -132,80 +132,10 @@ export function useSailorAgentStatus() {
   }
 }
 
-/** Pending signing requests from the station daemon, or []. Polls every 3s. */
+/** Pending signing requests from the signing daemon, or []. Polls every 3s. */
 export function useSailorPending() {
   const { data, loading } = usePolledJson('/api/station/pending', [], 3000)
   return { pending: Array.isArray(data) ? data : [], loading }
-}
-
-const SAFE_TX_SERVICE = {
-  1:      'https://safe-transaction-mainnet.safe.global',
-  10:     'https://safe-transaction-optimism.safe.global',
-  56:     'https://safe-transaction-bsc.safe.global',
-  100:    'https://safe-transaction-gnosis-chain.safe.global',
-  137:    'https://safe-transaction-polygon.safe.global',
-  8453:   'https://safe-transaction-base.safe.global',
-  130:    'https://safe-transaction-unichain.safe.global',
-  42161:  'https://safe-transaction-arbitrum.safe.global',
-  43114:  'https://safe-transaction-avalanche.safe.global',
-  59144:  'https://safe-transaction-linea.safe.global',
-  84532:  'https://safe-transaction-base-sepolia.safe.global',
-  421614: 'https://safe-transaction-arbitrum-sepolia.safe.global',
-  11155111: 'https://safe-transaction-sepolia.safe.global',
-}
-
-/**
- * Scans the Safe Transaction Service for every Safe owned by `ownerAddress`
- * across all supported chains. Returns the full list — `[{ safe, chainId }]` —
- * so the import UI can let the user pick which one to adopt as their SMA,
- * rather than silently auto-importing the first match.
- *
- * Only fires when `enabled` is true (e.g. when the user opens the import flow),
- * so we never scan the network just to render the dashboard. Results stream in
- * per chain as each request resolves; `done` flips true once every chain has
- * been queried so the caller can distinguish "still scanning" from "none found".
- */
-export function useDiscoverSafes(ownerAddress, enabled) {
-  const [safes, setSafes] = useState([])
-  const [scanning, setScanning] = useState(false)
-  const [done, setDone] = useState(false)
-
-  useEffect(() => {
-    if (!enabled || !ownerAddress) {
-      setSafes([])
-      setScanning(false)
-      setDone(false)
-      return
-    }
-    let alive = true
-    setScanning(true)
-    setDone(false)
-    setSafes([])
-
-    async function scan() {
-      const found = []
-      for (const [chainIdStr, base] of Object.entries(SAFE_TX_SERVICE)) {
-        try {
-          const res = await fetch(`${base}/api/v1/owners/${ownerAddress}/safes/`)
-          if (!res.ok) continue
-          const json = await res.json()
-          for (const safe of json?.safes ?? []) {
-            found.push({ safe, chainId: Number(chainIdStr) })
-          }
-          if (alive && found.length > 0) setSafes([...found])
-        } catch { /* network error on this chain, try next */ }
-      }
-      if (alive) {
-        setScanning(false)
-        setDone(true)
-      }
-    }
-
-    scan()
-    return () => { alive = false }
-  }, [ownerAddress, enabled])
-
-  return { safes, scanning, done }
 }
 
 /** A mandate draft awaiting signature (from `sailor mandate prepare`), or null. Polls every 5s. */

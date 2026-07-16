@@ -52,6 +52,7 @@ import {
 } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { appendActivity, nowIso } from "../lib/io.js";
+import { estimateRegistrationGasBudgetWei, registrationGate } from "../lib/registration-fee.js";
 import { explainPermission } from "../lib/permission-explainer.js";
 import { type DeployedMandate, MandateStore } from "../lib/mandates.js";
 import { emit } from "../lib/output.js";
@@ -163,7 +164,7 @@ function fail(err: unknown, json = false): never {
 
 /**
  * Tell the operator where to approve the request — BEFORE the long blocking wait
- * on the signature. In human mode this prints the dashboard station URL. In
+ * on the signature. In human mode this prints the dashboard signing-page URL. In
  * --json mode it emits a single `waiting_for_signature` record up front. The
  * write happens before requestSignature() is awaited, so stdout drains as the
  * event loop yields into the wait — scripted/redirected callers see the URL
@@ -370,7 +371,7 @@ async function runDeploy(
 // functions are registerPermission/registerPermissions.)
 //
 // Authorization mirrors `registerMandate`: the owner (mandate signer) signs the
-// kernel RegisterPermission EIP-712 in the browser signing station — for the
+// kernel RegisterPermission EIP-712 in the browser signing page — for the
 // clone's *predicted* address, since the clone does not exist until the tx
 // lands — and the agent submits deployAndAttach (paying gas). No new dashboard
 // signing event is needed: the owner only ever signs the existing
@@ -721,27 +722,58 @@ async function runDeployClone(
     functionName: "deployAndAttach",
     args: [sma, impl, salt, initData, deadline, signature],
   });
-  const txHash = await walletClient.sendTransaction({
-    to: project.contracts.mandateFactory,
-    data,
-    value: fee,
-    account: agentSigner.viemAccount,
-    chain,
-  });
+  let txHash: Hex;
+  try {
+    txHash = await walletClient.sendTransaction({
+      to: project.contracts.mandateFactory,
+      data,
+      value: fee,
+      account: agentSigner.viemAccount,
+      chain,
+    });
+  } catch (err) {
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "failed",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
 
   say(() => console.log("Waiting for confirmation…"));
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
   if (receipt.status !== "success") {
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "reverted",
+      txHash,
+      error: `deployAndAttach reverted (tx ${txHash})`,
+    });
     throw new Error(`deployAndAttach reverted (tx ${txHash})`);
   }
 
+  // The receipt already succeeded, so the tx did NOT revert. A clone not yet
+  // visible in getPermissions() after the poll is read-after-write lag, not a
+  // failure — report `confirmed` with a note (never `reverted` for a mined tx),
+  // warn, and continue, mirroring registerBatchOnSma's per-permission handling.
   const permissionRegistered = await pollForPermission(publicClient, project.contracts.kernel, sma, clone);
-  if (!permissionRegistered) {
-    throw new Error(
-      `Tx ${txHash} mined, but clone ${clone} is not in getPermissions(${sma}). Verify on-chain.`,
-    );
-  }
-  say(() => console.log("✓", `Deployed + registered ${spec.label} at ${clone}`));
+  await channel.confirmOutcome(response.requestId, {
+    outcome: "confirmed",
+    txHash,
+    ...(permissionRegistered
+      ? {}
+      : {
+          note: `Mined, but ${clone} not yet visible in getPermissions(${sma}) — indexing may lag; verify with 'sailor mandate list'.`,
+        }),
+  });
+  say(() => {
+    if (permissionRegistered) {
+      console.log("✓", `Deployed + registered ${spec.label} at ${clone}`);
+    } else {
+      console.log(
+        "✓",
+        `Deployed + registered ${spec.label} at ${clone} (tx ${txHash} confirmed; not yet visible in getPermissions — verify with 'sailor mandate list').`,
+      );
+    }
+  });
 
   const store = new MandateStore();
   const storedClone = store.add({
@@ -1047,19 +1079,39 @@ async function runRevoke(
     transport: http(getRpcUrl(project.chainId)),
   });
 
+  // The agent submits and pays; the signing page is sitting on "awaiting
+  // confirmation" after the owner's signature, so this command owns the outcome
+  // it shows — reported at every exit below (a revocation is the emergency-exit
+  // path; leaving the page hung there is the worst place to do it).
   say(() => console.log("Submitting kernel.revokePermissions (agent pays gas)…"));
-  const txHash = await walletClient.writeContract({
-    address: kernel,
-    abi: REVOKE_PERMISSIONS_ABI,
-    functionName: "revokePermissions",
-    args: [sma, targets, deadline, response.signature],
-  });
+  let txHash: Hex;
+  try {
+    txHash = await walletClient.writeContract({
+      address: kernel,
+      abi: REVOKE_PERMISSIONS_ABI,
+      functionName: "revokePermissions",
+      args: [sma, targets, deadline, response.signature],
+    });
+  } catch (err) {
+    // The submission itself errored — the transaction was never sent.
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "failed",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
 
   say(() => console.log("Waiting for confirmation…"));
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
   if (receipt.status !== "success") {
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "reverted",
+      txHash,
+      error: `revokePermissions reverted on-chain (tx ${txHash})`,
+    });
     throw new Error(`revokePermissions reverted (tx ${txHash})`);
   }
+  await channel.confirmOutcome(response.requestId, { outcome: "confirmed", txHash });
   say(() => console.log("✓", `Revoked ${targets.length} permission(s) — tx ${txHash}`));
 
   // The agent (manager) submitted and paid; the owner's authorization signature
@@ -1231,6 +1283,25 @@ async function registerBatchOnSma(
   const flatFee = await readPermissionRegistrationFee(publicClient, project.contracts.governance);
   const fee = flatFee * BigInt(permissions.length);
 
+  // Preflight the agent wallet's balance (fee + gas) BEFORE asking the owner to
+  // sign — otherwise an agent wallet holding only the fee clears the check, the
+  // owner signs, and the tx then fails on gas, wasting the approval for nothing.
+  // Same gate the single-address register path applies (see onboard.ts registerMandate).
+  const agentBalanceWei = await publicClient.getBalance({
+    address: agentSigner.viemAccount.address,
+  });
+  const gasBudgetWei = await estimateRegistrationGasBudgetWei(publicClient, permissions.length);
+  const gate = registrationGate({
+    estimate: {
+      totalWei: fee,
+      perPermission: permissions.map((permission) => ({ permission, feeWei: flatFee })),
+    },
+    agentBalanceWei,
+    chainId: project.chainId,
+    gasBudgetWei,
+  });
+  say(() => console.log(gate.disclosure));
+
   const response = await channel.requestSignature({
     type: "typed-data",
     kind: "register-permission",
@@ -1273,17 +1344,32 @@ async function registerBatchOnSma(
   });
 
   say(() => console.log(`Submitting batch registration (agent pays gas; fee ${fee} wei)…`));
-  const txHash = await walletClient.sendTransaction({
-    to: project.contracts.kernel,
-    data: registerData,
-    value: fee,
-    account: agentSigner.viemAccount,
-    chain,
-  });
+  let txHash: Hex;
+  try {
+    txHash = await walletClient.sendTransaction({
+      to: project.contracts.kernel,
+      data: registerData,
+      value: fee,
+      account: agentSigner.viemAccount,
+      chain,
+    });
+  } catch (err) {
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "failed",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
   if (receipt.status !== "success") {
+    await channel.confirmOutcome(response.requestId, {
+      outcome: "reverted",
+      txHash,
+      error: `registerPermissions reverted (tx ${txHash})`,
+    });
     throw new Error(`registerPermissions reverted (tx ${txHash})`);
   }
+  await channel.confirmOutcome(response.requestId, { outcome: "confirmed", txHash });
 
   for (const permission of permissions) {
     const present = await pollForPermission(publicClient, project.contracts.kernel, sma, permission);
@@ -1337,7 +1423,7 @@ async function pollForPermission(
 
 /**
  * `sailor mandate templates` — Sailor does not ship a blessed library of
- * permission contracts. This points users at the custom-mandate scaffold so they
+ * permission contracts. This points users at the contracts/ workspace so they
  * author, review, and deploy their OWN IPermission contracts. Any addresses
  * shown are community-deployed and unaudited — informational only.
  */
@@ -1366,7 +1452,7 @@ export function mandateTemplates(options: { json?: boolean }): void {
       console.log("  2. Implement IPermission.evaluate(txData, ctx) with your policy logic");
       console.log("  3. forge build");
       console.log("  4. sailor mandate deploy --contract <Name> --register --sma <yourSMA>");
-      console.log("\n  See examples/custom-mandate/README.md for the full guide.");
+      console.log("\n  See contracts/README.md for the full guide.");
 
       if (community.length > 0) {
         console.log(
@@ -1559,12 +1645,16 @@ function ensureForgeHint(): void {
   }
 }
 
+// The ONE Foundry workspace a scaffolded project has is `contracts/` — where
+// every skill (sailor-mandates, approvals.md) tells the user to author and
+// test permissions. Building anywhere else would compile a different tree
+// than the one the user just tested, so this is not configurable.
 function runForgeBuild(): void {
   if (!forgeAvailable()) {
     ensureForgeHint();
     throw new Error("Cannot run `forge build` — Foundry is not installed.");
   }
-  console.log("Running forge build…");
-  const r = spawnSync("forge", ["build"], { stdio: "inherit" });
+  console.log("Running forge build (in contracts/)…");
+  const r = spawnSync("forge", ["build"], { cwd: join(process.cwd(), "contracts"), stdio: "inherit" });
   if (r.status !== 0) throw new Error("forge build failed");
 }

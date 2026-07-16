@@ -34,7 +34,7 @@ body:
         - CLI (packages/cli)
         - SDK (packages/sdk)
         - Dashboard (packages/ui)
-        - Scaffold template / skills (templates/default) — higher bar, discuss first
+        - Scaffold template / skills (scaffold) — higher bar, discuss first
         - Docs / tooling
     validations:
       required: true

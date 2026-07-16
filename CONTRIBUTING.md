@@ -1,8 +1,9 @@
 # Contributing to Sailor
 
-Sailor is the open-source operator toolkit (TypeScript SDK, CLI, and local dashboard) for
-[Sail Protocol](https://github.com/sail-money/protocol) — the tooling an operator uses to create
-a Separately Managed Account, register a mandate, and run a strategy agent against it. See the
+Sailor is the open-source harness (TypeScript SDK, CLI, local dashboard, and agent skills) for
+building and operating DeFi agents on [Sail Protocol](https://github.com/sail-money/protocol) — it
+guides a coding agent through creating a Separately Managed Account, constructing a mandate, and
+running a strategy agent inside it. Sailor guides; the protocol enforces. See the
 [README](./README.md) for an introduction and [docs/](./docs/) for usage guides.
 
 Sailor will be continuously enhanced through community participation and feedback —
@@ -58,7 +59,7 @@ Contributions are welcome via **issues** and **pull requests**. The most welcome
 - **Dashboard improvements** — the local UI under `packages/ui`.
 
 Two areas carry a higher bar and more scrutiny, because every scaffolded project depends on them:
-the **scaffold template** (`templates/default/`, including the `.agents/skills` the agent follows
+the **scaffold template** (`scaffold/`, including the `.agents/skills` the agent follows
 and the worked examples they teach from) and anything that **signs or submits transactions**
 (`packages/sdk` signing paths, `packages/cli` dispatch/run flows). Open an **issue to discuss
 first** before a large change there, rather than a surprise PR.

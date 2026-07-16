@@ -2,6 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { createInterface, type Interface } from "node:readline";
 import { SailorClient } from "@sail/sdk";
+import { readActiveAccount } from "@sail/sdk/accounts";
+// Re-exported so CLI commands read the active SMA through the single owning module
+// (accounts.ts in the SDK) rather than touching account.json directly.
+export { readActiveAccount, readActiveSafe } from "@sail/sdk/accounts";
 import { type Address, getAddress, isAddress } from "viem";
 
 // ── .sail/ filesystem helpers ───────────────────────────────────────────────
@@ -56,7 +60,7 @@ export function nowIso(): string {
  * Appends one JSON line to `activity.jsonl`, creating the `.sail/` dir if
  * needed. The unified activity log holds events from both actors — the
  * delegated signer/agent (`sailor run` dispatches) and the owner (signing-
- * station approvals + mandate lifecycle). Every event SHOULD carry an `actor`
+ * page approvals + mandate lifecycle). Every event SHOULD carry an `actor`
  * field (`"owner"` | `"agent"`); readers treat a missing actor as `"agent"`
  * for back-compat with logs written before the field existed.
  *
@@ -76,14 +80,8 @@ export function appendActivity(
   // stamp the currently-active SMA from account.json (leave untagged if none).
   let tagged = event;
   if (!("safe" in event)) {
-    try {
-      const account = JSON.parse(
-        fs.readFileSync(path.join(baseSailDir, "account.json"), "utf-8"),
-      ) as { safe?: string };
-      if (account?.safe) tagged = { ...event, safe: account.safe };
-    } catch {
-      /* no active account yet — leave the event untagged */
-    }
+    const safe = readActiveAccount(baseSailDir)?.safe;
+    if (safe) tagged = { ...event, safe };
   }
 
   fs.appendFileSync(filePath, `${JSON.stringify(tagged)}\n`);

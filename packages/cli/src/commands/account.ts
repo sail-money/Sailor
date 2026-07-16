@@ -27,6 +27,7 @@ import {
   writeJsonFile,
 } from "../lib/io.js";
 import { projectPort } from "../lib/packagePaths.js";
+import { readActiveAccount } from "@sail/sdk/accounts";
 import { type StoredAccount, upsertAccountInList } from "../lib/state.js";
 import { createSigningChannel, signingPageUrl } from "../signing/client.js";
 
@@ -70,7 +71,7 @@ export interface PredictOptions {
  * Both facts are reported with a root-cause explanation.
  */
 export async function accountPredict(options: PredictOptions): Promise<void> {
-  const stored = readJsonFile<StoredAccount>(sailPath("account.json"));
+  const stored = readActiveAccount();
 
   // ── Resolve owner (= deployer = permission signer in the onboarding flow) ─────
   let ownerAddr: Address;
@@ -107,7 +108,15 @@ export async function accountPredict(options: PredictOptions): Promise<void> {
   if (options.salt != null && !/^\d+$/.test(options.salt)) {
     throw new Error(`Invalid --salt value: "${options.salt}" — must be a non-negative integer.`);
   }
-  const saltNonce = options.salt != null ? BigInt(options.salt) : 0n;
+  // Prefer the salt actually recorded for this SMA (e.g. from a UI deploy) over
+  // a bare default — otherwise predict silently disagrees with what's live
+  // on-chain whenever the deploy used a non-zero salt.
+  const saltNonce =
+    options.salt != null
+      ? BigInt(options.salt)
+      : stored?.saltNonce != null
+        ? BigInt(stored.saltNonce)
+        : 0n;
 
   // ── Determine chains ─────────────────────────────────────────────────────────
   let chainIds: SailChainId[];
@@ -229,7 +238,7 @@ export async function accountDeployChain(options: DeployChainOptions): Promise<v
   const say = (fn: () => void) => { if (!json) fn(); };
 
   // ── 1. Read stored account ────────────────────────────────────────────────────
-  const stored = readJsonFile<StoredAccount>(sailPath("account.json"));
+  const stored = readActiveAccount();
   if (!stored?.safe || !stored?.owner || !stored?.manager) {
     throw new Error(
       "No SMA found in .sail/account.json. Run `sailor onboard --new-sma` first.",
@@ -374,11 +383,11 @@ export async function accountDeployChain(options: DeployChainOptions): Promise<v
   try {
     await channel.start();
 
-    const stationUrl = signingPageUrl(projectPort(process.cwd()));
+    const signingUrl = signingPageUrl(projectPort(process.cwd()));
     if (json) {
       console.log(
         JSON.stringify(
-          { status: "waiting_for_signature", url: stationUrl, chainId: targetChainId },
+          { status: "waiting_for_signature", url: signingUrl, chainId: targetChainId },
           null,
           2,
         ),
@@ -386,7 +395,7 @@ export async function accountDeployChain(options: DeployChainOptions): Promise<v
     } else {
       console.log(
         `\n→ Open the Sailor dashboard and switch your wallet to ${getChainById(targetChainId).name}:\n` +
-          `  ${stationUrl}\n`,
+          `  ${signingUrl}\n`,
       );
     }
 
@@ -515,7 +524,7 @@ function recordDeployedChain(stored: StoredAccount, chainId: number): void {
     existing.sort((a, b) => a - b);
   }
   const updated: StoredAccount = { ...stored, deployedChains: existing };
+  // Single writer updates both the list entry and account.json.
   upsertAccountInList(updated);
-  writeJsonFile(sailPath("account.json"), updated);
 }
 

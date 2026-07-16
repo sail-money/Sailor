@@ -8,13 +8,14 @@
  * so colors never drift off-brand. Square corners to match the app's surfaces.
  */
 
-// Cool Sail-brand tints. The hash only selects WITHIN this set, so the hue is
-// always on-brand regardless of the label that hashes in.
+// Sail-blue tints only. The hash selects WITHIN this set, so a badge's hue is
+// always on-brand (one accent hue — no green/purple/teal drift) regardless of
+// the label that hashes in.
 const PALETTE = [
   '#4DABFF', // Sail blue (bright)
   '#7EB8F7', // soft blue
-  '#9B8FF7', // periwinkle
-  '#5AD1E8', // teal
+  '#3E90E6', // mid blue
+  '#A9CEFB', // pale blue
 ]
 
 // Stable string → palette index. Same input always yields the same swatch.

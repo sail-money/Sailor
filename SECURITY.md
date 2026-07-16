@@ -16,9 +16,9 @@ Sailor is **off-chain tooling**. In scope here:
 - The **SDK** (`packages/sdk`) — key management (`LocalKeyring`), EIP-712 signing and dispatch
   submission, the deployment registry.
 - The **CLI** (`packages/cli`) — key handling, mandate signing flows, the agent runner, the
-  signing station.
+  signing server.
 - The **local dashboard** (`packages/ui`) and its local server.
-- The **scaffold template** (`templates/default/`) — anything a generated project executes or an
+- The **scaffold template** (`scaffold/`) — anything a generated project executes or an
   agent is instructed to do.
 
 Out of scope here — **smart-contract vulnerabilities**: `SailKernel`, `SailGovernance`,

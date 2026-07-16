@@ -29,12 +29,18 @@ jobs:
         run: pnpm --filter @sail/sdk build
       - name: Build CLI bundle
         run: pnpm --filter sailor build
+      # Unit + integration tests: SDK, CLI (signing-confirmation protocol,
+      # isConfigured retry, arbitrary-tx contract), and UI (station state machine).
+      - name: Unit tests
+        run: pnpm test
       - name: Docs check
         run: pnpm run docs:check
       - name: Init smoke test
         run: pnpm run init:check
       - name: Update smoke test
         run: pnpm run update:check
+      - name: Skeleton typecheck
+        run: pnpm run skeleton:check
 
   # The "does the thing we ship actually work for a fresh user" gate. Unlike
   # init-smoke (fast, in-tree, file-existence only), this packs the PUBLISHABLE

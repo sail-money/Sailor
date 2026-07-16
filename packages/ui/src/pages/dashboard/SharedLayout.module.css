@@ -584,9 +584,9 @@
 }
 .journalRow {
   display: grid;
-  grid-template-columns: 56px 24px 1fr auto 14px;
+  grid-template-columns: 72px 24px auto 1fr;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   width: 100%;
   padding: 13px 10px;
   background: transparent;
@@ -644,8 +644,12 @@
   font-size: 12px;
   color: var(--text-tertiary);
   line-height: 1.45;
-  overflow-wrap: break-word;
-  word-break: break-word;
+  text-align: right;
+  justify-self: end;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 .journalRowRejected .journalAction { color: var(--text-secondary); }
 
@@ -971,7 +975,8 @@
   .quickLinks { grid-template-columns: 1fr; }
   .header { padding: 12px 20px; }
   .journalRow {
-    grid-template-columns: 48px 22px 1fr 14px;
+    grid-template-columns: 52px 22px auto 1fr;
+    gap: 12px;
   }
   .journalKind { display: none; }
   .signerRow {

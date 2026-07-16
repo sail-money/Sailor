@@ -64,11 +64,12 @@ describe('POST /api/onboard/generate-key', () => {
     const envPath = path.join(fix.sailDir, '.env.local')
     const env = fs.readFileSync(envPath, 'utf-8')
     expect(env).toContain(`SAIL_PASSPHRASE=${passphrase}`)
-    expect(fs.statSync(envPath).mode & 0o777).toBe(0o600)
-
-    // The keystore itself is 0600.
+    // POSIX file modes only — Windows doesn't honor chmod 0600, so the bits differ there.
     const ksPath = path.join(fix.sailDir, 'keys/manager.json')
-    expect(fs.statSync(ksPath).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') {
+      expect(fs.statSync(envPath).mode & 0o777).toBe(0o600)
+      expect(fs.statSync(ksPath).mode & 0o777).toBe(0o600)
+    }
 
     // Round-trip: the persisted value actually decrypts the written keystore and
     // yields the same address — exactly what loadManagerSigner does in `sailor run`.

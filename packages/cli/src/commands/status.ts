@@ -1,4 +1,4 @@
-import { checksum, readJsonFile, sailPath } from "../lib/io.js";
+import { checksum, readActiveAccount, readJsonFile, sailPath } from "../lib/io.js";
 import { keyExists } from "../lib/keys.js";
 import { isProcessAlive, readAgentPid } from "../lib/process.js";
 import type { StoredAccount, StoredMandate, StoredSession } from "../lib/state.js";
@@ -10,7 +10,7 @@ import type { StoredAccount, StoredMandate, StoredSession } from "../lib/state.j
 export async function status(): Promise<void> {
   const hasManager = keyExists("manager");
   const hasPermissionSigner = keyExists("permissionSigner");
-  const account = readJsonFile<StoredAccount>(sailPath("account.json"));
+  const account = readActiveAccount();
   // mandate.json may hold a single mandate or an array (multi-mandate accounts,
   // matching how `sailor run` reads it). Normalise to an array and tolerate
   // partial records that predate the current shape — see the guarded render below.

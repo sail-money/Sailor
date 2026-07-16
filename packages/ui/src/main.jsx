@@ -4,10 +4,8 @@ import ReactDOM from 'react-dom/client'
 import { RainbowKitProvider } from '@rainbow-me/rainbowkit'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WagmiProvider } from 'wagmi'
-import SigningStation from './pages/station/SigningStation'
-import Signing from './pages/signing/Signing'
+import SigningPage from './pages/signer/SigningPage'
 import Dashboard from './pages/dashboard/Dashboard'
-import JournalPage from './pages/dashboard/JournalPage'
 import { wagmiConfig } from './wagmi'
 import { useWalletLifecycle } from './hooks/useWalletLifecycle'
 import './styles/globals.css'
@@ -28,7 +26,7 @@ function readRoute() {
 
 /**
  * The signing daemon serves this SPA on ports 3141–3150. When the page is
- * opened from there (the URL the CLI prints), default to the signing station
+ * opened from there (the URL the CLI prints), default to the signing page
  * instead of the dashboard so approvals are front-and-center.
  */
 function servedBySigningDaemon() {
@@ -46,7 +44,7 @@ function servedBySigningDaemon() {
 if (typeof window !== 'undefined') {
   const initial = readRoute()
   if (initial === '/' || initial === '') {
-    window.location.replace(servedBySigningDaemon() ? '#/station' : '#/dashboard')
+    window.location.replace(servedBySigningDaemon() ? '#/signer' : '#/dashboard')
   }
 }
 
@@ -64,22 +62,13 @@ function Router() {
 
   let page
   if (route.startsWith('/home')) page = <Dashboard key={route} />
-  else if (route.startsWith('/station')) page = <SigningStation key={route} />
-  else if (route.startsWith('/signing')) page = <Signing key={route} />
-  else if (route.startsWith('/journal/')) {
-    // /journal/:entryId — full-page detail of one Decision Journal
-    // entry. Replaces the older right-side drawer; users get the same
-    // visual chrome as the dashboard and can step through adjacent
-    // entries from inside the page.
-    const id = route.slice('/journal/'.length).split('?')[0]
-    page = (
-      <JournalPage
-        key={route}
-        entryId={id}
-        onBack={() => { window.location.hash = '#/dashboard' }}
-      />
-    )
-  }
+  // `/signer` is the canonical signing-page route; `/station` is a
+  // v1.2.0-compatible alias — any bookmark or printed URL from that release
+  // still lands on the same component. Do not remove before the next major.
+  // `/signer` is canonical; `/station` (v1.2.0) and `/signing` (pre-daemon
+  // standalone page, removed) are compat aliases so stale bookmarks and
+  // printed URLs still land on the live signing surface.
+  else if (route.startsWith('/signer') || route.startsWith('/station') || route.startsWith('/signing')) page = <SigningPage key={route} />
   else if (route.startsWith('/dashboard')) page = <Dashboard key={route} />
   else page = <Dashboard key={route} />
 

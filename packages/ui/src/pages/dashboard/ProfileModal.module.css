@@ -14,21 +14,23 @@
 
 .panel {
   position: fixed;
-  top: 78px;
-  right: 18px;
+  /* Centered on screen (was anchored top-right) and enlarged so the SMA
+     hub reads as the primary surface while it's open. */
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   z-index: 310;
-  /* Widened from 380 → 420 so each SMA card can comfortably hold
-     the address, multichain stack, action buttons, and the new
-     "Open in Safe" quick-link with breathing room. */
-  width: 420px;
-  max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 96px);
-  padding: 24px 22px 18px;
+  /* Widened 420 → 560 so each SMA card holds the address, multichain
+     stack, action buttons, and the "Open in Safe" quick-link with room. */
+  width: 560px;
+  max-width: calc(100vw - 48px);
+  max-height: calc(100vh - 64px);
+  padding: 28px 26px 22px;
   display: flex;
   flex-direction: column;
   gap: 18px;
   color: #fff;
-  border-radius: 28px;
+  border-radius: 14px;
   background:
     radial-gradient(ellipse 120% 80% at 50% -10%, rgba(79, 135, 255, 0.22) 0%, transparent 60%),
     linear-gradient(180deg, rgba(20, 52, 140, 0.68) 0%, rgba(14, 38, 108, 0.72) 100%);
@@ -54,15 +56,15 @@
   pointer-events: none;
 }
 @keyframes slideIn {
-  from { transform: translateX(20px); opacity: 0; }
-  to   { transform: translateX(0);    opacity: 1; }
+  from { transform: translate(-50%, -46%); opacity: 0; }
+  to   { transform: translate(-50%, -50%); opacity: 1; }
 }
 .panelOut {
   animation: slideOut 320ms cubic-bezier(0.5, 0, 0.75, 0) forwards;
 }
 @keyframes slideOut {
-  from { transform: translateX(0); opacity: 1; }
-  to   { transform: translateX(20px); opacity: 0; }
+  from { transform: translate(-50%, -50%); opacity: 1; }
+  to   { transform: translate(-50%, -46%); opacity: 0; }
 }
 
 /* ── Identity hero ── */
@@ -77,7 +79,9 @@
   height: 50px;
   flex-shrink: 0;
   padding: 1.5px;
-  border-radius: 50%;
+  /* Squared to match the sharp design language — the SMA-row icon and every
+     other tile are 2–3px; a circle was the old glassy look. */
+  border-radius: 4px;
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0.05) 60%);
   box-shadow:
     0 6px 20px rgba(25, 144, 255, 0.32),
@@ -86,7 +90,7 @@
 .avatar {
   width: 100%;
   height: 100%;
-  border-radius: 50%;
+  border-radius: 3px;
   background:
     radial-gradient(ellipse 80% 60% at 30% 25%, rgba(255, 255, 255, 0.30) 0%, transparent 60%),
     linear-gradient(145deg, #5B96FF 0%, #1990FF 60%, #0E72E0 100%);
@@ -131,7 +135,7 @@
   letter-spacing: -0.002em;
   background: none;
   border: none;
-  border-radius: 8px;
+  border-radius: 2px;
   cursor: pointer;
   transition: color 180ms var(--ease-sail), background 180ms var(--ease-sail);
 }
@@ -145,35 +149,6 @@
   justify-content: center;
 }
 .identityAddress:hover .identityCopyIcon { color: var(--text-primary); }
-
-.identityActions {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-.settingsPill {
-  display: inline-flex;
-  align-items: center;
-  padding: 7px 12px;
-  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.10));
-  border-radius: var(--r-2, 2px);
-  cursor: pointer;
-  white-space: nowrap;
-  transition: color 200ms var(--ease-sail), background 200ms var(--ease-sail), border-color 200ms var(--ease-sail);
-}
-.settingsPill:hover {
-  color: #fff;
-  border-color: rgba(25, 144, 255, 0.42);
-  background: rgba(25, 144, 255, 0.08);
-}
 .disconnectPill {
   display: inline-flex;
   align-items: center;
@@ -185,15 +160,15 @@
   color: rgba(255, 255, 255, 0.55);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 999px;
+  border-radius: 2px;
   cursor: pointer;
   white-space: nowrap;
   transition: color 200ms, background 200ms, border-color 200ms, transform 200ms var(--ease-sail);
 }
 .disconnectPill:hover {
-  color: #ff8a8a;
-  border-color: rgba(255, 107, 107, 0.42);
-  background: rgba(255, 107, 107, 0.07);
+  color: var(--danger);
+  border-color: var(--danger-border);
+  background: rgba(255, 92, 108, 0.07);
 }
 .disconnectPill:active {
   transform: translateY(1px);
@@ -274,13 +249,15 @@
 .smaList::-webkit-scrollbar-track { background: transparent; }
 .smaList::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.18);
-  border-radius: 999px;
+  border-radius: 2px;
   transition: background 200ms var(--ease-sail);
 }
 .smaList::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.32); }
 /* All list items keep their natural height; the parent .smaList is
    the only thing that scrolls. */
 .smaList > li { flex-shrink: 0; }
+
+/* Divider label between the adopted SMAs and the on-chain-discovered ones. */
 
 /* SMA card — identity row + per-SMA action bar (Deposit / Withdraw). */
 .smaCard {
@@ -292,7 +269,7 @@
   flex-shrink: 0;
   background: rgba(255, 255, 255, 0.035);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
+  border-radius: 3px;
   overflow: hidden;
   transition: background 220ms var(--ease-sail),
               border-color 220ms var(--ease-sail);
@@ -338,7 +315,7 @@
   color: var(--ocean-light);
   background: rgba(25, 144, 255, 0.16);
   border: 1px solid rgba(25, 144, 255, 0.32);
-  border-radius: 10px;
+  border-radius: 3px;
 }
 .smaBody {
   display: flex;
@@ -367,7 +344,7 @@
   letter-spacing: -0.005em;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(25, 144, 255, 0.55);
-  border-radius: 6px;
+  border-radius: 2px;
   padding: 2px 8px;
   margin: -3px -4px;
   min-width: 0;
@@ -389,7 +366,7 @@
   color: var(--ocean-foam);
   background: rgba(25, 144, 255, 0.22);
   border: 1px solid rgba(25, 144, 255, 0.42);
-  border-radius: 999px;
+  border-radius: 2px;
 }
 /* Pencil hint — visible only on row hover or focus to keep the
    default state visually quiet. */
@@ -401,7 +378,7 @@
   height: 22px;
   color: var(--text-tertiary);
   background: transparent;
-  border-radius: 6px;
+  border-radius: 2px;
   cursor: pointer;
   opacity: 0;
   transition: opacity 200ms var(--ease-sail),
@@ -439,7 +416,7 @@
 .smaNetDot {
   width: 7px;
   height: 7px;
-  border-radius: 50%;
+  border-radius: 2px;
   background: var(--accent-blue);
 }
 .smaNetDot_arbitrum { background: #28A0F0; box-shadow: 0 0 5px rgba(40, 160, 240, 0.5); }
@@ -463,6 +440,20 @@
   box-shadow: none;
 }
 .smaNetStack .smaNetDot:first-child { margin-left: 0; }
+/* Brand-glyph row for multichain SMAs. Marks sit side by side (chain logos
+   don't overlap cleanly the way anonymous dots do), sized to the 11.5px meta
+   line. The "+N" overflow counter matches the meta type. */
+.smaNetGlyphs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.smaNetMore {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.02em;
+}
 .smaNetName { color: var(--text-secondary); }
 .smaMetaSep { color: var(--text-tertiary); opacity: 0.6; }
 .smaAgentCount { color: var(--text-tertiary); }
@@ -474,7 +465,7 @@
   height: 30px;
   color: var(--text-tertiary);
   background: rgba(255, 255, 255, 0.04);
-  border-radius: 8px;
+  border-radius: 2px;
   flex-shrink: 0;
   transition: color 180ms var(--ease-sail), background 180ms var(--ease-sail);
 }
@@ -488,12 +479,6 @@
 }
 
 /* Per-SMA action bar — Deposit + Withdraw scoped to this exact SMA. */
-.smaActions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  padding: 0 10px 8px;
-}
 
 /* "Open in Safe" quick-link — tertiary tappable text link sitting
    below Deposit/Withdraw. Calmer than the action buttons so it
@@ -513,7 +498,7 @@
   color: var(--ocean-light);
   background: rgba(25, 144, 255, 0.06);
   border: 1px solid rgba(25, 144, 255, 0.20);
-  border-radius: 12px;
+  border-radius: 3px;
   text-decoration: none;
   transition:
     color 200ms var(--ease-sail),
@@ -546,54 +531,6 @@
 .smaSafeLink:hover svg {
   transform: translate(1px, -1px);
 }
-.smaCardPrimary .smaActions {
-  border-top: 1px solid rgba(25, 144, 255, 0.18);
-  padding-top: 10px;
-  margin-top: 0;
-}
-.smaCard:not(.smaCardPrimary) .smaActions {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  padding-top: 10px;
-}
-.smaAction {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 12px;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 12.5px;
-  font-weight: 500;
-  letter-spacing: 0.004em;
-  color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 999px;
-  cursor: pointer;
-  transition:
-    color 200ms var(--ease-sail),
-    background 200ms var(--ease-sail),
-    border-color 200ms var(--ease-sail),
-    transform 200ms var(--ease-sail);
-}
-.smaAction:hover:not(:disabled) {
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.09);
-  border-color: rgba(255, 255, 255, 0.22);
-  transform: translateY(-1px);
-}
-.smaActionPrimary {
-  color: #fff;
-  background: linear-gradient(180deg, rgba(25, 144, 255, 0.78) 0%, rgba(25, 144, 255, 0.55) 100%);
-  border-color: rgba(25, 144, 255, 0.55);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
-}
-.smaActionPrimary:hover:not(:disabled) {
-  color: #fff;
-  background: linear-gradient(180deg, rgba(42, 155, 255, 0.92) 0%, rgba(25, 144, 255, 0.7) 100%);
-  border-color: rgba(25, 144, 255, 0.75);
-}
 
 /* Create / Import two-button row */
 .smaActionRow {
@@ -623,12 +560,6 @@
   border-color: rgba(25, 144, 255, 0.45);
   color: var(--text-primary);
 }
-.smaActionBtnActive {
-  background: rgba(25, 144, 255, 0.08);
-  border-color: rgba(25, 144, 255, 0.4);
-  color: var(--text-primary);
-  border-style: solid;
-}
 .smaActionIcon {
   font-size: 15px;
   line-height: 1;
@@ -645,43 +576,6 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 2px;
   flex-shrink: 0;
-}
-.smaImportScan {
-  font-size: 12px;
-  color: var(--text-tertiary);
-  text-align: center;
-  padding: 6px 0;
-}
-.smaImportList {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.smaImportRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 8px 10px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  cursor: pointer;
-  transition: background 150ms, border-color 150ms;
-  text-align: left;
-}
-.smaImportRow:hover { background: rgba(255, 255, 255, 0.07); border-color: rgba(255, 255, 255, 0.14); }
-.smaImportRowAddr {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 12px;
-  color: var(--text-primary);
-}
-.smaImportRowNet {
-  font-size: 11px;
-  color: var(--text-tertiary);
 }
 .smaImportLink {
   font-size: 12px;
@@ -703,171 +597,86 @@
 }
 .smaImportInput {
   width: 100%;
-  padding: 8px 10px;
+  padding: 11px 12px;
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.10);
   color: var(--text-primary);
+  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
   font-size: 13px;
   outline: none;
   box-sizing: border-box;
-  transition: border-color 150ms;
+  transition: border-color 150ms, box-shadow 150ms;
 }
+.smaImportInput:focus {
+  border-color: rgba(25, 144, 255, 0.6);
+  box-shadow: 0 0 0 1px rgba(25, 144, 255, 0.3);
+}
+.smaImportInput::placeholder { color: rgba(255, 255, 255, 0.32); }
 .smaImportInput:focus { border-color: rgba(255, 255, 255, 0.25); }
 .smaImportInput::placeholder { color: rgba(255, 255, 255, 0.25); }
-.smaImportErr { font-size: 12px; color: #ff6b6b; }
+.smaImportErr { font-size: 12px; color: var(--danger); }
 .smaImportActions { display: flex; align-items: center; gap: 12px; }
 .smaImportConfirm {
-  padding: 7px 14px;
+  flex: 1;
+  height: 40px;
   border-radius: 2px;
-  background: rgba(25, 144, 255, 0.15);
-  border: 1px solid rgba(25, 144, 255, 0.35);
-  color: rgba(25, 144, 255, 0.9);
+  background: var(--accent-blue);
+  border: 1px solid var(--accent-blue);
+  color: #fff;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms;
+}
+.smaImportConfirm:hover { background: var(--accent-blue-bright, #4DABFF); }
+.smaImportBack {
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.12));
+  color: var(--text-secondary);
+  font-family: 'DM Sans', sans-serif;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 150ms, border-color 150ms;
+  transition: background 150ms, color 150ms;
 }
+.smaImportBack:hover { background: rgba(255, 255, 255, 0.08); color: var(--text-primary); }
 .smaImportConfirm:hover { background: rgba(25, 144, 255, 0.22); border-color: rgba(25, 144, 255, 0.5); }
 
 /* ── Accounts block (legacy AccountRow — kept dormant) ──
    Old two-row layout. No longer rendered; styles preserved in case a
    deep link still references them. */
-.accounts {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.acctRow {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 12px 14px;
-  font-family: 'DM Sans', sans-serif;
-  text-align: left;
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  cursor: pointer;
-  transition:
-    background 220ms var(--ease-sail),
-    border-color 220ms var(--ease-sail),
-    transform 220ms var(--ease-sail);
-}
-.acctRow:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.18);
-  transform: translateY(-1px);
-}
-.acctRowAccent {
-  background: linear-gradient(180deg, rgba(25, 144, 255, 0.10) 0%, rgba(25, 144, 255, 0.03) 100%);
-  border-color: rgba(25, 144, 255, 0.30);
-}
-.acctRowAccent:hover {
-  background: linear-gradient(180deg, rgba(25, 144, 255, 0.16) 0%, rgba(25, 144, 255, 0.04) 100%);
-  border-color: rgba(25, 144, 255, 0.45);
-}
-.acctIcon {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-}
-.acctIconAccent {
-  color: var(--ocean-light);
-  background: rgba(25, 144, 255, 0.16);
-  border-color: rgba(25, 144, 255, 0.36);
-}
-.acctBody {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-.acctLabel {
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
-.acctValue {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 13.5px;
-  font-weight: 500;
-  color: var(--text-primary);
-  letter-spacing: 0.005em;
-  font-variant-numeric: tabular-nums;
-}
-.acctKicker {
-  font-size: 11.5px;
-  color: var(--text-tertiary);
-  letter-spacing: 0.005em;
-  margin-top: 1px;
-}
-.acctCopy {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  color: var(--text-tertiary);
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 8px;
-  transition: color 200ms, background 200ms;
-}
-.acctRow:hover .acctCopy {
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.08);
-}
 
 /* ── No-SMA empty state inside the profile panel ── */
 .noSMA {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: start;
-  column-gap: 12px;
-  row-gap: 12px;
-  padding: 14px 14px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 18px 16px;
   background:
     linear-gradient(180deg, rgba(25, 144, 255, 0.08) 0%, rgba(25, 144, 255, 0.02) 100%),
     rgba(10, 22, 44, 0.45);
   border: 1px dashed rgba(25, 144, 255, 0.34);
-  border-radius: 14px;
+  border-radius: 3px;
 }
+/* Icon + heading on one row; body + button stack full-width beneath. */
+.noSMAHead { display: inline-flex; align-items: center; gap: 10px; }
 .noSMAIcon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
   color: var(--ocean-light);
   background: rgba(25, 144, 255, 0.14);
   border: 1px solid rgba(25, 144, 255, 0.32);
-  border-radius: 10px;
-}
-.noSMABody {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.noSMAKicker {
-  font-family: 'DM Sans', sans-serif;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
+  border-radius: 3px;
 }
 .noSMATitle {
   font-family: 'DM Sans', sans-serif;
@@ -884,12 +693,13 @@
   margin-top: 1px;
 }
 .noSMACta {
-  grid-column: 1 / -1;
+  width: 100%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 10px 16px;
+  margin-top: 2px;
+  padding: 11px 16px;
   font-family: 'DM Sans', sans-serif;
   font-size: 13px;
   font-weight: 500;
@@ -897,7 +707,7 @@
   color: #fff;
   background: var(--accent-blue);
   border: none;
-  border-radius: 999px;
+  border-radius: 3px;
   cursor: pointer;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.22),
@@ -911,169 +721,12 @@
 .noSMACta:active { transform: translateY(0); }
 
 /* ── Balance hero ── */
-.balance {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 4px 2px;
-}
-.balLabel {
-  font-family: 'DM Sans', sans-serif;
-  font-size: 10px;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.38);
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-}
-.balValWrap {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 2px;
-  font-family: 'Instrument Sans', 'DM Sans', serif;
-  font-weight: 600;
-  color: #fff;
-  letter-spacing: -0.03em;
-  line-height: 1;
-}
-.balCurrency {
-  font-family: 'Instrument Sans', 'DM Sans', serif;
-  font-size: 24px;
-  color: rgba(255, 255, 255, 0.55);
-  font-weight: 400;
-  margin-right: 2px;
-  transform: translateY(-3px);
-}
-.balVal {
-  font-family: 'Instrument Sans', 'DM Sans', serif;
-  font-size: 40px;
-  font-weight: 600;
-  color: #fff;
-}
-.balMeta {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 11.5px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-.balDelta {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: #6fdda1;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: rgba(25, 144, 255, 0.10);
-  box-shadow: inset 0 0 0 0.5px rgba(25, 144, 255, 0.22);
-}
-.balSep {
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.25);
-}
-.balLifetime {
-  color: rgba(255, 255, 255, 0.45);
-  font-weight: 500;
-}
 
 /* ── Actions ── */
-.actions {
-  display: flex;
-  gap: 10px;
-  padding: 4px 0 6px;
-}
-.actionBtn {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 0 4px;
-  border-radius: 18px;
-  background: transparent;
-  border: none;
-  color: rgba(255, 255, 255, 0.7);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 11.5px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: color 200ms;
-}
-.actionBtn:hover { color: #fff; }
-
-.actionIcon {
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background:
-    radial-gradient(ellipse 80% 70% at 50% 0%, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.04) 70%);
-  box-shadow:
-    inset 0 0 0 0.5px rgba(255, 255, 255, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.20),
-    0 2px 8px rgba(0, 0, 0, 0.20);
-  color: rgba(255, 255, 255, 0.92);
-  transition: transform 220ms var(--ease-sail), background 220ms var(--ease-sail), box-shadow 220ms var(--ease-sail);
-}
-.actionBtn:hover .actionIcon {
-  transform: translateY(-1px);
-}
-.actionBtn:active .actionIcon {
-  transform: translateY(0);
-}
 
 /* Primary deposit — Sail blue gradient */
-.actionBtnPrimary { color: #fff; }
-.actionBtnPrimary .actionIcon {
-  color: #fff;
-  background:
-    radial-gradient(ellipse 80% 70% at 50% 0%, #5BA8FF 0%, #1990FF 55%, #0E72E0 100%);
-  box-shadow:
-    inset 0 0 0 0.5px rgba(255, 255, 255, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.42),
-    0 6px 18px rgba(25, 144, 255, 0.45);
-}
-.actionBtnPrimary:hover .actionIcon {
-  box-shadow:
-    inset 0 0 0 0.5px rgba(255, 255, 255, 0.40),
-    inset 0 1px 0 rgba(255, 255, 255, 0.55),
-    0 8px 24px rgba(25, 144, 255, 0.6);
-}
-
-.actionLabel {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: -0.005em;
-}
 
 /* ── Disconnect ── */
-.disconnect {
-  margin-top: 4px;
-  height: 36px;
-  width: 100%;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 12.5px;
-  font-weight: 500;
-  letter-spacing: 0.005em;
-  color: rgba(255, 255, 255, 0.55);
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  cursor: pointer;
-  transition: color 200ms, background 200ms, border-color 200ms;
-}
-.disconnect:hover {
-  color: #ff8a8a;
-  border-color: rgba(255, 107, 107, 0.4);
-  background: rgba(255, 107, 107, 0.06);
-}
 
 @media (max-width: 480px) {
   .panel { right: 12px; left: 12px; width: auto; }
@@ -1154,9 +807,7 @@
 }
 
 /* Section eyebrows — full `LABEL/` rhythm. */
-.eoaLabel,
-.smasHead,
-.actionsHead {
+.smasHead {
   font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace !important;
   font-size: 10.5px !important;
   font-weight: 600 !important;
@@ -1167,8 +818,6 @@
 /* The "/" suffix belongs on the kicker TEXT, not on the smasHead flex
    row — putting it on the space-between container shoved a stray slash
    to the far-right edge where the panel clipped it. */
-.eoaLabel::after,
-.actionsHead::after,
 .smasKicker::after {
   content: ' /';
   color: var(--text-quaternary);
@@ -1330,52 +979,9 @@
 
 /* Action buttons (Deposit / Withdraw) — square chips with hairline
    borders that lift to blue. */
-.smaAction {
-  border-radius: var(--r-2, 2px);
-  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--hairline);
-  color: var(--text-secondary);
-  transition:
-    color 220ms var(--ease-sail),
-    background 220ms var(--ease-sail),
-    border-color 220ms var(--ease-sail),
-    transform 220ms var(--ease-sail);
-}
-.smaAction:hover {
-  color: #fff;
-  background: rgba(25, 144, 255, 0.08);
-  border-color: rgba(25, 144, 255, 0.45);
-  transform: translateY(-1px);
-}
 
 /* Create-another-SMA row — sharp dashed blueprint container,
    matching the rest of the modal. */
-.createSmaRow,
-.emptyCreate {
-  border-radius: var(--r-3, 2px);
-  border: 1px dashed var(--hairline, rgba(255, 255, 255, 0.18));
-  background: rgba(255, 255, 255, 0.02);
-  transition:
-    border-color 220ms var(--ease-sail),
-    background 220ms var(--ease-sail);
-}
-.createSmaRow:hover,
-.emptyCreate:hover {
-  border-color: rgba(25, 144, 255, 0.42);
-  background: rgba(25, 144, 255, 0.04);
-}
-.createSmaIcon,
-.emptyCreateIcon {
-  border-radius: var(--r-2, 2px);
-}
 
 /* Disconnect bottom button — sharp chip. */
-.disconnect {
-  border-radius: var(--r-2, 2px);
-}
 

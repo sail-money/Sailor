@@ -60,7 +60,17 @@ test('navigation buttons are present', async ({ page }) => {
   expect(buttons).toBeGreaterThan(0)
 })
 
-test('signing station page loads', async ({ page }) => {
+test('signing page loads', async ({ page }) => {
+  await page.goto('/#/signer')
+  await page.waitForLoadState('networkidle')
+
+  const body = await page.locator('body').innerText()
+  expect(body.trim().length).toBeGreaterThan(0)
+})
+
+// `#/station` is the v1.2.0-compatible alias — any bookmark or printed URL
+// from that release must still land on the same signing page, no breakage.
+test('signing page loads via the deprecated #/station alias', async ({ page }) => {
   await page.goto('/#/station')
   await page.waitForLoadState('networkidle')
 

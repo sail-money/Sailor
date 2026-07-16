@@ -7,6 +7,7 @@ import { findFreePort, isProcessAlive } from "../lib/process.js";
 import type {
   ClientMessage,
   ServerMessage,
+  SigningConfirmation,
   SigningRequest,
   SigningResponse,
   SigningTxRequest,
@@ -17,10 +18,29 @@ import { type Address, type Hex, createPublicClient, getAddress, http, isAddress
 import { WebSocket, WebSocketServer } from "ws";
 import { getRpcUrl } from "../lib/chain.js";
 import { appendActivity, nowIso } from "../lib/io.js";
-import { type StoredAccount, upsertAccountInList } from "../lib/state.js";
+import { listAccounts, persistAccount, readActiveAccount } from "@sail/sdk/accounts";
+import type { StoredAccount } from "../lib/state.js";
 
 const _signingPort = parseInt(process.env.SAILOR_STATION_PORT ?? "", 10);
 export const DEFAULT_SIGNING_PORT = Number.isFinite(_signingPort) && _signingPort >= 1 && _signingPort <= 65535 ? _signingPort : 3141; // π — memorable, thematic
+
+/**
+ * Observe an owner-submitted transaction's receipt for the UI's confirmation.
+ * Resolves to the receipt status; THROWS when the receipt cannot be observed
+ * (no RPC configured for the chain, or the wait timed out) — the daemon maps a
+ * throw to the `unverified` outcome, never a failure verdict. Injectable so the
+ * signing-confirmation flow can be tested without a chain (see SigningServer opts).
+ */
+export type ReceiptChecker = (chainId: number, txHash: Hex) => Promise<"success" | "reverted">;
+
+/** The real receipt checker: resolve the chain's RPC and wait for the receipt. */
+const defaultReceiptChecker: ReceiptChecker = async (chainId, txHash) => {
+  const rpcUrl = getRpcUrl(chainId);
+  if (!rpcUrl) throw new Error(`No RPC URL configured for chain ${chainId}`);
+  const client = createPublicClient({ transport: http(rpcUrl, { timeout: 10_000 }) });
+  const receipt = await client.waitForTransactionReceipt({ hash: txHash, timeout: 120_000 });
+  return receipt.status === "success" ? "success" : "reverted";
+};
 const RUNTIME_SUBDIR = join(".sail", "runtime");
 const SERVER_STATE_FILE = "server.json";
 const REQUEST_SECRET_HEADER = "x-sailor-secret";
@@ -78,6 +98,8 @@ const RESULT_LONGPOLL_MS = 25_000;
  *   HTTP GET  /wallet              → { address }
  *   HTTP POST /requests            → { id }
  *   HTTP GET  /requests/:id/result → 200 + SigningResponse | 204 re-poll
+ *   HTTP POST /requests/:id/confirm → report a later-known on-chain outcome for a
+ *                                      typed-data request the agent itself submitted
  *   WS   /                         → server pushes ServerMessage, client sends ClientMessage
  */
 export class SigningServer {
@@ -102,23 +124,32 @@ export class SigningServer {
   private readonly uiDist: string | null;
   /**
    * Whether to publish .sail/runtime/server.json (the daemon-discovery hint).
-   * The persistent daemon (`sailor station start`) advertises; ephemeral
+   * The persistent daemon (`sailor signer start`) advertises; ephemeral
    * per-command servers do not, so they never clobber a running daemon's state
    * on a discovery race. The browser UI finds servers by port-probing anyway.
    */
   private readonly advertise: boolean;
+  /** How the daemon observes a receipt for UI confirmation — injectable for tests. */
+  private readonly checkReceipt: ReceiptChecker;
   /** Random secret generated at startup. Required on POST /requests to prevent
    *  cross-origin pages from injecting signing requests. */
   private requestSecret = "";
 
   constructor(
-    opts: { projectRoot?: string; port?: number; uiDist?: string; advertise?: boolean } = {},
+    opts: {
+      projectRoot?: string;
+      port?: number;
+      uiDist?: string;
+      advertise?: boolean;
+      checkReceipt?: ReceiptChecker;
+    } = {},
   ) {
     this.projectRoot = opts.projectRoot ?? process.cwd();
     this.runtimeDir = join(this.projectRoot, RUNTIME_SUBDIR);
     this.port = opts.port ?? DEFAULT_SIGNING_PORT;
     this.uiDist = opts.uiDist ?? findUiDist();
     this.advertise = opts.advertise ?? true;
+    this.checkReceipt = opts.checkReceipt ?? defaultReceiptChecker;
   }
 
   get url(): string {
@@ -300,9 +331,95 @@ export class SigningServer {
       for (const w of waiters) w(response);
       this.resultWaiters.delete(id);
     }
+    // A resolved request is NOT a confirmed one: for a transaction the browser
+    // wallet only returned a hash (mempool-accepted, not mined); for typed-data
+    // only a signature was captured. The UI treats "resolved" as "signed, not
+    // yet confirmed" and waits for a later `request-confirmed` before it ever
+    // shows success. The command that actually submits/verifies reports that
+    // outcome via `confirmOutcome` (for the few owner-submitted kinds no command
+    // verifies, the daemon reports it — see the `signed` branch of
+    // `handleClientMessage`).
     this.broadcast({ type: "request-resolved", requestId: id });
     setTimeout(() => this.results.delete(id), 10 * 60 * 1000).unref?.();
     this.logOwnerActivity(response, request);
+  }
+
+  /**
+   * Confirm an owner-submitted transaction's receipt for the UI ONLY, without
+   * blocking the command that requested the signature. Every owner-submitted
+   * kind's command (create-sma, deploy-mandate, set-delegate) already waits for
+   * its own receipt against its own RPC and would report `arbitrary-tx` itself;
+   * this exists purely so the browser signing page advances past "awaiting
+   * confirmation" for the kinds whose command does NOT call back with an
+   * outcome. It runs fire-and-forget after `recordResult` has already returned
+   * the signed response to the caller.
+   *
+   * Distinct outcomes matter: a receipt we could not observe (no RPC for the
+   * chain, or the wait timed out) is reported `unverified`, NOT `failed` — the
+   * transaction was submitted and may well have succeeded; only a genuinely
+   * reverted receipt is a `reverted` verdict.
+   */
+  private async confirmReceiptForUi(
+    requestId: string,
+    txHash: Hex,
+    request?: SigningRequest,
+  ): Promise<void> {
+    const chainId = request?.chainId;
+    if (chainId == null) {
+      this.broadcast({
+        type: "request-confirmed",
+        requestId,
+        confirmation: {
+          outcome: "unverified",
+          txHash,
+          error: "No chain id on the request — could not confirm the transaction on-chain.",
+        },
+      });
+      return;
+    }
+    try {
+      const status = await this.checkReceipt(chainId, txHash);
+      if (status === "success") {
+        this.broadcast({
+          type: "request-confirmed",
+          requestId,
+          confirmation: { outcome: "confirmed", txHash },
+        });
+      } else {
+        this.broadcast({
+          type: "request-confirmed",
+          requestId,
+          confirmation: {
+            outcome: "reverted",
+            txHash,
+            error: `Transaction reverted on-chain (${txHash}).`,
+          },
+        });
+      }
+    } catch (err) {
+      // Could not observe the receipt (no RPC / timeout / transient error) — the
+      // tx was submitted, so this is "unverified", not a failure verdict.
+      this.broadcast({
+        type: "request-confirmed",
+        requestId,
+        confirmation: {
+          outcome: "unverified",
+          txHash,
+          error: err instanceof Error ? err.message : String(err),
+        },
+      });
+    }
+  }
+
+  /**
+   * Report the final outcome for a request whose submission the command itself
+   * observed — typed-data kinds (register/revoke/rotate) the agent submits, and
+   * `arbitrary-tx` (configure) the owner submits but the command verifies. The
+   * daemon can't see that submission on its own, so the command reports back
+   * once it knows. See `SigningChannel.confirmOutcome`.
+   */
+  async confirmOutcome(requestId: string, confirmation: SigningConfirmation): Promise<void> {
+    this.broadcast({ type: "request-confirmed", requestId, confirmation });
   }
 
   /**
@@ -450,10 +567,9 @@ export class SigningServer {
           chainId,
           createdAtBlock: createdAtBlock ?? "0",
         };
-        const baseSailDir = this.sailFile();
-        upsertAccountInList(record, undefined, baseSailDir);
-        mkdirSync(baseSailDir, { recursive: true });
-        writeFileSync(this.sailFile("account.json"), `${JSON.stringify(record, null, 2)}\n`);
+        // Single account-state writer: merges into state/accounts.json and mirrors
+        // into account.json (both files in sync).
+        persistAccount(record, this.sailFile());
         // Sync the chosen chain into config.json — the onboarding stage machine
         // keys off config.json.chainId, so SMA creation must write it through.
         this.syncConfigChainId(chainId);
@@ -469,44 +585,15 @@ export class SigningServer {
   /** All known SMAs, annotating the currently-active one (mirrors the UI server). */
   private handleListAccounts(res: ServerResponse): void {
     res.writeHead(200, { "Content-Type": "application/json" });
-    let active: string | null = null;
-    try {
-      active = (JSON.parse(readFileSync(this.sailFile("account.json"), "utf-8")) as StoredAccount)
-        .safe;
-    } catch {
-      /* no active account */
-    }
-    try {
-      const accounts = JSON.parse(
-        readFileSync(this.sailFile("state", "accounts.json"), "utf-8"),
-      ) as Array<StoredAccount & { name?: string }>;
-      res.end(
-        JSON.stringify(
-          accounts.map((a) => ({
-            ...a,
-            active: a.safe.toLowerCase() === active?.toLowerCase(),
-          })),
-        ),
-      );
-    } catch {
-      // Fall back to the active account.json as a single-item list.
-      try {
-        const a = JSON.parse(
-          readFileSync(this.sailFile("account.json"), "utf-8"),
-        ) as StoredAccount;
-        res.end(JSON.stringify([{ ...a, name: "My SMA", active: true, addedAt: null }]));
-      } catch {
-        res.end("[]");
-      }
-    }
+    res.end(JSON.stringify(listAccounts(this.sailFile())));
   }
 
   private handleHttp(req: IncomingMessage, res: ServerResponse): void {
     const origin = req.headers.origin;
     // CORS strategy:
     //   - /config (discovery): allow any localhost origin so the dashboard and other
-    //     local tools can discover the station. The secret is NOT in the response body.
-    //   - All other endpoints: restrict to the exact station origin (same port).
+    //     local tools can discover the signer. The secret is NOT in the response body.
+    //   - All other endpoints: restrict to the exact signer origin (same port).
     //     This prevents any other localhost page from reading state or injecting requests.
     const url0 = (req.url ?? "/").split("?")[0];
     const isDiscoveryEndpoint = url0 === "/config";
@@ -535,7 +622,7 @@ export class SigningServer {
       // Same-origin requests (Origin absent — the signed UI served at this port)
       // and exact-origin requests receive the secret embedded in wsUrl as a query
       // parameter so the WebSocket connection can be authenticated.
-      // This ensures cross-origin pages that can discover the station cannot
+      // This ensures cross-origin pages that can discover the signer cannot
       // obtain the secret needed to inject signing requests or read pending state.
       const isTrustedOrigin = !origin || origin === this._url;
       const wsUrlForClient = isTrustedOrigin
@@ -611,7 +698,7 @@ export class SigningServer {
     }
 
     // ── SMA persistence ────────────────────────────────────────────────────
-    // The station daemon serves the dashboard, but unlike `sailor ui`'s data
+    // The signer daemon serves the dashboard, but unlike `sailor ui`'s data
     // server it has no Express /api. So a Safe deployed from the dashboard's
     // Create/Import flow (CreateSMAModal → POST /api/account) had nowhere to
     // land: the request 404'd and the SMA lived only in browser localStorage,
@@ -622,10 +709,9 @@ export class SigningServer {
       return;
     }
     if (url === "/api/account" && (req.method === "GET" || req.method == null)) {
-      this.sendJsonFile(res, join(this.projectRoot, ".sail", "account.json"), {
-        status: 404,
-        body: { error: "account not found" },
-      });
+      const account = readActiveAccount(this.sailFile());
+      res.writeHead(account ? 200 : 404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(account ?? { error: "account not found" }));
       return;
     }
     if (url === "/api/accounts" && (req.method === "GET" || req.method == null)) {
@@ -650,6 +736,28 @@ export class SigningServer {
           res.end();
         }
       });
+      return;
+    }
+
+    const confirmMatch = url.match(/^\/requests\/([^/]+)\/confirm$/);
+    if (confirmMatch && req.method === "POST") {
+      if (!isAuthenticated) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "forbidden" }));
+        return;
+      }
+      const id = decodeURIComponent(confirmMatch[1]);
+      this.readBody(req)
+        .then((body) => {
+          const confirmation = JSON.parse(body) as SigningConfirmation;
+          this.confirmOutcome(id, confirmation);
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: true }));
+        })
+        .catch((err) => {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        });
       return;
     }
 
@@ -727,10 +835,19 @@ export class SigningServer {
     const { request } = entry;
 
     if (msg.type === "signed") {
-      this.recordResult(
-        { status: "signed", requestId: msg.requestId, txHash: msg.txHash as Hex },
-        request,
-      );
+      // Return the signed response to the waiting command immediately — it does
+      // its own receipt confirmation against its own RPC (and reports the true
+      // outcome back via confirmOutcome). Blocking here on the daemon's own
+      // receipt wait made every owner-submitted command hang after signing and
+      // could surface a false failure when the daemon's RPC lagged or differed.
+      this.recordResult({ status: "signed", requestId: msg.requestId, txHash: msg.txHash as Hex }, request);
+      // `arbitrary-tx` (configure) reports its own outcome via confirmOutcome, so
+      // the daemon must not also confirm it (a second, RPC-divergent verdict).
+      // For the owner-submitted kinds whose command does NOT call back, drive the
+      // UI's confirmed/unverified/reverted state here — fire-and-forget.
+      if (request?.kind !== "arbitrary-tx") {
+        void this.confirmReceiptForUi(msg.requestId, msg.txHash as Hex, request);
+      }
     } else if (msg.type === "signature") {
       this.recordResult(
         { status: "signature", requestId: msg.requestId, signature: msg.signature as Hex },

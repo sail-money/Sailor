@@ -8,6 +8,7 @@ export const TEMPLATE_COPY_EXCLUDES = new Set([
   "cache",
   "broadcast",
   ".git",
+  ".DS_Store",
 ]);
 
 export function copyDirSync(src: string, dest: string): void {

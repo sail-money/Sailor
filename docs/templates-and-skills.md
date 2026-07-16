@@ -26,40 +26,48 @@ The contracts and their security reviews live in the
 [protocol repo](https://github.com/sail-money/protocol); Sailor ships their addresses, typed
 config encoders (`@sail.money/sdk/templates`), and the version-adaptive EIP-712 Configure signer.
 
-## Skills: how templates get used
+## Skills: the five stations
 
-Each scaffolded project carries seventeen on-demand skills under `.agents/skills/`, spanning the
-whole workflow: setting up (`sail-onboarding`, `sail-project-info`, `sail-servers`), defining the
-mandate (one skill per shared template plus `sail-templates` for the catalog and `sail-mandates`
-for authoring custom permissions), executing strategy (`sail-token-resolve`, `sail-swap-quote`,
-`sail-transactions`), and running unattended (`sail-automation`, `sail-extend`). Template usage
-is one part of that set, not the whole of it. A template skill encodes the safe
-order of operations — register → configure → simulate → verify — along with the exact parameter
-schemas and per-template footguns, so every agent follows the same vetted procedure
-instead of re-deriving it. This is why template configuration is *driven through the skills*: the
-CLI provides the primitives (`sailor mandate register` / `configure` / `simulate`), and the skill
-is the checklist that sequences them correctly.
+Each scaffolded project carries 22 on-demand skills under `.agents/skills/`, organized around the
+five-station journey `AGENTS.md` lays out (each station names its owning skill, entry gate, and
+exit check):
+
+1. **ARRIVE** — `sailor-onboarding`: project, keys, account, chain.
+2. **STRATEGY** — `sailor-strategy`: the guided conversation that writes the concrete spec to `.sail/strategy.md`.
+3. **MANDATE** — `sailor-mandate-planner` routes each action of the spec to a shared template or bespoke authoring. Hub-and-spoke: `sailor-templates` is the catalog + register→configure reuse flow; one spoke per template (`sailor-template-swap`, `-swap-no-oracle`, `-transfer`, `-withdraw`, `-deposit`, `-borrow`, `-approve-batch`); `sailor-mandates` is the bespoke-`IPermission` lifecycle.
+4. **AGENT** — `sailor-agent-build`: the tick loop (dispatch mechanics in `sailor-transactions`; the agent's own append-only, chain-reconciled memory in `sailor-memory`).
+5. **SAIL** — `sailor-automation` (run unattended), `sailor-operate` (monitor, tune, pause, revoke, exit), `sailor-extend` (optional notifications/dashboards).
+
+Plus anytime utilities, not tied to a station: `sailor-project-info` (read-only state), `sailor-servers` (local dashboard + signing server), `sailor-token-resolve` (token → address/decimals/liquidity), `sailor-swap-quote` (live quote + slippage floor).
+
+A template spoke encodes the safe order of operations — register → configure → simulate → verify —
+with the exact parameter schemas and per-template footguns, so every agent follows the same vetted
+procedure instead of re-deriving it. This is why template configuration is *driven through the
+skills*: the CLI provides the primitives (`sailor mandate register` / `configure` / `simulate`), and
+the skill is the checklist that sequences them correctly.
 
 ## Where everything lives (and why together)
 
-**Skills are the instructions; `templates/default/examples/permissions/` are the worked patterns
-those instructions reference — and both are scaffolded together from `templates/default/`.**
+**Skills are the instructions, and the scaffold carries the workspaces they reference —
+both scaffolded together from `scaffold/`.**
 When `sailor init` creates a project, the entire template tree is copied in, so the skill that
-says "start from the worked examples" finds those exact files at `examples/permissions/` in the
-project, alongside the `IPermission` authoring workspace at `examples/custom-mandate/` and a
-complete DCA agent at `examples/dca/`. Single source of truth in the repo; self-contained
-teaching material in every scaffold.
+says "start from the scaffold" finds those exact files in the project: the `IPermission`
+authoring workspace at `contracts/` (with a Foundry test, per Gate 4). The canonical agent
+loop is the typecheck-verified skeleton inside the `sailor-agent-build` skill, not a separate
+examples directory. Single source of truth in the repo; self-contained teaching material in
+every scaffold.
 
 This page is an overview with pointers — the skills themselves (in your scaffold, or in this
-repo under `templates/default/.agents/skills/`) are the authoritative procedures, and they are
+repo under `scaffold/.agents/skills/`) are the authoritative procedures, and they are
 deliberately not restated here where they could drift.
 
 ## Custom permissions
 
 When no shared template fits (perps, prediction markets, aggregators, anything bespoke), author
-your own `IPermission` contract: the `sail-mandates` skill is the procedure,
-`examples/permissions/*.sol` are the per-protocol patterns (each header documents what is
-enforced onchain vs left to the agent). Deploy, simulate, then register — as three separate
+your own `IPermission` contract: the `sailor-mandates` skill is the procedure, and
+`contracts/` is the neutral scaffold to start from (each permission's header should
+document what is enforced onchain vs left to the agent — see the skill's authoring-patterns
+reference). Deploy, simulate, then register — as three separate
 steps, never combined: `sailor mandate deploy --contract <Name>`, then `sailor mandate simulate`
 to prove it accepts and rejects the right calls, then `sailor mandate register --address
 <deployed>` to authorize it. You own what you deploy — nothing here is a supported or exhaustive

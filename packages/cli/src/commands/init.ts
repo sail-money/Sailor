@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { chains } from "@sail/sdk";
-import { scaffoldFoundryWorkspace } from "../lib/foundry.js";
+import { readActiveAccount } from "@sail/sdk/accounts";
 import { packageRoot } from "../lib/packagePaths.js";
 import { copyDirSync, writeIfMissing } from "../lib/template.js";
 
@@ -165,32 +165,23 @@ export async function initCommand(
   const dest = inPlace ? process.cwd() : path.resolve(process.cwd(), dir);
   const name = path.basename(dest);
 
-  const templatesDir = path.join(packageRoot(), "templates");
+  // A single, flat scaffold ships under scaffold/. The legacy `--template` flag is
+  // still accepted for back-compat, but only the default scaffold exists — any other
+  // name is an explicit error rather than a silently-ignored no-op.
   const templateName = options.template ?? "default";
-
-  if (/[/\\.]/.test(templateName) || templateName.includes("..")) {
-    throw new Error(`Invalid template name: "${templateName}"`);
+  if (templateName !== "default") {
+    throw new Error(`Unknown template "${templateName}" — only the default scaffold ships.`);
   }
 
-  const templateSrc = path.join(templatesDir, templateName);
-
-  const availableTemplates = (): string =>
-    fs.existsSync(templatesDir)
-      ? fs.readdirSync(templatesDir)
-          .filter(e => fs.existsSync(path.join(templatesDir, e, "package.json")))
-          .join(", ") || "none"
-      : "none";
+  const templateSrc = path.join(packageRoot(), "scaffold");
 
   if (!fs.existsSync(templateSrc) || !fs.existsSync(path.join(templateSrc, "package.json"))) {
-    const available = availableTemplates();
-    const hint =
-      available === "none"
-        ? `\nNo templates found under ${templatesDir}.\n` +
-          "If you're running the in-tree CLI bundle from a monorepo checkout, the scaffolder\n" +
-          "couldn't locate the repo's templates/ directory. Install the published package, or\n" +
-          "run from the repo root."
-        : ` Available: ${available}`;
-    throw new Error(`Template "${templateName}" not found.${hint}`);
+    throw new Error(
+      `Scaffold not found at ${templateSrc}.\n` +
+        "If you're running the in-tree CLI bundle from a monorepo checkout, the scaffolder\n" +
+        "couldn't locate the repo's scaffold/ directory. Install the published package, or\n" +
+        "run from the repo root.",
+    );
   }
 
   const cwd = process.cwd();
@@ -216,9 +207,9 @@ export async function initCommand(
     ? (() => { try { return JSON.parse(fs.readFileSync(existingConfigPath, "utf-8")) as { installMode?: string; containerName?: string }; } catch { return null; } })()
     : null;
 
-  // The template tree carries everything a scaffold receives, including the
-  // examples/ reference material (permissions/, custom-mandate/, dca/) that
-  // `sailor mandate templates` and the skills point the user at.
+  // The scaffold tree carries everything a project receives, including the
+  // contracts/ permission-authoring workspace. The canonical agent loop is the
+  // typecheck-verified skeleton inside the sailor-agent-build skill (no examples/ dir).
   copyDirSync(templateSrc, dest);
 
   // Patch package.json: set the project name and inject the Sailor CLI as a
@@ -226,7 +217,7 @@ export async function initCommand(
   //
   // `@sail.money/sailor` ships the SDK at the `@sail.money/sailor/sdk` subpath the
   // agent code imports. It is injected here (rather than carried in the template)
-  // because templates/default is itself a pnpm workspace member — a literal
+  // because the scaffold is itself a pnpm workspace member — a literal
   // version placeholder in its manifest would be an unresolvable specifier that
   // breaks the monorepo's own `pnpm install`. It is a *dev*Dependency because the
   // SDK imports are type-only and the agent runs via `npx sailor`, so the package
@@ -249,7 +240,7 @@ export async function initCommand(
   }
 
   // Strip the monorepo-only tsconfig path mapping from the emitted project.
-  // In-repo, templates/default/tsconfig.json maps `@sail.money/sailor/sdk` to the
+  // In-repo, scaffold/tsconfig.json maps `@sail.money/sailor/sdk` to the
   // SDK source (`../../packages/sdk/src/index.ts`) so the monorepo's own template
   // typecheck resolves without an install — but that relative path does not exist
   // in a scaffolded project. There, the subpath must resolve via normal NodeNext
@@ -269,7 +260,11 @@ export async function initCommand(
   }
 
   scaffoldProjectWorkspace(dest, name, options);
-  scaffoldFoundryWorkspace(dest);
+  // The one Foundry workspace a project needs (contracts/, with IPermission.sol
+  // and IBatchPermission.sol vendored, its own foundry.toml, and the example
+  // test) already came from copyDirSync above — there is no second workspace
+  // to scaffold. `sailor mandate deploy --build` builds and reads artifacts
+  // from contracts/ (see runForgeBuild in mandate-contracts.ts).
 
   // Print transition advisory when install mode changes on a re-init (--force).
   const newMode = process.env.SAILOR_INSTALL_MODE === "docker" ? "docker" : "local";
@@ -308,13 +303,11 @@ function detectState(dest: string): ProjectState {
     const config = JSON.parse(configRaw) as { name?: string; chainId?: number };
     const projectName = config.name ?? path.basename(dest);
 
-    const accountPath = path.join(dest, ".sail", "account.json");
-    if (!fs.existsSync(accountPath)) {
+    const account = readActiveAccount(path.join(dest, ".sail"));
+    if (!account) {
       return { kind: "B", projectName, chain: chainLabel(config.chainId ?? 0) };
     }
 
-    const accountRaw = fs.readFileSync(accountPath, "utf-8");
-    const account = JSON.parse(accountRaw) as { safe?: string; chainId?: number };
     const sma = account.safe ?? "";
     const chain = chainLabel(account.chainId ?? config.chainId ?? 0);
 
@@ -361,12 +354,14 @@ function printWelcome(dest: string, name: string, inPlace: boolean, _hasRpc: boo
     console.log(
       "Permissions: none registered yet — your agent has no mandate to execute against.\n",
     );
-    console.log("Next:");
+    console.log("Next (see AGENTS.md — define the strategy, then build its mandate):");
     console.log(
       "  Write your permission contract in mandates/ (start from BoundedCallPermission.sol)",
     );
     console.log("  forge build");
-    console.log(`  sailor mandate deploy --contract <Name> --register --sma ${state.sma}\n`);
+    console.log(`  sailor mandate deploy --contract <Name> --sma ${state.sma}`);
+    console.log(`  sailor mandate simulate --address <Name> --sma ${state.sma} --calls calls.json`);
+    console.log(`  sailor mandate register --address <Name> --sma ${state.sma}\n`);
     console.log('Or open this folder in your AI coding agent and say: "continue"');
     return;
   }
@@ -384,24 +379,26 @@ function printWelcome(dest: string, name: string, inPlace: boolean, _hasRpc: boo
   if (!inPlace) console.log(`\nCreated ${name}/`);
   console.log([
     "",
+    "⛵ Sailor — your project is ready.",
+    "",
+    'Open this folder in Claude Code, Cursor, or another AI coding agent — that\'s where',
+    'the guided setup happens. Once it\'s open, say "start".',
+    "",
+    "No coding agent? Run `sailor ui start` for the browser dashboard instead.",
+  ].join("\n"));
+  console.log([
+    "",
     "╔══════════════════════════════════════════════════════════════════════╗",
     "║   !!  AI AGENT — MANDATORY ACTION REQUIRED BEFORE CONTINUING   !!    ║",
     "╠══════════════════════════════════════════════════════════════════════╣",
     "║                                                                      ║",
-    "║  YOU MUST STOP AND READ AGENTS.md BEFORE DOING ANYTHING ELSE.        ║",
+    "║  STOP AND READ AGENTS.md (project root, FULL FILE) before            ║",
+    "║  responding to the user or running any sailor command.               ║",
+    '║  When done, confirm: "I have read AGENTS.md and am ready."           ║',
     "║                                                                      ║",
-    "║  DO NOT:                                                             ║",
-    "║    • respond to the user yet                                         ║",
-    "║    • run any sailor commands                                         ║",
-    "║    • assume you know what to do next                                 ║",
-    "║                                                                      ║",
-    "║  DO THIS FIRST:                                                      ║",
-    "║    1. Read AGENTS.md in the project root (FULL FILE, not a skim)     ║",
-    "║    2. Follow it — the detailed steps live in .agents/skills/         ║",
-    '║    3. Confirm to the user: "I have read AGENTS.md and am ready."     ║',
-    "║                                                                      ║",
-    "║  If you skip this step, setup WILL break and you will have to        ║",
-    "║  restart. There are no shortcuts.                                    ║",
+    "║  AGENTS.md is the map: five stations from setup to a live agent —    ║",
+    "║  it tells you exactly what to do and when. Detailed procedures       ║",
+    "║  live in .agents/skills/.                                            ║",
     "║                                                                      ║",
     "║  IF SAILOR IS RUNNING IN DOCKER:                                     ║",
     "║    • Read project files from your local filesystem — they are        ║",

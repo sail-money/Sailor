@@ -40,10 +40,15 @@ function parseCliSurface() {
   const varToGroup = new Map(); // commander variable name → group command name
 
   // `const ui = program.command("ui")` — a group declared on a variable.
-  for (const m of src.matchAll(/const\s+(\w+)\s*=\s*program\s*\.command\(\s*"([^"]+)"/g)) {
+  // An immediately-chained `.alias("station")` registers a second name (e.g. a
+  // deprecated hidden alias) that resolves to the SAME subcommand set.
+  for (const m of src.matchAll(
+    /const\s+(\w+)\s*=\s*program\s*\.command\(\s*"([^"]+)"\s*\)(?:\s*\.alias\(\s*"([^"]+)"\s*\))?/g,
+  )) {
     const groupName = m[2].split(/\s+/)[0];
     varToGroup.set(m[1], groupName);
     if (!groups.has(groupName)) groups.set(groupName, new Set());
+    if (m[3]) groups.set(m[3], groups.get(groupName)); // alias shares the same Set
   }
 
   // `program.command("init [dir]")` — a top-level leaf (not assigned to a var).
@@ -155,7 +160,7 @@ const DOC_GLOBS = [
   "AGENTS.md",
   "README.md",
   "docs",
-  "templates",
+  "scaffold",
   "packages/cli/README.md",
   "packages/sdk/README.md",
 ];
@@ -198,22 +203,22 @@ function codeRegions(md) {
 // discovers a workflow or follows a dangling pointer.
 
 function checkSkills(errors) {
-  const skillsRoot = join(ROOT, "templates/default/.agents/skills");
-  const agentsPath = join(ROOT, "templates/default/AGENTS.md");
+  const skillsRoot = join(ROOT, "scaffold/.agents/skills");
+  const agentsPath = join(ROOT, "scaffold/AGENTS.md");
   if (!existsSync(skillsRoot)) {
-    errors.push("templates/default/.agents/skills: directory missing");
+    errors.push("scaffold/.agents/skills: directory missing");
     return;
   }
   const agentsMd = readFileSync(agentsPath, "utf-8");
   const dirs = readdirSync(skillsRoot).filter((d) =>
     statSync(join(skillsRoot, d)).isDirectory(),
   );
-  if (dirs.length === 0) errors.push("templates/default/.agents/skills: no skills found");
+  if (dirs.length === 0) errors.push("scaffold/.agents/skills: no skills found");
 
   for (const d of dirs) {
     const skillFile = join(skillsRoot, d, "SKILL.md");
     if (!existsSync(skillFile)) {
-      errors.push(`templates/default/.agents/skills/${d}: missing SKILL.md`);
+      errors.push(`scaffold/.agents/skills/${d}: missing SKILL.md`);
       continue;
     }
     const fm = readFileSync(skillFile, "utf-8").match(/^---\r?\n([\s\S]*?)\r?\n---/);
@@ -226,14 +231,349 @@ function checkSkills(errors) {
     if (name !== d) errors.push(`${rel(skillFile)}: frontmatter name "${name}" ≠ directory "${d}"`);
     if (!description) errors.push(`${rel(skillFile)}: frontmatter description missing or empty`);
     if (!agentsMd.includes(`.agents/skills/${d}/SKILL.md`)) {
-      errors.push(`templates/default/AGENTS.md: routing table does not reference .agents/skills/${d}/SKILL.md`);
+      errors.push(`scaffold/AGENTS.md: routing table does not reference .agents/skills/${d}/SKILL.md`);
     }
   }
 
   for (const m of agentsMd.matchAll(/\.agents\/skills\/([\w-]+)\/SKILL\.md/g)) {
     if (!dirs.includes(m[1])) {
-      errors.push(`templates/default/AGENTS.md: references .agents/skills/${m[1]}/SKILL.md which does not exist`);
+      errors.push(`scaffold/AGENTS.md: references .agents/skills/${m[1]}/SKILL.md which does not exist`);
     }
+  }
+}
+
+// ── 4.5. Truth checks — skill claims vs deployed.json, forbidden paths, ─────
+//        required flags. Extends the doc-drift gate: a stale FACT (not a
+//        stale command/method name) is the same class of bug — the coding
+//        agent reads it and repeats it to the user with full confidence.
+//
+// Scope is deliberately NARROWER than DOC_GLOBS above: this validates what a
+// SCAFFOLDED PROJECT'S agent reads (scaffold/, docs/, the root README) — not
+// the monorepo's own contributor-facing root AGENTS.md/CLAUDE.md or the
+// per-package READMEs, which legitimately reference packages/... paths for a
+// completely different audience (someone working ON this repo, not a user's
+// scaffolded agent). Reusing the broader DOC_GLOBS scope here would flag
+// root AGENTS.md's own (correct) `packages/sdk/src/deployments.ts` citations.
+const SHIPPED_DOC_GLOBS = ["scaffold", "docs", "README.md"];
+
+function collectShippedDocs() {
+  const files = [];
+  const walk = (p) => {
+    const st = statSync(p, { throwIfNoEntry: false });
+    if (!st) return;
+    if (st.isDirectory()) {
+      for (const e of readdirSync(p)) {
+        if (e === "node_modules" || e === "dist" || e.startsWith(".git")) continue;
+        walk(join(p, e));
+      }
+    } else if (p.endsWith(".md")) {
+      files.push(p);
+    }
+  };
+  for (const g of SHIPPED_DOC_GLOBS) walk(join(ROOT, g));
+  return [...new Set(files)];
+}
+
+const NUMBER_WORDS = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7,
+  eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+};
+const numberOf = (tok) => (/^\d+$/.test(tok) ? Number(tok) : NUMBER_WORDS[tok.toLowerCase()]);
+const NUM_WORD_ALT = Object.keys(NUMBER_WORDS).join("|");
+
+/** Ground truth: deployed.json (chains + templates) and deployments.ts (standaloneTemplates). */
+function loadDeploymentTruth() {
+  const deployedPath = join(ROOT, "scaffold/.agents/skills/sailor-templates/deployed.json");
+  const deployed = JSON.parse(readFileSync(deployedPath, "utf-8"));
+  const chainIds = Object.keys(deployed.chains);
+  const templateSet = new Set();
+  for (const perChain of Object.values(deployed.chains)) {
+    for (const t of Object.keys(perChain)) templateSet.add(t);
+  }
+  // Deployed on this chain count == every chain has every template (verified
+  // true today; if a future chain ships a partial set, "deployed" per-template
+  // stops being a single number — the claim-check below only asserts against
+  // the chain COUNT and the "is it deployed anywhere" question, not per-chain.
+  const deployedEverywhere = new Set(
+    [...templateSet].filter((t) => chainIds.every((c) => t in deployed.chains[c])),
+  );
+
+  const deploymentsSrc = readFileSync(join(ROOT, "packages/sdk/src/deployments.ts"), "utf-8");
+  const standaloneEmpty = /standaloneTemplates:\s*\{\}/.test(deploymentsSrc);
+
+  return { chainCount: chainIds.length, templates: templateSet, deployedEverywhere, standaloneEmpty };
+}
+
+/**
+ * CHECK 1 — deployment claims vs deployed.json.
+ *
+ * Three narrow, precise patterns — chosen from what deployment-count claims
+ * actually look like in this codebase (verified against every current
+ * mention before writing the rule): a table's "✅ N chains" status cell, a
+ * parenthetical total after an enumerated chain-name list "(N chains)", or a
+ * deployment verb directly governing the count ("deployed/live/bundled ...
+ * N chains"). Deliberately NOT "any number followed by 'chains'" — this
+ * codebase legitimately says "one chain", "two chains", "a two-chain DCA"
+ * throughout sailor-strategy/sailor-onboarding/sailor-token-resolve to mean
+ * "a single target chain" or "a 2-of-11 example", never a deployment total;
+ * a bare-number rule would flag every one of those as a false positive.
+ */
+function checkDeploymentClaims(truth, errors) {
+  const files = collectShippedDocs();
+  const countPatterns = [
+    new RegExp(`✅\\s*(\\d+|${NUM_WORD_ALT})[-\\s]chains?`, "gi"),
+    new RegExp(`\\((\\d+|${NUM_WORD_ALT})\\s+chains?\\)`, "gi"),
+    // NOT "live" — "the SMA is live on one chain" is a real, correct sentence
+    // about a single deployment's status, not a protocol-wide chain-count
+    // claim; "live" false-positived on exactly this before it was removed.
+    new RegExp(
+      `\\b(?:deployed|bundle[sd]?)\\b(?:[^.\\n]{0,30}?)\\b(?:on\\s+|for\\s+)?(?:all\\s+)?(\\d+|${NUM_WORD_ALT})[-\\s]chains?`,
+      "gi",
+    ),
+  ];
+  const templateAlt = [...truth.templates].join("|");
+  const notDeployedPattern = new RegExp(
+    `\\b(${templateAlt})\\b(?:(?!\\.)[\\s\\S]){0,40}?\\b(?:is not|isn't)\\s+deployed\\b`,
+    "gi",
+  );
+  const standalonePopulatedPattern = /standaloneTemplates\b(?:(?!\.)[\s\S]){0,150}?\bpopulated\b/gi;
+
+  for (const file of files) {
+    const md = readFileSync(file, "utf-8");
+    const lines = md.split("\n");
+    lines.forEach((line, i) => {
+      const lineNo = i + 1;
+
+      for (const re of countPatterns) {
+        re.lastIndex = 0;
+        for (const m of line.matchAll(re)) {
+          const n = numberOf(m[1]);
+          if (n !== undefined && n !== truth.chainCount) {
+            errors.push(
+              `${rel(file)}:${lineNo}: claims ${m[1]} chains — deployed.json shows ${truth.chainCount} chains deployed. Fix the count or point at deployed.json instead of hardcoding it.`,
+            );
+          }
+        }
+      }
+
+      for (const m of line.matchAll(notDeployedPattern)) {
+        const tmpl = m[1];
+        if (truth.deployedEverywhere.has(tmpl)) {
+          errors.push(
+            `${rel(file)}:${lineNo}: says "${tmpl}" is not deployed — deployed.json shows it deployed on all ${truth.chainCount} chains.`,
+          );
+        }
+      }
+
+      if (!truth.standaloneEmpty) return; // only a lie when ground truth is actually empty
+      for (const _m of line.matchAll(standalonePopulatedPattern)) {
+        errors.push(
+          `${rel(file)}:${lineNo}: claims standaloneTemplates is populated — packages/sdk/src/deployments.ts shows it empty ({} — the seven shared templates live in knownTemplates instead).`,
+        );
+      }
+    });
+  }
+}
+
+/**
+ * CHECK 2 — forbidden workspace tokens in shipped text.
+ *
+ * `@sail/sdk` (exact) — the internal TS workspace alias; a scaffolded project
+ * depends on @sail.money/sailor and never has this alias. Deliberately NOT a
+ * broader `@sail/*` glob: `@sail/interfaces/*.sol` is a real, working Solidity
+ * remapping in the shipped contracts/ workspace (contracts/foundry.toml) and
+ * must never be flagged — verified it's the only other @sail/ pattern in the
+ * shipped scope before writing this as an exact-string match, not a prefix.
+ *
+ * `packages/...` — a monorepo-only path with zero legitimate use in the
+ * shipped scope (verified: zero hits in scaffold/, docs/, README.md today).
+ * Blanket-forbidden — no narrowing needed.
+ *
+ * `Protocol/...` — the frozen protocol repo. Has LEGITIMATE, INTENTIONAL
+ * citation uses throughout the skills ("the tuples come from
+ * Protocol/contracts/templates/*.sol", "read access to the workspace
+ * Protocol/..." as a compatibility note) — verified every current mention is
+ * a citation, never an instruction. Only forbidden when the text actually
+ * tells the user to open/read/cat it as an action, since that directory does
+ * not exist in a scaffolded project. A blanket ban would flag several
+ * correct, pre-existing citations; this narrower rule flags none of them
+ * today and catches a future "cat Protocol/..." regression.
+ */
+function checkForbiddenTokens(errors) {
+  const files = collectShippedDocs();
+  const protocolActionPattern = /\b(?:open|read|cat|view|edit)\s+`?Protocol\//i;
+
+  for (const file of files) {
+    const md = readFileSync(file, "utf-8");
+    const lines = md.split("\n");
+    lines.forEach((line, i) => {
+      const lineNo = i + 1;
+      if (line.includes("@sail/sdk")) {
+        errors.push(
+          `${rel(file)}:${lineNo}: "@sail/sdk" is the internal workspace alias — module-not-found in a scaffolded project. Use "@sail.money/sailor/sdk".`,
+        );
+      }
+      if (/\bpackages\/[\w./-]+/.test(line)) {
+        errors.push(
+          `${rel(file)}:${lineNo}: references a monorepo-only "packages/..." path — a scaffolded project has no packages/ directory. State the fact without the path, or point at what actually ships (e.g. @sail.money/sailor/sdk).`,
+        );
+      }
+      if (protocolActionPattern.test(line)) {
+        errors.push(
+          `${rel(file)}:${lineNo}: tells the user to open/read "Protocol/..." — that directory does not exist in a scaffolded project (it's the frozen protocol repo). Cite it as a source; don't instruct the user to open it.`,
+        );
+      }
+    });
+  }
+}
+
+/**
+ * Parse every `.requiredOption(...)` in the CLI's commander tree into
+ * Map<"group sub" | "leaf", Set<flagName>>. Reuses the same command-naming
+ * convention as parseCliSurface (leaves vs "group sub") so lookups line up.
+ *
+ * Command chains in index.ts run from one `.command("x")` declaration to the
+ * next — resolved here by sorting every command-declaration's source offset
+ * and slicing the text between consecutive ones, then scanning each slice
+ * for `.requiredOption(`. Handles both direct string literals and the
+ * `...arrayVar[i]` spread form (mandate register/attach share a
+ * `registerOptions` array) by pre-resolving `const x = [[...], [...]] as
+ * const;` declarations.
+ */
+function parseRequiredFlags() {
+  const src = readFileSync(join(ROOT, "packages/cli/src/index.ts"), "utf-8");
+
+  const optionArrays = new Map();
+  for (const m of src.matchAll(/const\s+(\w+)\s*=\s*\[\s*((?:\[[\s\S]*?\],?\s*)+)\]\s*as const;/g)) {
+    const entries = [...m[2].matchAll(/\[\s*"(--[\w-]+)/g)].map((e) => e[1]);
+    optionArrays.set(m[1], entries);
+  }
+
+  const varToGroup = new Map();
+  for (const m of src.matchAll(
+    /const\s+(\w+)\s*=\s*program\s*\.command\(\s*"([^"]+)"\s*\)(?:\s*\.alias\(\s*"([^"]+)"\s*\))?/g,
+  )) {
+    varToGroup.set(m[1], m[2].split(/\s+/)[0]);
+  }
+
+  // Every command-declaration site, in source order: { index, key }.
+  const sites = [];
+  for (const m of src.matchAll(/\bprogram\s*\.command\(\s*"([^"]+)"/g)) {
+    const name = m[1].replace(/\s*\[.*$/, "").replace(/\s*<.*$/, "").trim().split(/\s+/)[0];
+    sites.push({ index: m.index, key: name });
+  }
+  for (const m of src.matchAll(/(\w+)\s*\.command\(\s*"([^"]+)"/g)) {
+    const groupName = varToGroup.get(m[1]);
+    if (!groupName) continue; // not a group variable — already covered by the program.command() pass
+    sites.push({ index: m.index, key: `${groupName} ${m[2].split(/\s+/)[0]}` });
+  }
+  sites.sort((a, b) => a.index - b.index);
+
+  const requiredByCommand = new Map();
+  for (let i = 0; i < sites.length; i++) {
+    const start = sites[i].index;
+    const end = i + 1 < sites.length ? sites[i + 1].index : src.length;
+    const chunk = src.slice(start, end);
+    const flags = new Set();
+    // No trailing `"` after the flag name — a real option string is
+    // "--sma <address>" (placeholder text before the closing quote), so
+    // requiring the quote immediately after the flag silently matched
+    // nothing for every multi-word option (confirmed: this dropped every
+    // required flag except the two-element registerOptions array, whose
+    // separate array-parsing regex never had the same requirement).
+    for (const m of chunk.matchAll(/\.requiredOption\(\s*(?:"(--[\w-]+)|\.\.\.(\w+)\[(\d+)\])/g)) {
+      if (m[1]) {
+        flags.add(m[1]);
+      } else if (m[2] && optionArrays.has(m[2])) {
+        const flag = optionArrays.get(m[2])[Number(m[3])];
+        if (flag) flags.add(flag);
+      }
+    }
+    if (flags.size > 0) {
+      const existing = requiredByCommand.get(sites[i].key) ?? new Set();
+      for (const f of flags) existing.add(f);
+      requiredByCommand.set(sites[i].key, existing);
+    }
+  }
+  return requiredByCommand;
+}
+
+/**
+ * CHECK 3 — documented command invocations carry every flag the CLI marks
+ * required.
+ *
+ * Checks each DISCRETE backtick-delimited span on its own — a fenced
+ * ```block``` body, or a single-line `inline span` — never the raw
+ * surrounding line. That distinction is the whole precision story here,
+ * found by testing against real false positives while building this check:
+ *
+ * - A reference-table row like "| `sailor mandate register` | ...
+ *   comma-separated list = one signature (`--label`) |" puts the command
+ *   name and an unrelated flag mention in DIFFERENT backtick spans (and
+ *   often different table columns). Scanning the raw line would see both
+ *   and wrongly conclude the flag was "shown"; scanning the command's own
+ *   span alone correctly sees no flags there and skips it as a bare
+ *   name-drop, not a presented invocation.
+ * - A wrapped prose sentence can leave an inline span UNCLOSED on the line
+ *   where the match starts ("... then `sailor mandate register --address\n
+ *   <deployed>` to authorize it."). Requiring the closing backtick before
+ *   the newline (same convention as codeRegions() above) means this never
+ *   matches as a complete span — correct, since it's narration, not a
+ *   copy-pasteable instruction.
+ * - The actual bug this targets (sailor-operate's shutdown recipe) presented
+ *   `sailor mandate revoke --all` as a single-backtick inline reference
+ *   inside a numbered-list step, not inside a fenced block — a fenced-only
+ *   scan verifiably misses it. Scanning inline spans too catches it.
+ *
+ * Only flags a span that already shows at least one `--flag` — i.e. it's
+ * presenting a concrete invocation, not just naming the command. `--force`
+ * doesn't count on its own: in this codebase it's exclusively a "modify what
+ * you already registered" idiom, always paired with "repeat step N" / "the
+ * same registered singleton" framing that refers back to a full invocation
+ * shown earlier ("sailor mandate configure --force") — never a fresh,
+ * standalone command. Both current uses of `--force` alone were exactly this
+ * elliptical shorthand, not an incomplete instruction; requiring some OTHER
+ * flag too avoids flagging either. Does not attempt full shell/argv parsing —
+ * a required flag anywhere in the span is accepted, so this can't
+ * false-positive on argument order, quoting, or extra flags; it only catches
+ * a required flag missing entirely.
+ */
+function checkRequiredFlags(docs, requiredByCommand, errors) {
+  const checkSpan = (file, lineNo, text, errors) => {
+    const m = text.match(/\bsailor\s+([a-z][\w-]*)\s+([a-z][\w-]*)\b/);
+    if (!m) return;
+    const key = `${m[1]} ${m[2]}`;
+    const required = requiredByCommand.get(key);
+    if (!required) return;
+    if (!/--(?!force\b)[\w-]+/.test(text)) return; // bare name-drop, or --force-only shorthand
+
+    for (const flag of required) {
+      if (!text.includes(flag)) {
+        errors.push(
+          `${rel(file)}:${lineNo}: \`sailor ${key}\` is missing required flag "${flag}" — as documented, this command fails as written.\n      ${text.trim().split("\n").join(" ")}`,
+        );
+      }
+    }
+  };
+
+  for (const file of docs) {
+    const md = readFileSync(file, "utf-8");
+
+    // Fenced blocks — the whole body is one span (a multi-line command's
+    // flags may be split across its own lines; no need for `\`-continuation
+    // bookkeeping when the body is already checked as a single unit).
+    for (const m of md.matchAll(/```\w*\n([\s\S]*?)```/g)) {
+      const lineNo = md.slice(0, m.index).split("\n").length;
+      checkSpan(file, lineNo, m[1], errors);
+    }
+
+    // Inline spans — same convention as codeRegions(): a closing backtick
+    // must land before the newline, or it isn't a complete span.
+    md.split("\n").forEach((line, i) => {
+      for (const m of line.matchAll(/`([^`\n]+)`/g)) {
+        checkSpan(file, i + 1, m[1], errors);
+      }
+    });
   }
 }
 
@@ -243,6 +583,8 @@ function main() {
   const cli = parseCliSurface();
   const sdk = parseSdkSurface();
   const docs = collectDocs();
+  const truth = loadDeploymentTruth();
+  const requiredByCommand = parseRequiredFlags();
   const errors = [];
 
   for (const file of docs) {
@@ -287,6 +629,9 @@ function main() {
   }
 
   checkSkills(errors);
+  checkDeploymentClaims(truth, errors);
+  checkForbiddenTokens(errors);
+  checkRequiredFlags(docs, requiredByCommand, errors);
 
   // ── Report ───────────────────────────────────────────────────────────────
   const cliCount = cli.leaves.size + [...cli.groups.values()].reduce((n, s) => n + s.size, 0);
@@ -294,6 +639,10 @@ function main() {
     [...sdk.namespaces.values()].reduce((n, s) => n + s.size, 0) + sdk.clientMethods.size;
   console.log(
     `Doc-drift check: ${docs.length} docs vs ${cliCount} CLI commands, ${sdkCount} SDK methods`,
+  );
+  console.log(
+    `Truth check: ${truth.chainCount} chains / ${truth.templates.size} templates ` +
+      `(deployed.json), ${requiredByCommand.size} command(s) with required flags`,
   );
 
   if (errors.length > 0) {
@@ -303,6 +652,7 @@ function main() {
     process.exit(1);
   }
   console.log("✓ Every sailor command and client.* method referenced in docs exists.");
+  console.log("✓ Every deployment claim, workspace path, and required flag checks out.");
 }
 
 main();
