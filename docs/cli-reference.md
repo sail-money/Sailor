@@ -25,10 +25,10 @@ each command named here exists in the CLI source.
 
 | Command | What it does |
 |---|---|
-| `sailor account predict` | Deterministic SMA address before deploying (`--owner`, `--salt`, `--chain`) |
+| `sailor account predict` | Deterministic SMA address before deploying (`--owner`, `--manager`, `--salt`, `--chain`, `--json`) |
 | `sailor onboard` | Set up an SMA end to end (`--new-sma` to create, `--sma <address>` to reuse, `--template <kindOrAddress>` to register a permission, `--skip-mandate`, `--salt <n>`) |
 | `sailor account deploy-chain` | Deploy the same SMA address on an additional chain (same owner/manager/salt) |
-| `sailor account rotate-signer` | Rotate the delegated agent wallet and re-approve mandates (`--to`, `--generate`, `--skip-reattach`, `--reattach-only`, `--list`) |
+| `sailor account rotate-signer` | Rotate the delegated agent wallet and re-approve mandates (`--to`, `--generate`, `--skip-reattach`, `--reattach-only`, `--list`, `--sma`) |
 | `sailor scan` | Discover the owner's SMAs, permissions, and local keys (`--owner <address>`) |
 | `sailor status` | Current account, permission, and session status |
 
@@ -63,8 +63,8 @@ each command named here exists in the CLI source.
 
 | Command | What it does |
 |---|---|
-| `sailor run` | The agent execution loop (`--once` for a single tick, `--chain <id>`) |
-| `sailor service install` | Install the agent as an OS service that restarts on crash — launchd / systemd / Task Scheduler (`--interval <s>`, `--project <path>`, `--chain <id>`) |
+| `sailor run` | The agent execution loop (`--once` for a single tick, `--chain <id>`, `--reason <text>`) |
+| `sailor service install` | Install the agent as an OS service that restarts on crash — launchd / systemd / Task Scheduler (`--interval <s>`, `--project <path>`, `--chain <id>`, `--force`) |
 | `sailor service status` / `stop` / `uninstall` / `logs` | Manage the installed service |
 | `sailor trigger github` | Fire the scaffold's GitHub Actions agent workflow on demand (`--workflow`, `--ref`, `--reason`, `--repo`) |
 | `sailor session pause` / `resume` | Instantly revoke / restore the agent's dispatch rights — Safe custody untouched |

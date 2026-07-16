@@ -11,7 +11,7 @@ tooling to create SMAs, construct mandates, and build and run strategy agents. S
 | Package / path | Name | Role |
 |---|---|---|
 | `packages/sdk` | `@sail/sdk` | SailorClient, LocalKeyring, kernel ABIs, EIP-712 builders, deployment registry, per-chain address registry (publishes to npm as `@sail.money/sdk`) |
-| `packages/cli` | `sailor` | CLI: init, keys, account, mandate, onboard, station, ui, run, session, scan, status, owner, doctor, capabilities |
+| `packages/cli` | `sailor` | CLI: init, update, keys, account, mandate, onboard, signer, ui, run, service, trigger, session, scan, status, owner, doctor, capabilities, chains |
 | `packages/ui` | `sailor-ui` | Local dashboard + browser-driven onboarding wizard (per-project port, 3333–3999) |
 | `scaffold` | — | Default agent starter: neutral blank scaffold + Foundry workspace + onboarding guide (AGENTS.md) |
 | `scaffold/contracts` | — | Solidity reference: IPermission scaffold (not a project template) |
