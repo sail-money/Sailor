@@ -494,7 +494,7 @@ function ChainSwitcher({ chains, activeChainId, onSelect, allActive = false, onA
 // account.json) to land at the SAME CREATE2 address — without it we can't
 // guarantee the address, so we surface the CLI path instead of risking a
 // mismatched deploy.
-function AddNetworkModal({ open, onClose, owner, manager, saltNonce, deployable, onDeployed }) {
+function AddNetworkModal({ open, onClose, owner, manager, saltNonce, existingSafe, deployable, onDeployed }) {
   const [target, setTarget] = useState(null)
   useEffect(() => { if (!open) setTarget(null) }, [open])
   if (!open) return null
@@ -544,6 +544,7 @@ function AddNetworkModal({ open, onClose, owner, manager, saltNonce, deployable,
             managerAddress={manager}
             chainIds={[target]}
             saltNonce={saltNonce}
+            existingSafe={existingSafe}
             title="Deploy to this network"
             sub="Your wallet will prompt to deploy the SMA and register it on this chain — same address as everywhere else."
             cta="Deploy to this network"
@@ -1470,6 +1471,11 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
   const ownerAddr = wagmiAddress ?? effectiveAccount?.owner ?? null
 
   const activeAccount = allAccounts.find((a) => a.active) ?? allAccounts[0] ?? null
+  // The SELECTED SMA's canonical record. account.json (realAccount) IS the selected
+  // SMA and carries the full stored object (saltNonce, managers, deployedChains); the
+  // list's active entry is the fallback. Deliberately NOT overview-derived: `overview`
+  // lags after a switch, and using it made add-network deploy/persist the WRONG SMA.
+  const selectedAccount = realAccount ?? activeAccount
   // Resolve the chains this SMA spans by unioning the account's own list with
   // the chain ids the server actually returned overviews for. `deployedChains`
   // is only set when the SMA was created through the browser flow with the full
@@ -2236,24 +2242,30 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
       <AddNetworkModal
         open={addNetworkOpen}
         onClose={() => setAddNetworkOpen(false)}
-        owner={effectiveAccount?.owner ?? overview?.sma?.owner}
-        manager={effectiveAccount?.manager ?? overview?.sma?.manager}
-        saltNonce={realAccount?.saltNonce}
+        owner={selectedAccount?.owner}
+        manager={selectedAccount?.manager}
+        saltNonce={selectedAccount?.saltNonce}
+        existingSafe={selectedAccount?.safe}
         deployable={deployableChainObjs}
         onDeployed={(settled) => {
-          // Persist the SMA's new chain(s): same Safe address, expanded
-          // deployedChains list. The server reconciles account.json + accounts.json.
+          // Add-network = append chain(s) to the SELECTED SMA. Everything comes from
+          // ONE record (selectedAccount = account.json) so the deploy and the persist
+          // can't disagree about which SMA they target. The server merges by `safe`,
+          // so this only expands the existing SMA — it never creates a new one.
           const newChains = (settled ?? []).map((s) => Number(s.chainId)).filter(Boolean)
-          if (newChains.length === 0 || !sma?.address) { setRefreshTick((t) => t + 1); return }
-          const merged = [...new Set([...deployedChains, ...newChains])]
+          if (newChains.length === 0 || !selectedAccount?.safe) { setRefreshTick((t) => t + 1); return }
+          const merged = [...new Set([
+            ...(selectedAccount.deployedChains ?? (selectedAccount.chainId ? [selectedAccount.chainId] : [])),
+            ...newChains,
+          ])]
           fetch('/api/account', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              safe: sma.address,
-              owner: effectiveAccount?.owner ?? overview?.sma?.owner,
-              manager: effectiveAccount?.manager ?? overview?.sma?.manager,
-              chainId: effectiveAccount?.chainId ?? activeChainId,
+              safe: selectedAccount.safe,
+              owner: selectedAccount.owner,
+              manager: selectedAccount.manager,
+              chainId: selectedAccount.chainId,
               deployedChains: merged,
             }),
           }).catch(() => {}).finally(() => setRefreshTick((t) => t + 1))

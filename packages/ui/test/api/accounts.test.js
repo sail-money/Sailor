@@ -118,6 +118,69 @@ describe('POST /api/account/rename', () => {
   })
 })
 
+describe('POST /api/account — merge preserves stored fields, both files stay identical', () => {
+  let fix
+  const SAFE = '0x8E637d9573Ad81B60cb93edA78b9C827860950a4'
+  const OWNER = '0x7f8c6DB60b46F7eCBA131b882fBea1Fed4F5f4F5'
+  const MANAGER = '0xa6D478146f03E9473582aCe099c67e3CbB5EC2BE'
+  const SMA_B = '0x2222222222222222222222222222222222222222'
+  const readJson = (rel) => JSON.parse(fs.readFileSync(path.join(fix.sailDir, rel), 'utf-8'))
+  const canonical = {
+    safe: SAFE, owner: OWNER, permissionSigner: OWNER, manager: MANAGER,
+    managers: [MANAGER], chainId: 8453, createdAtBlock: '46757914',
+    saltNonce: '1784155478729', deployedChains: [8453], name: 'SMA 1', addedAt: '2026-07-16T12:00:00.000Z',
+  }
+  beforeEach(() => {
+    fix = loadFixture('onboarded', {
+      'account.json': JSON.stringify(canonical),
+      'state/accounts.json': JSON.stringify([
+        canonical,
+        { safe: SMA_B, owner: OWNER, permissionSigner: OWNER, manager: MANAGER, managers: [MANAGER], chainId: 42161, createdAtBlock: '0', saltNonce: '999', deployedChains: [42161], name: 'SMA 2', addedAt: null },
+      ]),
+    })
+  })
+  afterEach(() => fix.cleanup())
+
+  it('a partial add-network POST keeps saltNonce/managers, unions deployedChains, and keeps both files identical', async () => {
+    // Add-network sends NO saltNonce/managers, and only the merged chain list.
+    const res = await fix.api.post('/api/account').send({
+      safe: SAFE, owner: OWNER, manager: MANAGER, chainId: 8453,
+      deployedChains: [8453, 42161, 8453], // dup + new chain
+    })
+    expect(res.status).toBe(200)
+
+    const account = readJson('account.json')
+    const accounts = readJson('state/accounts.json')
+    const listed = accounts.find((a) => a.safe.toLowerCase() === SAFE.toLowerCase())
+
+    expect(account.saltNonce).toBe('1784155478729')     // NOT dropped
+    expect(account.managers).toEqual([MANAGER])          // history preserved
+    expect(account.deployedChains).toEqual([8453, 42161]) // unioned + deduped
+    expect(listed).toEqual(account)                       // exact copy, both files
+  })
+
+  it('does not touch a non-selected SMA when a chain is added to the active one', async () => {
+    await fix.api.post('/api/account').send({
+      safe: SAFE, owner: OWNER, manager: MANAGER, chainId: 8453, deployedChains: [8453, 10],
+    })
+    const accounts = readJson('state/accounts.json')
+    const other = accounts.find((a) => a.safe.toLowerCase() === SMA_B.toLowerCase())
+    expect(other.deployedChains).toEqual([42161]) // SMA 2 unchanged
+    expect(other.saltNonce).toBe('999')
+    expect(other.name).toBe('SMA 2')
+  })
+
+  it('rename syncs both account.json and the list entry when the SMA is active', async () => {
+    const res = await fix.api.post('/api/account/rename').send({ safe: SAFE, name: 'Renamed' })
+    expect(res.status).toBe(200)
+    const account = readJson('account.json')
+    const listed = readJson('state/accounts.json').find((a) => a.safe.toLowerCase() === SAFE.toLowerCase())
+    expect(account.name).toBe('Renamed')
+    expect(listed.name).toBe('Renamed')
+    expect(listed).toEqual(account)
+  })
+})
+
 describe('GET /api/mandate', () => {
   let fix
   beforeEach(() => { fix = loadFixture('onboarded') })

@@ -722,7 +722,19 @@ function classifyDeployError(raw) {
   return { kind: 'error', message: raw || 'Something went wrong. Try again, or remove this chain.' }
 }
 
-export function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, deployedSoFar = [], onChainDeployed, onBack, onDone, onRunningChange, onRemoveChain, progressIndex, progressTotal, compact = false, title, sub, cta }) {
+// Add-network reproduces the SMA's address on a new chain from its stored saltNonce +
+// params. If the deployed address diverges, the params no longer match the original
+// deploy (most often a rotated signer) — throw so we never record a wrong/phantom SMA.
+function assertSameSafe(deployed, expected) {
+  if (deployed.toLowerCase() !== expected.toLowerCase()) {
+    throw new Error(
+      "This SMA's address couldn't be reproduced on that chain (the signer may have been rotated). " +
+      'Add the network from the CLI instead: sailor account deploy-chain --chain <id>.'
+    )
+  }
+}
+
+export function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, existingSafe, deployedSoFar = [], onChainDeployed, onBack, onDone, onRunningChange, onRemoveChain, progressIndex, progressTotal, compact = false, title, sub, cta }) {
   const { sendTransactionAsync } = useSendTransaction()
   const { signTypedDataAsync } = useSignTypedData()
   const { switchChainAsync } = useSwitchChain()
@@ -875,6 +887,16 @@ export function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, depl
       const registerReceipt = await waitForReceipt(registerHash, chainId)
       if (registerReceipt?.status === '0x0') throw new Error('registerAccount reverted — check the kernel address and try again.')
 
+      // Add-network mode (existingSafe set): this is the SAME SMA on a new chain, not a
+      // new account. If the reproduced address doesn't match, the deploy used different
+      // params (e.g. a rotated signer) — refuse rather than mint a phantom SMA. On a
+      // match, DON'T hit /api/onboard/complete (the create path); the caller appends the
+      // chain to the selected SMA.
+      if (existingSafe) {
+        assertSameSafe(safe, existingSafe)
+        setStatus(chainId, 'done')
+        return { chainId, safe }
+      }
       const completeRes1 = await fetch('/api/onboard/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -902,6 +924,13 @@ export function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, depl
     if (!log) throw new Error('AccountRegistered event not found in receipt. This may be a kernel version mismatch — please report this.')
     const safe = getAddress(`0x${log.topics[1].slice(26)}`)
 
+    // Add-network mode: same SMA on a new chain — guard the address and skip the
+    // create path (see the register-path branch above for the full rationale).
+    if (existingSafe) {
+      assertSameSafe(safe, existingSafe)
+      setStatus(chainId, 'done')
+      return { chainId, safe }
+    }
     const completeRes2 = await fetch('/api/onboard/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

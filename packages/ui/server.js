@@ -338,6 +338,71 @@ export function startServer(sailDir, { port = PORT } = {}) {
     } catch { /* best-effort: never block SMA creation on a config write */ }
   }
 
+  // Union helpers for the canonical SMA object — a merge must never SHRINK a
+  // stored list (a partial write mustn't forget chains or past managers).
+  const uniqNums = (...sources) => {
+    const out = []
+    for (const s of sources) for (const v of (Array.isArray(s) ? s : [s])) {
+      const n = Number(v)
+      if (Number.isFinite(n) && n > 0 && !out.includes(n)) out.push(n)
+    }
+    return out
+  }
+  const uniqAddrs = (...sources) => {
+    const out = []
+    const seen = new Set()
+    for (const s of sources) for (const v of (Array.isArray(s) ? s : [s])) {
+      if (!v) continue
+      let a; try { a = getAddress(v) } catch { continue }
+      const l = a.toLowerCase()
+      if (!seen.has(l)) { seen.add(l); out.push(a) }
+    }
+    return out
+  }
+
+  // Single writer for SMA state. `state/accounts.json` is the master list; `account.json`
+  // is a byte-for-byte COPY of the selected entry. We MERGE by `safe`, so a partial write
+  // can never drop a stored field (saltNonce/managers/deployedChains/txHash/name/addedAt) —
+  // then mirror the merged object into account.json. `active` is never stored; it is derived
+  // at read time (GET /api/accounts) as the entry whose safe == account.json.safe.
+  // Pass a field as null/undefined to KEEP the existing value; only defined values overwrite.
+  const upsertActiveAccount = (fields) => {
+    const safe = fields.safe
+    const listPath = at('state/accounts.json')
+    fs.mkdirSync(at('state'), { recursive: true })
+    // Load the list; if absent, backfill from the currently-active account.json so
+    // registering a second SMA never silently drops the first.
+    let accounts = []
+    try {
+      accounts = JSON.parse(fs.readFileSync(listPath, 'utf-8'))
+    } catch {
+      try {
+        const prev = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
+        if (prev?.safe) accounts.push({ ...prev, name: prev.name ?? 'SMA 1', addedAt: prev.addedAt ?? null })
+      } catch { /* truly the first SMA — nothing to backfill */ }
+    }
+    const idx = accounts.findIndex((a) => a.safe?.toLowerCase?.() === safe.toLowerCase())
+    const existing = idx === -1 ? {} : accounts[idx]
+    // Only defined values overwrite; everything already on disk survives.
+    const defined = Object.fromEntries(Object.entries(fields).filter(([, v]) => v != null))
+    const merged = { ...existing, ...defined }
+    // Never shrink the confirmed-chain list or the manager history.
+    merged.deployedChains = uniqNums(existing.deployedChains, fields.deployedChains, merged.chainId)
+    merged.managers = uniqAddrs(existing.managers, existing.manager, fields.managers, merged.manager)
+    // SMA-shape defaults, only when truly absent.
+    merged.permissionSigner ??= merged.owner
+    merged.manager ??= merged.owner
+    merged.createdAtBlock ??= '0'
+    merged.name ??= fields.name ?? `SMA ${accounts.length + 1}`
+    if (!('addedAt' in merged)) merged.addedAt = fields.addedAt ?? new Date().toISOString()
+
+    if (idx === -1) accounts.push(merged)
+    else accounts[idx] = merged
+    fs.writeFileSync(listPath, `${JSON.stringify(accounts, null, 2)}\n`)
+    fs.writeFileSync(at('account.json'), `${JSON.stringify(merged, null, 2)}\n`)
+    return merged
+  }
+
   // ── Per-SMA-per-chain overview cache ────────────────────────────────────
   // Keyed by `${safe}-${chainId}` so multi-chain SMAs get independent snapshots.
   const overviewCacheByAccount = new Map() // `${safeLower}-${chainId}` -> { at, data }
@@ -478,56 +543,37 @@ export function startServer(sailDir, { port = PORT } = {}) {
 
   // POST /api/account — persist a newly deployed SMA from the browser signing flow.
   app.post('/api/account', async (req, res) => {
-    const { safe, owner, permissionSigner, manager, chainId, createdAtBlock, deployedChains } = req.body ?? {}
+    const { safe, owner, permissionSigner, manager, managers, chainId, createdAtBlock, saltNonce, txHash, deployedChains, name } = req.body ?? {}
     if (!safe || !owner || !chainId) {
       res.status(400).json({ error: 'safe, owner, and chainId are required' })
       return
     }
     try {
-      fs.mkdirSync(at('state'), { recursive: true })
       // Source of truth for the SMA's signer/manager is the kernel, not the owner.
-      // Defaulting these to `owner` (the old behavior) desynced account.json from
-      // chain — read them on-chain and prefer that; fall back to body, then owner.
+      // Read them on-chain and prefer that; fall back to the body. Leave undefined
+      // when neither is known so the merge KEEPS the value already on disk (never
+      // clobber a stored signer with `owner` on a partial add-network write).
       const env = parseEnvFile(at('.env.local'))
       const onchain = await readKernelSigners(safe, chainId, resolveRpcUrl(env, Number(chainId)))
-      const record = {
+      // upsertActiveAccount merges by `safe` and writes BOTH files identically, so a
+      // partial write here (add-network sends no saltNonce) can't drop stored fields,
+      // and it appends to the existing SMA rather than creating a duplicate.
+      const merged = upsertActiveAccount({
         safe,
         owner,
-        permissionSigner: onchain?.permissionSigner ?? permissionSigner ?? owner,
-        manager: onchain?.manager ?? manager ?? owner,
+        permissionSigner: onchain?.permissionSigner ?? permissionSigner ?? undefined,
+        manager: onchain?.manager ?? manager ?? undefined,
+        managers,
         chainId,
-        createdAtBlock: createdAtBlock ?? '0',
-      }
-      // A multichain SMA (same address deployed across chains) carries the full
-      // list so the dashboard's per-chain panels + switcher show every chain.
-      if (Array.isArray(deployedChains) && deployedChains.length > 0) record.deployedChains = deployedChains
-
-      // Load the known-SMAs list. If it doesn't exist yet, the first SMA was
-      // created outside the browser (CLI / onboarding writes account.json
-      // directly and never seeds this list). Backfill it from the currently
-      // active account.json *before* we overwrite it, otherwise creating a
-      // second SMA would silently drop the first from the list.
-      const accountsPath = at('state/accounts.json')
-      let accounts = []
-      try {
-        accounts = JSON.parse(fs.readFileSync(accountsPath, 'utf-8'))
-      } catch {
-        try {
-          const prev = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
-          if (prev?.safe) accounts.push({ ...prev, name: 'SMA 1', addedAt: null })
-        } catch { /* truly the first SMA — nothing to backfill */ }
-      }
-
-      if (!accounts.find((a) => a.safe.toLowerCase() === safe.toLowerCase())) {
-        accounts.push({ ...record, name: `SMA ${accounts.length + 1}`, addedAt: new Date().toISOString() })
-      }
-      fs.writeFileSync(accountsPath, `${JSON.stringify(accounts, null, 2)}\n`)
-
-      // Make the new SMA the active one.
-      fs.writeFileSync(at('account.json'), `${JSON.stringify(record, null, 2)}\n`)
+        createdAtBlock,
+        saltNonce: saltNonce != null ? String(saltNonce) : undefined,
+        txHash,
+        deployedChains,
+        name,
+      })
       // Keep config.json.chainId in step with the active SMA's chain (stage machine reads it).
       syncConfigChainId(chainId)
-      res.json({ ok: true })
+      res.json({ ok: true, account: merged })
     } catch (err) {
       serverError(res, err)
     }
@@ -587,6 +633,14 @@ export function startServer(sailDir, { port = PORT } = {}) {
       if (idx === -1) { res.status(404).json({ error: 'SMA not found' }); return }
       accounts[idx] = { ...accounts[idx], name: cleanName }
       fs.writeFileSync(accountsPath, `${JSON.stringify(accounts, null, 2)}\n`)
+      // account.json is a copy of the selected entry — keep it in step when the
+      // renamed SMA is the active one, or the two files drift on `name`.
+      try {
+        const active = JSON.parse(fs.readFileSync(at('account.json'), 'utf-8'))
+        if (active?.safe?.toLowerCase?.() === safe.toLowerCase()) {
+          fs.writeFileSync(at('account.json'), `${JSON.stringify(accounts[idx], null, 2)}\n`)
+        }
+      } catch { /* no active account.json — nothing to sync */ }
       res.json({ ok: true })
     } catch (err) {
       serverError(res, err)
@@ -1553,31 +1607,20 @@ export function startServer(sailDir, { port = PORT } = {}) {
           resolvedManager = ks?.address ? getAddress(`0x${String(ks.address).replace(/^0x/, '')}`) : owner
         } catch { resolvedManager = owner }
       }
-      const record = {
+      // Merge-upsert into the master list and mirror into account.json (one writer).
+      // saltNonce is the exact salt build-create-tx used — `sailor account predict`
+      // and `account add-chain` need it to reproduce the deployed CREATE2 address;
+      // upsertActiveAccount guarantees it survives every later partial write.
+      const record = upsertActiveAccount({
         safe: getAddress(safe),
         owner: getAddress(owner),
         permissionSigner: onchain?.permissionSigner ?? getAddress(owner),
         manager: getAddress(resolvedManager),
         chainId,
         createdAtBlock,
-        ...(txHash ? { txHash } : {}),
-        // Persist the exact salt build-create-tx used — `sailor account predict`
-        // and `account add-chain` need this to reproduce the deployed CREATE2
-        // address; without it they silently fall back to a default salt that
-        // was never actually used, and predict disagrees with what's live.
-        ...(saltNonce != null ? { saltNonce: String(saltNonce) } : {}),
-      }
-      fs.mkdirSync(sailDir, { recursive: true })
-      // Append to multi-SMA list before overwriting the active pointer.
-      const listPath = at('state/accounts.json')
-      try {
-        fs.mkdirSync(at('state'), { recursive: true })
-        const existing = (() => { try { return JSON.parse(fs.readFileSync(listPath, 'utf-8')) } catch { return [] } })()
-        const already = existing.find((a) => a.safe?.toLowerCase() === record.safe.toLowerCase())
-        if (!already) existing.push(record)
-        fs.writeFileSync(listPath, `${JSON.stringify(existing, null, 2)}\n`)
-      } catch {}
-      fs.writeFileSync(at('account.json'), `${JSON.stringify(record, null, 2)}\n`)
+        txHash: txHash || undefined,
+        saltNonce: saltNonce != null ? String(saltNonce) : undefined,
+      })
       // Sync the chosen chain into config.json. The onboarding stage machine keys
       // off config.json.chainId; leaving it null after SMA creation caused stage
       // misclassification on resume.
