@@ -1,7 +1,7 @@
 {
   "name": "sailor",
   "private": true,
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "The open-source harness for building and operating DeFi agents on Sail Protocol.",
   "keywords": [
     "harness",
