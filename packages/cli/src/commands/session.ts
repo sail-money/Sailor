@@ -1,9 +1,9 @@
-import { checksum, makeClient, readJsonFile, sailPath, writeJsonFile } from "../lib/io.js";
+import { checksum, makeClient, readActiveAccount, readJsonFile, sailPath, writeJsonFile } from "../lib/io.js";
 import { loadAnySigner } from "../lib/keys.js";
 import type { StoredAccount, StoredSession } from "../lib/state.js";
 
 function requireAccount(): StoredAccount {
-  const account = readJsonFile<StoredAccount>(sailPath("account.json"));
+  const account = readActiveAccount();
   if (!account) {
     throw new Error(
       'No account found at .sail/account.json.\nRun "sailor onboard --new-sma" first.',

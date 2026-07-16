@@ -776,11 +776,9 @@ async function persistAccount(
     createdAtBlock,
     ...(account.saltNonce != null ? { saltNonce: account.saltNonce.toString() } : {}),
   };
-  // Register the SMA in the multi-SMA list the dashboard switcher reads *before*
-  // overwriting account.json, so the previously-active SMA is backfilled into
-  // the list rather than dropped.
+  // Persist through the single account-state writer: it registers the SMA in the
+  // multi-SMA list AND mirrors it into account.json (both files in sync).
   upsertAccountInList(stored);
-  writeJsonFile(sailPath("account.json"), stored);
 }
 
 function printSummary(smaAddress: Address, agentAddress: Address, permissions: Address[]): void {

@@ -1,9 +1,8 @@
 // Shapes of the JSON files Sailor persists under .sail/.
 // Addresses are stored checksummed; bigints are stored as decimal strings.
 
-import fs from "node:fs";
-import path from "node:path";
-import { nowIso, sailDir } from "./io.js";
+import { persistAccount } from "@sail/sdk/accounts";
+import { sailDir } from "./io.js";
 
 export type StoredAccount = {
   safe: string;
@@ -62,36 +61,10 @@ export function upsertAccountInList(
   name?: string,
   baseSailDir: string = sailDir(),
 ): void {
-  const accountsPath = path.join(baseSailDir, "state", "accounts.json");
-  let accounts: AccountListEntry[] = [];
-  try {
-    accounts = JSON.parse(fs.readFileSync(accountsPath, "utf-8")) as AccountListEntry[];
-  } catch {
-    // No list yet: this is the first time we're seeding it. Backfill from the
-    // currently-active account.json so a pre-existing SMA isn't dropped.
-    try {
-      const prev = JSON.parse(
-        fs.readFileSync(path.join(baseSailDir, "account.json"), "utf-8"),
-      ) as StoredAccount;
-      if (prev?.safe) accounts.push({ ...prev, name: "SMA 1", addedAt: null });
-    } catch {
-      /* truly the first SMA — nothing to backfill */
-    }
-  }
-
-  const idx = accounts.findIndex((a) => a.safe.toLowerCase() === account.safe.toLowerCase());
-  if (idx === -1) {
-    accounts.push({
-      ...account,
-      name: name ?? `SMA ${accounts.length + 1}`,
-      addedAt: nowIso(),
-    });
-  } else {
-    accounts[idx] = { ...accounts[idx], ...account };
-  }
-
-  fs.mkdirSync(path.join(baseSailDir, "state"), { recursive: true });
-  fs.writeFileSync(accountsPath, `${JSON.stringify(accounts, null, 2)}\n`);
+  // Delegates to the SDK's single account-state writer, which merges by `safe` into
+  // state/accounts.json AND mirrors the merged record into account.json (both files stay
+  // in sync). Callers no longer write account.json separately.
+  persistAccount(name != null ? { ...account, name } : account, baseSailDir);
 }
 
 // Schema for .sail/mandate.json — written by mandateSign (mandate.ts), read by runCommand (run.ts).

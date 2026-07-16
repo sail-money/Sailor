@@ -58,6 +58,7 @@ import { keyPath, loadManagerSigner, managerKeystorePath } from "../lib/keys.js"
 import { emit } from "../lib/output.js";
 import { ProjectContext } from "../lib/project.js";
 import { type SigningChannel, createSigningChannel, signingPageUrl } from "../signing/client.js";
+import { persistAccount, readActiveAccount } from "@sail/sdk/accounts";
 import type { StoredAccount } from "../lib/state.js";
 import { projectPort } from "../lib/packagePaths.js";
 
@@ -141,7 +142,7 @@ async function runRotateSigner(
   // Output happens in printSummary (human) or emit (json) so --json stays a
   // single machine-readable line.
   if (options.list) {
-    const stored = readJsonFile<StoredAccount>(sailPath("account.json"));
+    const stored = readActiveAccount();
     const known: string[] = stored?.managers ?? (stored?.manager ? [stored.manager] : []);
     const active = stored?.manager ?? "";
     return {
@@ -506,7 +507,7 @@ function normalizeAccount(stored: StoredAccount): ResolvedAccount {
 
 /** Resolve the SMA to operate on: --sma, else the active account.json. */
 function resolveAccount(options: RotateSignerOptions): ResolvedAccount {
-  const stored = readJsonFile<StoredAccount>(sailPath("account.json"));
+  const stored = readActiveAccount();
   if (options.sma) {
     if (!isAddress(options.sma, { strict: false })) {
       throw new Error(`Invalid --sma address: ${options.sma}`);
@@ -626,26 +627,11 @@ function promoteManagerKeystore(newManager: Address, say: (fn: () => void) => vo
   );
 }
 
-/** Persist the rotated manager into account.json and the multi-SMA list. */
+/** Persist the rotated manager through the single account-state writer. */
 function persistManager(safe: Address, manager: Address): void {
-  const account = readJsonFile<StoredAccount>(sailPath("account.json"));
-  if (account && account.safe.toLowerCase() === safe.toLowerCase()) {
-    const managers = addToManagerList(account.managers, account.manager, manager);
-    writeJsonFile(sailPath("account.json"), { ...account, manager: checksum(manager), managers });
-  }
-  const listPath = sailPath("state", "accounts.json");
-  const list = readJsonFile<Array<StoredAccount & { name?: string; addedAt?: string | null }>>(
-    listPath,
-  );
-  if (Array.isArray(list)) {
-    const idx = list.findIndex((a) => a.safe.toLowerCase() === safe.toLowerCase());
-    if (idx !== -1) {
-      const entry = list[idx];
-      const managers = addToManagerList(entry.managers, entry.manager, manager);
-      list[idx] = { ...entry, manager: checksum(manager), managers };
-      writeJsonFile(listPath, list);
-    }
-  }
+  // persistAccount sets the new active manager, folds it into managers[] (rotation
+  // history), and keeps account.json + the list entry in sync.
+  persistAccount({ safe, manager: checksum(manager) });
 }
 
 /** Returns a deduplicated managers list that includes both the old and new manager. */

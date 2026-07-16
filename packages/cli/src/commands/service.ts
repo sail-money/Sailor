@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { parseEnvFile } from "../lib/io.js";
+import { parseEnvFile, readActiveAccount } from "../lib/io.js";
 import { keyExists } from "../lib/keys.js";
 import { emit } from "../lib/output.js";
 import type { StoredAccount } from "../lib/state.js";
@@ -257,15 +257,7 @@ export interface PassphraseReadiness {
  * a manager keystore exists AND `.env.local` carries SAIL_PASSPHRASE.
  */
 export function passphraseReadiness(projectDir: string): PassphraseReadiness {
-  const account = (() => {
-    try {
-      return JSON.parse(
-        fs.readFileSync(path.join(projectDir, ".sail", "account.json"), "utf-8"),
-      ) as StoredAccount;
-    } catch {
-      return null;
-    }
-  })();
+  const account = readActiveAccount(path.join(projectDir, ".sail"));
   // keyExists resolves relative to process.cwd(); evaluate from the project dir.
   const prevCwd = process.cwd();
   let keystorePresent = false;

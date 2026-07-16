@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { LocalKeyring } from "@sail/sdk";
-import { checksum, confirm, fileExists, persistPassphrase, prompt, promptHidden, readJsonFile, sailPath, writeJsonFile } from "../lib/io.js";
+import { checksum, confirm, fileExists, persistPassphrase, prompt, promptHidden, readActiveAccount, readJsonFile, sailPath, writeJsonFile } from "../lib/io.js";
 import { keyExists, keyPath, loadKeyring, normalizeRole, resolveKeyPath, roleLabel, ROLES } from "../lib/keys.js";
 import type { StoredAccount } from "../lib/state.js";
 
@@ -145,7 +145,7 @@ export async function keysGenerate(options: KeysGenerateOptions = {}): Promise<v
  */
 export async function keysExportCi(): Promise<void> {
   // Resolve the keystore path: per-SMA preferred, shared manager.json fallback.
-  const account = readJsonFile<StoredAccount>(sailPath("account.json"));
+  const account = readActiveAccount();
   const src = resolveKeyPath("manager", account?.safe);
 
   if (!fileExists(src)) {

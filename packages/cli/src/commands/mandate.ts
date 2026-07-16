@@ -8,7 +8,7 @@ import {
 } from "@sail/sdk";
 import { http, type Address, createPublicClient, formatEther } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
-import { confirm, readJsonFile, sailPath, writeJsonFile } from "../lib/io.js";
+import { confirm, readActiveAccount, readJsonFile, sailPath, writeJsonFile } from "../lib/io.js";
 import { MandateStore } from "../lib/mandates.js";
 import { type PermissionExplanation, explainPermission } from "../lib/permission-explainer.js";
 import { ProjectContext } from "../lib/project.js";
@@ -269,7 +269,7 @@ function printNoPermissionsGuidance(): void {
  * IPermission contracts (see contracts/).
  */
 export async function mandatePrepare(): Promise<void> {
-  const account = readJsonFile<StoredAccount>(sailPath("account.json"));
+  const account = readActiveAccount();
   if (!account) {
     throw new Error('No account found at .sail/account.json.\nRun "sailor onboard --new-sma" first.');
   }
@@ -335,7 +335,7 @@ export async function mandatePrepare(): Promise<void> {
  * same RegisterPermission signing flow (see mandate-contracts.ts / onboard.ts).
  */
 export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
-  const account = readJsonFile<StoredAccount>(sailPath("account.json"));
+  const account = readActiveAccount();
   if (!account) {
     throw new Error('No account found at .sail/account.json.\nRun "sailor onboard --new-sma" first.');
   }

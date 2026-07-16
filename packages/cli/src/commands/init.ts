@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { chains } from "@sail/sdk";
+import { readActiveAccount } from "@sail/sdk/accounts";
 import { packageRoot } from "../lib/packagePaths.js";
 import { copyDirSync, writeIfMissing } from "../lib/template.js";
 
@@ -302,13 +303,11 @@ function detectState(dest: string): ProjectState {
     const config = JSON.parse(configRaw) as { name?: string; chainId?: number };
     const projectName = config.name ?? path.basename(dest);
 
-    const accountPath = path.join(dest, ".sail", "account.json");
-    if (!fs.existsSync(accountPath)) {
+    const account = readActiveAccount(path.join(dest, ".sail"));
+    if (!account) {
       return { kind: "B", projectName, chain: chainLabel(config.chainId ?? 0) };
     }
 
-    const accountRaw = fs.readFileSync(accountPath, "utf-8");
-    const account = JSON.parse(accountRaw) as { safe?: string; chainId?: number };
     const sma = account.safe ?? "";
     const chain = chainLabel(account.chainId ?? config.chainId ?? 0);
 

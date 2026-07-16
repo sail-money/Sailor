@@ -32,7 +32,7 @@ import {
 } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { checkContractExists, checkSelectorRoutes } from "../lib/contract-check.js";
-import { readJsonFile, sailPath } from "../lib/io.js";
+import { readActiveAccount, readJsonFile, sailPath } from "../lib/io.js";
 import { resolveKeyPath } from "../lib/keys.js";
 import { MandateStore } from "../lib/mandates.js";
 import { emit } from "../lib/output.js";
@@ -170,7 +170,7 @@ function parseCallEntry(entry: Record<string, unknown>, index: number): SampleCa
 
 /** Read the manager (agent) wallet address without decrypting the keystore. */
 function managerAddress(safe: string | undefined): Address | null {
-  const stored = readJsonFile<StoredAccount>(sailPath("account.json"));
+  const stored = readActiveAccount();
   if (stored?.manager && isAddress(stored.manager, { strict: false })) {
     return getAddress(stored.manager);
   }
@@ -195,7 +195,7 @@ export async function mandateSimulate(options: SimulateOptions): Promise<void> {
   const permission = getAddress(rawPermission);
 
   // ── Resolve the SMA (ctx.account) and the manager (ctx.submitter) ────────────
-  const stored = readJsonFile<StoredAccount>(sailPath("account.json"));
+  const stored = readActiveAccount();
   if (options.sma && !isAddress(options.sma, { strict: false })) {
     throw new Error(`Invalid --sma address: ${options.sma}`);
   }

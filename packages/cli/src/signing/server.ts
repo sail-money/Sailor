@@ -18,7 +18,8 @@ import { type Address, type Hex, createPublicClient, getAddress, http, isAddress
 import { WebSocket, WebSocketServer } from "ws";
 import { getRpcUrl } from "../lib/chain.js";
 import { appendActivity, nowIso } from "../lib/io.js";
-import { type StoredAccount, upsertAccountInList } from "../lib/state.js";
+import { listAccounts, persistAccount, readActiveAccount } from "@sail/sdk/accounts";
+import type { StoredAccount } from "../lib/state.js";
 
 const _signingPort = parseInt(process.env.SAILOR_STATION_PORT ?? "", 10);
 export const DEFAULT_SIGNING_PORT = Number.isFinite(_signingPort) && _signingPort >= 1 && _signingPort <= 65535 ? _signingPort : 3141; // π — memorable, thematic
@@ -566,10 +567,9 @@ export class SigningServer {
           chainId,
           createdAtBlock: createdAtBlock ?? "0",
         };
-        const baseSailDir = this.sailFile();
-        upsertAccountInList(record, undefined, baseSailDir);
-        mkdirSync(baseSailDir, { recursive: true });
-        writeFileSync(this.sailFile("account.json"), `${JSON.stringify(record, null, 2)}\n`);
+        // Single account-state writer: merges into state/accounts.json and mirrors
+        // into account.json (both files in sync).
+        persistAccount(record, this.sailFile());
         // Sync the chosen chain into config.json — the onboarding stage machine
         // keys off config.json.chainId, so SMA creation must write it through.
         this.syncConfigChainId(chainId);
@@ -585,36 +585,7 @@ export class SigningServer {
   /** All known SMAs, annotating the currently-active one (mirrors the UI server). */
   private handleListAccounts(res: ServerResponse): void {
     res.writeHead(200, { "Content-Type": "application/json" });
-    let active: string | null = null;
-    try {
-      active = (JSON.parse(readFileSync(this.sailFile("account.json"), "utf-8")) as StoredAccount)
-        .safe;
-    } catch {
-      /* no active account */
-    }
-    try {
-      const accounts = JSON.parse(
-        readFileSync(this.sailFile("state", "accounts.json"), "utf-8"),
-      ) as Array<StoredAccount & { name?: string }>;
-      res.end(
-        JSON.stringify(
-          accounts.map((a) => ({
-            ...a,
-            active: a.safe.toLowerCase() === active?.toLowerCase(),
-          })),
-        ),
-      );
-    } catch {
-      // Fall back to the active account.json as a single-item list.
-      try {
-        const a = JSON.parse(
-          readFileSync(this.sailFile("account.json"), "utf-8"),
-        ) as StoredAccount;
-        res.end(JSON.stringify([{ ...a, name: "My SMA", active: true, addedAt: null }]));
-      } catch {
-        res.end("[]");
-      }
-    }
+    res.end(JSON.stringify(listAccounts(this.sailFile())));
   }
 
   private handleHttp(req: IncomingMessage, res: ServerResponse): void {
@@ -738,10 +709,9 @@ export class SigningServer {
       return;
     }
     if (url === "/api/account" && (req.method === "GET" || req.method == null)) {
-      this.sendJsonFile(res, join(this.projectRoot, ".sail", "account.json"), {
-        status: 404,
-        body: { error: "account not found" },
-      });
+      const account = readActiveAccount(this.sailFile());
+      res.writeHead(account ? 200 : 404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(account ?? { error: "account not found" }));
       return;
     }
     if (url === "/api/accounts" && (req.method === "GET" || req.method == null)) {

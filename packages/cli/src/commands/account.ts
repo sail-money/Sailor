@@ -27,6 +27,7 @@ import {
   writeJsonFile,
 } from "../lib/io.js";
 import { projectPort } from "../lib/packagePaths.js";
+import { readActiveAccount } from "@sail/sdk/accounts";
 import { type StoredAccount, upsertAccountInList } from "../lib/state.js";
 import { createSigningChannel, signingPageUrl } from "../signing/client.js";
 
@@ -70,7 +71,7 @@ export interface PredictOptions {
  * Both facts are reported with a root-cause explanation.
  */
 export async function accountPredict(options: PredictOptions): Promise<void> {
-  const stored = readJsonFile<StoredAccount>(sailPath("account.json"));
+  const stored = readActiveAccount();
 
   // ── Resolve owner (= deployer = permission signer in the onboarding flow) ─────
   let ownerAddr: Address;
@@ -237,7 +238,7 @@ export async function accountDeployChain(options: DeployChainOptions): Promise<v
   const say = (fn: () => void) => { if (!json) fn(); };
 
   // ── 1. Read stored account ────────────────────────────────────────────────────
-  const stored = readJsonFile<StoredAccount>(sailPath("account.json"));
+  const stored = readActiveAccount();
   if (!stored?.safe || !stored?.owner || !stored?.manager) {
     throw new Error(
       "No SMA found in .sail/account.json. Run `sailor onboard --new-sma` first.",
@@ -523,7 +524,7 @@ function recordDeployedChain(stored: StoredAccount, chainId: number): void {
     existing.sort((a, b) => a - b);
   }
   const updated: StoredAccount = { ...stored, deployedChains: existing };
+  // Single writer updates both the list entry and account.json.
   upsertAccountInList(updated);
-  writeJsonFile(sailPath("account.json"), updated);
 }
 

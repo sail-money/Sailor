@@ -18,7 +18,7 @@ import {
 } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { checkContractExists } from "../lib/contract-check.js";
-import { parseEnvFile, readJsonFile, sailPath } from "../lib/io.js";
+import { parseEnvFile, readActiveAccount, readJsonFile, sailPath } from "../lib/io.js";
 import { keyExists, resolveKeyPath } from "../lib/keys.js";
 import { IPERMISSION_ABI } from "../lib/permission-resolver.js";
 import { ProjectContext } from "../lib/project.js";
@@ -177,7 +177,7 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
   }
 
   // Resolve the SMA: --account flag, else .sail/account.json.
-  const stored = readJsonFile<StoredAccount>(sailPath("account.json"));
+  const stored = readActiveAccount();
   const safe = options.account
     ? getAddress(options.account)
     : stored?.safe

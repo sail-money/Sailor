@@ -19,6 +19,10 @@
       "import": "./dist/safe.js",
       "types": "./dist/safe.d.ts"
     },
+    "./accounts": {
+      "import": "./dist/accounts.js",
+      "types": "./dist/accounts.d.ts"
+    },
     "./eip712": {
       "import": "./dist/eip712.js",
       "types": "./dist/eip712.d.ts"
