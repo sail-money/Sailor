@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import OnboardingWizard, { CreateSmaStep } from '../onboarding/OnboardingWizard'
+import { useSandboxMode } from '../../hooks/useSandboxMode'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { useAccount, useDisconnect } from 'wagmi'
 import { sailDeployments } from '@sail/sdk/deployments'
@@ -1253,6 +1254,7 @@ export default function Dashboard() {
 
 function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onActiveDeployChange }) {
   const onboarding = !onboardState?.hasAccount
+  const isSandbox = useSandboxMode()
   // Sidebar Create/Import clicks while onboarding: bump this to steer the
   // wizard to a step ('welcome' or 'import') instead of opening the modals.
   const [wizardStepReq, setWizardStepReq] = useState(null)
@@ -1586,6 +1588,20 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
     setTimeout(() => setCopiedAddr(false), 1400)
   }
 
+  const [sandboxLaunching, setSandboxLaunching] = useState(false)
+  async function enterSandbox() {
+    setSandboxLaunching(true)
+    try {
+      const res = await fetch('/api/sandbox/launch', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok && data?.port) {
+        window.location.href = `http://localhost:${data.port}/#/dashboard`
+        return
+      }
+    } catch { /* fall through */ }
+    setSandboxLaunching(false)
+  }
+
   return (
     <div className={`${shared.pageShell} ${styles.shell} ${styles.dashRoot}`}>
 
@@ -1628,6 +1644,18 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
             <span className={styles.sidebarUtilLabel}>View portfolio</span>
             <ArrowOutIcon />
           </a>
+        )}
+
+        {/* Symmetric to the sandbox's own "Exit to live dashboard" link — lets
+            an already-onboarded user jump into a sandbox without re-running
+            onboarding from scratch. Never shown from inside a sandbox page
+            itself (that page IS the launch target). */}
+        {showTabs && sma && isSandbox === false && (
+          <button type="button" className={styles.sidebarUtilLink} onClick={enterSandbox} disabled={sandboxLaunching}>
+            <span className={styles.sidebarUtilIcon} aria-hidden>⚓</span>
+            <span className={styles.sidebarUtilLabel}>{sandboxLaunching ? 'Starting sandbox…' : 'Enter Sandbox'}</span>
+            <ArrowOutIcon />
+          </button>
         )}
 
         {/* Section nav — the dashboard's pages live here in the side rail

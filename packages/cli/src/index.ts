@@ -49,8 +49,8 @@ import { sessionPause, sessionResume } from "./commands/session.js";
 import { signerStart, signerStatus, signerStop } from "./commands/signer.js";
 import { status } from "./commands/status.js";
 import { type TriggerGithubOptions, triggerGithub } from "./commands/trigger.js";
-import { type UiOptions, uiCommand, uiStatus, uiStop } from "./commands/ui.js";
 import { updateCommand } from "./commands/update.js";
+import { type UiOptions, sandboxUiCommand, sandboxUiStatus, sandboxUiStop, uiCommand, uiStatus, uiStop } from "./commands/ui.js";
 import { closePrompts } from "./lib/io.js";
 import { packageRoot } from "./lib/packagePaths.js";
 
@@ -147,6 +147,18 @@ ui.command("status")
   .description("Show whether the dashboard is running")
   .action(() => uiStatus());
 ui.action(action(uiCommand));
+
+const sandbox = program.command("sandbox").description("Manage the local Sandbox dashboard (native local forks — see the onboarding wizard's Sandbox path)");
+sandbox.command("start")
+  .description("Start the sandbox dashboard on its own port, rooted at .shipyard/sandbox/")
+  .action(action(sandboxUiCommand));
+sandbox.command("stop")
+  .description("Stop the running sandbox dashboard")
+  .action(() => sandboxUiStop());
+sandbox.command("status")
+  .description("Show whether the sandbox dashboard is running")
+  .action(action(sandboxUiStatus));
+sandbox.action(action(sandboxUiCommand));
 
 const keys = program.command("keys").description("Manage local signing keys");
 keys

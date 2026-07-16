@@ -6,7 +6,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WagmiProvider } from 'wagmi'
 import SigningPage from './pages/signer/SigningPage'
 import Dashboard from './pages/dashboard/Dashboard'
-import { wagmiConfig } from './wagmi'
+import { SandboxBanner } from './pages/shared'
+import { SandboxProvider, useWagmiConfigState } from './sandboxContext'
+import { useSandboxMode } from './hooks/useSandboxMode'
 import { useWalletLifecycle } from './hooks/useWalletLifecycle'
 import './styles/globals.css'
 
@@ -75,15 +77,39 @@ function Router() {
   return page
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <WagmiProvider config={wagmiConfig}>
+/**
+ * The sandbox connector/transport only make sense once a fork actually
+ * exists, so this boots on the same default config live mode uses — the
+ * onboarding Network step swaps to the fork-pointed config via
+ * `useSandbox().activateFork` once its fork is ready (see sandboxContext.jsx).
+ * `isSandbox` itself (from /api/mode, server-derived) still gates the banner
+ * and the wizard's Sandbox-flavored copy from the very first paint.
+ */
+function Root() {
+  const [config, setConfig] = useWagmiConfigState()
+  const isSandbox = useSandboxMode()
+
+  return (
+    <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider>
-          <WalletLifecycle />
-          <Router />
+          <SandboxProvider isSandbox={Boolean(isSandbox)} config={config} setConfig={setConfig}>
+            <WalletLifecycle />
+            {isSandbox && <SandboxBanner />}
+            {/* The banner is fixed/out-of-flow — push real content below it so
+                nothing renders under its ~34px strip. */}
+            <div style={isSandbox ? { paddingTop: 34 } : undefined}>
+              <Router />
+            </div>
+          </SandboxProvider>
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
+  )
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <Root />
   </React.StrictMode>,
 )

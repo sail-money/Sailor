@@ -1,4 +1,6 @@
+import { spawn } from 'node:child_process'
 import fs from 'node:fs'
+import net from 'node:net'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import cors from 'cors'
@@ -6,6 +8,7 @@ import express from 'express'
 import { WebSocket, WebSocketServer } from 'ws'
 import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, chains, defaultRpcUrls, getNativeCurrencySymbol, getSailDeployment, readPermissionRegistrationFee } from '@sail/sdk'
 import * as accountStore from '@sail/sdk/accounts'
+import { TooManySandboxChainsError, isPidAlive, refreshSandboxForks, resetSandbox, sandboxDirFor, startSandboxForks } from '@sail/sandbox'
 import { createPublicClient, createWalletClient, defineChain, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
 
@@ -70,6 +73,87 @@ function parseEnvFile(file) {
     out[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim()
   }
   return out
+}
+
+// ── Live ⇄ Sandbox peer server launch ────────────────────────────────────────
+// The live dashboard's "Try it in a Sandbox" button and the sandbox dashboard's
+// "Exit to live dashboard" link both need to start (or find) a SEPARATE server
+// process — never toggle a flag on this one. Both directions reuse this same
+// self-spawn: this process knows its own file (`_thisFile`) and can launch
+// another copy of itself pointed at the other root/port, exactly like the CLI
+// does when it first starts either server.
+
+/** Resolves the first free TCP port at or above `from` (probes 127.0.0.1). */
+function findFreePort(from) {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer()
+    server.unref()
+    server.on('error', () => findFreePort(from + 1).then(resolve, reject))
+    server.listen(from, '127.0.0.1', () => server.close(() => resolve(from)))
+  })
+}
+
+/** Waits until something is listening on `port`, or `timeoutMs` elapses. */
+function waitForPortOpen(port, timeoutMs) {
+  const deadline = Date.now() + timeoutMs
+  return new Promise((resolve) => {
+    const attempt = () => {
+      const socket = net.connect(port, '127.0.0.1')
+      socket.once('connect', () => { socket.destroy(); resolve(true) })
+      socket.once('error', () => {
+        socket.destroy()
+        if (Date.now() > deadline) resolve(false)
+        else setTimeout(attempt, 150)
+      })
+    }
+    attempt()
+  })
+}
+
+/** Same deterministic-port formula as the CLI's `projectPort()` (packages/cli/src/lib/packagePaths.ts)
+ *  — kept in sync by hand since this file ships as a separate esbuild bundle — so a
+ *  server started from the browser lands on the same port `sailor ui start` / `sailor
+ *  sandbox start` would pick from the terminal, instead of stacking a redundant instance. */
+function deterministicPort(seed) {
+  const hash = [...seed].reduce((h, c) => (((h << 5) - h) + c.charCodeAt(0)) >>> 0, 0)
+  return 3333 + (hash % 667)
+}
+
+function readJsonSafe(file) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf-8')) } catch { return null }
+}
+
+/** Ensure a peer server (the other of live/sandbox) is running for this same
+ *  project, starting it detached if necessary. Never touches `this` process —
+ *  only ever reads/writes the peer's own runtime file. */
+async function ensurePeerServerRunning({ targetSailDir, targetMode, runtimeFile, preferredPort }) {
+  const existing = readJsonSafe(runtimeFile)
+  if (existing?.pid && isPidAlive(existing.pid)) return { port: existing.port, started: false }
+
+  const port = await findFreePort(preferredPort)
+  const runtimeDir = path.dirname(runtimeFile)
+  fs.mkdirSync(runtimeDir, { recursive: true })
+  const logFd = fs.openSync(path.join(runtimeDir, 'ui.log'), 'a')
+
+  const child = spawn(process.execPath, [_thisFile], {
+    detached: true,
+    stdio: ['ignore', logFd, logFd],
+    env: {
+      ...process.env,
+      SAIL_DIR: targetSailDir,
+      SERVE_DIST: '1',
+      PORT: String(port),
+      SAILOR_UI_MODE: targetMode,
+    },
+  })
+  child.unref()
+  fs.closeSync(logFd)
+
+  const ready = await waitForPortOpen(port, 10_000)
+  if (!ready) throw new Error(`The ${targetMode} server did not start within 10s.`)
+
+  fs.writeFileSync(runtimeFile, JSON.stringify({ pid: child.pid, port, startedAt: new Date().toISOString() }, null, 2))
+  return { port, started: true }
 }
 
 /**
@@ -255,9 +339,17 @@ const OVERVIEW_TTL_MS = 10_000
  * data. There is no hosted backend — this runs on the user's machine
  * alongside the Vite dev server.
  *
- * @param {string} sailDir Absolute path to the project's `.sail/` directory.
+ * @param {string} sailDir Absolute path to the project's `.sail/` directory —
+ *   or, for a sandbox instance, its `.shipyard/sandbox/` directory (same shape,
+ *   different root; see `mode`).
+ * @param {{ port?: number, mode?: 'live' | 'sandbox' }} [opts] `mode: 'sandbox'`
+ *   enables the `/api/sandbox/*` fork-lifecycle routes. The CLI spawns two
+ *   independent server processes — a live one (default mode, `.sail/`) and,
+ *   on demand, a sandbox one (`mode: 'sandbox'`, `.shipyard/sandbox/`) — so
+ *   there is no single process, and no runtime flag, that can serve both a
+ *   real account and a sandbox account at once.
  */
-export function startServer(sailDir, { port = PORT } = {}) {
+export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
   const app = express()
   // Behind a reverse proxy (see SAILOR_HOST exposure), set SAILOR_TRUST_PROXY so Express
   // derives req.ip from X-Forwarded-For — otherwise the rate limiter keys on the proxy's
@@ -1927,6 +2019,100 @@ export function startServer(sailDir, { port = PORT } = {}) {
     res.json({ running: RUNNING_VERSION, installed, stale: Boolean(RUNNING_VERSION && installed && installed !== RUNNING_VERSION) })
   })
 
+  // Lets the frontend tell a sandbox page apart from a live one (mounts the
+  // SandboxBanner / gates the dev-wallet connector) without ever trusting a
+  // client-supplied flag — this process's own `mode` is fixed at spawn time.
+  app.get('/api/mode', (_req, res) => {
+    res.json({ mode })
+  })
+
+  // ── Sandbox (native local-fork simulation) ──────────────────────────────
+  // Only registered on a sandbox-mode server instance (see startServer's
+  // `mode` option) — the live server never has these routes at all, so there
+  // is no branch here to forget: a request to spin up/tear down anvil forks
+  // has no code path that could ever land on a real chain.
+  if (mode === 'sandbox') {
+    app.post('/api/sandbox/forks', async (req, res) => {
+      const { chainIds, primary } = req.body ?? {}
+      if (!Array.isArray(chainIds) || chainIds.length === 0 || chainIds.some((c) => !Number.isInteger(c))) {
+        return res.status(400).json({ error: 'chainIds must be a non-empty array of integer chain ids' })
+      }
+      for (const chainId of chainIds) {
+        try {
+          getSailDeployment(chainId)
+        } catch {
+          return res.status(400).json({ error: `Chain ${chainId} has no Sail deployment to fork — pick a supported network.` })
+        }
+      }
+      try {
+        const result = await startSandboxForks({ sandboxDir: sailDir, chains: chainIds, primary })
+        res.json({ ok: true, ...result })
+      } catch (e) {
+        const status = e instanceof TooManySandboxChainsError ? 400 : 500
+        res.status(status).json({ error: e?.message || String(e) })
+      }
+    })
+
+    app.get('/api/sandbox/forks', async (_req, res) => {
+      try {
+        const forks = await refreshSandboxForks(sailDir)
+        res.json({ forks })
+      } catch (e) {
+        res.status(500).json({ error: e?.message || String(e) })
+      }
+    })
+
+    app.post('/api/sandbox/reset', async (req, res) => {
+      try {
+        await resetSandbox(sailDir, { purgeState: Boolean(req.body?.purgeState) })
+        res.json({ ok: true })
+      } catch (e) {
+        res.status(500).json({ error: e?.message || String(e) })
+      }
+    })
+
+    // "Exit to live dashboard" — ensure the live server for this same project is
+    // running (starting it if not) and hand the browser its port to navigate to.
+    app.post('/api/sandbox/exit', async (_req, res) => {
+      try {
+        const projectRoot = path.resolve(sailDir, '..', '..') // sailDir is <root>/.shipyard/sandbox
+        const liveSailDir = path.join(projectRoot, '.sail')
+        const runtimeFile = path.join(liveSailDir, 'runtime', 'ui.json')
+        const result = await ensurePeerServerRunning({
+          targetSailDir: liveSailDir,
+          targetMode: 'live',
+          runtimeFile,
+          preferredPort: deterministicPort(projectRoot),
+        })
+        res.json(result)
+      } catch (e) {
+        res.status(500).json({ error: e?.message || String(e) })
+      }
+    })
+  }
+
+  // "Try it in a Sandbox" — only offered from the live dashboard. Ensures this
+  // project's sandbox server is running (starting it if not) and hands the
+  // browser its port to navigate to.
+  if (mode === 'live') {
+    app.post('/api/sandbox/launch', async (_req, res) => {
+      try {
+        const projectRoot = path.dirname(sailDir) // sailDir is <root>/.sail in live mode
+        const sandboxDir = sandboxDirFor(projectRoot)
+        const runtimeFile = path.join(sandboxDir, 'runtime', 'ui.json')
+        const result = await ensurePeerServerRunning({
+          targetSailDir: sandboxDir,
+          targetMode: 'sandbox',
+          runtimeFile,
+          preferredPort: deterministicPort(`${projectRoot}:sandbox`),
+        })
+        res.json(result)
+      } catch (e) {
+        res.status(500).json({ error: e?.message || String(e) })
+      }
+    })
+  }
+
   // Serve the built UI if available. SERVE_DIST=1 is the explicit flag set by
   // `sailor ui start`, but we also auto-detect: if index.html exists next to
   // this server file (or at SAILOR_UI_DIST), serve it without the flag so that
@@ -2029,12 +2215,15 @@ export function startServer(sailDir, { port = PORT } = {}) {
 }
 
 // Allow running directly: `SAIL_DIR=/path/to/.sail node server.js`.
-// The CLI's `sailor ui` command spawns this with SAIL_DIR set.
+// The CLI's `sailor ui` command spawns this with SAIL_DIR set; its sandbox
+// spawn logic additionally sets SAILOR_UI_MODE=sandbox to enable the
+// /api/sandbox/* routes for that instance only.
 // Use case-insensitive comparison on Windows: path.resolve() and __filename
 // can disagree on drive-letter case (c:\ vs C:\), breaking a strict === check.
 const _norm = p => path.resolve(p)[process.platform === 'win32' ? 'toLowerCase' : 'toString']()
 const isMain = Boolean(process.argv[1]) && _norm(process.argv[1]) === _norm(_thisFile)
 if (isMain) {
   const sailDir = process.env.SAIL_DIR || path.join(process.cwd(), '.sail')
-  startServer(sailDir)
+  const mode = process.env.SAILOR_UI_MODE === 'sandbox' ? 'sandbox' : 'live'
+  startServer(sailDir, { mode })
 }
