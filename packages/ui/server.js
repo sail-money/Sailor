@@ -391,6 +391,32 @@ export function startServer(sailDir, { port = PORT } = {}) {
   //     find. This surfaces chains that were never recorded locally (e.g. a
   //     chain deployed from a different machine or before snapshots existed).
   //     Best-effort and cached; failures are ignored.
+  // Authoritative on-chain probe: which supported chains this SMA ACTUALLY has bytecode on.
+  // The address is deterministic across chains (CREATE2), so we check every configured chain
+  // for deployed code. This is the only trustworthy signal that an SMA exists on a chain —
+  // on-disk hints (a typed chainId, a stale snapshot) can claim chains it was never deployed
+  // to. Cached ~5m; an RPC failure or missing URL counts as "not deployed there".
+  const probeDeployedChains = async (safe) => {
+    const safeLower = safe.toLowerCase()
+    const cached = onchainChainsCache.get(safeLower)
+    if (cached && Date.now() - cached.at < ONCHAIN_CHAINS_TTL_MS) return cached.chains
+    const env = parseEnvFile(at('.env.local'))
+    const found = await Promise.all(
+      SUPPORTED_CHAIN_IDS.map(async (cid) => {
+        const url = resolveRpcUrl(env, cid)
+        if (!url) return null
+        try {
+          const client = createPublicClient({ transport: http(url) })
+          const code = await client.getBytecode({ address: safe })
+          return code && code !== '0x' ? cid : null
+        } catch { return null }
+      })
+    )
+    const discovered = found.filter((c) => c != null)
+    onchainChainsCache.set(safeLower, { at: Date.now(), chains: discovered })
+    return discovered
+  }
+
   const resolveDeployedChains = async (account) => {
     const safeLower = account.safe.toLowerCase()
     const chains = new Set()
@@ -411,28 +437,25 @@ export function startServer(sailDir, { port = PORT } = {}) {
     } catch { /* directory may not exist */ }
 
     // On-chain discovery across supported chains (cached).
-    const cached = onchainChainsCache.get(safeLower)
-    if (cached && Date.now() - cached.at < ONCHAIN_CHAINS_TTL_MS) {
-      for (const c of cached.chains) chains.add(c)
-    } else {
-      const env = parseEnvFile(at('.env.local'))
-      const found = await Promise.all(
-        SUPPORTED_CHAIN_IDS.map(async (cid) => {
-          const url = resolveRpcUrl(env, cid)
-          if (!url) return null
-          try {
-            const client = createPublicClient({ transport: http(url) })
-            const code = await client.getBytecode({ address: account.safe })
-            return code && code !== '0x' ? cid : null
-          } catch { return null }
-        })
-      )
-      const discovered = found.filter((c) => c != null)
-      onchainChainsCache.set(safeLower, { at: Date.now(), chains: discovered })
-      for (const c of discovered) chains.add(c)
-    }
+    for (const c of await probeDeployedChains(account.safe)) chains.add(c)
 
     return [...chains].filter((c) => Number.isFinite(c) && c > 0)
+  }
+
+  // Sync a record's deployedChains with on-chain reality (best-effort). Called when an SMA
+  // becomes active — on import (POST /api/account) or selection (/switch) — because an SMA
+  // added on one chain may already be deployed on more (deterministic CREATE2 address). If
+  // discovery finds a chain the stored list is missing, persist the union so the switcher
+  // widget (which reads accounts.json) never under-reports. Failures leave the record as-is.
+  const syncDeployedChains = async (record) => {
+    try {
+      const chains = await resolveDeployedChains(record)
+      const known = new Set((record.deployedChains ?? []).map(Number))
+      if (chains.some((c) => !known.has(c))) {
+        return accountStore.persistAccount({ safe: record.safe, deployedChains: chains }, sailDir)
+      }
+    } catch { /* best-effort — never block the import/switch on discovery */ }
+    return record
   }
 
   // Delete all cached overview entries (memory + disk) for a safe across all chains.
@@ -483,7 +506,23 @@ export function startServer(sailDir, { port = PORT } = {}) {
       // when neither is known so the merge KEEPS the value already on disk (never
       // clobber a stored signer with `owner` on a partial add-network write).
       const env = parseEnvFile(at('.env.local'))
-      const onchain = await readKernelSigners(safe, chainId, resolveRpcUrl(env, Number(chainId)))
+      // An add-by-address import carries no deploy proof (no saltNonce/txHash) and no chain
+      // list — the chain the user picked is only a hint and may be one the SMA was NEVER
+      // deployed to. Verify on-chain: deployedChains must be exactly the chains that actually
+      // have bytecode, and the active chainId must be one of them. Deploy/add-network writes
+      // (which DO carry proof or an explicit chain list) keep their caller-supplied chains.
+      const importByAddress = saltNonce == null && txHash == null && !Array.isArray(deployedChains)
+      let activeChainId = Number(chainId)
+      let effectiveDeployed = deployedChains
+      if (importByAddress) {
+        const probed = await probeDeployedChains(safe)
+        if (probed.length > 0) {
+          effectiveDeployed = probed
+          if (!probed.includes(activeChainId)) activeChainId = probed[0]
+        }
+        // probed empty ⇒ no RPC reachable; can't verify, so fall through with the typed hint.
+      }
+      const onchain = await readKernelSigners(safe, activeChainId, resolveRpcUrl(env, activeChainId))
       // upsertActiveAccount merges by `safe` and writes BOTH files identically, so a
       // partial write here (add-network sends no saltNonce) can't drop stored fields,
       // and it appends to the existing SMA rather than creating a duplicate.
@@ -493,16 +532,19 @@ export function startServer(sailDir, { port = PORT } = {}) {
         permissionSigner: onchain?.permissionSigner ?? permissionSigner ?? undefined,
         manager: onchain?.manager ?? manager ?? undefined,
         managers,
-        chainId,
+        chainId: activeChainId,
         createdAtBlock,
         saltNonce: saltNonce != null ? String(saltNonce) : undefined,
         txHash,
-        deployedChains,
+        deployedChains: effectiveDeployed,
         name,
       })
+      // Non-import writes still reconcile against on-chain reality (cheap, cached); the import
+      // path already probed above, so its deployedChains are authoritative — skip the re-probe.
+      const synced = importByAddress ? merged : await syncDeployedChains(merged)
       // Keep config.json.chainId in step with the active SMA's chain (stage machine reads it).
-      syncConfigChainId(chainId)
-      res.json({ ok: true, account: merged })
+      syncConfigChainId(activeChainId)
+      res.json({ ok: true, account: synced })
     } catch (err) {
       serverError(res, err)
     }
@@ -514,16 +556,20 @@ export function startServer(sailDir, { port = PORT } = {}) {
   })
 
   // POST /api/account/switch — make a known SMA the active one.
-  app.post('/api/account/switch', (req, res) => {
+  app.post('/api/account/switch', async (req, res) => {
     const { safe } = req.body ?? {}
     if (!safe) { res.status(400).json({ error: 'safe is required' }); return }
     try {
       const target = accountStore.switchAccount(safe, sailDir)
       if (!target) { res.status(404).json({ error: 'SMA not found in accounts list' }); return }
+
+      // Reconcile deployedChains with on-chain reality on selection (see syncDeployedChains).
+      const active = await syncDeployedChains(target)
+
       // Switching to an SMA on a different chain must move config.json.chainId too,
       // or the stage machine / CLI active chain goes stale (multichain case).
-      syncConfigChainId(target.chainId)
-      res.json({ ok: true, active: target })
+      syncConfigChainId(active.chainId)
+      res.json({ ok: true, active })
     } catch (err) {
       serverError(res, err)
     }
