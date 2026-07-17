@@ -40,8 +40,16 @@ const megaeth = defineChain({
   blockExplorers: { default: { name: 'MegaExplorer', url: 'https://megaexplorer.xyz' } },
 })
 
+const robinhood = defineChain({
+  id: 4663,
+  name: 'Robinhood',
+  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+  rpcUrls: { default: { http: [sailChains[4663].defaultRpcUrl] } },
+  blockExplorers: { default: { name: 'Robinhood Explorer', url: 'https://robinhoodchain.blockscout.com' } },
+})
+
 export const chains = [
-  base, arbitrum, mainnet, unichain, optimism, bsc, worldchain, hyperevm, megaeth,
+  base, arbitrum, mainnet, unichain, optimism, bsc, worldchain, hyperevm, megaeth, robinhood,
   baseSepolia, arbitrumSepolia, unichainSepolia, sepolia,
 ]
 

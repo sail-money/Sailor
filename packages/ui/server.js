@@ -182,7 +182,7 @@ const CHAIN_RPC_ENV_KEYS = {
 
 // Mainnet chains the dashboard knows about. Used to discover which chains a
 // (deterministically-addressed) SMA is deployed on by probing each on-chain.
-const SUPPORTED_CHAIN_IDS = [1, 8453, 42161, 10, 130, 56, 480, 999, 4326, 84532]
+const SUPPORTED_CHAIN_IDS = [1, 8453, 42161, 10, 130, 56, 480, 999, 4326, 4663, 84532]
 
 // Last-resort public RPC endpoints, keyed by chain id. Used for chain discovery
 // and read-only overviews when a project hasn't configured a per-chain RPC, so
