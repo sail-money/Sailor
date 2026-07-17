@@ -3,20 +3,9 @@ import styles from './RpcSection.module.css'
 import { ChainGlyph, InfoTip } from '../shared'
 import { getOnboardState, saveConfig } from '../../data/sailorClient'
 import { defaultRpcUrls } from '@sail/sdk/chains'
+import { alchemyHost, infuraHost, chainDisplayName, isTestnet } from '../../lib/chains'
 
 const RPC_TIP = "An RPC is the connection your dashboard uses to read the blockchain and broadcast transactions — like a phone line to the network. Sail talks to the chain directly through it; there's no Sail server in between. A free Alchemy/Infura key (or a public endpoint) works."
-
-const CHAINS = [
-  { id: 1,     name: 'Ethereum',     kind: 'mainnet' },
-  { id: 8453,  name: 'Base',         kind: 'mainnet' },
-  { id: 42161, name: 'Arbitrum',     kind: 'mainnet' },
-  { id: 130,   name: 'Unichain',     kind: 'mainnet' },
-  { id: 10,    name: 'Optimism',     kind: 'mainnet' },
-  { id: 56,    name: 'BNB',          kind: 'mainnet' },
-  { id: 480,   name: 'World',        kind: 'mainnet' },
-  { id: 999,   name: 'HyperEVM',     kind: 'mainnet' },
-  { id: 4326,  name: 'MegaETH',      kind: 'mainnet' },
-]
 
 const RPC_PROVIDERS = [
   {
@@ -49,38 +38,20 @@ const RPC_PROVIDERS = [
   },
 ]
 
-// Managed-provider hosts. Only chains the provider actually serves are listed; for any other
-// chain composeRpcUrl returns '' and the key-based providers are disabled in the UI (the user
-// is steered to Public/Custom). Alchemy serves every Sail chain including HyperEVM(999) and
-// MegaETH(4326); Infura's coverage is narrower (no World, HyperEVM, or MegaETH).
-const ALCHEMY_HOST = {
-  1: 'eth-mainnet.g.alchemy.com',
-  8453: 'base-mainnet.g.alchemy.com', 42161: 'arb-mainnet.g.alchemy.com',
-  10: 'opt-mainnet.g.alchemy.com',
-  130: 'unichain-mainnet.g.alchemy.com', 84532: 'base-sepolia.g.alchemy.com',
-  11155111: 'eth-sepolia.g.alchemy.com',
-  56: 'bnb-mainnet.g.alchemy.com', 480: 'worldchain-mainnet.g.alchemy.com',
-  999: 'hyperliquid-mainnet.g.alchemy.com', 998: 'hyperliquid-testnet.g.alchemy.com',
-  4326: 'megaeth-mainnet.g.alchemy.com',
-}
-const INFURA_HOST = {
-  1: 'mainnet.infura.io',
-  8453: 'base-mainnet.infura.io', 42161: 'arbitrum-mainnet.infura.io',
-  10: 'optimism-mainnet.infura.io',
-  130: 'unichain-mainnet.infura.io', 84532: 'base-sepolia.infura.io',
-  11155111: 'sepolia.infura.io',
-  56: 'bsc-mainnet.infura.io',
-}
 // Public RPC fallbacks, sourced from the SDK chain registry (single source of truth).
 const PUBLIC_RPC = defaultRpcUrls
 
+// Managed-provider hosts come from lib/chains (presentation). Only chains the
+// provider actually serves have a host; for any other chain composeRpcUrl
+// returns '' and the key-based providers are disabled in the UI (the user is
+// steered to Public/Custom).
 function composeRpcUrl(provider, chainId, key) {
   if (provider === 'infura') {
-    const host = INFURA_HOST[chainId]
+    const host = infuraHost(chainId)
     return host ? `https://${host}/v3/${key}` : ''
   }
   if (provider === 'alchemy') {
-    const host = ALCHEMY_HOST[chainId]
+    const host = alchemyHost(chainId)
     return host ? `https://${host}/v2/${key}` : ''
   }
   return key // custom: key field holds the full URL
@@ -103,7 +74,7 @@ function maskRpcUrl(url) {
 }
 
 function ChainRow({ chainId, rpcUrl, isActive, onSaved }) {
-  const chain = CHAINS.find((c) => c.id === chainId)
+  const chainName = chainDisplayName(chainId)
   const [editing, setEditing] = useState(false)
   const [provider, setProvider] = useState('alchemy')
   const [apiKey, setApiKey] = useState('')
@@ -156,8 +127,8 @@ function ChainRow({ chainId, rpcUrl, isActive, onSaved }) {
         <div className={styles.chainMeta}>
           <span className={styles.chainName}>
             <ChainGlyph chainId={chainId} size={16} />
-            {chain?.name ?? `Chain ${chainId}`}
-            {chain?.kind === 'testnet' && <span className={styles.chainTag}>testnet</span>}
+            {chainName}
+            {isTestnet(chainId) && <span className={styles.chainTag}>testnet</span>}
             {isActive && <span className={styles.chainTagActive}>active</span>}
           </span>
           {!editing && (
@@ -209,7 +180,7 @@ function ChainRow({ chainId, rpcUrl, isActive, onSaved }) {
 
           {keyProviderUnavailable && (
             <p className={styles.fieldNote}>
-              {sel?.name} doesn’t serve {chain?.name ?? `chain ${chainId}`}. Use the Public endpoint or a Custom URL instead.
+              {sel?.name} doesn’t serve {chainName}. Use the Public endpoint or a Custom URL instead.
             </p>
           )}
 

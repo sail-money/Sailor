@@ -3,33 +3,11 @@
    they sit cleanly on the sail-card surfaces in both onboarding and the
    dashboard.
 
-   One source of truth for both the mark and the brand colour, keyed by chainId
-   (mainnet + matching testnet share a mark). */
+   The mark (SVG geometry) is the one thing that stays UI-side per chain. The
+   brand colour comes from lib/chains (chainColor), which resolves testnets to
+   their mainnet sibling — so a mainnet + its testnet share a mark and a hue. */
 
-const CHAIN_COLORS = {
-  1:        '#627eea', // Ethereum
-  11155111: '#627eea', // Ethereum Sepolia
-  8453:     '#0052ff', // Base
-  84532:    '#0052ff', // Base Sepolia
-  42161:    '#28a0f0', // Arbitrum One
-  421614:   '#28a0f0', // Arbitrum Sepolia
-  130:      '#ff007a', // Unichain
-  1301:     '#ff007a', // Unichain Sepolia
-  10:       '#ff0420', // Optimism
-  11155420: '#ff0420', // OP Sepolia
-  56:       '#f3ba2f', // BNB Smart Chain
-  97:       '#f3ba2f', // BNB Testnet
-  480:      '#dfe3e8', // World Chain (brand is black/white — light tint for dark surfaces)
-  4801:     '#dfe3e8', // World Chain Sepolia
-  999:      '#50d2c1', // HyperEVM (Hyperliquid mint)
-  998:      '#50d2c1', // HyperEVM Testnet
-  4326:     '#ffffff', // MegaETH
-  4663:     '#00c805', // Robinhood (brand green)
-}
-
-function chainColor(chainId) {
-  return CHAIN_COLORS[chainId] ?? 'rgba(255,255,255,0.5)'
-}
+import { chainColor } from '../../lib/chains'
 
 function Mark({ chainId, color }) {
   // Ethereum — twin rhombus

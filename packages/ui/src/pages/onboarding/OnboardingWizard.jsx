@@ -11,6 +11,7 @@ import { buildRegisterAccountTypedData } from '@sail/sdk/eip712'
 import { buildRegisterAccountExecTransaction } from '@sail/sdk/safe'
 import { sailDeployments } from '@sail/sdk/deployments'
 import { defaultRpcUrls } from '@sail/sdk/chains'
+import { mainnetChains, chainColor, chainDescription } from '../../lib/chains'
 import { ChainGlyph, GlassCard, InfoTip, Sai, SailButton } from '../shared'
 import shared from '../shared/shared.module.css'
 import styles from './OnboardingWizard.module.css'
@@ -27,20 +28,16 @@ const ACCOUNT_REGISTERED_TOPIC = '0x05f9a81a3b5e45d338f25347928e56b0aaaa0c65d408
 // registry so it can never drift from getSailDeployment / @sail/sdk.
 const LIVE_CHAIN_IDS = new Set(Object.keys(sailDeployments).map(Number))
 
-const SUPPORTED_NETWORKS = [
-  // ── Mainnets ──
-  { chainId: 8453,   name: 'Base',           group: 'mainnet', description: 'Fast, cheap Coinbase L2.', color: '#0052ff' },
-  { chainId: 42161,  name: 'Arbitrum One',   group: 'mainnet', description: 'Low-fee Ethereum L2.', color: '#28a0f0' },
-  { chainId: 1,      name: 'Ethereum',       group: 'mainnet', description: 'The original chain.', color: '#627eea' },
-  { chainId: 130,    name: 'Unichain',       group: 'mainnet', description: 'Uniswap-native L2.', color: '#ff007a' },
-  { chainId: 10,     name: 'Optimism',       group: 'mainnet', description: 'OP Stack L2.', color: '#ff0420' },
-  { chainId: 56,     name: 'BNB Smart Chain', group: 'mainnet', description: 'High-throughput BNB chain.', color: '#f3ba2f' },
-  { chainId: 480,    name: 'World Chain',    group: 'mainnet', description: 'Worldcoin L2.', color: '#dfe3e8' },
-  { chainId: 999,    name: 'HyperEVM',       group: 'mainnet', description: 'Hyperliquid EVM.', color: '#50d2c1' },
-  { chainId: 4326,   name: 'MegaETH',        group: 'mainnet', description: 'Real-time EVM.', color: '#ffffff' },
-  { chainId: 4663,   name: 'Robinhood',      group: 'mainnet', description: 'Robinhood Chain.', color: '#00c805' },
-  // Testnets (Base/Ethereum Sepolia) are intentionally not offered in the UI.
-]
+// The network picker — every mainnet in the SDK registry, styled from lib/chains.
+// Testnets are excluded (mainnetChains filters them). Adding a chain to the SDK
+// surfaces it here automatically; the build guard ensures it has a color first.
+const SUPPORTED_NETWORKS = mainnetChains().map((c) => ({
+  chainId: c.chainId,
+  name: c.displayName ?? c.name,
+  group: 'mainnet',
+  description: chainDescription(c.chainId),
+  color: chainColor(c.chainId),
+}))
 
 // Steps that show progress dots (excludes welcome + done).
 const PROGRESS_STEPS = ['network', 'connect', 'keygen', 'create-sma']

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import cors from 'cors'
 import express from 'express'
 import { WebSocket, WebSocketServer } from 'ws'
-import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, defaultRpcUrls, getNativeCurrencySymbol, getSailDeployment, readPermissionRegistrationFee } from '@sail/sdk'
+import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, chains, defaultRpcUrls, getNativeCurrencySymbol, getSailDeployment, readPermissionRegistrationFee } from '@sail/sdk'
 import * as accountStore from '@sail/sdk/accounts'
 import { createPublicClient, createWalletClient, defineChain, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
@@ -149,40 +149,17 @@ function rateLimit({ windowMs, max }) {
   }
 }
 
-const CHAIN_NAMES = {
-  1: 'ethereum',
-  8453: 'base',
-  42161: 'arbitrum',
-  10: 'optimism',
-  130: 'unichain',
-  56: 'bsc',
-  480: 'world',
-  999: 'hyperevm',
-  4326: 'megaeth',
-  84532: 'base-sepolia',
-  11155111: 'eth-sepolia',
-  137: 'polygon',
-}
+// Env-var names checked for a chain's RPC, in order: the numeric form
+// (RPC_URL_8453) then the CLI's named alias from the SDK registry (BASE_RPC_URL).
+// Derived from the SDK so a new chain needs no edit here.
+const rpcEnvKeys = (chainId) => [`RPC_URL_${chainId}`, chains[chainId]?.rpcEnvVar].filter(Boolean)
 
-// Named env-var aliases the CLI uses (e.g. BASE_RPC_URL), alongside the
-// numeric form (RPC_URL_8453). Both are checked; first match wins.
-const CHAIN_RPC_ENV_KEYS = {
-  1:       ['RPC_URL_1',       'ETH_MAINNET_RPC_URL'],
-  8453:    ['RPC_URL_8453',    'BASE_RPC_URL'],
-  42161:   ['RPC_URL_42161',   'ARBITRUM_RPC_URL'],
-  10:      ['RPC_URL_10',      'OPTIMISM_RPC_URL'],
-  130:     ['RPC_URL_130',     'UNICHAIN_RPC_URL'],
-  56:      ['RPC_URL_56',      'BSC_RPC_URL'],
-  480:     ['RPC_URL_480',     'WORLD_RPC_URL'],
-  999:     ['RPC_URL_999',     'HYPEREVM_RPC_URL'],
-  4326:    ['RPC_URL_4326',    'MEGAETH_RPC_URL', 'MEGAETHEREUM_RPC_URL'],
-  84532:   ['RPC_URL_84532',   'BASE_SEPOLIA_RPC_URL'],
-  11155111:['RPC_URL_11155111','SEPOLIA_RPC_URL'],
-}
-
-// Mainnet chains the dashboard knows about. Used to discover which chains a
-// (deterministically-addressed) SMA is deployed on by probing each on-chain.
-const SUPPORTED_CHAIN_IDS = [1, 8453, 42161, 10, 130, 56, 480, 999, 4326, 4663, 84532]
+// Chains the dashboard probes to discover where a (deterministically-addressed)
+// SMA is deployed: every mainnet in the SDK registry, plus Base Sepolia for
+// test flows. Derived from the registry — adding a mainnet includes it here.
+const SUPPORTED_CHAIN_IDS = Object.values(chains)
+  .filter((c) => !c.testnet || c.chainId === 84532)
+  .map((c) => c.chainId)
 
 // Last-resort public RPC endpoints, keyed by chain id. Used for chain discovery
 // and read-only overviews when a project hasn't configured a per-chain RPC, so
@@ -201,7 +178,7 @@ const registrationFeeCache = new Map()
 
 /** Resolve the RPC URL for a specific chain from the env, with a public fallback. */
 function resolveRpcUrl(env, chainId) {
-  const keys = CHAIN_RPC_ENV_KEYS[chainId] ?? [`RPC_URL_${chainId}`]
+  const keys = rpcEnvKeys(chainId)
   for (const k of keys) {
     if (env[k]) return env[k]
   }
@@ -1294,7 +1271,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
       const url = resolveRpcUrl(env, cid)
       // Only store if an explicit per-chain key matched — don't propagate a
       // generic RPC_URL to every chain in the list.
-      const keys = CHAIN_RPC_ENV_KEYS[cid] ?? [`RPC_URL_${cid}`]
+      const keys = rpcEnvKeys(cid)
       if (keys.some((k) => env[k])) rpcByChain[cid] = url
     }
     // If the project has a single RPC_URL but no per-chain entry for its chain,
@@ -1327,7 +1304,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
     // an env-var key) and values must be single-line http(s) URLs — otherwise a
     // newline could inject an extra KEY=VALUE line (e.g. overwrite SAIL_PASSPHRASE).
     const cid = Number(chainId)
-    if (chainId !== undefined && !CHAIN_RPC_ENV_KEYS[cid]) {
+    if (chainId !== undefined && !chains[cid]) {
       res.status(400).json({ error: 'unsupported chainId' }); return
     }
     if (rpcUrl !== undefined && (!isSafeEnvValue(rpcUrl) || !isHttpUrl(rpcUrl))) {
@@ -1726,7 +1703,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
       /* no mandate.json */
     }
 
-    const network = CHAIN_NAMES[chainId] ?? null
+    const network = chains[chainId]?.slug ?? null
     const result = {
       generatedAt: new Date().toISOString(),
       chainId,

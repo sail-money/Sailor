@@ -1,57 +1,35 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit'
-import { mainnet, sepolia, arbitrum, arbitrumSepolia, base, baseSepolia, optimism, bsc, worldchain } from 'wagmi/chains'
+import * as viemChains from 'wagmi/chains'
 import { chains as sailChains } from '@sail/sdk/chains'
 import { defineChain } from 'viem'
 
-const unichain = defineChain({
-  id: 130,
-  name: 'Unichain',
-  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-  rpcUrls: { default: { http: [sailChains[130].defaultRpcUrl] } },
-  blockExplorers: { default: { name: 'Uniscan', url: 'https://uniscan.xyz' } },
+// viem/wagmi's built-in chain objects for the SDK-supported ids only, indexed
+// by id. These carry the full metadata (multicall3, ENS, etc.) wagmi relies on,
+// so we use the real object wherever viem ships one.
+const SDK_CHAIN_IDS = new Set(Object.values(sailChains).map((c) => c.chainId))
+const VIEM_CHAINS_BY_ID = Object.fromEntries(
+  Object.values(viemChains)
+    .filter((c) => c && typeof c === 'object' && SDK_CHAIN_IDS.has(c.id))
+    .map((c) => [c.id, c]),
+)
+
+// Fallback for a Sail chain viem doesn't ship (e.g. Robinhood, MegaETH):
+// generate the viem chain from the SDK registry.
+const fromSdk = (c) => defineChain({
+  id: c.chainId,
+  name: c.displayName ?? c.name,
+  nativeCurrency: c.nativeCurrency,
+  rpcUrls: { default: { http: [c.defaultRpcUrl] } },
+  ...(c.blockExplorer ? { blockExplorers: { default: c.blockExplorer } } : {}),
+  ...(c.testnet ? { testnet: true } : {}),
 })
 
-// Unichain Sepolia is not a Sail deployment (not in the SDK chain registry), so
-// its RPC stays defined inline here.
-const unichainSepolia = defineChain({
-  id: 1301,
-  name: 'Unichain Sepolia',
-  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-  rpcUrls: { default: { http: ['https://sepolia.unichain.org/'] } },
-  blockExplorers: { default: { name: 'Uniscan Sepolia', url: 'https://sepolia.uniscan.xyz' } },
-  testnet: true,
-})
-
-// Not (yet) published in wagmi/chains — defined here from the Sail Protocol
-// deployment data. RPC URLs come from the SDK chain registry (single source of truth).
-const hyperevm = defineChain({
-  id: 999,
-  name: 'HyperEVM',
-  nativeCurrency: { name: 'HYPE', symbol: 'HYPE', decimals: 18 },
-  rpcUrls: { default: { http: [sailChains[999].defaultRpcUrl] } },
-  blockExplorers: { default: { name: 'HyperEVM Scan', url: 'https://hyperevmscan.io' } },
-})
-
-const megaeth = defineChain({
-  id: 4326,
-  name: 'MegaETH',
-  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-  rpcUrls: { default: { http: [sailChains[4326].defaultRpcUrl] } },
-  blockExplorers: { default: { name: 'MegaExplorer', url: 'https://megaexplorer.xyz' } },
-})
-
-const robinhood = defineChain({
-  id: 4663,
-  name: 'Robinhood',
-  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-  rpcUrls: { default: { http: [sailChains[4663].defaultRpcUrl] } },
-  blockExplorers: { default: { name: 'Robinhood Explorer', url: 'https://robinhoodchain.blockscout.com' } },
-})
-
-export const chains = [
-  base, arbitrum, mainnet, unichain, optimism, bsc, worldchain, hyperevm, megaeth, robinhood,
-  baseSepolia, arbitrumSepolia, unichainSepolia, sepolia,
-]
+// The wallet's chain list = exactly the SDK-supported chain ids, using viem's
+// real chain object where available and generating from the SDK otherwise.
+// Adding a chain to the SDK surfaces it here with no edit.
+export const chains = Object.values(sailChains).map(
+  (c) => VIEM_CHAINS_BY_ID[c.chainId] ?? fromSdk(c),
+)
 
 const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'sailor-local-dev'
 

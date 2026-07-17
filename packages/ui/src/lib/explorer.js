@@ -1,5 +1,5 @@
-import { getNativeCurrencySymbol } from '@sail/sdk/chains'
-import { chains } from '../wagmi'
+import { getNativeCurrencySymbol, chains as sdkChains } from '@sail/sdk/chains'
+import { chains as viemChains } from '../wagmi'
 
 /**
  * Chain-aware block-explorer URLs (F5).
@@ -16,54 +16,36 @@ import { chains } from '../wagmi'
  * name-based call sites keep working while new code can pass chainId directly.
  */
 
-// chainId -> { name, url } from the configured viem chains (includes testnets).
-const EXPLORER_BY_ID = Object.fromEntries(
-  chains
-    .filter((c) => c?.blockExplorers?.default?.url)
-    .map((c) => [
-      c.id,
-      { name: c.blockExplorers.default.name, url: c.blockExplorers.default.url.replace(/\/$/, '') },
-    ]),
-)
-
-// Supplement chains that aren't in the wagmi config but may appear in legacy
-// data (vestigial CHAIN_NAMES entries). Does not override viem-sourced entries.
-const EXPLORER_SUPPLEMENT = {
-  10: { name: 'Optimistic Etherscan', url: 'https://optimistic.etherscan.io' },
-  137: { name: 'Polygonscan', url: 'https://polygonscan.com' },
-  56: { name: 'BscScan', url: 'https://bscscan.com' },
-  480: { name: 'Worldscan', url: 'https://worldscan.org' },
-  999: { name: 'HyperEVM Scan', url: 'https://hyperevmscan.io' }, // best-effort — confirm
-  4326: { name: 'MegaExplorer', url: 'https://megaexplorer.xyz' }, // best-effort — confirm
+// chainId -> { name, url }. The SDK registry is authoritative for Sail chains;
+// viem supplies explorers for well-known testnets not in the SDK (e.g. Arbitrum
+// / Unichain Sepolia). viem entries are applied first, then SDK overrides them.
+const EXPLORER_BY_ID = {}
+for (const c of viemChains) {
+  const d = c?.blockExplorers?.default
+  if (d?.url) EXPLORER_BY_ID[c.id] = { name: d.name, url: d.url.replace(/\/$/, '') }
+}
+for (const c of Object.values(sdkChains)) {
+  if (c.blockExplorer?.url) {
+    EXPLORER_BY_ID[c.chainId] = { name: c.blockExplorer.name, url: c.blockExplorer.url.replace(/\/$/, '') }
+  }
 }
 
-// Network name/slug (as produced by the server's CHAIN_NAMES) -> chainId.
-// Normalised: lower-cased, separators collapsed to single spaces.
-const NAME_TO_ID = {
-  ethereum: 1,
-  base: 8453,
-  arbitrum: 42161,
-  'arbitrum one': 42161,
-  unichain: 130,
-  optimism: 10,
-  polygon: 137,
-  binance: 56,
-  world: 480,
-  hyperevm: 999,
-  megaeth: 4326,
-  robinhood: 4663,
-  'base sepolia': 84532,
-  'eth sepolia': 11155111,
-  'ethereum sepolia': 11155111,
-  'arbitrum sepolia': 421614,
-  'unichain sepolia': 1301,
+// Network name/slug -> chainId, derived entirely from the SDK registry. Every
+// label a chain is known by — slug, name, and displayName — is indexed, using
+// the same normalisation resolveChainId applies to its input, so callers can
+// pass any of them (e.g. 'base', 'arbitrum one', 'unichain sepolia').
+const normalize = (s) => s.trim().toLowerCase().replace(/[-_]+/g, ' ').replace(/\s+/g, ' ')
+const NAME_TO_ID = {}
+for (const c of Object.values(sdkChains)) {
+  for (const label of [c.slug, c.name, c.displayName]) {
+    if (label) NAME_TO_ID[normalize(label)] = c.chainId
+  }
 }
 
 function resolveChainId(chainOrNetwork) {
   if (typeof chainOrNetwork === 'number') return chainOrNetwork
   if (typeof chainOrNetwork === 'string') {
-    const key = chainOrNetwork.trim().toLowerCase().replace(/[-_]+/g, ' ').replace(/\s+/g, ' ')
-    return NAME_TO_ID[key] ?? null
+    return NAME_TO_ID[normalize(chainOrNetwork)] ?? null
   }
   return null
 }
@@ -85,7 +67,7 @@ export function nativeCurrencySymbol(chainOrNetwork) {
 export function explorer(chainOrNetwork) {
   const id = resolveChainId(chainOrNetwork)
   if (id == null) return null
-  return EXPLORER_BY_ID[id] ?? EXPLORER_SUPPLEMENT[id] ?? null
+  return EXPLORER_BY_ID[id] ?? null
 }
 
 /** Block-explorer URL for a transaction hash, or null if the chain is unknown. */

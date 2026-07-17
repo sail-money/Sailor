@@ -4,6 +4,7 @@ import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { useAccount, useDisconnect } from 'wagmi'
 import { sailDeployments } from '@sail/sdk/deployments'
 import { explorerAddressUrl, explorerCodeUrl as libExplorerCodeUrl, explorerTxUrl, nativeCurrencySymbol } from '../../lib/explorer'
+import { chainDisplayName, chainSlug, chainSafePrefix, slugToChainId } from '../../lib/chains'
 import {
   ChainGlyph,
   InfoTip,
@@ -62,55 +63,18 @@ import {
  * /agent/:id.
  */
 
-const SAFE_CHAIN_PREFIX = {
-  ethereum: 'eth',
-  arbitrum: 'arb1',
-  base: 'base',
-  unichain: 'unichain',
-  optimism: 'oeth',
-  polygon: 'matic',
-  binance: 'bnb',
-}
-// Maps a numeric chainId (from .sail/account.json) to the network key
-// used by the explorer/Safe URL helpers above.
-const CHAIN_NAMES = {
-  1: 'ethereum',
-  42161: 'arbitrum',
-  8453: 'base',
-  130: 'unichain',
-  10: 'optimism',
-  137: 'polygon',
-  56: 'binance',
-  480: 'world',
-  999: 'hyperevm',
-  4326: 'megaeth',
-  4663: 'robinhood',
-}
 // Testnets we deliberately never surface in the Sailor UI (Base/Ethereum
 // Sepolia and their siblings). Filtered out of every chain list, the
-// Add-network picker, and the switchers so they can't render anywhere.
+// Add-network picker, and the switchers so they can't render anywhere. UI
+// policy (includes testnets that aren't in the SDK registry), not chain metadata.
 const HIDDEN_CHAIN_IDS = new Set([84532, 11155111, 421614, 1301, 11155420, 4801])
-// Proper-cased display labels for chains whose slug doesn't render cleanly under
-// CSS `text-transform: capitalize` (which only upper-cases the first letter, so
-// 'hyperevm' → 'Hyperevm'). The slug in CHAIN_NAMES stays lowercase because it's
-// also the key for the explorer/Safe lookups.
-const CHAIN_DISPLAY_NAMES = {
-  56: 'BNB',
-  480: 'World',
-  999: 'HyperEVM',
-  4326: 'MegaETH',
-}
-// User-facing chain label; falls back to the network slug for everything else.
-function chainDisplayName(chainId) {
-  return CHAIN_DISPLAY_NAMES[chainId] ?? CHAIN_NAMES[chainId]
-}
 // Chains an SMA can actually be deployed to — those with a live Sail kernel.
 // Drives the "Add network" picker (deployable − already-deployed). Same source
 // the onboarding wizard uses so the two never drift.
 const DEPLOYABLE_CHAIN_IDS = Object.keys(sailDeployments).map(Number).filter((id) => !HIDDEN_CHAIN_IDS.has(id))
 function safeAppUrl(network, address) {
-  const prefix = SAFE_CHAIN_PREFIX[network] ?? 'eth'
-  return `https://app.safe.global/home?safe=${prefix}:${address}`
+  const id = typeof network === 'number' ? network : slugToChainId(network)
+  return `https://app.safe.global/home?safe=${chainSafePrefix(id)}:${address}`
 }
 function explorerUrl(network, address) {
   // Chain-aware (F5); falls back to Etherscan only for genuinely unknown chains.
@@ -186,15 +150,6 @@ const SIGNING_KIND_LABELS = {
   'attach-mandate': 'Register mandate',
   'set-delegate': 'Set agent as manager',
   'arbitrary-tx': 'Arbitrary transaction',
-}
-
-const SIGNING_CHAIN_NAMES = {
-  1: 'Ethereum',
-  10: 'Optimism',
-  137: 'Polygon',
-  8453: 'Base',
-  42161: 'Arbitrum One',
-  130: 'Unichain',
 }
 
 const ACTIVITY_LABELS = {
@@ -788,7 +743,7 @@ function LiveMandateCard({ mandate, network, addressByTemplate, onRevoke }) {
   const signed = mandate?.signedAt ? new Date(mandate.signedAt).toLocaleDateString() : ''
   const networkLabel = (() => {
     const disp = mandate?.chainId != null ? chainDisplayName(mandate.chainId) : null
-    const n = disp ?? network ?? (mandate?.chainId ? CHAIN_NAMES[mandate.chainId] : null)
+    const n = disp ?? network ?? (mandate?.chainId ? chainSlug(mandate.chainId) : null)
     return n ? n.charAt(0).toUpperCase() + n.slice(1) : null
   })()
 
@@ -1454,7 +1409,7 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
     : null
   const liveMode = hasLiveMandate || agentRunning
 
-  const realNetwork = effectiveAccount ? (CHAIN_NAMES[effectiveAccount.chainId] ?? 'ethereum') : null
+  const realNetwork = effectiveAccount ? (chainSlug(effectiveAccount.chainId) ?? 'ethereum') : null
   const sma = effectiveAccount
     ? {
         id: 'live-sma',
@@ -1552,10 +1507,10 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
         const byId = new Map()
         for (const a of ownedAccounts) {
           const key = a.safe.toLowerCase()
-          const net = CHAIN_NAMES[a.chainId] ?? 'ethereum'
+          const net = chainSlug(a.chainId) ?? 'ethereum'
           const isCurrent = a.safe?.toLowerCase() === currentSafeId?.toLowerCase()
           const deployedNets = a.deployedChains
-            ? a.deployedChains.map((id) => CHAIN_NAMES[id] ?? 'ethereum').filter(Boolean)
+            ? a.deployedChains.map((id) => chainSlug(id) ?? 'ethereum').filter(Boolean)
             : null
           // Chain ids for the row's network badges. The ACTIVE SMA uses the
           // confirmed-live set (stored deployedChains is stale for CLI and
@@ -1597,7 +1552,7 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
     // whenever B owned nothing here (ownedAccounts empty → fell through).
     : sma && effectiveAccount?.owner && wagmiAddress &&
       effectiveAccount.owner.toLowerCase() === wagmiAddress.toLowerCase()
-    ? [{ ...sma, name: smaName, networks: liveChainsDisplay.length > 0 ? liveChainsDisplay.map((id) => CHAIN_NAMES[id] ?? 'ethereum').filter(Boolean) : [realNetwork], networkIds: liveChainsDisplay, mandateCount: isMultiChain && chainOverviews.length > 0 ? chainOverviews.reduce((sum, ov) => sum + (ov.mandateCount ?? 0), 0) : (overview?.mandateCount ?? 0), createdAt: null }]
+    ? [{ ...sma, name: smaName, networks: liveChainsDisplay.length > 0 ? liveChainsDisplay.map((id) => chainSlug(id) ?? 'ethereum').filter(Boolean) : [realNetwork], networkIds: liveChainsDisplay, mandateCount: isMultiChain && chainOverviews.length > 0 ? chainOverviews.reduce((sum, ov) => sum + (ov.mandateCount ?? 0), 0) : (overview?.mandateCount ?? 0), createdAt: null }]
     : []
 
   const safeUrl = sma ? safeAppUrl(sma.network, sma.address) : '#'
@@ -2534,7 +2489,7 @@ function NotificationsBell({ pending, draft, open, onToggle, onClose, onOpenSign
                       <span className={styles.notifItemDesc}>{req.description}</span>
                     )}
                     <span className={styles.notifItemMeta}>
-                      {SIGNING_CHAIN_NAMES[req.chainId] ?? `Chain ${req.chainId}`}
+                      {chainDisplayName(req.chainId)}
                     </span>
                   </button>
                 </li>
