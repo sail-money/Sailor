@@ -1,0 +1,201 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 10, 24, 0.62);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.card {
+  position: relative;
+  width: min(560px, 100%);
+  max-height: min(720px, 90vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 28px 28px 24px;
+}
+
+.close {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  -webkit-appearance: none;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.close:hover { color: var(--text-primary); }
+
+.title {
+  margin: 0 0 6px;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.subtitle {
+  margin: 0 0 20px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+
+.section {
+  padding: 18px 0;
+  border-top: 1px solid var(--hairline-strong);
+}
+.section:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.sectionTitle {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.sectionCopy {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+.rowList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rowIdentity {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.rowName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.rowAddr {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.rowControls,
+.usdcForm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rowButton {
+  height: 36px;
+  padding: 0 16px;
+  font-size: 13px;
+}
+
+.select,
+.amountInput {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 2px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+}
+.select:disabled,
+.amountInput:disabled {
+  opacity: 0.5;
+}
+
+.amountInput {
+  width: 100px;
+}
+
+.amountField {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  border-radius: 2px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  overflow: hidden;
+}
+.amountField .amountInput {
+  border: none;
+  background: transparent;
+  height: 100%;
+}
+
+.amountUnit {
+  flex-shrink: 0;
+  padding: 0 10px 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.select {
+  min-width: 120px;
+}
+
+.rowError {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--status-revoked, #e5484d);
+}
+
+.confirmLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.confirmLabel input {
+  accent-color: var(--accent-blue, #1990FF);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+.backupPath {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--text-primary);
+}

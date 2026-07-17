@@ -8,7 +8,7 @@ import express from 'express'
 import { WebSocket, WebSocketServer } from 'ws'
 import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, chains, defaultRpcUrls, getNativeCurrencySymbol, getSailDeployment, readPermissionRegistrationFee } from '@sail/sdk'
 import * as accountStore from '@sail/sdk/accounts'
-import { TooManySandboxChainsError, isPidAlive, refreshSandboxForks, resetSandbox, restartSandboxFork, sandboxDirFor, startSandboxForks, stopSandboxFork } from '@sail/sandbox'
+import { TooManySandboxChainsError, fundErc20, fundNative, isPidAlive, refreshSandboxForks, resetSandbox, resetSandboxProject, restartSandboxFork, sandboxDirFor, startSandboxForks, stopSandboxFork, usdcAddressFor } from '@sail/sandbox'
 import { createPublicClient, createWalletClient, defineChain, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
 
@@ -2026,6 +2026,13 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
     res.json({ mode })
   })
 
+  // A plain positive decimal string ("0.1", "1000", "5") — the fund routes
+  // validate amounts this way (not via `Number(...)`) so an 18-decimal ETH
+  // amount survives to fundNative/fundErc20 without floating-point rounding.
+  function isPositiveDecimalString(value) {
+    return /^\d+(\.\d+)?$/.test(value) && Number(value) > 0
+  }
+
   // ── Sandbox (native local-fork simulation) ──────────────────────────────
   // Only registered on a sandbox-mode server instance (see startServer's
   // `mode` option) — the live server never has these routes at all, so there
@@ -2066,6 +2073,68 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
       try {
         await resetSandbox(sailDir, { purgeState: Boolean(req.body?.purgeState) })
         res.json({ ok: true })
+      } catch (e) {
+        res.status(500).json({ error: e?.message || String(e) })
+      }
+    })
+
+    // Settings-modal "Reset sandbox" — a full wipe, not just the forks: stops
+    // every fork, purges the manifest, retires each chain's dumped anvil
+    // state, and moves the SMA record/mandate/activity log/keys into a
+    // timestamped backup dir (see resetSandboxProject) so the project looks
+    // brand new (onboarding wizard reappears) without destroying anything.
+    app.post('/api/sandbox/reset-project', async (_req, res) => {
+      try {
+        const result = await resetSandboxProject(sailDir)
+        res.json({ ok: true, ...result })
+      } catch (e) {
+        res.status(500).json({ error: e?.message || String(e) })
+      }
+    })
+
+    // Settings-modal "Fund gas" — sets an address's native balance directly
+    // via anvil_setBalance on the requested chain's sandbox fork. No faucet or
+    // real transfer involved; this only ever runs against this sandbox's own
+    // forked RPC (see the mode === 'sandbox' gate around this whole block).
+    app.post('/api/sandbox/fund/native', async (req, res) => {
+      const { chainId, address, amountEth } = req.body ?? {}
+      if (!Number.isInteger(chainId)) return res.status(400).json({ error: 'chainId must be an integer' })
+      if (!isAddress(address ?? '')) return res.status(400).json({ error: 'address must be a valid 0x address' })
+      // Validated as a string, not routed through Number for the actual value
+      // passed to fundNative — a JS double can't safely round-trip an 18-decimal
+      // ETH amount, and this is a whole-token amount (e.g. "0.1" = 0.1 ETH), not wei.
+      const amountStr = String(amountEth ?? '').trim()
+      if (!isPositiveDecimalString(amountStr)) return res.status(400).json({ error: 'amountEth must be a positive decimal amount, e.g. "0.1"' })
+      try {
+        const forks = await refreshSandboxForks(sailDir)
+        const fork = forks[String(chainId)]
+        if (!fork?.rpcUrl || fork.status !== 'ready') return res.status(400).json({ error: 'That chain has no ready fork to fund on.' })
+        const result = await fundNative(fork.rpcUrl, address, amountStr)
+        res.json({ ok: true, ...result })
+      } catch (e) {
+        res.status(500).json({ error: e?.message || String(e) })
+      }
+    })
+
+    // Settings-modal "Fund USDC" — writes a token balance directly via the
+    // balanceOf storage slot (no whale account needed) so a chosen SMA can be
+    // funded with USDC on any sandbox fork that has a known USDC deployment.
+    app.post('/api/sandbox/fund/usdc', async (req, res) => {
+      const { chainId, safe, amount } = req.body ?? {}
+      if (!Number.isInteger(chainId)) return res.status(400).json({ error: 'chainId must be an integer' })
+      if (!isAddress(safe ?? '')) return res.status(400).json({ error: 'safe must be a valid 0x address' })
+      // A whole-USDC amount (e.g. "100" = 100 USDC), validated as a string —
+      // see the native-funding route above for why this isn't routed through Number.
+      const amountStr = String(amount ?? '').trim()
+      if (!isPositiveDecimalString(amountStr)) return res.status(400).json({ error: 'amount must be a positive decimal amount, e.g. "100"' })
+      const token = usdcAddressFor(chainId)
+      if (!token) return res.status(400).json({ error: `No known USDC deployment for chain ${chainId} in sandbox mode.` })
+      try {
+        const forks = await refreshSandboxForks(sailDir)
+        const fork = forks[String(chainId)]
+        if (!fork?.rpcUrl || fork.status !== 'ready') return res.status(400).json({ error: 'That chain has no ready fork to fund on.' })
+        const result = await fundErc20(fork.rpcUrl, token, safe, amountStr)
+        res.json({ ok: true, token, ...result })
       } catch (e) {
         res.status(500).json({ error: e?.message || String(e) })
       }

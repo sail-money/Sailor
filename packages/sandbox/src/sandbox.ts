@@ -10,8 +10,8 @@
  * already supports.
  */
 
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, renameSync } from "node:fs";
+import { basename, join } from "node:path";
 import {
   CHAIN_IDS,
   MAX_SANDBOX_CHAINS,
@@ -230,6 +230,47 @@ export async function resetSandbox(sandboxDir: string, opts: { purgeState?: bool
   }
 
   writeManifest(sandboxDir, opts.purgeState ? {} : manifest);
+}
+
+/** Files/dirs that constitute "this sandbox's project state" — everything
+ *  `resetSandboxProject` backs up. Named relative to `sandboxDir`. */
+const PROJECT_STATE_ENTRIES = ["account.json", "mandate.json", "activity.jsonl", "state", "keys"];
+
+function backupStamp(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}T${p(d.getUTCHours())}${p(d.getUTCMinutes())}${p(d.getUTCSeconds())}Z`;
+}
+
+export type ResetSandboxProjectResult = { backupDir: string | null };
+
+/**
+ * "Reset the project" for a sandbox: stops every fork and purges the fork
+ * manifest (same as `resetSandbox({ purgeState: true })`), retires each
+ * chain's dumped anvil state file so a later start forks clean from live
+ * chain state rather than silently resuming the old (now-orphaned) world,
+ * and moves every piece of project-level state — the SMA record, mandate,
+ * activity log, account list, and agent-wallet keystores — into a
+ * timestamped backup directory instead of deleting it outright. Nothing is
+ * destroyed: an operator who resets by mistake can recover everything from
+ * `_reset-backup-<timestamp>/`.
+ */
+export async function resetSandboxProject(sandboxDir: string): Promise<ResetSandboxProjectResult> {
+  await resetSandbox(sandboxDir, { purgeState: true });
+
+  const present = PROJECT_STATE_ENTRIES.filter((name) => existsSync(join(sandboxDir, name)));
+  const dumps = (Object.keys(CHAIN_IDS) as Chain[])
+    .map((chain) => anvilStateFilePath(sandboxDir, chain))
+    .filter((f) => existsSync(f));
+
+  if (present.length === 0 && dumps.length === 0) return { backupDir: null };
+
+  const backupDir = join(sandboxDir, `_reset-backup-${backupStamp(new Date())}`);
+  mkdirSync(backupDir, { recursive: true });
+
+  for (const name of present) renameSync(join(sandboxDir, name), join(backupDir, name));
+  for (const dump of dumps) renameSync(dump, join(backupDir, basename(dump)));
+
+  return { backupDir };
 }
 
 /**

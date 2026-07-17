@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import ChainGlyph from './ChainGlyph'
 import GlassCard from './GlassCard'
 import SailButton from './SailButton'
+import SandboxSettingsModal from './SandboxSettingsModal'
 import styles from './SandboxBanner.module.css'
 
-const CHAIN_LABELS = {
+export const CHAIN_LABELS = {
   'base-sepolia': 'Base Sepolia',
   base: 'Base',
   arbitrum: 'Arbitrum',
@@ -47,6 +48,7 @@ export default function SandboxBanner() {
   const [selectedChainId, setSelectedChainId] = useState(null)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState('')
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   function load() {
     return fetch('/api/sandbox/forks', { cache: 'no-store' })
@@ -125,10 +127,27 @@ export default function SandboxBanner() {
           </div>
         )}
 
+        <button
+          type="button"
+          className={styles.settingsButton}
+          onClick={() => setSettingsOpen(true)}
+          aria-label="Sandbox settings"
+          title="Sandbox settings"
+        >
+          ⚙
+        </button>
+
         <button type="button" className={styles.exit} onClick={handleExit} disabled={exiting}>
           {exiting ? 'Opening live dashboard…' : 'Exit to live dashboard →'}
         </button>
       </div>
+
+      <SandboxSettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        forks={forks}
+        onReset={load}
+      />
 
       {selectedFork && (
         <div

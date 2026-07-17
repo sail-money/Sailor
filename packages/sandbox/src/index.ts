@@ -24,7 +24,11 @@ export {
   refreshSandboxForks,
   getSandboxForks,
   resetSandbox,
+  resetSandboxProject,
   stopSandboxFork,
   restartSandboxFork,
   type StartSandboxForksResult,
+  type ResetSandboxProjectResult,
 } from "./sandbox.js";
+
+export { fundNative, fundErc20, usdcAddressFor, USDC_ADDRESSES } from "./fund.js";

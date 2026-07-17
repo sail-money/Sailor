@@ -98,3 +98,135 @@ describe('sandbox state isolation', () => {
     }
   })
 })
+
+describe('POST /api/sandbox/reset-project', () => {
+  it('is never registered on a live-mode server', async () => {
+    const fix = loadFixture('onboarded')
+    try {
+      const res = await fix.api.post('/api/sandbox/reset-project')
+      expect(res.body).not.toHaveProperty('backupDir')
+    } finally {
+      fix.cleanup()
+    }
+  })
+
+  it('moves account.json, mandate.json, activity.jsonl, state/, and keys/ into a backup dir, leaving the sandbox looking brand new', async () => {
+    const fix = loadFixture('onboarded', {}, { mode: 'sandbox' })
+    try {
+      for (const rel of ['account.json', 'mandate.json', 'activity.jsonl', 'state', 'keys']) {
+        expect(fs.existsSync(path.join(fix.sailDir, rel))).toBe(true)
+      }
+
+      const res = await fix.api.post('/api/sandbox/reset-project')
+      expect(res.status).toBe(200)
+      expect(res.body.ok).toBe(true)
+      expect(res.body.backupDir).toBeTruthy()
+
+      for (const rel of ['account.json', 'mandate.json', 'activity.jsonl', 'state', 'keys']) {
+        expect(fs.existsSync(path.join(fix.sailDir, rel))).toBe(false)
+        expect(fs.existsSync(path.join(res.body.backupDir, rel))).toBe(true)
+      }
+      // The active account really is gone, not just moved on disk — a fresh
+      // GET should read the reset sandbox as having no SMA at all.
+      const accountsRes = await fix.api.get('/api/accounts')
+      expect(accountsRes.body).toEqual([])
+    } finally {
+      fix.cleanup()
+    }
+  })
+
+  it('is a no-op (backupDir: null) on a sandbox with nothing to reset yet', async () => {
+    const fix = loadFixture('fresh', {}, { mode: 'sandbox' })
+    try {
+      // The 'fresh' fixture still carries an empty state/ dir (accounts.json:
+      // [], no SMA) — strip it so this hits the true "nothing at all" path.
+      fs.rmSync(path.join(fix.sailDir, 'state'), { recursive: true, force: true })
+
+      const res = await fix.api.post('/api/sandbox/reset-project')
+      expect(res.status).toBe(200)
+      expect(res.body.backupDir).toBe(null)
+    } finally {
+      fix.cleanup()
+    }
+  })
+})
+
+describe('POST /api/sandbox/fund/native validation', () => {
+  let fix
+  beforeEach(() => { fix = loadFixture('onboarded', {}, { mode: 'sandbox' }) })
+  afterEach(() => fix.cleanup())
+
+  it('rejects a non-integer chainId', async () => {
+    const res = await fix.api.post('/api/sandbox/fund/native').send({ chainId: 'base', address: '0x8E637d9573Ad81B60cb93edA78b9C827860950a4', amountEth: 1 })
+    expect(res.status).toBe(400)
+  })
+
+  it('rejects an invalid address', async () => {
+    const res = await fix.api.post('/api/sandbox/fund/native').send({ chainId: 8453, address: 'not-an-address', amountEth: 1 })
+    expect(res.status).toBe(400)
+  })
+
+  it('rejects a non-positive amount', async () => {
+    const res = await fix.api.post('/api/sandbox/fund/native').send({ chainId: 8453, address: '0x8E637d9573Ad81B60cb93edA78b9C827860950a4', amountEth: 0 })
+    expect(res.status).toBe(400)
+  })
+
+  it('rejects a chain with no ready fork', async () => {
+    const res = await fix.api.post('/api/sandbox/fund/native').send({ chainId: 8453, address: '0x8E637d9573Ad81B60cb93edA78b9C827860950a4', amountEth: 1 })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/no ready fork/i)
+  })
+
+  it('is never registered on a live-mode server', async () => {
+    const live = loadFixture('onboarded')
+    try {
+      const res = await live.api.post('/api/sandbox/fund/native').send({ chainId: 8453, address: '0x8E637d9573Ad81B60cb93edA78b9C827860950a4', amountEth: 1 })
+      expect(res.body).not.toHaveProperty('balanceWei')
+    } finally {
+      live.cleanup()
+    }
+  })
+})
+
+describe('POST /api/sandbox/fund/usdc validation', () => {
+  let fix
+  beforeEach(() => { fix = loadFixture('onboarded', {}, { mode: 'sandbox' }) })
+  afterEach(() => fix.cleanup())
+
+  it('rejects a non-integer chainId', async () => {
+    const res = await fix.api.post('/api/sandbox/fund/usdc').send({ chainId: 'base', safe: '0x8E637d9573Ad81B60cb93edA78b9C827860950a4', amount: 100 })
+    expect(res.status).toBe(400)
+  })
+
+  it('rejects an invalid safe address', async () => {
+    const res = await fix.api.post('/api/sandbox/fund/usdc').send({ chainId: 8453, safe: 'not-an-address', amount: 100 })
+    expect(res.status).toBe(400)
+  })
+
+  it('rejects a non-positive amount', async () => {
+    const res = await fix.api.post('/api/sandbox/fund/usdc').send({ chainId: 8453, safe: '0x8E637d9573Ad81B60cb93edA78b9C827860950a4', amount: 0 })
+    expect(res.status).toBe(400)
+  })
+
+  it('rejects a chain with no known USDC deployment', async () => {
+    const res = await fix.api.post('/api/sandbox/fund/usdc').send({ chainId: 999999, safe: '0x8E637d9573Ad81B60cb93edA78b9C827860950a4', amount: 100 })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/no known usdc deployment/i)
+  })
+
+  it('rejects a known-USDC chain with no ready fork', async () => {
+    const res = await fix.api.post('/api/sandbox/fund/usdc').send({ chainId: 8453, safe: '0x8E637d9573Ad81B60cb93edA78b9C827860950a4', amount: 100 })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/no ready fork/i)
+  })
+
+  it('is never registered on a live-mode server', async () => {
+    const live = loadFixture('onboarded')
+    try {
+      const res = await live.api.post('/api/sandbox/fund/usdc').send({ chainId: 8453, safe: '0x8E637d9573Ad81B60cb93edA78b9C827860950a4', amount: 100 })
+      expect(res.body).not.toHaveProperty('balanceWei')
+    } finally {
+      live.cleanup()
+    }
+  })
+})
