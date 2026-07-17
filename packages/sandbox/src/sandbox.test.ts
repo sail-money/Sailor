@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -55,6 +56,57 @@ test("manifest round-trips through disk, and reads as {} when absent", () => {
     writeManifest(dir, { "8453": entry });
     assert.deepEqual(readManifest(dir), { "8453": entry });
   } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+/** A bare RPC stub that only answers eth_chainId — enough to exercise
+ *  startFork's port-probe without needing a real anvil process. */
+function stubRpcServer(chainId: number): Promise<{ server: Server; port: number }> {
+  return new Promise((resolve) => {
+    const server = createServer((req, res) => {
+      let body = "";
+      req.on("data", (c) => (body += c));
+      req.on("end", () => {
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({ jsonrpc: "2.0", id: 1, result: `0x${chainId.toString(16)}` }));
+      });
+    });
+    server.listen(0, "127.0.0.1", () => {
+      const port = (server.address() as any).port;
+      resolve({ server, port });
+    });
+  });
+}
+
+test("startFork adopts an already-listening port serving the right chain, instead of spawning a duplicate", async () => {
+  const dir = tmpSandboxDir();
+  const { server, port } = await stubRpcServer(8453);
+  try {
+    const fork = await startFork({ sandboxDir: dir, chain: "base", port, repoint: false });
+    assert.equal(fork.adopted, true);
+    assert.equal(fork.pid, undefined);
+    assert.equal(fork.ready, true);
+    assert.equal(fork.status, "ready");
+
+    const env = readFileSync(join(dir, ".env.local"), "utf8");
+    assert.match(env, new RegExp(`RPC_URL_8453=http://127\\.0\\.0\\.1:${port}`));
+  } finally {
+    server.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("startFork refuses to guess when the port already serves a different chain", async () => {
+  const dir = tmpSandboxDir();
+  const { server, port } = await stubRpcServer(42161); // arbitrum, but we ask for base
+  try {
+    await assert.rejects(
+      startFork({ sandboxDir: dir, chain: "base", port, repoint: false }),
+      /already serving chain 42161/,
+    );
+  } finally {
+    server.close();
     rmSync(dir, { recursive: true, force: true });
   }
 });

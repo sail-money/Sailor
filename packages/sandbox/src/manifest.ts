@@ -21,6 +21,9 @@ export type ManifestEntry = {
   status?: "ready" | "spawning" | "failed";
   error?: string;
   requestedAt?: string;
+  /** True when this fork's port was already live at startup — adopted, not
+   *  spawned; there's no pid we own, so `resetSandbox` won't try to kill it. */
+  adopted?: boolean;
 };
 
 export const manifestPath = (sandboxDir: string) => join(sandboxDir, "forks.json");

@@ -16,6 +16,7 @@ import {
   CHAIN_IDS,
   MAX_SANDBOX_CHAINS,
   TooManySandboxChainsError,
+  ensurePerChainRpc,
   isPidAlive,
   startFork,
   stopFork,
@@ -59,6 +60,7 @@ function manifestEntryToForkState(entry: ManifestEntry): ForkState | null {
     startedAt: entry.startedAt,
     ready: entry.ready,
     status: entry.status,
+    adopted: entry.adopted,
   };
 }
 
@@ -98,7 +100,12 @@ export async function startSandboxForks(opts: {
     const tracked = manifest[key];
 
     if (tracked && isPidAlive(tracked.pid)) {
-      // Already running from an earlier step in this onboarding session.
+      // Already running from an earlier step in this onboarding session — no
+      // need to re-spawn, but still make sure this chain's own RPC_URL_<id>
+      // is on record (a fresh manifest, or one written before this per-chain
+      // key existed, would otherwise leave an already-running chain invisible
+      // to anything reading the per-chain env convention).
+      if (tracked.rpcUrl) ensurePerChainRpc(sandboxDir, chainId, tracked.rpcUrl);
       continue;
     }
 
@@ -113,6 +120,7 @@ export async function startSandboxForks(opts: {
         startedAt: fork.startedAt,
         ready: Boolean(fork.ready),
         status: fork.status,
+        adopted: fork.adopted,
       };
     } catch (e: any) {
       manifest[key] = {
@@ -139,7 +147,10 @@ export async function refreshSandboxForks(sandboxDir: string): Promise<Record<st
   for (const [key, entry] of Object.entries(manifest)) {
     if (entry.status === "ready" || !entry.rpcUrl) continue;
     const ready = await waitForRpc(entry.rpcUrl, entry.chainId, 1_000);
-    if (ready) manifest[key] = { ...entry, ready: true, status: "ready" };
+    if (ready) {
+      manifest[key] = { ...entry, ready: true, status: "ready" };
+      ensurePerChainRpc(sandboxDir, entry.chainId, entry.rpcUrl);
+    }
   }
 
   writeManifest(sandboxDir, manifest);
