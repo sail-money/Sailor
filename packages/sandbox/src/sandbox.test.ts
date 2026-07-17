@@ -5,9 +5,17 @@ import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { createPublicClient, createTestClient, http } from "viem";
 import { isPidAlive, startFork, stopFork } from "./fork.js";
 import { readManifest, writeManifest } from "./manifest.js";
-import { MAX_SANDBOX_CHAINS, TooManySandboxChainsError, resolveChainName, startSandboxForks } from "./sandbox.js";
+import {
+  MAX_SANDBOX_CHAINS,
+  TooManySandboxChainsError,
+  resolveChainName,
+  restartSandboxFork,
+  startSandboxForks,
+  stopSandboxFork,
+} from "./sandbox.js";
 
 function tmpSandboxDir(): string {
   return mkdtempSync(join(tmpdir(), "sail-sandbox-test-"));
@@ -111,6 +119,57 @@ test("startFork refuses to guess when the port already serves a different chain"
   }
 });
 
+test("stopSandboxFork throws for an untracked chain", async () => {
+  const dir = tmpSandboxDir();
+  try {
+    await assert.rejects(stopSandboxFork(dir, 8453), /No sandbox fork tracked/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("stopSandboxFork and restartSandboxFork both refuse on an adopted fork that's still actually alive", async () => {
+  const dir = tmpSandboxDir();
+  const { server, port } = await stubRpcServer(8453);
+  try {
+    writeManifest(dir, {
+      "8453": {
+        chainId: 8453,
+        chain: "base",
+        ready: true,
+        status: "ready",
+        adopted: true,
+        rpcUrl: `http://127.0.0.1:${port}`,
+        port,
+      },
+    });
+    await assert.rejects(stopSandboxFork(dir, 8453), /still running/);
+    await assert.rejects(restartSandboxFork(dir, 8453), /still running/);
+  } finally {
+    server.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("stopSandboxFork allows stopping an adopted fork whose process has since died — nothing left to protect", async () => {
+  const dir = tmpSandboxDir();
+  // A stub that's already closed before the manifest entry is even written —
+  // nothing is listening on this port, standing in for "the thing this
+  // sandbox adopted has since gone away."
+  const { server, port } = await stubRpcServer(8453);
+  server.close();
+  try {
+    writeManifest(dir, {
+      "8453": { chainId: 8453, chain: "base", ready: true, status: "ready", adopted: true, rpcUrl: `http://127.0.0.1:${port}`, port },
+    });
+    const stopped = await stopSandboxFork(dir, 8453);
+    assert.equal(stopped.status, "stopped");
+    assert.equal(stopped.adopted, false); // stale adoption marker cleared — safe to take over from here on
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 function anvilAvailable(): boolean {
   try {
     execFileSync("anvil", ["--version"], { stdio: "ignore" });
@@ -138,3 +197,123 @@ test("startFork/stopFork: a real anvil process comes up, preserves the chain id,
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test(
+  "stopSandboxFork then restartSandboxFork: a real fork stops, comes back on a new pid, and keeps repointing the sandbox's primary RPC",
+  { skip: !anvilAvailable() },
+  async () => {
+    const dir = tmpSandboxDir();
+    try {
+      const { forks } = await startSandboxForks({ sandboxDir: dir, chains: ["base-sepolia"] });
+      const started = forks["84532"];
+      assert.equal(started.status, "ready");
+      assert.ok(started.pid);
+      const firstPid = started.pid;
+
+      const stopped = await stopSandboxFork(dir, 84532);
+      assert.equal(stopped.status, "stopped");
+      assert.equal(stopped.pid, undefined);
+      assert.equal(isPidAlive(firstPid), false);
+
+      const restarted = await restartSandboxFork(dir, 84532);
+      assert.equal(restarted.status, "ready");
+      assert.ok(restarted.pid);
+      assert.notEqual(restarted.pid, firstPid);
+      assert.equal(isPidAlive(restarted.pid), true);
+      assert.equal(restarted.primary, true); // sole chain in this sandbox — stays primary across restart
+
+      const env = readFileSync(join(dir, ".env.local"), "utf8");
+      assert.match(env, /CHAIN_ID=84532/);
+
+      await stopSandboxFork(dir, 84532);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  "stopSandboxFork dumps state even for a manifest entry that predates the stateFile field, so a restart doesn't silently discard local chain state",
+  { skip: !anvilAvailable() },
+  async () => {
+    const dir = tmpSandboxDir();
+    try {
+      const { forks } = await startSandboxForks({ sandboxDir: dir, chains: ["base-sepolia"] });
+      const started = forks["84532"];
+      assert.ok(started.pid);
+
+      // Simulate a manifest entry written before `stateFile` was tracked (or
+      // one that was always "already alive" and so never went through
+      // startFork's own write) — the exact shape that let a stop silently
+      // skip dumping state.
+      const manifest = readManifest(dir);
+      delete manifest["84532"].stateFile;
+      writeManifest(dir, manifest);
+      assert.equal(readManifest(dir)["84532"].stateFile, undefined);
+
+      const testAddress = "0x000000000000000000000000000000000000dEaD";
+      const testClient = createTestClient({ mode: "anvil", transport: http(started.rpcUrl) });
+      const readClient = createPublicClient({ transport: http(started.rpcUrl) });
+      await testClient.setBalance({ address: testAddress, value: 123_456_789_000_000_000n });
+      assert.equal(await readClient.getBalance({ address: testAddress }), 123_456_789_000_000_000n);
+
+      await stopSandboxFork(dir, 84532);
+      const restarted = await restartSandboxFork(dir, 84532);
+      assert.equal(restarted.status, "ready");
+
+      const restartedReadClient = createPublicClient({ transport: http(restarted.rpcUrl) });
+      assert.equal(
+        await restartedReadClient.getBalance({ address: testAddress }),
+        123_456_789_000_000_000n,
+        "balance set before stop should survive the restart via the dumped/loaded state file",
+      );
+
+      await stopSandboxFork(dir, 84532);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  "restartSandboxFork revives a fork that was adopted from an external process which has since died — the exact stuck state a permanent adopted flag would cause",
+  { skip: !anvilAvailable() },
+  async () => {
+    const dir = tmpSandboxDir();
+    // A real anvil, standing in for "some other tool's fork this sandbox
+    // adopted rather than spawned" — started independently of startFork's
+    // own adoption path, then killed out from under the manifest entry to
+    // simulate it dying later (machine sleep, `pool down`, a crash).
+    const external = await startFork({ sandboxDir: mkdtempSync(join(tmpdir(), "sail-external-")), chain: "base-sepolia", repoint: false });
+    try {
+      writeManifest(dir, {
+        "84532": {
+          chainId: 84532,
+          chain: "base-sepolia",
+          ready: true,
+          status: "ready",
+          adopted: true,
+          rpcUrl: external.rpcUrl,
+          port: external.port,
+        },
+      });
+
+      // Still alive — must refuse, same as the process-not-yet-dead cases above.
+      await assert.rejects(restartSandboxFork(dir, 84532), /still running/);
+
+      await stopFork(external);
+      assert.equal(isPidAlive(external.pid), false);
+
+      // Now dead — restart should take over and actually bring the chain back.
+      const revived = await restartSandboxFork(dir, 84532);
+      assert.equal(revived.status, "ready");
+      assert.ok(revived.pid);
+      assert.equal(revived.adopted, false);
+      assert.equal(isPidAlive(revived.pid), true);
+
+      await stopSandboxFork(dir, 84532);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);

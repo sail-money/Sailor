@@ -64,7 +64,7 @@ export type ForkState = {
   logFile?: string;
   startedAt?: string;
   ready?: boolean;
-  status?: "ready" | "spawning" | "failed";
+  status?: "ready" | "spawning" | "failed" | "stopped";
   error?: string;
   /** True when this fork's port was already answering for the right chain at
    *  startup — we didn't spawn anything and don't own the process (so
@@ -76,7 +76,10 @@ function anvilLogPath(sandboxDir: string, chain: Chain): string {
   return join(sandboxDir, `anvil-${chain}.log`);
 }
 
-function anvilStateFilePath(sandboxDir: string, chain: Chain): string {
+/** Exported so callers that stop/restart a fork after the fact (the sandbox
+ *  UI's per-chain controls) can locate its dump-state file without having to
+ *  thread it through the manifest. */
+export function anvilStateFilePath(sandboxDir: string, chain: Chain): string {
   return join(sandboxDir, `anvil-state-${chain}.json`);
 }
 
@@ -152,8 +155,13 @@ export function ensurePerChainRpc(sandboxDir: string, chainId: number, rpcUrl: s
  * onboarding step, or another tool sharing the same deterministic port) gets
  * adopted instead of racing a second `anvil` against the same port. Returns
  * the chain id it reports, or null if nothing answered in time.
+ *
+ * Exported so callers can re-check an *adopted* fork's liveness later — an
+ * adopted entry has no pid of ours to poll, so this RPC probe is the only
+ * way to tell "still shared with something else" apart from "that something
+ * else is gone now, safe to take over."
  */
-async function probePort(rpcUrl: string, timeoutMs = 800): Promise<number | null> {
+export async function probePort(rpcUrl: string, timeoutMs = 800): Promise<number | null> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -267,9 +275,14 @@ export async function startFork(opts: {
     "--no-rate-limit",
   ];
 
-  if (loadStateFile && existsSync(loadStateFile)) {
-    args.push("--load-state", loadStateFile);
-  } else if (opts.forkBlock) {
+  // Deliberately not `--load-state <file>`: that flag expects anvil's own
+  // JSON state-file shape, not the raw hex string `dumpState()`/
+  // `anvil_dumpState` returns (what `stopFork` actually writes here) — anvil
+  // rejects it at boot ("expected struct SerializableState"), so the process
+  // never comes up and every restart silently timed out. Loaded over RPC
+  // instead, once the process is actually listening, via the same
+  // `anvil_loadState` method `dumpState`/`loadState` are paired with.
+  if (!loadStateFile && opts.forkBlock) {
     args.push("--fork-block-number", String(opts.forkBlock));
   }
 
@@ -290,6 +303,18 @@ export async function startFork(opts: {
 
   const ready = await waitForRpc(rpcUrl, chainId, 25_000);
 
+  if (ready && loadStateFile && existsSync(loadStateFile)) {
+    try {
+      const client = createTestClient({ mode: "anvil", transport: http(rpcUrl) });
+      await client.loadState({ state: readFileSync(loadStateFile, "utf8") as Hex });
+    } catch (e: any) {
+      // Best-effort — the chain still comes up fresh from the fork-url; it
+      // just won't have whatever local-only state (e.g. a deployed contract)
+      // the dump held.
+      console.warn(`⚠ Failed to load previous state for ${chain} from ${loadStateFile}: ${e?.message ?? e}`);
+    }
+  }
+
   const forkState: ForkState = {
     chain,
     chainId,
@@ -301,6 +326,7 @@ export async function startFork(opts: {
     startedAt: new Date().toISOString(),
     ready,
     status: ready ? "ready" : "spawning",
+    adopted: false,
   };
 
   if (opts.repoint !== false) ensureLocalRpc(sandboxDir, chainId, rpcUrl);

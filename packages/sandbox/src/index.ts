@@ -24,5 +24,7 @@ export {
   refreshSandboxForks,
   getSandboxForks,
   resetSandbox,
+  stopSandboxFork,
+  restartSandboxFork,
   type StartSandboxForksResult,
 } from "./sandbox.js";

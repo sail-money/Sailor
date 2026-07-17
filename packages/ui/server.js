@@ -8,7 +8,7 @@ import express from 'express'
 import { WebSocket, WebSocketServer } from 'ws'
 import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, chains, defaultRpcUrls, getNativeCurrencySymbol, getSailDeployment, readPermissionRegistrationFee } from '@sail/sdk'
 import * as accountStore from '@sail/sdk/accounts'
-import { TooManySandboxChainsError, isPidAlive, refreshSandboxForks, resetSandbox, sandboxDirFor, startSandboxForks } from '@sail/sandbox'
+import { TooManySandboxChainsError, isPidAlive, refreshSandboxForks, resetSandbox, restartSandboxFork, sandboxDirFor, startSandboxForks, stopSandboxFork } from '@sail/sandbox'
 import { createPublicClient, createWalletClient, defineChain, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
 
@@ -2068,6 +2068,40 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
         res.json({ ok: true })
       } catch (e) {
         res.status(500).json({ error: e?.message || String(e) })
+      }
+    })
+
+    // Maps stopSandboxFork/restartSandboxFork's thrown-Error-message convention
+    // to an HTTP status — both throw plain Errors (no custom error classes),
+    // distinguished by message text, so the client can tell "unknown chain"
+    // from "can't touch a process we don't own" from an actual failure.
+    function sandboxForkErrorStatus(message) {
+      if (/No sandbox fork tracked/.test(message)) return 404
+      if (/adopted an already-running process/.test(message)) return 409
+      return 500
+    }
+
+    app.post('/api/sandbox/forks/:chainId/stop', async (req, res) => {
+      const chainId = Number(req.params.chainId)
+      if (!Number.isInteger(chainId)) return res.status(400).json({ error: 'chainId must be an integer' })
+      try {
+        const fork = await stopSandboxFork(sailDir, chainId)
+        res.json({ ok: true, fork })
+      } catch (e) {
+        const message = e?.message || String(e)
+        res.status(sandboxForkErrorStatus(message)).json({ error: message })
+      }
+    })
+
+    app.post('/api/sandbox/forks/:chainId/restart', async (req, res) => {
+      const chainId = Number(req.params.chainId)
+      if (!Number.isInteger(chainId)) return res.status(400).json({ error: 'chainId must be an integer' })
+      try {
+        const fork = await restartSandboxFork(sailDir, chainId)
+        res.json({ ok: true, fork })
+      } catch (e) {
+        const message = e?.message || String(e)
+        res.status(sandboxForkErrorStatus(message)).json({ error: message })
       }
     })
 

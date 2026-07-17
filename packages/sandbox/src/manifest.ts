@@ -16,14 +16,19 @@ export type ManifestEntry = {
   rpcUrl?: string;
   port?: number;
   pid?: number;
+  stateFile?: string;
   startedAt?: string;
   ready: boolean;
-  status?: "ready" | "spawning" | "failed";
+  status?: "ready" | "spawning" | "failed" | "stopped";
   error?: string;
   requestedAt?: string;
   /** True when this fork's port was already live at startup — adopted, not
    *  spawned; there's no pid we own, so `resetSandbox` won't try to kill it. */
   adopted?: boolean;
+  /** True for the chain that owns the sandbox's generic RPC_URL/CHAIN_ID pair
+   *  (as opposed to its RPC_URL_<chainId> entry, which every chain gets) —
+   *  restart uses this to decide whether to keep repointing it. */
+  primary?: boolean;
 };
 
 export const manifestPath = (sandboxDir: string) => join(sandboxDir, "forks.json");
