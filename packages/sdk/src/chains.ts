@@ -134,6 +134,19 @@ export const chains: Record<number, ChainConfig> = {
     protocols: {},
     nativeCurrency: ETH,
   },
+  // Robinhood Chain mainnet
+  4663: {
+    chainId: 4663,
+    name: "Robinhood",
+    rpcEnvVar: "ROBINHOOD_RPC_URL",
+    defaultRpcUrl: "https://rpc.mainnet.chain.robinhood.com",
+    kernel: CREATE2_KERNEL,
+    mandateFactory: CREATE2_MANDATE_FACTORY,
+    governance: CREATE2_GOVERNANCE,
+    dispatchModel: "selective",
+    protocols: {},
+    nativeCurrency: ETH,
+  },
   // Base Sepolia (testnet)
   84532: {
     chainId: 84532,
@@ -167,7 +180,7 @@ export function getChain(chainId: number): ChainConfig {
   const config = chains[chainId];
   if (!config) {
     throw new Error(
-      `Chain ${chainId} is not supported. Supported chains: 1 (Ethereum), 8453 (Base), 42161 (Arbitrum), 10 (Optimism), 130 (Unichain), 56 (BSC), 480 (World Chain), 999 (HyperEVM), 4326 (MegaETH), 84532 (Base Sepolia), 11155111 (Eth Sepolia).`,
+      `Chain ${chainId} is not supported. Supported chains: 1 (Ethereum), 8453 (Base), 42161 (Arbitrum), 10 (Optimism), 130 (Unichain), 56 (BSC), 480 (World Chain), 999 (HyperEVM), 4326 (MegaETH), 4663 (Robinhood), 84532 (Base Sepolia), 11155111 (Eth Sepolia).`,
     );
   }
   return config;

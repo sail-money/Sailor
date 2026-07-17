@@ -11,7 +11,7 @@ test("getNativeCurrencySymbol: HyperEVM pays its registration fee in HYPE, not E
 });
 
 test("getNativeCurrencySymbol: most chains use ETH", () => {
-  for (const chainId of [1, 8453, 42161, 10, 130, 480, 4326, 84532, 11155111]) {
+  for (const chainId of [1, 8453, 42161, 10, 130, 480, 4326, 4663, 84532, 11155111]) {
     assert.equal(getNativeCurrencySymbol(chainId), "ETH");
   }
 });

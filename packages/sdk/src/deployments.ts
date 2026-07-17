@@ -4,14 +4,15 @@ import type { DispatchModel } from "./capabilities.js";
 /**
  * Chains with a bundled Sail Protocol deployment.
  * Mainnets: Ethereum (1), Base (8453), Arbitrum (42161), Optimism (10),
- * Unichain (130), BSC (56), World Chain (480), HyperEVM (999), MegaETH (4326).
+ * Unichain (130), BSC (56), World Chain (480), HyperEVM (999), MegaETH (4326),
+ * Robinhood Chain (4663).
  * Testnets: Base Sepolia (84532), Eth Sepolia (11155111).
  *
- * All eleven chains run the Safe-governed CREATE2 deployment (global salt,
+ * All twelve chains run the Safe-governed CREATE2 deployment (global salt,
  * gitCommit 1dc1960, deploy version create2-2026-07-01) so every core contract
  * and every shared template lands at the same address on every chain.
  */
-export type SailChainId = 1 | 8453 | 42161 | 10 | 130 | 56 | 480 | 999 | 4326 | 84532 | 11155111;
+export type SailChainId = 1 | 8453 | 42161 | 10 | 130 | 56 | 480 | 999 | 4326 | 4663 | 84532 | 11155111;
 
 /** A pre-audited mandate template available on a chain. */
 export type KnownTemplate = {
@@ -239,6 +240,13 @@ export const sailDeployments: Record<SailChainId, SailDeployment> = {
     chainId: 4326,
     blockNumber: 20056530,
     knownTemplates: knownTemplatesFor(4326),
+  },
+  // ── Robinhood Chain mainnet ──────────────────────────────────────────────────
+  4663: {
+    ...COMMON_DEPLOYMENT_FIELDS,
+    chainId: 4663,
+    blockNumber: 11313197,
+    knownTemplates: knownTemplatesFor(4663),
   },
   // ── Base Sepolia (testnet) ───────────────────────────────────────────────────
   84532: {
