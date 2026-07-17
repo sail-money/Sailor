@@ -51,6 +51,7 @@ const NAME_TO_ID = {
   world: 480,
   hyperevm: 999,
   megaeth: 4326,
+  robinhood: 4663,
   'base sepolia': 84532,
   'eth sepolia': 11155111,
   'ethereum sepolia': 11155111,

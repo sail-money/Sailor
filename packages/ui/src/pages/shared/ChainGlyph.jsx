@@ -24,6 +24,7 @@ const CHAIN_COLORS = {
   999:      '#50d2c1', // HyperEVM (Hyperliquid mint)
   998:      '#50d2c1', // HyperEVM Testnet
   4326:     '#ffffff', // MegaETH
+  4663:     '#00c805', // Robinhood (brand green)
 }
 
 function chainColor(chainId) {
@@ -91,6 +92,13 @@ function Mark({ chainId, color }) {
       <path d="M3 16.5V5h2.8L12 12.2 18.2 5H21v11.5h-2.6V9.2L12 16.6 5.6 9.2v7.3z" />
       <circle cx="9.4" cy="20" r="1.3" />
       <circle cx="14.6" cy="20" r="1.3" />
+    </svg>
+  )
+  // Robinhood — feather mark
+  if (chainId === 4663) return (
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path fill={color} d="M19 3c-6 .5-9.5 3.5-11 8-.7 2.1-1 4.4-1 7h2c0-1.3.1-2.5.3-3.6L15 10l-6 6.5c1.8-.3 3.4-.9 4.8-1.9C17.7 12 19 8 19 3z" />
+      <path fill={color} d="M5 21c.6-1.4 1.3-2.6 2.1-3.6l1.6 1.2C7.8 19.4 7.1 20.1 6.7 21z" />
     </svg>
   )
   // Fallback — neutral dot

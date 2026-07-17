@@ -84,6 +84,7 @@ const CHAIN_NAMES = {
   480: 'world',
   999: 'hyperevm',
   4326: 'megaeth',
+  4663: 'robinhood',
 }
 // Testnets we deliberately never surface in the Sailor UI (Base/Ethereum
 // Sepolia and their siblings). Filtered out of every chain list, the

@@ -38,6 +38,7 @@ const SUPPORTED_NETWORKS = [
   { chainId: 480,    name: 'World Chain',    group: 'mainnet', description: 'Worldcoin L2.', color: '#dfe3e8' },
   { chainId: 999,    name: 'HyperEVM',       group: 'mainnet', description: 'Hyperliquid EVM.', color: '#50d2c1' },
   { chainId: 4326,   name: 'MegaETH',        group: 'mainnet', description: 'Real-time EVM.', color: '#ffffff' },
+  { chainId: 4663,   name: 'Robinhood',      group: 'mainnet', description: 'Robinhood Chain.', color: '#00c805' },
   // Testnets (Base/Ethereum Sepolia) are intentionally not offered in the UI.
 ]
 
