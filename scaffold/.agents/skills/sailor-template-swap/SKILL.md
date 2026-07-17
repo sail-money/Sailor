@@ -256,7 +256,7 @@ courtesy to the router, not a kernel-enforced bound.
 - **Aggregator (LI.FI) or opaque calldata** → a bespoke permission bounds the perimeter the route
   can't expose; use [`sailor-mandates`](../sailor-mandates/SKILL.md).
 - **`SwapPermission` not deployed on your chain** → check `deployed.json` first (it's live on all
-  11 Sailor-bundled chains as of the current deploy); for anything outside that set, author your
+  12 Sailor-bundled chains as of the current deploy); for anything outside that set, author your
   own via [`sailor-mandates`](../sailor-mandates/SKILL.md).
 
 ## Notes

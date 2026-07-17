@@ -56,7 +56,7 @@ a revert or over-gas is treated as `false` (fail-closed), never a kernel revert.
 node .agents/skills/sailor-templates/catalog.mjs --chain <id>
 ```
 The address comes from [`deployed.json`](../deployed.json). All seven shared templates are
-deployed on all 11 supported chains today (`SwapPermissionNoOracle` included — it's the DEFAULT
+deployed on all 12 supported chains today (`SwapPermissionNoOracle` included — it's the DEFAULT
 bounded-swap tier). **If a future chain is missing a template's entry**, that's the prerequisite:
 deploy the singleton once (Protocol team / `DeploySharedTemplates`) and record its address there.
 A template address is only meaningful paired with that chain's kernel.

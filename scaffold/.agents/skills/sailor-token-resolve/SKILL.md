@@ -49,7 +49,7 @@ write it to `.sail/.env.local` (`RPC_URL=…` for a single chain, or the chain-n
 multi-chain projects), then re-run. Written once, never asked again — every later RPC-dependent
 script (`sailor-swap-quote`'s `quote-swap.mjs`, `doctor`, the runner) reads the same file.
 
-> **Coverage caveat — curated tables cover 4 of the 11 supported chains.** The script ships
+> **Coverage caveat — curated tables cover 4 of the 12 supported chains.** The script ships
 > curated token tables + a Uniswap QuoterV2 address for **ethereum, unichain, base, arbitrum**
 > only (the four `--chain` values above). On the other supported chains (optimism, bsc, world
 > chain, hyperevm, megaeth, and the testnets) the script still runs, but the on-chain swap-ready
