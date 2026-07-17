@@ -26,7 +26,7 @@ import {
   resolvePermissionForCall,
 } from "../lib/permission-resolver.js";
 import { clearAgentPid, writeAgentPid } from "../lib/process.js";
-import { readActiveAccount } from "@sail/sdk/accounts";
+import { readExecutableAccount, setExecutableAccount } from "@sail/sdk/accounts";
 import type { StoredAccount, StoredMandate } from "../lib/state.js";
 
 const DEFAULT_INTERVAL_SEC = 60;
@@ -144,13 +144,17 @@ export async function runCommand(opts: {
   once?: boolean;
   chain?: number;
   reason?: string;
+  sma?: string;
 }): Promise<void> {
   const once = opts.once === true;
 
   // ── Load required local state ──────────────────────────────────────────────
-  const account = readActiveAccount();
+  // The agent runs against the `executable` SMA (separate from the UI-`selected` one). Passing
+  // --sma persists that SMA as the new run target before we read it.
+  if (opts.sma) setExecutableAccount(checksum(opts.sma));
+  const account = readExecutableAccount();
   if (!account) {
-    throw new Error('No account found at .sail/account.json.\nRun "sailor onboard --new-sma" first.');
+    throw new Error('No SMA to run. Create one (`sailor onboard --new-sma`) or pass --sma <address>.');
   }
   const mandateRaw = readJsonFile<StoredMandate | StoredMandate[]>(sailPath("mandate.json"));
   const mandate = Array.isArray(mandateRaw) ? mandateRaw[0] : mandateRaw;

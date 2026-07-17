@@ -78,6 +78,16 @@ export async function switchSailorAccount(safe) {
   return res.json()
 }
 
+export async function setExecutableSailorAccount(safe) {
+  const res = await fetch('/api/account/executable', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ safe }),
+  })
+  if (!res.ok) throw new Error(`Set executable failed (${res.status})`)
+  return res.json()
+}
+
 export async function renameSailorAccount(safe, name) {
   const res = await fetch('/api/account/rename', {
     method: 'POST',

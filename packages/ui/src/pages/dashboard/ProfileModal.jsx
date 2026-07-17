@@ -61,6 +61,7 @@ export default function ProfileModal({
   onImportSMA,
   onRenameSafe,
   onSelectSafe,
+  onSetExecutable,
 }) {
   const [closing, setClosing] = useState(false)
   const [copiedKey, setCopiedKey] = useState(null) // 'eoa' | sma.id | null
@@ -225,6 +226,9 @@ export default function ProfileModal({
                         {isCurrent && !isEditing && (
                           <span className={styles.smaPrimaryBadge}>Current</span>
                         )}
+                        {sma.executable && !isEditing && (
+                          <span className={styles.smaPrimaryBadge} title="sailor run executes against this SMA">Agent runs here</span>
+                        )}
                         {!isEditing && (
                           <span
                             className={styles.smaRename}
@@ -333,6 +337,19 @@ export default function ProfileModal({
                     </span>
                     <ArrowOutIcon />
                   </a>
+
+                  {/* Point `sailor run` at this SMA without changing the UI selection.
+                      Hidden on the SMA that is already the agent's run target. */}
+                  {!sma.executable && onSetExecutable && (
+                    <button
+                      type="button"
+                      className={styles.smaSafeLink}
+                      onClick={(e) => { e.stopPropagation(); onSetExecutable(sma) }}
+                      aria-label={`Make ${sma.name} the SMA the agent runs against`}
+                    >
+                      <span className={styles.smaSafeLinkLabel}>Run agent here</span>
+                    </button>
+                  )}
                 </li>
                 )
               })}

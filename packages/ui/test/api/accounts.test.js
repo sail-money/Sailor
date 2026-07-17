@@ -181,6 +181,69 @@ describe('POST /api/account — merge preserves stored fields, both files stay i
   })
 })
 
+describe('selected vs executable flags', () => {
+  let fix
+  const SAFE = '0x8E637d9573Ad81B60cb93edA78b9C827860950a4'
+  const OWNER = '0x7f8c6DB60b46F7eCBA131b882fBea1Fed4F5f4F5'
+  const MANAGER = '0xa6D478146f03E9473582aCe099c67e3CbB5EC2BE'
+  const SMA_B = '0x2222222222222222222222222222222222222222'
+  const canonical = {
+    safe: SAFE, owner: OWNER, permissionSigner: OWNER, manager: MANAGER,
+    managers: [MANAGER], chainId: 8453, createdAtBlock: '46757914',
+    saltNonce: '1784155478729', deployedChains: [8453], name: 'SMA 1', addedAt: '2026-07-16T12:00:00.000Z',
+  }
+  const readList = () => JSON.parse(fs.readFileSync(path.join(fix.sailDir, 'state/accounts.json'), 'utf-8'))
+  const entry = (list, safe) => list.find((a) => a.safe.toLowerCase() === safe.toLowerCase())
+  beforeEach(() => {
+    fix = loadFixture('onboarded', {
+      'account.json': JSON.stringify(canonical),
+      'state/accounts.json': JSON.stringify([
+        canonical,
+        { safe: SMA_B, owner: OWNER, permissionSigner: OWNER, manager: MANAGER, managers: [MANAGER], chainId: 42161, createdAtBlock: '0', saltNonce: '999', deployedChains: [42161], name: 'SMA 2', addedAt: null },
+      ]),
+    })
+  })
+  afterEach(() => fix.cleanup())
+
+  it('setting executable does not move selected', async () => {
+    const res = await fix.api.post('/api/account/executable').send({ safe: SMA_B })
+    expect(res.status).toBe(200)
+    const list = readList()
+    expect(entry(list, SMA_B).executable).toBe(true)
+    expect(entry(list, SAFE).executable).toBeFalsy()
+    // selected stays on the original active SMA (migrated from account.json).
+    expect(entry(list, SAFE).selected).toBe(true)
+    expect(entry(list, SMA_B).selected).toBeFalsy()
+  })
+
+  it('switching selected does not move executable', async () => {
+    // SMA_A starts selected + executable (migrated). Switch UI selection to SMA_B.
+    const res = await fix.api.post('/api/account/switch').send({ safe: SMA_B })
+    expect(res.status).toBe(200)
+    const list = readList()
+    expect(entry(list, SMA_B).selected).toBe(true)
+    expect(entry(list, SAFE).selected).toBeFalsy()
+    // executable stayed on SMA_A — the agent keeps running it while the UI shows SMA_B.
+    expect(entry(list, SAFE).executable).toBe(true)
+    expect(entry(list, SMA_B).executable).toBeFalsy()
+  })
+
+  it('a newly registered SMA is selected but not executable (does not steal the run target)', async () => {
+    const newSafe = '0x3333333333333333333333333333333333333333'
+    const res = await fix.api.post('/api/account').send({ safe: newSafe, owner: OWNER, manager: MANAGER, chainId: 8453 })
+    expect(res.status).toBe(200)
+    const list = readList()
+    expect(entry(list, newSafe).selected).toBe(true)
+    expect(entry(list, newSafe).executable).toBeFalsy()
+    expect(entry(list, SAFE).executable).toBe(true) // run target unchanged
+  })
+
+  it('404s for an unknown SMA', async () => {
+    const res = await fix.api.post('/api/account/executable').send({ safe: '0x9999999999999999999999999999999999999999' })
+    expect(res.status).toBe(404)
+  })
+})
+
 describe('GET /api/mandate', () => {
   let fix
   beforeEach(() => { fix = loadFixture('onboarded') })

@@ -386,12 +386,17 @@ program
     "--reason <text>",
     "Label why this run fired (observability only; also read from SAIL_RUN_REASON)",
   )
-  .action(async (opts: { once?: boolean; chain?: string; reason?: string }) => {
+  .option(
+    "--sma <address>",
+    "SMA the agent runs against — persists it as the executable SMA; defaults to the current one, else the selected SMA",
+  )
+  .action(async (opts: { once?: boolean; chain?: string; reason?: string; sma?: string }) => {
     try {
       await runCommand({
         once: opts.once,
         chain: opts.chain ? Number(opts.chain) : undefined,
         reason: opts.reason,
+        sma: opts.sma,
       });
     } catch (err) {
       console.error(`Error: ${(err as Error).message}`);
