@@ -137,6 +137,27 @@ async function runUiCommand(opts: UiOptions, mode: UiMode): Promise<void> {
   const uiDistDir = path.join(packageRoot(), "packages", "ui", "dist");
   const serverBundle = path.resolve(distDir, "server.cjs");
   const projectRoot = process.cwd();
+
+  // The native sandbox spins up its own anvil fork(s) on the same deterministic
+  // ports an external harness tool (e.g. Shipyard) may already be managing for
+  // this exact project — two independent fork-lifecycle owners racing the same
+  // port. `.sail/sim-forks.json` is written only by that kind of external wrap
+  // step, never by anything in this package, so its presence is an unambiguous
+  // signal this project already has a fork story the sandbox would shadow
+  // rather than replace. Refuse rather than add a second, confusing UI surface.
+  if (mode === "sandbox" && !process.env.SAILOR_ALLOW_SANDBOX_WITH_WRAP) {
+    const wrapMarker = path.join(projectRoot, ".sail", "sim-forks.json");
+    if (fs.existsSync(wrapMarker)) {
+      throw new Error(
+        "This project is already wired to an externally-managed fork (.sail/sim-forks.json present). " +
+          "Starting the native sandbox here would spin up a second, independent anvil fork manager " +
+          "that can collide with the existing one and leave two overlapping dashboard UIs for the same " +
+          "project. Use that tool's own dashboard/proxy command instead of `sailor sandbox start`. " +
+          "If you really need the native sandbox anyway, set SAILOR_ALLOW_SANDBOX_WITH_WRAP=1.",
+      );
+    }
+  }
+
   const sailDir = sailDirFor(projectRoot, mode);
   const label = labelFor(mode);
   const envPort = Number(process.env.PORT);

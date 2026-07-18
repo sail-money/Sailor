@@ -1647,10 +1647,13 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
         )}
 
         {/* Symmetric to the sandbox's own "Exit to live dashboard" link — lets
-            an already-onboarded user jump into a sandbox without re-running
-            onboarding from scratch. Never shown from inside a sandbox page
-            itself (that page IS the launch target). */}
-        {showTabs && sma && isSandbox === false && (
+            anyone jump into the sandbox without needing a connected wallet or
+            an SMA on THIS (live) side first: launching/finding the sandbox
+            server is independent of the live dashboard's own connection
+            state, so this is deliberately NOT gated on showTabs/sma the way
+            the portfolio link and section nav above are. Never shown from
+            inside a sandbox page itself (that page IS the launch target). */}
+        {isSandbox === false && (
           <button type="button" className={styles.sidebarUtilLink} onClick={enterSandbox} disabled={sandboxLaunching}>
             <span className={styles.sidebarUtilIcon} aria-hidden>⚓</span>
             <span className={styles.sidebarUtilLabel}>{sandboxLaunching ? 'Starting sandbox…' : 'Enter Sandbox'}</span>
