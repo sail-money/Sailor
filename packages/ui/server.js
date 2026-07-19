@@ -8,7 +8,7 @@ import express from 'express'
 import { WebSocket, WebSocketServer } from 'ws'
 import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, chains, defaultRpcUrls, getNativeCurrencySymbol, getSailDeployment, readPermissionRegistrationFee } from '@sail/sdk'
 import * as accountStore from '@sail/sdk/accounts'
-import { TooManySandboxChainsError, fundErc20, fundNative, isPidAlive, refreshSandboxForks, resetSandbox, resetSandboxProject, restartSandboxFork, sandboxDirFor, startSandboxForks, stopSandboxFork, usdcAddressFor } from '@sail/sandbox'
+import { TooManySandboxChainsError, dumpSandboxState, fundErc20, fundNative, isPidAlive, refreshSandboxForks, resetSandbox, resetSandboxProject, restartSandboxFork, resumeSandboxForks, sandboxDirFor, startSandboxForks, stopSandboxFork, usdcAddressFor } from '@sail/sandbox'
 import { createPublicClient, createWalletClient, defineChain, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
 
@@ -2203,6 +2203,33 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
         res.status(500).json({ error: e?.message || String(e) })
       }
     })
+
+    // ── Session persistence ──────────────────────────────────────────────
+    // Resume: bring back any forks a previous sandbox session left tracked in
+    // the manifest, each loading its dumped chain state — so `sailor sandbox
+    // stop` + `sailor sandbox start` (or a reboot in between) lands the user
+    // back in the same world: same deployed SMA, same signed mandates, same
+    // funded balances. Best-effort and idempotent: forks already alive are
+    // skipped, per-chain failures are logged, and a fresh (never-onboarded)
+    // sandbox has an empty manifest so this is a no-op.
+    resumeSandboxForks(sailDir)
+      .then(({ resumed, failed }) => {
+        if (resumed.length) console.log(`Sandbox forks resumed from previous session: ${resumed.join(', ')}`)
+        for (const [chainId, message] of Object.entries(failed)) {
+          console.warn(`⚠ Could not resume sandbox fork for chain ${chainId}: ${message}`)
+        }
+      })
+      .catch((e) => console.warn(`⚠ Sandbox fork resume failed: ${e?.message || e}`))
+
+    // Durability: `stopFork` only dumps chain state on a *graceful* stop, so
+    // dump every live fork periodically too — a crash, reboot, or plain
+    // `kill -9` then costs at most the last interval, not the whole session.
+    // unref'd so an exiting server never waits on it.
+    const dumpIntervalMs = Number(process.env.SAILOR_SANDBOX_DUMP_INTERVAL_MS) || 60_000
+    const dumpTimer = setInterval(() => {
+      dumpSandboxState(sailDir).catch(() => { /* best-effort; next tick retries */ })
+    }, dumpIntervalMs)
+    dumpTimer.unref()
   }
 
   // "Try it in a Sandbox" — only offered from the live dashboard. Ensures this

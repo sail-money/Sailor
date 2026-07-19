@@ -17,6 +17,7 @@ import {
   MAX_SANDBOX_CHAINS,
   TooManySandboxChainsError,
   anvilStateFilePath,
+  dumpForkState,
   ensurePerChainRpc,
   isPidAlive,
   probePort,
@@ -79,18 +80,21 @@ function manifestEntryToForkState(entry: ManifestEntry, sandboxDir: string): For
 }
 
 /**
- * Is this entry's fork actually still there? An owned fork has a pid we can
- * check for free; an adopted one doesn't (we never spawned it), so the only
- * way to tell "still shared with something else" apart from "that something
- * else is gone now" is to ask the port directly. Matters because `adopted`
- * on its own is a point-in-time fact from whenever this fork was (re)started
- * — treating it as a permanent, unconditional block means a fork adopted
- * from a process that later dies becomes stuck forever: not ours to touch,
- * but also nothing is actually there anymore for anyone else to touch.
+ * Is this entry's fork actually still there? The RPC probe is authoritative
+ * whenever we know the fork's URL: a pid-only check (signal 0) reports true
+ * for a *zombie* — an anvil we spawned that crashed or was SIGKILLed but
+ * hasn't been reaped by its parent (this very process, typically) — leaving
+ * a dead fork treated as running, so it's never resumed and its callers hang
+ * on a port nothing listens on. A dead pid is still checked first as a cheap
+ * definite "gone" (skips the probe timeout); a live-looking pid must also
+ * answer for the right chain to count. Adopted entries have no pid of ours
+ * at all, so for them the probe was always the only signal — and it's also
+ * how a fork adopted from a since-dead process avoids being stuck forever
+ * behind a permanent `adopted` block.
  */
 async function isEntryAlive(entry: ManifestEntry): Promise<boolean> {
-  if (!entry.rpcUrl) return false;
-  if (entry.pid) return isPidAlive(entry.pid);
+  if (!entry.rpcUrl) return isPidAlive(entry.pid);
+  if (entry.pid && !isPidAlive(entry.pid)) return false;
   return (await probePort(entry.rpcUrl, 800)) === entry.chainId;
 }
 
@@ -140,7 +144,16 @@ export async function startSandboxForks(opts: {
     const key = String(chainId);
     const tracked = manifest[key];
 
-    if (tracked && isPidAlive(tracked.pid)) {
+    // "Already running" must mean *answering*, not just pid-alive: a crashed
+    // fork we spawned lingers as a zombie (pid checks pass) until reaped, and
+    // treating it as running would return a "ready" manifest for a port with
+    // nothing behind it. A fork still mid-spawn hasn't bound its port yet,
+    // though, so for those the pid is the only honest signal — probing would
+    // misread "not listening yet" as dead and race a duplicate anvil.
+    const trackedAlive =
+      tracked && (tracked.status === "ready" ? await isEntryAlive(tracked) : isPidAlive(tracked.pid));
+
+    if (tracked && trackedAlive) {
       // Already running from an earlier step in this onboarding session — no
       // need to re-spawn, but still make sure this chain's own RPC_URL_<id>
       // is on record (a fresh manifest, or one written before this per-chain
@@ -151,7 +164,20 @@ export async function startSandboxForks(opts: {
     }
 
     try {
-      const fork = await startFork({ sandboxDir, chain, repoint: chain === primary });
+      // Resume, don't rewind: if this chain ran before (tracked entry whose
+      // process has since died or was stopped) and left a dumped state file,
+      // load it — otherwise a re-run of the wizard after a stop or reboot
+      // would silently fork fresh from upstream and discard everything the
+      // previous session deployed. Same deterministic port as before so
+      // anything still holding the old RPC URL keeps working.
+      const stateFile = tracked?.stateFile ?? anvilStateFilePath(sandboxDir, chain);
+      const fork = await startFork({
+        sandboxDir,
+        chain,
+        port: tracked?.port,
+        repoint: chain === primary,
+        loadStateFile: existsSync(stateFile) ? stateFile : undefined,
+      });
       manifest[key] = {
         chainId,
         chain,
@@ -218,15 +244,25 @@ export function getSandboxForks(sandboxDir: string): Record<string, ManifestEntr
   return readManifest(sandboxDir);
 }
 
-/** Stop every fork in this project's sandbox. `purgeState` also drops the
- *  manifest so a later `startSandboxForks` starts completely fresh instead of
- *  trying to resume dead pids. */
+/** Stop every fork in this project's sandbox, dumping each owned fork's state
+ *  first (see `stopFork`) so a later start resumes the same world. `purgeState`
+ *  also drops the manifest so a later `startSandboxForks` starts completely
+ *  fresh instead of trying to resume dead pids.
+ *
+ *  Without `purgeState`, the surviving manifest reflects what actually
+ *  happened: every entry we stopped (or found already dead) settles into
+ *  `status: "stopped"` with its pid cleared and its dump target recorded —
+ *  previously entries kept claiming `ready` with a dead pid, so nothing
+ *  downstream could tell "deliberately shut down, resumable" from "running".
+ *  An adopted fork that's still alive is left untouched (not ours to stop). */
 export async function resetSandbox(sandboxDir: string, opts: { purgeState?: boolean } = {}): Promise<void> {
   const manifest = readManifest(sandboxDir);
 
-  for (const entry of Object.values(manifest)) {
+  for (const [key, entry] of Object.entries(manifest)) {
     const fork = manifestEntryToForkState(entry, sandboxDir);
+    if (entry.adopted && (await isEntryAlive(entry))) continue;
     if (fork && isPidAlive(fork.pid)) await stopFork(fork);
+    manifest[key] = { ...entry, pid: undefined, ready: false, status: "stopped", stateFile: fork?.stateFile ?? entry.stateFile, adopted: false };
   }
 
   writeManifest(sandboxDir, opts.purgeState ? {} : manifest);
@@ -271,6 +307,94 @@ export async function resetSandboxProject(sandboxDir: string): Promise<ResetSand
   for (const dump of dumps) renameSync(dump, join(backupDir, basename(dump)));
 
   return { backupDir };
+}
+
+export type DumpSandboxStateResult = {
+  /** Chain ids whose state was written to their dump file. */
+  dumped: number[];
+  /** Chain ids skipped because the fork isn't currently up (nothing to dump). */
+  skipped: number[];
+  /** Chain id → error message for forks that answered but failed to dump. */
+  failed: Record<number, string>;
+};
+
+/**
+ * Dump every live fork's chain state to its on-disk state file — the durable
+ * half of session persistence. `stopFork` only dumps on a *graceful* stop, so
+ * without periodic calls to this, a crash, reboot, or `kill -9` loses every
+ * mandate deployed since the sandbox came up. The sandbox server calls this
+ * on an interval; it's also safe to call ad hoc ("save now").
+ *
+ * Dumping is a read-only RPC (`anvil_dumpState`), so adopted forks are
+ * included — no ownership needed to make their world durable.
+ */
+export async function dumpSandboxState(sandboxDir: string): Promise<DumpSandboxStateResult> {
+  const manifest = readManifest(sandboxDir);
+  const result: DumpSandboxStateResult = { dumped: [], skipped: [], failed: {} };
+  let manifestChanged = false;
+
+  for (const [key, entry] of Object.entries(manifest)) {
+    const fork = manifestEntryToForkState(entry, sandboxDir);
+    if (!fork || entry.status !== "ready" || !(await isEntryAlive(entry))) {
+      result.skipped.push(entry.chainId);
+      continue;
+    }
+    try {
+      await dumpForkState(fork);
+      result.dumped.push(entry.chainId);
+      if (entry.stateFile !== fork.stateFile) {
+        manifest[key] = { ...entry, stateFile: fork.stateFile };
+        manifestChanged = true;
+      }
+    } catch (e: any) {
+      result.failed[entry.chainId] = e?.message || String(e);
+    }
+  }
+
+  if (manifestChanged) writeManifest(sandboxDir, manifest);
+  return result;
+}
+
+export type ResumeSandboxForksResult = {
+  /** Chain ids brought back up (loading their dumped state where one existed). */
+  resumed: number[];
+  /** Chain ids left alone because their fork is already answering. */
+  skipped: number[];
+  /** Chain id → error message for forks that failed to come back. */
+  failed: Record<number, string>;
+};
+
+/**
+ * Bring back every tracked fork that isn't currently up, resuming each from
+ * its dumped state file when one exists — the "restart" half of session
+ * persistence. Called by the sandbox server at boot so `sailor sandbox start`
+ * after a stop (or a reboot) puts the previous session's world — deployed
+ * SMAs, signed mandates, funded balances — back on the same ports, without
+ * anyone having to re-run the wizard or click per-chain Restart buttons.
+ *
+ * Forks that are already alive (including adopted ones) are skipped, so this
+ * is idempotent and safe to call on every server start. Failures are
+ * per-chain and reported, never thrown — one unreachable upstream RPC
+ * shouldn't stop the rest of the sandbox from coming back.
+ */
+export async function resumeSandboxForks(sandboxDir: string): Promise<ResumeSandboxForksResult> {
+  const manifest = readManifest(sandboxDir);
+  const result: ResumeSandboxForksResult = { resumed: [], skipped: [], failed: {} };
+
+  for (const entry of Object.values(manifest)) {
+    if (await isEntryAlive(entry)) {
+      result.skipped.push(entry.chainId);
+      continue;
+    }
+    try {
+      await restartSandboxFork(sandboxDir, entry.chainId);
+      result.resumed.push(entry.chainId);
+    } catch (e: any) {
+      result.failed[entry.chainId] = e?.message || String(e);
+    }
+  }
+
+  return result;
 }
 
 /**

@@ -7,6 +7,7 @@ export {
   ensureLocalRpc,
   startFork,
   stopFork,
+  dumpForkState,
   isForkAlive,
   isPidAlive,
   snapshotFork,
@@ -27,8 +28,12 @@ export {
   resetSandboxProject,
   stopSandboxFork,
   restartSandboxFork,
+  dumpSandboxState,
+  resumeSandboxForks,
   type StartSandboxForksResult,
   type ResetSandboxProjectResult,
+  type DumpSandboxStateResult,
+  type ResumeSandboxForksResult,
 } from "./sandbox.js";
 
 export { fundNative, fundErc20, usdcAddressFor, USDC_ADDRESSES } from "./fund.js";

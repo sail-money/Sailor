@@ -16,7 +16,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test \"src/**/*.test.ts\""
+    "test": "tsx --test --test-concurrency=1 \"src/**/*.test.ts\""
   },
   "dependencies": {
     "viem": "^2.21.0"

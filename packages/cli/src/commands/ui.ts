@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
-import { sandboxDirFor } from "@sail/sandbox";
+import { getSandboxForks, resetSandbox, sandboxDirFor } from "@sail/sandbox";
 import { cliDistDir, packageRoot, projectPort } from "../lib/packagePaths.js";
 import { findFreePort, isProcessAlive } from "../lib/process.js";
 import {
@@ -339,6 +339,29 @@ export function sandboxUiStatus(): Promise<void> {
   return runUiStatus("sandbox");
 }
 
-export function sandboxUiStop(): void {
+export interface SandboxStopOptions {
+  /** Leave the anvil forks running (previous default). Without it, stop dumps
+   *  each fork's chain state and shuts the forks down too. */
+  keepForks?: boolean;
+}
+
+/**
+ * `sailor sandbox stop` — stops the dashboard server *and* (by default) the
+ * sandbox's anvil forks, dumping each fork's chain state to disk first so the
+ * next `sailor sandbox start` resumes the same world (deployed SMA, signed
+ * mandates, balances) instead of forking fresh from upstream. Previously this
+ * only killed the server: the forks lingered detached with their state held
+ * in memory only, so any reboot or crash lost the whole session.
+ */
+export async function sandboxUiStop(opts: SandboxStopOptions = {}): Promise<void> {
   runUiStop("sandbox");
+  if (opts.keepForks) return;
+
+  const sandboxDir = sandboxDirFor(process.cwd());
+  const forks = getSandboxForks(sandboxDir);
+  if (!Object.keys(forks).length) return;
+
+  console.log("Stopping sandbox forks (saving chain state)…");
+  await resetSandbox(sandboxDir);
+  console.log("Sandbox forks stopped. Chain state saved — `sailor sandbox start` will resume this session.");
 }

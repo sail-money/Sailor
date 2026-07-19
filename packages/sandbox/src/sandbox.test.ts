@@ -1,16 +1,22 @@
+// NOTE: this package's test files must run serially (--test-concurrency=1 in
+// the test script): the real-anvil tests here and in fund.test.ts all fork
+// chains on the same deterministic per-chain ports, so parallel files adopt —
+// and then kill — each other's forks.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { createPublicClient, createTestClient, http } from "viem";
-import { isPidAlive, startFork, stopFork } from "./fork.js";
+import { anvilStateFilePath, isPidAlive, probePort, startFork, stopFork } from "./fork.js";
 import { readManifest, writeManifest } from "./manifest.js";
 import {
   MAX_SANDBOX_CHAINS,
   TooManySandboxChainsError,
+  dumpSandboxState,
+  resetSandbox,
   resolveChainName,
   restartSandboxFork,
   startSandboxForks,
@@ -170,6 +176,61 @@ test("stopSandboxFork allows stopping an adopted fork whose process has since di
   }
 });
 
+// A pid that can't be a live process (macOS/Linux pid ranges top out far
+// below this) — stands in for "the fork's anvil died at some point".
+const DEAD_PID = 999_999_999;
+
+test("resetSandbox settles a dead fork's entry into stopped, with its dump target recorded", async () => {
+  const dir = tmpSandboxDir();
+  try {
+    writeManifest(dir, {
+      "8453": { chainId: 8453, chain: "base", ready: true, status: "ready", pid: DEAD_PID, rpcUrl: "http://127.0.0.1:59999", port: 59999 },
+    });
+    await resetSandbox(dir);
+    const entry = readManifest(dir)["8453"];
+    assert.equal(entry.status, "stopped");
+    assert.equal(entry.ready, false);
+    assert.equal(entry.pid, undefined);
+    assert.equal(entry.stateFile, anvilStateFilePath(dir, "base"));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("resetSandbox leaves an adopted fork that's still alive untouched — not ours to stop", async () => {
+  const dir = tmpSandboxDir();
+  const { server, port } = await stubRpcServer(8453);
+  try {
+    writeManifest(dir, {
+      "8453": { chainId: 8453, chain: "base", ready: true, status: "ready", adopted: true, rpcUrl: `http://127.0.0.1:${port}`, port },
+    });
+    await resetSandbox(dir);
+    const entry = readManifest(dir)["8453"];
+    assert.equal(entry.status, "ready");
+    assert.equal(entry.adopted, true);
+  } finally {
+    server.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("dumpSandboxState skips forks that aren't up, and writes nothing for them", async () => {
+  const dir = tmpSandboxDir();
+  try {
+    writeManifest(dir, {
+      "8453": { chainId: 8453, chain: "base", ready: true, status: "ready", pid: DEAD_PID, rpcUrl: "http://127.0.0.1:59999", port: 59999 },
+      "42161": { chainId: 42161, chain: "arbitrum", ready: false, status: "stopped" },
+    });
+    const result = await dumpSandboxState(dir);
+    assert.deepEqual(result.dumped, []);
+    assert.deepEqual(result.failed, {});
+    assert.equal(result.skipped.length, 2);
+    assert.equal(existsSync(anvilStateFilePath(dir, "base")), false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 function anvilAvailable(): boolean {
   try {
     execFileSync("anvil", ["--version"], { stdio: "ignore" });
@@ -269,6 +330,101 @@ test(
       );
 
       await stopSandboxFork(dir, 84532);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
+
+/** After a SIGKILL there's a beat before the OS releases the port; starting a
+ *  new fork inside that window would adopt the corpse. Poll until it's free. */
+async function waitForPortFree(rpcUrl: string, timeoutMs = 5_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if ((await probePort(rpcUrl, 400)) === null) return;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new Error(`Port behind ${rpcUrl} never freed up after kill`);
+}
+
+test(
+  "session persistence: startSandboxForks → mutate chain → resetSandbox (graceful stop-all) → startSandboxForks resumes the same world",
+  { skip: !anvilAvailable() },
+  async () => {
+    const dir = tmpSandboxDir();
+    try {
+      const { forks } = await startSandboxForks({ sandboxDir: dir, chains: ["base-sepolia"] });
+      const started = forks["84532"];
+      assert.equal(started.status, "ready");
+      assert.ok(started.pid);
+
+      // Local-only state standing in for "a mandate deployed last session".
+      const testAddress = "0x000000000000000000000000000000000000bEEF";
+      const testClient = createTestClient({ mode: "anvil", transport: http(started.rpcUrl) });
+      await testClient.setBalance({ address: testAddress, value: 42_000_000_000_000_000n });
+
+      // The whole-session stop `sailor sandbox stop` now performs.
+      await resetSandbox(dir);
+      const stopped = readManifest(dir)["84532"];
+      assert.equal(stopped.status, "stopped");
+      assert.equal(stopped.pid, undefined);
+      assert.equal(isPidAlive(started.pid), false);
+      assert.ok(stopped.stateFile && existsSync(stopped.stateFile), "graceful stop must leave a state dump on disk");
+
+      // Next session: same selection through the same entry point.
+      const resumed = (await startSandboxForks({ sandboxDir: dir, chains: ["base-sepolia"] })).forks["84532"];
+      assert.equal(resumed.status, "ready");
+      assert.equal(resumed.port, started.port, "resume must land on the same deterministic port");
+
+      const readClient = createPublicClient({ transport: http(resumed.rpcUrl) });
+      assert.equal(
+        await readClient.getBalance({ address: testAddress }),
+        42_000_000_000_000_000n,
+        "state deployed before the stop must survive into the next session",
+      );
+
+      await resetSandbox(dir);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  "crash recovery: dumpSandboxState's periodic dump lets a SIGKILLed fork (no graceful stop, no dump-on-exit) resume its world",
+  { skip: !anvilAvailable() },
+  async () => {
+    const dir = tmpSandboxDir();
+    try {
+      const { forks } = await startSandboxForks({ sandboxDir: dir, chains: ["base-sepolia"] });
+      const started = forks["84532"];
+      assert.ok(started.pid);
+
+      const testAddress = "0x000000000000000000000000000000000000Fee1";
+      const testClient = createTestClient({ mode: "anvil", transport: http(started.rpcUrl) });
+      await testClient.setBalance({ address: testAddress, value: 7_000_000_000_000_000n });
+
+      // What the sandbox server's interval does.
+      const dump = await dumpSandboxState(dir);
+      assert.deepEqual(dump.dumped, [84532]);
+      assert.deepEqual(dump.failed, {});
+      assert.ok(existsSync(anvilStateFilePath(dir, "base-sepolia")));
+
+      // The crash: no SIGTERM, no dump-on-stop — the in-memory world is gone.
+      process.kill(started.pid!, "SIGKILL");
+      await waitForPortFree(started.rpcUrl!);
+
+      const revived = (await startSandboxForks({ sandboxDir: dir, chains: ["base-sepolia"] })).forks["84532"];
+      assert.equal(revived.status, "ready");
+
+      const readClient = createPublicClient({ transport: http(revived.rpcUrl) });
+      assert.equal(
+        await readClient.getBalance({ address: testAddress }),
+        7_000_000_000_000_000n,
+        "state from the last periodic dump must survive a hard crash",
+      );
+
+      await resetSandbox(dir);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

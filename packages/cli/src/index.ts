@@ -50,7 +50,7 @@ import { signerStart, signerStatus, signerStop } from "./commands/signer.js";
 import { status } from "./commands/status.js";
 import { type TriggerGithubOptions, triggerGithub } from "./commands/trigger.js";
 import { updateCommand } from "./commands/update.js";
-import { type UiOptions, sandboxUiCommand, sandboxUiStatus, sandboxUiStop, uiCommand, uiStatus, uiStop } from "./commands/ui.js";
+import { type SandboxStopOptions, type UiOptions, sandboxUiCommand, sandboxUiStatus, sandboxUiStop, uiCommand, uiStatus, uiStop } from "./commands/ui.js";
 import { closePrompts } from "./lib/io.js";
 import { packageRoot } from "./lib/packagePaths.js";
 
@@ -153,8 +153,9 @@ sandbox.command("start")
   .description("Start the sandbox dashboard on its own port, rooted at .shipyard/sandbox/")
   .action(action(sandboxUiCommand));
 sandbox.command("stop")
-  .description("Stop the running sandbox dashboard")
-  .action(() => sandboxUiStop());
+  .description("Stop the sandbox dashboard and its forks (chain state is saved and resumes on next start)")
+  .option("--keep-forks", "leave the anvil forks running; only stop the dashboard server")
+  .action((opts: SandboxStopOptions) => action(() => sandboxUiStop(opts))());
 sandbox.command("status")
   .description("Show whether the sandbox dashboard is running")
   .action(action(sandboxUiStatus));

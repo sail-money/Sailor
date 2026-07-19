@@ -245,6 +245,10 @@ export async function startFork(opts: {
       chainId,
       port,
       rpcUrl,
+      // Even an adopted fork gets a dump target: dumping over RPC is read-only
+      // and doesn't require owning the process, so periodic state dumps can
+      // still make this chain's world durable.
+      stateFile: loadStateFile || anvilStateFilePath(sandboxDir, chain),
       startedAt: new Date().toISOString(),
       ready: true,
       status: "ready",
@@ -321,7 +325,9 @@ export async function startFork(opts: {
     port,
     rpcUrl,
     pid: child.pid,
-    stateFile: existsSync(stateFile) ? stateFile : undefined,
+    // Always recorded, even before a dump exists: this is where `stopFork`
+    // (and periodic dumps) will *write*, not just where a load came from.
+    stateFile,
     logFile: logPath,
     startedAt: new Date().toISOString(),
     ready,
@@ -335,19 +341,28 @@ export async function startFork(opts: {
   return forkState;
 }
 
-/** Stop a fork's anvil process, dumping its state first (via viem, not `cast`)
- *  so a later `startFork({ loadStateFile })` can resume the same world. */
+/** Dump a fork's full chain state (via viem's `anvil_dumpState`, not `cast`)
+ *  to its `stateFile`, so a later `startFork({ loadStateFile })` can resume
+ *  the same world. Read-only against the fork — safe on adopted forks too.
+ *  Returns the path written, or null when the fork has no dump target.
+ *  Throws on RPC failure; callers decide whether that's fatal. */
+export async function dumpForkState(fork: ForkState): Promise<string | null> {
+  if (!fork.stateFile) return null;
+  const client = createTestClient({ mode: "anvil", transport: http(fork.rpcUrl) });
+  const state = await client.dumpState();
+  writeFileSync(fork.stateFile, state);
+  return fork.stateFile;
+}
+
+/** Stop a fork's anvil process, dumping its state first so a later
+ *  `startFork({ loadStateFile })` can resume the same world. */
 export async function stopFork(fork: ForkState): Promise<void> {
   if (!fork.pid) return;
 
-  if (fork.stateFile) {
-    try {
-      const client = createTestClient({ mode: "anvil", transport: http(fork.rpcUrl) });
-      const state = await client.dumpState();
-      writeFileSync(fork.stateFile, state);
-    } catch {
-      // non-fatal — resume just won't have durable state to load
-    }
+  try {
+    await dumpForkState(fork);
+  } catch {
+    // non-fatal — resume just won't have durable state to load
   }
 
   try {
@@ -356,7 +371,21 @@ export async function stopFork(fork: ForkState): Promise<void> {
     // already dead
   }
 
-  await sleep(300);
+  // Wait for the process to actually be gone, not a fixed beat: an immediate
+  // restart (stop→start, resume-at-boot) probes the port first, and a
+  // still-dying anvil answering that probe gets *adopted* — leaving the
+  // sandbox pointed at a process that exits moments later. State is already
+  // dumped above, so escalating to SIGKILL on a hung anvil loses nothing.
+  const deadline = Date.now() + 3_000;
+  while (isPidAlive(fork.pid) && Date.now() < deadline) await sleep(100);
+  if (isPidAlive(fork.pid)) {
+    try {
+      process.kill(fork.pid, "SIGKILL");
+    } catch {
+      // died in the window between the check and the kill
+    }
+    await sleep(100);
+  }
 }
 
 /** Is a process still running? The classic signal-0 liveness probe. */
