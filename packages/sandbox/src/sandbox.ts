@@ -10,7 +10,7 @@
  * already supports.
  */
 
-import { existsSync, mkdirSync, readFileSync, renameSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync } from "node:fs";
 import { basename, join } from "node:path";
 import {
   CHAIN_IDS,
@@ -27,7 +27,7 @@ import {
   type Chain,
   type ForkState,
 } from "./fork.js";
-import { readManifest, writeManifest, type ManifestEntry } from "./manifest.js";
+import { manifestPath, readManifest, writeManifest, type ManifestEntry } from "./manifest.js";
 
 export { MAX_SANDBOX_CHAINS, TooManySandboxChainsError, CHAIN_IDS };
 export type { Chain, ManifestEntry };
@@ -269,44 +269,80 @@ export async function resetSandbox(sandboxDir: string, opts: { purgeState?: bool
 }
 
 /** Files/dirs that constitute "this sandbox's project state" — everything
- *  `resetSandboxProject` backs up. Named relative to `sandboxDir`. */
-const PROJECT_STATE_ENTRIES = ["account.json", "mandate.json", "activity.jsonl", "state", "keys"];
+ *  `archiveSandboxWorld` moves into a backup. Named relative to `sandboxDir`.
+ *  `config.json` is included so a restored world resumes on its own active
+ *  chain, not whatever chain the sandbox happened to be on when it came back. */
+const PROJECT_STATE_ENTRIES = ["account.json", "mandate.json", "activity.jsonl", "state", "keys", "config.json"];
 
 function backupStamp(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}T${p(d.getUTCHours())}${p(d.getUTCMinutes())}${p(d.getUTCSeconds())}Z`;
 }
 
-export type ResetSandboxProjectResult = { backupDir: string | null };
+/** Next unused `_reset-backup-<stamp>` path — a numeric suffix disambiguates
+ *  two archives inside the same second (e.g. reset immediately followed by a
+ *  backup activation) instead of merging them into one folder. */
+function nextBackupDir(sandboxDir: string): string {
+  const base = join(sandboxDir, `_reset-backup-${backupStamp(new Date())}`);
+  if (!existsSync(base)) return base;
+  for (let i = 2; ; i++) {
+    const candidate = `${base}-${i}`;
+    if (!existsSync(candidate)) return candidate;
+  }
+}
 
 /**
- * "Reset the project" for a sandbox: stops every fork and purges the fork
- * manifest (same as `resetSandbox({ purgeState: true })`), retires each
- * chain's dumped anvil state file so a later start forks clean from live
- * chain state rather than silently resuming the old (now-orphaned) world,
- * and moves every piece of project-level state — the SMA record, mandate,
- * activity log, account list, and agent-wallet keystores — into a
- * timestamped backup directory instead of deleting it outright. Nothing is
- * destroyed: an operator who resets by mistake can recover everything from
- * `_reset-backup-<timestamp>/`.
+ * Move the current sandbox world — SMA record, mandate, activity log, agent
+ * keystores, active-chain config, fork manifest, and each chain's dumped
+ * anvil state — into a new timestamped `_reset-backup-<stamp>/` directory,
+ * and return its path (null when there was no world to archive). `.env.local`
+ * is *copied*, not moved: it carries the keystore passphrase alongside RPC
+ * wiring, and older backups were taken before it was captured at all — a
+ * live copy has to stay behind so restoring one of those doesn't strand its
+ * keystores without the passphrase that unlocks them.
+ *
+ * Callers are expected to have stopped the forks first (`resetSandbox`), so
+ * the dumps and manifest being archived reflect the world's final state.
+ * Shared by `resetSandboxProject` (archive, then start blank) and
+ * `activateSandboxBackup` (archive, then restore a previous world).
  */
-export async function resetSandboxProject(sandboxDir: string): Promise<ResetSandboxProjectResult> {
-  await resetSandbox(sandboxDir, { purgeState: true });
-
+export function archiveSandboxWorld(sandboxDir: string): string | null {
   const present = PROJECT_STATE_ENTRIES.filter((name) => existsSync(join(sandboxDir, name)));
   const dumps = (Object.keys(CHAIN_IDS) as Chain[])
     .map((chain) => anvilStateFilePath(sandboxDir, chain))
     .filter((f) => existsSync(f));
+  const manifestFile = manifestPath(sandboxDir);
+  const hasManifest = existsSync(manifestFile);
 
-  if (present.length === 0 && dumps.length === 0) return { backupDir: null };
+  if (present.length === 0 && dumps.length === 0 && !hasManifest) return null;
 
-  const backupDir = join(sandboxDir, `_reset-backup-${backupStamp(new Date())}`);
+  const backupDir = nextBackupDir(sandboxDir);
   mkdirSync(backupDir, { recursive: true });
 
   for (const name of present) renameSync(join(sandboxDir, name), join(backupDir, name));
   for (const dump of dumps) renameSync(dump, join(backupDir, basename(dump)));
+  if (hasManifest) renameSync(manifestFile, join(backupDir, basename(manifestFile)));
 
-  return { backupDir };
+  const envFile = join(sandboxDir, ".env.local");
+  if (existsSync(envFile)) copyFileSync(envFile, join(backupDir, ".env.local"));
+
+  return backupDir;
+}
+
+export type ResetSandboxProjectResult = { backupDir: string | null };
+
+/**
+ * "Reset the project" for a sandbox: stops every fork (dumping each chain's
+ * state first) and moves the entire world — SMA record, mandate, activity
+ * log, keystores, config, fork manifest, and the state dumps — into a
+ * timestamped backup directory instead of deleting it outright. Nothing is
+ * destroyed: an operator who resets by mistake can recover everything from
+ * `_reset-backup-<timestamp>/`, and `activateSandboxBackup` can bring the
+ * whole world (forks included) back online from it.
+ */
+export async function resetSandboxProject(sandboxDir: string): Promise<ResetSandboxProjectResult> {
+  await resetSandbox(sandboxDir);
+  return { backupDir: archiveSandboxWorld(sandboxDir) };
 }
 
 export type DumpSandboxStateResult = {

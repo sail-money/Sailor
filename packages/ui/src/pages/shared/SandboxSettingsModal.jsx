@@ -36,13 +36,16 @@ function fundableChains(account, forks) {
 
 /**
  * Settings panel for a sandbox project, opened from the banner's gear
- * button. Three project-level controls that only make sense against a fake,
+ * button. Project-level controls that only make sense against a fake,
  * disposable local fork — none of these exist (or could exist) in the live
  * dashboard:
- *   - Reset: wipe this sandbox's SMA/mandate/activity/keys back to a blank
- *     project (backed up, not deleted) and restart forks clean.
  *   - Fund gas: set an agent wallet's native balance directly.
  *   - Fund USDC: write a chosen SMA's USDC balance directly.
+ *   - Reset: wipe this sandbox's SMA/mandate/activity/keys back to a blank
+ *     project (backed up, not deleted) and restart forks clean.
+ *   - Restore a backup: swap a previously saved world back in — the current
+ *     one is archived the same way first, and the restored world's forks
+ *     restart from their saved chain state (mandates, balances, activity).
  */
 export default function SandboxSettingsModal({ open, onClose, forks, onReset }) {
   const [accounts, setAccounts] = useState([])
@@ -61,6 +64,21 @@ export default function SandboxSettingsModal({ open, onClose, forks, onReset }) 
   const [usdcStatus, setUsdcStatus] = useState('idle') // idle | pending | done
   const [usdcError, setUsdcError] = useState('')
 
+  const [backups, setBackups] = useState([])
+  const [backupsLoading, setBackupsLoading] = useState(false)
+  const [restoreArmed, setRestoreArmed] = useState(null) // backup name awaiting its confirm click
+  const [restoreStep, setRestoreStep] = useState('idle') // idle | pending | done
+  const [restoreError, setRestoreError] = useState('')
+
+  function loadBackups() {
+    setBackupsLoading(true)
+    fetch('/api/sandbox/backups', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : { backups: [] }))
+      .then((data) => setBackups(Array.isArray(data?.backups) ? data.backups : []))
+      .catch(() => setBackups([]))
+      .finally(() => setBackupsLoading(false))
+  }
+
   useEffect(() => {
     if (!open) return
     setResetChecked(false)
@@ -70,6 +88,9 @@ export default function SandboxSettingsModal({ open, onClose, forks, onReset }) 
     setGasForms({})
     setUsdcStatus('idle')
     setUsdcError('')
+    setRestoreArmed(null)
+    setRestoreStep('idle')
+    setRestoreError('')
 
     setAccountsLoading(true)
     fetch('/api/accounts', { cache: 'no-store' })
@@ -77,6 +98,8 @@ export default function SandboxSettingsModal({ open, onClose, forks, onReset }) 
       .then((list) => setAccounts(Array.isArray(list) ? list : []))
       .catch(() => setAccounts([]))
       .finally(() => setAccountsLoading(false))
+
+    loadBackups()
 
     document.body.style.overflow = 'hidden'
     const onKey = (e) => { if (e.key === 'Escape') onClose?.() }
@@ -174,11 +197,54 @@ export default function SandboxSettingsModal({ open, onClose, forks, onReset }) 
       if (!res.ok) throw new Error(data?.error || 'Reset failed.')
       setBackupDir(data?.backupDir ?? null)
       setResetStep('done')
+      loadBackups() // the reset just minted a new backup — show it immediately
       onReset?.()
     } catch (e) {
       setResetStep('idle')
       setResetError(e?.message || String(e))
     }
+  }
+
+  async function handleRestore(name) {
+    if (restoreArmed !== name) {
+      // First click arms this row; the second click actually restores.
+      setRestoreArmed(name)
+      setRestoreError('')
+      return
+    }
+    setRestoreStep('pending')
+    setRestoreError('')
+    try {
+      const res = await fetch('/api/sandbox/backups/activate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || 'Restore failed.')
+      setRestoreStep('done')
+      // Everything about the world just changed — account, mandate, activity,
+      // forks. A full reload is the only honest refresh.
+      setTimeout(() => window.location.reload(), 1200)
+    } catch (e) {
+      setRestoreStep('idle')
+      setRestoreArmed(null)
+      setRestoreError(e?.message || String(e))
+    }
+  }
+
+  function backupLabel(b) {
+    const when = b.savedAt ? new Date(b.savedAt).toLocaleString() : b.name
+    return b.smaName ? `${b.smaName} — ${when}` : when
+  }
+
+  function backupSummary(b) {
+    const parts = []
+    parts.push(b.chains.length ? b.chains.map((c) => CHAIN_LABELS[c] || c).join(', ') : 'no saved chains')
+    if (b.safe) parts.push(truncate(b.safe))
+    if (b.hasMandate) parts.push('mandate')
+    if (b.activityEvents > 0) parts.push(`${b.activityEvents} activity events`)
+    return parts.join(' · ')
   }
 
   return (
@@ -307,7 +373,8 @@ export default function SandboxSettingsModal({ open, onClose, forks, onReset }) 
           {resetStep === 'done' ? (
             <p className={styles.sectionCopy}>
               Sandbox reset. The SMA, mandate, activity log, and keys were moved to{' '}
-              {backupDir ? <code className={styles.backupPath}>{backupDir.split('/').pop()}</code> : 'a backup folder'}, not deleted.
+              {backupDir ? <code className={styles.backupPath}>{backupDir.split('/').pop()}</code> : 'a backup folder'}, not deleted —
+              you can bring that world back anytime from “Restore a backup” below.
               Reload the page to start onboarding fresh.
             </p>
           ) : (
@@ -333,6 +400,56 @@ export default function SandboxSettingsModal({ open, onClose, forks, onReset }) 
               >
                 {resetStep === 'pending' ? 'Resetting…' : 'Reset sandbox'}
               </SailButton>
+            </>
+          )}
+        </section>
+
+        {/* ── Restore a backup ─────────────────────────────────────────── */}
+        <section className={styles.section}>
+          <h3 className={styles.sectionTitle}>Restore a backup</h3>
+          {restoreStep === 'done' ? (
+            <p className={styles.sectionCopy}>
+              World restored — its forks are starting back up with their saved chain state. Reloading…
+            </p>
+          ) : (
+            <>
+              <p className={styles.sectionCopy}>
+                Reactivate a sandbox world saved by an earlier reset (or restore). The current world is
+                saved as a new backup first, then the selected one's forks restart with their saved chain
+                state — SMA, mandates, balances, and activity history included.
+              </p>
+
+              {backupsLoading ? (
+                <p className={styles.empty}>Loading backups…</p>
+              ) : backups.length === 0 ? (
+                <p className={styles.empty}>No backups yet — resetting the sandbox creates one.</p>
+              ) : (
+                <ul className={styles.rowList}>
+                  {backups.map((b) => (
+                    <li key={b.name} className={styles.row}>
+                      <div className={styles.rowIdentity}>
+                        <span className={styles.rowName}>{backupLabel(b)}</span>
+                      </div>
+                      <div className={styles.rowControls}>
+                        <span className={styles.rowMeta}>{backupSummary(b)}</span>
+                        <SailButton
+                          variant={restoreArmed === b.name ? 'danger' : 'secondary'}
+                          className={styles.rowButton}
+                          onClick={() => handleRestore(b.name)}
+                          disabled={restoreStep === 'pending'}
+                        >
+                          {restoreStep === 'pending' && restoreArmed === b.name
+                            ? 'Restoring…'
+                            : restoreArmed === b.name
+                              ? 'Confirm restore'
+                              : 'Restore'}
+                        </SailButton>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {restoreError && <p className={styles.rowError}>{restoreError}</p>}
             </>
           )}
         </section>

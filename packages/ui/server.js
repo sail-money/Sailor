@@ -8,7 +8,7 @@ import express from 'express'
 import { WebSocket, WebSocketServer } from 'ws'
 import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, chains, defaultRpcUrls, getNativeCurrencySymbol, getSailDeployment, readPermissionRegistrationFee } from '@sail/sdk'
 import * as accountStore from '@sail/sdk/accounts'
-import { TooManySandboxChainsError, dumpSandboxState, fundErc20, fundNative, isPidAlive, refreshSandboxForks, resetSandbox, resetSandboxProject, restartSandboxFork, resumeSandboxForks, sandboxDirFor, startSandboxForks, stopSandboxFork, usdcAddressFor } from '@sail/sandbox'
+import { TooManySandboxChainsError, activateSandboxBackup, dumpSandboxState, fundErc20, fundNative, isPidAlive, listSandboxBackups, refreshSandboxForks, resetSandbox, resetSandboxProject, restartSandboxFork, resumeSandboxForks, sandboxDirFor, startSandboxForks, stopSandboxFork, usdcAddressFor } from '@sail/sandbox'
 import { createPublicClient, createWalletClient, defineChain, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
 
@@ -2094,6 +2094,33 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
     // state, and moves the SMA record/mandate/activity log/keys into a
     // timestamped backup dir (see resetSandboxProject) so the project looks
     // brand new (onboarding wizard reappears) without destroying anything.
+    // Saved worlds: every reset (and every activation) archives the whole
+    // sandbox world into _reset-backup-<stamp>/. These two routes let the
+    // settings panel navigate between them — list what's saved, and swap a
+    // previous world back in (current one is archived first, its forks
+    // restart from their dumped chain state).
+    app.get('/api/sandbox/backups', (_req, res) => {
+      try {
+        res.json({ backups: listSandboxBackups(sailDir) })
+      } catch (e) {
+        res.status(500).json({ error: e?.message || String(e) })
+      }
+    })
+
+    app.post('/api/sandbox/backups/activate', async (req, res) => {
+      const name = String(req.body?.name ?? '')
+      try {
+        const result = await activateSandboxBackup(sailDir, name)
+        res.json({ ok: true, ...result })
+      } catch (e) {
+        const message = e?.message || String(e)
+        const status = /Not a sandbox backup name/.test(message) ? 400
+          : /No sandbox backup named/.test(message) ? 404
+          : 500
+        res.status(status).json({ error: message })
+      }
+    })
+
     app.post('/api/sandbox/reset-project', async (_req, res) => {
       try {
         const result = await resetSandboxProject(sailDir)

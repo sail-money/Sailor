@@ -26,6 +26,7 @@ export {
   getSandboxForks,
   resetSandbox,
   resetSandboxProject,
+  archiveSandboxWorld,
   stopSandboxFork,
   restartSandboxFork,
   dumpSandboxState,
@@ -35,5 +36,12 @@ export {
   type DumpSandboxStateResult,
   type ResumeSandboxForksResult,
 } from "./sandbox.js";
+
+export {
+  listSandboxBackups,
+  activateSandboxBackup,
+  type SandboxBackupInfo,
+  type ActivateSandboxBackupResult,
+} from "./backups.js";
 
 export { fundNative, fundErc20, usdcAddressFor, USDC_ADDRESSES } from "./fund.js";

@@ -240,6 +240,14 @@ export async function startFork(opts: {
           `Free the port or pick a different chain — refusing to guess.`,
       );
     }
+    if (loadStateFile && existsSync(loadStateFile)) {
+      // Loading dumped state would clobber a running world some other tool
+      // owns — so it's skipped, and the caller should know their saved state
+      // isn't what this fork is showing.
+      console.warn(
+        `⚠ Adopted an already-running ${chain} fork on port ${port} — saved state from ${loadStateFile} was NOT loaded into it.`,
+      );
+    }
     const forkState: ForkState = {
       chain,
       chainId,
