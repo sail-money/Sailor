@@ -17,7 +17,7 @@ import { SailKernelAbi, getSailDeployment } from "@sail/sdk";
 import { type Address, type Hex, createPublicClient, getAddress, http, isAddress } from "viem";
 import { WebSocket, WebSocketServer } from "ws";
 import { getRpcUrl } from "../lib/chain.js";
-import { appendActivity, nowIso } from "../lib/io.js";
+import { appendActivity, nowIso, resolveSailDir } from "../lib/io.js";
 import { listAccounts, persistAccount, readActiveAccount } from "@sail/sdk/accounts";
 import type { StoredAccount } from "../lib/state.js";
 
@@ -41,7 +41,7 @@ const defaultReceiptChecker: ReceiptChecker = async (chainId, txHash) => {
   const receipt = await client.waitForTransactionReceipt({ hash: txHash, timeout: 120_000 });
   return receipt.status === "success" ? "success" : "reverted";
 };
-const RUNTIME_SUBDIR = join(".sail", "runtime");
+const RUNTIME_SUBDIR = "runtime";
 const SERVER_STATE_FILE = "server.json";
 const REQUEST_SECRET_HEADER = "x-sailor-secret";
 
@@ -107,6 +107,8 @@ export class SigningServer {
   readonly remote = false;
 
   private readonly projectRoot: string;
+  /** State root this server reads/writes — `.sail/` unless `SAIL_DIR` (or opts.sailDir) points elsewhere (e.g. a sandbox). */
+  private readonly sailDirPath: string;
   private readonly runtimeDir: string;
   private port: number;
   private _url = "";
@@ -142,10 +144,15 @@ export class SigningServer {
       uiDist?: string;
       advertise?: boolean;
       checkReceipt?: ReceiptChecker;
+      /** State root override; defaults to `SAIL_DIR` resolution against projectRoot. */
+      sailDir?: string;
     } = {},
   ) {
     this.projectRoot = opts.projectRoot ?? process.cwd();
-    this.runtimeDir = join(this.projectRoot, RUNTIME_SUBDIR);
+    this.sailDirPath = opts.sailDir
+      ? resolve(this.projectRoot, opts.sailDir)
+      : resolveSailDir(this.projectRoot);
+    this.runtimeDir = join(this.sailDirPath, RUNTIME_SUBDIR);
     this.port = opts.port ?? DEFAULT_SIGNING_PORT;
     this.uiDist = opts.uiDist ?? findUiDist();
     this.advertise = opts.advertise ?? true;
@@ -192,7 +199,7 @@ export class SigningServer {
     if (this.advertise) {
       // Clear any descriptor left behind by a crashed predecessor before claiming
       // our own, so discovery never points at a dead server.
-      reapStaleRuntimeState(this.projectRoot);
+      reapStaleRuntimeState(this.sailDirPath);
       this.writeRuntimeState();
     }
 
@@ -451,15 +458,15 @@ export class SigningServer {
       event = { ...base, type: "owner_rejected", reason: response.reason };
     }
     try {
-      appendActivity(event, join(this.projectRoot, ".sail"));
+      appendActivity(event, this.sailDirPath);
     } catch {
       // Activity logging is best-effort — never let it break the signing flow.
     }
   }
 
-  /** Path to `<projectRoot>/.sail/<...segments>`. */
+  /** Path to `<sailDir>/<...segments>` (`.sail/` unless SAIL_DIR overrides). */
   private sailFile(...segments: string[]): string {
-    return join(this.projectRoot, ".sail", ...segments);
+    return join(this.sailDirPath, ...segments);
   }
 
   /**
@@ -636,6 +643,10 @@ export class SigningServer {
           port: this.port,
           pid: process.pid,
           pendingCount: this.pending.size,
+          // State root this daemon serves — lets a dashboard skip daemons that
+          // belong to a different surface (live `.sail/` vs a sandbox) instead
+          // of surfacing (and logging) another surface's requests.
+          sailDir: this.sailDirPath,
         }),
       );
       return;
@@ -946,12 +957,12 @@ export class SigningServer {
 }
 
 /**
- * Remove `.sail/runtime/server.json` if it describes a server whose process is
- * no longer running — an orphan left by a crashed or killed signing server.
+ * Remove `<sailDir>/runtime/server.json` if it describes a server whose process
+ * is no longer running — an orphan left by a crashed or killed signing server.
  * Safe to call before claiming the descriptor: a live daemon's entry is kept.
  */
-export function reapStaleRuntimeState(projectRoot: string = process.cwd()): void {
-  const path = join(projectRoot, RUNTIME_SUBDIR, SERVER_STATE_FILE);
+export function reapStaleRuntimeState(sailDirPath: string = resolveSailDir()): void {
+  const path = join(sailDirPath, RUNTIME_SUBDIR, SERVER_STATE_FILE);
   try {
     if (!existsSync(path)) return;
     const state = JSON.parse(readFileSync(path, "utf8")) as { pid?: number };

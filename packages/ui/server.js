@@ -1276,6 +1276,17 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
     }
   }
 
+  // A daemon serves exactly one state root (live `.sail/` vs a sandbox's
+  // `.shipyard/sandbox/`). A dashboard must only surface a daemon rooted at
+  // ITS OWN root — the port-scan fallback can otherwise land on the other
+  // surface's daemon, whose approvals would then be logged to (and its
+  // requests drawn from) the wrong directory. Daemons advertise their root in
+  // /config.sailDir; an older daemon that doesn't is accepted as before.
+  function stationMatchesThisRoot(config) {
+    if (!config?.sailDir) return true
+    return path.resolve(String(config.sailDir)) === path.resolve(sailDir)
+  }
+
   async function discoverStation() {
     if (stationCache && Date.now() < stationCache.expiresAt) {
       return stationCache
@@ -1285,7 +1296,7 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
       const { port, requestSecret } = JSON.parse(fs.readFileSync(at('runtime/server.json'), 'utf-8'))
       if (port) {
         const config = await fetch(`http://127.0.0.1:${port}/config`, { signal: AbortSignal.timeout(500) }).then(r => r.ok ? r.json() : null).catch(() => null)
-        if (config) {
+        if (config && stationMatchesThisRoot(config)) {
           const secret = requestSecret ?? secretFromConfig(config)
           stationCache = { port, secret, expiresAt: Date.now() + 10_000 }
           return stationCache
@@ -1293,11 +1304,11 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
       }
     } catch { /* fall through to port-scan */ }
     // 2. Port-scan the known range (same as the signing UI page does), reading
-    //    the secret out of /config's wsUrl.
+    //    the secret out of /config's wsUrl. Skip daemons rooted elsewhere.
     for (const port of STATION_PORTS) {
       try {
         const config = await fetch(`http://127.0.0.1:${port}/config`, { signal: AbortSignal.timeout(300) }).then(r => r.ok ? r.json() : null).catch(() => null)
-        if (config) {
+        if (config && stationMatchesThisRoot(config)) {
           stationCache = { port, secret: secretFromConfig(config), expiresAt: Date.now() + 10_000 }
           return stationCache
         }
