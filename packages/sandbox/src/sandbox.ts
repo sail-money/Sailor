@@ -20,6 +20,7 @@ import {
   dumpForkState,
   ensurePerChainRpc,
   isPidAlive,
+  loadForkStateFile,
   probePort,
   startFork,
   stopFork,
@@ -76,6 +77,9 @@ function manifestEntryToForkState(entry: ManifestEntry, sandboxDir: string): For
     ready: entry.ready,
     status: entry.status,
     adopted: entry.adopted,
+    // Must travel with the fork: it's what blocks dumpForkState/stopFork from
+    // overwriting a state file whose world was never actually loaded.
+    pendingStateLoad: entry.pendingStateLoad,
   };
 }
 
@@ -96,6 +100,27 @@ async function isEntryAlive(entry: ManifestEntry): Promise<boolean> {
   if (!entry.rpcUrl) return isPidAlive(entry.pid);
   if (entry.pid && !isPidAlive(entry.pid)) return false;
   return (await probePort(entry.rpcUrl, 800)) === entry.chainId;
+}
+
+/**
+ * Try to pay off an entry's saved-state load debt against its (now
+ * answering) fork. Returns the new value for `pendingStateLoad`: undefined
+ * once the load succeeds (or the file is gone — nothing left to load),
+ * or the debt unchanged after a failed attempt, so dumps stay blocked and
+ * the next refresh retries. Never throws.
+ */
+async function settleStateLoad(entry: ManifestEntry): Promise<string | undefined> {
+  const pending = entry.pendingStateLoad;
+  if (!pending || !entry.rpcUrl) return undefined;
+  if (!existsSync(pending)) return undefined;
+  try {
+    await loadForkStateFile(entry.rpcUrl, pending);
+    return undefined;
+  } catch (e: any) {
+    const message = String(e?.shortMessage ?? e?.message ?? e).slice(0, 300);
+    console.warn(`⚠ Failed to load pending state for chain ${entry.chainId} from ${pending}: ${message} — will retry; dumps stay paused for this fork.`);
+    return pending;
+  }
 }
 
 /** Whichever chain currently owns the sandbox's generic `RPC_URL`/`CHAIN_ID`
@@ -188,8 +213,10 @@ export async function startSandboxForks(opts: {
         startedAt: fork.startedAt,
         ready: Boolean(fork.ready),
         status: fork.status,
+        error: fork.error,
         adopted: fork.adopted,
         primary: chain === primary,
+        pendingStateLoad: fork.pendingStateLoad,
       };
     } catch (e: any) {
       manifest[key] = {
@@ -215,6 +242,14 @@ export async function startSandboxForks(opts: {
  * process can die on its own (crash, machine sleep, `pool down` out from
  * under an adopted one), and without this re-check the UI would keep
  * reporting it as ready indefinitely.
+ *
+ * Two settlements happen here beyond the ready flip. A "spawning" entry
+ * whose process has died settles to "failed" — spawning was previously a
+ * one-way wait, so a fork that crashed during boot showed "Starting…"
+ * forever with no error and no way forward. And a fork that turns ready
+ * with a `pendingStateLoad` gets that saved state loaded now — `startFork`
+ * couldn't load it into a process that wasn't answering yet, and skipping
+ * it would mean a slow boot silently discards the world it was restoring.
  */
 export async function refreshSandboxForks(sandboxDir: string): Promise<Record<string, ManifestEntry>> {
   const manifest = readManifest(sandboxDir);
@@ -225,14 +260,24 @@ export async function refreshSandboxForks(sandboxDir: string): Promise<Record<st
     if (entry.status === "ready") {
       if (!(await isEntryAlive(entry))) {
         manifest[key] = { ...entry, ready: false, status: "failed", pid: undefined, error: "Fork is no longer responding." };
+      } else if (entry.pendingStateLoad) {
+        manifest[key] = { ...entry, pendingStateLoad: await settleStateLoad(entry) };
       }
       continue;
     }
 
     const ready = await waitForRpc(entry.rpcUrl, entry.chainId, 1_000);
     if (ready) {
-      manifest[key] = { ...entry, ready: true, status: "ready" };
+      manifest[key] = { ...entry, ready: true, status: "ready", error: undefined, pendingStateLoad: await settleStateLoad(entry) };
       ensurePerChainRpc(sandboxDir, entry.chainId, entry.rpcUrl);
+    } else if (entry.status === "spawning" && entry.pid && !isPidAlive(entry.pid)) {
+      manifest[key] = {
+        ...entry,
+        ready: false,
+        status: "failed",
+        pid: undefined,
+        error: "anvil exited during startup — its log has the details; Restart the fork to try again.",
+      };
     }
   }
 
@@ -262,7 +307,10 @@ export async function resetSandbox(sandboxDir: string, opts: { purgeState?: bool
     const fork = manifestEntryToForkState(entry, sandboxDir);
     if (entry.adopted && (await isEntryAlive(entry))) continue;
     if (fork && isPidAlive(fork.pid)) await stopFork(fork);
-    manifest[key] = { ...entry, pid: undefined, ready: false, status: "stopped", stateFile: fork?.stateFile ?? entry.stateFile, adopted: false };
+    // An unsettled pendingStateLoad is dropped here, deliberately: stopFork
+    // skipped dumping over the never-loaded state file, so it still holds
+    // that world — and the next start loads from stateFile anyway.
+    manifest[key] = { ...entry, pid: undefined, ready: false, status: "stopped", stateFile: fork?.stateFile ?? entry.stateFile, adopted: false, pendingStateLoad: undefined };
   }
 
   writeManifest(sandboxDir, opts.purgeState ? {} : manifest);
@@ -371,7 +419,10 @@ export async function dumpSandboxState(sandboxDir: string): Promise<DumpSandboxS
 
   for (const [key, entry] of Object.entries(manifest)) {
     const fork = manifestEntryToForkState(entry, sandboxDir);
-    if (!fork || entry.status !== "ready" || !(await isEntryAlive(entry))) {
+    // pendingStateLoad: this fork's state file holds a world that was never
+    // loaded into it — dumping the live fork over that file would destroy
+    // the only copy. refreshSandboxForks settles the debt; skip until then.
+    if (!fork || entry.status !== "ready" || entry.pendingStateLoad || !(await isEntryAlive(entry))) {
       result.skipped.push(entry.chainId);
       continue;
     }
@@ -513,8 +564,10 @@ export async function restartSandboxFork(sandboxDir: string, chainId: number): P
     startedAt: fork.startedAt,
     ready: Boolean(fork.ready),
     status: fork.status,
+    error: fork.error,
     adopted: fork.adopted,
     primary: repoint,
+    pendingStateLoad: fork.pendingStateLoad,
   };
   writeManifest(sandboxDir, manifest);
   return manifest[key];

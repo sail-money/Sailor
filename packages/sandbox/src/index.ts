@@ -8,6 +8,7 @@ export {
   startFork,
   stopFork,
   dumpForkState,
+  loadForkStateFile,
   isForkAlive,
   isPidAlive,
   snapshotFork,

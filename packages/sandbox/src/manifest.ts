@@ -29,6 +29,10 @@ export type ManifestEntry = {
    *  (as opposed to its RPC_URL_<chainId> entry, which every chain gets) —
    *  restart uses this to decide whether to keep repointing it. */
   primary?: boolean;
+  /** Saved-state file that couldn't be loaded yet because the fork was still
+   *  booting — settled (loaded + cleared) by refreshSandboxForks when the
+   *  fork turns ready. See ForkState.pendingStateLoad. */
+  pendingStateLoad?: string;
 };
 
 export const manifestPath = (sandboxDir: string) => join(sandboxDir, "forks.json");

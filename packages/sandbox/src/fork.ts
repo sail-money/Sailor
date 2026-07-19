@@ -70,6 +70,11 @@ export type ForkState = {
    *  startup — we didn't spawn anything and don't own the process (so
    *  `stopFork` has nothing to kill; whoever started it owns its lifecycle). */
   adopted?: boolean;
+  /** Set when the fork was still booting after `startFork` stopped waiting,
+   *  with a saved-state file that therefore couldn't be loaded yet. Whoever
+   *  observes the fork turn ready must load this file and clear the field —
+   *  otherwise a slow boot silently discards the world it was restoring. */
+  pendingStateLoad?: string;
 };
 
 function anvilLogPath(sandboxDir: string, chain: Chain): string {
@@ -285,6 +290,11 @@ export async function startFork(opts: {
     "--host",
     "0.0.0.0",
     "--no-rate-limit",
+    // anvil caps JSON-RPC request bodies at 2MB by default, and a real
+    // world's `anvil_loadState` blob (how saved chain state comes back on
+    // restart/restore) is routinely bigger — without this, the load is
+    // rejected and the fork silently comes up as a fresh, empty world.
+    "--no-request-size-limit",
   ];
 
   // Deliberately not `--load-state <file>`: that flag expects anvil's own
@@ -299,31 +309,61 @@ export async function startFork(opts: {
   }
 
   const logPath = anvilLogPath(sandboxDir, chain);
-  const logFd = openSync(logPath, "a");
-  let child: ReturnType<typeof spawn>;
-  try {
-    child = spawn("anvil", args, { stdio: ["ignore", logFd, logFd], detached: true });
-  } catch (e: any) {
-    if (e?.code === "ENOENT") {
-      throw new Error(
-        "anvil was not found on PATH. Sandbox mode requires Foundry (https://getfoundry.sh) — install it and try again.",
+
+  // anvil dying during startup is routinely *transient*: public fork RPCs sit
+  // behind load balancers whose nodes drift a block apart (on a 1s-block
+  // chain, almost always), so "fetch latest → fetch that block" can land on
+  // a node that's one behind and anvil exits with "Failed to get block".
+  // Rate-limit blips die the same way. So an early death gets fresh attempts
+  // instead of being reported as a hard failure of the whole start.
+  const MAX_SPAWN_ATTEMPTS = 3;
+  let child: ReturnType<typeof spawn> | undefined;
+  let ready = false;
+
+  for (let attempt = 1; attempt <= MAX_SPAWN_ATTEMPTS; attempt++) {
+    const logFd = openSync(logPath, "a");
+    try {
+      child = spawn("anvil", args, { stdio: ["ignore", logFd, logFd], detached: true });
+    } catch (e: any) {
+      if (e?.code === "ENOENT") {
+        throw new Error(
+          "anvil was not found on PATH. Sandbox mode requires Foundry (https://getfoundry.sh) — install it and try again.",
+        );
+      }
+      throw e;
+    }
+    child.unref();
+
+    ready = await waitForRpcOrExit(rpcUrl, chainId, child.pid, 25_000);
+
+    // Ready, or still alive and just slow (cold fork against a sluggish
+    // upstream) — either way this process is the fork now; don't race a
+    // second one against it.
+    if (ready || isPidAlive(child.pid)) break;
+
+    if (attempt < MAX_SPAWN_ATTEMPTS) {
+      console.warn(
+        `⚠ anvil for ${chain} exited during startup (attempt ${attempt}/${MAX_SPAWN_ATTEMPTS}) — retrying. Log: ${logPath}`,
       );
     }
-    throw e;
   }
-  child.unref();
 
-  const ready = await waitForRpc(rpcUrl, chainId, 25_000);
+  const died = !ready && !isPidAlive(child?.pid);
 
+  let loadFailed = false;
   if (ready && loadStateFile && existsSync(loadStateFile)) {
     try {
-      const client = createTestClient({ mode: "anvil", transport: http(rpcUrl) });
-      await client.loadState({ state: readFileSync(loadStateFile, "utf8") as Hex });
+      await loadForkStateFile(rpcUrl, loadStateFile);
     } catch (e: any) {
-      // Best-effort — the chain still comes up fresh from the fork-url; it
-      // just won't have whatever local-only state (e.g. a deployed contract)
-      // the dump held.
-      console.warn(`⚠ Failed to load previous state for ${chain} from ${loadStateFile}: ${e?.message ?? e}`);
+      // The chain still comes up fresh from the fork-url, but the debt is
+      // RECORDED (pendingStateLoad below), not dropped: refreshSandboxForks
+      // keeps retrying the load, and no dump is taken while it's unsettled —
+      // a dropped debt once let the periodic dump overwrite a world's only
+      // state file with the fresh fork's empty state.
+      loadFailed = true;
+      console.warn(
+        `⚠ Failed to load previous state for ${chain} from ${loadStateFile}: ${truncateError(e)} — will keep retrying; state dumps are paused for this fork until it loads.`,
+      );
     }
   }
 
@@ -332,15 +372,24 @@ export async function startFork(opts: {
     chainId,
     port,
     rpcUrl,
-    pid: child.pid,
+    pid: died ? undefined : child?.pid,
     // Always recorded, even before a dump exists: this is where `stopFork`
     // (and periodic dumps) will *write*, not just where a load came from.
     stateFile,
     logFile: logPath,
     startedAt: new Date().toISOString(),
     ready,
-    status: ready ? "ready" : "spawning",
+    status: ready ? "ready" : died ? "failed" : "spawning",
+    error: died
+      ? `anvil exited during startup after ${MAX_SPAWN_ATTEMPTS} attempts${lastLogLine(logPath) ? ` — ${lastLogLine(logPath)}` : ""}. Restart the fork to try again.`
+      : undefined,
     adopted: false,
+    // A saved-state load that hasn't happened yet is a recorded debt: the
+    // fork was still booting when we stopped waiting, or the load itself
+    // failed (loadFailed). refreshSandboxForks settles it — and until then,
+    // no dump may touch this fork's state file (see dumpForkState/stopFork).
+    pendingStateLoad:
+      loadStateFile && existsSync(loadStateFile) && (loadFailed || (!ready && !died)) ? loadStateFile : undefined,
   };
 
   if (opts.repoint !== false) ensureLocalRpc(sandboxDir, chainId, rpcUrl);
@@ -349,14 +398,64 @@ export async function startFork(opts: {
   return forkState;
 }
 
+/** Like `waitForRpc`, but for a process we just spawned: gives up as soon as
+ *  that pid is gone, so a boot-crash costs one poll tick, not the full
+ *  timeout. */
+async function waitForRpcOrExit(rpcUrl: string, expectedChainId: number, pid: number | undefined, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await waitForRpc(rpcUrl, expectedChainId, 300)) return true;
+    if (!isPidAlive(pid)) return false;
+  }
+  return false;
+}
+
+/** Last non-empty line of a fork's anvil log — almost always the actual
+ *  boot error ("Failed to get block …") — for surfacing in fork status
+ *  instead of a bare "failed". */
+function lastLogLine(logPath: string): string | null {
+  try {
+    const lines = readFileSync(logPath, "utf8").split("\n").map((l) => l.trim()).filter(Boolean);
+    return lines.length ? lines[lines.length - 1] : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Generous timeout for the state-transfer RPCs: a real world's dump/load
+ *  blob is multiple MB and anvil takes its time processing it — viem's 10s
+ *  default can cut a legitimate transfer off halfway. */
+const STATE_RPC_TIMEOUT_MS = 120_000;
+
+/** Errors from state-transfer RPCs embed the entire multi-MB request body in
+ *  the message (viem includes the request it sent) — logging that verbatim
+ *  once bloated a server log by 7MB. Keep the head; it carries the actual
+ *  reason. */
+function truncateError(e: any): string {
+  const message = String(e?.shortMessage ?? e?.message ?? e);
+  return message.length > 300 ? `${message.slice(0, 300)}…` : message;
+}
+
+/** Load a dumped state file into a running fork over RPC (`anvil_loadState`).
+ *  Throws on failure; callers decide whether that's fatal. */
+export async function loadForkStateFile(rpcUrl: string, stateFile: string): Promise<void> {
+  const client = createTestClient({ mode: "anvil", transport: http(rpcUrl, { timeout: STATE_RPC_TIMEOUT_MS }) });
+  await client.loadState({ state: readFileSync(stateFile, "utf8") as Hex });
+}
+
 /** Dump a fork's full chain state (via viem's `anvil_dumpState`, not `cast`)
  *  to its `stateFile`, so a later `startFork({ loadStateFile })` can resume
  *  the same world. Read-only against the fork — safe on adopted forks too.
  *  Returns the path written, or null when the fork has no dump target.
- *  Throws on RPC failure; callers decide whether that's fatal. */
+ *  Throws on RPC failure; callers decide whether that's fatal.
+ *
+ *  Refuses (returns null) while the fork has an unsettled `pendingStateLoad`:
+ *  its state file holds a world this process never managed to load, and
+ *  dumping the live (fresh, empty) fork over it would destroy the only copy
+ *  of that world — which is exactly what once happened. */
 export async function dumpForkState(fork: ForkState): Promise<string | null> {
-  if (!fork.stateFile) return null;
-  const client = createTestClient({ mode: "anvil", transport: http(fork.rpcUrl) });
+  if (!fork.stateFile || fork.pendingStateLoad) return null;
+  const client = createTestClient({ mode: "anvil", transport: http(fork.rpcUrl, { timeout: STATE_RPC_TIMEOUT_MS }) });
   const state = await client.dumpState();
   writeFileSync(fork.stateFile, state);
   return fork.stateFile;

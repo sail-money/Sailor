@@ -4,7 +4,8 @@
 // and then kill — each other's forks.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,6 +17,7 @@ import {
   MAX_SANDBOX_CHAINS,
   TooManySandboxChainsError,
   dumpSandboxState,
+  refreshSandboxForks,
   resetSandbox,
   resolveChainName,
   restartSandboxFork,
@@ -231,6 +233,81 @@ test("dumpSandboxState skips forks that aren't up, and writes nothing for them",
   }
 });
 
+test("dumpSandboxState never dumps over a state file whose world was not loaded yet (pendingStateLoad guard)", async () => {
+  const dir = tmpSandboxDir();
+  const { server, port } = await stubRpcServer(84532);
+  try {
+    const stateFile = join(dir, "anvil-state-base-sepolia.json");
+    writeFileSync(stateFile, "0xtheworld"); // the only copy of a saved world
+    writeManifest(dir, {
+      "84532": {
+        chainId: 84532,
+        chain: "base-sepolia",
+        ready: true,
+        status: "ready",
+        rpcUrl: `http://127.0.0.1:${port}`,
+        port,
+        stateFile,
+        pendingStateLoad: stateFile, // its load into this fork never succeeded
+      },
+    });
+    const result = await dumpSandboxState(dir);
+    assert.deepEqual(result.dumped, []);
+    assert.deepEqual(result.skipped, [84532]);
+    assert.equal(readFileSync(stateFile, "utf8"), "0xtheworld", "the unloaded world's file must remain untouched");
+  } finally {
+    server.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("refreshSandboxForks settles a spawning fork whose process died into failed — not 'Starting…' forever", async () => {
+  const dir = tmpSandboxDir();
+  // Nothing listening on this port: the stub is closed before the entry is
+  // written, standing in for an anvil that crashed during boot.
+  const { server, port } = await stubRpcServer(84532);
+  server.close();
+  try {
+    writeManifest(dir, {
+      "84532": { chainId: 84532, chain: "base-sepolia", ready: false, status: "spawning", pid: DEAD_PID, rpcUrl: `http://127.0.0.1:${port}`, port },
+    });
+    const manifest = await refreshSandboxForks(dir);
+    assert.equal(manifest["84532"].status, "failed");
+    assert.equal(manifest["84532"].ready, false);
+    assert.equal(manifest["84532"].pid, undefined);
+    assert.match(manifest["84532"].error ?? "", /exited during startup/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("refreshSandboxForks settles a pending state load when a slow-booting fork finally turns ready", async () => {
+  const dir = tmpSandboxDir();
+  const { server, port } = await stubRpcServer(84532);
+  try {
+    const pendingFile = join(dir, "anvil-state-base-sepolia.json");
+    writeFileSync(pendingFile, "0x00");
+    writeManifest(dir, {
+      "84532": {
+        chainId: 84532,
+        chain: "base-sepolia",
+        ready: false,
+        status: "spawning",
+        pid: process.pid, // "still alive" — the boot was just slow
+        rpcUrl: `http://127.0.0.1:${port}`,
+        port,
+        pendingStateLoad: pendingFile,
+      },
+    });
+    const manifest = await refreshSandboxForks(dir);
+    assert.equal(manifest["84532"].status, "ready");
+    assert.equal(manifest["84532"].pendingStateLoad, undefined, "the load debt must be settled, not carried forever");
+  } finally {
+    server.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 function anvilAvailable(): boolean {
   try {
     execFileSync("anvil", ["--version"], { stdio: "ignore" });
@@ -426,6 +503,50 @@ test(
 
       await resetSandbox(dir);
     } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  "large worlds survive stop→restart: a state dump past anvil's default 2MB request cap still loads (--no-request-size-limit)",
+  { skip: !anvilAvailable() },
+  async () => {
+    const dir = tmpSandboxDir();
+    try {
+      const { forks } = await startSandboxForks({ sandboxDir: dir, chains: ["base-sepolia"] });
+      const started = forks["84532"];
+      assert.equal(started.status, "ready");
+
+      // Inflate the world past 2MB of *dumped* state. Dumps are gzipped, so
+      // the padding must be incompressible — random bytes, not zeros.
+      const testClient = createTestClient({ mode: "anvil", transport: http(started.rpcUrl) });
+      const chunk = 24 * 1024; // per-account code blob
+      const accounts = 120; // ~2.9MB of raw entropy → >2MB gzipped
+      const markers: `0x${string}`[] = [];
+      for (let i = 0; i < accounts; i++) {
+        const address = `0x${String(i + 1).padStart(40, "0")}` as `0x${string}`;
+        markers.push(address);
+        const code = `0x${randomBytes(chunk).toString("hex")}` as `0x${string}`;
+        await testClient.setCode({ address, bytecode: code });
+      }
+
+      await resetSandbox(dir); // graceful stop-all: dumps state
+      const entry = readManifest(dir)["84532"];
+      assert.ok(entry.stateFile && existsSync(entry.stateFile));
+      const dumpBytes = statSync(entry.stateFile!).size;
+      assert.ok(dumpBytes > 2 * 1024 * 1024, `dump must exceed anvil's 2MB request cap to prove anything (got ${dumpBytes} bytes)`);
+
+      const resumed = (await startSandboxForks({ sandboxDir: dir, chains: ["base-sepolia"] })).forks["84532"];
+      assert.equal(resumed.status, "ready");
+
+      const readClient = createPublicClient({ transport: http(resumed.rpcUrl) });
+      const code = await readClient.getCode({ address: markers[markers.length - 1] });
+      assert.ok(code && code.length > 2, "large world's state must load after restart — anvil's default request cap would have rejected it");
+
+      await resetSandbox(dir);
+    } finally {
+      await resetSandbox(dir).catch(() => {});
       rmSync(dir, { recursive: true, force: true });
     }
   },
