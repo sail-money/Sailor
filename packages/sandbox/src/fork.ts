@@ -19,8 +19,24 @@ import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { createTestClient, http, type Hex } from "viem";
 
-export type Chain = "base-sepolia" | "base" | "arbitrum" | "unichain" | "ethereum" | "sepolia";
+export type Chain =
+  | "base-sepolia"
+  | "base"
+  | "arbitrum"
+  | "unichain"
+  | "ethereum"
+  | "sepolia"
+  | "optimism"
+  | "bsc"
+  | "worldchain"
+  | "hyperevm"
+  | "megaeth";
 
+// Every chain the onboarding picker offers (SUPPORTED_NETWORKS in the UI) must
+// have an entry here, or provisioning it throws "Unsupported sandbox chain id".
+// Kept in step with the SDK chain registry (@sail/sdk chains.ts) — which is the
+// source of truth for kernel deployments — without importing it (see the module
+// header). Add a chain to the SDK registry AND here when a kernel ships on it.
 export const CHAIN_IDS: Record<Chain, number> = {
   "base-sepolia": 84532,
   base: 8453,
@@ -28,6 +44,11 @@ export const CHAIN_IDS: Record<Chain, number> = {
   unichain: 130,
   ethereum: 1,
   sepolia: 11155111,
+  optimism: 10,
+  bsc: 56,
+  worldchain: 480,
+  hyperevm: 999,
+  megaeth: 4326,
 };
 
 // Deterministic, non-colliding default port per chain so up to MAX_SANDBOX_CHAINS
@@ -39,6 +60,11 @@ export const CHAIN_PORTS: Record<Chain, number> = {
   unichain: 18548,
   ethereum: 18549,
   sepolia: 18550,
+  optimism: 18551,
+  bsc: 18552,
+  worldchain: 18553,
+  hyperevm: 18554,
+  megaeth: 18555,
 };
 
 /** Hard cap on how many chains one sandbox session may fork at once — keeps
@@ -191,6 +217,11 @@ const UPSTREAM_ENV_CANDIDATES: Record<Chain, string[]> = {
   unichain: ["UNICHAIN_RPC_URL", "UNICHAIN_MAINNET_RPC_URL"],
   ethereum: ["ETHEREUM_RPC_URL", "ETH_MAINNET_RPC_URL", "ETH_RPC_URL"],
   sepolia: ["SEPOLIA_RPC_URL"],
+  optimism: ["OPTIMISM_RPC_URL", "OP_MAINNET_RPC_URL"],
+  bsc: ["BSC_RPC_URL", "BSC_MAINNET_RPC_URL", "BNB_RPC_URL"],
+  worldchain: ["WORLD_RPC_URL", "WORLDCHAIN_RPC_URL"],
+  hyperevm: ["HYPEREVM_RPC_URL", "HYPER_RPC_URL"],
+  megaeth: ["MEGAETH_RPC_URL"],
 };
 
 const PUBLIC_UPSTREAM_FALLBACKS: Record<Chain, string> = {
@@ -200,6 +231,11 @@ const PUBLIC_UPSTREAM_FALLBACKS: Record<Chain, string> = {
   unichain: "https://mainnet.unichain.org",
   ethereum: "https://eth-mainnet.public.blastapi.io",
   sepolia: "https://eth-sepolia.public.blastapi.io",
+  optimism: "https://mainnet.optimism.io",
+  bsc: "https://bsc-dataseed.binance.org",
+  worldchain: "https://worldchain-mainnet.g.alchemy.com/public",
+  hyperevm: "https://rpc.hyperliquid.xyz/evm",
+  megaeth: "https://mainnet.megaeth.com/rpc",
 };
 
 function resolveUpstreamRpc(chain: Chain): { url: string; warning?: string } {
