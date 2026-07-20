@@ -9,7 +9,7 @@ import {
   SailorClient,
   getChain,
 } from "@sail/sdk";
-import { http, type Address, createPublicClient, createWalletClient, defineChain, getAddress } from "viem";
+import { http, type Address, type Hex, createPublicClient, createWalletClient, defineChain, getAddress } from "viem";
 import {
   appendActivity,
   checksum,
@@ -20,6 +20,7 @@ import {
   sailPath,
 } from "../lib/io.js";
 import { getRpcUrl } from "../lib/chain.js";
+import { decodeTokenMove, formatTokenAmount } from "../lib/dispatch-value.js";
 import { keyExists, loadManagerSigner } from "../lib/keys.js";
 import {
   resolvePermissionForBatch,
@@ -77,6 +78,13 @@ const ERC20_READ_ABI = [
     stateMutability: "view",
     inputs: [],
     outputs: [{ name: "", type: "uint8" }],
+  },
+  {
+    type: "function",
+    name: "symbol",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "string" }],
   },
 ] as const;
 
@@ -344,6 +352,68 @@ export async function runCommand(opts: {
     return d;
   };
 
+  // Symbols are immutable too — cache per token. Best-effort: a token without a
+  // string symbol() just yields undefined (the amount still shows, sans ticker).
+  const symbolCache = new Map<Address, string | undefined>();
+  const readSymbol = async (token: Address): Promise<string | undefined> => {
+    const key = getAddress(token);
+    if (symbolCache.has(key)) return symbolCache.get(key);
+    let sym: string | undefined;
+    try {
+      sym = (await publicClient.readContract({
+        address: token,
+        abi: ERC20_READ_ABI,
+        functionName: "symbol",
+      })) as string;
+    } catch {
+      sym = undefined;
+    }
+    symbolCache.set(key, sym);
+    return sym;
+  };
+
+  // Decode "how much moved" for a dispatch so the activity feed shows a real
+  // amount instead of $0.00 (S4). First call whose calldata is a standard ERC-20
+  // approve/transfer/transferFrom wins; otherwise a non-zero native `value`.
+  // Returns activity fields to spread onto the event, or {} when nothing is
+  // decodable (feed then shows no amount rather than a fabricated zero).
+  const describeDispatchValue = async (
+    calls: readonly { target: Address; data: Hex; value?: bigint }[],
+  ): Promise<Record<string, unknown>> => {
+    for (const c of calls) {
+      const move = decodeTokenMove(c.data);
+      if (!move) continue;
+      let decimals: number;
+      try {
+        decimals = await readDecimals(c.target);
+      } catch {
+        continue; // can't read decimals → can't format; try the next call
+      }
+      return {
+        amount: move.amount.toString(),
+        amountFormatted: formatTokenAmount(move.amount, decimals),
+        token: getAddress(c.target),
+        tokenSymbol: await readSymbol(c.target),
+        tokenDecimals: decimals,
+        // `approve` sets an allowance, not a transfer — label it so the UI can
+        // say "approve 5 USDC" vs "swap 5 USDC" without implying funds moved.
+        amountKind: move.fn === "approve" ? "allowance" : "transfer",
+      };
+    }
+    const nativeCall = calls.find((c) => (c.value ?? 0n) > 0n);
+    if (nativeCall) {
+      const value = nativeCall.value ?? 0n;
+      return {
+        amount: value.toString(),
+        amountFormatted: formatTokenAmount(value, 18),
+        tokenSymbol: chain.nativeCurrency.symbol,
+        tokenDecimals: 18,
+        amountKind: "native",
+      };
+    }
+    return {};
+  };
+
   // ── One tick: agent.tick → preview → execute → log ───────────────────────────
   async function runTick(): Promise<void> {
     appendActivity({ ts: nowIso(), actor: "agent", type: "tick_start", chainId, reason: runReason });
@@ -523,7 +593,10 @@ export async function runCommand(opts: {
         }
 
         // ── Execute ───────────────────────────────────────────────────────────
-        appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_approved", permission, target });
+        // Decode how much this dispatch moves so the activity feed shows a real
+        // amount, not $0.00 (S4). Best-effort; {} when undecodable.
+        const dispatchValue = await describeDispatchValue(dispatch.calls);
+        appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_approved", permission, target, ...dispatchValue });
         const result =
           dispatch.calls.length > 1
             ? await execClient.dispatch.batch(accountAddr, permission, dispatch.calls, manager)
@@ -552,11 +625,11 @@ export async function runCommand(opts: {
         }
 
         if (!result.success) {
-          appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_reverted", permission, target, txHash: result.txHash, gasUsed: String(result.gasUsed) });
+          appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_reverted", permission, target, txHash: result.txHash, gasUsed: String(result.gasUsed), ...dispatchValue });
           console.error(`reverted: ${result.txHash}  (gas used: ${result.gasUsed})`);
           tickReverted++;
         } else {
-          appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_executed", permission, target, txHash: result.txHash });
+          appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_executed", permission, target, txHash: result.txHash, ...dispatchValue });
           console.log(`executed: ${result.txHash}`);
           tickExecuted++;
         }
