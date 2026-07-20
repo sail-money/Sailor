@@ -73,10 +73,13 @@ export class MandateStore {
     );
     // Deduplicate name within the same chain by appending a numeric suffix.
     const baseName = mandate.name;
-    const sameName = (m: DeployedMandate) => m.name === mandate.name && m.chainId === mandate.chainId;
+    const sameName = (m: DeployedMandate) =>
+      m.name === mandate.name && m.chainId === mandate.chainId;
     if (data.mandates.some(sameName)) {
       let n = 2;
-      while (data.mandates.some((m) => m.name === `${baseName}[${n}]` && m.chainId === mandate.chainId)) {
+      while (
+        data.mandates.some((m) => m.name === `${baseName}[${n}]` && m.chainId === mandate.chainId)
+      ) {
         n++;
       }
       mandate = { ...mandate, name: `${baseName}[${n}]` };
@@ -116,9 +119,15 @@ export class MandateStore {
     if (!mandate) throw new Error(`No tracked mandate found for: ${addressOrName}`);
     if (patch.name !== undefined && patch.name !== mandate.name) {
       const conflict = data.mandates.find(
-        (m) => m.name === patch.name && m.chainId === mandate.chainId && m.address.toLowerCase() !== mandate.address.toLowerCase(),
+        (m) =>
+          m.name === patch.name &&
+          m.chainId === mandate.chainId &&
+          m.address.toLowerCase() !== mandate.address.toLowerCase(),
       );
-      if (conflict) throw new Error(`Name "${patch.name}" is already used by ${conflict.address} on chain ${mandate.chainId}`);
+      if (conflict)
+        throw new Error(
+          `Name "${patch.name}" is already used by ${conflict.address} on chain ${mandate.chainId}`,
+        );
       mandate.name = patch.name;
     }
     if (patch.sourcePath !== undefined) mandate.sourcePath = patch.sourcePath;
@@ -127,12 +136,22 @@ export class MandateStore {
     return mandate;
   }
 
-  /** Record that a tracked mandate was attached to an SMA. */
+  /**
+   * Record that a tracked mandate was attached to an SMA. Idempotent: a repeat
+   * call with the same (sma, txHash) is a no-op, so re-running attach or
+   * `mandate sync` never appends duplicate attachment rows.
+   */
   recordAttachment(address: Address, attachment: { sma: Address; txHash: Hex }): void {
     const data = this.read();
     const mandate = data.mandates.find((m) => m.address.toLowerCase() === address.toLowerCase());
     if (!mandate) return;
     mandate.attachments ??= [];
+    const already = mandate.attachments.some(
+      (a) =>
+        a.sma.toLowerCase() === attachment.sma.toLowerCase() &&
+        a.txHash.toLowerCase() === attachment.txHash.toLowerCase(),
+    );
+    if (already) return;
     mandate.attachments.push({ ...attachment, at: new Date().toISOString() });
     this.write(data);
   }

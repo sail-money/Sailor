@@ -48,13 +48,18 @@ import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { appendActivity, checksum, nowIso, prompt, sailPath, writeJsonFile } from "../lib/io.js";
 import { keyExists, loadManagerSigner } from "../lib/keys.js";
 import { MandateStore } from "../lib/mandates.js";
-import { explainPermission } from "../lib/permission-explainer.js";
 import { emit } from "../lib/output.js";
+import { projectPort } from "../lib/packagePaths.js";
+import { explainPermission } from "../lib/permission-explainer.js";
 import { ProjectContext } from "../lib/project.js";
 import { estimateRegistrationGasBudgetWei, registrationGate } from "../lib/registration-fee.js";
+import {
+  assertSignatureFresh,
+  describeRegisterRevert,
+  registrationDeadline,
+} from "../lib/registration.js";
 import { type StoredAccount, upsertAccountInList } from "../lib/state.js";
 import { type SigningChannel, createSigningChannel, signingPageUrl } from "../signing/client.js";
-import { projectPort } from "../lib/packagePaths.js";
 
 export interface OnboardOptions {
   sma?: string;
@@ -124,7 +129,9 @@ async function runOnboard(
 
   // ── Step 1: Ensure a manager (agent) key ────────────────────────────────────
   if (!keyExists("manager")) {
-    throw new Error('No agent wallet found. Run "sailor keys generate" and choose "agent wallet" first.');
+    throw new Error(
+      'No agent wallet found. Run "sailor keys generate" and choose "agent wallet" first.',
+    );
   }
   const agentSigner = await loadManagerSigner();
   const agentAddress = agentSigner.address;
@@ -268,7 +275,8 @@ async function runOnboard(
     "SharedTransferTargetPermission",
     "TransferTargetPermission",
   ]);
-  const registeringLifi = LIFI_PERMISSION_KINDS.has(template.label) || LIFI_PERMISSION_KINDS.has(template.address);
+  const registeringLifi =
+    LIFI_PERMISSION_KINDS.has(template.label) || LIFI_PERMISSION_KINDS.has(template.address);
   if (registeringLifi) {
     // Check if a transfer-restriction permission is already registered.
     const existing = (await publicClient.readContract({
@@ -329,10 +337,7 @@ async function resolveSmaChoice(options: OnboardOptions, json: boolean): Promise
     throw new Error("Specify --sma <address> or --new-sma (non-interactive / --json mode).");
   }
 
-  const choice = await prompt(
-    "Create a new SMA? (y = new, or paste an existing SMA address)",
-    "y",
-  );
+  const choice = await prompt("Create a new SMA? (y = new, or paste an existing SMA address)", "y");
   if (choice.toLowerCase() === "y" || choice.toLowerCase() === "yes") return { kind: "new" };
   if (!isAddress(choice, { strict: false })) throw new Error(`Invalid SMA address: ${choice}`);
   return { kind: "address", address: getAddress(choice) };
@@ -483,7 +488,13 @@ async function createSma(
 
   const safeAddress = registered.args.account;
   say(() => console.log("✓", `SMA created at ${safeAddress}`));
-  say(() => console.log("   Salt:", saltNonce.toString(), "(stored in .sail/account.json — use for sailor account predict)"));
+  say(() =>
+    console.log(
+      "   Salt:",
+      saltNonce.toString(),
+      "(stored in .sail/account.json — use for sailor account predict)",
+    ),
+  );
   appendActivity({
     ts: nowIso(),
     actor: "owner",
@@ -546,9 +557,11 @@ export async function registerMandate(
 
   // Capture an explicit deadline so we can reconstruct the exact message for
   // signature verification after the browser returns. Without this, recomputing
-  // Date.now() a few seconds later would produce a different value.
-  const registrationDeadline = registerPermissionHasDeadline
-    ? BigInt(Math.floor(Date.now() / 1000) + 300)
+  // Date.now() a few seconds later would produce a different value. The window
+  // outlasts the browser signing wait (+ buffer) so a slow-but-legitimate sign
+  // doesn't hand back an already-stale signature (S5).
+  const registrationDeadlineValue = registerPermissionHasDeadline
+    ? registrationDeadline()
     : undefined;
 
   const typedData = buildRegisterPermissionTypedData({
@@ -558,7 +571,7 @@ export async function registerMandate(
     permission: templateAddress,
     nonce,
     hasDeadline: registerPermissionHasDeadline,
-    deadline: registrationDeadline,
+    deadline: registrationDeadlineValue,
   });
 
   // Compute the registration fee ONCE — the single source of truth shared by the
@@ -599,8 +612,9 @@ export async function registerMandate(
   // card explains what it enforces before the owner signs.
   const permRecord = new MandateStore().find(templateAddress);
   const permExplanation =
-    (permRecord ? explainPermission(permRecord.name, permRecord.sourcePath) : explainPermission(template.label)) ??
-    undefined;
+    (permRecord
+      ? explainPermission(permRecord.name, permRecord.sourcePath)
+      : explainPermission(template.label)) ?? undefined;
 
   const response = await channel.requestSignature({
     type: "typed-data",
@@ -647,7 +661,12 @@ export async function registerMandate(
         : REGISTER_PERMISSION_TYPES_NO_DEADLINE,
       primaryType: "RegisterPermission",
       message: registerPermissionHasDeadline
-        ? { account: smaAddress, permission: templateAddress, nonce, deadline: registrationDeadline! }
+        ? {
+            account: smaAddress,
+            permission: templateAddress,
+            nonce,
+            deadline: registrationDeadlineValue!,
+          }
         : { account: smaAddress, permission: templateAddress, nonce },
       signature,
     });
@@ -691,13 +710,23 @@ export async function registerMandate(
           },
         ] as const,
         functionName: "registerPermission",
-        args: [smaAddress, templateAddress, registrationDeadline!, signature],
+        args: [smaAddress, templateAddress, registrationDeadlineValue!, signature],
       })
     : encodeFunctionData({
         abi: SailKernelAbi,
         functionName: "registerPermission",
         args: [smaAddress, templateAddress, signature],
       });
+
+  // Submit-time staleness guard: if the signed deadline has (nearly) lapsed
+  // while the owner was signing, refuse to submit a guaranteed-revert tx and
+  // ask for a fresh signature — no gas wasted (S5).
+  if (registrationDeadlineValue !== undefined) {
+    assertSignatureFresh(
+      registrationDeadlineValue,
+      `Re-run onboarding (or "sailor mandate register --address ${templateAddress} --sma ${smaAddress}") to sign again.`,
+    );
+  }
 
   let txHash: Hex;
   try {
@@ -719,12 +748,22 @@ export async function registerMandate(
   say(() => console.log("Waiting for confirmation…"));
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
   if (receipt.status !== "success") {
+    const why = await describeRegisterRevert(
+      publicClient,
+      {
+        to: project.contracts.kernel,
+        data: registerData,
+        value: fee,
+        account: agentSigner.viemAccount.address,
+      },
+      receipt,
+    );
     await channel.confirmOutcome(response.requestId, {
       outcome: "reverted",
       txHash,
-      error: `registerPermission reverted (tx ${txHash})`,
+      error: `registerPermission ${why}`,
     });
-    throw new Error(`registerPermission reverted (tx ${txHash})`);
+    throw new Error(`registerPermission ${why}`);
   }
   await channel.confirmOutcome(response.requestId, { outcome: "confirmed", txHash });
 
