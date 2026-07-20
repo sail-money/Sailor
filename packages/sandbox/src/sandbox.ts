@@ -18,10 +18,12 @@ import {
   TooManySandboxChainsError,
   anvilStateFilePath,
   dumpForkState,
+  ensureLocalRpc,
   ensurePerChainRpc,
   isPidAlive,
   loadForkStateFile,
   probePort,
+  readLocalRpcChainId,
   startFork,
   stopFork,
   waitForRpc,
@@ -35,6 +37,38 @@ export type { Chain, ManifestEntry };
 
 export function sandboxDirFor(projectRoot: string): string {
   return join(projectRoot, ".shipyard", "sandbox");
+}
+
+/**
+ * Ensure exactly one manifest entry is flagged `primary` — the chain the
+ * sandbox's generic RPC_URL points at. Earlier code set the flag per-call
+ * without clearing a previous primary, so `forks.json` could end up with two
+ * `primary: true` entries; this normalises any manifest back to a single one.
+ *
+ * Priority for which chain wins: an explicit `preferred` chainId (the caller
+ * just made it primary) → the chain `.env.local` currently points at (the
+ * authoritative active RPC) → the sole already-flagged entry → the first entry.
+ * Mutates and returns the same manifest object.
+ */
+function normalizeManifestPrimary(
+  sandboxDir: string,
+  manifest: Record<string, ManifestEntry>,
+  preferred?: number,
+): Record<string, ManifestEntry> {
+  const keys = Object.keys(manifest);
+  if (keys.length === 0) return manifest;
+  const localCid = readLocalRpcChainId(sandboxDir);
+  const flagged = keys.filter((k) => manifest[k].primary);
+  const pick =
+    (preferred != null && manifest[String(preferred)] ? String(preferred) : null) ??
+    (localCid != null && manifest[String(localCid)] ? String(localCid) : null) ??
+    (flagged.length === 1 ? flagged[0] : null) ??
+    keys[0];
+  for (const k of keys) {
+    const isPrimary = k === pick;
+    if (manifest[k].primary !== isPrimary) manifest[k] = { ...manifest[k], primary: isPrimary };
+  }
+  return manifest;
 }
 
 const CHAIN_ID_TO_NAME = new Map<number, Chain>(
@@ -184,7 +218,15 @@ export async function startSandboxForks(opts: {
       // is on record (a fresh manifest, or one written before this per-chain
       // key existed, would otherwise leave an already-running chain invisible
       // to anything reading the per-chain env convention).
-      if (tracked.rpcUrl) ensurePerChainRpc(sandboxDir, chainId, tracked.rpcUrl);
+      if (tracked.rpcUrl) {
+        ensurePerChainRpc(sandboxDir, chainId, tracked.rpcUrl);
+        // If this already-alive chain is now the primary, point the sandbox's
+        // generic RPC_URL/CHAIN_ID at it too. startFork's own repoint only runs
+        // when we actually (re)spawn a fork — a chain forked earlier as a
+        // secondary that's being promoted to primary here would otherwise never
+        // become the active RPC.
+        if (chain === primary) ensureLocalRpc(sandboxDir, chainId, tracked.rpcUrl);
+      }
       continue;
     }
 
@@ -229,6 +271,13 @@ export async function startSandboxForks(opts: {
       };
     }
   }
+
+  // Exactly one chain is the active/primary one. Re-running with a different
+  // primary (adding a network, or an add-SMA flow on another chain) used to
+  // leave the earlier primary's flag set too — the already-alive branch
+  // `continue`s without touching it — so forks.json could show two
+  // `primary: true` entries. Normalise to the one we just resolved.
+  normalizeManifestPrimary(sandboxDir, manifest, CHAIN_IDS[primary]);
 
   writeManifest(sandboxDir, manifest);
   return { primary, forks: manifest };
@@ -480,6 +529,13 @@ export async function resumeSandboxForks(sandboxDir: string): Promise<ResumeSand
       result.failed[entry.chainId] = e?.message || String(e);
     }
   }
+
+  // Self-heal a stale primary flag left by older builds: re-read (the per-fork
+  // restarts above rewrote the manifest) and collapse to a single primary,
+  // keyed off whatever .env.local's RPC points at. Without this a double-primary
+  // manifest survives every restart untouched, since resume takes no primary.
+  const healed = normalizeManifestPrimary(sandboxDir, readManifest(sandboxDir));
+  writeManifest(sandboxDir, healed);
 
   return result;
 }

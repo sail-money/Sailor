@@ -23,12 +23,32 @@ const SandboxContext = createContext({ isSandbox: false, forks: {}, activateFork
  * RPC calls of their own rather than going through wagmi's client — those
  * need the same fork-vs-public-RPC choice the wagmi transport map makes.
  */
+// Stable signature of a fork set + its primary, so activateForks can tell
+// "same as last time" from a genuine change regardless of key order/type.
+function forksSignature(forkMap, primary) {
+  const pairs = Object.entries(forkMap ?? {})
+    .map(([id, url]) => `${Number(id)}=${url}`)
+    .sort()
+  return `${Number(primary)}|${pairs.join(',')}`
+}
+
 export function SandboxProvider({ isSandbox, config, setConfig, children }) {
   const [forks, setForks] = useState({})
   const activatedRef = useRef(false)
+  const lastSigRef = useRef(null)
 
   function activateForks({ forks: forkMap, primary }) {
+    // Re-pointing wagmi at an identical fork set + primary tears down and
+    // reconnects the sandbox dev wallet for nothing. The Network step calls
+    // this on every "Continue" and the self-activate effect on every load,
+    // frequently with the exact forks already in place — skip those no-ops.
+    // (A spurious reconnect is also what used to close the additional-SMA
+    // wizard mid-flight; the Dashboard guard covers that too, but not churning
+    // in the first place is cleaner.)
+    const sig = forksSignature(forkMap, primary)
+    if (activatedRef.current && lastSigRef.current === sig) return
     activatedRef.current = true
+    lastSigRef.current = sig
     setForks(forkMap)
     const next = buildWagmiConfig({ forks: forkMap, primaryChainId: primary })
     setConfig(next)

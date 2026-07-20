@@ -159,6 +159,23 @@ export function ensureLocalRpc(sandboxDir: string, chainId: number, rpcUrl: stri
 }
 
 /**
+ * The chainId the sandbox's `.env.local` generic RPC currently points at — the
+ * authoritative "active/primary" chain (whatever `ensureLocalRpc` last wrote).
+ * Returns null when `.env.local` is missing or has no valid `CHAIN_ID`.
+ */
+export function readLocalRpcChainId(sandboxDir: string): number | null {
+  try {
+    const content = readFileSync(join(sandboxDir, ".env.local"), "utf8");
+    const line = content.split("\n").find((l) => l.startsWith("CHAIN_ID="));
+    if (!line) return null;
+    const n = Number(line.slice("CHAIN_ID=".length).trim());
+    return Number.isInteger(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Record a fork's RPC under its own `RPC_URL_<chainId>` key — the per-chain
  * convention the dashboard's RPCs page (and `/api/onboard/state`) actually
  * reads. Called for *every* forked chain, not just the primary: unlike
