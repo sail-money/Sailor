@@ -1325,9 +1325,16 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
   // Close the additional-create flow if the wallet disconnects midway — the
   // wizard reads its owner from useAccount, so continuing without a wallet
   // would build deploy txs with an undefined owner. The connect gate takes over.
+  //
+  // NOT in the sandbox: there the built-in dev wallet is intrinsic and always
+  // available, so `isConnected` only ever drops transiently while the Network
+  // step's activateForks swaps the wagmi config (it reconnects a tick later) —
+  // never a real user disconnect. Closing here on that transient tore the
+  // wizard down mid-flight, so a second SMA could never be created in a
+  // sandbox. Live mode still closes on a genuine disconnect.
   useEffect(() => {
-    if (!isConnected && createSMAOpen) setCreateSMAOpen(false)
-  }, [isConnected, createSMAOpen])
+    if (!isSandbox && !isConnected && createSMAOpen) setCreateSMAOpen(false)
+  }, [isSandbox, isConnected, createSMAOpen])
   // Same guard for the profile modal: on an out-of-band disconnect (wallet
   // extension, session expiry) the owner filter loses its address and the SMA
   // list would fall back to every owner's accounts — close it instead.
