@@ -73,7 +73,10 @@ export function SandboxProvider({ isSandbox, config, setConfig, children }) {
 
   useEffect(() => { reloadSandboxConfig() }, [reloadSandboxConfig])
 
-  function activateForks({ forks: forkMap, primary }) {
+  // Memoised so its identity is stable — consumers (e.g. the dashboard's
+  // add-network flow) put it in effect deps, and a fresh closure each render
+  // would re-fire those effects every time activateForks calls setForks.
+  const activateForks = useCallback(({ forks: forkMap, primary }) => {
     // Re-pointing wagmi at an identical fork set + primary tears down and
     // reconnects the sandbox dev wallet for nothing. The Network step calls
     // this on every "Continue" and the self-activate effect on every load,
@@ -92,7 +95,7 @@ export function SandboxProvider({ isSandbox, config, setConfig, children }) {
       // Best-effort — ConnectStep's normal "Connect wallet" button still
       // works as a fallback if the programmatic connect is ever rejected.
     })
-  }
+  }, [setConfig])
 
   useEffect(() => {
     if (!isSandbox || activatedRef.current) return
@@ -114,7 +117,7 @@ export function SandboxProvider({ isSandbox, config, setConfig, children }) {
 
   const value = useMemo(
     () => ({ isSandbox, forks, activateForks, maxChains: capConfig.maxChains, ceiling: capConfig.ceiling, reloadSandboxConfig }),
-    [isSandbox, forks, capConfig.maxChains, capConfig.ceiling, reloadSandboxConfig],
+    [isSandbox, forks, activateForks, capConfig.maxChains, capConfig.ceiling, reloadSandboxConfig],
   )
 
   return <SandboxContext.Provider value={value}>{children}</SandboxContext.Provider>

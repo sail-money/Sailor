@@ -42,6 +42,36 @@ export function sandboxDirFor(projectRoot: string): string {
 }
 
 /**
+ * Serialize manifest read-modify-write sections per sandbox directory.
+ *
+ * `forks.json` is mutated by several code paths that the sandbox server runs
+ * concurrently in one process: `startSandboxForks` (add a chain), the every-few-
+ * seconds `refreshSandboxForks` behind `GET /api/sandbox/forks`, per-chain
+ * stop/restart, the periodic dump, resume. Each did a bare read → mutate →
+ * write. With no ordering, a refresh that read the manifest *before* a start
+ * wrote a new fork, then wrote its stale snapshot *after*, silently dropped that
+ * fork — the entry would appear, then vanish a second later, and the UI (whose
+ * wagmi config was built from it) would lose the chain. This lock makes each
+ * critical section run to completion before the next starts.
+ *
+ * Callers MUST keep the critical section synchronous and short: read the
+ * manifest fresh inside `fn`, mutate, write, return — do NOT await slow work
+ * (forking, RPC probes) while holding it, or concurrent reads stall. Spawn/probe
+ * first, then take the lock only to merge the result in.
+ */
+const manifestLocks = new Map<string, Promise<unknown>>();
+export function withManifestLock<T>(sandboxDir: string, fn: () => T): Promise<T> {
+  const prev = manifestLocks.get(sandboxDir) ?? Promise.resolve();
+  // Run fn whether or not the previous holder resolved or rejected — one failed
+  // section must never wedge the queue for this sandbox.
+  const next = prev.then(fn, fn);
+  // Swallow rejections on the stored tail so an unhandled rejection can't crash
+  // the process; the real result/rejection still propagates to this caller.
+  manifestLocks.set(sandboxDir, next.then(() => {}, () => {}));
+  return next;
+}
+
+/**
  * Ensure exactly one manifest entry is flagged `primary` — the chain the
  * sandbox's generic RPC_URL points at. Earlier code set the flag per-call
  * without clearing a previous primary, so `forks.json` could end up with two
@@ -202,12 +232,22 @@ export async function startSandboxForks(opts: {
   const sandboxDir = opts.sandboxDir;
   mkdirSync(sandboxDir, { recursive: true });
 
-  const manifest = readManifest(sandboxDir);
+  // Short helper: merge one chain's entry into a freshly-read manifest under the
+  // lock, so a concurrent refresh/start can't clobber it (and we never write a
+  // stale whole-manifest snapshot). See withManifestLock.
+  const putEntry = (key: string, entry: ManifestEntry) =>
+    withManifestLock(sandboxDir, () => {
+      const m = readManifest(sandboxDir);
+      m[key] = entry;
+      writeManifest(sandboxDir, m);
+    });
 
   for (const chain of requested) {
     const chainId = CHAIN_IDS[chain];
     const key = String(chainId);
-    const tracked = manifest[key];
+    // Read fresh per chain: forking the previous chain took real time, during
+    // which a concurrent refresh may have updated the manifest.
+    const tracked = readManifest(sandboxDir)[key];
 
     // "Already running" must mean *answering*, not just pid-alive: a crashed
     // fork we spawned lingers as a zombie (pid checks pass) until reaped, and
@@ -244,6 +284,7 @@ export async function startSandboxForks(opts: {
       // previous session deployed. Same deterministic port as before so
       // anything still holding the old RPC URL keeps working.
       const stateFile = tracked?.stateFile ?? anvilStateFilePath(sandboxDir, chain);
+      // Spawn OUTSIDE the lock (slow); persist the result in a short locked write.
       const fork = await startFork({
         sandboxDir,
         chain,
@@ -251,7 +292,7 @@ export async function startSandboxForks(opts: {
         repoint: chain === primary,
         loadStateFile: existsSync(stateFile) ? stateFile : undefined,
       });
-      manifest[key] = {
+      await putEntry(key, {
         chainId,
         chain,
         rpcUrl: fork.rpcUrl,
@@ -265,16 +306,16 @@ export async function startSandboxForks(opts: {
         adopted: fork.adopted,
         primary: chain === primary,
         pendingStateLoad: fork.pendingStateLoad,
-      };
+      });
     } catch (e: any) {
-      manifest[key] = {
+      await putEntry(key, {
         chainId,
         chain,
         ready: false,
         status: "failed",
         error: e?.message || String(e),
         requestedAt: new Date().toISOString(),
-      };
+      });
     }
   }
 
@@ -283,10 +324,13 @@ export async function startSandboxForks(opts: {
   // leave the earlier primary's flag set too — the already-alive branch
   // `continue`s without touching it — so forks.json could show two
   // `primary: true` entries. Normalise to the one we just resolved.
-  normalizeManifestPrimary(sandboxDir, manifest, CHAIN_IDS[primary]);
-
-  writeManifest(sandboxDir, manifest);
-  return { primary, forks: manifest };
+  const forks = await withManifestLock(sandboxDir, () => {
+    const m = readManifest(sandboxDir);
+    normalizeManifestPrimary(sandboxDir, m, CHAIN_IDS[primary]);
+    writeManifest(sandboxDir, m);
+    return m;
+  });
+  return { primary, forks };
 }
 
 /**
@@ -307,27 +351,30 @@ export async function startSandboxForks(opts: {
  * it would mean a slow boot silently discards the world it was restoring.
  */
 export async function refreshSandboxForks(sandboxDir: string): Promise<Record<string, ManifestEntry>> {
-  const manifest = readManifest(sandboxDir);
+  // Phase 1 (no lock): probe every fork off a snapshot, collecting a per-entry
+  // patch. All the slow work — RPC probes, pending-state loads — happens here,
+  // so we never hold the manifest lock while awaiting the network.
+  const snapshot = readManifest(sandboxDir);
+  const patches: Record<string, Partial<ManifestEntry>> = {};
 
-  for (const [key, entry] of Object.entries(manifest)) {
+  for (const [key, entry] of Object.entries(snapshot)) {
     if (entry.status === "stopped" || !entry.rpcUrl) continue;
 
     if (entry.status === "ready") {
       if (!(await isEntryAlive(entry))) {
-        manifest[key] = { ...entry, ready: false, status: "failed", pid: undefined, error: "Fork is no longer responding." };
+        patches[key] = { ready: false, status: "failed", pid: undefined, error: "Fork is no longer responding." };
       } else if (entry.pendingStateLoad) {
-        manifest[key] = { ...entry, pendingStateLoad: await settleStateLoad(entry) };
+        patches[key] = { pendingStateLoad: await settleStateLoad(entry) };
       }
       continue;
     }
 
     const ready = await waitForRpc(entry.rpcUrl, entry.chainId, 1_000);
     if (ready) {
-      manifest[key] = { ...entry, ready: true, status: "ready", error: undefined, pendingStateLoad: await settleStateLoad(entry) };
+      patches[key] = { ready: true, status: "ready", error: undefined, pendingStateLoad: await settleStateLoad(entry) };
       ensurePerChainRpc(sandboxDir, entry.chainId, entry.rpcUrl);
     } else if (entry.status === "spawning" && entry.pid && !isPidAlive(entry.pid)) {
-      manifest[key] = {
-        ...entry,
+      patches[key] = {
         ready: false,
         status: "failed",
         pid: undefined,
@@ -336,8 +383,18 @@ export async function refreshSandboxForks(sandboxDir: string): Promise<Record<st
     }
   }
 
-  writeManifest(sandboxDir, manifest);
-  return manifest;
+  // Phase 2 (locked, synchronous): re-read the manifest and MERGE the patches.
+  // Merging into a fresh read — rather than writing back the phase-1 snapshot —
+  // is what keeps a fork another operation added while we were probing from
+  // being clobbered. A patch for a key that has since disappeared is dropped.
+  return withManifestLock(sandboxDir, () => {
+    const manifest = readManifest(sandboxDir);
+    for (const [key, patch] of Object.entries(patches)) {
+      if (manifest[key]) manifest[key] = { ...manifest[key], ...patch };
+    }
+    writeManifest(sandboxDir, manifest);
+    return manifest;
+  });
 }
 
 export function getSandboxForks(sandboxDir: string): Record<string, ManifestEntry> {
@@ -356,19 +413,31 @@ export function getSandboxForks(sandboxDir: string): Record<string, ManifestEntr
  *  downstream could tell "deliberately shut down, resumable" from "running".
  *  An adopted fork that's still alive is left untouched (not ours to stop). */
 export async function resetSandbox(sandboxDir: string, opts: { purgeState?: boolean } = {}): Promise<void> {
-  const manifest = readManifest(sandboxDir);
+  // Phase 1 (no lock): stop every fork, collecting the "stopped" settlement per
+  // key. stopFork dumps state and can take a moment, so it stays out of the lock.
+  const snapshot = readManifest(sandboxDir);
+  const patches: Record<string, Partial<ManifestEntry>> = {};
 
-  for (const [key, entry] of Object.entries(manifest)) {
+  for (const [key, entry] of Object.entries(snapshot)) {
     const fork = manifestEntryToForkState(entry, sandboxDir);
     if (entry.adopted && (await isEntryAlive(entry))) continue;
     if (fork && isPidAlive(fork.pid)) await stopFork(fork);
     // An unsettled pendingStateLoad is dropped here, deliberately: stopFork
     // skipped dumping over the never-loaded state file, so it still holds
     // that world — and the next start loads from stateFile anyway.
-    manifest[key] = { ...entry, pid: undefined, ready: false, status: "stopped", stateFile: fork?.stateFile ?? entry.stateFile, adopted: false, pendingStateLoad: undefined };
+    patches[key] = { pid: undefined, ready: false, status: "stopped", stateFile: fork?.stateFile ?? entry.stateFile, adopted: false, pendingStateLoad: undefined };
   }
 
-  writeManifest(sandboxDir, opts.purgeState ? {} : manifest);
+  // Phase 2 (locked): purge wipes the manifest outright; otherwise merge the
+  // settlements into a fresh read so a concurrent op's changes aren't clobbered.
+  await withManifestLock(sandboxDir, () => {
+    if (opts.purgeState) { writeManifest(sandboxDir, {}); return; }
+    const manifest = readManifest(sandboxDir);
+    for (const [key, patch] of Object.entries(patches)) {
+      if (manifest[key]) manifest[key] = { ...manifest[key], ...patch };
+    }
+    writeManifest(sandboxDir, manifest);
+  });
 }
 
 /** Files/dirs that constitute "this sandbox's project state" — everything
@@ -468,11 +537,13 @@ export type DumpSandboxStateResult = {
  * included — no ownership needed to make their world durable.
  */
 export async function dumpSandboxState(sandboxDir: string): Promise<DumpSandboxStateResult> {
-  const manifest = readManifest(sandboxDir);
+  // Phase 1 (no lock): dump every live fork (read-only RPC), collecting any
+  // stateFile corrections to merge afterward.
+  const snapshot = readManifest(sandboxDir);
   const result: DumpSandboxStateResult = { dumped: [], skipped: [], failed: {} };
-  let manifestChanged = false;
+  const stateFilePatches: Record<string, string> = {};
 
-  for (const [key, entry] of Object.entries(manifest)) {
+  for (const [key, entry] of Object.entries(snapshot)) {
     const fork = manifestEntryToForkState(entry, sandboxDir);
     // pendingStateLoad: this fork's state file holds a world that was never
     // loaded into it — dumping the live fork over that file would destroy
@@ -484,16 +555,22 @@ export async function dumpSandboxState(sandboxDir: string): Promise<DumpSandboxS
     try {
       await dumpForkState(fork);
       result.dumped.push(entry.chainId);
-      if (entry.stateFile !== fork.stateFile) {
-        manifest[key] = { ...entry, stateFile: fork.stateFile };
-        manifestChanged = true;
-      }
+      if (entry.stateFile !== fork.stateFile && fork.stateFile) stateFilePatches[key] = fork.stateFile;
     } catch (e: any) {
       result.failed[entry.chainId] = e?.message || String(e);
     }
   }
 
-  if (manifestChanged) writeManifest(sandboxDir, manifest);
+  // Phase 2 (locked): merge stateFile corrections into a fresh read.
+  if (Object.keys(stateFilePatches).length > 0) {
+    await withManifestLock(sandboxDir, () => {
+      const manifest = readManifest(sandboxDir);
+      for (const [key, stateFile] of Object.entries(stateFilePatches)) {
+        if (manifest[key]) manifest[key] = { ...manifest[key], stateFile };
+      }
+      writeManifest(sandboxDir, manifest);
+    });
+  }
   return result;
 }
 
@@ -581,23 +658,25 @@ export async function resumeSandboxForks(
     }
   }
 
-  // Park the over-budget dead forks: re-read (the restarts above rewrote the
-  // manifest) and settle each into "stopped" so the UI shows them as
-  // deliberately-parked-and-resumable, not falsely "ready" with a dead pid.
-  const healed = readManifest(sandboxDir);
-  for (const entry of toPark) {
-    const key = String(entry.chainId);
-    if (!healed[key]) continue;
-    healed[key] = { ...healed[key], pid: undefined, ready: false, status: "stopped" };
-    result.parked.push(entry.chainId);
-  }
-
-  // Self-heal a stale primary flag left by older builds and collapse to a
-  // single primary, keyed off whatever .env.local's RPC points at. Without this
-  // a double-primary manifest survives every restart untouched, since resume
-  // takes no primary.
-  normalizeManifestPrimary(sandboxDir, healed);
-  writeManifest(sandboxDir, healed);
+  // Park the over-budget dead forks + self-heal the primary flag, under the lock
+  // so the per-fork restarts above (and any concurrent refresh) can't be lost.
+  // Re-read fresh: the restarts rewrote the manifest. Settle each parked entry
+  // into "stopped" so the UI shows them deliberately-parked-and-resumable, not
+  // falsely "ready" with a dead pid.
+  await withManifestLock(sandboxDir, () => {
+    const healed = readManifest(sandboxDir);
+    for (const entry of toPark) {
+      const key = String(entry.chainId);
+      if (!healed[key]) continue;
+      healed[key] = { ...healed[key], pid: undefined, ready: false, status: "stopped" };
+      result.parked.push(entry.chainId);
+    }
+    // Collapse to a single primary, keyed off whatever .env.local's RPC points
+    // at — without this a double-primary manifest from older builds survives
+    // every restart untouched, since resume takes no primary.
+    normalizeManifestPrimary(sandboxDir, healed);
+    writeManifest(sandboxDir, healed);
+  });
 
   return result;
 }
@@ -676,9 +755,13 @@ export async function stopSandboxFork(sandboxDir: string, chainId: number): Prom
   const fork = manifestEntryToForkState(entry, sandboxDir);
   if (fork && isPidAlive(fork.pid)) await stopFork(fork);
 
-  manifest[key] = { ...entry, pid: undefined, ready: false, status: "stopped", stateFile: fork?.stateFile, adopted: false };
-  writeManifest(sandboxDir, manifest);
-  return manifest[key];
+  // Locked read-merge-write: don't clobber a concurrent refresh/start.
+  return withManifestLock(sandboxDir, () => {
+    const m = readManifest(sandboxDir);
+    m[key] = { ...(m[key] ?? entry), pid: undefined, ready: false, status: "stopped", stateFile: fork?.stateFile, adopted: false };
+    writeManifest(sandboxDir, m);
+    return m[key];
+  });
 }
 
 /**
@@ -723,21 +806,27 @@ export async function restartSandboxFork(sandboxDir: string, chainId: number): P
     loadStateFile: existsSync(stateFile) ? stateFile : undefined,
   });
 
-  manifest[key] = {
-    chainId,
-    chain,
-    rpcUrl: fork.rpcUrl,
-    port: fork.port,
-    pid: fork.pid,
-    stateFile: fork.stateFile,
-    startedAt: fork.startedAt,
-    ready: Boolean(fork.ready),
-    status: fork.status,
-    error: fork.error,
-    adopted: fork.adopted,
-    primary: repoint,
-    pendingStateLoad: fork.pendingStateLoad,
-  };
-  writeManifest(sandboxDir, manifest);
-  return manifest[key];
+  // Locked read-merge-write: the spawn above took real time, during which a
+  // concurrent refresh may have rewritten the manifest — merge into a fresh read
+  // rather than write back our stale snapshot.
+  return withManifestLock(sandboxDir, () => {
+    const m = readManifest(sandboxDir);
+    m[key] = {
+      chainId,
+      chain,
+      rpcUrl: fork.rpcUrl,
+      port: fork.port,
+      pid: fork.pid,
+      stateFile: fork.stateFile,
+      startedAt: fork.startedAt,
+      ready: Boolean(fork.ready),
+      status: fork.status,
+      error: fork.error,
+      adopted: fork.adopted,
+      primary: repoint,
+      pendingStateLoad: fork.pendingStateLoad,
+    };
+    writeManifest(sandboxDir, m);
+    return m[key];
+  });
 }

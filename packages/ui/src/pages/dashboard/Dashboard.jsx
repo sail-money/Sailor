@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import OnboardingWizard, { CreateSmaStep } from '../onboarding/OnboardingWizard'
 import { useSandboxMode } from '../../hooks/useSandboxMode'
+import { useSandbox } from '../../sandboxContext'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { useAccount, useDisconnect } from 'wagmi'
 import { sailDeployments } from '@sail/sdk/deployments'
@@ -467,17 +468,84 @@ function ChainSwitcher({ chains, activeChainId, onSelect, allActive = false, onA
 // guarantee the address, so we surface the CLI path instead of risking a
 // mismatched deploy.
 function AddNetworkModal({ open, onClose, owner, manager, saltNonce, existingSafe, deployable, onDeployed }) {
+  const { isSandbox, activateForks } = useSandbox()
   const [target, setTarget] = useState(null)
-  useEffect(() => { if (!open) setTarget(null) }, [open])
+  // Sandbox only: a chain has no fork until we start one, and the wagmi connector
+  // can't switch to (or transact on) a chain that isn't in its fork map. So in
+  // sandbox mode we must provision the target chain's fork AND rebuild the wagmi
+  // config to include it BEFORE handing off to CreateSmaStep — exactly what the
+  // onboarding Network step does. 'idle' | 'starting' | 'ready' | error string.
+  const [forkPhase, setForkPhase] = useState('idle')
+  const [forkError, setForkError] = useState('')
+
+  useEffect(() => {
+    if (!open) { setTarget(null); setForkPhase('idle'); setForkError('') }
+  }, [open])
+
+  // Pick a network to deploy to. Live mode goes straight to CreateSmaStep. In
+  // sandbox mode a chain has no fork until we start one, and the wagmi connector
+  // can't switch to (or transact on) a chain that isn't in its fork map — so we
+  // provision the target's fork AND rebuild the wagmi config to include it
+  // before handing off to CreateSmaStep (exactly what the onboarding Network
+  // step does). Driven straight off the click (not a reactive effect) so it
+  // fires deterministically the moment the user picks.
+  async function handlePick(chainId) {
+    setForkError('')
+    setTarget(chainId)
+    if (!isSandbox) { setForkPhase('ready'); return }
+    setForkPhase('starting')
+    try {
+      // Current forks + which chain owns the active RPC — preserve the primary
+      // and the already-running set; just add the target.
+      const cur = await fetch('/api/sandbox/forks', { cache: 'no-store' }).then((r) => r.json())
+      const entries = Object.values(cur?.forks ?? {})
+      const readyIds = entries.filter((f) => f.status === 'ready').map((f) => f.chainId)
+      const primary = entries.find((f) => f.primary)?.chainId ?? readyIds[0] ?? chainId
+      const chainIds = Array.from(new Set([...readyIds, chainId]))
+
+      const startRes = await fetch('/api/sandbox/forks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chainIds, primary }),
+      })
+      const startData = await startRes.json().catch(() => ({}))
+      if (!startRes.ok) throw new Error(startData?.error || 'Could not start a local fork for this chain.')
+
+      // Poll until the target fork answers ready (or fails).
+      const deadline = Date.now() + 40_000
+      let forks = startData.forks ?? {}
+      while (forks[String(chainId)]?.status !== 'ready') {
+        if (forks[String(chainId)]?.status === 'failed') {
+          throw new Error(forks[String(chainId)]?.error || 'The local fork for this chain failed to start.')
+        }
+        if (Date.now() > deadline) throw new Error('Timed out waiting for the local fork to start.')
+        await new Promise((r) => setTimeout(r, 1200))
+        forks = (await fetch('/api/sandbox/forks', { cache: 'no-store' }).then((r) => r.json()))?.forks ?? {}
+      }
+
+      // Rebuild the wagmi config so the connector can switch to (and sign on)
+      // the new chain. Done once, here — never during the deploy loop.
+      const ready = Object.values(forks).filter((f) => f.status === 'ready' && f.rpcUrl)
+      activateForks?.({ forks: Object.fromEntries(ready.map((f) => [f.chainId, f.rpcUrl])), primary })
+      setForkPhase('ready')
+    } catch (e) {
+      setForkPhase('idle')
+      setForkError(e?.message || String(e))
+    }
+  }
+
   if (!open) return null
   const canDeploy = saltNonce != null && owner && manager
+  // In sandbox mode, hold at the picker (showing progress/error) until the fork
+  // is ready; live mode reaches CreateSmaStep as soon as a target is picked.
+  const showDeployStep = target != null && (!isSandbox || forkPhase === 'ready')
   return (
     <div className={styles.addNetOverlay} role="dialog" aria-modal="true" aria-label="Add a network" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
       {/* Picker view gets its own solid panel; the deploy step (CreateSmaStep)
           already renders its own card, so the wrapper goes transparent + wider
           there to avoid a card-inside-a-card. */}
-      <div className={`${styles.addNetModal} ${target != null ? styles.addNetModalStep : ''}`}>
-        {target == null ? (
+      <div className={`${styles.addNetModal} ${showDeployStep ? styles.addNetModalStep : ''}`}>
+        {!showDeployStep ? (
           <>
             <header className={styles.addNetHead}>
               <span className={styles.addNetKicker}>ADD NETWORK</span>
@@ -487,7 +555,17 @@ function AddNetworkModal({ open, onClose, owner, manager, saltNonce, existingSaf
                 deploy and register it, exactly like first-run setup.
               </p>
             </header>
-            {!canDeploy ? (
+            {target != null && isSandbox ? (
+              // Sandbox: provisioning the target chain's fork before deploy.
+              forkError ? (
+                <>
+                  <p className={styles.addNetNote}>Couldn't start a local fork for {deployable.find((c) => c.id === target)?.name ?? `chain ${target}`}: {forkError}</p>
+                  <button type="button" className={styles.addNetCancel} onClick={() => { setTarget(null); setForkError('') }}>Pick another network</button>
+                </>
+              ) : (
+                <p className={styles.addNetNote}>Starting a local fork for {deployable.find((c) => c.id === target)?.name ?? `chain ${target}`}… this can take a few seconds.</p>
+              )
+            ) : !canDeploy ? (
               <p className={styles.addNetNote}>
                 Your SMA keeps the same address on every chain thanks to its deployment salt,
                 and this project doesn't have that salt on record. Nothing is wrong with your
@@ -499,7 +577,7 @@ function AddNetworkModal({ open, onClose, owner, manager, saltNonce, existingSaf
             ) : (
               <div className={styles.addNetList}>
                 {deployable.map((c) => (
-                  <button key={c.id} type="button" className={styles.addNetOption} onClick={() => setTarget(c.id)}>
+                  <button key={c.id} type="button" className={styles.addNetOption} onClick={() => handlePick(c.id)}>
                     <ChainGlyph chainId={c.id} size={18} />
                     <span className={styles.addNetOptionName}>{c.name}</span>
                     <span className={styles.addNetOptionArrow} aria-hidden><ArrowOutIcon /></span>
@@ -507,7 +585,9 @@ function AddNetworkModal({ open, onClose, owner, manager, saltNonce, existingSaf
                 ))}
               </div>
             )}
-            <button type="button" className={styles.addNetCancel} onClick={onClose}>Cancel</button>
+            {!(target != null && isSandbox && !forkError) && (
+              <button type="button" className={styles.addNetCancel} onClick={onClose}>Cancel</button>
+            )}
           </>
         ) : (
           <CreateSmaStep
@@ -520,7 +600,7 @@ function AddNetworkModal({ open, onClose, owner, manager, saltNonce, existingSaf
             title="Deploy to this network"
             sub="Your wallet will prompt to deploy the SMA and register it on this chain — same address as everywhere else."
             cta="Deploy to this network"
-            onBack={() => setTarget(null)}
+            onBack={() => { setTarget(null); setForkPhase('idle'); setForkError('') }}
             onDone={(settled) => { onDeployed?.(settled); onClose() }}
           />
         )}
