@@ -36,6 +36,35 @@
   font-weight: 400;
 }
 
+/* "N/M active" fork-budget pill — a quiet status readout that doubles as a
+   shortcut into settings; turns amber-ish (via the accent border) when the
+   live set has hit the cap, so "why can't I start another?" is answered before
+   it's asked. */
+.capSummary {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 6px;
+  padding: 4px 9px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+.capSummary:hover {
+  border-color: var(--accent-blue);
+  color: var(--text-primary);
+  background: var(--aqua-soft);
+}
+.capSummary[data-at-cap='true'] {
+  border-color: var(--status-expired);
+  color: var(--text-secondary);
+}
+
 .settingsButton {
   flex-shrink: 0;
   display: flex;

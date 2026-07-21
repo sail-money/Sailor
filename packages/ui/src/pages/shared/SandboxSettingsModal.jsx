@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { nativeCurrencySymbol } from '../../lib/explorer'
+import { useSandbox } from '../../sandboxContext'
 import { CHAIN_LABELS } from './SandboxBanner'
 import GlassCard from './GlassCard'
 import SailButton from './SailButton'
@@ -48,8 +49,17 @@ function fundableChains(account, forks) {
  *     restart from their saved chain state (mandates, balances, activity).
  */
 export default function SandboxSettingsModal({ open, onClose, forks, onReset }) {
+  const { reloadSandboxConfig } = useSandbox()
+
   const [accounts, setAccounts] = useState([])
   const [accountsLoading, setAccountsLoading] = useState(false)
+
+  // Sandbox chain-cap config, loaded from GET /api/sandbox/config on open.
+  const [cap, setCap] = useState(null) // { maxChains, ceiling, defaultMax, requested? }
+  const [capInput, setCapInput] = useState('')
+  const [capStatus, setCapStatus] = useState('idle') // idle | saving | saved
+  const [capError, setCapError] = useState('')
+  const [reduceStatus, setReduceStatus] = useState('idle') // idle | reducing
 
   const [resetChecked, setResetChecked] = useState(false)
   const [resetStep, setResetStep] = useState('idle') // idle | pending | done
@@ -79,6 +89,17 @@ export default function SandboxSettingsModal({ open, onClose, forks, onReset }) 
       .finally(() => setBackupsLoading(false))
   }
 
+  function loadCap() {
+    return fetch('/api/sandbox/config', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return
+        setCap(data)
+        setCapInput(String(data.maxChains))
+      })
+      .catch(() => {})
+  }
+
   useEffect(() => {
     if (!open) return
     setResetChecked(false)
@@ -91,6 +112,10 @@ export default function SandboxSettingsModal({ open, onClose, forks, onReset }) 
     setRestoreArmed(null)
     setRestoreStep('idle')
     setRestoreError('')
+    setCapStatus('idle')
+    setCapError('')
+    setReduceStatus('idle')
+    loadCap()
 
     setAccountsLoading(true)
     fetch('/api/accounts', { cache: 'no-store' })
@@ -188,6 +213,45 @@ export default function SandboxSettingsModal({ open, onClose, forks, onReset }) 
     }
   }
 
+  async function handleSaveCap() {
+    const n = Number(capInput)
+    if (!Number.isInteger(n) || n < 1) { setCapError('Enter a whole number of at least 1.'); return }
+    setCapStatus('saving')
+    setCapError('')
+    try {
+      const res = await fetch('/api/sandbox/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ maxChains: n }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || 'Could not save the limit.')
+      setCap(data)
+      setCapInput(String(data.maxChains))
+      setCapStatus('saved')
+      reloadSandboxConfig?.() // sync the banner summary + onboarding picker live
+    } catch (e) {
+      setCapStatus('idle')
+      setCapError(e?.message || String(e))
+    }
+  }
+
+  async function handleReduce() {
+    setReduceStatus('reducing')
+    setCapError('')
+    try {
+      const res = await fetch('/api/sandbox/forks/reduce', { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || 'Could not stop the extra forks.')
+      await loadCap()
+      onReset?.() // refresh the banner's fork chips
+    } catch (e) {
+      setCapError(e?.message || String(e))
+    } finally {
+      setReduceStatus('idle')
+    }
+  }
+
   async function handleReset() {
     setResetStep('pending')
     setResetError('')
@@ -254,6 +318,74 @@ export default function SandboxSettingsModal({ open, onClose, forks, onReset }) 
 
         <h2 className={styles.title}>Sandbox settings</h2>
         <p className={styles.subtitle}>Project-level controls for this local sandbox only — none of this touches a real chain.</p>
+
+        {/* ── Active networks (chain cap) ──────────────────────────────── */}
+        {(() => {
+          const liveActiveCount = Object.values(forks || {}).filter((f) => f.status === 'ready').length
+          const maxChains = cap?.maxChains ?? null
+          const ceiling = cap?.ceiling ?? 9
+          const overCap = maxChains != null && liveActiveCount > maxChains
+          const excess = overCap ? liveActiveCount - maxChains : 0
+          const envPinned = cap?.requested != null && cap.requested !== cap?.maxChains
+          const dirty = cap != null && String(capInput) !== String(cap.maxChains)
+          return (
+            <section className={styles.section}>
+              <h3 className={styles.sectionTitle}>Active networks</h3>
+              <p className={styles.sectionCopy}>
+                Each network you onboard runs its own local anvil fork. This limit caps how many run at
+                once, keeping resource use bounded — {liveActiveCount} of {maxChains ?? '…'} running now.
+                Turn individual forks on or off from the chips in the top bar (click a chip → Stop / Start),
+                or per-SMA on the dashboard Overview.
+              </p>
+              <div className={styles.capRow}>
+                <label className={styles.capLabel} htmlFor="sandbox-cap-input">Max active forks</label>
+                <input
+                  id="sandbox-cap-input"
+                  className={styles.amountInput}
+                  type="number"
+                  min="1"
+                  max={ceiling}
+                  step="1"
+                  value={capInput}
+                  onChange={(e) => { setCapInput(e.target.value); setCapStatus('idle'); setCapError('') }}
+                  aria-label={`Maximum active forks — 1 to ${ceiling}`}
+                />
+                <SailButton
+                  variant="secondary"
+                  className={styles.rowButton}
+                  onClick={handleSaveCap}
+                  disabled={capStatus === 'saving' || !dirty}
+                >
+                  {capStatus === 'saving' ? 'Saving…' : capStatus === 'saved' && !dirty ? 'Saved ✓' : 'Save'}
+                </SailButton>
+              </div>
+              <p className={styles.capHint}>Up to {ceiling} — one per supported network.</p>
+              {envPinned && (
+                <p className={styles.capHint}>
+                  An environment override (SAILOR_MAX_SANDBOX_CHAINS) is pinning the effective limit to {cap.maxChains}.
+                </p>
+              )}
+              {overCap && (
+                <div className={styles.capWarn}>
+                  <p className={styles.capWarnText}>
+                    {liveActiveCount} forks are running, above the limit of {maxChains}. Lowering the limit
+                    doesn't stop anything on its own. Stop the extra {excess} now? The primary and
+                    most-recently-used forks are kept.
+                  </p>
+                  <SailButton
+                    variant="danger"
+                    className={styles.rowButton}
+                    onClick={handleReduce}
+                    disabled={reduceStatus === 'reducing'}
+                  >
+                    {reduceStatus === 'reducing' ? 'Stopping…' : `Stop ${excess} extra fork${excess === 1 ? '' : 's'}`}
+                  </SailButton>
+                </div>
+              )}
+              {capError && <p className={styles.rowError}>{capError}</p>}
+            </section>
+          )
+        })()}
 
         {/* ── Fund gas ─────────────────────────────────────────────────── */}
         <section className={styles.section}>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSandbox } from '../../sandboxContext'
 import ChainGlyph from './ChainGlyph'
 import GlassCard from './GlassCard'
 import SailButton from './SailButton'
@@ -12,6 +13,11 @@ export const CHAIN_LABELS = {
   unichain: 'Unichain',
   ethereum: 'Ethereum',
   sepolia: 'Sepolia',
+  optimism: 'Optimism',
+  bsc: 'BNB Smart Chain',
+  worldchain: 'World Chain',
+  hyperevm: 'HyperEVM',
+  megaeth: 'MegaETH',
 }
 
 const STATUS_LABELS = {
@@ -43,6 +49,7 @@ function chainLabel(fork) {
  * was shared with disappears.
  */
 export default function SandboxBanner() {
+  const { maxChains, reloadSandboxConfig } = useSandbox()
   const [forks, setForks] = useState({})
   const [exiting, setExiting] = useState(false)
   const [selectedChainId, setSelectedChainId] = useState(null)
@@ -64,7 +71,14 @@ export default function SandboxBanner() {
   }, [])
 
   const entries = Object.entries(forks).sort(([a], [b]) => Number(a) - Number(b))
+  const activeCount = entries.filter(([, f]) => f.status === 'ready').length
+  const atCap = activeCount >= maxChains
   const selectedFork = selectedChainId != null ? forks[String(selectedChainId)] : null
+  // Starting a currently-not-running fork consumes a slot; block it at the cap
+  // (the server enforces the same, this just gives instant feedback). Restarting
+  // an already-running fork is in-place and never blocked.
+  const selectedIsLive = selectedFork?.status === 'ready'
+  const restartBlockedByCap = !selectedIsLive && atCap
 
   async function handleExit() {
     setExiting(true)
@@ -127,6 +141,18 @@ export default function SandboxBanner() {
           </div>
         )}
 
+        {entries.length > 0 && (
+          <button
+            type="button"
+            className={styles.capSummary}
+            data-at-cap={atCap ? 'true' : undefined}
+            onClick={() => setSettingsOpen(true)}
+            title={`${activeCount} of ${maxChains} network forks running — click to change the limit in Sandbox settings`}
+          >
+            {activeCount}/{maxChains} active
+          </button>
+        )}
+
         <button
           type="button"
           className={styles.settingsButton}
@@ -144,7 +170,7 @@ export default function SandboxBanner() {
 
       <SandboxSettingsModal
         open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
+        onClose={() => { setSettingsOpen(false); reloadSandboxConfig() }}
         forks={forks}
         onReset={load}
       />
@@ -189,6 +215,12 @@ export default function SandboxBanner() {
                 something else, stopping or restarting it here will be refused.
               </p>
             )}
+            {restartBlockedByCap && (
+              <p className={styles.modalNote}>
+                Sandbox is at its {maxChains}-network limit ({activeCount} running). Stop another fork,
+                or raise the limit in Sandbox settings, before starting this one.
+              </p>
+            )}
             {selectedFork.error && <p className={styles.modalError}>{selectedFork.error}</p>}
             {actionError && <p className={styles.modalError}>{actionError}</p>}
 
@@ -203,7 +235,7 @@ export default function SandboxBanner() {
               </button>
               <SailButton
                 onClick={() => runAction('restart')}
-                disabled={busy}
+                disabled={busy || restartBlockedByCap}
               >
                 {busy ? 'Working…' : selectedFork.status === 'stopped' ? 'Start' : 'Restart'}
               </SailButton>

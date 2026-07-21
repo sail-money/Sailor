@@ -1,8 +1,22 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { connect as wagmiConnect } from 'wagmi/actions'
 import { buildWagmiConfig } from './wagmi'
 
-const SandboxContext = createContext({ isSandbox: false, forks: {}, activateForks: () => {} })
+// Fallbacks used only until GET /api/sandbox/config resolves (or in live mode,
+// where the route doesn't exist): the default cap and a conservative ceiling.
+// The server is authoritative once fetched — these just avoid an undefined
+// flash in the onboarding copy and the settings stepper.
+const DEFAULT_MAX_CHAINS = 3
+const DEFAULT_CHAINS_CEILING = 9
+
+const SandboxContext = createContext({
+  isSandbox: false,
+  forks: {},
+  activateForks: () => {},
+  maxChains: DEFAULT_MAX_CHAINS,
+  ceiling: DEFAULT_CHAINS_CEILING,
+  reloadSandboxConfig: () => {},
+})
 
 /**
  * Owns the swap from the default wagmi config to the sandbox's own (connector
@@ -34,8 +48,30 @@ function forksSignature(forkMap, primary) {
 
 export function SandboxProvider({ isSandbox, config, setConfig, children }) {
   const [forks, setForks] = useState({})
+  const [capConfig, setCapConfig] = useState({ maxChains: DEFAULT_MAX_CHAINS, ceiling: DEFAULT_CHAINS_CEILING })
   const activatedRef = useRef(false)
   const lastSigRef = useRef(null)
+
+  // The sandbox chain cap lives server-side (config.json, resolved with env
+  // overrides). Pull it so the onboarding picker, the banner summary, and the
+  // settings stepper all agree on one authoritative value instead of a
+  // hardcoded constant. `reloadSandboxConfig` lets the settings panel refresh
+  // it in place right after a change, without a full reload.
+  const reloadSandboxConfig = useCallback(() => {
+    if (!isSandbox) return
+    fetch('/api/sandbox/config', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return
+        setCapConfig({
+          maxChains: Number(data.maxChains) || DEFAULT_MAX_CHAINS,
+          ceiling: Number(data.ceiling) || DEFAULT_CHAINS_CEILING,
+        })
+      })
+      .catch(() => {})
+  }, [isSandbox])
+
+  useEffect(() => { reloadSandboxConfig() }, [reloadSandboxConfig])
 
   function activateForks({ forks: forkMap, primary }) {
     // Re-pointing wagmi at an identical fork set + primary tears down and
@@ -76,7 +112,10 @@ export function SandboxProvider({ isSandbox, config, setConfig, children }) {
     return () => { cancelled = true }
   }, [isSandbox])
 
-  const value = useMemo(() => ({ isSandbox, forks, activateForks }), [isSandbox, forks])
+  const value = useMemo(
+    () => ({ isSandbox, forks, activateForks, maxChains: capConfig.maxChains, ceiling: capConfig.ceiling, reloadSandboxConfig }),
+    [isSandbox, forks, capConfig.maxChains, capConfig.ceiling, reloadSandboxConfig],
+  )
 
   return <SandboxContext.Provider value={value}>{children}</SandboxContext.Provider>
 }

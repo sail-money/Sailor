@@ -67,15 +67,35 @@ export const CHAIN_PORTS: Record<Chain, number> = {
   megaeth: 18555,
 };
 
-/** Hard cap on how many chains one sandbox session may fork at once — keeps
+/** Default cap on how many chains one sandbox session may fork at once — keeps
  *  resource usage (anvil processes, forked-RPC load) bounded and the
- *  onboarding chain picker simple. Enforced in `startSandboxForks`, not left
- *  to callers to remember. */
+ *  onboarding chain picker simple. The effective cap is configurable per
+ *  project (`config.json`'s `maxSandboxChains`, resolved by the UI server) and
+ *  threaded into `startSandboxForks`/`resumeSandboxForks`; this is the value
+ *  used when nothing overrides it. */
 export const MAX_SANDBOX_CHAINS = 3;
 
+/** Absolute ceiling the configurable cap may be raised to. Every forked chain
+ *  needs its own deterministic port from `CHAIN_PORTS`, so the number of port
+ *  slots defined there is the hard upper bound — raise the cap past this and
+ *  forks would collide on ports. Keep it derived from `CHAIN_PORTS` so adding a
+ *  chain (and its port) lifts the ceiling automatically. */
+export const SANDBOX_CHAINS_CEILING = Object.keys(CHAIN_PORTS).length;
+
+/** Coerce an arbitrary configured cap into the supported range: a positive
+ *  integer in `[1, SANDBOX_CHAINS_CEILING]`. Anything non-numeric, zero,
+ *  negative, or fractional falls back to `MAX_SANDBOX_CHAINS`; anything over
+ *  the ceiling is clamped down to it. Single choke point so the server, the
+ *  core, and the tests all agree on what a given raw value resolves to. */
+export function clampSandboxChainCap(raw: unknown): number {
+  const n = Math.floor(Number(raw));
+  if (!Number.isFinite(n) || n < 1) return MAX_SANDBOX_CHAINS;
+  return Math.min(n, SANDBOX_CHAINS_CEILING);
+}
+
 export class TooManySandboxChainsError extends Error {
-  constructor(requested: number) {
-    super(`Sandbox mode supports at most ${MAX_SANDBOX_CHAINS} chains at once (got ${requested}).`);
+  constructor(requested: number, cap: number = MAX_SANDBOX_CHAINS) {
+    super(`Sandbox mode supports at most ${cap} chains at once (got ${requested}).`);
     this.name = "TooManySandboxChainsError";
   }
 }

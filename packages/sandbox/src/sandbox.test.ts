@@ -11,16 +11,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { createPublicClient, createTestClient, http } from "viem";
-import { anvilStateFilePath, isPidAlive, probePort, startFork, stopFork } from "./fork.js";
+import { anvilStateFilePath, clampSandboxChainCap, isPidAlive, probePort, startFork, stopFork, SANDBOX_CHAINS_CEILING } from "./fork.js";
 import { readManifest, writeManifest } from "./manifest.js";
 import {
   MAX_SANDBOX_CHAINS,
   TooManySandboxChainsError,
   dumpSandboxState,
+  enforceSandboxChainCap,
   refreshSandboxForks,
   resetSandbox,
   resolveChainName,
   restartSandboxFork,
+  resumeSandboxForks,
   startSandboxForks,
   stopSandboxFork,
 } from "./sandbox.js";
@@ -60,6 +62,62 @@ test("startSandboxForks rejects an empty selection", async () => {
   try {
     await assert.rejects(startSandboxForks({ sandboxDir: dir, chains: [] }));
   } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("clampSandboxChainCap coerces to a positive integer within [1, ceiling]", () => {
+  assert.equal(clampSandboxChainCap(1), 1);
+  assert.equal(clampSandboxChainCap(SANDBOX_CHAINS_CEILING), SANDBOX_CHAINS_CEILING);
+  // Over the ceiling clamps down; junk / zero / negatives fall back to default.
+  assert.equal(clampSandboxChainCap(SANDBOX_CHAINS_CEILING + 5), SANDBOX_CHAINS_CEILING);
+  assert.equal(clampSandboxChainCap(0), MAX_SANDBOX_CHAINS);
+  assert.equal(clampSandboxChainCap(-3), MAX_SANDBOX_CHAINS);
+  assert.equal(clampSandboxChainCap("nonsense"), MAX_SANDBOX_CHAINS);
+  assert.equal(clampSandboxChainCap(undefined), MAX_SANDBOX_CHAINS);
+  assert.equal(clampSandboxChainCap(2.9), 2); // floored, not rounded
+});
+
+test("startSandboxForks honours a per-call maxChains lower than the default, rejecting before spawning", async () => {
+  const dir = tmpSandboxDir();
+  try {
+    // Two chains is under MAX_SANDBOX_CHAINS but over an explicit cap of 1 —
+    // must reject on the count, before any fork is attempted.
+    await assert.rejects(
+      startSandboxForks({ sandboxDir: dir, chains: [8453, 42161], maxChains: 1 }),
+      (e: unknown) => e instanceof TooManySandboxChainsError && /at most 1 chains/.test((e as Error).message),
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("resumeSandboxForks parks dead forks beyond the cap budget, and never touches an already-alive fork", async () => {
+  const dir = tmpSandboxDir();
+  // One live fork (a stub that answers eth_chainId) occupies the sole slot when
+  // the cap is 1, so both dead forks must be parked — not revived.
+  const { server, port } = await stubRpcServer(8453);
+  try {
+    writeManifest(dir, {
+      // Alive: adopted-style (no pid), answering — holds the only slot.
+      "8453": { chainId: 8453, chain: "base", ready: true, status: "ready", rpcUrl: `http://127.0.0.1:${port}`, port },
+      // Dead: pids that can't be live, rpcUrls behind nothing → over budget → parked.
+      "84532": { chainId: 84532, chain: "base-sepolia", ready: true, status: "ready", pid: DEAD_PID, rpcUrl: "http://127.0.0.1:59998", port: 59998, startedAt: "2026-01-02T00:00:00.000Z" },
+      "42161": { chainId: 42161, chain: "arbitrum", ready: true, status: "ready", pid: DEAD_PID, rpcUrl: "http://127.0.0.1:59997", port: 59997, startedAt: "2026-01-01T00:00:00.000Z" },
+    });
+
+    const result = await resumeSandboxForks(dir, { maxChains: 1 });
+    assert.deepEqual(result.resumed, [], "budget was 0 (the one slot is taken by the live fork) — nothing revived");
+    assert.deepEqual(result.skipped, [8453], "the already-alive fork is skipped, not restarted");
+    assert.deepEqual(result.parked.sort(), [42161, 84532], "both dead forks are parked");
+
+    const manifest = readManifest(dir);
+    assert.equal(manifest["8453"].status, "ready", "the live fork is left running");
+    assert.equal(manifest["84532"].status, "stopped");
+    assert.equal(manifest["84532"].pid, undefined);
+    assert.equal(manifest["42161"].status, "stopped");
+  } finally {
+    server.close();
     rmSync(dir, { recursive: true, force: true });
   }
 });
@@ -590,6 +648,69 @@ test(
 
       await stopSandboxFork(dir, 84532);
     } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  "resumeSandboxForks within budget revives the primary dead fork ahead of a more-recent non-primary one, parking the rest",
+  { skip: !anvilAvailable() },
+  async () => {
+    const dir = tmpSandboxDir();
+    try {
+      // Two dead forks, cap 1 → budget 1. base-sepolia is the primary but was
+      // started EARLIER; arbitrum is non-primary but more recent. Primary must
+      // win the single slot (proving primary beats recency), and only it is
+      // spawned — arbitrum is merely parked, so no arbitrum upstream is needed.
+      writeManifest(dir, {
+        "84532": { chainId: 84532, chain: "base-sepolia", ready: true, status: "ready", pid: DEAD_PID, rpcUrl: "http://127.0.0.1:59996", port: 59996, primary: true, startedAt: "2026-01-01T00:00:00.000Z" },
+        "42161": { chainId: 42161, chain: "arbitrum", ready: true, status: "ready", pid: DEAD_PID, rpcUrl: "http://127.0.0.1:59995", port: 59995, primary: false, startedAt: "2026-06-01T00:00:00.000Z" },
+      });
+
+      const result = await resumeSandboxForks(dir, { maxChains: 1 });
+      assert.deepEqual(result.resumed, [84532], "the primary dead fork takes the only slot, despite being older");
+      assert.deepEqual(result.parked, [42161], "the more-recent non-primary fork is parked");
+
+      const manifest = readManifest(dir);
+      assert.equal(manifest["84532"].status, "ready");
+      assert.equal(manifest["84532"].primary, true);
+      assert.equal(manifest["42161"].status, "stopped");
+
+      await resetSandbox(dir);
+    } finally {
+      await resetSandbox(dir).catch(() => {});
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  "enforceSandboxChainCap stops the lowest-priority live fork we own, keeping the primary within the cap",
+  { skip: !anvilAvailable() },
+  async () => {
+    const dir = tmpSandboxDir();
+    // A stub standing in for an adopted, still-alive primary fork (base) that
+    // must be kept; plus a real owned base-sepolia fork that's the excess and
+    // must be stopped.
+    const { server, port } = await stubRpcServer(8453);
+    const owned = await startFork({ sandboxDir: dir, chain: "base-sepolia", repoint: false });
+    try {
+      writeManifest(dir, {
+        "8453": { chainId: 8453, chain: "base", ready: true, status: "ready", adopted: true, primary: true, rpcUrl: `http://127.0.0.1:${port}`, port },
+        "84532": { chainId: 84532, chain: "base-sepolia", ready: true, status: "ready", primary: false, rpcUrl: owned.rpcUrl, port: owned.port, pid: owned.pid, stateFile: owned.stateFile },
+      });
+
+      const result = await enforceSandboxChainCap(dir, 1);
+      assert.deepEqual(result.kept, [8453], "the adopted primary is kept");
+      assert.deepEqual(result.stopped, [84532], "the excess owned fork is stopped");
+      assert.equal(isPidAlive(owned.pid), false, "the stopped fork's process is actually gone");
+
+      const manifest = readManifest(dir);
+      assert.equal(manifest["8453"].status, "ready");
+      assert.equal(manifest["84532"].status, "stopped");
+    } finally {
+      server.close();
       rmSync(dir, { recursive: true, force: true });
     }
   },

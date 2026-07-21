@@ -15,8 +15,10 @@ import { basename, join } from "node:path";
 import {
   CHAIN_IDS,
   MAX_SANDBOX_CHAINS,
+  SANDBOX_CHAINS_CEILING,
   TooManySandboxChainsError,
   anvilStateFilePath,
+  clampSandboxChainCap,
   dumpForkState,
   ensureLocalRpc,
   ensurePerChainRpc,
@@ -32,7 +34,7 @@ import {
 } from "./fork.js";
 import { manifestPath, readManifest, writeManifest, type ManifestEntry } from "./manifest.js";
 
-export { MAX_SANDBOX_CHAINS, TooManySandboxChainsError, CHAIN_IDS };
+export { MAX_SANDBOX_CHAINS, SANDBOX_CHAINS_CEILING, TooManySandboxChainsError, CHAIN_IDS, clampSandboxChainCap };
 export type { Chain, ManifestEntry };
 
 export function sandboxDirFor(projectRoot: string): string {
@@ -176,16 +178,20 @@ export type StartSandboxForksResult = {
 /**
  * Bring up (or reuse, if already alive) a fork per requested chain, wire the
  * primary chain's RPC into the sandbox's own `.env.local`, and persist the
- * manifest. Rejects a selection over `MAX_SANDBOX_CHAINS` outright — no
- * silent truncation.
+ * manifest. Rejects a selection over the effective cap outright — no silent
+ * truncation. The cap defaults to `MAX_SANDBOX_CHAINS` but the caller (the UI
+ * server) passes the project-configured `maxChains` so a user who raised the
+ * limit in Sandbox settings can fork that many at once.
  */
 export async function startSandboxForks(opts: {
   sandboxDir: string;
   chains: Array<number | string>;
   primary?: number | string;
+  maxChains?: number;
 }): Promise<StartSandboxForksResult> {
   if (!opts.chains.length) throw new Error("At least one chain is required.");
-  if (opts.chains.length > MAX_SANDBOX_CHAINS) throw new TooManySandboxChainsError(opts.chains.length);
+  const cap = clampSandboxChainCap(opts.maxChains ?? MAX_SANDBOX_CHAINS);
+  if (opts.chains.length > cap) throw new TooManySandboxChainsError(opts.chains.length, cap);
 
   const requested = Array.from(new Set(opts.chains.map(resolveChainName)));
   const primary = opts.primary ? resolveChainName(opts.primary) : requested[0];
@@ -496,32 +502,77 @@ export type ResumeSandboxForksResult = {
   resumed: number[];
   /** Chain ids left alone because their fork is already answering. */
   skipped: number[];
+  /** Chain ids deliberately NOT brought back because the tracked set exceeded
+   *  the cap — parked into `status: "stopped"`, resumable later from the UI. */
+  parked: number[];
   /** Chain id → error message for forks that failed to come back. */
   failed: Record<number, string>;
 };
 
+/** Order tracked forks by how much they deserve a scarce slot: the primary
+ *  first (the chain that owns the sandbox's active RPC — losing it would strand
+ *  the wallet), then most-recently-started before older ones. Used by both the
+ *  resume budget and the cap-enforcement reducer so "which forks survive the
+ *  cap" is decided one way everywhere. Does not mutate its input. */
+function forkKeepPriority(entries: ManifestEntry[]): ManifestEntry[] {
+  return [...entries].sort((a, b) => {
+    if (Boolean(a.primary) !== Boolean(b.primary)) return a.primary ? -1 : 1;
+    const ta = Date.parse(a.startedAt ?? "") || 0;
+    const tb = Date.parse(b.startedAt ?? "") || 0;
+    return tb - ta;
+  });
+}
+
 /**
- * Bring back every tracked fork that isn't currently up, resuming each from
- * its dumped state file when one exists — the "restart" half of session
+ * Bring back tracked forks that aren't currently up, resuming each from its
+ * dumped state file when one exists — the "restart" half of session
  * persistence. Called by the sandbox server at boot so `sailor sandbox start`
  * after a stop (or a reboot) puts the previous session's world — deployed
  * SMAs, signed mandates, funded balances — back on the same ports, without
  * anyone having to re-run the wizard or click per-chain Restart buttons.
  *
- * Forks that are already alive (including adopted ones) are skipped, so this
- * is idempotent and safe to call on every server start. Failures are
- * per-chain and reported, never thrown — one unreachable upstream RPC
- * shouldn't stop the rest of the sandbox from coming back.
+ * Respects the chain cap. Older builds resumed *every* tracked fork regardless
+ * of `maxChains`, so a session that had forked more chains than the cap (or one
+ * whose cap was later lowered) would come back over the limit on every boot.
+ * Now resume only revives up to the cap: forks already alive (including adopted
+ * ones) hold their slots, the remaining budget goes to the highest-priority
+ * dead forks (primary first, then most recent — see `forkKeepPriority`), and
+ * any dead forks past the budget are *parked* into `status: "stopped"` rather
+ * than revived. Parked forks keep their dumped state and can be brought back
+ * from the UI once a slot frees up (or the cap is raised); nothing is deleted.
+ * Never kills an already-alive fork — reducing a live over-cap set is an
+ * explicit user action (`enforceSandboxChainCap`), not a silent boot effect.
+ *
+ * Idempotent and safe to call on every server start. Failures are per-chain and
+ * reported, never thrown — one unreachable upstream RPC shouldn't stop the rest
+ * of the sandbox from coming back.
  */
-export async function resumeSandboxForks(sandboxDir: string): Promise<ResumeSandboxForksResult> {
+export async function resumeSandboxForks(
+  sandboxDir: string,
+  opts: { maxChains?: number } = {},
+): Promise<ResumeSandboxForksResult> {
   const manifest = readManifest(sandboxDir);
-  const result: ResumeSandboxForksResult = { resumed: [], skipped: [], failed: {} };
+  const cap = clampSandboxChainCap(opts.maxChains ?? MAX_SANDBOX_CHAINS);
+  const result: ResumeSandboxForksResult = { resumed: [], skipped: [], parked: [], failed: {} };
 
+  const dead: ManifestEntry[] = [];
+  let aliveCount = 0;
   for (const entry of Object.values(manifest)) {
     if (await isEntryAlive(entry)) {
+      aliveCount++;
       result.skipped.push(entry.chainId);
-      continue;
+    } else {
+      dead.push(entry);
     }
+  }
+
+  // Alive forks already occupy slots; only the leftover budget can be revived.
+  const budget = Math.max(0, cap - aliveCount);
+  const ranked = forkKeepPriority(dead);
+  const toResume = ranked.slice(0, budget);
+  const toPark = ranked.slice(budget);
+
+  for (const entry of toResume) {
     try {
       await restartSandboxFork(sandboxDir, entry.chainId);
       result.resumed.push(entry.chainId);
@@ -530,12 +581,74 @@ export async function resumeSandboxForks(sandboxDir: string): Promise<ResumeSand
     }
   }
 
-  // Self-heal a stale primary flag left by older builds: re-read (the per-fork
-  // restarts above rewrote the manifest) and collapse to a single primary,
-  // keyed off whatever .env.local's RPC points at. Without this a double-primary
-  // manifest survives every restart untouched, since resume takes no primary.
-  const healed = normalizeManifestPrimary(sandboxDir, readManifest(sandboxDir));
+  // Park the over-budget dead forks: re-read (the restarts above rewrote the
+  // manifest) and settle each into "stopped" so the UI shows them as
+  // deliberately-parked-and-resumable, not falsely "ready" with a dead pid.
+  const healed = readManifest(sandboxDir);
+  for (const entry of toPark) {
+    const key = String(entry.chainId);
+    if (!healed[key]) continue;
+    healed[key] = { ...healed[key], pid: undefined, ready: false, status: "stopped" };
+    result.parked.push(entry.chainId);
+  }
+
+  // Self-heal a stale primary flag left by older builds and collapse to a
+  // single primary, keyed off whatever .env.local's RPC points at. Without this
+  // a double-primary manifest survives every restart untouched, since resume
+  // takes no primary.
+  normalizeManifestPrimary(sandboxDir, healed);
   writeManifest(sandboxDir, healed);
+
+  return result;
+}
+
+export type EnforceSandboxChainCapResult = {
+  /** Chain ids stopped to bring the live set down to the cap. */
+  stopped: number[];
+  /** Chain ids left running (the highest-priority `cap` forks). */
+  kept: number[];
+};
+
+/**
+ * Bring the currently-*alive* fork set down to `maxChains` by stopping the
+ * lowest-priority live forks — the explicit "reduce now" a user triggers after
+ * lowering the cap in Sandbox settings (resume never kills a live fork on its
+ * own). Keeps the highest-priority forks (primary first, then most recent — see
+ * `forkKeepPriority`) and stops the rest via `stopSandboxFork`, so each stopped
+ * fork's state is dumped first and it stays resumable. No-op when the live set
+ * is already within the cap. An adopted fork that's still alive can't be
+ * stopped (we don't own it); such a fork is left running and reported in
+ * `kept`, so the live set may remain above the cap if adopted forks alone
+ * exceed it — that's surfaced to the caller rather than force-killed.
+ */
+export async function enforceSandboxChainCap(
+  sandboxDir: string,
+  maxChains?: number,
+): Promise<EnforceSandboxChainCapResult> {
+  const cap = clampSandboxChainCap(maxChains ?? MAX_SANDBOX_CHAINS);
+  const manifest = readManifest(sandboxDir);
+  const result: EnforceSandboxChainCapResult = { stopped: [], kept: [] };
+
+  const alive: ManifestEntry[] = [];
+  for (const entry of Object.values(manifest)) {
+    if (await isEntryAlive(entry)) alive.push(entry);
+  }
+
+  const ranked = forkKeepPriority(alive);
+  const keep = ranked.slice(0, cap);
+  const drop = ranked.slice(cap);
+  result.kept = keep.map((e) => e.chainId);
+
+  for (const entry of drop) {
+    try {
+      await stopSandboxFork(sandboxDir, entry.chainId);
+      result.stopped.push(entry.chainId);
+    } catch {
+      // An adopted-but-alive fork refuses to stop (not ours to kill) — leave it
+      // running and count it as kept; the caller decides how to surface that.
+      result.kept.push(entry.chainId);
+    }
+  }
 
   return result;
 }

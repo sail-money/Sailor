@@ -29,6 +29,7 @@ import AddSignerModal from './AddSignerModal'
 import RotateSignerModal from './RotateSignerModal'
 import FundGasModal from './FundGasModal'
 import RpcSection from './RpcSection'
+import SmaForkControls from './SmaForkControls'
 import {
   useSailorAccount,
   useSailorAccounts,
@@ -1956,6 +1957,9 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
                     <span className={styles.addNetworkPlus} aria-hidden>+</span>
                     Add a new network
                   </button>
+                  {/* Sandbox only: turn this SMA's per-chain forks on/off,
+                      bounded by the sandbox chain cap. No-op in live mode. */}
+                  <SmaForkControls chains={deployedChainObjs} />
                 </div>
               )}
 

@@ -2,6 +2,8 @@ export {
   CHAIN_IDS,
   CHAIN_PORTS,
   MAX_SANDBOX_CHAINS,
+  SANDBOX_CHAINS_CEILING,
+  clampSandboxChainCap,
   TooManySandboxChainsError,
   waitForRpc,
   ensureLocalRpc,
@@ -32,10 +34,12 @@ export {
   restartSandboxFork,
   dumpSandboxState,
   resumeSandboxForks,
+  enforceSandboxChainCap,
   type StartSandboxForksResult,
   type ResetSandboxProjectResult,
   type DumpSandboxStateResult,
   type ResumeSandboxForksResult,
+  type EnforceSandboxChainCapResult,
 } from "./sandbox.js";
 
 export {

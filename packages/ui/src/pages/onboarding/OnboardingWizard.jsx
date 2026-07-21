@@ -18,12 +18,12 @@ import styles from './OnboardingWizard.module.css'
 import { useSigningSocket } from '../../hooks/useSigningSocket'
 import { useSandbox } from '../../sandboxContext'
 
-// Chain-cap for the Sandbox onboarding path (native local forks) — keeps
-// resource usage (anvil processes, forked-RPC load) bounded and the chain
-// picker simple. Enforced client-side here for immediate feedback; the
-// sandbox server's own /api/sandbox/forks route enforces the same cap
-// server-side (never trust the client alone for a resource limit).
-const MAX_SANDBOX_CHAINS = 3
+// The chain cap for the Sandbox onboarding path (native local forks) is no
+// longer a hardcoded constant: it's resolved server-side (config.json, env
+// overridable) and read from the sandbox context as `maxChains`. It's enforced
+// client-side here for immediate feedback and again server-side by the
+// /api/sandbox/forks route (never trust the client alone for a resource limit).
+// Users change it from Sandbox settings.
 
 // Set to true when the welcome "Already have an SMA? Connect wallet" link starts
 // a connect flow, so we can route onward once the wallet connects.
@@ -62,7 +62,7 @@ const PROGRESS_STEPS = ['network', 'connect', 'keygen', 'create-sma']
  */
 export default function OnboardingWizard({ onboardState, onComplete, onActiveDeployChange, requestedStep, additional, onCancel }) {
   const { address } = useAccount()
-  const { isSandbox, activateForks } = useSandbox()
+  const { isSandbox, activateForks, maxChains } = useSandbox()
   // Additional-SMA mode (creating another SMA from the dashboard): the owner is
   // already connected and the agent key already exists, so skip welcome / connect
   // / keygen and run just network → deploy.
@@ -113,7 +113,7 @@ export default function OnboardingWizard({ onboardState, onComplete, onActiveDep
       if (prev.includes(chainId)) return prev.filter(id => id !== chainId)
       // Sandbox mode forks one local anvil per chain — capped so a session
       // can't quietly spin up an unbounded number of them.
-      if (isSandbox && prev.length >= MAX_SANDBOX_CHAINS) return prev
+      if (isSandbox && prev.length >= maxChains) return prev
       return [...prev, chainId]
     })
   }
@@ -133,6 +133,7 @@ export default function OnboardingWizard({ onboardState, onComplete, onActiveDep
       {step === 'welcome' && (
             <WelcomeState
               isSandbox={isSandbox}
+              maxChains={maxChains}
               onStart={() => setStep('network')}
               onConnected={onComplete}
             />
@@ -140,6 +141,7 @@ export default function OnboardingWizard({ onboardState, onComplete, onActiveDep
           {step === 'network' && (
             <NetworkStep
               isSandbox={isSandbox}
+              maxChains={maxChains}
               activateForks={activateForks}
               selected={selectedChainIds}
               onToggle={toggleChain}
@@ -211,7 +213,7 @@ function ProgressDots({ current, total }) {
 }
 
 /* ── Step 0: Welcome / setup overview ── */
-function WelcomeState({ isSandbox, onStart, onConnected }) {
+function WelcomeState({ isSandbox, maxChains, onStart, onConnected }) {
   const { isConnected } = useAccount()
   const { openConnectModal } = useConnectModal()
   const [launching, setLaunching] = useState(false)
@@ -267,7 +269,7 @@ function WelcomeState({ isSandbox, onStart, onConnected }) {
           </h1>
           <p className={styles.cardSub}>
             A simulated environment — nothing here touches real funds or mainnet. Next, pick up to{' '}
-            {MAX_SANDBOX_CHAINS} chains; each one spins up its own local fork to onboard against.
+            {maxChains} {maxChains === 1 ? 'chain' : 'chains'}; each one spins up its own local fork to onboard against.
           </p>
         </header>
         <div className={styles.welcomeCta}>
@@ -323,7 +325,7 @@ function WelcomeState({ isSandbox, onStart, onConnected }) {
 const FORK_CHIP_LABEL = { ready: '⚓ ready', spawning: '⚓ starting…', failed: '⚓ failed' }
 
 /* ── Step 1: Network selection (multi-select; capped + forked in Sandbox mode) ── */
-function NetworkStep({ isSandbox, activateForks, selected, onToggle, onBack, onDone, progressIndex, progressTotal }) {
+function NetworkStep({ isSandbox, maxChains, activateForks, selected, onToggle, onBack, onDone, progressIndex, progressTotal }) {
   const mainnets = SUPPORTED_NETWORKS.filter(n => n.group === 'mainnet')
   const testnets = SUPPORTED_NETWORKS.filter(n => n.group === 'testnet')
 
@@ -384,7 +386,7 @@ function NetworkStep({ isSandbox, activateForks, selected, onToggle, onBack, onD
     }
   }
 
-  const atCap = isSandbox && selected.length >= MAX_SANDBOX_CHAINS
+  const atCap = isSandbox && selected.length >= maxChains
 
   return (
     <GlassCard className={`${styles.authCard} ${styles.networkStepCard}`}>
@@ -395,8 +397,8 @@ function NetworkStep({ isSandbox, activateForks, selected, onToggle, onBack, onD
         sub={
           isSandbox ? (
             <>
-              Up to {MAX_SANDBOX_CHAINS} chains — each spins up its own local fork to onboard against.
-              {atCap && ' Deselect one to pick a different chain.'}
+              Up to {maxChains} {maxChains === 1 ? 'chain' : 'chains'} — each spins up its own local fork to onboard against.
+              {atCap && ' Deselect one to pick a different chain, or raise the limit in Sandbox settings (⚙, top bar).'}
             </>
           ) : (
             <>

@@ -8,7 +8,7 @@ import express from 'express'
 import { WebSocket, WebSocketServer } from 'ws'
 import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, chains, defaultRpcUrls, getNativeCurrencySymbol, getSailDeployment, readPermissionRegistrationFee } from '@sail/sdk'
 import * as accountStore from '@sail/sdk/accounts'
-import { TooManySandboxChainsError, activateSandboxBackup, dumpSandboxState, fundErc20, fundNative, isPidAlive, listSandboxBackups, refreshSandboxForks, resetSandbox, resetSandboxProject, restartSandboxFork, resumeSandboxForks, sandboxDirFor, startSandboxForks, stopSandboxFork, usdcAddressFor } from '@sail/sandbox'
+import { MAX_SANDBOX_CHAINS, SANDBOX_CHAINS_CEILING, TooManySandboxChainsError, activateSandboxBackup, clampSandboxChainCap, dumpSandboxState, enforceSandboxChainCap, fundErc20, fundNative, isPidAlive, listSandboxBackups, refreshSandboxForks, resetSandbox, resetSandboxProject, restartSandboxFork, resumeSandboxForks, sandboxDirFor, startSandboxForks, stopSandboxFork, usdcAddressFor } from '@sail/sandbox'
 import { createPublicClient, createWalletClient, defineChain, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
 
@@ -398,6 +398,21 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
       fs.mkdirSync(sailDir, { recursive: true })
       fs.writeFileSync(at('config.json'), `${JSON.stringify(config, null, 2)}\n`)
     } catch { /* best-effort: never block SMA creation on a config write */ }
+  }
+
+  // Effective sandbox chain cap — how many local forks one sandbox session may
+  // run at once. Precedence: env > project config.json > default, clamped to
+  // the supported range ([1, SANDBOX_CHAINS_CEILING]). Re-read per call so a
+  // change written through POST /api/sandbox/config takes effect on the next
+  // fork operation without restarting the server.
+  const resolveSandboxChainCap = () => {
+    const fromEnv = Number(process.env.SAILOR_MAX_SANDBOX_CHAINS)
+    if (Number.isFinite(fromEnv) && fromEnv > 0) return clampSandboxChainCap(fromEnv)
+    try {
+      const cfg = JSON.parse(fs.readFileSync(at('config.json'), 'utf-8'))
+      if (cfg?.maxSandboxChains != null) return clampSandboxChainCap(cfg.maxSandboxChains)
+    } catch { /* no project config — use default */ }
+    return MAX_SANDBOX_CHAINS
   }
 
   // All .sail/account.json + state/accounts.json access goes through the SDK's accounts
@@ -2063,7 +2078,7 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
         }
       }
       try {
-        const result = await startSandboxForks({ sandboxDir: sailDir, chains: chainIds, primary })
+        const result = await startSandboxForks({ sandboxDir: sailDir, chains: chainIds, primary, maxChains: resolveSandboxChainCap() })
         res.json({ ok: true, ...result })
       } catch (e) {
         const status = e instanceof TooManySandboxChainsError ? 400 : 500
@@ -2075,6 +2090,65 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
       try {
         const forks = await refreshSandboxForks(sailDir)
         res.json({ forks })
+      } catch (e) {
+        res.status(500).json({ error: e?.message || String(e) })
+      }
+    })
+
+    // How many forks are currently running (answering as "ready"). The chain
+    // cap governs this count; a fork that's "stopped"/"failed"/"spawning"
+    // doesn't occupy a live slot.
+    const countActiveForks = async () => {
+      const forks = await refreshSandboxForks(sailDir)
+      return Object.values(forks).filter((f) => f.status === 'ready').length
+    }
+
+    // Sandbox chain-cap config. GET reports the effective cap (env > config >
+    // default), the hard ceiling, the default, and how many forks are live now
+    // — everything the UI needs to render "N of cap networks active" and gate
+    // the per-chain toggles. POST persists a new cap into config.json (clamped
+    // to the supported range); it does NOT stop any running fork — reducing a
+    // live over-cap set is the explicit POST /api/sandbox/forks/reduce below.
+    app.get('/api/sandbox/config', async (_req, res) => {
+      try {
+        const maxChains = resolveSandboxChainCap()
+        const activeCount = await countActiveForks()
+        res.json({ maxChains, defaultMax: MAX_SANDBOX_CHAINS, ceiling: SANDBOX_CHAINS_CEILING, activeCount, overCap: activeCount > maxChains })
+      } catch (e) {
+        res.status(500).json({ error: e?.message || String(e) })
+      }
+    })
+
+    app.post('/api/sandbox/config', async (req, res) => {
+      const { maxChains } = req.body ?? {}
+      if (!Number.isInteger(maxChains) || maxChains < 1) {
+        return res.status(400).json({ error: 'maxChains must be a positive integer' })
+      }
+      const clamped = clampSandboxChainCap(maxChains)
+      try {
+        const config = (() => { try { return JSON.parse(fs.readFileSync(at('config.json'), 'utf-8')) } catch { return {} } })()
+        config.maxSandboxChains = clamped
+        fs.mkdirSync(sailDir, { recursive: true })
+        fs.writeFileSync(at('config.json'), `${JSON.stringify(config, null, 2)}\n`)
+      } catch (e) {
+        return res.status(500).json({ error: e?.message || String(e) })
+      }
+      // Report the *effective* cap, which can differ from what we just wrote if
+      // SAILOR_MAX_SANDBOX_CHAINS is set (env wins) — so the UI never shows a
+      // saved value the server won't actually honor.
+      const effective = resolveSandboxChainCap()
+      const activeCount = await countActiveForks()
+      res.json({ ok: true, maxChains: effective, requested: clamped, ceiling: SANDBOX_CHAINS_CEILING, activeCount, overCap: activeCount > effective })
+    })
+
+    // Explicit "reduce now": stop the lowest-priority live forks until the live
+    // set is within the cap (keeps primary + most recent — see
+    // enforceSandboxChainCap). The one-click action behind the settings warning
+    // when a lowered cap leaves more forks running than allowed.
+    app.post('/api/sandbox/forks/reduce', async (_req, res) => {
+      try {
+        const result = await enforceSandboxChainCap(sailDir, resolveSandboxChainCap())
+        res.json({ ok: true, ...result })
       } catch (e) {
         res.status(500).json({ error: e?.message || String(e) })
       }
@@ -2203,6 +2277,19 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
     app.post('/api/sandbox/forks/:chainId/restart', async (req, res) => {
       const chainId = Number(req.params.chainId)
       if (!Number.isInteger(chainId)) return res.status(400).json({ error: 'chainId must be an integer' })
+      // Turning a parked/stopped fork back on must respect the cap. Restarting a
+      // fork that's already live (stop→start in place) doesn't add a slot, so
+      // it's always allowed; only bringing a currently-not-live chain up counts
+      // against the limit.
+      try {
+        const forks = await refreshSandboxForks(sailDir)
+        const cap = resolveSandboxChainCap()
+        const activeCount = Object.values(forks).filter((f) => f.status === 'ready').length
+        const alreadyActive = forks[String(chainId)]?.status === 'ready'
+        if (!alreadyActive && activeCount >= cap) {
+          return res.status(409).json({ error: `Sandbox is at its ${cap}-chain limit — stop another fork or raise the limit in Sandbox settings before starting this one.` })
+        }
+      } catch { /* if the pre-check itself fails, fall through and let the restart attempt surface the real error */ }
       try {
         const fork = await restartSandboxFork(sailDir, chainId)
         res.json({ ok: true, fork })
@@ -2239,9 +2326,10 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
     // funded balances. Best-effort and idempotent: forks already alive are
     // skipped, per-chain failures are logged, and a fresh (never-onboarded)
     // sandbox has an empty manifest so this is a no-op.
-    resumeSandboxForks(sailDir)
-      .then(({ resumed, failed }) => {
+    resumeSandboxForks(sailDir, { maxChains: resolveSandboxChainCap() })
+      .then(({ resumed, parked, failed }) => {
         if (resumed.length) console.log(`Sandbox forks resumed from previous session: ${resumed.join(', ')}`)
+        if (parked.length) console.log(`Sandbox forks parked (over the ${resolveSandboxChainCap()}-chain limit — resumable from the UI): ${parked.join(', ')}`)
         for (const [chainId, message] of Object.entries(failed)) {
           console.warn(`⚠ Could not resume sandbox fork for chain ${chainId}: ${message}`)
         }
