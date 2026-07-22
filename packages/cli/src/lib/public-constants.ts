@@ -35,16 +35,21 @@ export const COMMON_TOKEN_ADDRESSES: readonly string[] = [
 ];
 
 /**
- * Every address the SDK knows to be a Sail protocol constant: the CREATE2 core
- * (kernel/factory/governance/…) plus each chain's deployment addresses and
- * shared standalone-template logic. Derived, so new chains/templates are picked
- * up automatically with no edits here.
+ * Every address the SDK knows to be a Sail protocol CONTRACT constant: the
+ * CREATE2 core (kernel/factory/governance/…) plus each chain's deployment
+ * contract addresses and shared standalone-template logic. Derived, so new
+ * chains/templates are picked up automatically with no edits here.
+ *
+ * NOTE: `deployer` is intentionally EXCLUDED. It is an EOA (the wallet that
+ * signed the deployments), not a contract — and keeping an EOA on the never-
+ * redact list defeats identity redaction for any sharer whose owner/manager
+ * wallet is that same EOA (e.g. the Sail team). Redaction must be free to zero
+ * it; it is not context a cloner needs.
  */
 function sdkPublicAddresses(): string[] {
   const out: string[] = Object.values(sailCoreAddresses);
   for (const dep of Object.values(sailDeployments)) {
     out.push(
-      dep.deployer,
       dep.governance,
       dep.timelock,
       dep.kernel,

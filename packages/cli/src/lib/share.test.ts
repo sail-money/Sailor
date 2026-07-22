@@ -3,8 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { sailCoreAddresses } from "@sail/sdk";
-import { COMMON_TOKEN_ADDRESSES } from "./public-constants.js";
+import { sailCoreAddresses, sailDeployments } from "@sail/sdk";
+import { COMMON_TOKEN_ADDRESSES, publicConstantAddresses } from "./public-constants.js";
 import {
   RPC_PLACEHOLDER,
   type ShareManifest,
@@ -275,6 +275,34 @@ test("findMissingRequiredFiles passes a complete project and flags an empty one"
   assert.ok(missing.some((m) => m.includes("agent.ts")));
   assert.ok(missing.some((m) => m.includes(".sol")));
   fs.rmSync(empty, { recursive: true, force: true });
+});
+
+test("publicConstantAddresses excludes the deployer EOA but keeps contract constants", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-keep-"));
+  const keep = publicConstantAddresses(root);
+  const deps = Object.values(sailDeployments);
+  // The deployer is an EOA — keeping it would let a sharer whose owner/manager
+  // wallet is the deployer (e.g. the Sail team) leak their identity past redaction.
+  for (const d of deps) {
+    if (d.deployer) assert.ok(!keep.has(d.deployer.toLowerCase()), "deployer EOA is NOT kept");
+  }
+  // Sanity: contract constants (kernel) are still kept so cloned context survives.
+  assert.ok(
+    deps.some((d) => d.kernel && keep.has(d.kernel.toLowerCase())),
+    "kernel contract still kept",
+  );
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("findMissingRequiredFiles accepts Foundry-style contracts/mandates/ layout", () => {
+  // Real projects put permission contracts under contracts/mandates/ (foundry
+  // src=mandates), not only top-level mandates/ — the gate must accept both.
+  const root = makeProject();
+  fs.rmSync(path.join(root, "mandates"), { recursive: true, force: true });
+  fs.mkdirSync(path.join(root, "contracts", "mandates"), { recursive: true });
+  fs.writeFileSync(path.join(root, "contracts", "mandates", "Perm.sol"), "contract Perm {}");
+  assert.deepEqual(findMissingRequiredFiles(root), []);
+  fs.rmSync(root, { recursive: true, force: true });
 });
 
 test("collectSensitiveValues gathers identity addresses and rpc urls", () => {

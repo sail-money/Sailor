@@ -253,9 +253,16 @@ export function buildCleanCopy(srcRoot: string, destRoot: string): string[] {
 // ── Required files ────────────────────────────────────────────────────────────
 
 /**
+ * Where projects keep their permission contracts. The default scaffold ships
+ * none (the operator authors them), and real projects settle on either a
+ * top-level `mandates/` or a Foundry-style `contracts/mandates/`, so both count.
+ */
+const MANDATE_DIRS: readonly string[] = ["mandates", "contracts/mandates"];
+
+/**
  * Compulsory contents every shared project must have. Returns the list of
- * missing requirements (empty = ok). `mandates/**\/*.sol` is satisfied by any
- * Solidity file under mandates/.
+ * missing requirements (empty = ok). The mandate requirement is satisfied by at
+ * least one `.sol` under any {@link MANDATE_DIRS} location.
  */
 export function findMissingRequiredFiles(root: string): string[] {
   const missing: string[] = [];
@@ -265,10 +272,12 @@ export function findMissingRequiredFiles(root: string): string[] {
   if (!has("src/mandate.ts")) missing.push("src/mandate.ts (strategy parameters)");
   if (!has("AGENTS.md")) missing.push("AGENTS.md (operator guide)");
 
-  const mandatesDir = path.join(root, "mandates");
-  const hasSol =
-    fs.existsSync(mandatesDir) && listFilesRecursive(mandatesDir).some((f) => f.endsWith(".sol"));
-  if (!hasSol) missing.push("mandates/**/*.sol (at least one permission contract)");
+  const hasSol = MANDATE_DIRS.map((d) => path.join(root, d))
+    .filter((abs) => fs.existsSync(abs))
+    .some((abs) => listFilesRecursive(abs).some((f) => f.endsWith(".sol")));
+  if (!hasSol) {
+    missing.push(`${MANDATE_DIRS.join("/ or ")}/ **/*.sol (at least one permission contract)`);
+  }
 
   return missing;
 }
