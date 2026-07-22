@@ -361,3 +361,32 @@ test("scanForSecrets catches a planted private key, ignores placeholders", () =>
   assert.ok(!findings.some((f) => f.file === ".env.example"));
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test("scanForSecrets does NOT let 'example' on the line bypass a real secret", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-scan-bypass-"));
+  // A real key sitting on a line that also contains the word "example" and an
+  // HTML-ish `<a` — both were whole-line PLACEHOLDER tokens that used to exempt
+  // the entire line, silently disabling the scan.
+  fs.writeFileSync(path.join(dir, "doc.md"), `<a>example</a> signing key: 0x${"1".repeat(64)}`);
+  // Genuine placeholder value (all-zero key) must still be ignored — now via a
+  // per-match placeholder test, not a whole-line skip.
+  fs.writeFileSync(path.join(dir, "note.txt"), `example key: 0x${"0".repeat(64)}`);
+  const findings = scanForSecrets(dir);
+  assert.ok(
+    findings.some((f) => f.file === "doc.md" && f.kind.includes("private-key")),
+    "real key beside 'example'/'<a' is flagged",
+  );
+  assert.ok(!findings.some((f) => f.file === "note.txt"), "placeholder value still ignored");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("scanForSecrets flags a 12-word BIP-39-style mnemonic (looksLikeMnemonic)", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-scan-mnemonic-"));
+  fs.writeFileSync(
+    path.join(dir, "seed.txt"),
+    "legal winner thank year wave sausage worth useful legal winner thank yellow",
+  );
+  const findings = scanForSecrets(dir);
+  assert.ok(findings.some((f) => f.file === "seed.txt" && f.kind.includes("mnemonic")));
+  fs.rmSync(dir, { recursive: true, force: true });
+});

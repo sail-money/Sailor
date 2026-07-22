@@ -251,7 +251,6 @@ export function getChain(chainId: number): ChainConfig {
   }
   return config;
 }
-
 /** Returns the ChainConfig for a canonical slug (e.g. "base", "bsc"), or undefined. */
 export function chainBySlug(slug: string): ChainConfig | undefined {
   const key = slug.trim().toLowerCase();

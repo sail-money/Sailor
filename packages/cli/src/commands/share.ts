@@ -2,7 +2,13 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { canPush, ensureFork, openPullRequest, resolveToken } from "../lib/github.js";
+import {
+  type PullRequest,
+  canPush,
+  ensureFork,
+  openPullRequest,
+  resolveToken,
+} from "../lib/github.js";
 import { confirm, prompt, readJsonFile, sailPath, writeJsonFile } from "../lib/io.js";
 import { emit } from "../lib/output.js";
 import { packageRoot } from "../lib/packagePaths.js";
@@ -42,12 +48,51 @@ export interface ShareOptions {
   json?: boolean;
 }
 
-function git(args: string[], cwd: string): string {
-  return execFileSync("git", args, {
-    cwd,
-    encoding: "utf-8",
-    stdio: ["ignore", "pipe", "pipe"],
-  }).trim();
+/**
+ * Build a git child-process env that authenticates to GitHub WITHOUT putting the
+ * token in argv (visible in `ps`), in a remote URL, or in the repo's persisted
+ * `.git/config`. `GIT_CONFIG_*` env injection (git ≥ 2.31) sets an
+ * `http.extraheader` for the invocation only, so the token never lands anywhere
+ * durable. `GIT_TERMINAL_PROMPT=0` fails fast instead of hanging on a prompt.
+ */
+export function gitAuthEnv(token: string): NodeJS.ProcessEnv {
+  const basic = Buffer.from(`x-access-token:${token}`).toString("base64");
+  return {
+    ...process.env,
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_CONFIG_COUNT: "1",
+    GIT_CONFIG_KEY_0: "http.extraheader",
+    GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${basic}`,
+  };
+}
+
+/**
+ * Run git, capturing output. On failure, scrub any auth material from the error
+ * before it can reach a log or the user's terminal — execFileSync errors echo
+ * the full argv + stderr, and git may surface a URL. Defense in depth: with
+ * {@link gitAuthEnv} the token is already out of argv, but a mistyped call or a
+ * future change could reintroduce it.
+ */
+function git(args: string[], cwd: string, env?: NodeJS.ProcessEnv): string {
+  try {
+    return execFileSync("git", args, {
+      cwd,
+      env,
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+  } catch (err) {
+    throw new Error(scrubSecrets((err as Error).message ?? String(err)));
+  }
+}
+
+/** Replace `token:...@`, `AUTHORIZATION: basic ...`, and long hex/opaque tokens with a marker. */
+export function scrubSecrets(text: string): string {
+  return text
+    .replace(/(https?:\/\/)[^/\s:@]+:[^/\s@]+@/gi, "$1***@")
+    .replace(/AUTHORIZATION:\s*basic\s+[A-Za-z0-9+/=]+/gi, "AUTHORIZATION: basic ***")
+    .replace(/\bgh[pousr]_[A-Za-z0-9]{20,}\b/g, "gh*_***")
+    .replace(/\bgithub_pat_[A-Za-z0-9_]{20,}\b/g, "github_pat_***");
 }
 
 function cliVersion(): string {
@@ -63,10 +108,15 @@ function cliVersion(): string {
 
 /**
  * Load `.sail/share.json`, completing any missing compulsory fields by prompting
- * (unless --yes/--json, where incompleteness is a hard error). Writes the
- * completed manifest back so the next share is one step.
+ * (unless --yes/--json, where incompleteness is a hard error). When `persist` is
+ * true it writes the completed manifest back so the next share is one step; a
+ * dry run passes `persist=false` so previewing never mutates the live project.
  */
-async function resolveManifest(projectName: string, interactive: boolean): Promise<ShareManifest> {
+async function resolveManifest(
+  projectName: string,
+  interactive: boolean,
+  persist: boolean,
+): Promise<ShareManifest> {
   const manifestPath = sailPath("share.json");
   const existing = readJsonFile<Partial<ShareManifest>>(manifestPath) ?? {};
 
@@ -120,7 +170,7 @@ async function resolveManifest(projectName: string, interactive: boolean): Promi
     sharedAt: new Date().toISOString(),
   };
 
-  writeJsonFile(manifestPath, manifest);
+  if (persist) writeJsonFile(manifestPath, manifest);
   return manifest;
 }
 
@@ -135,7 +185,8 @@ export async function share(options: ShareOptions = {}): Promise<void> {
   const projectName = path.basename(projectRoot);
 
   // 1. Compulsory metadata + files gate (before any network/git work).
-  const manifest = await resolveManifest(projectName, interactive);
+  //    A dry run must not mutate the live project, so it never persists the manifest.
+  const manifest = await resolveManifest(projectName, interactive, !options.dryRun);
   const missing = findMissingRequiredFiles(projectRoot);
   if (missing.length > 0) {
     throw new Error(`Project is missing compulsory contents:\n  - ${missing.join("\n  - ")}`);
@@ -298,61 +349,71 @@ export async function share(options: ShareOptions = {}): Promise<void> {
   //    - no write access (public users) → fork the registry, push to the fork,
   //      open a cross-repo PR. GitHub never lets outsiders push to your repo, so
   //      the fork is the only way for an external contributor to submit.
+  //
+  // Auth is injected via gitAuthEnv (env-only http.extraheader), so remote URLs
+  // stay token-free — nothing durable ever holds the token, and the finally
+  // below removes the temp checkout even if any git/PR step throws.
   const token = resolveToken();
+  const env = gitAuthEnv(token);
   const branch = `share/${manifest.slug}`;
   const registryDir = path.join(tmp, "registry");
-  const baseAuthUrl = `https://x-access-token:${token}@github.com/${repo}.git`;
+  const baseUrl = `https://github.com/${repo}.git`;
 
-  // Always clone the base registry (read) so the branch shares its history.
-  try {
-    git(["clone", "--depth", "1", "--branch", base, baseAuthUrl, registryDir], tmp);
-  } catch {
-    git(["clone", "--depth", "1", baseAuthUrl, registryDir], tmp);
-  }
-  git(["checkout", "-b", branch], registryDir);
-
-  const projectDest = path.join(registryDir, "projects", manifest.slug);
-  fs.rmSync(projectDest, { recursive: true, force: true });
-  fs.cpSync(cleanDir, projectDest, { recursive: true });
-
-  git(["add", "-A"], registryDir);
-  git(
-    [
-      "-c",
-      "user.name=sailor-cli",
-      "-c",
-      "user.email=cli@sail.money",
-      "commit",
-      "-m",
-      `feat(${manifest.slug}): share project`,
-    ],
-    registryDir,
-  );
-
-  const direct = await canPush(repo);
-  let head = branch;
+  let pr: PullRequest;
+  let direct: boolean;
   let pushTarget = repo;
-  if (direct) {
-    git(["push", "-u", "origin", branch], registryDir);
-  } else {
-    const fork = await ensureFork(repo);
-    pushTarget = fork;
-    const login = fork.split("/")[0];
-    head = `${login}:${branch}`; // cross-repo PR head
-    const forkAuthUrl = `https://x-access-token:${token}@github.com/${fork}.git`;
-    git(["remote", "add", "fork", forkAuthUrl], registryDir);
-    git(["push", "-u", "fork", branch], registryDir);
+  try {
+    // Always clone the base registry (read) so the branch shares its history.
+    try {
+      git(["clone", "--depth", "1", "--branch", base, baseUrl, registryDir], tmp, env);
+    } catch {
+      git(["clone", "--depth", "1", baseUrl, registryDir], tmp, env);
+    }
+    git(["checkout", "-b", branch], registryDir, env);
+
+    const projectDest = path.join(registryDir, "projects", manifest.slug);
+    fs.rmSync(projectDest, { recursive: true, force: true });
+    fs.cpSync(cleanDir, projectDest, { recursive: true });
+
+    git(["add", "-A"], registryDir, env);
+    git(
+      [
+        "-c",
+        "user.name=sailor-cli",
+        "-c",
+        "user.email=cli@sail.money",
+        "commit",
+        "-m",
+        `feat(${manifest.slug}): share project`,
+      ],
+      registryDir,
+      env,
+    );
+
+    direct = await canPush(repo);
+    let head = branch;
+    if (direct) {
+      git(["push", "-u", "origin", branch], registryDir, env);
+    } else {
+      const fork = await ensureFork(repo);
+      pushTarget = fork;
+      const login = fork.split("/")[0];
+      head = `${login}:${branch}`; // cross-repo PR head
+      const forkUrl = `https://github.com/${fork}.git`;
+      git(["remote", "add", "fork", forkUrl], registryDir, env);
+      git(["push", "-u", "fork", branch], registryDir, env);
+    }
+
+    pr = await openPullRequest({
+      repo, // PR always lands on the registry
+      title: manifest.summary || `Share ${manifest.name}`,
+      body: renderPrBody(manifest),
+      head,
+      base,
+    });
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
   }
-
-  const pr = await openPullRequest({
-    repo, // PR always lands on the registry
-    title: manifest.summary || `Share ${manifest.name}`,
-    body: renderPrBody(manifest),
-    head,
-    base,
-  });
-
-  fs.rmSync(tmp, { recursive: true, force: true });
 
   emit(
     options.json,

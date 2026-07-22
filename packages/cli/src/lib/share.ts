@@ -383,11 +383,20 @@ export function scanForSecrets(root: string): SecretFinding[] {
     const lines = content.split(/\r?\n/);
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      if (PLACEHOLDER.test(line)) continue;
       for (const { kind, re } of SECRET_PATTERNS) {
-        if (re.test(line)) findings.push({ file: rel, line: i + 1, kind });
+        // Test the MATCHED value against PLACEHOLDER, not the whole line. A
+        // line-level skip exempts any line that merely contains "example" (or an
+        // HTML-ish `<x`), silently disabling the scan for a real secret sitting
+        // beside such a word. re has no `g` flag, so exec() is stateless here.
+        const match = re.exec(line);
+        if (match && !PLACEHOLDER.test(match[0])) {
+          findings.push({ file: rel, line: i + 1, kind });
+        }
       }
-      if (looksLikeMnemonic(line)) {
+      // A 12/24-word all-lowercase line can only match PLACEHOLDER when one of
+      // its words literally is a placeholder token, so the line-level guard is
+      // safe here (and keeps the canonical doc test-vector from tripping share).
+      if (looksLikeMnemonic(line) && !PLACEHOLDER.test(line)) {
         findings.push({ file: rel, line: i + 1, kind: "possible mnemonic phrase" });
       }
     }

@@ -32,10 +32,35 @@ function entryEscapes(name: string): boolean {
 }
 
 /**
+ * Refuse — BEFORE extracting a single byte — any archive that contains a symlink
+ * or hardlink entry. A symlink dir entry followed by a write through it lets the
+ * archive escape `dest` *during* extraction, before any post-extraction walk can
+ * see it. Names alone can't reveal this (a link name has no `..`), so we read the
+ * verbose listing and match the entry type: the leading `l`/`h` of the ls -l–style
+ * mode column (stable across GNU tar, bsdtar, and zipinfo) plus the `->` / `link to`
+ * target markers as a belt-and-suspenders backstop.
+ */
+function assertNoLinkEntries(archivePath: string): void {
+  const verbose = archivePath.endsWith(".zip")
+    ? execFileSync("unzip", ["-Z", archivePath], { encoding: "utf-8" })
+    : execFileSync("tar", ["-tvzf", archivePath], { encoding: "utf-8" });
+  for (const raw of verbose.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (/^[lh][-rwxsStT]{9}/.test(line) || / -> /.test(line) || / link to /.test(line)) {
+      throw new Error(
+        `Refusing to extract: archive contains a symlink/hardlink entry — possible escape attack: "${line.slice(-120)}"`,
+      );
+    }
+  }
+}
+
+/**
  * Extract `archivePath` into `dest` with guards: refuse zip-slip / absolute
- * paths, cap entry count + compressed + uncompressed size, and reject any
- * symlink in the result (a symlink could redirect a later write to ~/.ssh or
- * ~/.sail/keys). Throws on any violation — better to refuse than to clone a
+ * paths, reject symlink/hardlink entries BEFORE extracting (they can redirect a
+ * write outside `dest` mid-extraction, before any post-scan runs), cap entry
+ * count + compressed + uncompressed size, and re-check for symlinks in the
+ * result. Throws on any violation — better to refuse than to clone a
  * booby-trapped archive.
  */
 export function safeExtract(archivePath: string, dest: string): void {
@@ -54,16 +79,17 @@ export function safeExtract(archivePath: string, dest: string): void {
   if (bad) {
     throw new Error(`Refusing to extract: archive entry escapes the target directory: "${bad}"`);
   }
+  // Reject links up front — the primary defense against symlink write-through.
+  assertNoLinkEntries(archivePath);
 
   fs.mkdirSync(dest, { recursive: true });
   if (archivePath.endsWith(".zip")) {
-    // unzip does not follow symlinks during extraction; we still scan after.
     execFileSync("unzip", ["-q", "-o", archivePath, "-d", dest], { stdio: "inherit" });
   } else {
     execFileSync("tar", ["-xzf", archivePath, "-C", dest], { stdio: "inherit" });
   }
 
-  // Post-extraction: reject symlinks and enforce the uncompressed size cap.
+  // Post-extraction backstop: reject symlinks and enforce the uncompressed size cap.
   let total = 0;
   const walk = (dir: string): void => {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {

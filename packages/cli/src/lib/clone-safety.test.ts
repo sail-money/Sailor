@@ -47,6 +47,22 @@ test("safeExtract refuses an archive containing a symlink", () => {
   fs.rmSync(work, { recursive: true, force: true });
 });
 
+test("safeExtract rejects a symlink BEFORE writing anything to dest", () => {
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-preslip-"));
+  const proj = path.join(work, "proj");
+  fs.mkdirSync(path.join(proj, "src"), { recursive: true });
+  fs.writeFileSync(path.join(proj, "src", "agent.ts"), "export const x = 1;");
+  fs.symlinkSync("/etc/passwd", path.join(proj, "evil-link"));
+  const archive = path.join(work, "a.tar.gz");
+  execFileSync("tar", ["-czf", archive, "-C", proj, "."]);
+
+  const dest = path.join(work, "out");
+  assert.throws(() => safeExtract(archive, dest), /symlink|hardlink/i);
+  // Pre-extraction rejection: dest must not have been populated with the archive.
+  assert.ok(!fs.existsSync(path.join(dest, "src", "agent.ts")), "nothing extracted");
+  fs.rmSync(work, { recursive: true, force: true });
+});
+
 test("safeExtract accepts a normal archive", () => {
   const work = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-ok-"));
   const proj = path.join(work, "proj");
