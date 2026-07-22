@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSandbox } from '../../sandboxContext'
 import ChainGlyph from './ChainGlyph'
 import GlassCard from './GlassCard'
@@ -50,6 +50,7 @@ function chainLabel(fork) {
  */
 export default function SandboxBanner() {
   const { maxChains, reloadSandboxConfig } = useSandbox()
+  const barRef = useRef(null)
   const [forks, setForks] = useState({})
   const [exiting, setExiting] = useState(false)
   const [selectedChainId, setSelectedChainId] = useState(null)
@@ -68,6 +69,24 @@ export default function SandboxBanner() {
     load()
     const id = setInterval(load, 4000)
     return () => clearInterval(id)
+  }, [])
+
+  // Publish the banner's real rendered height to a global CSS var so the
+  // full-viewport app frames can subtract it from 100vh. Measured (not a magic
+  // number) because the bar's height shifts with content (fork chips) and
+  // viewport width. Reset to 0 on unmount so leaving the sandbox restores 100vh.
+  useEffect(() => {
+    const bar = barRef.current
+    if (!bar) return
+    const root = document.documentElement
+    const apply = () => root.style.setProperty('--sandbox-banner-h', `${bar.offsetHeight}px`)
+    apply()
+    const ro = new ResizeObserver(apply)
+    ro.observe(bar)
+    return () => {
+      ro.disconnect()
+      root.style.setProperty('--sandbox-banner-h', '0px')
+    }
   }, [])
 
   const entries = Object.entries(forks).sort(([a], [b]) => Number(a) - Number(b))
@@ -116,7 +135,7 @@ export default function SandboxBanner() {
 
   return (
     <>
-      <div className={styles.bar} role="status">
+      <div className={styles.bar} role="status" ref={barRef}>
         <span className={styles.mark} aria-hidden>⚓</span>
         <span className={styles.copy}>
           Sandbox

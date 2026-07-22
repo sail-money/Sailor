@@ -96,9 +96,11 @@ function Root() {
           <SandboxProvider isSandbox={Boolean(isSandbox)} config={config} setConfig={setConfig}>
             <WalletLifecycle />
             {isSandbox && <SandboxBanner />}
-            {/* The banner is fixed/out-of-flow — push real content below it so
-                nothing renders under its ~34px strip. */}
-            <div style={isSandbox ? { paddingTop: 34 } : undefined}>
+            {/* The banner is fixed/out-of-flow — push real content below it by
+                its measured height (--sandbox-banner-h, 0 outside sandbox) so
+                nothing renders under it. The full-viewport frames below
+                subtract the same var from 100vh so the total stays one screen. */}
+            <div style={{ paddingTop: 'var(--sandbox-banner-h, 0px)' }}>
               <Router />
             </div>
           </SandboxProvider>
