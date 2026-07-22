@@ -6,6 +6,7 @@ import {
   getNativeCurrencySymbol,
   getSailDeployment,
 } from "@sail/sdk";
+import { relative } from "node:path";
 import { http, type Address, type Hex, createPublicClient, formatEther, getAddress } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { confirm, readActiveAccount, readJsonFile, sailPath, writeJsonFile } from "../lib/io.js";
@@ -532,6 +533,11 @@ export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
   const deduped = existing.filter(
     (m) => !(m.safe?.toLowerCase() === account.safe.toLowerCase() && m.chainId === chainId),
   );
-  writeJsonFile(sailPath("mandate.json"), [...deduped, storedMandate]);
-  console.log(`\n✓ Saved to .sail/mandate.json — agent is ready to run.`);
+  const mandatePath = sailPath("mandate.json");
+  writeJsonFile(mandatePath, [...deduped, storedMandate]);
+  // Report the actual resolved path (honours SAIL_DIR, e.g. the sandbox's
+  // .shipyard/sandbox/) rather than a hardcoded ".sail/…" that would mislead
+  // anyone debugging sandbox vs live state.
+  const displayPath = relative(process.cwd(), mandatePath);
+  console.log(`\n✓ Saved to ${displayPath} — agent is ready to run.`);
 }
