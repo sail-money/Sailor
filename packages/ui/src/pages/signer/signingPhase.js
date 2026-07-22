@@ -19,6 +19,51 @@ export function failureCopy(outcome) {
     : { kicker: 'FAILED', headline: '✕ Transaction was not submitted.' }
 }
 
+// Kernel custom errors this page can recognize in a raw confirmation message,
+// matched as plain substrings rather than decoded from raw revert bytes: the
+// message reaches this page as flattened text from the signing daemon, with
+// no structured revert data attached. Each entry's hex values are that
+// error's 4-byte selector (`toFunctionSelector('ErrorName(...)')`)  — present
+// verbatim in viem's error text whenever it can't resolve the error to a
+// name. Two DIFFERENT failures look superficially similar ("a permission
+// didn't register") but need opposite advice, so they're classified
+// separately rather than lumped into one generic "it failed" bucket:
+//   - stale nonce: the request is genuinely invalid now — resend it fresh.
+//   - already registered: the request is redundant — it already succeeded
+//     earlier, so resending the SAME thing again will just fail again. This
+//     is the shape to suspect when an agent hallucinates that something
+//     wasn't signed and keeps re-submitting an already-confirmed permission.
+const CLASSIFIED_FAILURES = [
+  {
+    markers: ['InvalidSignerSignature', 'InvalidManagerSignature', '0xcf92fef0', '0xeb6942f1'],
+    kicker: 'SIGNATURE OUT OF DATE',
+    headline: 'This permission’s signature is out of date.',
+    explanation:
+      'Only the first matched the current nonce. Ask your agent to resend just this one, or batch them together.',
+  },
+  {
+    markers: ['PermissionAlreadyRegistered', '0x451f8f10'],
+    kicker: 'ALREADY REGISTERED',
+    headline: 'This permission is already registered.',
+    explanation:
+      'This permission is already confirmed on-chain from an earlier signature. Check your Mandates list.',
+  },
+]
+
+/**
+ * Recognize a handful of kernel reverts that are common enough — and
+ * confusing enough as raw text — to deserve a plain-language explanation
+ * instead of the generic failureCopy() headline. Returns null (falls back to
+ * the generic copy) when the message doesn't match anything known.
+ */
+export function classifyPermissionFailure(message) {
+  if (!message || typeof message !== 'string') return null
+  const match = CLASSIFIED_FAILURES.find((c) => c.markers.some((marker) => message.includes(marker)))
+  if (!match) return null
+  const { kicker, headline, explanation } = match
+  return { kicker, headline, explanation }
+}
+
 /**
  * Next phase given the previous phase, the number of requests that remain AFTER
  * pruning the one this message concerns, and the server message.

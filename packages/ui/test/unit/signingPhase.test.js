@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { failureCopy, nextSigningPhase } from '../../src/pages/signer/signingPhase.js'
+import { classifyPermissionFailure, failureCopy, nextSigningPhase } from '../../src/pages/signer/signingPhase.js'
 
 // Group B — the signing-page state machine (the DEFECT-2 guard + the
 // reverted/failed/unverified/confirmed screen mapping). Pure, so it runs in the
@@ -96,5 +96,54 @@ describe('B2b — failure copy wording is distinct for reverted vs failed', () =
     expect(c.kicker).toBe('FAILED')
     expect(c.headline).toMatch(/not submitted/i)
     expect(c.headline).not.toMatch(/reverted/i)
+  })
+})
+
+describe('B3 — classifyPermissionFailure recognizes the batch-signing stale-nonce revert', () => {
+  it('matches on the decoded error name (InvalidSignerSignature)', () => {
+    const c = classifyPermissionFailure('reverted with the following signature: InvalidSignerSignature()')
+    expect(c).not.toBeNull()
+    expect(c.kicker).toBe('SIGNATURE OUT OF DATE')
+    expect(c.explanation).toMatch(/matched the current nonce/i)
+  })
+
+  it('matches on the companion manager-dispatch error name (InvalidManagerSignature)', () => {
+    expect(classifyPermissionFailure('InvalidManagerSignature()')).not.toBeNull()
+  })
+
+  it('matches on the raw 4-byte selector when viem could not resolve a name', () => {
+    expect(classifyPermissionFailure('unrecognized custom error (data: 0xcf92fef0)')).not.toBeNull()
+    expect(classifyPermissionFailure('unrecognized custom error (data: 0xeb6942f1)')).not.toBeNull()
+  })
+
+  it('returns null for an unrelated revert — falls back to the generic failureCopy', () => {
+    expect(classifyPermissionFailure('execution reverted for an unknown reason')).toBeNull()
+  })
+
+  it('returns null for empty/non-string input rather than throwing', () => {
+    expect(classifyPermissionFailure('')).toBeNull()
+    expect(classifyPermissionFailure(null)).toBeNull()
+    expect(classifyPermissionFailure(undefined)).toBeNull()
+  })
+})
+
+describe('B4 — classifyPermissionFailure distinguishes "already registered" from stale-nonce', () => {
+  it('matches on the decoded error name (PermissionAlreadyRegistered) with DIFFERENT copy than the nonce case', () => {
+    const c = classifyPermissionFailure('reverted with the following signature: PermissionAlreadyRegistered(address)')
+    expect(c).not.toBeNull()
+    expect(c.kicker).toBe('ALREADY REGISTERED')
+    expect(c.kicker).not.toBe('SIGNATURE OUT OF DATE')
+    expect(c.explanation).toMatch(/already confirmed/i)
+    expect(c.explanation).not.toMatch(/nonce/i)
+  })
+
+  it('matches on the raw 4-byte selector', () => {
+    expect(classifyPermissionFailure('unrecognized custom error (data: 0x451f8f10)')).not.toBeNull()
+  })
+
+  it('the two classified failures never collide on the same message', () => {
+    const nonce = classifyPermissionFailure('InvalidSignerSignature()')
+    const already = classifyPermissionFailure('PermissionAlreadyRegistered(address)')
+    expect(nonce.kicker).not.toBe(already.kicker)
   })
 })

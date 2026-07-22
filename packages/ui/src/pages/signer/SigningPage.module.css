@@ -240,6 +240,17 @@
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--hairline, rgba(255, 255, 255, 0.1));
 }
+/* Plain-language explanation shown above the raw technical message, when the
+   failure is recognized (e.g. a stale-nonce collision from batch-signing
+   several permissions). Legible body copy — not the monospace debug box. */
+.failExplain {
+  width: 100%;
+  max-width: 36ch;
+  margin: 6px 0 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.72));
+}
 .ok     { background: rgba(25, 144, 255, 0.10); border: 1px solid rgba(25, 144, 255, 0.28); color: #4DABFF; }
 .danger { background: var(--danger-soft); border: 1px solid rgba(255, 92, 108, 0.22); color: var(--danger); }
 .warn   { background: rgba(251, 191, 36, 0.10);  border: 1px solid rgba(251, 191, 36, 0.22);  color: #fbbf24; }

@@ -12,7 +12,7 @@ import { useSigningSocket } from '../../hooks/useSigningSocket'
 import { MandateSigningFlow } from '../signing/Signing'
 import { explorerCodeUrl, explorerTxUrl } from '../../lib/explorer'
 import { describePermission } from '../../lib/permissions'
-import { nextSigningPhase, failureCopy } from './signingPhase'
+import { nextSigningPhase, failureCopy, classifyPermissionFailure } from './signingPhase'
 import { decideSignerEntry } from './signerEntry'
 
 const KIND_LABELS = {
@@ -516,6 +516,10 @@ function FailureScreen({ outcome, message, onDone }) {
   // 'reverted' = mined then reverted on-chain; 'failed' = the submission itself
   // errored, so the transaction was never sent. Worded distinctly (failureCopy).
   const copy = failureCopy(outcome)
+  // Recognized failures (currently: a stale-nonce collision from batch-signing
+  // several permissions) get a plain-language headline + explanation in place
+  // of the generic one — the raw message still shows below either way.
+  const classified = classifyPermissionFailure(message)
   return (
     <GlassCard className={styles.emptyCard}>
       <div className={styles.emptyCardSai} aria-hidden>
@@ -523,11 +527,14 @@ function FailureScreen({ outcome, message, onDone }) {
       </div>
       <header className={styles.emptyCardHeader}>
         <span className={styles.emptyKicker} style={{ color: 'var(--danger)' }}>
-          {copy.kicker}
+          {classified ? classified.kicker : copy.kicker}
         </span>
         <h1 className={`${shared.displayHeadline} ${styles.emptyHeadline}`} style={{ color: 'var(--danger)' }}>
-          {copy.headline}
+          {classified ? classified.headline : copy.headline}
         </h1>
+        {classified && (
+          <p className={styles.failExplain}>{classified.explanation}</p>
+        )}
         {/* Raw node/viem errors can be very long (they inline the full calldata),
             so the message scrolls inside a clamped box instead of blowing out the
             modal width. */}
