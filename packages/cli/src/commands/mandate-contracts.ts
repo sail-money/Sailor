@@ -53,14 +53,19 @@ import {
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { appendActivity, nowIso } from "../lib/io.js";
 import { estimateRegistrationGasBudgetWei, registrationGate } from "../lib/registration-fee.js";
-import { explainPermission } from "../lib/permission-explainer.js";
+import { loadManagerSigner } from "../lib/keys.js";
 import { type DeployedMandate, MandateStore } from "../lib/mandates.js";
 import { emit } from "../lib/output.js";
-import { loadManagerSigner } from "../lib/keys.js";
+import { projectPort } from "../lib/packagePaths.js";
+import { explainPermission } from "../lib/permission-explainer.js";
 import { ProjectContext } from "../lib/project.js";
+import {
+  assertSignatureFresh,
+  describeRegisterRevert,
+  registrationDeadline,
+} from "../lib/registration.js";
 import { type SigningChannel, createSigningChannel, signingPageUrl } from "../signing/client.js";
 import { registerMandate } from "./onboard.js";
-import { projectPort } from "../lib/packagePaths.js";
 
 export interface DeployOptions {
   artifact?: string;
@@ -311,7 +316,12 @@ async function runDeploy(
   };
   const store = new MandateStore();
   const stored = store.add(record);
-  say(() => console.log("Tracked in .sail/state/mandates.json" + (stored.name !== record.name ? ` as "${stored.name}"` : "")));
+  say(() =>
+    console.log(
+      "Tracked in .sail/state/mandates.json" +
+        (stored.name !== record.name ? ` as "${stored.name}"` : ""),
+    ),
+  );
 
   // Owner-paid contract creation: the owner signed/paid for this deploy tx
   // (the signing server logged the approval); here we record the confirmed
@@ -485,7 +495,8 @@ function parseAddressList(csv: string | undefined, flag: string): Address[] {
     .filter(Boolean);
   if (list.length === 0) throw new Error(`${flag} is empty`);
   for (const a of list) {
-    if (!isAddress(a, { strict: false })) throw new Error(`${flag} contains an invalid address: ${a}`);
+    if (!isAddress(a, { strict: false }))
+      throw new Error(`${flag} contains an invalid address: ${a}`);
   }
   return list.map((a) => getAddress(a));
 }
@@ -529,7 +540,8 @@ async function runDeployClone(
     if (!json) fn();
   };
 
-  if (!isAddress(options.sma, { strict: false })) throw new Error(`Invalid --sma address: ${options.sma}`);
+  if (!isAddress(options.sma, { strict: false }))
+    throw new Error(`Invalid --sma address: ${options.sma}`);
   const sma = getAddress(options.sma);
 
   const spec = CLONE_TEMPLATES[options.template];
@@ -626,9 +638,7 @@ async function runDeployClone(
   } catch {
     // advisory — proceed with noDeadline fallback
   }
-  const deadline = registerPermissionHasDeadline
-    ? BigInt(Math.floor(Date.now() / 1000) + 300)
-    : undefined;
+  const deadline = registerPermissionHasDeadline ? registrationDeadline() : undefined;
 
   const typedData = buildRegisterPermissionTypedData({
     chainId: project.chainId,
@@ -722,6 +732,9 @@ async function runDeployClone(
     functionName: "deployAndAttach",
     args: [sma, impl, salt, initData, deadline, signature],
   });
+  if (deadline !== undefined) {
+    assertSignatureFresh(deadline, `Re-run "sailor mandate deploy-clone" to sign again.`);
+  }
   let txHash: Hex;
   try {
     txHash = await walletClient.sendTransaction({
@@ -742,12 +755,22 @@ async function runDeployClone(
   say(() => console.log("Waiting for confirmation…"));
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
   if (receipt.status !== "success") {
+    const why = await describeRegisterRevert(
+      publicClient,
+      {
+        to: project.contracts.mandateFactory,
+        data,
+        value: fee,
+        account: agentSigner.viemAccount.address,
+      },
+      receipt,
+    );
     await channel.confirmOutcome(response.requestId, {
       outcome: "reverted",
       txHash,
-      error: `deployAndAttach reverted (tx ${txHash})`,
+      error: `deployAndAttach ${why}`,
     });
-    throw new Error(`deployAndAttach reverted (tx ${txHash})`);
+    throw new Error(`deployAndAttach ${why}`);
   }
 
   // The receipt already succeeded, so the tx did NOT revert. A clone not yet
@@ -801,7 +824,14 @@ async function runDeployClone(
 
   emit(json, () => {}, {
     status: "ok",
-    clone: { template: options.template, address: clone, impl, txHash, sma, chainId: project.chainId },
+    clone: {
+      template: options.template,
+      address: clone,
+      impl,
+      txHash,
+      sma,
+      chainId: project.chainId,
+    },
   });
 }
 
@@ -826,7 +856,8 @@ async function runRegister(
   options: RegisterOptions,
 ): Promise<void> {
   const json = !!options.json;
-  if (!isAddress(options.sma, { strict: false })) throw new Error(`Invalid --sma address: ${options.sma}`);
+  if (!isAddress(options.sma, { strict: false }))
+    throw new Error(`Invalid --sma address: ${options.sma}`);
   const sma = getAddress(options.sma);
 
   const store = new MandateStore();
@@ -963,7 +994,8 @@ async function runRevoke(
   const say = (fn: () => void) => {
     if (!json) fn();
   };
-  if (!isAddress(options.sma, { strict: false })) throw new Error(`Invalid --sma address: ${options.sma}`);
+  if (!isAddress(options.sma, { strict: false }))
+    throw new Error(`Invalid --sma address: ${options.sma}`);
   if (!options.all && !options.address) {
     throw new Error("Provide --address <permission> (or a tracked name), or --all");
   }
@@ -989,7 +1021,9 @@ async function runRevoke(
     const tracked = store.find(options.address as string);
     const rawWanted = (tracked?.address ?? options.address) as string;
     if (!isAddress(rawWanted, { strict: false })) {
-      throw new Error(`--address must be a permission address or a tracked name: ${options.address}`);
+      throw new Error(
+        `--address must be a permission address or a tracked name: ${options.address}`,
+      );
     }
     const wanted = getAddress(rawWanted);
     const match = onchain.find((p) => p.toLowerCase() === wanted.toLowerCase());
@@ -1018,7 +1052,10 @@ async function runRevoke(
   const response = await channel.requestSignature({
     type: "typed-data",
     kind: "revoke-permissions",
-    title: targets.length === 1 ? `Revoke "${nameFor(targets[0]) ?? targets[0]}"` : `Revoke ${targets.length} permissions`,
+    title:
+      targets.length === 1
+        ? `Revoke "${nameFor(targets[0]) ?? targets[0]}"`
+        : `Revoke ${targets.length} permissions`,
     description:
       "Authorize removing the listed permission(s) from your SMA. The agent submits the on-chain transaction.",
     chainId: project.chainId,
@@ -1028,10 +1065,23 @@ async function runRevoke(
       { label: "Signer nonce", value: nonce.toString() },
     ],
     typedData: {
-      domain: { name: "SailKernel", version: "1", chainId: project.chainId, verifyingContract: kernel },
-      types: REVOKE_PERMISSIONS_TYPES as unknown as Record<string, { name: string; type: string }[]>,
+      domain: {
+        name: "SailKernel",
+        version: "1",
+        chainId: project.chainId,
+        verifyingContract: kernel,
+      },
+      types: REVOKE_PERMISSIONS_TYPES as unknown as Record<
+        string,
+        { name: string; type: string }[]
+      >,
       primaryType: "RevokePermissions",
-      message: { account: sma, permissions: targets, nonce: nonce.toString(), deadline: deadline.toString() },
+      message: {
+        account: sma,
+        permissions: targets,
+        nonce: nonce.toString(),
+        deadline: deadline.toString(),
+      },
     },
   });
 
@@ -1054,7 +1104,12 @@ async function runRevoke(
     const expectedPermissionSigner = kCfg[0];
 
     const recoveredSigner = await recoverTypedDataAddress({
-      domain: { name: "SailKernel", version: "1", chainId: project.chainId, verifyingContract: kernel },
+      domain: {
+        name: "SailKernel",
+        version: "1",
+        chainId: project.chainId,
+        verifyingContract: kernel,
+      },
       types: REVOKE_PERMISSIONS_TYPES,
       primaryType: "RevokePermissions",
       message: { account: sma, permissions: targets, nonce, deadline },
@@ -1251,7 +1306,7 @@ async function registerBatchOnSma(
     args: [sma],
   })) as bigint;
 
-  const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
+  const deadline = registrationDeadline();
   const typedData = buildRegisterPermissionsBatchTypedData({
     chainId: project.chainId,
     kernel: project.contracts.kernel,
@@ -1343,6 +1398,11 @@ async function registerBatchOnSma(
     args: [sma, permissions, deadline, response.signature],
   });
 
+  assertSignatureFresh(
+    deadline,
+    `Re-run "sailor mandate attach --address ${permissions.join(",")} --sma ${sma}" to sign again.`,
+  );
+
   say(() => console.log(`Submitting batch registration (agent pays gas; fee ${fee} wei)…`));
   let txHash: Hex;
   try {
@@ -1362,17 +1422,32 @@ async function registerBatchOnSma(
   }
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
   if (receipt.status !== "success") {
+    const why = await describeRegisterRevert(
+      publicClient,
+      {
+        to: project.contracts.kernel,
+        data: registerData,
+        value: fee,
+        account: agentSigner.viemAccount.address,
+      },
+      receipt,
+    );
     await channel.confirmOutcome(response.requestId, {
       outcome: "reverted",
       txHash,
-      error: `registerPermissions reverted (tx ${txHash})`,
+      error: `registerPermissions ${why}`,
     });
-    throw new Error(`registerPermissions reverted (tx ${txHash})`);
+    throw new Error(`registerPermissions ${why}`);
   }
   await channel.confirmOutcome(response.requestId, { outcome: "confirmed", txHash });
 
   for (const permission of permissions) {
-    const present = await pollForPermission(publicClient, project.contracts.kernel, sma, permission);
+    const present = await pollForPermission(
+      publicClient,
+      project.contracts.kernel,
+      sma,
+      permission,
+    );
     appendActivity({
       ts: nowIso(),
       actor: "agent",
@@ -1398,6 +1473,13 @@ async function registerBatchOnSma(
   return txHash;
 }
 
+/**
+ * Advisory confirmation that a permission is visible in getPermissions() (S6).
+ * This is a UX nicety AFTER the tx has already mined — never load-bearing. The
+ * RPC read is wrapped so a rate-limited / flaky endpoint can NEVER throw and
+ * abort the caller before it writes local attachment state; a failed read just
+ * yields `false` ("not yet visible"), same as an empty permission set.
+ */
 async function pollForPermission(
   publicClient: PublicClient,
   kernel: Address,
@@ -1407,13 +1489,19 @@ async function pollForPermission(
 ): Promise<boolean> {
   const needle = permission.toLowerCase();
   for (let i = 0; i < attempts; i++) {
-    const perms = (await publicClient.readContract({
-      address: kernel,
-      abi: SailKernelAbi,
-      functionName: "getPermissions",
-      args: [account],
-    })) as Address[];
-    if (perms.some((p) => p.toLowerCase() === needle)) return true;
+    try {
+      const perms = (await publicClient.readContract({
+        address: kernel,
+        abi: SailKernelAbi,
+        functionName: "getPermissions",
+        args: [account],
+      })) as Address[];
+      if (perms.some((p) => p.toLowerCase() === needle)) return true;
+    } catch {
+      // Advisory only — a failed confirm read must not throw. Fall through to
+      // retry; if every attempt fails we report "not yet visible", which the
+      // caller surfaces as a warning without discarding the mined registration.
+    }
     if (i < attempts - 1) await new Promise((r) => setTimeout(r, 1500));
   }
   return false;
@@ -1448,7 +1536,9 @@ export function mandateTemplates(options: { json?: boolean }): void {
     options.json,
     () => {
       console.log("Author your own permission contract (recommended):");
-      console.log("  1. Start from BoundedCallPermission.sol in mandates/ (targets + selectors + max ETH value)");
+      console.log(
+        "  1. Start from BoundedCallPermission.sol in mandates/ (targets + selectors + max ETH value)",
+      );
       console.log("  2. Implement IPermission.evaluate(txData, ctx) with your policy logic");
       console.log("  3. forge build");
       console.log("  4. sailor mandate deploy --contract <Name> --register --sma <yourSMA>");
@@ -1501,13 +1591,17 @@ export function mandateUpdate(options: UpdateOptions): void {
   }
   const store = new MandateStore();
   const updated = store.update(address, { name, sourcePath, artifactPath });
-  emit(!!json, () => {
-    const changes: string[] = [];
-    if (name) changes.push(`name → ${updated.name}`);
-    if (sourcePath) changes.push(`sourcePath → ${updated.sourcePath}`);
-    if (artifactPath) changes.push(`artifactPath → ${updated.artifactPath}`);
-    console.log(`Updated ${updated.address}: ${changes.join(", ")}`);
-  }, { status: "ok", mandate: updated });
+  emit(
+    !!json,
+    () => {
+      const changes: string[] = [];
+      if (name) changes.push(`name → ${updated.name}`);
+      if (sourcePath) changes.push(`sourcePath → ${updated.sourcePath}`);
+      if (artifactPath) changes.push(`artifactPath → ${updated.artifactPath}`);
+      console.log(`Updated ${updated.address}: ${changes.join(", ")}`);
+    },
+    { status: "ok", mandate: updated },
+  );
 }
 
 // ── artifact + args helpers ──────────────────────────────────────────────────
@@ -1531,9 +1625,7 @@ function resolveArtifact(options: DeployOptions): {
   const resolved = resolve(artifactPath);
   const projectRoot = resolve(process.cwd());
   if (!resolved.startsWith(projectRoot + sep) && resolved !== projectRoot) {
-    throw new Error(
-      `Artifact path must be inside the project directory.\nResolved: ${resolved}`,
-    );
+    throw new Error(`Artifact path must be inside the project directory.\nResolved: ${resolved}`);
   }
   artifactPath = resolved;
 
