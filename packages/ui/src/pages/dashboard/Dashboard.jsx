@@ -222,7 +222,21 @@ function activityDetail(e) {
     }
     return base
   }
-  if (e.permission) return truncateAddr(e.permission)
+  if (e.permission) {
+    const base = truncateAddr(e.permission)
+    // Dispatch events now carry the decoded amount (S4) — surface "how much
+    // moved" instead of only the permission address. `allowance` is an approve,
+    // not a transfer, so it's labelled distinctly.
+    if (e.amountFormatted) {
+      // A max-uint (unlimited) approval is flagged rather than printed as its
+      // ~78-digit value; show "unlimited" in place of the number.
+      const num = e.unlimited ? 'unlimited' : e.amountFormatted
+      const amt = `${num}${e.tokenSymbol ? ` ${e.tokenSymbol}` : ''}`
+      const label = e.amountKind === 'allowance' ? `${amt} allowance` : amt
+      return `${label} · ${base}`
+    }
+    return base
+  }
   return e.reason ?? e.msg ?? ''
 }
 
@@ -949,7 +963,14 @@ function TickCard({ tick, positions }) {
   const moveLine = tick.logs.find((l) => l.includes('rebalance') || l.includes('deposit') || l.includes('withdraw'))
   const portfolioLine = tick.logs.find((l) => l.startsWith('portfolio:'))
   const headline = moveLine ?? holdLine ?? portfolioLine ?? (tick.logs[0] ?? (isLive ? 'Running…' : 'Tick complete'))
-  const totalUsd = positions?.reduce((s, p) => s + (p.valueUsd ?? 0), 0) ?? null
+  // Only a real, non-empty positions snapshot yields a header value. Previously
+  // an empty snapshot (the common live case) reduced to 0 and rendered a
+  // misleading "$0.00" on every tick; dispatch amounts now live on their own
+  // rows (S4), so suppress the header figure unless there's genuine value.
+  const totalUsd =
+    positions && positions.length > 0
+      ? positions.reduce((s, p) => s + (p.valueUsd ?? 0), 0)
+      : null
 
   return (
     <li className={styles.tickCard}>
@@ -967,7 +988,7 @@ function TickCard({ tick, positions }) {
           )}
         </span>
         <span className={styles.tickHeadline}>{headline}</span>
-        {totalUsd != null && (
+        {totalUsd != null && totalUsd > 0 && (
           <span className={styles.tickValue}>${totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         )}
         <span className={styles.tickChevron} aria-hidden>{expanded ? '▴' : '▾'}</span>
