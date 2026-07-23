@@ -20,7 +20,7 @@ import {
   sailPath,
 } from "../lib/io.js";
 import { getRpcUrl } from "../lib/chain.js";
-import { decodeTokenMove, formatTokenAmount } from "../lib/dispatch-value.js";
+import { decodeTokenMove, formatTokenAmount, isUnlimitedAmount } from "../lib/dispatch-value.js";
 import { keyExists, loadManagerSigner } from "../lib/keys.js";
 import {
   resolvePermissionForBatch,
@@ -398,6 +398,9 @@ export async function runCommand(opts: {
         // `approve` sets an allowance, not a transfer — label it so the UI can
         // say "approve 5 USDC" vs "swap 5 USDC" without implying funds moved.
         amountKind: move.fn === "approve" ? "allowance" : "transfer",
+        // Max-uint (unlimited) approvals would otherwise render as a ~78-digit
+        // number; flag them so the UI shows "unlimited" instead.
+        ...(isUnlimitedAmount(move.amount) ? { unlimited: true } : {}),
       };
     }
     const nativeCall = calls.find((c) => (c.value ?? 0n) > 0n);

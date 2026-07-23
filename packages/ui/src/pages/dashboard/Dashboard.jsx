@@ -228,7 +228,10 @@ function activityDetail(e) {
     // moved" instead of only the permission address. `allowance` is an approve,
     // not a transfer, so it's labelled distinctly.
     if (e.amountFormatted) {
-      const amt = `${e.amountFormatted}${e.tokenSymbol ? ` ${e.tokenSymbol}` : ''}`
+      // A max-uint (unlimited) approval is flagged rather than printed as its
+      // ~78-digit value; show "unlimited" in place of the number.
+      const num = e.unlimited ? 'unlimited' : e.amountFormatted
+      const amt = `${num}${e.tokenSymbol ? ` ${e.tokenSymbol}` : ''}`
       const label = e.amountKind === 'allowance' ? `${amt} allowance` : amt
       return `${label} · ${base}`
     }

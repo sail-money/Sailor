@@ -49,3 +49,15 @@ export function formatTokenAmount(amount: bigint, decimals: number): string {
   const s = formatUnits(amount, decimals);
   return s.includes(".") ? s.replace(/\.?0+$/, "") : s;
 }
+
+/**
+ * Is this an "unlimited" approval? Swap routers routinely `approve` the max
+ * uint256 (or near it), which formatTokenAmount renders as a meaningless
+ * ~78-digit number — a misleading figure of a different kind from the $0.00
+ * this fix removed. Anything in the top half of the uint256 range (≥ 2^255) is
+ * astronomically larger than any real token balance, so treat it as unlimited
+ * and let the UI say "unlimited" instead of printing the digits.
+ */
+export function isUnlimitedAmount(amount: bigint): boolean {
+  return amount >= 1n << 255n;
+}

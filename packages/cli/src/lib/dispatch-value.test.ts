@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { encodeFunctionData, parseAbi } from "viem";
-import { decodeTokenMove, formatTokenAmount } from "./dispatch-value.js";
+import { decodeTokenMove, formatTokenAmount, isUnlimitedAmount } from "./dispatch-value.js";
 
 // Run with: npx tsx --test packages/cli/src/lib/dispatch-value.test.ts
 
@@ -41,4 +41,17 @@ test("formatTokenAmount: trims trailing zeros", () => {
   assert.equal(formatTokenAmount(5_000_000n, 6), "5"); // 5 USDC
   assert.equal(formatTokenAmount(2_940_000_000_000_000n, 18), "0.00294"); // ~WETH fill
   assert.equal(formatTokenAmount(0n, 6), "0");
+});
+
+test("isUnlimitedAmount: max-uint and near-max approvals are unlimited", () => {
+  const MAX_UINT256 = (1n << 256n) - 1n;
+  assert.equal(isUnlimitedAmount(MAX_UINT256), true); // classic infinite approval
+  assert.equal(isUnlimitedAmount(1n << 255n), true); // threshold boundary
+});
+
+test("isUnlimitedAmount: real balances are not unlimited", () => {
+  assert.equal(isUnlimitedAmount(5_000_000n), false); // 5 USDC
+  assert.equal(isUnlimitedAmount(0n), false);
+  // 1 trillion tokens at 18dp — a whale-sized but real approval, still far below 2^255.
+  assert.equal(isUnlimitedAmount(1_000_000_000_000n * 10n ** 18n), false);
 });
