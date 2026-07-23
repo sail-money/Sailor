@@ -31,5 +31,6 @@ export const CHAIN_PRESENTATION = {
            alchemyHost: 'hyperliquid-mainnet.g.alchemy.com' },
   4326:  { color: '#ffffff', description: 'Real-time EVM.',
            alchemyHost: 'megaeth-mainnet.g.alchemy.com' },
-  4663:  { color: '#ccff00', description: 'Robinhood Chain.' },
+  4663:  { color: '#ccff00', description: 'Robinhood Chain.',
+           alchemyHost: 'robinhood-mainnet.g.alchemy.com' },
 }
