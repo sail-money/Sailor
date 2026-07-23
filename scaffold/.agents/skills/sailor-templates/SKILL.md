@@ -21,11 +21,11 @@ metadata:
 
 > **Deployment status (2026-07-01, by `0xB01dCE…815B6`):** **all seven** templates are live on
 > every chain Sailor bundles — Ethereum, Base, Arbitrum, Optimism, Unichain, BSC, World Chain,
-> HyperEVM, MegaETH, Base Sepolia, and Eth Sepolia (11 chains) — all bound to the current
+> HyperEVM, MegaETH, Robinhood, Base Sepolia, and Eth Sepolia (12 chains) — all bound to the current
 > CREATE2 kernel `0x38b508756c976e876EFF05a29E731A4d348BA6ED`. This is a CREATE2 deploy with a
 > global salt, so the kernel and every template address are **identical on every chain**. Live
 > addresses are in [`deployed.json`](deployed.json) (keyed by chainId → contract name, though
-> the value is the same for all 11 keys). This supersedes the prior 2026-06-09 deploy (kernel
+> the value is the same for all 12 keys). This supersedes the prior 2026-06-09 deploy (kernel
 > `0x02ABC18B65A328de2e749F56ba79ACF2718a6659`) — those addresses are dead.
 
 > ⚠️ **Audit scope.** These are marked *"UNAUDITED EXAMPLE — NOT PART OF THE TRUSTED CORE"* in
@@ -42,13 +42,13 @@ metadata:
 
 | Primitive | Contract | Deployed? | Skill |
 |---|---|---|---|
-| DEX swap (oracle band) | `SwapPermission` | ✅ 11 chains | [`sailor-template-swap`](../sailor-template-swap/SKILL.md) |
-| DEX swap (no oracle) | `SwapPermissionNoOracle` | ✅ 11 chains | [`sailor-template-swap-no-oracle`](../sailor-template-swap-no-oracle/SKILL.md) |
-| Lending borrow | `BorrowPermission` | ✅ 11 chains | [`sailor-template-borrow`](../sailor-template-borrow/SKILL.md) |
-| Transfer (allowlist) | `TransferPermission` | ✅ 11 chains | [`sailor-template-transfer`](../sailor-template-transfer/SKILL.md) |
-| Vault/lending deposit | `DepositPermission` | ✅ 11 chains | [`sailor-template-deposit`](../sailor-template-deposit/SKILL.md) |
-| Withdraw to fixed addr | `WithdrawPermission` | ✅ 11 chains | [`sailor-template-withdraw`](../sailor-template-withdraw/SKILL.md) |
-| Approve+call batch | `ApproveAndCallBatchPermission` | ✅ 11 chains | [`sailor-template-approve-batch`](../sailor-template-approve-batch/SKILL.md) |
+| DEX swap (oracle band) | `SwapPermission` | ✅ 12 chains | [`sailor-template-swap`](../sailor-template-swap/SKILL.md) |
+| DEX swap (no oracle) | `SwapPermissionNoOracle` | ✅ 12 chains | [`sailor-template-swap-no-oracle`](../sailor-template-swap-no-oracle/SKILL.md) |
+| Lending borrow | `BorrowPermission` | ✅ 12 chains | [`sailor-template-borrow`](../sailor-template-borrow/SKILL.md) |
+| Transfer (allowlist) | `TransferPermission` | ✅ 12 chains | [`sailor-template-transfer`](../sailor-template-transfer/SKILL.md) |
+| Vault/lending deposit | `DepositPermission` | ✅ 12 chains | [`sailor-template-deposit`](../sailor-template-deposit/SKILL.md) |
+| Withdraw to fixed addr | `WithdrawPermission` | ✅ 12 chains | [`sailor-template-withdraw`](../sailor-template-withdraw/SKILL.md) |
+| Approve+call batch | `ApproveAndCallBatchPermission` | ✅ 12 chains | [`sailor-template-approve-batch`](../sailor-template-approve-batch/SKILL.md) |
 
 Authoritative config tuples + enforced invariants (from source):
 [references/config-schemas.md](references/config-schemas.md).

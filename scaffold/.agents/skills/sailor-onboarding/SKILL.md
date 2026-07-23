@@ -72,7 +72,7 @@ This skill owns **Station 1 (ARRIVE)**. Read `.sail/` to find where the project 
 | `account.json` + a complete `.sail/strategy.md`, no tracked mandates | Strategy defined → **Station 3**: hand off to [`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md) |
 | `account.json` + tracked mandates in `state/mandates.json` | Mandate exists → **Stations 4–5**: build/run the agent (dispatch mechanics in [`sailor-transactions`](../sailor-transactions/SKILL.md)), then run unattended ([`sailor-automation`](../sailor-automation/SKILL.md)) and offer notifications + a dashboard ([`sailor-extend`](../sailor-extend/SKILL.md)) |
 
-Supported chains: Ethereum (1), Base (8453), Arbitrum (42161), Optimism (10), Unichain (130), BSC (56), World Chain (480), HyperEVM (999), MegaETH (4326), Base Sepolia (84532), Eth Sepolia (11155111). `sailor chains --json` lists them with kernel addresses.
+Supported chains: Ethereum (1), Base (8453), Arbitrum (42161), Optimism (10), Unichain (130), BSC (56), World Chain (480), HyperEVM (999), MegaETH (4326), Robinhood (4663), Base Sepolia (84532), Eth Sepolia (11155111). `sailor chains --json` lists them with kernel addresses.
 
 ## Step 2 — Deploy the SMA and create the agent wallet
 

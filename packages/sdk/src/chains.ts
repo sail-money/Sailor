@@ -21,6 +21,9 @@ export const chains: Record<number, ChainConfig> = {
   1: {
     chainId: 1,
     name: "Ethereum",
+    slug: "ethereum",
+    blockExplorer: { name: "Etherscan", url: "https://etherscan.io" },
+    safePrefix: "eth",
     rpcEnvVar: "ETH_MAINNET_RPC_URL",
     defaultRpcUrl: "https://eth.llamarpc.com",
     kernel: CREATE2_KERNEL,
@@ -34,6 +37,9 @@ export const chains: Record<number, ChainConfig> = {
   8453: {
     chainId: 8453,
     name: "Base",
+    slug: "base",
+    blockExplorer: { name: "Basescan", url: "https://basescan.org" },
+    safePrefix: "base",
     rpcEnvVar: "BASE_RPC_URL",
     defaultRpcUrl: "https://mainnet.base.org",
     kernel: CREATE2_KERNEL,
@@ -47,6 +53,10 @@ export const chains: Record<number, ChainConfig> = {
   42161: {
     chainId: 42161,
     name: "Arbitrum",
+    slug: "arbitrum",
+    displayName: "Arbitrum One",
+    blockExplorer: { name: "Arbiscan", url: "https://arbiscan.io" },
+    safePrefix: "arb1",
     rpcEnvVar: "ARBITRUM_RPC_URL",
     defaultRpcUrl: "https://arb1.arbitrum.io/rpc",
     kernel: CREATE2_KERNEL,
@@ -60,6 +70,9 @@ export const chains: Record<number, ChainConfig> = {
   10: {
     chainId: 10,
     name: "Optimism",
+    slug: "optimism",
+    blockExplorer: { name: "Optimistic Etherscan", url: "https://optimistic.etherscan.io" },
+    safePrefix: "oeth",
     rpcEnvVar: "OPTIMISM_RPC_URL",
     defaultRpcUrl: "https://mainnet.optimism.io",
     kernel: CREATE2_KERNEL,
@@ -73,6 +86,9 @@ export const chains: Record<number, ChainConfig> = {
   130: {
     chainId: 130,
     name: "Unichain",
+    slug: "unichain",
+    blockExplorer: { name: "Uniscan", url: "https://uniscan.xyz" },
+    safePrefix: "unichain",
     rpcEnvVar: "UNICHAIN_RPC_URL",
     defaultRpcUrl: "https://mainnet.unichain.org",
     kernel: CREATE2_KERNEL,
@@ -86,6 +102,10 @@ export const chains: Record<number, ChainConfig> = {
   56: {
     chainId: 56,
     name: "BSC",
+    slug: "bsc",
+    displayName: "BNB Smart Chain",
+    blockExplorer: { name: "BscScan", url: "https://bscscan.com" },
+    safePrefix: "bnb",
     rpcEnvVar: "BSC_RPC_URL",
     defaultRpcUrl: "https://bsc-dataseed.binance.org",
     kernel: CREATE2_KERNEL,
@@ -99,6 +119,8 @@ export const chains: Record<number, ChainConfig> = {
   480: {
     chainId: 480,
     name: "World Chain",
+    slug: "world",
+    blockExplorer: { name: "Worldscan", url: "https://worldscan.org" },
     rpcEnvVar: "WORLD_RPC_URL",
     defaultRpcUrl: "https://worldchain-mainnet.g.alchemy.com/public",
     kernel: CREATE2_KERNEL,
@@ -112,6 +134,8 @@ export const chains: Record<number, ChainConfig> = {
   999: {
     chainId: 999,
     name: "HyperEVM",
+    slug: "hyperevm",
+    blockExplorer: { name: "HyperEVM Scan", url: "https://hyperevmscan.io" },
     rpcEnvVar: "HYPEREVM_RPC_URL",
     defaultRpcUrl: "https://rpc.hyperliquid.xyz/evm",
     kernel: CREATE2_KERNEL,
@@ -125,8 +149,25 @@ export const chains: Record<number, ChainConfig> = {
   4326: {
     chainId: 4326,
     name: "MegaETH",
+    slug: "megaeth",
+    blockExplorer: { name: "MegaExplorer", url: "https://megaexplorer.xyz" },
     rpcEnvVar: "MEGAETH_RPC_URL",
     defaultRpcUrl: "https://mainnet.megaeth.com/rpc",
+    kernel: CREATE2_KERNEL,
+    mandateFactory: CREATE2_MANDATE_FACTORY,
+    governance: CREATE2_GOVERNANCE,
+    dispatchModel: "selective",
+    protocols: {},
+    nativeCurrency: ETH,
+  },
+  // Robinhood Chain mainnet
+  4663: {
+    chainId: 4663,
+    name: "Robinhood",
+    slug: "robinhood",
+    blockExplorer: { name: "Robinhood Explorer", url: "https://robinhoodchain.blockscout.com" },
+    rpcEnvVar: "ROBINHOOD_RPC_URL",
+    defaultRpcUrl: "https://rpc.mainnet.chain.robinhood.com",
     kernel: CREATE2_KERNEL,
     mandateFactory: CREATE2_MANDATE_FACTORY,
     governance: CREATE2_GOVERNANCE,
@@ -138,6 +179,9 @@ export const chains: Record<number, ChainConfig> = {
   84532: {
     chainId: 84532,
     name: "Base Sepolia",
+    slug: "base-sepolia",
+    blockExplorer: { name: "Basescan Sepolia", url: "https://sepolia.basescan.org" },
+    testnet: true,
     rpcEnvVar: "BASE_SEPOLIA_RPC_URL",
     defaultRpcUrl: "https://sepolia.base.org",
     kernel: CREATE2_KERNEL,
@@ -151,8 +195,43 @@ export const chains: Record<number, ChainConfig> = {
   11155111: {
     chainId: 11155111,
     name: "Eth Sepolia",
+    slug: "eth-sepolia",
+    blockExplorer: { name: "Etherscan Sepolia", url: "https://sepolia.etherscan.io" },
+    testnet: true,
     rpcEnvVar: "SEPOLIA_RPC_URL",
     defaultRpcUrl: "https://ethereum-sepolia-rpc.publicnode.com",
+    kernel: CREATE2_KERNEL,
+    mandateFactory: CREATE2_MANDATE_FACTORY,
+    governance: CREATE2_GOVERNANCE,
+    dispatchModel: "selective",
+    protocols: {},
+    nativeCurrency: ETH,
+  },
+  // Arbitrum Sepolia (testnet)
+  421614: {
+    chainId: 421614,
+    name: "Arbitrum Sepolia",
+    slug: "arbitrum-sepolia",
+    blockExplorer: { name: "Arbiscan Sepolia", url: "https://sepolia.arbiscan.io" },
+    testnet: true,
+    rpcEnvVar: "ARBITRUM_SEPOLIA_RPC_URL",
+    defaultRpcUrl: "https://sepolia-rollup.arbitrum.io/rpc",
+    kernel: CREATE2_KERNEL,
+    mandateFactory: CREATE2_MANDATE_FACTORY,
+    governance: CREATE2_GOVERNANCE,
+    dispatchModel: "selective",
+    protocols: {},
+    nativeCurrency: ETH,
+  },
+  // Unichain Sepolia (testnet)
+  1301: {
+    chainId: 1301,
+    name: "Unichain Sepolia",
+    slug: "unichain-sepolia",
+    blockExplorer: { name: "Uniscan Sepolia", url: "https://sepolia.uniscan.xyz" },
+    testnet: true,
+    rpcEnvVar: "UNICHAIN_SEPOLIA_RPC_URL",
+    defaultRpcUrl: "https://sepolia.unichain.org",
     kernel: CREATE2_KERNEL,
     mandateFactory: CREATE2_MANDATE_FACTORY,
     governance: CREATE2_GOVERNANCE,
@@ -167,10 +246,16 @@ export function getChain(chainId: number): ChainConfig {
   const config = chains[chainId];
   if (!config) {
     throw new Error(
-      `Chain ${chainId} is not supported. Supported chains: 1 (Ethereum), 8453 (Base), 42161 (Arbitrum), 10 (Optimism), 130 (Unichain), 56 (BSC), 480 (World Chain), 999 (HyperEVM), 4326 (MegaETH), 84532 (Base Sepolia), 11155111 (Eth Sepolia).`,
+      `Chain ${chainId} is not supported. Supported chains: 1 (Ethereum), 8453 (Base), 42161 (Arbitrum), 10 (Optimism), 130 (Unichain), 56 (BSC), 480 (World Chain), 999 (HyperEVM), 4326 (MegaETH), 4663 (Robinhood), 84532 (Base Sepolia), 11155111 (Eth Sepolia).`,
     );
   }
   return config;
+}
+
+/** Returns the ChainConfig for a canonical slug (e.g. "base", "bsc"), or undefined. */
+export function chainBySlug(slug: string): ChainConfig | undefined {
+  const key = slug.trim().toLowerCase();
+  return Object.values(chains).find((c) => c.slug === key);
 }
 
 /**

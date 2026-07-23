@@ -6,10 +6,11 @@ import {
   getNativeCurrencySymbol,
   getSailDeployment,
 } from "@sail/sdk";
-import { http, type Address, createPublicClient, formatEther } from "viem";
+import { http, type Address, type Hex, createPublicClient, formatEther, getAddress } from "viem";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { confirm, readActiveAccount, readJsonFile, sailPath, writeJsonFile } from "../lib/io.js";
 import { MandateStore } from "../lib/mandates.js";
+import { emit } from "../lib/output.js";
 import { type PermissionExplanation, explainPermission } from "../lib/permission-explainer.js";
 import { ProjectContext } from "../lib/project.js";
 import type { StoredAccount, StoredMandate } from "../lib/state.js";
@@ -66,9 +67,9 @@ type DraftRegistrationFee = {
  * agree (re-preparing a mandate with some permissions already registered must
  * not overstate the total).
  */
-export function chargeablePermissions<T extends { revokedOnChain?: boolean; registeredOnSma: boolean }>(
-  tracked: T[],
-): T[] {
+export function chargeablePermissions<
+  T extends { revokedOnChain?: boolean; registeredOnSma: boolean },
+>(tracked: T[]): T[] {
   return tracked.filter((p) => !p.revokedOnChain && !p.registeredOnSma);
 }
 
@@ -160,8 +161,15 @@ async function fetchOnChainPermissions(
       args: [safe],
     })) as Address[];
     return new Set(onChain.map((a) => a.toLowerCase()));
-  } catch {
-    // RPC unavailable or kernel not reachable — fall back to local state only.
+  } catch (err) {
+    // RPC unavailable or kernel not reachable — fall back to local state only,
+    // but warn (to stderr, so JSON stdout stays clean): the caller is now
+    // showing cached state that may not match the chain (S7).
+    console.warn(
+      `⚠ Could not read on-chain permissions from the kernel (${(err as Error).message}). ` +
+        "Showing cached local mandate state — it may be stale. Re-run when the RPC is reachable, " +
+        "or run `sailor mandate sync` to reconcile.",
+    );
     return null;
   }
 }
@@ -200,7 +208,9 @@ async function trackedPermissionsFor(
   // the local store is missing — e.g. a shared singleton registered by address into a
   // wiped/older store, or registered out-of-band. Without (b), prepare/sign would
   // be blind to the SMA's real permission set.
-  const onChain = kernel ? await fetchOnChainPermissions(account.safe as Address, chainId, kernel) : null;
+  const onChain = kernel
+    ? await fetchOnChainPermissions(account.safe as Address, chainId, kernel)
+    : null;
   if (onChain === null) return local; // RPC unavailable — fall back to the local store only.
   return mergeOnChainPermissions(local, onChain, knownTemplateLabeler(chainId));
 }
@@ -271,7 +281,9 @@ function printNoPermissionsGuidance(): void {
 export async function mandatePrepare(): Promise<void> {
   const account = readActiveAccount();
   if (!account) {
-    throw new Error('No account found at .sail/account.json.\nRun "sailor onboard --new-sma" first.');
+    throw new Error(
+      'No account found at .sail/account.json.\nRun "sailor onboard --new-sma" first.',
+    );
   }
 
   const { chainId, kernel } = resolveActiveChain(account);
@@ -329,6 +341,89 @@ export async function mandatePrepare(): Promise<void> {
 }
 
 /**
+ * `sailor mandate sync` — reconcile the local mandate cache against on-chain
+ * truth (S7). The kernel's getPermissions() is authoritative; mandates.json is a
+ * cache of labels/hashes/timestamps. Sync:
+ *   (a) adopts permissions the kernel lists that the local store isn't tracking
+ *       as registered (e.g. registered out-of-band, or lost to a desync), and
+ *   (b) reports local registration records the kernel no longer lists (revoked),
+ *       left in place as history so it stays non-destructive.
+ * Fails loudly if the RPC can't be reached — a reconcile against unknown state
+ * would be worse than none.
+ */
+export async function mandateSync(opts: { json?: boolean } = {}): Promise<void> {
+  const account = readActiveAccount();
+  if (!account) {
+    throw new Error(
+      'No account found at .sail/account.json.\nRun "sailor onboard --new-sma" first.',
+    );
+  }
+  const { chainId, kernel } = resolveActiveChain(account);
+  if (!kernel) {
+    throw new Error("No kernel for the active project — cannot reconcile against on-chain state.");
+  }
+
+  const onChain = await fetchOnChainPermissions(account.safe as Address, chainId, kernel);
+  if (onChain === null) {
+    throw new Error(
+      "Could not read on-chain permissions from the kernel (RPC unreachable). " +
+        "Retry when the RPC is reachable — sync will not guess.",
+    );
+  }
+
+  const store = new MandateStore();
+  const labelFor = knownTemplateLabeler(chainId);
+  // Reconciled-from-chain marker: the original registration tx is unknown, so we
+  // record a zero hash rather than fabricate one. It reads as "adopted by sync".
+  const SYNC_TX = `0x${"0".repeat(64)}` as Hex;
+
+  const adopted: string[] = [];
+  for (const addr of onChain) {
+    const rec = store.find(addr);
+    const attachedLocally = rec?.attachments?.some(
+      (a) => a.sma.toLowerCase() === account.safe.toLowerCase(),
+    );
+    if (attachedLocally) continue;
+    const checksummed = getAddress(addr);
+    store.ensureTracked({
+      name: labelFor(addr) ?? `permission ${addr.slice(0, 10)}…`,
+      address: checksummed,
+      txHash: SYNC_TX,
+      chainId,
+      deployedAt: new Date().toISOString(),
+    });
+    store.recordAttachment(checksummed, { sma: account.safe as Address, txHash: SYNC_TX });
+    adopted.push(addr);
+  }
+
+  const stale = store
+    .list()
+    .filter((m) => m.chainId === chainId)
+    .filter((m) => m.attachments?.some((a) => a.sma.toLowerCase() === account.safe.toLowerCase()))
+    .filter((m) => !onChain.has(m.address.toLowerCase()))
+    .map((m) => m.address);
+
+  emit(
+    !!opts.json,
+    () => {
+      console.log(`Reconciled mandates.json against kernel getPermissions(${account.safe}):`);
+      console.log(`  on-chain permissions:      ${onChain.size}`);
+      console.log(
+        `  adopted into local store:  ${adopted.length}${adopted.length ? ` — ${adopted.join(", ")}` : ""}`,
+      );
+      if (stale.length) {
+        console.log(`  ⚠ local records no longer on-chain (revoked?): ${stale.join(", ")}`);
+        console.log(
+          "    left in place as history; prepare/sign already treat them as not registered.",
+        );
+      }
+      if (!adopted.length && !stale.length) console.log("  already in sync.");
+    },
+    { status: "ok", onChain: [...onChain], adopted, stale },
+  );
+}
+
+/**
  * `sailor mandate sign` — reviews and confirms the permission contracts registered
  * to the active SMA. On-chain registration happens via `sailor mandate register`;
  * for any tracked permission not yet registered on this SMA, this re-uses that
@@ -337,7 +432,9 @@ export async function mandatePrepare(): Promise<void> {
 export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
   const account = readActiveAccount();
   if (!account) {
-    throw new Error('No account found at .sail/account.json.\nRun "sailor onboard --new-sma" first.');
+    throw new Error(
+      'No account found at .sail/account.json.\nRun "sailor onboard --new-sma" first.',
+    );
   }
 
   const { chainId, kernel } = resolveActiveChain(account);
@@ -378,16 +475,21 @@ export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
   // per-permission charge (permissionRegistrationFee) the register tx will send.
   // Best-effort, so a missing fee never blocks confirmation.
   if (unregistered.length > 0) {
-    const estimate = await liveMandateFee(chainId, unregistered.map((p) => p.address));
+    const estimate = await liveMandateFee(
+      chainId,
+      unregistered.map((p) => p.address),
+    );
     if (estimate !== null) {
       console.log(`\n${describeMandateFee(estimate, getNativeCurrencySymbol(chainId))}`);
       console.log("  Paid by the agent wallet on registration, per permission.");
     }
   }
 
-  const proceed = opts.yes || await confirm(
-    `Confirm these ${activePermissions.length} permission(s) are authorized for your SMA?`,
-  );
+  const proceed =
+    opts.yes ||
+    (await confirm(
+      `Confirm these ${activePermissions.length} permission(s) are authorized for your SMA?`,
+    ));
   if (!proceed) {
     console.log("No permissions confirmed.");
     return;
@@ -420,7 +522,9 @@ export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
   };
   const existingRaw = readJsonFile<StoredMandate | StoredMandate[]>(sailPath("mandate.json"));
   const existing: StoredMandate[] = existingRaw
-    ? Array.isArray(existingRaw) ? existingRaw : [existingRaw]
+    ? Array.isArray(existingRaw)
+      ? existingRaw
+      : [existingRaw]
     : [];
   // mandate.json is chain-scoped: one entry per (safe, chainId). Replace the
   // entry for this SMA on this chain rather than appending, so re-signing

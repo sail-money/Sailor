@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import type { Address, Hex } from "viem";
-import { mergeOnChainPermissions } from "./mandate.js";
 import { MandateStore } from "../lib/mandates.js";
+import { mergeOnChainPermissions } from "./mandate.js";
 
 // Run with: npx tsx --test packages/cli/src/commands/mandate-tracking.test.ts
 // (requires `pnpm --filter @sail/sdk build` first so @sail/sdk resolves.)
@@ -56,8 +56,13 @@ test("mergeOnChainPermissions: flags local entries the kernel no longer lists as
 
 test("mergeOnChainPermissions: matches addresses case-insensitively (no spurious duplicate)", () => {
   // Local stores a checksummed address; the kernel read is lowercased.
-  const local = [{ address: "0xAbC0000000000000000000000000000000000000", label: "A", registeredOnSma: true }];
-  const merged = mergeOnChainPermissions(local, new Set(["0xabc0000000000000000000000000000000000000"]));
+  const local = [
+    { address: "0xAbC0000000000000000000000000000000000000", label: "A", registeredOnSma: true },
+  ];
+  const merged = mergeOnChainPermissions(
+    local,
+    new Set(["0xabc0000000000000000000000000000000000000"]),
+  );
 
   assert.equal(merged.length, 1, "same address in different casing must not be duplicated");
   assert.equal(merged[0].revokedOnChain ?? false, false);
@@ -87,6 +92,29 @@ test("ensureTracked: records a never-deployed address so register is no longer i
     // recordAttachment is now effective because a record exists.
     store.recordAttachment(A, { sma: B, txHash: hex("0x" + "2".repeat(64)) });
     assert.equal(store.find(A)?.attachments?.length, 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("recordAttachment: idempotent for the same (sma, txHash) — no duplicate rows (S6)", () => {
+  const { store, dir } = tempStore();
+  try {
+    store.ensureTracked({
+      name: "Shared Singleton",
+      address: A,
+      txHash: hex("0x" + "1".repeat(64)),
+      chainId: 130,
+      deployedAt: "2026-06-29T00:00:00.000Z",
+    });
+    const tx = hex("0x" + "2".repeat(64));
+    // Attach once at mine time, then a retry / `mandate sync` records the same fact.
+    store.recordAttachment(A, { sma: B, txHash: tx });
+    store.recordAttachment(A, { sma: B, txHash: tx });
+    assert.equal(store.find(A)?.attachments?.length, 1, "same (sma, txHash) must not duplicate");
+    // A genuinely different registration (e.g. reattach after revoke) still appends.
+    store.recordAttachment(A, { sma: B, txHash: hex("0x" + "3".repeat(64)) });
+    assert.equal(store.find(A)?.attachments?.length, 2);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

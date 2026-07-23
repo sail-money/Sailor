@@ -30,15 +30,15 @@ Use the user-facing terms in all CLI output, prompts, and errors. The code ident
 
 ## Dispatch model
 
-All eleven chains share the same kernel at the same CREATE2 address, verified on-chain via `DISPATCH_TYPEHASH()`:
+All twelve chains share the same kernel at the same CREATE2 address, verified on-chain via `DISPATCH_TYPEHASH()`:
 
-| Kernel (all 11 chains) | Model | DISPATCH_TYPEHASH |
+| Kernel (all 12 chains) | Model | DISPATCH_TYPEHASH |
 |---|---|---|
 | `0x38b508756c976e876EFF05a29E731A4d348BA6ED` | **selective** | `0xbe50c539...` |
 
-Supported chains: Ethereum (1), Base (8453), Arbitrum (42161), Optimism (10), Unichain (130), BSC (56), World Chain (480), HyperEVM (999), MegaETH (4326), Base Sepolia (84532), Eth Sepolia (11155111).
+Supported chains: Ethereum (1), Base (8453), Arbitrum (42161), Optimism (10), Unichain (130), BSC (56), World Chain (480), HyperEVM (999), MegaETH (4326), Robinhood (4663), Base Sepolia (84532), Eth Sepolia (11155111).
 
-All eleven kernels are live and bootstrapped (genesis allowlist set, `createAccount` verified working, zero fees). Shared permission templates (swap, swap-no-oracle, borrow, deposit, withdraw, transfer, approve-and-call-batch) are deployed and verified against the current kernel on every chain — `knownTemplates` is populated for all eleven entries (`standaloneTemplates` stays empty: it's the EIP-1167 clone-implementation registry, and these are shared multi-tenant templates). `packages/sdk/src/deployments.ts` is the canonical source of truth for kernel addresses, templates, and metadata.
+All twelve kernels are live and bootstrapped (genesis allowlist set, `createAccount` verified working, zero fees). Shared permission templates (swap, swap-no-oracle, borrow, deposit, withdraw, transfer, approve-and-call-batch) are deployed and verified against the current kernel on every chain — `knownTemplates` is populated for all twelve entries (`standaloneTemplates` stays empty: it's the EIP-1167 clone-implementation registry, and these are shared multi-tenant templates). `packages/sdk/src/deployments.ts` is the canonical source of truth for kernel addresses, templates, and metadata.
 
 **Always use `detectKernelCapabilities` for the real model** — it reads the on-chain typehash and
 overrides the static label in `deployments.ts`. The static label is a fallback for offline use only.
@@ -57,7 +57,7 @@ Pass the detected value — never hardcode the type shape.
 
 ## Active addresses
 
-All eleven chain records in `packages/sdk/src/deployments.ts` are live — no commented-out or pending
+All twelve chain records in `packages/sdk/src/deployments.ts` are live — no commented-out or pending
 addresses remain. This file is the source of truth this guide mirrors.
 
 - `packages/sdk/src/deployments.ts` — `SailDeployment` records; canonical source of truth

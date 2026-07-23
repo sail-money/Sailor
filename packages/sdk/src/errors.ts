@@ -81,6 +81,22 @@ const ERROR_HINTS: Record<string, string> = {
     "dispatches were signed against the same nonce). Re-read managerNonces and re-sign, or " +
     "track the nonce locally and increment it across sequential dispatches. Can also mean the " +
     "wrong EIP-712 Dispatch type was used for this kernel version — see detectKernelCapabilities.",
+  InvalidSignerSignature:
+    "The permission signer's EIP-712 RegisterPermissions signature did not recover to the " +
+    "registered signer. Most common cause: a stale signerNonces value — this happens when " +
+    "several RegisterPermissions requests are prepared as a batch and signed one after another: " +
+    "only the first one's nonce is still current by the time it's submitted, so the kernel " +
+    "advances signerNonces and every request after the first is signed against a nonce that no " +
+    "longer matches. Fix by re-reading signerNonces immediately before building/signing EACH " +
+    "request (not once for the whole batch), or by registering all the permissions in one " +
+    "registerPermissions(account, permissions[], deadline, signature) call instead of one call " +
+    "per permission.",
+  PermissionAlreadyRegistered:
+    "This permission address is already registered for this account — registerPermissions rejects " +
+    "re-registering it. This is a DIFFERENT failure from a stale signerNonces: it means the request " +
+    "is redundant, not invalid. Common cause: an agent (or a human re-sending a stuck request) submits " +
+    "a permission that was already confirmed on a previous signature. No signature or nonce fix helps " +
+    "here — drop this request, it has nothing left to do.",
   PermissionDenied:
     "A registered permission's evaluate() returned false (or reverted / ran out of gas) for this call. " +
     "In a conjunctive kernel EVERY registered permission must approve EVERY call, so a permission " +

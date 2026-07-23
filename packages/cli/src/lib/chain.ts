@@ -17,6 +17,12 @@ const megaeth = defineChain({
   nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   rpcUrls: { default: { http: [chains[4326].defaultRpcUrl] } },
 });
+const robinhood = defineChain({
+  id: 4663,
+  name: "Robinhood",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: { default: { http: [chains[4663].defaultRpcUrl] } },
+});
 
 const CHAINS: Record<number, Chain> = {
   1: mainnet,
@@ -28,6 +34,7 @@ const CHAINS: Record<number, Chain> = {
   480: worldchain,
   999: hyperevm,
   4326: megaeth,
+  4663: robinhood,
   84532: baseSepolia,
   11155111: sepolia,
 };
@@ -37,7 +44,7 @@ export function getChainById(chainId: number): Chain {
   const chain = CHAINS[chainId];
   if (!chain) {
     throw new Error(
-      `Unsupported chainId: ${chainId}. Supported: 1 (Ethereum), 8453 (Base), 42161 (Arbitrum), 10 (Optimism), 130 (Unichain), 56 (BSC), 480 (World Chain), 999 (HyperEVM), 4326 (MegaETH), 84532 (Base Sepolia), 11155111 (Eth Sepolia)`,
+      `Unsupported chainId: ${chainId}. Supported: 1 (Ethereum), 8453 (Base), 42161 (Arbitrum), 10 (Optimism), 130 (Unichain), 56 (BSC), 480 (World Chain), 999 (HyperEVM), 4326 (MegaETH), 4663 (Robinhood), 84532 (Base Sepolia), 11155111 (Eth Sepolia)`,
     );
   }
   return chain;

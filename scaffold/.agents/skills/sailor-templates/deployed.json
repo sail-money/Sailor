@@ -84,6 +84,15 @@
       "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
       "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
     },
+    "4663": {
+      "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
+      "BorrowPermission": "0x3e2666051599223cEAb10De55C89A0842857d8AF",
+      "DepositPermission": "0xBfB5e13a97b12Ee89d2F2b9B65eCf7e0E371911f",
+      "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
+      "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
+      "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
+      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
+    },
     "84532": {
       "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
       "BorrowPermission": "0x3e2666051599223cEAb10De55C89A0842857d8AF",
