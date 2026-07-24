@@ -33,6 +33,8 @@ export {
   stopSandboxFork,
   restartSandboxFork,
   dumpSandboxState,
+  startPeriodicStateDump,
+  PERIODIC_STATE_DUMP_INTERVAL_MS,
   resumeSandboxForks,
   enforceSandboxChainCap,
   type StartSandboxForksResult,

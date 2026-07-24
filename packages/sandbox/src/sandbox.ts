@@ -574,6 +574,51 @@ export async function dumpSandboxState(sandboxDir: string): Promise<DumpSandboxS
   return result;
 }
 
+/** Default cadence for {@link startPeriodicStateDump}. Small enough that a crash
+ *  loses only a few seconds of a session, large enough that the read-only
+ *  `anvil_dumpState` RPCs don't add meaningful load. */
+export const PERIODIC_STATE_DUMP_INTERVAL_MS = 15_000;
+
+/**
+ * Start a timer that {@link dumpSandboxState}s every `intervalMs` for as long as
+ * it runs. This is the crash-durable half of session persistence: `stopFork`
+ * only dumps on a *graceful* stop, so without a periodic dump a mid-session
+ * anvil panic (e.g. a flaky fork upstream), a `kill -9`, or a host reboot loses
+ * every mandate/deploy/balance created since the sandbox came up. The sandbox
+ * server owns one of these for its whole lifetime; `sailor sandbox stop` doesn't
+ * need it (it dumps explicitly), but an ungraceful death does.
+ *
+ * - **Overlap-guarded:** a dump slower than the interval never stacks a second
+ *   concurrent run onto the same forks.
+ * - **Non-fatal:** a transient RPC failure is reported via `onError` and dropped;
+ *   the next tick retries. (`dumpSandboxState` itself already skips forks with an
+ *   unsettled `pendingStateLoad`, so this never clobbers an unloaded world.)
+ * - **Unref'd:** the timer never by itself keeps the process alive.
+ *
+ * Returns a function that stops the timer.
+ */
+export function startPeriodicStateDump(
+  sandboxDir: string,
+  opts: { intervalMs?: number; onError?: (err: unknown) => void } = {},
+): () => void {
+  const intervalMs = opts.intervalMs ?? PERIODIC_STATE_DUMP_INTERVAL_MS;
+  let inFlight = false;
+  const tick = async () => {
+    if (inFlight) return;
+    inFlight = true;
+    try {
+      await dumpSandboxState(sandboxDir);
+    } catch (err) {
+      opts.onError?.(err);
+    } finally {
+      inFlight = false;
+    }
+  };
+  const timer = setInterval(tick, intervalMs);
+  if (typeof timer.unref === "function") timer.unref();
+  return () => clearInterval(timer);
+}
+
 export type ResumeSandboxForksResult = {
   /** Chain ids brought back up (loading their dumped state where one existed). */
   resumed: number[];

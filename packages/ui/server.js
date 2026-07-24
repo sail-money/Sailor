@@ -8,7 +8,7 @@ import express from 'express'
 import { WebSocket, WebSocketServer } from 'ws'
 import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, chains, defaultRpcUrls, getNativeCurrencySymbol, getSailDeployment, readPermissionRegistrationFee } from '@sail/sdk'
 import * as accountStore from '@sail/sdk/accounts'
-import { MAX_SANDBOX_CHAINS, SANDBOX_CHAINS_CEILING, TooManySandboxChainsError, activateSandboxBackup, clampSandboxChainCap, dumpSandboxState, enforceSandboxChainCap, fundErc20, fundNative, isPidAlive, listSandboxBackups, refreshSandboxForks, resetSandbox, resetSandboxProject, restartSandboxFork, resumeSandboxForks, sandboxDirFor, startSandboxForks, stopSandboxFork, usdcAddressFor } from '@sail/sandbox'
+import { MAX_SANDBOX_CHAINS, SANDBOX_CHAINS_CEILING, TooManySandboxChainsError, activateSandboxBackup, clampSandboxChainCap, dumpSandboxState, enforceSandboxChainCap, fundErc20, fundNative, isPidAlive, listSandboxBackups, refreshSandboxForks, resetSandbox, resetSandboxProject, restartSandboxFork, resumeSandboxForks, sandboxDirFor, startPeriodicStateDump, startSandboxForks, stopSandboxFork, usdcAddressFor } from '@sail/sandbox'
 import { createPublicClient, createWalletClient, defineChain, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
 
@@ -2397,6 +2397,42 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
   const httpServer = app.listen(port, bindHost, () => {
     console.log(`Sailor UI running at http://localhost:${port} (reading ${sailDir})`)
   })
+
+  // Crash-durable session persistence (sandbox mode only). `stopFork` dumps each
+  // fork's chain state only on a *graceful* stop, so an ungraceful death — an
+  // anvil panic (flaky fork upstream), a `kill -9`, a host reboot — would lose
+  // every mandate/deploy/balance created since the session came up. This server
+  // is the one long-lived process that owns the (detached) forks, so it drives a
+  // periodic `dumpSandboxState` for its whole lifetime. Cleared on shutdown; the
+  // graceful `sailor sandbox stop` path dumps separately.
+  if (mode === 'sandbox') {
+    const stopPeriodicDump = startPeriodicStateDump(sailDir, {
+      onError: (err) => console.warn(`sandbox periodic state dump failed (will retry): ${err?.message || err}`),
+    })
+    const stopDump = () => { try { stopPeriodicDump() } catch { /* already stopped */ } }
+    httpServer.on('close', stopDump)
+    // Attaching a SIGTERM/SIGINT listener suppresses Node's default
+    // terminate-on-signal, so these handlers must exit the process themselves —
+    // otherwise `sailor sandbox stop` (which SIGTERMs this pid) and Ctrl+C would
+    // leave the server bound to its port with the forks still live. We force
+    // `process.exit` rather than waiting on `httpServer.close()` to drain: a
+    // connected dashboard/signer holds a WebSocket open, and `close()` blocks
+    // until every such connection ends — which would hang `sailor sandbox stop`
+    // for as long as a browser tab is open. Flush one last state dump first
+    // (this is the graceful path, so nothing since the last tick is lost), but
+    // bound it so a wedged RPC can never block the exit.
+    let shuttingDown = false
+    const shutdown = async () => {
+      if (shuttingDown) return
+      shuttingDown = true
+      stopDump()
+      const flush = dumpSandboxState(sailDir).catch(() => {})
+      await Promise.race([flush, new Promise((r) => setTimeout(r, 3000))])
+      process.exit(0)
+    }
+    process.once('SIGTERM', shutdown)
+    process.once('SIGINT', shutdown)
+  }
 
   // ── Signing-server WebSocket proxy ────────────────────────────────────────
   // The signing page (#/signer, `#/station` kept as a v1.2.0-compatible alias)
