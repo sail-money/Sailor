@@ -12,13 +12,14 @@ import { capabilities } from "./commands/capabilities.js";
 import { type ChainsOptions, chainsCommand } from "./commands/chains.js";
 import { doctor } from "./commands/doctor.js";
 import { initCommand } from "./commands/init.js";
-import { updateCommand } from "./commands/update.js";
 import { type KeysGenerateOptions, keysExportCi, keysGenerate, keysShow } from "./commands/keys.js";
+import { type ConfigureOptions, mandateConfigure } from "./commands/mandate-configure.js";
 import {
   type DeployCloneOptions,
   type DeployOptions,
   type RegisterOptions,
   type RevokeOptions,
+  type UpdateOptions,
   mandateContractsList,
   mandateDeploy,
   mandateDeployClone,
@@ -26,14 +27,12 @@ import {
   mandateRevoke,
   mandateTemplates,
   mandateUpdate,
-  type UpdateOptions,
 } from "./commands/mandate-contracts.js";
-import { mandatePrepare, mandateSign } from "./commands/mandate.js";
-import { type ConfigureOptions, mandateConfigure } from "./commands/mandate-configure.js";
 import { type SimulateOptions, mandateSimulate } from "./commands/mandate-simulate.js";
+import { mandatePrepare, mandateSign, mandateSync } from "./commands/mandate.js";
 import { type OnboardOptions, onboard } from "./commands/onboard.js";
-import { type RotateSignerOptions, rotateSigner } from "./commands/rotate-signer.js";
 import { ownerConnect, ownerShow } from "./commands/owner.js";
+import { type RotateSignerOptions, rotateSigner } from "./commands/rotate-signer.js";
 import { runCommand } from "./commands/run.js";
 import { scan } from "./commands/scan.js";
 import {
@@ -46,11 +45,12 @@ import {
   serviceStop,
   serviceUninstall,
 } from "./commands/service.js";
-import { type TriggerGithubOptions, triggerGithub } from "./commands/trigger.js";
 import { sessionPause, sessionResume } from "./commands/session.js";
 import { signerStart, signerStatus, signerStop } from "./commands/signer.js";
 import { status } from "./commands/status.js";
+import { type TriggerGithubOptions, triggerGithub } from "./commands/trigger.js";
 import { type UiOptions, uiCommand, uiStatus, uiStop } from "./commands/ui.js";
+import { updateCommand } from "./commands/update.js";
 import { closePrompts } from "./lib/io.js";
 import { packageRoot } from "./lib/packagePaths.js";
 
@@ -110,7 +110,10 @@ program
   .option("--template <name>", "Template to scaffold from (default: default)")
   .option("--chain <id>", "Default EVM chain id written to .sail/config.json and .env.example")
   .option("--rpc-url <url>", "Default RPC_URL written to .sail/.env.local")
-  .option("--force", "Re-initialize even if already initialized (overwrites scaffold files; keys/ and state/ are preserved)")
+  .option(
+    "--force",
+    "Re-initialize even if already initialized (overwrites scaffold files; keys/ and state/ are preserved)",
+  )
   .action(
     async (
       name: string | undefined,
@@ -127,7 +130,9 @@ program
 
 program
   .command("update")
-  .description("Re-sync agent tooling files (skills, AGENTS.md, Dockerfile) from the latest template")
+  .description(
+    "Re-sync agent tooling files (skills, AGENTS.md, Dockerfile) from the latest template",
+  )
   .action(action(updateCommand));
 
 const ui = program.command("ui").description("Manage the local Sailor dashboard");
@@ -148,15 +153,16 @@ keys
   .command("generate")
   .description("Generate and encrypt an agent wallet or mandate signer key")
   .option("--type <role>", "Key role: agent-wallet (manager) or mandate-signer (non-interactive)")
-  .option("--passphrase <value>", "Encryption passphrase (else SAIL_PASSPHRASE, else stdin, else prompt)")
+  .option(
+    "--passphrase <value>",
+    "Encryption passphrase (else SAIL_PASSPHRASE, else stdin, else prompt)",
+  )
   .option("--force", "Overwrite an existing key without prompting")
   .action(actionWith<KeysGenerateOptions>(keysGenerate));
 keys.command("show").description("Show the address of each stored key").action(action(keysShow));
 keys
   .command("export-ci")
-  .description(
-    "Copy the encrypted agent wallet keystore to ci-keystore.json for committing to CI",
-  )
+  .description("Copy the encrypted agent wallet keystore to ci-keystore.json for committing to CI")
   .action(action(keysExportCi));
 
 const account = program.command("account").description("Manage the Sail SMA");
@@ -176,7 +182,9 @@ account
   .action(actionWith<PredictOptions>(accountPredict));
 account
   .command("deploy-chain")
-  .description("Deploy the same SMA address on an additional chain using the same owner, manager, and salt")
+  .description(
+    "Deploy the same SMA address on an additional chain using the same owner, manager, and salt",
+  )
   .requiredOption("--chain <id>", "Target EVM chain ID (e.g. 8453, 42161, 130, 1)")
   .option("--salt <n>", "CREATE2 salt (defaults to saltNonce stored in .sail/account.json)")
   .option("--json", "Emit machine-readable JSON")
@@ -204,14 +212,27 @@ mandate
   .option("--yes", "Skip the confirmation prompt (for non-interactive / CI use)")
   .action(actionWith<{ yes?: boolean }>(mandateSign));
 mandate
+  .command("sync")
+  .description(
+    "Reconcile the local mandate cache with on-chain permissions (kernel is source of truth)",
+  )
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<{ json?: boolean }>(mandateSync));
+mandate
   .command("deploy")
   .description("Deploy a Foundry-compiled permission contract via the browser signing UI")
   .option("--artifact <path>", "Path to the Foundry artifact JSON (contracts/out/<Name>.sol/<Name>.json)")
   .option("--contract <name>", "Contract name; resolves to <out>/<name>.sol/<name>.json")
   .option("--out <dir>", "Foundry output directory — the contracts/ workspace's out/", "contracts/out")
   .option("--name <label>", "Label to track this permission under (defaults to contract name)")
-  .option("--args <json>", 'Constructor args as JSON array. Bash: \'["0x..","1"]\'. PowerShell: \'[\\"0x..\\",\\"1\\"]\'. Use --args-file to avoid quoting.')
-  .option("--args-file <path>", "Path to a JSON file containing constructor args array (recommended on PowerShell)")
+  .option(
+    "--args <json>",
+    'Constructor args as JSON array. Bash: \'["0x..","1"]\'. PowerShell: \'[\\"0x..\\",\\"1\\"]\'. Use --args-file to avoid quoting.',
+  )
+  .option(
+    "--args-file <path>",
+    "Path to a JSON file containing constructor args array (recommended on PowerShell)",
+  )
   .option("--build", "Run `forge build` before deploying")
   .addOption(new Option("--register", "After deploy, register the permission on --sma"))
   .addOption(new Option("--attach").hideHelp()) // hidden back-compat alias for --register
@@ -252,11 +273,17 @@ mandate
       "(configureDirect; owner tx via the signing page). Pairs with `mandate register`, " +
       "which only registers — a registered-but-unconfigured singleton denies every call.",
   )
-  .requiredOption("--address <singleton>", "Shared permission singleton address (deployed on this chain)")
+  .requiredOption(
+    "--address <singleton>",
+    "Shared permission singleton address (deployed on this chain)",
+  )
   .requiredOption("--sma <address>", "SMA to configure the singleton for")
   .option("--params <hex>", "Pre-encoded config blob (0x-prefixed hex)")
   .option("--args-file <path>", "JSON file of typed params (paired with --template)")
-  .option("--template <name>", "Template name (e.g. SwapPermission) — resolves the encoder for --args-file")
+  .option(
+    "--template <name>",
+    "Template name (e.g. SwapPermission) — resolves the encoder for --args-file",
+  )
   .option("--label <label>", "Human-readable label shown in the signing UI")
   .option("--simulate-only", "Stop after the off-chain pre-flight (no signing, no gas)")
   .option("--force", "Re-configure even if isConfigured is already true")
@@ -264,7 +291,9 @@ mandate
   .action(actionWith<ConfigureOptions>(mandateConfigure));
 mandate
   .command("deploy-clone")
-  .description("[currently unavailable — no clone templates deployed on any chain; use `mandate deploy`] Deploy + register a standalone clone permission via the signing UI")
+  .description(
+    "[currently unavailable — no clone templates deployed on any chain; use `mandate deploy`] Deploy + register a standalone clone permission via the signing UI",
+  )
   .requiredOption("--template <key>", "Standalone clone template key (e.g. boundedApprove)")
   .requiredOption("--sma <address>", "SMA to deploy the clone for and register it on")
   .option("--tokens <csv>", "Comma-separated allowed token addresses")
@@ -283,7 +312,9 @@ mandate
   .action(actionWith<RevokeOptions>(mandateRevoke));
 mandate
   .command("templates")
-  .description("Show how to author your own permission contract (and any community-deployed addresses)")
+  .description(
+    "Show how to author your own permission contract (and any community-deployed addresses)",
+  )
   .option("--json", "Emit machine-readable JSON")
   .action(actionWith<{ json?: boolean }>(mandateTemplates));
 mandate
@@ -297,14 +328,19 @@ mandate
   .option("--target <address>", "Inline single call: target contract address")
   .option("--calldata <hex>", "Inline single call: 0x-prefixed calldata")
   .option("--value <wei>", "Inline single call: ETH value in wei (default 0)")
-  .option("--expect <pass|fail>", "Inline single call: expected outcome (sets non-zero exit on mismatch)")
+  .option(
+    "--expect <pass|fail>",
+    "Inline single call: expected outcome (sets non-zero exit on mismatch)",
+  )
   .option("--label <text>", "Inline single call: human-readable label")
   .option("--calls <file>", "Batch: JSON array of { target, calldata, value?, expect?, label? }")
   .option("--json", "Emit machine-readable JSON")
   .action(actionWith<SimulateOptions>(mandateSimulate));
 mandate
   .command("update")
-  .description("Update metadata for a tracked permission contract (rename, source path, artifact path)")
+  .description(
+    "Update metadata for a tracked permission contract (rename, source path, artifact path)",
+  )
   .requiredOption("--address <mandateOrName>", "Permission address or tracked name to update")
   .option("--name <label>", "New tracking label (must be unique within the same chain)")
   .option("--source-path <path>", "Update the relative path to the Solidity source file")
@@ -322,8 +358,14 @@ program
   .description("Set up an SMA, register a permission, confirm the agent is operational")
   .option("--sma <address>", "Use a specific SMA address instead of prompting")
   .option("--new-sma", "Create a new SMA via SailKernel")
-  .option("--salt <n>", "CREATE2 salt for deterministic Safe address (default: 0; use 0 for first SMA, increment for subsequent)")
-  .option("--template <kindOrAddress>", "Register this permission contract (kind, label, or address)")
+  .option(
+    "--salt <n>",
+    "CREATE2 salt for deterministic Safe address (default: 0; use 0 for first SMA, increment for subsequent)",
+  )
+  .option(
+    "--template <kindOrAddress>",
+    "Register this permission contract (kind, label, or address)",
+  )
   .option("--skip-mandate", "Skip the permission registration step")
   .option("--json", "Emit machine-readable JSON (implies non-interactive)")
   .action(actionWith<OnboardOptions>(onboard));

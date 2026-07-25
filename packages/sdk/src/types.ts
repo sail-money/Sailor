@@ -506,6 +506,16 @@ export type Agent = {
 export type ChainConfig = {
   chainId: number;
   name: string;
+  /** Canonical lowercase slug, the stable join key for name-based lookups (e.g. "base", "bsc"). */
+  slug: string;
+  /** Branded, user-facing label where it differs from `name` (e.g. "BNB Smart Chain"). Falls back to `name`. */
+  displayName?: string;
+  /** Block explorer for this chain — name + base URL (no trailing slash), e.g. { name: "Basescan", url: "https://basescan.org" }. */
+  blockExplorer?: { name: string; url: string };
+  /** Safe app deep-link chain prefix (Safe's shortName), e.g. "eth", "arb1", "base". */
+  safePrefix?: string;
+  /** True for testnets. Consumers filter these out of mainnet-only pickers. */
+  testnet?: boolean;
   /** Environment variable name used to supply an RPC URL for this chain (e.g. BASE_RPC_URL). */
   rpcEnvVar: string;
   /**

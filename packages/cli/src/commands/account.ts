@@ -32,7 +32,7 @@ import { type StoredAccount, upsertAccountInList } from "../lib/state.js";
 import { createSigningChannel, signingPageUrl } from "../signing/client.js";
 
 /** Supported mainnet chains for multi-chain SMA operations. */
-const SAIL_MAINNET_CHAINS: SailChainId[] = [1, 8453, 42161, 10, 130, 56, 480, 999, 4326];
+const SAIL_MAINNET_CHAINS: SailChainId[] = [1, 8453, 42161, 10, 130, 56, 480, 999, 4326, 4663];
 
 /**
  * Fetch proxyCreationCode from SafeProxyFactory once (same on all chains).

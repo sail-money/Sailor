@@ -1,26 +1,18 @@
 import { useEffect, useState } from 'react'
 import styles from './ProfileModal.module.css'
 import ChainGlyph from '../shared/ChainGlyph'
+import { chainDisplayName, chainSafePrefix, slugToChainId } from '../../lib/chains'
 
 function truncate(addr) {
   if (!addr || addr.length < 12) return addr ?? ''
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`
 }
 
-/* Map a network id to Safe's app.safe.global chain prefix. Safe uses
-   short chain codes in its deep links (arb1 for arbitrumOne, oeth for
-   optimism, etc.). Unknown chains fall back to Ethereum mainnet. */
-const SAFE_CHAIN_PREFIX = {
-  ethereum: 'eth',
-  arbitrum: 'arb1',
-  base:     'base',
-  unichain: 'unichain',
-  optimism: 'oeth',
-  polygon:  'matic',
-}
+// Safe app deep-link; the chain's Safe prefix comes from the SDK registry
+// (chainSafePrefix), defaulting to Ethereum mainnet for unknown chains.
 function safeAppUrl(network, address) {
-  const prefix = SAFE_CHAIN_PREFIX[network] ?? 'eth'
-  return `https://app.safe.global/home?safe=${prefix}:${address}`
+  const id = typeof network === 'number' ? network : slugToChainId(network)
+  return `https://app.safe.global/home?safe=${chainSafePrefix(id)}:${address}`
 }
 
 function ArrowOutIcon() {
@@ -43,10 +35,6 @@ function ArrowOutIcon() {
  * Network chip has been removed — chain context belongs on each
  * individual SMA row, not on the EOA itself.
  */
-const CHAIN_NAMES = {
-  1: 'Ethereum', 10: 'Optimism', 137: 'Polygon', 8453: 'Base', 42161: 'Arbitrum',
-  130: 'Unichain', 56: 'BNB', 480: 'World', 999: 'HyperEVM', 4326: 'MegaETH',
-}
 
 export default function ProfileModal({
   open,
@@ -268,7 +256,7 @@ export default function ProfileModal({
                           <>
                             <ChainGlyph chainId={sma.networkIds[0]} size={12} />
                             <span className={styles.smaNetName}>
-                              {CHAIN_NAMES[sma.networkIds[0]] ?? capitalize(sma.network)}
+                              {sma.networkIds?.[0] != null ? chainDisplayName(sma.networkIds[0]) : capitalize(sma.network)}
                             </span>
                           </>
                         ) : sma.networks && sma.networks.length > 1 ? (

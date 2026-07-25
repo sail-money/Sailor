@@ -357,7 +357,7 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
   // ── Multi-chain SMA addresses (shown when saltNonce is stored) ───────────────
   if (stored?.saltNonce != null) {
     const saltNonce = BigInt(stored.saltNonce);
-    const MAINNET_CHAINS: SailChainId[] = [1, 8453, 42161, 10, 130, 56, 480, 999, 4326];
+    const MAINNET_CHAINS: SailChainId[] = [1, 8453, 42161, 10, 130, 56, 480, 999, 4326, 4663];
     try {
       const proxyCreationCode = (await pc.readContract({
         address: SAFE_V141.proxyFactory as Address,
