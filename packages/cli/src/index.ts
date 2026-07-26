@@ -34,6 +34,17 @@ import { type OnboardOptions, onboard } from "./commands/onboard.js";
 import { ownerConnect, ownerShow } from "./commands/owner.js";
 import { type RotateSignerOptions, rotateSigner } from "./commands/rotate-signer.js";
 import { runCommand } from "./commands/run.js";
+import {
+  strategyAddStep,
+  strategyCreate,
+  strategyDelete,
+  strategyEnvSet,
+  strategyEnvShow,
+  strategyList,
+  strategyNewExecutable,
+  strategyRemoveStep,
+  strategySetActive,
+} from "./commands/strategy.js";
 import { scan } from "./commands/scan.js";
 import {
   type ServiceInstallOptions,
@@ -93,6 +104,20 @@ function actionWith<T>(fn: (opts: T) => Promise<void> | void): (opts: T) => Prom
   return async (opts: T) => {
     try {
       await fn(opts);
+    } catch (err) {
+      console.error(`Error: ${(err as Error).message}`);
+      closePrompts();
+      process.exit(1);
+    }
+    closePrompts();
+  };
+}
+
+/** Like {@link action} but for handlers that take positional args (commander passes them through). */
+function actArgs<A extends unknown[]>(fn: (...args: A) => Promise<void> | void): (...args: A) => Promise<void> {
+  return async (...args: A) => {
+    try {
+      await fn(...args);
     } catch (err) {
       console.error(`Error: ${(err as Error).message}`);
       closePrompts();
@@ -423,20 +448,23 @@ program
   .command("run")
   .description("Run the agent execution loop (use --once for a single tick)")
   .option("--once", "Run a single tick then exit")
-  .option("--chain <chainId>", "Chain ID to run on (overrides CHAIN_ID env and .env.local)")
+  .option(
+    "--strategy <name>",
+    "Run only this strategy (default: all active strategies). The chain comes from the strategy.",
+  )
   .option(
     "--reason <text>",
     "Label why this run fired (observability only; also read from SAIL_RUN_REASON)",
   )
   .option(
     "--sma <address>",
-    "SMA the agent runs against — persists it as the executable SMA; defaults to the current one, else the selected SMA",
+    "SMA to seed the Default strategy from when none are configured (persists it as the executable SMA)",
   )
-  .action(async (opts: { once?: boolean; chain?: string; reason?: string; sma?: string }) => {
+  .action(async (opts: { once?: boolean; strategy?: string; reason?: string; sma?: string }) => {
     try {
       await runCommand({
         once: opts.once,
-        chain: opts.chain ? Number(opts.chain) : undefined,
+        strategy: opts.strategy,
         reason: opts.reason,
         sma: opts.sma,
       });
@@ -447,6 +475,56 @@ program
     }
     closePrompts();
   });
+
+const strategy = program
+  .command("strategy")
+  .description("Configure execution strategies (which executables run on which SMAs and chains)");
+strategy
+  .command("list")
+  .description("List strategies, their pipeline type, and steps")
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<{ json?: boolean }>(strategyList));
+strategy
+  .command("create <name>")
+  .description("Create a new (inactive) strategy")
+  .action(actArgs(strategyCreate));
+strategy
+  .command("activate <name>")
+  .description("Mark a strategy active (runs on the default `sailor run`)")
+  .action(actArgs((name: string) => strategySetActive(name, true)));
+strategy
+  .command("deactivate <name>")
+  .description("Mark a strategy inactive")
+  .action(actArgs((name: string) => strategySetActive(name, false)));
+strategy
+  .command("add-step <strategy>")
+  .description("Append an executable step (executable + SMA + chains) to a strategy")
+  .requiredOption("--executable <name>", "Executable name → src/strategy/<name>.ts")
+  .option("--sma <address>", "SMA to run against (defaults to the executable account)")
+  .option("--chains <ids>", "Comma-separated chain ids or slugs (defaults to the SMA's first deployed chain)")
+  .option("--pipeline <type>", "Set the strategy's pipeline type: parallel | sequential")
+  .action(actArgs(strategyAddStep));
+strategy
+  .command("remove-step <strategy> <index>")
+  .description("Remove the step at <index> (0-based) from a strategy")
+  .action(actArgs(strategyRemoveStep));
+strategy
+  .command("delete <name>")
+  .description("Delete a strategy")
+  .action(actArgs(strategyDelete));
+strategy
+  .command("new-executable <name>")
+  .description("Scaffold a new executable at src/strategy/<name>.ts (camelCase name)")
+  .action(actArgs(strategyNewExecutable));
+const strategyEnv = strategy.command("env").description("Manage per-chain env values (.sail/env/<slug>.json)");
+strategyEnv
+  .command("show <chain>")
+  .description("Show env values for a chain (id or slug)")
+  .action(actArgs(strategyEnvShow));
+strategyEnv
+  .command("set <chain> [assignments...]")
+  .description("Set env values for a chain: KEY=VALUE [KEY=VALUE ...]")
+  .action(actArgs(strategyEnvSet));
 
 const trigger = program
   .command("trigger")

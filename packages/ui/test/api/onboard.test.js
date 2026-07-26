@@ -130,6 +130,27 @@ describe('POST /api/onboard/complete', () => {
     expect(state.body.hasAccount).toBe(true)
   })
 
+  it('seeds the Default strategy for the created SMA (so the next sailor run uses it)', async () => {
+    const safe = '0x8E637d9573Ad81B60cb93edA78b9C827860950a4'
+    const res = await fix.api.post('/api/onboard/complete').send({
+      safe,
+      owner: '0x7f8c6DB60b46F7eCBA131b882fBea1Fed4F5f4F5',
+      manager: '0xa6D478146f03E9473582aCe099c67e3CbB5EC2BE',
+      chainId: 8453,
+    })
+    expect(res.status).toBe(200)
+
+    const file = path.join(fix.sailDir, 'strategies', 'strategies.json')
+    expect(fs.existsSync(file)).toBe(true)
+    const doc = JSON.parse(fs.readFileSync(file, 'utf-8'))
+    expect(doc.strategies).toHaveLength(1)
+    const s = doc.strategies[0]
+    expect(s.name).toBe('Default')
+    expect(s.active).toBe(true)
+    expect(s.pipeline.type).toBe('sequential')
+    expect(s.pipeline.steps).toEqual([{ executable: 'agent', sma: safe, chains: [8453] }])
+  })
+
   it('rejects invalid safe address', async () => {
     const res = await fix.api.post('/api/onboard/complete').send({
       safe: 'bad',

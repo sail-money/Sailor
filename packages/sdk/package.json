@@ -23,6 +23,10 @@
       "import": "./dist/accounts.js",
       "types": "./dist/accounts.d.ts"
     },
+    "./strategies": {
+      "import": "./dist/strategies.js",
+      "types": "./dist/strategies.d.ts"
+    },
     "./eip712": {
       "import": "./dist/eip712.js",
       "types": "./dist/eip712.d.ts"

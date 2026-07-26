@@ -475,6 +475,12 @@ export type AgentContext = {
    * Defaults to an empty object.
    */
   data: Record<string, unknown>;
+  /**
+   * Per-chain environment values for this tick, loaded from `.sail/env/<chain-slug>.json`.
+   * Lets one executable read chain-specific addresses/config (e.g. `ctx.env.MORPHO_TOKEN_ADDR`)
+   * while the same strategy runs on multiple chains. Empty object when no env file exists.
+   */
+  env: Record<string, string>;
   /** Helpers for reading the SMA's on-chain state. */
   read: {
     /**

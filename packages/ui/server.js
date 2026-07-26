@@ -6,6 +6,7 @@ import express from 'express'
 import { WebSocket, WebSocketServer } from 'ws'
 import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, chains, defaultRpcUrls, getNativeCurrencySymbol, getSailDeployment, readPermissionRegistrationFee } from '@sail/sdk'
 import * as accountStore from '@sail/sdk/accounts'
+import { ensureDefaultStrategy } from '@sail/sdk/strategies'
 import { createPublicClient, createWalletClient, defineChain, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
 
@@ -313,7 +314,13 @@ export function startServer(sailDir, { port = PORT } = {}) {
   // sailDir so the handlers below read as before.
   const readActiveAccount = () => accountStore.readActiveAccount(sailDir)
   const listAccounts = () => accountStore.listAccounts(sailDir)
-  const upsertActiveAccount = (fields) => accountStore.persistAccount(fields, sailDir)
+  const upsertActiveAccount = (fields) => {
+    const record = accountStore.persistAccount(fields, sailDir)
+    // Seed the Default strategy on SMA creation (any onboarding path funnels through here), so the
+    // next `sailor run` uses it. Idempotent — no-op once any strategy exists.
+    try { ensureDefaultStrategy(record, sailDir) } catch {}
+    return record
+  }
 
   // ── Per-SMA-per-chain overview cache ────────────────────────────────────
   // Keyed by `${safe}-${chainId}` so multi-chain SMAs get independent snapshots.
