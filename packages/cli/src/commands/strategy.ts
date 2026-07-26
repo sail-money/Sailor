@@ -4,6 +4,7 @@ import { chainBySlug, getChain } from "@sail/sdk/chains";
 import { readExecutableAccount } from "@sail/sdk/accounts";
 import {
   addStep,
+  createStrategyExecutable,
   createStrategy,
   deleteStrategy,
   deployedChainsForSma,
@@ -112,14 +113,7 @@ export async function strategyDelete(name: string): Promise<void> {
 
 /** `sailor strategy new-executable <name>` — scaffold src/strategy/<name>.ts from a template. */
 export async function strategyNewExecutable(name: string): Promise<void> {
-  if (!isValidExecutableName(name)) {
-    throw new Error(`Invalid executable name "${name}" — use camelCase letters/digits (e.g. checkData).`);
-  }
-  const dir = path.join(process.cwd(), "src", "strategy");
-  const file = path.join(dir, `${name}.ts`);
-  if (fs.existsSync(file)) throw new Error(`Executable "${name}" already exists at src/strategy/${name}.ts.`);
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(file, executableTemplate(name));
+  createStrategyExecutable(name);
   console.log(`Created src/strategy/${name}.ts. Configure it, then add it to a strategy with \`sailor strategy add-step\`.`);
 }
 
@@ -152,31 +146,4 @@ export async function strategyEnvSet(chainArg: string, assignments: string[]): P
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, `${JSON.stringify(current, null, 2)}\n`);
   console.log(`Updated .sail/env/${slug}.json (${Object.keys(current).length} keys).`);
-}
-
-function executableTemplate(name: string): string {
-  return `import type { Agent, AgentContext, Dispatch } from "@sail.money/sailor/sdk";
-
-/**
- * Executable "${name}" — one runnable step in a strategy pipeline.
- *
- * The runner calls tick() each interval for every (SMA, chain) this executable is bound to.
- * Return an array of Dispatch intents; return [] to skip. Per-chain env values configured in
- * .sail/env/<chain>.json are available on ctx.env (e.g. ctx.env.MORPHO_TOKEN_ADDR).
- */
-export const agent: Agent = {
-  name: "${name}",
-  description: "Describe what ${name} does.",
-
-  async tick(ctx: AgentContext): Promise<Dispatch[]> {
-    ctx.log(\`${name} tick — chain \${ctx.chainId}, sma \${ctx.safe}\`);
-
-    // TODO: implement. Read on-chain state, decide, return intent dispatches.
-    // const token = ctx.env.MORPHO_TOKEN_ADDR;
-    // const balance = await ctx.read.balance(token as \`0x\${string}\`);
-
-    return [];
-  },
-};
-`;
 }

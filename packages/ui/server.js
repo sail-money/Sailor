@@ -7,25 +7,6 @@ import { WebSocket, WebSocketServer } from 'ws'
 import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, chains, defaultRpcUrls, getNativeCurrencySymbol, getSailDeployment, readPermissionRegistrationFee } from '@sail/sdk'
 import * as accountStore from '@sail/sdk/accounts'
 import * as strategyStore from '@sail/sdk/strategies'
-
-/** Scaffold body for a new src/strategy/<name>.ts executable (mirrors the CLI template). */
-function executableScaffold(name) {
-  return [
-    'import type { Agent, AgentContext, Dispatch } from "@sail.money/sailor/sdk";',
-    '',
-    'export const agent: Agent = {',
-    `  name: "${name}",`,
-    `  description: "Describe what ${name} does.",`,
-    '',
-    '  async tick(ctx: AgentContext): Promise<Dispatch[]> {',
-    `    ctx.log(\`${name} tick — chain \${ctx.chainId}, sma \${ctx.safe}\`);`,
-    '    // Per-chain env is available on ctx.env (e.g. ctx.env.MORPHO_TOKEN_ADDR).',
-    '    return [];',
-    '  },',
-    '};',
-    '',
-  ].join('\n')
-}
 import { createPublicClient, createWalletClient, defineChain, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
 
@@ -617,7 +598,6 @@ export function startServer(sailDir, { port = PORT } = {}) {
   })
 
   // ── Strategies: execution pipelines (which executables run on which SMAs/chains) ──
-  const EXEC_NAME = /^[a-z][a-zA-Z0-9]*$/
   const projectRoot = path.dirname(sailDir) // holds src/strategy/<name>.ts
 
   app.get('/api/strategies', (req, res) => {
@@ -732,15 +712,19 @@ export function startServer(sailDir, { port = PORT } = {}) {
   // POST /api/executables { name } — scaffold a new src/strategy/<name>.ts.
   app.post('/api/executables', (req, res) => {
     const name = String(req.body?.name ?? '').trim()
-    if (!EXEC_NAME.test(name)) { res.status(400).json({ error: 'name must be camelCase letters/digits (e.g. checkData)' }); return }
-    const dir = path.join(projectRoot, 'src', 'strategy')
-    const file = path.join(dir, `${name}.ts`)
-    if (fs.existsSync(file)) { res.status(409).json({ error: `executable "${name}" already exists` }); return }
     try {
-      fs.mkdirSync(dir, { recursive: true })
-      fs.writeFileSync(file, executableScaffold(name))
+      strategyStore.createStrategyExecutable(name, projectRoot)
       res.json({ ok: true, name })
-    } catch (err) { serverError(res, err) }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      if (/Invalid executable name/i.test(message)) {
+        res.status(400).json({ error: 'name must be camelCase letters/digits (e.g. checkData)' }); return
+      }
+      if (/already exists/i.test(message)) {
+        res.status(409).json({ error: `executable "${name}" already exists` }); return
+      }
+      serverError(res, err)
+    }
   })
 
   // The active SMA's address, or null before one exists.

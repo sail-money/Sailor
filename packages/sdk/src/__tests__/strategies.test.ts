@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { persistAccount } from "../accounts.js";
 import {
   addStep,
+  createStrategyExecutable,
   createStrategy,
   deleteStrategy,
   ensureDefaultStrategy,
@@ -14,6 +15,7 @@ import {
   listStrategies,
   readActiveStrategies,
   readChainEnv,
+  renderExecutableTemplate,
   setStrategyActive,
 } from "../strategies.js";
 
@@ -48,6 +50,15 @@ test("isValidExecutableName: camelCase only", () => {
   assert.ok(!isValidExecutableName("Check"));
   assert.ok(!isValidExecutableName("1check"));
   assert.ok(!isValidExecutableName("with-dash"));
+});
+
+test("createStrategyExecutable: scaffolds the shared executable template and rejects duplicates", () => {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sail-project-"));
+  const file = createStrategyExecutable("checkData", projectRoot);
+  assert.equal(file, path.join(projectRoot, "src", "strategy", "checkData.ts"));
+  assert.equal(fs.readFileSync(file, "utf-8"), renderExecutableTemplate("checkData"));
+  assert.throws(() => createStrategyExecutable("checkData", projectRoot), /already exists/i);
+  assert.throws(() => createStrategyExecutable("bad_name", projectRoot), /Invalid executable name/i);
 });
 
 test("ensureDefaultStrategy: no account → null", () => {

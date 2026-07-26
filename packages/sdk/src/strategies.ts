@@ -49,11 +49,59 @@ const strategiesPath = (sailDir: string): string =>
   path.join(sailDir, "strategies", "strategies.json");
 const envPath = (sailDir: string, slug: string): string =>
   path.join(sailDir, "env", `${slug}.json`);
+const executablePath = (projectRoot: string, name: string): string =>
+  path.join(projectRoot, "src", "strategy", `${name}.ts`);
 
 const EXECUTABLE_RE = /^[a-z][a-zA-Z0-9]*$/;
 /** Executable names must be camelCase with no separators (e.g. `agent`, `checkData`). */
 export function isValidExecutableName(name: string): boolean {
   return EXECUTABLE_RE.test(name);
+}
+
+/** Source body for a new `src/strategy/<name>.ts` executable. */
+export function renderExecutableTemplate(name: string): string {
+  if (!isValidExecutableName(name)) {
+    throw new Error(`Invalid executable name "${name}" - use camelCase letters/digits only (e.g. checkData).`);
+  }
+  return `import type { Agent, AgentContext, Dispatch } from "@sail.money/sailor/sdk";
+
+/**
+ * Executable "${name}" - one runnable step in a strategy pipeline.
+ *
+ * The runner calls tick() each interval for every (SMA, chain) this executable is bound to.
+ * Return an array of Dispatch intents; return [] to skip. Per-chain env values configured in
+ * .sail/env/<chain>.json are available on ctx.env (e.g. ctx.env.MORPHO_TOKEN_ADDR).
+ */
+export const agent: Agent = {
+  name: "${name}",
+  description: "Describe what ${name} does.",
+
+  async tick(ctx: AgentContext): Promise<Dispatch[]> {
+    ctx.log(\`${name} tick - chain \${ctx.chainId}, sma \${ctx.safe}\`);
+
+    // TODO: implement. Read on-chain state, decide, return intent dispatches.
+    // const token = ctx.env.MORPHO_TOKEN_ADDR;
+    // const balance = await ctx.read.balance(token as \`0x\${string}\`);
+
+    return [];
+  },
+};
+`;
+}
+
+/**
+ * Scaffold `src/strategy/<name>.ts` under a project root.
+ * Returns the absolute file path written. Throws on invalid names or collisions.
+ */
+export function createStrategyExecutable(name: string, projectRoot: string = process.cwd()): string {
+  if (!isValidExecutableName(name)) {
+    throw new Error(`Invalid executable name "${name}" - use camelCase letters/digits only (e.g. checkData).`);
+  }
+  const file = executablePath(projectRoot, name);
+  if (fs.existsSync(file)) throw new Error(`Executable "${name}" already exists at src/strategy/${name}.ts.`);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, renderExecutableTemplate(name));
+  return file;
 }
 
 function readJson<T>(file: string): T | null {
