@@ -36,6 +36,8 @@ export type Pipeline = {
 export type StoredStrategy = {
   /** Unique, non-empty display name (also the `--strategy` selector). */
   name: string;
+  /** Optional human description shown in the dashboard. */
+  description?: string;
   /** When true, the strategy runs on every tick of the default `sailor run`. */
   active: boolean;
   pipeline: Pipeline;
@@ -131,6 +133,21 @@ export function readChainEnv(chainId: number, sailDir: string = defaultSailDir()
   return out;
 }
 
+/**
+ * Replace `.sail/env/<slug>.json` with `values` (keys trimmed, non-empty; values coerced to string).
+ * Throws for an unknown chain. Returns the written map.
+ */
+export function writeChainEnv(chainId: number, values: Record<string, unknown>, sailDir: string = defaultSailDir()): Record<string, string> {
+  const slug = getChain(chainId).slug;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(values ?? {})) {
+    const key = String(k).trim();
+    if (key) out[key] = String(v ?? "");
+  }
+  writeJson(envPath(sailDir, slug), out);
+  return out;
+}
+
 // ── Validation ──────────────────────────────────────────────────────────────
 
 /**
@@ -177,6 +194,17 @@ export function createStrategy(name: string, sailDir: string = defaultSailDir())
   strategies.push(strategy);
   commit(strategies, sailDir);
   return strategy;
+}
+
+/** Set (or clear, with "") a strategy's description. Returns it, or null if unknown. */
+export function setStrategyDescription(name: string, description: string, sailDir: string = defaultSailDir()): StoredStrategy | null {
+  const strategies = load(sailDir);
+  const s = strategies.find((x) => eqName(x.name, name));
+  if (!s) return null;
+  if (description.trim()) s.description = description.trim();
+  else delete s.description;
+  commit(strategies, sailDir);
+  return s;
 }
 
 /** Toggle a strategy's active flag. Returns the updated strategy, or null if unknown. */
@@ -226,6 +254,17 @@ export function addStep(name: string, step: StrategyStep, sailDir: string = defa
   const s = strategies.find((x) => eqName(x.name, name));
   if (!s) throw new Error(`No strategy named "${name}".`);
   s.pipeline.steps.push(validateStep(step, sailDir));
+  commit(strategies, sailDir);
+  return s;
+}
+
+/** Replace the step at `index` (0-based) with a validated one. Preserves order. Throws on bad input. */
+export function updateStep(name: string, index: number, step: StrategyStep, sailDir: string = defaultSailDir()): StoredStrategy {
+  const strategies = load(sailDir);
+  const s = strategies.find((x) => eqName(x.name, name));
+  if (!s) throw new Error(`No strategy named "${name}".`);
+  if (index < 0 || index >= s.pipeline.steps.length) throw new Error(`No step at index ${index}.`);
+  s.pipeline.steps[index] = validateStep(step, sailDir);
   commit(strategies, sailDir);
   return s;
 }

@@ -28,6 +28,7 @@ import AddSignerModal from './AddSignerModal'
 import RotateSignerModal from './RotateSignerModal'
 import FundGasModal from './FundGasModal'
 import RpcSection from './RpcSection'
+import StrategiesSection from './StrategiesSection'
 import {
   useSailorAccount,
   useSailorAccounts,
@@ -1641,7 +1642,7 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
              sections, and claiming tab semantics without the full keyboard
              pattern (roving tabindex, aria-controls) misleads screen readers. */
           <nav className={styles.sidebarNav} aria-label="Dashboard sections">
-            {[['sma', 'Overview'], ['gas', 'Gas wallets'], ['mandates', 'Mandates'], ['activity', 'Activity'], ['rpc', 'RPCs']].map(([key, label]) => (
+            {[['sma', 'Overview'], ['gas', 'Gas wallets'], ['mandates', 'Mandates'], ['strategies', 'Strategies'], ['activity', 'Activity'], ['rpc', 'RPCs']].map(([key, label]) => (
               <button
                 key={key}
                 type="button"
@@ -2055,6 +2056,13 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
               )
             })()}
 
+            {/* ── Strategies / execution pipelines ─────────────────── */}
+            {dashTab === 'strategies' && (
+            <section className={agentStyles.card}>
+              <StrategiesSection />
+            </section>
+            )}
+
             {/* ── RPC / Network config ─────────────────────────────── */}
             {dashTab === 'rpc' && (
             <>
@@ -2079,13 +2087,13 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
             />
             <section className={agentStyles.card}>
               <header className={agentStyles.cardHead}>
-                <div className={styles.activityFilter} role="group" aria-label="Filter by actor">
+                <div className={styles.segTabs} role="group" aria-label="Filter by actor">
                   {ACTIVITY_FILTERS.map((f) => (
                     <button
                       key={f.key}
                       type="button"
                       aria-pressed={activityActorFilter === f.key}
-                      className={`${styles.activityFilterBtn} ${activityActorFilter === f.key ? styles.activityFilterBtnActive : ''}`}
+                      className={`${styles.segTabBtn} ${activityActorFilter === f.key ? styles.segTabBtnActive : ''}`}
                       onClick={() => setActivityActorFilter(f.key)}
                     >
                       {f.label}
