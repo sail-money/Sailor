@@ -9,6 +9,12 @@ The agent is live; this skill answers the operator's questions about it. Station
 
 **Gate:** a launched agent, or at minimum a registered mandate. Read-only state questions can also be answered by [`sailor-project-info`](../sailor-project-info/SKILL.md); this skill adds the operating actions (tune, pause, revoke, exit).
 
+## What the agent runs — execution strategies
+
+`sailor run` executes **execution strategies** (`.sail/strategies/strategies.json`), not a single hard-coded `src/agent.ts`. Each active strategy is a pipeline of steps, and every step binds an **executable** (`src/strategy/<name>.ts`) to an **SMA** and its **chains**. By default `run` executes every active strategy each tick; `sailor run --strategy <name>` runs just one (the lever for per-strategy schedules). A brand-new SMA auto-gets a **Default** strategy at onboarding, so zero-config `sailor run` behaves as before.
+
+Full model, JSON format, the `sailor strategy …` CLI, multichain/per-SMA setup, per-chain `ctx.env`, and running strategies at different cadences → **[references/execution-strategies.md](references/execution-strategies.md)**.
+
 ## "What is my agent doing?"
 
 Every tick appends to `.sail/activity.jsonl` — append-only JSON, one event per line, trivially tailable. Event types the runner writes:

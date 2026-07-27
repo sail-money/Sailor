@@ -487,6 +487,7 @@ strategy
 strategy
   .command("create <name>")
   .description("Create a new (inactive) strategy")
+  .option("--description <text>", "Human description shown in the dashboard")
   .action(actArgs(strategyCreate));
 strategy
   .command("activate <name>")

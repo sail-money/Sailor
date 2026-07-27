@@ -14,6 +14,7 @@ import {
   removeStep,
   setPipelineType,
   setStrategyActive,
+  setStrategyDescription,
 } from "@sail/sdk/strategies";
 import { checksum, sailPath } from "../lib/io.js";
 
@@ -51,9 +52,10 @@ export async function strategyList(opts: { json?: boolean }): Promise<void> {
   }
 }
 
-/** `sailor strategy create <name>` */
-export async function strategyCreate(name: string): Promise<void> {
+/** `sailor strategy create <name> [--description <text>]` */
+export async function strategyCreate(name: string, opts: { description?: string } = {}): Promise<void> {
   const s = createStrategy(name);
+  if (opts.description?.trim()) setStrategyDescription(s.name, opts.description);
   console.log(`Created strategy "${s.name}" (inactive). Add steps, then \`sailor strategy activate ${s.name}\`.`);
 }
 
