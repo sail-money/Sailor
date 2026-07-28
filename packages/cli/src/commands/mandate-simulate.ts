@@ -50,6 +50,7 @@ export interface SimulateOptions {
   label?: string;
   calls?: string;
   json?: boolean;
+  summary?: boolean;
 }
 
 /** A single sample call to probe, after parsing/validation. */
@@ -62,7 +63,7 @@ type SampleCall = {
 };
 
 /** Per-call probe outcome, ready for human or JSON rendering. */
-type CallResult = {
+export type CallResult = {
   index: number;
   label: string;
   target: Address;
@@ -88,6 +89,89 @@ type CallResult = {
   /** Human-readable reason when selectorRoutes is null. */
   selectorRoutesReason?: string;
 };
+
+/** Counts + the mismatching entries — everything `--summary` needs, nothing more. */
+export type ProbeSummary = {
+  /** Total probes run. */
+  total: number;
+  /** How many evaluate() returned true / false (independent of expectations). */
+  passed: number;
+  failed: number;
+  /** How many probes carried an `expect`, and how many of those matched. */
+  checked: number;
+  matched: number;
+  /** The full entries whose actual outcome contradicted `expect`. */
+  mismatches: CallResult[];
+};
+
+/**
+ * Reduce a probe run to counts plus the entries that actually need reading.
+ *
+ * `--json` alone returns one object per probe — several KB for a typical
+ * generated probe set, all of which the calling agent must read back just to
+ * confirm its own verification passed. `--summary` keeps the counts and the
+ * mismatches (the only entries whose detail changes what the agent does next).
+ */
+export function summarizeResults(results: CallResult[]): ProbeSummary {
+  return {
+    total: results.length,
+    passed: results.filter((r) => r.result === "pass").length,
+    failed: results.filter((r) => r.result === "fail").length,
+    checked: results.filter((r) => r.expect !== null).length,
+    matched: results.filter((r) => r.match === true).length,
+    mismatches: results.filter((r) => r.match === false),
+  };
+}
+
+/** The per-entry JSON shape — identical under `--json` and `--summary`. */
+function serializeResult(r: CallResult) {
+  return {
+    index: r.index,
+    label: r.label,
+    target: r.target,
+    value: r.value,
+    result: r.result,
+    reverted: r.reverted,
+    revertReason: r.revertReason,
+    expect: r.expect,
+    match: r.match,
+    targetHasCode: r.targetHasCode,
+    targetCheckError: r.targetCheckError,
+    selector: r.selector,
+    selectorRoutes: r.selectorRoutes,
+    selectorRoutesReason: r.selectorRoutesReason,
+  };
+}
+
+/** Render one probe in full — shared by the full listing and `--summary`'s mismatch detail. */
+function printCallDetail(r: CallResult, chainId: number): void {
+  const verdict = r.result === "pass" ? "PASS  " : r.reverted ? "REVERT" : "FAIL  ";
+  const expectStr =
+    r.expect === null
+      ? ""
+      : r.match
+        ? `  expected ${r.expect}  ✓ MATCH`
+        : `  expected ${r.expect}  ✗ MISMATCH`;
+  console.log(`[${r.index + 1}] ${verdict}  ${r.label}${expectStr}`);
+  const codeNote = r.targetCheckError
+    ? `⚠ could not verify contract code (${r.targetCheckError})`
+    : r.targetHasCode
+      ? "✓ contract present"
+      : `⚠ NO contract code on chain ${chainId} — this call would fail on-chain regardless of the permission`;
+  const selectorNote =
+    r.selectorRoutes === true
+      ? `✓ selector 0x${r.selector} routes`
+      : r.selectorRoutes === false
+        ? `⚠ selector 0x${r.selector} NOT found in bytecode — call would likely revert with unknown selector`
+        : r.selectorRoutesReason
+          ? `~ selector check skipped (${r.selectorRoutesReason})`
+          : null;
+  console.log(`     target ${r.target}   ${codeNote}`);
+  if (selectorNote) console.log(`     ${selectorNote}`);
+  if (r.reverted && r.revertReason) {
+    console.log(`     evaluate() reverted: ${r.revertReason}`);
+  }
+}
 
 function parseExpect(raw: string | undefined, where: string): "pass" | "fail" | undefined {
   if (raw === undefined) return undefined;
@@ -269,101 +353,133 @@ export async function mandateSimulate(options: SimulateOptions): Promise<void> {
     }),
   );
 
-  const mismatches = results.filter((r) => r.match === false);
-  const noCodeTargets = results.filter((r) => !r.targetHasCode && !r.targetCheckError);
-  const ok = mismatches.length === 0;
+  const meta: SimulateMeta = {
+    chainId,
+    permission,
+    sma: account,
+    submitter: manager,
+    submitterIsStandIn: managerIsStandIn,
+    blockNumber: blockInfo.number.toString(),
+    blockContextStale: blockStale,
+  };
+  const brief = !!options.summary;
 
   if (json) {
-    emit(true, () => {}, {
-      status: ok ? "ok" : "mismatch",
-      spendsGas: false,
-      probe: "off-chain eth_call (evaluate)",
-      chainId,
-      permission,
-      sma: account,
-      submitter: manager,
-      submitterIsStandIn: managerIsStandIn,
-      blockNumber: blockInfo.number.toString(),
-      blockContextStale: blockStale,
-      results: results.map((r) => ({
-        index: r.index,
-        label: r.label,
-        target: r.target,
-        value: r.value,
-        result: r.result,
-        reverted: r.reverted,
-        revertReason: r.revertReason,
-        expect: r.expect,
-        match: r.match,
-        targetHasCode: r.targetHasCode,
-        targetCheckError: r.targetCheckError,
-        selector: r.selector,
-        selectorRoutes: r.selectorRoutes,
-        selectorRoutesReason: r.selectorRoutesReason,
-      })),
-      mismatches: mismatches.length,
-      noCodeTargets: noCodeTargets.map((r) => r.target),
-      ok,
-    });
-    if (!ok) process.exit(1);
+    emit(true, () => {}, buildSimulateJson(results, meta, brief));
+  } else {
+    renderSimulateHuman(results, meta, brief);
+  }
+
+  if (summarizeResults(results).mismatches.length > 0) process.exit(1);
+}
+
+/** Run-level facts shared by every rendering of a probe run. */
+export type SimulateMeta = {
+  chainId: number;
+  permission: Address;
+  sma: Address;
+  submitter: Address;
+  submitterIsStandIn: boolean;
+  blockNumber: string;
+  blockContextStale: boolean;
+};
+
+/**
+ * The `--json` payload. With `brief` (i.e. `--summary`) the envelope and the
+ * per-entry shape are unchanged — `results` is simply narrowed to the
+ * mismatches, and the counts that the omitted entries would have carried are
+ * given as totals. Without it the payload is byte-for-byte what it always was.
+ */
+export function buildSimulateJson(
+  results: CallResult[],
+  meta: SimulateMeta,
+  brief: boolean,
+): Record<string, unknown> {
+  const summary = summarizeResults(results);
+  const noCodeTargets = results.filter((r) => !r.targetHasCode && !r.targetCheckError);
+  const ok = summary.mismatches.length === 0;
+  const head = {
+    status: ok ? "ok" : "mismatch",
+    spendsGas: false,
+    probe: "off-chain eth_call (evaluate)",
+    ...meta,
+  };
+  const tail = {
+    mismatches: summary.mismatches.length,
+    noCodeTargets: noCodeTargets.map((r) => r.target),
+    ok,
+  };
+  if (!brief) {
+    return { ...head, results: results.map(serializeResult), ...tail };
+  }
+  return {
+    ...head,
+    mode: "summary",
+    total: summary.total,
+    passed: summary.passed,
+    failed: summary.failed,
+    checked: summary.checked,
+    matched: summary.matched,
+    results: summary.mismatches.map(serializeResult),
+    resultsOmitted: summary.total - summary.mismatches.length,
+    ...tail,
+  };
+}
+
+/** Human-readable rendering — full listing, or (with `brief`) counts + mismatches only. */
+export function renderSimulateHuman(
+  results: CallResult[],
+  meta: SimulateMeta,
+  brief: boolean,
+): void {
+  const { chainId } = meta;
+  const summary = summarizeResults(results);
+  const noCodeTargets = results.filter((r) => !r.targetHasCode && !r.targetCheckError);
+  const ok = summary.mismatches.length === 0;
+
+  if (brief) {
+    console.log(
+      `sailor mandate simulate — ${summary.total} probe(s): ` +
+        `${summary.passed} pass, ${summary.failed} fail  ` +
+        `(${summary.matched}/${summary.checked} matched expectations)`,
+    );
+    if (ok) {
+      console.log("No mismatches. ✓");
+    } else {
+      console.log(`${summary.mismatches.length} MISMATCH — full detail below. ✗\n`);
+      for (const r of summary.mismatches) printCallDetail(r, chainId);
+    }
+    if (noCodeTargets.length > 0) {
+      console.log(`⚠ ${noCodeTargets.length} target(s) have no contract code on chain ${chainId}.`);
+    }
     return;
   }
 
-  // ── Human-readable rendering ─────────────────────────────────────────────────
   console.log("\nsailor mandate simulate — off-chain probe (eth_call). Spends NO gas, signs nothing.");
   console.log(
     "Shows what the permission's evaluate() returns for these calls. It does NOT guarantee\n" +
       "the permission is correct — only what it does for exactly these inputs.",
   );
   console.log("────────────────────────────────────────");
-  console.log(`Permission: ${permission}`);
-  console.log(`SMA:        ${account}`);
+  console.log(`Permission: ${meta.permission}`);
+  console.log(`SMA:        ${meta.sma}`);
   console.log(
-    `Submitter:  ${manager}${managerIsStandIn ? "  (stand-in: no manager key found locally)" : "  (agent wallet)"}`,
+    `Submitter:  ${meta.submitter}${meta.submitterIsStandIn ? "  (stand-in: no manager key found locally)" : "  (agent wallet)"}`,
   );
-  console.log(`Chain:      ${chainId}   block ${blockInfo.number}${blockStale ? "  ⚠ could not fetch block — time/block-gated permissions may show false negatives" : ""}`);
+  console.log(`Chain:      ${chainId}   block ${meta.blockNumber}${meta.blockContextStale ? "  ⚠ could not fetch block — time/block-gated permissions may show false negatives" : ""}`);
   console.log("");
 
-  for (const r of results) {
-    const verdict = r.result === "pass" ? "PASS  " : r.reverted ? "REVERT" : "FAIL  ";
-    const expectStr =
-      r.expect === null
-        ? ""
-        : r.match
-          ? `  expected ${r.expect}  ✓ MATCH`
-          : `  expected ${r.expect}  ✗ MISMATCH`;
-    console.log(`[${r.index + 1}] ${verdict}  ${r.label}${expectStr}`);
-    const codeNote = r.targetCheckError
-      ? `⚠ could not verify contract code (${r.targetCheckError})`
-      : r.targetHasCode
-        ? "✓ contract present"
-        : `⚠ NO contract code on chain ${chainId} — this call would fail on-chain regardless of the permission`;
-    const selectorNote =
-      r.selectorRoutes === true
-        ? `✓ selector 0x${r.selector} routes`
-        : r.selectorRoutes === false
-          ? `⚠ selector 0x${r.selector} NOT found in bytecode — call would likely revert with unknown selector`
-          : r.selectorRoutesReason
-            ? `~ selector check skipped (${r.selectorRoutesReason})`
-            : null;
-    console.log(`     target ${r.target}   ${codeNote}`);
-    if (selectorNote) console.log(`     ${selectorNote}`);
-    if (r.reverted && r.revertReason) {
-      console.log(`     evaluate() reverted: ${r.revertReason}`);
-    }
-  }
+  for (const r of results) printCallDetail(r, chainId);
 
   console.log("");
   if (results.every((r) => r.expect === null)) {
     console.log(`Probed ${results.length} call(s). No expectations were supplied (informational only).`);
+  } else if (ok) {
+    console.log(`Result: ${summary.matched}/${summary.checked} matched expectations. ✓`);
   } else {
-    const matched = results.filter((r) => r.match === true).length;
-    const checked = results.filter((r) => r.expect !== null).length;
-    if (ok) {
-      console.log(`Result: ${matched}/${checked} matched expectations. ✓`);
-    } else {
-      console.log(`Result: ${matched}/${checked} matched, ${mismatches.length} MISMATCH. ✗`);
-    }
+    console.log(
+      `Result: ${summary.matched}/${summary.checked} matched, ${summary.mismatches.length} MISMATCH. ✗`,
+    );
   }
   if (noCodeTargets.length > 0) {
     console.log(
@@ -371,6 +487,4 @@ export async function mandateSimulate(options: SimulateOptions): Promise<void> {
         "likely a wrong or wrong-chain address.",
     );
   }
-
-  if (!ok) process.exit(1);
 }

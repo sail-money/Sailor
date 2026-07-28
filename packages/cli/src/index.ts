@@ -335,6 +335,10 @@ mandate
   .option("--label <text>", "Inline single call: human-readable label")
   .option("--calls <file>", "Batch: JSON array of { target, calldata, value?, expect?, label? }")
   .option("--json", "Emit machine-readable JSON")
+  .option(
+    "--summary",
+    "Condense output to counts (total / pass / fail / matched) plus full detail for MISMATCHES only",
+  )
   .action(actionWith<SimulateOptions>(mandateSimulate));
 mandate
   .command("update")
