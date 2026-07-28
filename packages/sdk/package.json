@@ -38,6 +38,10 @@
     "./abis": {
       "import": "./dist/abis/index.js",
       "types": "./dist/abis/index.d.ts"
+    },
+    "./blueprint": {
+      "import": "./dist/blueprint/index.js",
+      "types": "./dist/blueprint/index.d.ts"
     }
   },
   "files": [
