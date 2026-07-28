@@ -48,6 +48,45 @@ async function buildArtifact(
 
 // ── digests ────────────────────────────────────────────────────────────────────
 
+/**
+ * Pins this implementation to Shipwright's `harness/digest.mjs`, which produces
+ * blueprint artifacts that this module verifies. The two are separate
+ * implementations on purpose — sync `node:crypto` there so the factory harness runs
+ * on a bare clone, async WebCrypto here so this subpath stays browser-usable — so the
+ * bytes are held together by both sides asserting this same literal against the same
+ * canonical input, rather than by one importing the other.
+ *
+ * `Shipwright/harness/digest.test.mjs` carries the identical constant. Change the
+ * canonicalization and both must move together; it is a breaking change for every
+ * manifest already emitted.
+ */
+const PIN_INPUT = [
+  { path: "a.txt", body: "hello\n" },
+  { path: "nested/b.json", body: '{"k":1}\n' },
+];
+const PIN_DIGEST = "sha256:1e2d3e467d883b3a09d1c68415c21c07697ce7cc569641905f35d3034a6d58a4";
+
+test("computeContentDigest: pinned to Shipwright harness/digest.mjs", async () => {
+  const files = PIN_INPUT.map((f) => ({ path: f.path, bytes: enc(f.body) }));
+  assert.equal(await computeContentDigest(files), PIN_DIGEST);
+  assert.equal(shortDigest(PIN_DIGEST), "1e2d3e467d883b3a");
+});
+
+/** Second half of the pin: the JSON-canonicalizing path the exporter uses. */
+const PIN_MANIFEST = {
+  $schema: "https://sail.money/shipwright/schemas/blueprint/manifest/v1",
+  digest: `sha256:${"f".repeat(64)}`,
+  schemaVersion: MANIFEST_VERSION,
+  contents: [{ role: "agent-surface" as const, path: "a.txt", sha256: "b".repeat(64) }],
+  blueprint: { version: "v1", slug: "pin", kind: "crystallized" as const },
+} as unknown as BlueprintManifest;
+const PIN_MANIFEST_DIGEST = "sha256:3245bcc19926f5d0ac784d266ff5922e46eea5160bfb96af45d1958689e1e040";
+
+test("canonicalJson + computeManifestDigest: pinned to Shipwright harness/digest.mjs", async () => {
+  assert.equal(canonicalJson({ b: 1, a: [2, 1] }), '{"a":[2,1],"b":1}');
+  assert.equal(await computeManifestDigest(PIN_MANIFEST), PIN_MANIFEST_DIGEST);
+});
+
 test("computeContentDigest: deterministic, prefixed, and DIGEST_RE-conformant", async () => {
   const files = [{ path: "a.txt", bytes: enc("hello") }];
   const a = await computeContentDigest(files);
@@ -176,6 +215,38 @@ test("validateManifest: a malformed digest or kind is rejected", async () => {
       f.message.includes("blueprint.kind"),
     ),
   );
+});
+
+test("validateManifest: a fragment must be declared in contents[]", async () => {
+  // Otherwise the manifest tells an importer to append a file the payload does not carry
+  // and no hash covers.
+  const { manifest } = await buildArtifact({ "AGENTS.fragment.md": "## notes\n" });
+  const ok = validateManifest({
+    ...manifest,
+    surface: { fragment: { path: "AGENTS.fragment.md", target: "AGENTS.md", marker: "build-notes" } },
+  });
+  assert.equal(ok.ok, true);
+
+  const dangling = validateManifest({
+    ...manifest,
+    surface: { fragment: { path: "not-shipped.md", target: "AGENTS.md", marker: "build-notes" } },
+  });
+  assert.ok(dangling.findings.some((f) => f.message.includes("not declared in contents[]")));
+});
+
+test("validateManifest: a fragment cannot target an unsafe path", async () => {
+  const { manifest } = await buildArtifact({ "AGENTS.fragment.md": "## notes\n" });
+  const escaping = validateManifest({
+    ...manifest,
+    surface: { fragment: { path: "AGENTS.fragment.md", target: "../../etc/profile", marker: "m" } },
+  });
+  assert.ok(escaping.findings.some((f) => f.code === "unsafe_path"));
+
+  const noMarker = validateManifest({
+    ...manifest,
+    surface: { fragment: { path: "AGENTS.fragment.md", target: "AGENTS.md", marker: "" } },
+  });
+  assert.ok(noMarker.findings.some((f) => f.message.includes("marker is required")));
 });
 
 // ── verifyArtifact ─────────────────────────────────────────────────────────────

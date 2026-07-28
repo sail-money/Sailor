@@ -10,6 +10,13 @@ import {
 } from "./commands/account.js";
 import { capabilities } from "./commands/capabilities.js";
 import { type ChainsOptions, chainsCommand } from "./commands/chains.js";
+import {
+  type BlueprintImportOptions,
+  type BlueprintVerifyOptions,
+  blueprintImport,
+  blueprintInspect,
+  blueprintVerify,
+} from "./commands/blueprint.js";
 import { type CloneOptions, clone } from "./commands/clone.js";
 import { doctor } from "./commands/doctor.js";
 import { initCommand } from "./commands/init.js";
@@ -551,6 +558,63 @@ service
   .option("--project <path>", "Project root (default: current directory)")
   .option("-f, --follow", "Follow the log (tail -f)")
   .action(actionWith<ServiceLogsOptions>(serviceLogs));
+
+// ── Blueprints ────────────────────────────────────────────────────────────────
+// A blueprint artifact is a verified overlay on an existing scaffold: `init` makes the
+// project, `blueprint import` applies the strategy. Distinct from share/clone, which assume
+// the agent surface is generic and replaceable — for a blueprint it is the product.
+const blueprintCmd = program
+  .command("blueprint")
+  .description("Verify, inspect and import portable blueprint artifacts");
+
+blueprintCmd
+  .command("verify <artifact>")
+  .description("Check an artifact against its manifest — hashes, digest and declared compatibility")
+  .option("--chain <id>", "Chain id the artifact must support")
+  .option("--json", "Emit machine-readable JSON")
+  .action(async (artifact: string, opts: BlueprintVerifyOptions) => {
+    try {
+      await blueprintVerify(artifact, opts);
+    } catch (err) {
+      console.error(`Error: ${(err as Error).message}`);
+      closePrompts();
+      process.exit(1);
+    }
+    closePrompts();
+  });
+
+blueprintCmd
+  .command("inspect <artifact>")
+  .description("Show what an artifact contains and what it would change (does not verify)")
+  .option("--json", "Emit machine-readable JSON")
+  .action(async (artifact: string, opts: { json?: boolean }) => {
+    try {
+      await blueprintInspect(artifact, opts);
+    } catch (err) {
+      console.error(`Error: ${(err as Error).message}`);
+      closePrompts();
+      process.exit(1);
+    }
+    closePrompts();
+  });
+
+blueprintCmd
+  .command("import <artifact> [dir]")
+  .description("Verify then apply a blueprint onto an existing Sailor project")
+  .option("--chain <id>", "Chain id the artifact must support")
+  .option("--dry-run", "Show every change without writing anything")
+  .option("--yes", "Non-interactive; required when stdin is not a TTY")
+  .option("--json", "Emit machine-readable JSON")
+  .action(async (artifact: string, dir: string | undefined, opts: BlueprintImportOptions) => {
+    try {
+      await blueprintImport(artifact, dir, opts);
+    } catch (err) {
+      console.error(`Error: ${(err as Error).message}`);
+      closePrompts();
+      process.exit(1);
+    }
+    closePrompts();
+  });
 
 // ── Experimental (private) ─────────────────────────────────────────────────
 // `share` / `clone` are gated behind SAILOR_EXPERIMENTAL=1 while the

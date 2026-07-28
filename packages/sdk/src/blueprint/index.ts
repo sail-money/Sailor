@@ -41,6 +41,7 @@ export const DIGEST_RE = /^sha256:[a-f0-9]{64}$/;
 export type ContentRole =
   | "agent-surface"
   | "generator"
+  | "runtime"
   | "contract"
   | "config"
   | "schema"
@@ -69,6 +70,14 @@ export interface BlueprintManifest {
     /** Paths absent ON PURPOSE. Their presence is a finding, not their absence. */
     pruned?: string[];
     replaces?: string[];
+    /**
+     * A guidance kit appends a marker-bounded block into an existing file rather than
+     * replacing it. `path` is the payload file (and must also appear in `contents`);
+     * `target` is the project file it is appended into. Absent for a crystallized kit,
+     * which ships a whole agent surface instead. An importer that copied this as a plain
+     * file would clobber the target it was meant to extend.
+     */
+    fragment?: { path: string; target: string; marker: string };
   };
   compatibility?: {
     /** Range the consuming Sailor CLI must satisfy. See {@link satisfiesRange} for the supported subset. */
@@ -359,6 +368,27 @@ export function validateManifest(manifest: unknown): VerifyResult {
   for (const p of m.surface?.pruned ?? []) {
     if (!isSafeRelativePath(p)) {
       bad("unsafe_path", `surface.pruned contains an unsafe path: ${JSON.stringify(p)}`, p);
+    }
+  }
+
+  const fragment = m.surface?.fragment;
+  if (fragment !== undefined) {
+    if (!isSafeRelativePath(fragment.path)) {
+      bad("unsafe_path", `surface.fragment.path is not a safe path: ${JSON.stringify(fragment.path)}`, fragment.path);
+    } else if (Array.isArray(m.contents) && !m.contents.some((c) => c?.path === fragment.path)) {
+      // Otherwise the manifest instructs an importer to append a file that the payload does
+      // not carry and no hash covers.
+      bad("manifest_invalid", `surface.fragment.path is not declared in contents[]: ${fragment.path}`, fragment.path);
+    }
+    if (!isSafeRelativePath(fragment.target)) {
+      bad(
+        "unsafe_path",
+        `surface.fragment.target is not a safe path: ${JSON.stringify(fragment.target)}`,
+        fragment.target,
+      );
+    }
+    if (typeof fragment.marker !== "string" || fragment.marker.length === 0) {
+      bad("manifest_invalid", "surface.fragment.marker is required");
     }
   }
 
