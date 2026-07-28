@@ -559,21 +559,6 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
   })
 
-  // POST /api/account/executable — set which SMA `sailor run` executes against. Distinct from
-  // the UI-selected SMA (/switch): the agent keeps running this one while the dashboard shows
-  // another. Does NOT touch config.json.chainId — the run loop resolves its own chain.
-  app.post('/api/account/executable', (req, res) => {
-    const { safe } = req.body ?? {}
-    if (!safe) { res.status(400).json({ error: 'safe is required' }); return }
-    try {
-      const executable = accountStore.setExecutableAccount(safe, sailDir)
-      if (!executable) { res.status(404).json({ error: 'SMA not found in accounts list' }); return }
-      res.json({ ok: true, executable })
-    } catch (err) {
-      serverError(res, err)
-    }
-  })
-
   // POST /api/account/rename — update the display name of a known SMA.
   app.post('/api/account/rename', (req, res) => {
     const { safe, name } = req.body ?? {}

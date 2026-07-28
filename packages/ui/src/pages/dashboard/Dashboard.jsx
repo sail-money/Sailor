@@ -41,7 +41,6 @@ import {
   useSailorPending,
   useSailorPositions,
   switchSailorAccount,
-  setExecutableSailorAccount,
   renameSailorAccount,
 } from '../../hooks/useSailorData'
 
@@ -2193,11 +2192,6 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
           try { await switchSailorAccount(sma.address) } catch { /* server not running */ }
           setRefreshTick((t) => t + 1)
           setProfileOpen(false)
-        }}
-        onSetExecutable={async (sma) => {
-          // Point `sailor run` at this SMA without changing the UI selection.
-          try { await setExecutableSailorAccount(sma.address) } catch { /* server not running */ }
-          setRefreshTick((t) => t + 1)
         }}
       />
 

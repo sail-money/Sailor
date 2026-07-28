@@ -1,10 +1,9 @@
 // Single owner of the on-disk SMA state under `.sail/`.
 //
 // `state/accounts.json` (the master list of every known SMA) is the source of truth. Each entry
-// carries two flags this module maintains:
-//   - `selected`   the SMA the UI renders / operates on (exactly one, or none after a reset)
-//   - `executable` the SMA `sailor run` executes against (exactly one) — separate from `selected`
-//                  so the dashboard can show one SMA while the agent keeps running another.
+// carries a `selected` flag (the SMA the UI renders / operates on — exactly one, or none after a
+// reset). Which SMA the agent RUNS is no longer a per-account flag: `sailor run` is driven entirely
+// by execution strategies (`.sail/strategies/strategies.json`), where each step names its own SMA.
 //
 // TRANSITIONAL: `account.json` is still written as a verbatim mirror of the `selected` entry, so
 // every existing reader keeps working unchanged. The one line that would delete it (flag-only
@@ -43,8 +42,6 @@ export type AccountRecord = {
   addedAt: string | null;
   /** The SMA the UI renders / operates on. Exactly one entry is `selected` (or none after a reset). */
   selected?: boolean;
-  /** The SMA `sailor run` executes against. Exactly one entry is `executable`; defaults to `selected`. */
-  executable?: boolean;
 };
 
 /** Input to `persistAccount`: any subset of fields; `safe` picks the target (defaults to active). */
@@ -148,10 +145,6 @@ function load(sailDir: string): AccountRecord[] {
       accounts = accounts.map((a) => ({ ...a, selected: false }));
     }
   }
-  // executable migration — default to the selected entry (which may be none).
-  if (accounts.every((a) => a.executable === undefined)) {
-    accounts = accounts.map((a) => ({ ...a, executable: !!a.selected }));
-  }
   return accounts;
 }
 
@@ -163,7 +156,7 @@ function load(sailDir: string): AccountRecord[] {
 function commit(accounts: AccountRecord[], sailDir: string): void {
   fs.mkdirSync(path.join(sailDir, "state"), { recursive: true });
   writeJson(listPath(sailDir), accounts);
-  // TODO: flag-only cutover — once selected/executable are the sole source of truth, stop mirroring
+  // TODO: flag-only cutover — once `selected` is the sole source of truth, stop mirroring
   // and delete account.json here instead of writing it:
   // fs.rmSync(accountPath(sailDir), { force: true });
   const selected = accounts.find((a) => a.selected);
@@ -182,15 +175,9 @@ export function readActiveSafe(sailDir: string = defaultSailDir()): string | nul
   return readActiveAccount(sailDir)?.safe ?? null;
 }
 
-/** The SMA `sailor run` executes against (the `executable` entry), falling back to `selected`. */
-export function readExecutableAccount(sailDir: string = defaultSailDir()): AccountRecord | null {
-  const accounts = load(sailDir);
-  return accounts.find((a) => a.executable) ?? accounts.find((a) => a.selected) ?? null;
-}
-
 /**
  * Every known SMA (`state/accounts.json`), each annotated with a derived `active` boolean
- * (= `selected`). The `selected`/`executable` flags ride along on each entry. Returns `[]`
+ * (= `selected`). The `selected` flag rides along on each entry. Returns `[]`
  * when there is nothing at all.
  */
 export function listAccounts(sailDir: string = defaultSailDir()): ListedAccount[] {
@@ -202,9 +189,8 @@ export function listAccounts(sailDir: string = defaultSailDir()): ListedAccount[
 /**
  * Merge-upsert an SMA by `safe` (defaults to the selected safe) into `state/accounts.json`.
  * Only defined values overwrite; unioned lists and stored fields survive. The merged SMA becomes
- * the `selected` one (mirrors the old "writes account.json"). `executable` is preserved; if no
- * entry is executable after the write, the merged one claims it (so the first SMA is runnable and
- * later imports don't steal the run target). This is the sole writer of new/updated SMA state.
+ * the `selected` one (mirrors the old "writes account.json"). This is the sole writer of new/updated
+ * SMA state.
  */
 export function persistAccount(fields: AccountFields, sailDir: string = defaultSailDir()): AccountRecord {
   const accounts = load(sailDir);
@@ -234,28 +220,16 @@ export function persistAccount(fields: AccountFields, sailDir: string = defaultS
   else accounts[idx] = record;
   // The persisted SMA becomes the selected one; clear it elsewhere.
   for (const a of accounts) a.selected = a === record;
-  // Keep the existing run target; ensure at least one entry is executable.
-  if (!accounts.some((a) => a.executable)) record.executable = true;
   commit(accounts, sailDir);
   return record;
 }
 
-/** Make a known SMA the UI-selected one. Leaves `executable` untouched. Returns it, or null. */
+/** Make a known SMA the UI-selected one. Returns it, or null. */
 export function switchAccount(safe: string, sailDir: string = defaultSailDir()): AccountRecord | null {
   const accounts = load(sailDir);
   const target = accounts.find((a) => sameAddr(a.safe, safe));
   if (!target) return null;
   for (const a of accounts) a.selected = a === target;
-  commit(accounts, sailDir);
-  return target;
-}
-
-/** Make a known SMA the `sailor run` target. Leaves `selected` untouched. Returns it, or null. */
-export function setExecutableAccount(safe: string, sailDir: string = defaultSailDir()): AccountRecord | null {
-  const accounts = load(sailDir);
-  const target = accounts.find((a) => sameAddr(a.safe, safe));
-  if (!target) return null;
-  for (const a of accounts) a.executable = a === target;
   commit(accounts, sailDir);
   return target;
 }

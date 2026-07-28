@@ -28,7 +28,7 @@ import {
   resolvePermissionForCall,
 } from "../lib/permission-resolver.js";
 import { clearAgentPid, writeAgentPid } from "../lib/process.js";
-import { readExecutableAccount, setExecutableAccount } from "@sail/sdk/accounts";
+import { readActiveAccount } from "@sail/sdk/accounts";
 import {
   type StoredStrategy,
   type StrategyStep,
@@ -156,11 +156,9 @@ export async function runCommand(opts: {
   strategy?: string;
   reason?: string;
   sma?: string;
+  chains?: number[];
 }): Promise<void> {
   const once = opts.once === true;
-
-  // --sma persists which SMA is the executable one — used only to seed the Default strategy below.
-  if (opts.sma) setExecutableAccount(checksum(opts.sma));
 
   // A mandate must exist somewhere in the project before running (permissions are read on-chain
   // per SMA per tick; this is just the "you haven't signed anything yet" gate).
@@ -190,20 +188,41 @@ export async function runCommand(opts: {
     strategies = readActiveStrategies();
     if (strategies.length === 0) {
       // Back-compat: no strategies configured → synthesize (and persist) the Default from the
-      // executable/first SMA on its first deployed chain.
-      const seeded = ensureDefaultStrategy(readExecutableAccount());
+      // active/first SMA on its first deployed chain.
+      const seeded = ensureDefaultStrategy(readActiveAccount());
       if (!seeded) {
-        throw new Error('No SMA to run. Create one (`sailor onboard --new-sma`) or pass --sma <address>.');
+        throw new Error('No SMA to run. Create one (`sailor onboard --new-sma`) first.');
       }
       strategies = [seeded];
     }
   }
 
+  // Optional run-time filters (do NOT change stored config): restrict the resolved strategies'
+  // steps to a specific SMA and/or chains. With no filter, every step of every chosen strategy runs.
+  const smaFilter = opts.sma ? checksum(opts.sma) : null;
+  const chainFilter = opts.chains && opts.chains.length > 0 ? new Set(opts.chains) : null;
+  if (smaFilter || chainFilter) {
+    strategies = strategies
+      .map((s) => ({
+        ...s,
+        pipeline: {
+          ...s.pipeline,
+          steps: s.pipeline.steps
+            .filter((st) => !smaFilter || checksum(st.sma) === smaFilter)
+            .map((st) => (chainFilter ? { ...st, chains: st.chains.filter((c) => chainFilter.has(c)) } : st))
+            .filter((st) => st.chains.length > 0),
+        },
+      }))
+      .filter((s) => s.pipeline.steps.length > 0);
+  }
+
   const steps = strategies.flatMap((s) => s.pipeline.steps);
   if (steps.length === 0) {
-    throw new Error(
-      "No steps to run. Add one with `sailor strategy add-step` (or activate a configured strategy).",
-    );
+    const filterMsg =
+      smaFilter || chainFilter
+        ? `No active-strategy steps match the filter (${[smaFilter && `sma ${smaFilter}`, chainFilter && `chains ${[...chainFilter].join(",")}`].filter(Boolean).join(", ")}).`
+        : "No steps to run. Add one with `sailor strategy add-step` (or activate a configured strategy).";
+    throw new Error(filterMsg);
   }
 
   const intervalSec = (() => {

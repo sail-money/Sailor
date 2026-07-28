@@ -14,7 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { getAddress } from "viem";
 import { getChain } from "./chains.js";
-import { defaultSailDir, listAccounts, readExecutableAccount, type AccountRecord } from "./accounts.js";
+import { defaultSailDir, listAccounts, readActiveAccount, type AccountRecord } from "./accounts.js";
 
 export type PipelineType = "sequential" | "parallel";
 
@@ -333,7 +333,7 @@ export function removeStep(name: string, index: number, sailDir: string = defaul
  * Returns the Default strategy (existing or freshly created), or null if `account` is missing.
  */
 export function ensureDefaultStrategy(
-  account: AccountRecord | null = readExecutableAccount(),
+  account: AccountRecord | null = readActiveAccount(),
   sailDir: string = defaultSailDir(),
 ): StoredStrategy | null {
   if (!account) return null;

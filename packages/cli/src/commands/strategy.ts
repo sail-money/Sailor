@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { chainBySlug, getChain } from "@sail/sdk/chains";
-import { readExecutableAccount } from "@sail/sdk/accounts";
+import { readActiveAccount } from "@sail/sdk/accounts";
 import {
   addStep,
   createStrategyExecutable,
@@ -76,7 +76,7 @@ export async function strategyAddStep(
   if (!isValidExecutableName(executable)) {
     throw new Error(`Invalid executable name "${executable}" — use camelCase (e.g. agent, checkData).`);
   }
-  const sma = opts.sma ? checksum(opts.sma) : readExecutableAccount()?.safe;
+  const sma = opts.sma ? checksum(opts.sma) : readActiveAccount()?.safe;
   if (!sma) throw new Error("No SMA given and no executable account found. Pass --sma <address>.");
 
   const chains = (opts.chains ?? "")

@@ -51,6 +51,7 @@ Its purpose is **reusable executables per chain**: the same executable script ru
 
 - **Default** (`sailor run`): runs **every `active` strategy** each tick.
 - **Filtered** (`sailor run --strategy <name>`): runs only that one strategy — the key lever for scheduling (below). This replaces the old behaviour where `run` always executed `src/agent.ts`.
+- **Further filters** (compose with the above): `--sma <address>` runs only steps that target that SMA; `--chains <ids>` (comma-separated) runs only those chains of the matched steps. With no filter, every step of every active strategy runs.
 - For each strategy, its pipeline runs its steps **sequential** or in **parallel**. Each step runs its executable against its SMA across each of `step.chains` **sequentially** (nonce safety), with `ctx.env` loaded from that chain's env file.
 - **The chain comes only from the strategy.** `CHAIN_ID` / `config.json.chainId` are no longer read.
 - `--once` runs a single tick; otherwise it loops at `SAILOR_INTERVAL` (default 60s).

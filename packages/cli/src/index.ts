@@ -456,17 +456,18 @@ program
     "--reason <text>",
     "Label why this run fired (observability only; also read from SAIL_RUN_REASON)",
   )
-  .option(
-    "--sma <address>",
-    "SMA to seed the Default strategy from when none are configured (persists it as the executable SMA)",
-  )
-  .action(async (opts: { once?: boolean; strategy?: string; reason?: string; sma?: string }) => {
+  .option("--sma <address>", "Only run active-strategy steps that target this SMA")
+  .option("--chains <ids>", "Only run active-strategy steps on these chains (comma-separated ids)")
+  .action(async (opts: { once?: boolean; strategy?: string; reason?: string; sma?: string; chains?: string }) => {
     try {
       await runCommand({
         once: opts.once,
         strategy: opts.strategy,
         reason: opts.reason,
         sma: opts.sma,
+        chains: opts.chains
+          ? opts.chains.split(",").map((c) => Number(c.trim())).filter((n) => Number.isFinite(n))
+          : undefined,
       });
     } catch (err) {
       console.error(`Error: ${(err as Error).message}`);

@@ -181,7 +181,7 @@ describe('POST /api/account — merge preserves stored fields, both files stay i
   })
 })
 
-describe('selected vs executable flags', () => {
+describe('selected flag', () => {
   let fix
   const SAFE = '0x8E637d9573Ad81B60cb93edA78b9C827860950a4'
   const OWNER = '0x7f8c6DB60b46F7eCBA131b882fBea1Fed4F5f4F5'
@@ -205,42 +205,20 @@ describe('selected vs executable flags', () => {
   })
   afterEach(() => fix.cleanup())
 
-  it('setting executable does not move selected', async () => {
-    const res = await fix.api.post('/api/account/executable').send({ safe: SMA_B })
-    expect(res.status).toBe(200)
-    const list = readList()
-    expect(entry(list, SMA_B).executable).toBe(true)
-    expect(entry(list, SAFE).executable).toBeFalsy()
-    // selected stays on the original active SMA (migrated from account.json).
-    expect(entry(list, SAFE).selected).toBe(true)
-    expect(entry(list, SMA_B).selected).toBeFalsy()
-  })
-
-  it('switching selected does not move executable', async () => {
-    // SMA_A starts selected + executable (migrated). Switch UI selection to SMA_B.
+  it('switching selection moves the selected flag', async () => {
     const res = await fix.api.post('/api/account/switch').send({ safe: SMA_B })
     expect(res.status).toBe(200)
     const list = readList()
     expect(entry(list, SMA_B).selected).toBe(true)
     expect(entry(list, SAFE).selected).toBeFalsy()
-    // executable stayed on SMA_A — the agent keeps running it while the UI shows SMA_B.
-    expect(entry(list, SAFE).executable).toBe(true)
-    expect(entry(list, SMA_B).executable).toBeFalsy()
   })
 
-  it('a newly registered SMA is selected but not executable (does not steal the run target)', async () => {
+  it('a newly registered SMA becomes selected', async () => {
     const newSafe = '0x3333333333333333333333333333333333333333'
     const res = await fix.api.post('/api/account').send({ safe: newSafe, owner: OWNER, manager: MANAGER, chainId: 8453 })
     expect(res.status).toBe(200)
     const list = readList()
     expect(entry(list, newSafe).selected).toBe(true)
-    expect(entry(list, newSafe).executable).toBeFalsy()
-    expect(entry(list, SAFE).executable).toBe(true) // run target unchanged
-  })
-
-  it('404s for an unknown SMA', async () => {
-    const res = await fix.api.post('/api/account/executable').send({ safe: '0x9999999999999999999999999999999999999999' })
-    expect(res.status).toBe(404)
   })
 })
 
