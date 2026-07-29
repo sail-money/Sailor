@@ -18,6 +18,10 @@ Reuse the shared **`DepositPermission`** singleton. Family overview + flow:
 (ERC-4626) or lending market (Aave v2/v3) — this template gates the deposit, not the choice
 of venue.
 
+> **Entry only.** This template gates `deposit`/`mint`/`supply`; it has no exit selector. Unwinding
+> the position is [`sailor-template-withdraw`](../sailor-template-withdraw/SKILL.md) — a separate
+> registration and config. A yield strategy with an agent-managed exit needs both.
+
 ## What it enforces (per account, from source)
 
 Selectors (any other ⇒ `false`):

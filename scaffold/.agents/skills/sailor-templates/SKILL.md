@@ -47,7 +47,7 @@ metadata:
 | Lending borrow | `BorrowPermission` | ✅ 12 chains | [`sailor-template-borrow`](../sailor-template-borrow/SKILL.md) |
 | Transfer (allowlist) | `TransferPermission` | ✅ 12 chains | [`sailor-template-transfer`](../sailor-template-transfer/SKILL.md) |
 | Vault/lending deposit | `DepositPermission` | ✅ 12 chains | [`sailor-template-deposit`](../sailor-template-deposit/SKILL.md) |
-| Withdraw to fixed addr | `WithdrawPermission` | ✅ 12 chains | [`sailor-template-withdraw`](../sailor-template-withdraw/SKILL.md) |
+| Vault/lending exit (to the SMA) | `WithdrawPermission` | ✅ 12 chains | [`sailor-template-withdraw`](../sailor-template-withdraw/SKILL.md) |
 | Approve+call batch | `ApproveAndCallBatchPermission` | ✅ 12 chains | [`sailor-template-approve-batch`](../sailor-template-approve-batch/SKILL.md) |
 
 Authoritative config tuples + enforced invariants (from source):

@@ -5,6 +5,37 @@ All notable changes to Sailor are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Sailor now targets `WithdrawPermission` **v2** at
+  `0xB8A6CC40466c0C33a230f87a1EBC368568B96269`, deployed on all 12 supported chains, replacing
+  the v1 template at `0xF5eF5dda450a130e3020d54f565E830e4a7531f8`. The SDK deployment registry
+  and the scaffolded `deployed.json` both carry the new address.
+- The gated selectors changed from ERC-20 transfers to protocol exits. v1 gated
+  `transfer`/`transferFrom` to a single pinned `allowedRecipient`; v2 gates ERC-4626
+  `withdraw(uint256,address,address)` and `redeem(uint256,address,address)` plus Aave v2/v3
+  `withdraw(address,uint256,address)`. Proceeds are pinned to the account itself — on the
+  ERC-4626 paths both `receiver` and `owner`, on the Aave path `to` — so the template exits a
+  position rather than paying an external address. Moving funds out to a fixed recipient is now
+  `TransferPermission` with a one-entry recipient allowlist.
+- The config tuple changed from `(address[] tokens, address allowedRecipient, uint256
+  maxAmountPerTx)` to `(address[] targets, address[] tokens, uint256 maxAmountPerTx)`. The token
+  allowlist is consulted on the Aave path only, where the asset appears in calldata; ERC-4626
+  vaults are constrained by the target allowlist alone.
+- The per-transaction cap is denominated per path: assets on ERC-4626 `withdraw` and on Aave,
+  and **shares** on ERC-4626 `redeem`, whose underlying value floats with the share price.
+- Withdraw probes, the configure signing card, the withdraw skill, and the strategy routing
+  tables were rewritten for the new contract. Routing prose that previously sent vault exits to a
+  bespoke permission, or sent single-recipient payouts to the withdraw template, was inverted and
+  is now corrected.
+
+### Removed
+
+- v1 `WithdrawPermission` support. No user ever deployed or configured v1, so it is removed
+  outright with no compatibility path, no deprecated registry entry, and no v1 config layout.
+
 ## [2.1.1] - 2026-07-23
 
 ### Added

@@ -59,9 +59,9 @@ const META = {
     config: "(address[] targets, address[] tokens, uint256 maxAmountPerTx)",
   },
   WithdrawPermission: {
-    primitive: "ERC-20 withdrawals to a single fixed recipient",
+    primitive: "Vault / lending exits paid to the account (ERC-4626 + Aave v2/v3)",
     skill: "sailor-template-withdraw",
-    config: "(address[] tokens, address allowedRecipient, uint256 maxAmountPerTx)",
+    config: "(address[] targets, address[] tokens, uint256 maxAmountPerTx)",
   },
   ApproveAndCallBatchPermission: {
     primitive: "Atomic approve / consuming-call / reset-to-zero batch",

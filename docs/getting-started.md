@@ -95,7 +95,7 @@ sailor mandate revoke --address <perm>     # remove one permission (owner-signed
 sailor mandate revoke --all                # remove every permission
 ```
 
-**Get your money out.** The SMA is a Safe you control directly: `sailor ui start` → the dashboard's Open-in-Safe link (chain-aware) opens `app.safe.global` for your account, where you move funds with your own wallet signature — this works regardless of agent, mandate, or session state. If a withdraw permission is registered, the agent can also consolidate funds to you within its bounds. Full shutdown: pause → withdraw → revoke.
+**Get your money out.** The SMA is a Safe you control directly: `sailor ui start` → the dashboard's Open-in-Safe link (chain-aware) opens `app.safe.global` for your account, where you move funds with your own wallet signature — this works regardless of agent, mandate, or session state. Two permissions cover the agent-mediated route, and they do different jobs: a withdraw permission exits a vault or lending position back into the SMA, and a transfer permission moves tokens the SMA holds out to a recipient you pinned. Getting funds all the way from a position to your own address needs both. Full shutdown: pause → withdraw → revoke.
 
 ---
 
