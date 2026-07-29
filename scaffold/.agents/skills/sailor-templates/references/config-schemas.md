@@ -99,14 +99,20 @@ allowlist enforced (Aave: the `asset` arg; ERC-4626: `target` itself must be in 
 
 ## WithdrawPermission
 ```
-abi.encode(address[] tokens, address allowedRecipient, uint256 maxAmountPerTx)
+abi.encode(address[] targets, address[] tokens, uint256 maxAmountPerTx)
 ```
-Selectors: `0xa9059cbb` `transfer`, `0x23b872dd` `transferFrom`. Invariants: `value == 0`;
-`tokens` must be non-empty and `allowedRecipient` non-zero, with no zero-address tokens
-(`EmptyAllowlist`/`ZeroAddress` revert at configure otherwise); `target (token) ∈ tokens`;
-`to == allowedRecipient` (single address per config); `amount ≤ maxAmountPerTx`;
-**`transferFrom` requires `from == account`**. To change the recipient, `reconfigure` with a new
-blob.
+Selectors: `withdraw(uint256,address,address)` (ERC-4626, `0xb460af94`),
+`redeem(uint256,address,address)` (ERC-4626, `0xba087652`),
+`withdraw(address,uint256,address)` (Aave v2 LendingPool and v3 Pool, one selector covers both,
+`0x69328dec`). Any other selector denies. Invariants: `value == 0`; `targets`/`tokens` must be
+non-empty with no zero addresses (`EmptyAllowlist`/`ZeroAddress` revert at configure otherwise);
+`target ∈ targets`; `amount`/`shares ≤ maxAmountPerTx`; every calldata address naming a recipient
+or position owner `== account` — on the ERC-4626 paths **both `receiver` AND `owner`**, on the
+Aave path `to`. The token allowlist is enforced on the **Aave path only** (the `asset` arg); the
+ERC-4626 paths name no asset, so a vault is bound by `targets` alone and `tokens` does not
+constrain it — though `tokens` must still be non-empty. `redeem` cap is in **shares** — account
+for share price. Max 50 entries per allowlist; `maxAmountPerTx == 0` is accepted and blocks every
+non-zero exit.
 
 ## ApproveAndCallBatchPermission
 ```

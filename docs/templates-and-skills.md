@@ -18,7 +18,7 @@ one on your SMA and **configure** your own bounds. As bundled in the SDK's deplo
 | `SwapPermissionNoOracle` | Swaps for tokens without an oracle: allowlists + cap + live-pool sanity band (not manipulation-resistant) |
 | `BorrowPermission` | Borrowing: asset allowlist + caps |
 | `DepositPermission` | Deposits into venues: target/asset bounds |
-| `WithdrawPermission` | Withdrawals: receiver bound to the SMA |
+| `WithdrawPermission` | Vault / lending exits (ERC-4626 `withdraw`/`redeem`, Aave v2/v3 `withdraw`): target allowlist + cap, proceeds bound to the SMA |
 | `TransferPermission` | ERC-20 transfers: token + recipient allowlists, per-transfer caps |
 | `ApproveAndCallBatchPermission` | Atomic approve → call → reset-to-zero batches |
 
