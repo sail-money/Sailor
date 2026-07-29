@@ -62,13 +62,14 @@ function routerFamily(router) {
 }
 
 // ── Config blob layouts (verified against Protocol/contracts/templates/*.sol
-// `_applyConfig` decode @ d5bc27a). Field order is load-bearing. We decode only
-// the LEADING fields the probes need (allowlists + cap, all before any trailing
-// dynamic field), so the ReferencePool[] tail of the no-oracle blob is skipped —
-// its head slots stay valid and it never has to be decoded.
+// `_applyConfig` decode @ d5bc27a; WithdrawPermission is v2, verified @ 23c5350).
+// Field order is load-bearing. We decode only the LEADING fields the probes need
+// (allowlists + cap, all before any trailing dynamic field), so the ReferencePool[]
+// tail of the no-oracle blob is skipped — its head slots stay valid and it never
+// has to be decoded.
 const CONFIG_LAYOUT = {
   TransferPermission: ["address[]", "address[]", "uint256"], // recipients, tokens, cap
-  WithdrawPermission: ["address[]", "address", "uint256"], //   tokens, recipient, cap
+  WithdrawPermission: ["address[]", "address[]", "uint256"], // targets, tokens, maxAmountPerTx
   DepositPermission: ["address[]", "address[]", "uint256"], //  targets, tokens, cap
   SwapPermissionNoOracle: ["address[]", "address[]", "address[]", "uint256"], // routers, tokensIn, tokensOut, cap, [pools…]
   SwapPermission: ["address[]", "address[]", "address[]", "uint256", "uint256", "address", "uint256"],
@@ -119,6 +120,27 @@ function swapCalldata(family, { tokenIn, tokenOut, recipient, amountIn, amountOu
   }
   return encodeFunctionData({ abi: EXACT_INPUT_SINGLE_V2, functionName: "exactInputSingle",
     args: [{ tokenIn, tokenOut, fee: A_FEE, recipient, amountIn, amountOutMinimum, sqrtPriceLimitX96: 0n }] });
+}
+
+// ── WithdrawPermission v2: the three exit selectors evaluate() gates (verified
+// against the contract @ 23c5350). The ERC-4626 pair pins BOTH receiver AND owner
+// to the account. The Aave pair pins only `to`, but carries the asset in calldata,
+// so it is the ONLY path where the token allowlist is consulted.
+const ERC4626_WITHDRAW = [{ type: "function", name: "withdraw", inputs: [{ type: "uint256" }, { type: "address" }, { type: "address" }] }];
+const ERC4626_REDEEM = [{ type: "function", name: "redeem", inputs: [{ type: "uint256" }, { type: "address" }, { type: "address" }] }];
+const AAVE_WITHDRAW = [{ type: "function", name: "withdraw", inputs: [{ type: "address" }, { type: "uint256" }, { type: "address" }] }];
+
+/** ERC-4626 withdraw(assets, receiver, owner) — 0xb460af94. Cap applies to ASSETS. */
+function vaultWithdraw(assets, receiver, owner) {
+  return encodeFunctionData({ abi: ERC4626_WITHDRAW, functionName: "withdraw", args: [assets, receiver, owner] });
+}
+/** ERC-4626 redeem(shares, receiver, owner) — 0xba087652. Cap applies to SHARES, NOT assets. */
+function vaultRedeem(shares, receiver, owner) {
+  return encodeFunctionData({ abi: ERC4626_REDEEM, functionName: "redeem", args: [shares, receiver, owner] });
+}
+/** Aave withdraw(asset, amount, to) — 0x69328dec, covering v2 LendingPool and v3 Pool. Cap applies to ASSETS. */
+function aaveWithdraw(asset, amount, to) {
+  return encodeFunctionData({ abi: AAVE_WITHDRAW, functionName: "withdraw", args: [asset, amount, to] });
 }
 
 // ── BorrowPermission: the three families evaluate() decodes (verified against the
@@ -218,16 +240,34 @@ export function generateProbes(template, config, account) {
       };
     }
     case "WithdrawPermission": {
-      const { tokens, recipient, cap } = config;
+      const { targets, tokens, cap } = config;
+      const target = getAddress(targets[0]);
       const token = getAddress(tokens[0]);
-      const pinned = getAddress(recipient);
       return {
-        notes: [],
+        notes: [
+          "Probes exercise the PERMISSION's gates, not the target's real interface: the same allowlisted target is reused for the ERC-4626 and Aave shapes, so a live `cast call` would revert in the callee even where the permission correctly says pass.",
+          "The token allowlist is consulted ONLY on the Aave path, where the asset sits in calldata. On the ERC-4626 paths the vault is constrained by the TARGET allowlist alone — the vault's underlying asset is never inspected.",
+          "The cap is one number (maxAmountPerTx) applied to calldata slot 0, so its unit follows the selector: ASSETS for withdraw/Aave, SHARES for redeem.",
+        ],
         probes: [
-          { label: "in-bounds withdraw (allowed token → pinned recipient, amount = cap)", target: token, calldata: erc20Transfer(pinned, cap), value: "0", expect: "pass" },
-          { label: "OVER-CAP withdraw (cap + 1) must reject", target: token, calldata: erc20Transfer(pinned, cap + 1n), value: "0", expect: "fail" },
-          { label: "OFF-ALLOWLIST token must reject", target: OFF_ALLOWLIST, calldata: erc20Transfer(pinned, cap), value: "0", expect: "fail" },
-          { label: "WRONG recipient (≠ pinned) must reject", target: token, calldata: erc20Transfer(WRONG_RECIPIENT, cap), value: "0", expect: "fail" },
+          // ERC-4626 withdraw — 0xb460af94, cap in ASSETS, receiver AND owner pinned.
+          { label: "4626 withdraw: allowed vault, receiver+owner = SMA, assets = cap", target, calldata: vaultWithdraw(cap, acct, acct), value: "0", expect: "pass" },
+          { label: "4626 withdraw: OVER-CAP assets (cap + 1) must reject", target, calldata: vaultWithdraw(cap + 1n, acct, acct), value: "0", expect: "fail" },
+          { label: "4626 withdraw: WRONG receiver (≠ SMA) must reject", target, calldata: vaultWithdraw(cap, WRONG_RECIPIENT, acct), value: "0", expect: "fail" },
+          { label: "4626 withdraw: WRONG owner (≠ SMA) must reject", target, calldata: vaultWithdraw(cap, acct, WRONG_RECIPIENT), value: "0", expect: "fail" },
+          { label: "4626 withdraw: OFF-ALLOWLIST target must reject", target: OFF_ALLOWLIST, calldata: vaultWithdraw(cap, acct, acct), value: "0", expect: "fail" },
+          { label: "4626 withdraw: NON-ZERO native value must reject", target, calldata: vaultWithdraw(cap, acct, acct), value: "1", expect: "fail" },
+          // ERC-4626 redeem — 0xba087652, cap in SHARES, receiver AND owner pinned.
+          { label: "4626 redeem: allowed vault, receiver+owner = SMA, SHARES = cap", target, calldata: vaultRedeem(cap, acct, acct), value: "0", expect: "pass" },
+          { label: "4626 redeem: OVER-CAP SHARES (cap + 1) must reject", target, calldata: vaultRedeem(cap + 1n, acct, acct), value: "0", expect: "fail" },
+          { label: "4626 redeem: WRONG owner (≠ SMA) must reject", target, calldata: vaultRedeem(cap, acct, WRONG_RECIPIENT), value: "0", expect: "fail" },
+          // Aave withdraw — 0x69328dec, cap in ASSETS, `to` pinned, asset allowlisted.
+          { label: "aave withdraw: allowed pool + allowed asset, to = SMA, assets = cap", target, calldata: aaveWithdraw(token, cap, acct), value: "0", expect: "pass" },
+          { label: "aave withdraw: OVER-CAP assets (cap + 1) must reject", target, calldata: aaveWithdraw(token, cap + 1n, acct), value: "0", expect: "fail" },
+          { label: "aave withdraw: OFF-ALLOWLIST asset must reject", target, calldata: aaveWithdraw(OFF_ALLOWLIST, cap, acct), value: "0", expect: "fail" },
+          { label: "aave withdraw: WRONG `to` (≠ SMA) must reject", target, calldata: aaveWithdraw(token, cap, WRONG_RECIPIENT), value: "0", expect: "fail" },
+          // v1 gated ERC-20 transfer (0xa9059cbb); v2 does not — unknown selectors deny.
+          { label: "UNKNOWN selector (ERC-20 transfer) must reject", target, calldata: erc20Transfer(acct, cap), value: "0", expect: "fail" },
         ],
       };
     }
@@ -376,7 +416,7 @@ export function decodeConfig(template, blobHex) {
   const d = decodeAbiParameters(layout.map((type) => ({ type })), blobHex);
   switch (template) {
     case "TransferPermission": return { recipients: d[0], tokens: d[1], cap: d[2] };
-    case "WithdrawPermission": return { tokens: d[0], recipient: d[1], cap: d[2] };
+    case "WithdrawPermission": return { targets: d[0], tokens: d[1], cap: d[2] };
     case "DepositPermission": return { targets: d[0], tokens: d[1], cap: d[2] };
     case "SwapPermissionNoOracle": return { routers: d[0], tokensIn: d[1], tokensOut: d[2], cap: d[3] };
     case "SwapPermission": return { routers: d[0], tokensIn: d[1], tokensOut: d[2], cap: d[3], slippageBps: d[4], oracle: d[5], maxPriceAge: d[6] };
