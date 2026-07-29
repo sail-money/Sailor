@@ -18,7 +18,7 @@ Defaults: LTV ceiling = a conservative 50% of the market's own max LTV (the user
 | Dimension | Concrete means |
 |---|---|
 | Market/vault addresses | Exact contract addresses per chain, resolved and verified — never from memory |
-| Cap semantics | ERC-4626 `mint` caps are in **shares**, not underlying: effective asset cap = cap × share price — size accordingly (see `sailor-template-deposit`) |
+| Cap semantics | ERC-4626 `mint` (entry) and `redeem` (exit) caps are in **shares**, not underlying: effective asset cap = cap × share price — size accordingly (see `sailor-template-deposit` and `sailor-template-withdraw`). `deposit`/`withdraw` and both Aave legs cap the asset amount directly |
 | LTV ceiling + oracles | `maxLtvBps` AND both a collateral oracle and a borrow oracle. The pair is all-or-nothing: with zero oracles the template enforces amount-cap-only and **no LTV ceiling at all**; exactly one oracle reverts at configure |
 | Exit path (accumulate-direction actions only) | Who unwinds the position, and how. **Agent-managed:** a **vault/lending deposit** unwinds by calling the vault's own `withdraw`/`redeem` (or Aave's own `withdraw`) — covered by `WithdrawPermission`, see routing below; a **borrow position** unwinds by `repay` first (pulls the debt asset from the SMA via allowance — approve coverage required, and there is no shared template for it either), then withdraw of the freed collateral — two legs, not one. **Owner-managed:** exit manually — the sovereign Safe exit always works, see `sailor-operate`. Either is a complete answer; asked once per action, never silently absent |
 
