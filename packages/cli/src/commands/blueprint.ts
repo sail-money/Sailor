@@ -238,7 +238,7 @@ export async function blueprintImport(
   source: string,
   dir: string | undefined,
   opts: BlueprintImportOptions,
-): Promise<void> {
+): Promise<boolean> {
   const projectRoot = path.resolve(dir ?? process.cwd());
   const art = loadArtifact(source);
 
@@ -338,7 +338,7 @@ export async function blueprintImport(
 
     if (opts.dryRun) {
       console.log("\n--dry-run: nothing written.");
-      return;
+      return false;
     }
 
     // 6. Confirm. Non-interactive without --yes REFUSES rather than proceeding, which is the
@@ -350,7 +350,7 @@ export async function blueprintImport(
       console.log("\nThis is untrusted code that will run against your account once onboarded.");
       if (!(await confirm("Apply this blueprint?"))) {
         console.log("Aborted; nothing written.");
-        return;
+        return false;
       }
     }
 
@@ -383,6 +383,7 @@ export async function blueprintImport(
     // later measurement cycle. Provenance goes to the operator's terminal instead.
     console.log(`  provenance (not written into the project): ${JSON.stringify(m.provenance ?? {})}`);
     console.log(`  next: npm install, then read AGENTS.md.`);
+    return true;
   } finally {
     art.cleanup();
   }

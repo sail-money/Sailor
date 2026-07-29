@@ -11,6 +11,18 @@ each command named here exists in the CLI source.
 | `sailor init [dir]` | Scaffold a new agent project (`--template <name>`, `--chain <id>`, `--rpc-url <url>`, `--force` to re-init) |
 | `sailor update` | Re-sync agent tooling files (skills, `AGENTS.md`, `Dockerfile`) from the latest template — user code and state untouched |
 
+## Blueprints
+
+| Command | What it does |
+|---|---|
+| `sailor blueprint start <artifact> <dir>` | Create a fresh project, verify/import the artifact, install dependencies, typecheck, and launch blueprint-specific onboarding (`--chain <id>`, `--yes`, `--agent <executable>`, `--no-agent`) |
+| `sailor blueprint verify <artifact>` | Verify manifest shape, content hashes, digest, and declared compatibility (`--chain <id>`, `--json`) |
+| `sailor blueprint inspect <artifact>` | Show the artifact contents, surface changes, compatibility, and provenance claims without verifying it |
+| `sailor blueprint import <artifact> [dir]` | Verify and apply a blueprint to an existing Sailor scaffold (`--chain <id>`, `--dry-run`, `--yes`) |
+
+Blueprint verification proves integrity, not publisher identity. `start` consumes a local artifact
+and has no dependency on the tool that produced it.
+
 ## Keys and owner
 
 | Command | What it does |

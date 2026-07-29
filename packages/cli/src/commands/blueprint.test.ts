@@ -80,7 +80,7 @@ function makeProject(stockSkills: string[] = ["sailor-operate", "sailor-mandates
  * even though every assertion passed. Restore it, and return it so a test can assert on it.
  */
 async function capture(
-  fn: () => Promise<void>,
+  fn: () => Promise<unknown>,
 ): Promise<{ out: string; err: string; threw: Error | null; exitCode: number | undefined }> {
   const out: string[] = [];
   const err: string[] = [];

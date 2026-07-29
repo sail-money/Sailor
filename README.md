@@ -64,6 +64,24 @@ npx @sail.money/sailor init my-agent ; cd my-agent ; npm install
 
 Requires Node.js **>= 18**. For a global CLI instead: `npm install -g @sail.money/sailor`.
 
+### Start from a blueprint
+
+A portable blueprint can create and begin onboarding a complete strategy-specific project in one
+command:
+
+```bash
+npx @sail.money/sailor blueprint start ./dca-blueprint.tar.gz my-dca
+```
+
+Sailor creates the project, verifies and imports the artifact, installs dependencies, typechecks
+the delivered runtime, then opens the selected coding agent (Codex by default) in the finished
+project. The imported agent surface gathers the blueprint's mandate parameters before starting the
+appropriate Sandbox or live setup UI. Use `--agent <executable>` to launch another coding-agent
+CLI, or `--no-agent` to stop after preparation and open the project yourself.
+
+This verifies artifact integrity, not publisher identity. Read the import plan before approving it;
+artifact signing and registry trust are separate concerns.
+
 ### Docker (no Node.js required)
 
 ```bash

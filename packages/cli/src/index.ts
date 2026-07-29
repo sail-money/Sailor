@@ -17,6 +17,10 @@ import {
   blueprintInspect,
   blueprintVerify,
 } from "./commands/blueprint.js";
+import {
+  type BlueprintStartOptions,
+  blueprintStart,
+} from "./commands/blueprint-start.js";
 import { type CloneOptions, clone } from "./commands/clone.js";
 import { doctor } from "./commands/doctor.js";
 import { initCommand } from "./commands/init.js";
@@ -565,7 +569,25 @@ service
 // the agent surface is generic and replaceable — for a blueprint it is the product.
 const blueprintCmd = program
   .command("blueprint")
-  .description("Verify, inspect and import portable blueprint artifacts");
+  .description("Create projects from, verify, inspect and import portable blueprint artifacts");
+
+blueprintCmd
+  .command("start <artifact> <dir>")
+  .description("Create a project, import a blueprint, install it and launch guided onboarding")
+  .option("--chain <id>", "Chain id the artifact and new project must support")
+  .option("--yes", "Apply the verified blueprint without an interactive import confirmation")
+  .option("--agent <executable>", "Coding-agent executable to launch", "codex")
+  .option("--no-agent", "Stop after install/typecheck and print the coding-agent handoff")
+  .action(async (artifact: string, dir: string, opts: BlueprintStartOptions) => {
+    try {
+      await blueprintStart(artifact, dir, opts);
+    } catch (err) {
+      console.error(`Error: ${(err as Error).message}`);
+      closePrompts();
+      process.exit(1);
+    }
+    closePrompts();
+  });
 
 blueprintCmd
   .command("verify <artifact>")
