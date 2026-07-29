@@ -84,9 +84,9 @@ Beyond the protocol, the **Safe is the owner's ultimate control** — the owner 
 Two paths; use both understanding which is sovereign:
 
 - **(a) Safe app — the sovereign exit.** The SMA is a Safe the owner controls directly. `sailor ui start` → the dashboard's **Open in Safe** link goes to `app.safe.global` for this account, chain-aware (it maps the account's chain to the right Safe prefix). From there the owner moves funds with their own wallet signature. This works **regardless of agent, mandate, or session state** — it is the guaranteed way out and needs no permission.
-- **(b) Agent-mediated withdraw — within bounds.** If a `WithdrawPermission` is registered ([`sailor-template-withdraw`](../sailor-template-withdraw/SKILL.md)), the agent (or a one-off `sailor run --once`) can consolidate funds to the owner's fixed recipient within the mandate's cap. Convenient for routine sweeps; bounded by the permission.
+- **(b) Agent-mediated exit and payout — within bounds.** Two distinct permissions, and a full round trip to the owner needs both. If a `WithdrawPermission` is registered ([`sailor-template-withdraw`](../sailor-template-withdraw/SKILL.md)), the agent (or a one-off `sailor run --once`) can unwind a vault or lending position within the mandate's cap — the proceeds land in the SMA itself, which is all this permission can do. Moving those funds onward to the owner's address is `TransferPermission` ([`sailor-template-transfer`](../sailor-template-transfer/SKILL.md)) with that address as a one-entry recipient allowlist. Convenient for routine operation; bounded by the permissions.
 
-Use (b) for routine consolidation while running; use (a) whenever you want certainty, or the agent is paused/misbehaving/unresponsive.
+Use (b) for routine exits and sweeps while running; use (a) whenever you want certainty, or the agent is paused/misbehaving/unresponsive.
 
 **Full shutdown recipe** (order matters):
 
