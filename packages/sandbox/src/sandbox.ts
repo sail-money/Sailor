@@ -486,7 +486,19 @@ export function archiveSandboxWorld(sandboxDir: string): string | null {
   const manifestFile = manifestPath(sandboxDir);
   const hasManifest = existsSync(manifestFile);
 
-  if (present.length === 0 && dumps.length === 0 && !hasManifest) return null;
+  // "Is there a world here?" is answered by SUBSTANTIVE state only — the two
+  // entries below exist in every sandbox, including one that has never been
+  // onboarded, so counting them makes the no-world case unreachable:
+  //   - config.json: written at sandbox creation, not by any world.
+  //   - forks.json: `resetSandbox` runs first and writes the manifest
+  //     unconditionally, so the file is always there (often just `{}`).
+  // Both are still archived below whenever a world *is* found; they just don't
+  // get a vote. Without this, resetting a brand-new sandbox produced a junk
+  // backup and carried its config.json away with it.
+  const substantive = present.filter((name) => name !== "config.json");
+  const hasForks = Object.keys(readManifest(sandboxDir)).length > 0;
+
+  if (substantive.length === 0 && dumps.length === 0 && !hasForks) return null;
 
   const backupDir = nextBackupDir(sandboxDir);
   mkdirSync(backupDir, { recursive: true });

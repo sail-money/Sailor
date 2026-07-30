@@ -118,6 +118,24 @@ const CREATE2_TREASURY = "0x7b37F85575F1568a37dBA342BC5FE6d393F0872f" as Address
 const CREATE2_MAX_PERMISSION_FEE_WEI = 10_000_000_000_000_000n;
 
 /**
+ * Canonical core CONTRACT addresses — chain-invariant, single source of truth for
+ * tooling and docs.
+ *
+ * Deliberately excludes `deployer`: it is an EOA (the wallet that signed the
+ * deploys), not a contract, and consumers that treat these as "safe to publish"
+ * constants (e.g. the CLI's share redactor) must be free to redact it as identity.
+ */
+export const sailCoreAddresses = {
+  governance: CREATE2_GOVERNANCE,
+  timelock: CREATE2_TIMELOCK,
+  kernel: CREATE2_KERNEL,
+  mandateFactory: CREATE2_MANDATE_FACTORY,
+  standardFeePolicy: CREATE2_STANDARD_FEE_POLICY,
+  safeModuleEnabler: CREATE2_SAFE_MODULE_ENABLER,
+  treasury: CREATE2_TREASURY,
+} as const;
+
+/**
  * Shared, multi-tenant permission templates (CREATE2, same address on every chain).
  * Constructor is (kernel, author); kernel is CREATE2_KERNEL, author is CREATE2_DEPLOYER.
  */

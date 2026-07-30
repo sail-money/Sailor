@@ -50,6 +50,7 @@ export type {
 export {
   getSailDeployment,
   normalizeDeployment,
+  sailCoreAddresses,
   sailDeployments,
 } from "./deployments.js";
 export type { DispatchModel, KernelCapabilities } from "./capabilities.js";
