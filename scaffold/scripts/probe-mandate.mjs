@@ -28,6 +28,7 @@
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve as resolvePath } from "node:path";
+import { pathToFileURL } from "node:url";
 import { decodeAbiParameters, encodeFunctionData, getAddress } from "viem";
 
 // Sentinels that are, by construction, NOT in any user allowlist — used to prove
@@ -478,4 +479,4 @@ function main() {
 }
 
 // Run only as a CLI, not when imported by tests.
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (import.meta.url === pathToFileURL(process.argv[1]).href) main();
