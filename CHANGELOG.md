@@ -5,6 +5,29 @@ All notable changes to Sailor are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.3] - 2026-07-31
+
+### Fixed
+
+- The dashboard no longer ships a placeholder WalletConnect project id
+  (`sailor-local-dev`). WalletConnect needs a *registered* Reown project id — the
+  relay answers 403 to anything else and then can never produce a pairing URI, so
+  choosing "WalletConnect" in the connect modal highlighted the row and then did
+  nothing (no QR, no error). When no valid id is configured, WalletConnect is now
+  omitted and the modal offers injected browser wallets plus `safeWallet` (which
+  speaks the Safe Apps SDK over the iframe and needs no relay) instead of a dead
+  row. The id is read at runtime from `.sail/.env.local` (injected as
+  `window.__SAILOR_CONFIG__`, since the published `dist` freezes build-time env
+  vars) and shape-checked as 32 hex characters. (#216)
+
+### Added
+
+- A WalletConnect setup step in the onboarding wizard (`WalletConnectSetup`), with
+  `GET`/`POST /api/wallet-config` endpoints that persist `WALLETCONNECT_PROJECT_ID`
+  to `.sail/.env.local` and surface the server's validation message on a
+  mis-pasted id. `scaffold/.env.example` documents the (optional, public,
+  non-secret) variable. (#216)
+
 ## [2.1.2] - 2026-07-30
 
 ### Changed
