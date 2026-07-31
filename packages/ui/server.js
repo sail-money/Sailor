@@ -95,6 +95,30 @@ function persistPassphrase(envPath, passphrase) {
   fs.chmodSync(envPath, 0o600)
 }
 
+/**
+ * Upserts one `KEY=VALUE` in `.sail/.env.local`, preserving every other key; an
+ * empty `value` removes the key. Only ever called with a literal `key` from this
+ * file, so building the match pattern from it is safe.
+ *
+ * The file can hold SAIL_PASSPHRASE, so it is (re)written 0600 — writeFileSync's
+ * mode is ignored for a file that already exists, hence the explicit chmod.
+ */
+function upsertEnvVar(envPath, key, value) {
+  let content = ''
+  if (fs.existsSync(envPath)) {
+    content = fs.readFileSync(envPath, 'utf-8').replace(new RegExp(`^${key}=.*\n?`, 'm'), '')
+  }
+  const trimmed = content.trimEnd()
+  const head = `${trimmed}${trimmed.length > 0 ? '\n' : ''}`
+  fs.mkdirSync(path.dirname(envPath), { recursive: true })
+  fs.writeFileSync(envPath, value === '' ? head : `${head}${key}=${value}\n`, { mode: 0o600 })
+  fs.chmodSync(envPath, 0o600)
+}
+
+/** A Reown (WalletConnect) project id: 32 hex characters. Mirrors
+ *  PROJECT_ID_RE in src/wagmi.js — keep the two in sync. */
+const WALLETCONNECT_PROJECT_ID_RE = /^[0-9a-f]{32}$/i
+
 /** Reject values that would break `.env.local`: a newline injects an extra
  *  KEY=VALUE line (e.g. overwriting SAIL_PASSPHRASE) when the file is re-serialized. */
 export function isSafeEnvValue(v) {
@@ -1919,6 +1943,47 @@ export function startServer(sailDir, { port = PORT } = {}) {
     return result
   }
 
+  // GET/POST /api/wallet-config — the Reown (WalletConnect) project id, stored in
+  // .sail/.env.local. It is a public app identifier rather than a secret, so it is
+  // returned to the browser as-is (unlike RPC keys, which are masked).
+  app.get('/api/wallet-config', (_req, res) => {
+    try {
+      const env = parseEnvFile(at('.env.local'))
+      const fromEnv = String(process.env.WALLETCONNECT_PROJECT_ID ?? '').trim()
+      const projectId = fromEnv || String(env.WALLETCONNECT_PROJECT_ID ?? '').trim()
+      res.json({
+        walletConnectProjectId: projectId,
+        configured: WALLETCONNECT_PROJECT_ID_RE.test(projectId),
+        // A process env var wins over the file, so the browser must not offer to
+        // edit it — the write would be silently shadowed.
+        managedByEnv: fromEnv !== '',
+      })
+    } catch (err) {
+      serverError(res, err)
+    }
+  })
+
+  app.post('/api/wallet-config', (req, res) => {
+    try {
+      const raw = req.body?.projectId
+      const projectId = typeof raw === 'string' ? raw.trim() : ''
+      if (!isSafeEnvValue(projectId)) {
+        return res.status(400).json({ error: 'projectId contains an illegal character' })
+      }
+      // '' clears the setting; anything else must be a real Reown id shape, so a
+      // mis-paste is caught here instead of dying silently at the relay.
+      if (projectId !== '' && !WALLETCONNECT_PROJECT_ID_RE.test(projectId)) {
+        return res.status(400).json({
+          error: `Not a Reown project id — expected 32 hex characters, got ${projectId.length}.`,
+        })
+      }
+      upsertEnvVar(at('.env.local'), 'WALLETCONNECT_PROJECT_ID', projectId)
+      res.json({ ok: true, walletConnectProjectId: projectId, configured: projectId !== '' })
+    } catch (err) {
+      serverError(res, err)
+    }
+  })
+
   // GET /api/version — running (process-start) vs installed (live on-disk) version.
   // `stale: true` means the package was upgraded under a running `sailor ui`, so
   // the dashboard is serving old assets/code; the client prompts a restart/reload.
@@ -1934,6 +1999,37 @@ export function startServer(sailDir, { port = PORT } = {}) {
   const distDir = process.env.SAILOR_UI_DIST ?? path.join(path.dirname(_thisFile), 'dist')
   const hasUiDist = fs.existsSync(path.join(distDir, 'index.html'))
   if (process.env.SERVE_DIST === '1' || hasUiDist) {
+    // Client runtime config, injected into index.html at *serve* time. The npm
+    // package ships a pre-built bundle, so any value the client reads through
+    // `import.meta.env` is frozen at publish time and an operator can never set
+    // it — WALLETCONNECT_PROJECT_ID has to arrive this way instead. Without it
+    // the connect modal drops WalletConnect rather than showing a row that
+    // cannot pair (see packages/ui/src/wagmi.js).
+    const sendIndexHtml = (res) => {
+      try {
+        const env = parseEnvFile(at('.env.local'))
+        const runtimeConfig = {
+          walletConnectProjectId: String(
+            process.env.WALLETCONNECT_PROJECT_ID ?? env.WALLETCONNECT_PROJECT_ID ?? '',
+          ).trim(),
+        }
+        // Escaping `<` stops a value containing "</script>" closing the tag.
+        const json = JSON.stringify(runtimeConfig).replace(/</g, '\\u003c')
+        const html = fs
+          .readFileSync(path.join(distDir, 'index.html'), 'utf-8')
+          .replace('</head>', `  <script>window.__SAILOR_CONFIG__ = ${json}</script>\n  </head>`)
+        res.setHeader('Content-Type', 'text/html; charset=utf-8')
+        res.setHeader('Cache-Control', 'no-cache')
+        res.send(html)
+      } catch (err) {
+        serverError(res, err)
+      }
+    }
+
+    // Must precede express.static, which would otherwise serve the raw,
+    // un-injected index.html for `/` and `/index.html`.
+    app.get(['/', '/index.html'], (_req, res) => sendIndexHtml(res))
+
     // Asset files are content-hashed → safe to cache. index.html is NOT hashed,
     // so it must revalidate every load; otherwise the browser keeps an old index
     // that points at stale asset hashes after an upgrade.
@@ -1942,10 +2038,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
         if (filePath.endsWith('index.html')) res.setHeader('Cache-Control', 'no-cache')
       },
     }))
-    app.get('*', (_req, res) => {
-      res.setHeader('Cache-Control', 'no-cache')
-      res.sendFile(path.join(distDir, 'index.html'))
-    })
+    app.get('*', (_req, res) => sendIndexHtml(res))
   }
 
   // Bind localhost by default so the key-management API isn't network-reachable.
