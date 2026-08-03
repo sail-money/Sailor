@@ -5,6 +5,44 @@ All notable changes to Sailor are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- `sailor strategy` command group configures execution strategies — each binds **one executable to
+  one SMA**, optionally pinned to a set of chains. Subcommands: `list`, `create` (`--sma`,
+  `--executable`, optional `--chains` / `--description`), `activate`/`deactivate`, `set-chains`
+  (`--chains` or `--clear`), `delete`, `new-executable` (scaffolds `src/strategy/<name>.ts`), and
+  `env show` / `env set` for per-chain values in `.sail/env/<slug>.json`. A strategy with a `chains`
+  list replays its executable once per chain (chainAgnostic); without one it runs once and the
+  executable drives chains at runtime via `ctx.chain(id)` (multichain). An SMA can have many
+  strategies; there are no steps or pipelines. Stored flat in `.sail/strategies/strategies.json`
+  (`version: 2`); older `version: 1` `pipeline`/`steps` files migrate automatically on load. Documented
+  in `sailor-agent-build/references/execution-strategy-config.md` (creation + config) and
+  `sailor-operate/references/execution-strategies.md` (runtime).
+- `AgentContext.chain(chainId)` — a per-chain handle (`{ chainId, publicClient, client, env, read,
+  dispatch }`) bound to the strategy's SMA, available in every executable. Lets one `tick` read and act
+  across any chain the SMA is deployed on; `dispatch(intent)` tags the intent so the runner routes it to
+  that chain.
+- `sailor run` falls back to a built-in public RPC from the chain registry (`getDefaultRpcUrl`)
+  when no `RPC_URL` or per-chain RPC is configured, so a first run works without RPC setup.
+  Explicitly configured endpoints still win, and the SSRF guard (`assertSafeRpcUrl`) applies to the
+  default and configured URLs alike.
+
+### Changed
+
+- `sailor run` is now strategy-driven rather than `CHAIN_ID`-driven. The chain(s) come solely from
+  the active strategy (its `chains` list, or the SMA's deployed set in multichain mode); the
+  `--chain` flag and all `CHAIN_ID` / `.env.local` / `config.json` chain-id resolution were removed.
+  New flags `--strategy <name>`, `--sma <address>`, and `--chains <ids>` filter which active
+  strategies run. With no strategies configured, a `Default` strategy is synthesized (and persisted)
+  from the active account for back-compat.
+- Scaffold skills, docs, and CI were realigned to the strategy model and no longer direct users to
+  set `CHAIN_ID` for run selection: the `sailor-transactions` skill (previously showed a
+  non-existent `run --chain`), `.env.example`, the `agent-tick.yml` workflow, the `docker-vm.md`
+  reference, and the legacy `src/config.ts` helper. `CHAIN_ID` survives only as a default for
+  helper scripts, not the runner.
+
 ## [2.1.3] - 2026-07-31
 
 ### Fixed
