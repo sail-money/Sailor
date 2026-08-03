@@ -15,6 +15,7 @@ import { mainnetChains, chainColor, chainDescription } from '../../lib/chains'
 import { ChainGlyph, GlassCard, InfoTip, Sai, SailButton } from '../shared'
 import shared from '../shared/shared.module.css'
 import styles from './OnboardingWizard.module.css'
+import WalletConnectSetup from './WalletConnectSetup'
 import { useSigningSocket } from '../../hooks/useSigningSocket'
 
 // Set to true when the welcome "Already have an SMA? Connect wallet" link starts
@@ -255,6 +256,10 @@ function WelcomeState({ onStart, onConnected }) {
           </button>
         )
       )}
+      {/* WalletConnect is a precondition for connecting a Safe or a mobile
+          wallet, so it belongs before the connect modal rather than after a
+          dead row in it. Collapsed by default — see WalletConnectSetup. */}
+      <WalletConnectSetup />
     </GlassCard>
   )
 }
