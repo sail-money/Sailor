@@ -147,8 +147,10 @@ describe('POST /api/onboard/complete', () => {
     const s = doc.strategies[0]
     expect(s.name).toBe('Default')
     expect(s.active).toBe(true)
-    expect(s.pipeline.type).toBe('sequential')
-    expect(s.pipeline.steps).toEqual([{ executable: 'agent', sma: safe, chains: [8453] }])
+    expect(s.executable).toBe('agent')
+    expect(s.chains).toEqual([8453])
+    expect(s.sma.toLowerCase()).toBe(safe.toLowerCase())
+    expect(s.pipeline).toBeUndefined()
   })
 
   it('rejects invalid safe address', async () => {

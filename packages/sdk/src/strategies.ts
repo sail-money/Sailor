@@ -1,10 +1,11 @@
 // Single owner of the on-disk strategy state under `.sail/strategies/strategies.json`.
 //
-// A **strategy** is one execution pipeline the runner drives each tick. Each strategy holds an
-// ordered `pipeline` of **steps**; every step binds a named **executable** (a `src/strategy/<name>.ts`
-// script) to an SMA and a set of chains. `pipeline.type` decides whether the steps run in
-// `sequential` order or in `parallel`. `active` strategies run by default; `sailor run --strategy`
-// selects one.
+// A **strategy** is one runnable unit the runner drives each tick: **one SMA + one executable**
+// (a `src/strategy/<name>.ts` script), with an optional `chains` list. An SMA may have many
+// strategies; one executable may back many strategies. When `chains` is present the runner replays
+// the executable once per chain (each tick's default ctx bound to that chain); when it's absent the
+// runner invokes the executable once with ctx bound to the SMA's primary deployed chain and the
+// executable drives other chains via `ctx.chain(id)`.
 //
 // Storage mirrors the accounts.ts convention: a function module keyed off an overridable `sailDir`
 // (default `<cwd>/.sail`) so the CLI, the UI server, and the signing daemon all write through one
@@ -16,23 +17,12 @@ import { getAddress } from "viem";
 import { getChain } from "./chains.js";
 import { defaultSailDir, listAccounts, readActiveAccount, type AccountRecord } from "./accounts.js";
 
-export type PipelineType = "sequential" | "parallel";
-
-/** One executable bound to an SMA + chains within a strategy's pipeline. */
-export type StrategyStep = {
-  /** Executable name → `src/strategy/<executable>.ts`. Reusable across strategies. */
-  executable: string;
-  /** SMA (checksummed) this step runs the executable against. */
-  sma: string;
-  /** Chains to run on — a subset of the SMA's deployed set, at least one. */
-  chains: number[];
-};
-
-export type Pipeline = {
-  type: PipelineType;
-  steps: StrategyStep[];
-};
-
+/**
+ * A stored strategy: one SMA + one executable. `chains` present → the runner replays the executable
+ * once per listed chain (each a subset of the SMA's deployed set); `chains` absent → the runner runs
+ * the executable once, default-bound to the SMA's primary chain, and it may reach any deployed chain
+ * via `ctx.chain(id)`.
+ */
 export type StoredStrategy = {
   /** Unique, non-empty display name (also the `--strategy` selector). */
   name: string;
@@ -40,10 +30,17 @@ export type StoredStrategy = {
   description?: string;
   /** When true, the strategy runs on every tick of the default `sailor run`. */
   active: boolean;
-  pipeline: Pipeline;
+  /** SMA (checksummed) this strategy runs the executable against. */
+  sma: string;
+  /** Executable name → `src/strategy/<executable>.ts`. Reusable across strategies. */
+  executable: string;
+  /** Optional replay set — a subset of the SMA's deployed chains. Absent = executable-driven mode. */
+  chains?: number[];
 };
 
-type StrategiesFile = { version: 1; strategies: StoredStrategy[] };
+/** Current on-disk schema version. Bumped 1→2 when Steps/Pipeline were flattened away. */
+const STRATEGIES_VERSION = 2 as const;
+type StrategiesFile = { version: number; strategies: StoredStrategy[] };
 
 const strategiesPath = (sailDir: string): string =>
   path.join(sailDir, "strategies", "strategies.json");
@@ -66,11 +63,12 @@ export function renderExecutableTemplate(name: string): string {
   return `import type { Agent, AgentContext, Dispatch } from "@sail.money/sailor/sdk";
 
 /**
- * Executable "${name}" - one runnable step in a strategy pipeline.
+ * Executable "${name}" - a strategy is one SMA + this executable.
  *
- * The runner calls tick() each interval for every (SMA, chain) this executable is bound to.
- * Return an array of Dispatch intents; return [] to skip. Per-chain env values configured in
- * .sail/env/<chain>.json are available on ctx.env (e.g. ctx.env.MORPHO_TOKEN_ADDR).
+ * The runner calls tick() each interval. If the strategy pins a \`chains\` list, tick runs once per
+ * chain with ctx bound to that chain; otherwise it runs once with ctx bound to the SMA's primary
+ * deployed chain. Either way you can reach any chain the SMA is deployed on via ctx.chain(id).
+ * Return an array of Dispatch intents; return [] to skip (no gas spent).
  */
 export const agent: Agent = {
   name: "${name}",
@@ -79,9 +77,20 @@ export const agent: Agent = {
   async tick(ctx: AgentContext): Promise<Dispatch[]> {
     ctx.log(\`${name} tick - chain \${ctx.chainId}, sma \${ctx.safe}\`);
 
-    // TODO: implement. Read on-chain state, decide, return intent dispatches.
-    // const token = ctx.env.MORPHO_TOKEN_ADDR;
-    // const balance = await ctx.read.balance(token as \`0x\${string}\`);
+    // ── Default / single chain ──────────────────────────────────────────────────
+    // ctx is bound to the strategy's default chain. Per-chain env (.sail/env/<chain>.json) is on
+    // ctx.env; on-chain reads via ctx.read / ctx.publicClient.
+    //   const token = ctx.env.MORPHO_TOKEN_ADDR as \`0x\${string}\`;
+    //   const balance = await ctx.read.balance(token);
+    //   if (balance === 0n) return [];
+    //   return [{ txHash: "0x", success: false, gasUsed: 0n, calls: [{ target: token, value: 0n, data: "0x" }] }];
+
+    // ── Another chain, same SMA ─────────────────────────────────────────────────
+    // ctx.chain(id) is a handle bound to this SMA on any chain it's deployed on; its dispatch()
+    // tags the intent so the runner routes it there:
+    //   const base = ctx.chain(8453);
+    //   const bal = await base.read.balance(base.env.USDC as \`0x\${string}\`);
+    //   return [base.dispatch({ calls: [{ target: base.env.ROUTER as \`0x\${string}\`, value: 0n, data: "0x" }] })];
 
     return [];
   },
@@ -131,13 +140,101 @@ function uniqNums(...sources: unknown[]): number[] {
 
 const eqName = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase();
 
+// ── Migration (v1 Steps/Pipeline → v2 flat) ─────────────────────────────────────
+
+/** Legacy (v1) step shape — simple (executable+sma+chains) or composed (executable+attachments). */
+type LegacyStep = {
+  kind?: string;
+  executable?: string;
+  sma?: string;
+  chains?: number[];
+  attachments?: Record<string, number[]>;
+};
+/** A stored strategy in either the v1 pipeline shape or an already-flat v2 shape. */
+type MaybeLegacyStrategy = StoredStrategy & {
+  pipeline?: { type?: string; steps?: LegacyStep[] };
+};
+
+/**
+ * Convert a parsed strategies file to the flat v2 shape. Already-v2 files pass through untouched
+ * (`changed: false`). A v1 file explodes each strategy's `pipeline.steps` into one flat strategy per
+ * step — the first step keeps the strategy name (and its description), later steps get `<name>#<n>`.
+ * A simple step maps `{executable, sma, chains}` directly; a composed step maps to the flat executable
+ * on its first attachment SMA (chains dropped). Steps with no SMA, and step-less strategies, are dropped.
+ */
+function migrateStrategies(raw: unknown): { strategies: StoredStrategy[]; changed: boolean } {
+  const parsed = raw as { version?: number; strategies?: MaybeLegacyStrategy[] } | null;
+  const list = parsed?.strategies ?? [];
+  if (parsed?.version === STRATEGIES_VERSION) {
+    return { strategies: list as StoredStrategy[], changed: false };
+  }
+
+  const out: StoredStrategy[] = [];
+  const notes: string[] = [];
+
+  for (const s of list) {
+    if (!s.pipeline) {
+      // Already flat (or hand-written): keep when it carries an executable + SMA.
+      if (s.executable && s.sma) {
+        const flat: StoredStrategy = { name: s.name, active: s.active ?? false, sma: s.sma, executable: s.executable };
+        if (s.description) flat.description = s.description;
+        if (Array.isArray(s.chains) && s.chains.length > 0) flat.chains = s.chains;
+        out.push(flat);
+      } else {
+        notes.push(`dropped "${s.name}" (not a runnable strategy)`);
+      }
+      continue;
+    }
+
+    const steps = s.pipeline.steps ?? [];
+    if (steps.length === 0) {
+      notes.push(`dropped "${s.name}" (no steps)`);
+      continue;
+    }
+
+    let emitted = 0;
+    steps.forEach((step, i) => {
+      const name = i === 0 ? s.name : `${s.name}#${i + 1}`;
+      const executable = step.executable ?? "agent";
+      let sma = "";
+      let chains: number[] | undefined;
+      if (step.kind === "composed" && step.attachments) {
+        sma = Object.keys(step.attachments)[0] ?? "";
+      } else {
+        sma = step.sma ?? "";
+        if (Array.isArray(step.chains) && step.chains.length > 0) chains = step.chains;
+      }
+      if (!sma) {
+        notes.push(`dropped step ${i} of "${s.name}" (no SMA)`);
+        return;
+      }
+      const flat: StoredStrategy = { name, active: s.active ?? false, sma, executable };
+      if (emitted === 0 && s.description) flat.description = s.description;
+      if (chains) flat.chains = chains;
+      out.push(flat);
+      emitted++;
+    });
+    if (emitted > 1) {
+      notes.push(`split "${s.name}" into ${emitted} strategies`);
+    }
+  }
+
+  if (notes.length > 0) {
+    console.log(`[strategies] migrated strategies.json v1→v2: ${notes.join("; ")}`);
+  }
+  return { strategies: out, changed: true };
+}
+
 function load(sailDir: string): StoredStrategy[] {
-  const parsed = readJson<StrategiesFile>(strategiesPath(sailDir));
-  return parsed?.strategies ?? [];
+  const raw = readJson<unknown>(strategiesPath(sailDir));
+  if (raw == null) return [];
+  const { strategies, changed } = migrateStrategies(raw);
+  if (changed) writeJson(strategiesPath(sailDir), { version: STRATEGIES_VERSION, strategies });
+  return strategies;
 }
 
 function commit(strategies: StoredStrategy[], sailDir: string): void {
-  writeJson(strategiesPath(sailDir), { version: 1, strategies });
+  writeJson(strategiesPath(sailDir), { version: STRATEGIES_VERSION, strategies });
 }
 
 /** The full deployed-chain set for an SMA (primary `chainId` is implicit). Empty if unknown. */
@@ -199,46 +296,66 @@ export function writeChainEnv(chainId: number, values: Record<string, unknown>, 
 // ── Validation ──────────────────────────────────────────────────────────────
 
 /**
- * Normalize + validate a step: executable name camelCase, SMA is a known account, and every chain
- * is in that SMA's deployed set (≥1). Returns the cleaned step or throws with a human-readable
- * reason. `sma` is checksummed; `chains` are filtered to the deployed set and deduped.
+ * Normalize + validate an SMA + optional chains for a strategy. Returns the checksummed SMA and the
+ * chains filtered to the SMA's deployed set (or `undefined` when none were requested). Throws when
+ * the executable name is not camelCase, the SMA is not a known account, or requested chains resolve
+ * to none of the SMA's deployed chains.
  */
-export function validateStep(step: StrategyStep, sailDir: string = defaultSailDir()): StrategyStep {
-  if (!isValidExecutableName(step.executable)) {
+function validateStrategyTarget(
+  executable: string,
+  smaInput: string,
+  chainsInput: number[] | undefined,
+  sailDir: string,
+): { sma: string; chains?: number[] } {
+  if (!isValidExecutableName(executable)) {
     throw new Error(
-      `Invalid executable name "${step.executable}" — use camelCase letters/digits only (e.g. agent, checkData).`,
+      `Invalid executable name "${executable}" — use camelCase letters/digits only (e.g. agent, checkData).`,
     );
   }
   let sma: string;
   try {
-    sma = getAddress(step.sma);
+    sma = getAddress(smaInput);
   } catch {
-    throw new Error(`Invalid SMA address: ${step.sma}`);
+    throw new Error(`Invalid SMA address: ${smaInput}`);
   }
   const deployed = deployedChainsForSma(sma, sailDir);
   if (deployed.length === 0) {
     throw new Error(`SMA ${sma} is not a known account (create/import it first).`);
   }
-  const chains = uniqNums(step.chains).filter((c) => deployed.includes(c));
-  if (chains.length === 0) {
-    throw new Error(
-      `Step for ${sma} has no valid chains. Choose from the SMA's deployed chains: ${deployed.join(", ")}.`,
-    );
+  if (chainsInput && chainsInput.length > 0) {
+    const chains = uniqNums(chainsInput).filter((c) => deployed.includes(c));
+    if (chains.length === 0) {
+      throw new Error(
+        `None of the chains [${chainsInput.join(", ")}] are in ${sma}'s deployed set: ${deployed.join(", ")}.`,
+      );
+    }
+    return { sma, chains };
   }
-  return { executable: step.executable, sma, chains };
+  return { sma };
 }
 
 // ── Writes ────────────────────────────────────────────────────────────────────
 
-/** Create a new, empty, inactive strategy. Throws if the name is blank or already used. */
-export function createStrategy(name: string, sailDir: string = defaultSailDir()): StoredStrategy {
+/**
+ * Create a new (inactive) strategy: one SMA + one executable, optionally pinned to a `chains` subset.
+ * Validates the name is unique/non-empty, the executable name is camelCase, the SMA is a known
+ * account, and any `chains` intersect the SMA's deployed set (≥1). Omitting `chains` stores no key
+ * (executable-driven mode). Throws on any violation.
+ */
+export function createStrategy(
+  name: string,
+  opts: { sma: string; executable: string; chains?: number[] },
+  sailDir: string = defaultSailDir(),
+): StoredStrategy {
   const clean = name.trim();
   if (!clean) throw new Error("Strategy name must not be empty.");
+  const { sma, chains } = validateStrategyTarget(opts.executable, opts.sma, opts.chains, sailDir);
   const strategies = load(sailDir);
   if (strategies.some((s) => eqName(s.name, clean))) {
     throw new Error(`A strategy named "${clean}" already exists.`);
   }
-  const strategy: StoredStrategy = { name: clean, active: false, pipeline: { type: "sequential", steps: [] } };
+  const strategy: StoredStrategy = { name: clean, active: false, sma, executable: opts.executable };
+  if (chains) strategy.chains = chains;
   strategies.push(strategy);
   commit(strategies, sailDir);
   return strategy;
@@ -265,11 +382,27 @@ export function setStrategyActive(name: string, active: boolean, sailDir: string
   return s;
 }
 
-export function setPipelineType(name: string, type: PipelineType, sailDir: string = defaultSailDir()): StoredStrategy | null {
+/**
+ * Set (or clear, with `null`/`[]`) a strategy's `chains`. When chains are given they are filtered to
+ * the SMA's deployed set (≥1, else throws). Clearing switches the strategy to executable-driven mode.
+ * Returns the updated strategy, or null if unknown.
+ */
+export function setStrategyChains(name: string, chains: number[] | null, sailDir: string = defaultSailDir()): StoredStrategy | null {
   const strategies = load(sailDir);
   const s = strategies.find((x) => eqName(x.name, name));
   if (!s) return null;
-  s.pipeline.type = type;
+  if (!chains || chains.length === 0) {
+    delete s.chains;
+  } else {
+    const deployed = deployedChainsForSma(s.sma, sailDir);
+    const filtered = uniqNums(chains).filter((c) => deployed.includes(c));
+    if (filtered.length === 0) {
+      throw new Error(
+        `None of the chains [${chains.join(", ")}] are in ${s.sma}'s deployed set: ${deployed.join(", ")}.`,
+      );
+    }
+    s.chains = filtered;
+  }
   commit(strategies, sailDir);
   return s;
 }
@@ -296,37 +429,6 @@ export function deleteStrategy(name: string, sailDir: string = defaultSailDir())
   return true;
 }
 
-/** Append a validated step to a strategy's pipeline. Throws on unknown strategy or invalid step. */
-export function addStep(name: string, step: StrategyStep, sailDir: string = defaultSailDir()): StoredStrategy {
-  const strategies = load(sailDir);
-  const s = strategies.find((x) => eqName(x.name, name));
-  if (!s) throw new Error(`No strategy named "${name}".`);
-  s.pipeline.steps.push(validateStep(step, sailDir));
-  commit(strategies, sailDir);
-  return s;
-}
-
-/** Replace the step at `index` (0-based) with a validated one. Preserves order. Throws on bad input. */
-export function updateStep(name: string, index: number, step: StrategyStep, sailDir: string = defaultSailDir()): StoredStrategy {
-  const strategies = load(sailDir);
-  const s = strategies.find((x) => eqName(x.name, name));
-  if (!s) throw new Error(`No strategy named "${name}".`);
-  if (index < 0 || index >= s.pipeline.steps.length) throw new Error(`No step at index ${index}.`);
-  s.pipeline.steps[index] = validateStep(step, sailDir);
-  commit(strategies, sailDir);
-  return s;
-}
-
-/** Remove the step at `index` (0-based) from a strategy. Returns the strategy, or null if unknown. */
-export function removeStep(name: string, index: number, sailDir: string = defaultSailDir()): StoredStrategy | null {
-  const strategies = load(sailDir);
-  const s = strategies.find((x) => eqName(x.name, name));
-  if (!s) return null;
-  if (index >= 0 && index < s.pipeline.steps.length) s.pipeline.steps.splice(index, 1);
-  commit(strategies, sailDir);
-  return s;
-}
-
 /**
  * Seed the Default strategy when no strategies exist yet — the back-compat path so a brand-new SMA
  * runs `src/agent.ts` on its primary chain with zero config. No-op when any strategy already exists.
@@ -346,7 +448,9 @@ export function ensureDefaultStrategy(
   const strategy: StoredStrategy = {
     name: "Default",
     active: true,
-    pipeline: { type: "sequential", steps: [{ executable: "agent", sma: getAddress(account.safe), chains: [firstChain] }] },
+    sma: getAddress(account.safe),
+    executable: "agent",
+    chains: [firstChain],
   };
   commit([strategy], sailDir);
   return strategy;

@@ -590,12 +590,16 @@ export function startServer(sailDir, { port = PORT } = {}) {
     catch (err) { serverError(res, err) }
   })
 
-  // Create a new (inactive) strategy with an optional description.
+  // Create a new (inactive) strategy: one SMA + one executable (+ optional replay chains, description).
   app.post('/api/strategies', (req, res) => {
-    const { name, description } = req.body ?? {}
+    const { name, sma, executable, chains, description } = req.body ?? {}
     if (!name || typeof name !== 'string') { res.status(400).json({ error: 'name is required' }); return }
+    if (!sma || typeof sma !== 'string') { res.status(400).json({ error: 'sma is required' }); return }
+    if (!executable || typeof executable !== 'string') { res.status(400).json({ error: 'executable is required' }); return }
     try {
-      const s = strategyStore.createStrategy(name.trim(), sailDir)
+      const opts = { sma: sma.trim(), executable: executable.trim() }
+      if (Array.isArray(chains) && chains.length > 0) opts.chains = chains.map(Number)
+      const s = strategyStore.createStrategy(name.trim(), opts, sailDir)
       if (typeof description === 'string' && description.trim()) {
         strategyStore.setStrategyDescription(s.name, description, sailDir)
       }
@@ -603,16 +607,19 @@ export function startServer(sailDir, { port = PORT } = {}) {
     } catch (err) { res.status(400).json({ error: err.message }) }
   })
 
-  // Update a strategy: active flag, description, and/or pipeline type.
+  // Update a strategy: active flag, description, and/or replay chains (empty/null → executable-driven).
   app.post('/api/strategies/:name', (req, res) => {
-    const { active, description, pipelineType } = req.body ?? {}
+    const { active, description, chains } = req.body ?? {}
     try {
       if (typeof active === 'boolean' && !strategyStore.setStrategyActive(req.params.name, active, sailDir)) {
         res.status(404).json({ error: 'strategy not found' }); return
       }
       if (typeof description === 'string') strategyStore.setStrategyDescription(req.params.name, description, sailDir)
-      if (pipelineType === 'parallel' || pipelineType === 'sequential') {
-        strategyStore.setPipelineType(req.params.name, pipelineType, sailDir)
+      if (chains !== undefined) {
+        const next = Array.isArray(chains) && chains.length > 0 ? chains.map(Number) : null
+        if (!strategyStore.setStrategyChains(req.params.name, next, sailDir)) {
+          res.status(404).json({ error: 'strategy not found' }); return
+        }
       }
       const s = strategyStore.getStrategy(req.params.name, sailDir)
       if (!s) { res.status(404).json({ error: 'strategy not found' }); return }
@@ -624,40 +631,6 @@ export function startServer(sailDir, { port = PORT } = {}) {
     try {
       if (!strategyStore.deleteStrategy(req.params.name, sailDir)) { res.status(404).json({ error: 'strategy not found' }); return }
       res.json({ ok: true })
-    } catch (err) { serverError(res, err) }
-  })
-
-  // Add an executable step (executable + SMA + chains) to a strategy.
-  app.post('/api/strategies/:name/steps', (req, res) => {
-    const { executable, sma, chains } = req.body ?? {}
-    try {
-      const s = strategyStore.addStep(req.params.name, {
-        executable: String(executable ?? ''),
-        sma: String(sma ?? ''),
-        chains: Array.isArray(chains) ? chains.map(Number) : [],
-      }, sailDir)
-      res.json({ ok: true, strategy: s })
-    } catch (err) { res.status(400).json({ error: err.message }) }
-  })
-
-  // Replace an existing step in place (edit).
-  app.post('/api/strategies/:name/steps/:index', (req, res) => {
-    const { executable, sma, chains } = req.body ?? {}
-    try {
-      const s = strategyStore.updateStep(req.params.name, Number(req.params.index), {
-        executable: String(executable ?? ''),
-        sma: String(sma ?? ''),
-        chains: Array.isArray(chains) ? chains.map(Number) : [],
-      }, sailDir)
-      res.json({ ok: true, strategy: s })
-    } catch (err) { res.status(400).json({ error: err.message }) }
-  })
-
-  app.delete('/api/strategies/:name/steps/:index', (req, res) => {
-    try {
-      const s = strategyStore.removeStep(req.params.name, Number(req.params.index), sailDir)
-      if (!s) { res.status(404).json({ error: 'strategy not found' }); return }
-      res.json({ ok: true, strategy: s })
     } catch (err) { serverError(res, err) }
   })
 

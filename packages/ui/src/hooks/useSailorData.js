@@ -143,12 +143,9 @@ async function postJson(url, body, label, method = 'POST') {
   return res.json()
 }
 
-export const createStrategy = (name, description) => postJson('/api/strategies', { name, description }, 'Create strategy')
+export const createStrategy = (name, opts) => postJson('/api/strategies', { name, ...opts }, 'Create strategy')
 export const updateStrategy = (name, fields) => postJson(`/api/strategies/${encodeURIComponent(name)}`, fields, 'Update strategy')
 export const deleteStrategy = (name) => postJson(`/api/strategies/${encodeURIComponent(name)}`, undefined, 'Delete strategy', 'DELETE')
-export const addStrategyStep = (name, step) => postJson(`/api/strategies/${encodeURIComponent(name)}/steps`, step, 'Add step')
-export const updateStrategyStep = (name, index, step) => postJson(`/api/strategies/${encodeURIComponent(name)}/steps/${index}`, step, 'Update step')
-export const removeStrategyStep = (name, index) => postJson(`/api/strategies/${encodeURIComponent(name)}/steps/${index}`, undefined, 'Remove step', 'DELETE')
 export const createExecutable = (name) => postJson('/api/executables', { name }, 'Create executable')
 
 export const getChainEnv = (chainId) =>

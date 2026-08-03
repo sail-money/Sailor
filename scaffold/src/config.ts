@@ -1,4 +1,8 @@
-/** Reads RPC_URL and CHAIN_ID from environment (set via .sail/.env.local or GitHub Secrets). */
+/**
+ * LEGACY helper for standalone scripts that need a single RPC + chain from the environment.
+ * `sailor run` does NOT use this — it gets its chain(s) from the active strategy's steps
+ * (see the sailor-strategy skill). Kept only for one-off scripts; not on the runner path.
+ */
 export function getEnvConfig(): { rpcUrl: string; chainId: number } {
   const rpcUrl = process.env["RPC_URL"];
   if (!rpcUrl) {
@@ -11,8 +15,8 @@ export function getEnvConfig(): { rpcUrl: string; chainId: number } {
   if (!process.env["CHAIN_ID"]) {
     throw new Error(
       "CHAIN_ID is not set.\n" +
-        "Open this folder in your AI coding assistant and say 'start' — Stage 1 will ask\n" +
-        "which chain you want and set CHAIN_ID in .sail/.env.local.",
+        "This legacy helper needs CHAIN_ID only for standalone scripts — set it in .sail/.env.local.\n" +
+        "`sailor run` does not use it; the chain(s) come from your active strategy's steps.",
     );
   }
   const chainId = Number(process.env["CHAIN_ID"]);

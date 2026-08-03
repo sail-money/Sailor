@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import {
   type Agent,
   type AgentContext,
+  type ChainHandle,
   type Dispatch,
   type ILocalKeyring,
   SailorClient,
@@ -31,7 +32,7 @@ import { clearAgentPid, writeAgentPid } from "../lib/process.js";
 import { readActiveAccount } from "@sail/sdk/accounts";
 import {
   type StoredStrategy,
-  type StrategyStep,
+  deployedChainsForSma,
   ensureDefaultStrategy,
   getStrategy,
   readActiveStrategies,
@@ -49,11 +50,12 @@ type Signer = Awaited<ReturnType<typeof loadManagerSigner>>;
 /**
  * Runner-level dispatch annotation.
  *
- * Extends the SDK's `Dispatch` type with an optional `permission` override. When an agent sets
- * `permission`, the runner uses it directly and skips the off-chain evaluate() probe. Backward
- * compatible: agents that never set it keep working via the probe path.
+ * Extends the SDK's `Dispatch` type with an optional `permission` override and a `chainId` routing
+ * tag. When an agent sets `permission`, the runner uses it directly and skips the off-chain
+ * evaluate() probe. `chainId` (set by `ctx.chain(id).dispatch`) tells the runner which chain to
+ * execute the intent on; an untagged intent defaults to the tick's default chain.
  */
-type RunnerDispatch = Dispatch & { permission?: Address };
+type RunnerDispatch = Dispatch & { permission?: Address; chainId?: number };
 
 /** Minimal ERC-20 ABI fragments for read helpers. */
 const ERC20_READ_ABI = [
@@ -144,12 +146,13 @@ function assertSafeRpcUrl(rpcUrl: string): void {
 /**
  * `sailor run [--once]` — the strategy execution loop.
  *
- * Each tick runs every active strategy (or the one named by `--strategy`). A strategy's pipeline
- * runs its steps in `sequential` order or in `parallel`; each step runs its executable against its
- * SMA across each of its chains. For every returned Dispatch the runner resolves the authorising
- * permission, previews it, executes approved ones, and records the outcome to .sail/activity.jsonl.
- * A denied or failing dispatch is logged and skipped — it never stops the loop. The chain comes
- * solely from the strategy; `CHAIN_ID` is no longer read.
+ * Each tick runs every active strategy (or the one named by `--strategy`). A strategy is one SMA +
+ * one executable: with a `chains` list the executable is replayed once per chain; without one it
+ * runs once, default-bound to the SMA's primary deployed chain, and may drive other chains via
+ * `ctx.chain(id)`. Returned Dispatch intents are grouped by their chain tag; for each the runner
+ * resolves the authorising permission, previews it, executes approved ones, and records the outcome
+ * to .sail/activity.jsonl. A denied or failing dispatch is logged and skipped — it never stops the
+ * loop. The chain comes solely from the strategy; `CHAIN_ID` is no longer read.
  */
 export async function runCommand(opts: {
   once?: boolean;
@@ -197,31 +200,33 @@ export async function runCommand(opts: {
     }
   }
 
-  // Optional run-time filters (do NOT change stored config): restrict the resolved strategies'
-  // steps to a specific SMA and/or chains. With no filter, every step of every chosen strategy runs.
+  // Optional run-time filters (do NOT change stored config): restrict to a specific SMA and/or
+  // chains. The `--sma` filter drops non-matching strategies here; the `--chains` filter narrows the
+  // deployed/replay set each strategy runs on (applied per strategy in `runStrategy`). With no
+  // filter, every chosen strategy runs on its full chain set.
   const smaFilter = opts.sma ? checksum(opts.sma) : null;
   const chainFilter = opts.chains && opts.chains.length > 0 ? new Set(opts.chains) : null;
-  if (smaFilter || chainFilter) {
-    strategies = strategies
-      .map((s) => ({
-        ...s,
-        pipeline: {
-          ...s.pipeline,
-          steps: s.pipeline.steps
-            .filter((st) => !smaFilter || checksum(st.sma) === smaFilter)
-            .map((st) => (chainFilter ? { ...st, chains: st.chains.filter((c) => chainFilter.has(c)) } : st))
-            .filter((st) => st.chains.length > 0),
-        },
-      }))
-      .filter((s) => s.pipeline.steps.length > 0);
+  if (smaFilter) {
+    strategies = strategies.filter((s) => checksum(s.sma) === smaFilter);
   }
 
-  const steps = strategies.flatMap((s) => s.pipeline.steps);
-  if (steps.length === 0) {
+  // The chains a strategy would run on under the current filters: for a chainAgnostic strategy
+  // (`chains` set), `chains` ∩ (deployed ∩ filter); for a multichain strategy (no `chains`), the
+  // whole deployed set ∩ filter (it runs once, default-bound to the first). Empty ⇒ nothing to run.
+  const runnableChainsFor = (s: StoredStrategy): number[] => {
+    const deployed = deployedChainsForSma(checksum(s.sma));
+    const allowed = chainFilter ? deployed.filter((c) => chainFilter.has(c)) : deployed;
+    if (allowed.length === 0) return [];
+    if (s.chains && s.chains.length > 0) return s.chains.filter((c) => allowed.includes(c));
+    return allowed;
+  };
+
+  strategies = strategies.filter((s) => runnableChainsFor(s).length > 0);
+  if (strategies.length === 0) {
     const filterMsg =
       smaFilter || chainFilter
-        ? `No active-strategy steps match the filter (${[smaFilter && `sma ${smaFilter}`, chainFilter && `chains ${[...chainFilter].join(",")}`].filter(Boolean).join(", ")}).`
-        : "No steps to run. Add one with `sailor strategy add-step` (or activate a configured strategy).";
+        ? `No active strategy matches the filter (${[smaFilter && `sma ${smaFilter}`, chainFilter && `chains ${[...chainFilter].join(",")}`].filter(Boolean).join(", ")}).`
+        : "No strategy to run. Create one with `sailor strategy create` (or activate a configured strategy).";
     throw new Error(filterMsg);
   }
 
@@ -237,7 +242,7 @@ export async function runCommand(opts: {
   };
 
   // ── Load a manager signer per distinct SMA (up front, so the passphrase can be scrubbed) ─────
-  const distinctSmas = [...new Set(steps.map((s) => checksum(s.sma)))];
+  const distinctSmas = [...new Set(strategies.map((s) => checksum(s.sma)))];
   const signers = new Map<string, Signer>();
   for (const safe of distinctSmas) {
     if (!keyExists("manager", safe)) {
@@ -428,51 +433,29 @@ export async function runCommand(opts: {
     return rt;
   };
 
-  // ── One tick: executable.tick → preview → execute → log, for one (SMA, chain) ───────────────
-  async function runTick(rt: ChainRuntime, agent: Agent, envForChain: Record<string, string>): Promise<void> {
-    const { accountAddr, chainId, kernel, publicClient, readClient, execClient, isConjunctive, signer, agentManager } = rt;
-    appendActivity({ ts: nowIso(), actor: "agent", type: "tick_start", chainId, reason: runReason });
+  type BlockInfo = { number: bigint; timestamp: bigint };
 
-    let blockInfo = { number: 0n, timestamp: 0n };
+  // Fetch the current block for a runtime; zeros when the RPC is unavailable (per-call errors surface later).
+  const getBlockInfo = async (rt: ChainRuntime): Promise<BlockInfo> => {
     try {
-      const block = await publicClient.getBlock();
-      blockInfo = { number: block.number ?? 0n, timestamp: block.timestamp ?? 0n };
+      const block = await rt.publicClient.getBlock();
+      return { number: block.number ?? 0n, timestamp: block.timestamp ?? 0n };
     } catch {
-      // RPC unavailable — proceed with zeros; per-dispatch calls will surface the error
+      return { number: 0n, timestamp: 0n };
     }
-    const blockNumber = blockInfo.number;
+  };
 
-    const ctx: AgentContext = {
-      safe: accountAddr,
-      account: accountAddr,
-      chainId,
-      blockNumber,
-      timestamp: Math.floor(Date.now() / 1000),
-      now: new Date(),
-      // Constrained client: dispatch/strategy use the exec client (wallet attached); everything else
-      // uses the read-only client so agent code can't call privileged writes.
-      client: Object.assign(Object.create(readClient) as typeof readClient, {
-        dispatch: execClient.dispatch,
-        strategy: execClient.strategy,
-      }),
-      publicClient,
-      manager: agentManager,
-      log,
-      data: rt.data,
-      env: envForChain,
-      read: { balance: rt.readBalance, allowance: rt.readAllowance, decimals: rt.readDecimals },
-    };
-
-    let dispatches: Dispatch[];
-    try {
-      dispatches = await agent.tick(ctx);
-    } catch (err) {
-      const reason = (err as Error).message;
-      console.error(`tick error: ${reason}`);
-      appendActivity({ ts: nowIso(), actor: "agent", type: "error", reason, chainId });
-      appendActivity({ ts: nowIso(), actor: "agent", type: "tick_end", chainId });
-      return;
-    }
+  /**
+   * Resolve → preview → execute → log a runtime's dispatches, then a one-line per-chain summary.
+   * Failures are swallowed and the loop continues — a denied/reverted/erroring dispatch never stops
+   * the run.
+   */
+  const executeDispatches = async (
+    rt: ChainRuntime,
+    dispatches: Dispatch[],
+    blockInfo: BlockInfo,
+  ): Promise<void> => {
+    const { accountAddr, kernel, publicClient, readClient, execClient, isConjunctive, signer, agentManager } = rt;
 
     let registeredPermissions: Address[] = [];
     try {
@@ -585,51 +568,166 @@ export async function runCommand(opts: {
       if (tickSkipped > 0) parts.push(`${tickSkipped} skipped`);
       console.log(`tick complete [${rt.chainName} · ${accountAddr.slice(0, 8)}…]: ${parts.join(", ")}`);
     }
-
-    appendActivity({ ts: nowIso(), actor: "agent", type: "tick_end", chainId });
-  }
-
-  // Run one step (executable) across its chains, sequentially (nonce safety per SMA/chain).
-  const runStep = async (step: StrategyStep): Promise<void> => {
-    const agent = await loadExecutableFor(step.executable);
-    for (const chainId of step.chains) {
-      const rt = await getRuntime(step.sma, chainId);
-      if (!rt) continue; // unrunnable (SMA, chain) already logged
-      await runTick(rt, agent, readChainEnv(chainId));
-    }
-  };
-
-  const runStrategy = async (strategy: StoredStrategy): Promise<void> => {
-    const stps = strategy.pipeline.steps;
-    if (strategy.pipeline.type === "parallel") {
-      await Promise.all(stps.map((s) => runStep(s).catch((e) => console.error(`step error: ${(e as Error).message}`))));
-    } else {
-      for (const s of stps) {
-        try {
-          await runStep(s);
-        } catch (e) {
-          console.error(`step error: ${(e as Error).message}`);
-        }
-      }
-    }
   };
 
   let stopping = false;
 
+  // The SMA client, constrained so agent code can dispatch/strategy-swap but not call privileged
+  // writes (dispatch/strategy use the exec client; everything else the read-only client).
+  const constrainedClient = (rt: ChainRuntime) =>
+    Object.assign(Object.create(rt.readClient) as typeof rt.readClient, {
+      dispatch: rt.execClient.dispatch,
+      strategy: rt.execClient.strategy,
+    });
+
+  // A per-chain handle (ctx.chain(id)). `dispatch()` only TAGS the intent with this handle's chain;
+  // the runner routes + executes it later, so no on-chain write happens here.
+  const handleForRuntime = (rt: ChainRuntime): ChainHandle => ({
+    chainId: rt.chainId,
+    publicClient: rt.publicClient,
+    client: constrainedClient(rt),
+    env: readChainEnv(rt.chainId),
+    read: { balance: rt.readBalance, allowance: rt.readAllowance, decimals: rt.readDecimals },
+    dispatch: (intent) => ({
+      txHash: "0x",
+      success: false,
+      gasUsed: 0n,
+      calls: intent.calls,
+      ...(intent.permission ? { permission: intent.permission } : {}),
+      chainId: rt.chainId,
+    }),
+  });
+
+  /**
+   * Build the ONE AgentContext shape for a tick: top-level fields bind to `defaultChainId`, and
+   * `ctx.chain(id)` reaches any chain in `allowed` (the SMA's deployed set, narrowed by --chains).
+   * Runtimes for `allowed` are pre-built (and cached) so `ctx.chain(id)` returns synchronously.
+   * Returns null when the default chain's runtime can't be built (already logged).
+   */
+  const makeCtx = async (
+    sma: string,
+    defaultChainId: number,
+    allowed: number[],
+  ): Promise<AgentContext | null> => {
+    const defaultRt = await getRuntime(sma, defaultChainId);
+    if (!defaultRt) return null;
+
+    const chainRuntimes = new Map<number, ChainRuntime>([[defaultChainId, defaultRt]]);
+    for (const id of allowed) {
+      if (chainRuntimes.has(id)) continue;
+      const rt = await getRuntime(sma, id);
+      if (rt) chainRuntimes.set(id, rt);
+    }
+
+    const blockInfo = await getBlockInfo(defaultRt);
+
+    const chain = (chainId: number): ChainHandle => {
+      if (!allowed.includes(chainId)) {
+        throw new Error(
+          `ctx.chain(${chainId}): SMA ${sma} is not deployed on chain ${chainId} (or it's outside the run filter). Available: ${allowed.join(", ")}.`,
+        );
+      }
+      const rt = chainRuntimes.get(chainId);
+      if (!rt) throw new Error(`ctx.chain(${chainId}): runtime unavailable (no RPC/kernel/signer for ${sma}).`);
+      return handleForRuntime(rt);
+    };
+
+    return {
+      safe: defaultRt.accountAddr,
+      account: defaultRt.accountAddr,
+      chainId: defaultRt.chainId,
+      blockNumber: blockInfo.number,
+      timestamp: Math.floor(Date.now() / 1000),
+      now: new Date(),
+      client: constrainedClient(defaultRt),
+      publicClient: defaultRt.publicClient,
+      manager: defaultRt.agentManager,
+      log,
+      data: defaultRt.data,
+      env: readChainEnv(defaultRt.chainId),
+      read: { balance: defaultRt.readBalance, allowance: defaultRt.readAllowance, decimals: defaultRt.readDecimals },
+      chain,
+    };
+  };
+
+  // Invoke agent.tick, swallowing (and logging) a thrown tick so one bad executable never stops the loop.
+  const invokeTick = async (agent: Agent, ctx: AgentContext, chainId: number): Promise<Dispatch[]> => {
+    try {
+      return await agent.tick(ctx);
+    } catch (err) {
+      const reason = (err as Error).message;
+      console.error(`tick error: ${reason}`);
+      appendActivity({ ts: nowIso(), actor: "agent", type: "error", reason, chainId });
+      return [];
+    }
+  };
+
+  // Group returned dispatches by their chain tag (untagged → `defaultChain`) and execute each group
+  // on its chain, sequentially per chain (nonce safety). A chain with no runtime is skipped.
+  const routeAndExecute = async (sma: string, dispatches: Dispatch[], defaultChain: number): Promise<void> => {
+    const groups = new Map<number, Dispatch[]>();
+    for (const d of dispatches as RunnerDispatch[]) {
+      const chainId = d.chainId ?? defaultChain;
+      const group = groups.get(chainId) ?? [];
+      group.push(d);
+      groups.set(chainId, group);
+    }
+    for (const [chainId, group] of groups) {
+      const rt = await getRuntime(sma, chainId);
+      if (!rt) continue; // unrunnable (SMA, chain) already logged
+      await executeDispatches(rt, group, await getBlockInfo(rt));
+    }
+  };
+
+  // One tick on one default chain: build ctx, run tick, route + execute, bookended with activity events.
+  const runOnChain = async (agent: Agent, sma: string, defaultChain: number, allowed: number[]): Promise<void> => {
+    const ctx = await makeCtx(sma, defaultChain, allowed);
+    if (!ctx) return; // unrunnable default (SMA, chain) already logged
+    appendActivity({ ts: nowIso(), actor: "agent", type: "tick_start", chainId: defaultChain, reason: runReason });
+    const dispatches = await invokeTick(agent, ctx, defaultChain);
+    await routeAndExecute(sma, dispatches, defaultChain);
+    appendActivity({ ts: nowIso(), actor: "agent", type: "tick_end", chainId: defaultChain });
+  };
+
+  /**
+   * Run one strategy. chainAgnostic (`chains` set) → replay the executable once per listed chain,
+   * each tick's default ctx bound to that chain. Multichain (no `chains`) → run once, default-bound
+   * to the SMA's first deployed chain, letting the executable reach others via `ctx.chain(id)`.
+   */
+  const runStrategy = async (strategy: StoredStrategy): Promise<void> => {
+    const sma = checksum(strategy.sma);
+    const agent = await loadExecutableFor(strategy.executable);
+    const deployed = deployedChainsForSma(sma);
+    const allowed = chainFilter ? deployed.filter((c) => chainFilter.has(c)) : deployed;
+    if (allowed.length === 0) return;
+
+    if (strategy.chains && strategy.chains.length > 0) {
+      for (const chainId of strategy.chains) {
+        if (stopping) break;
+        if (!allowed.includes(chainId)) continue; // outside the --chains filter
+        await runOnChain(agent, sma, chainId, allowed);
+      }
+    } else {
+      await runOnChain(agent, sma, allowed[0], allowed);
+    }
+  };
+
   const runCycle = async (): Promise<void> => {
     for (const strategy of strategies) {
       if (stopping) break;
-      await runStrategy(strategy);
+      try {
+        await runStrategy(strategy);
+      } catch (e) {
+        console.error(`strategy error: ${(e as Error).message}`);
+      }
     }
   };
 
   // ── Header ────────────────────────────────────────────────────────────────────
   console.log("Sailor agent running");
   for (const s of strategies) {
-    const stepDesc = s.pipeline.steps
-      .map((st) => `${st.executable}@${checksum(st.sma).slice(0, 8)}…[${st.chains.join(",")}]`)
-      .join(", ");
-    console.log(`Strategy: ${s.name} (${s.pipeline.type}) → ${stepDesc || "(no steps)"}`);
+    const mode = s.chains && s.chains.length > 0 ? `replay chains [${s.chains.join(",")}]` : "multichain (executable-driven)";
+    console.log(`Strategy: ${s.name} → ${s.executable} @ ${checksum(s.sma).slice(0, 8)}… (${mode})`);
   }
   console.log(once ? "Mode: single tick (--once)" : `Interval: ${intervalSec}s`);
   console.log(`Reason: ${runReason}`);

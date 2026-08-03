@@ -13,7 +13,7 @@ The agent is live; this skill answers the operator's questions about it. Station
 
 `sailor run` executes **execution strategies** (`.sail/strategies/strategies.json`), not a single hard-coded `src/agent.ts`. Each active strategy is a pipeline of steps, and every step binds an **executable** (`src/strategy/<name>.ts`) to an **SMA** and its **chains**. By default `run` executes every active strategy each tick; `sailor run --strategy <name>` runs just one (the lever for per-strategy schedules). A brand-new SMA auto-gets a **Default** strategy at onboarding, so zero-config `sailor run` behaves as before.
 
-Full model, JSON format, the `sailor strategy …` CLI, multichain/per-SMA setup, per-chain `ctx.env`, and running strategies at different cadences → **[references/execution-strategies.md](references/execution-strategies.md)**.
+How `sailor run` executes strategies — the two run modes, `ctx.chain(id)`, `--strategy`/`--sma`/`--chains` filters, per-chain `ctx.env` at runtime, and running strategies at different cadences → **[references/execution-strategies.md](references/execution-strategies.md)**. The model, the `.sail/strategies/strategies.json` config, and the `sailor strategy …` creation CLI live with **[`sailor-agent-build` → execution-strategy-config](../sailor-agent-build/references/execution-strategy-config.md)**.
 
 ## "What is my agent doing?"
 

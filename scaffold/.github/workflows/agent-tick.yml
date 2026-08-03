@@ -54,7 +54,7 @@ jobs:
         env:
           RPC_URL: ${{ secrets.RPC_URL }}
           SAIL_PASSPHRASE: ${{ secrets.SAIL_PASSPHRASE }}
-          CHAIN_ID: ${{ vars.CHAIN_ID || '8453' }}
+          # Chain(s) come from the active strategy's steps — sailor run does not read CHAIN_ID.
           # Labels the run: the dispatch reason, or "scheduled" for cron runs.
           SAIL_RUN_REASON: ${{ github.event.inputs.reason || 'scheduled' }}
         run: npx sailor run --once

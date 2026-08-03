@@ -35,15 +35,14 @@ import { ownerConnect, ownerShow } from "./commands/owner.js";
 import { type RotateSignerOptions, rotateSigner } from "./commands/rotate-signer.js";
 import { runCommand } from "./commands/run.js";
 import {
-  strategyAddStep,
   strategyCreate,
   strategyDelete,
   strategyEnvSet,
   strategyEnvShow,
   strategyList,
   strategyNewExecutable,
-  strategyRemoveStep,
   strategySetActive,
+  strategySetChains,
 } from "./commands/strategy.js";
 import { scan } from "./commands/scan.js";
 import {
@@ -482,12 +481,15 @@ const strategy = program
   .description("Configure execution strategies (which executables run on which SMAs and chains)");
 strategy
   .command("list")
-  .description("List strategies, their pipeline type, and steps")
+  .description("List strategies (executable → SMA and chain mode)")
   .option("--json", "Emit machine-readable JSON")
   .action(actionWith<{ json?: boolean }>(strategyList));
 strategy
   .command("create <name>")
-  .description("Create a new (inactive) strategy")
+  .description("Create a new (inactive) strategy: one SMA + one executable")
+  .requiredOption("--sma <address>", "SMA the strategy runs against")
+  .requiredOption("--executable <name>", "Executable name → src/strategy/<name>.ts")
+  .option("--chains <ids>", "Comma-separated chain ids/slugs to replay on; omit for executable-driven (multichain)")
   .option("--description <text>", "Human description shown in the dashboard")
   .action(actArgs(strategyCreate));
 strategy
@@ -499,17 +501,11 @@ strategy
   .description("Mark a strategy inactive")
   .action(actArgs((name: string) => strategySetActive(name, false)));
 strategy
-  .command("add-step <strategy>")
-  .description("Append an executable step (executable + SMA + chains) to a strategy")
-  .requiredOption("--executable <name>", "Executable name → src/strategy/<name>.ts")
-  .option("--sma <address>", "SMA to run against (defaults to the executable account)")
-  .option("--chains <ids>", "Comma-separated chain ids or slugs (defaults to the SMA's first deployed chain)")
-  .option("--pipeline <type>", "Set the strategy's pipeline type: parallel | sequential")
-  .action(actArgs(strategyAddStep));
-strategy
-  .command("remove-step <strategy> <index>")
-  .description("Remove the step at <index> (0-based) from a strategy")
-  .action(actArgs(strategyRemoveStep));
+  .command("set-chains <name>")
+  .description("Set the replay chains, or --clear for executable-driven (multichain)")
+  .option("--chains <ids>", "Comma-separated chain ids or slugs to replay on")
+  .option("--clear", "Clear chains → executable-driven mode")
+  .action(actArgs(strategySetChains));
 strategy
   .command("delete <name>")
   .description("Delete a strategy")
