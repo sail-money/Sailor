@@ -29,7 +29,7 @@ function ProviderOpenBtn({ provider, onClick, children }) {
   )
 }
 
-export default function AIHandoffModal({ open, variant = 'new', context = 'agent', mandate = null, onClose }) {
+export default function AIHandoffModal({ open, variant = 'new', context = 'agent', mandate = null, strategy = null, onClose }) {
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
@@ -48,7 +48,12 @@ export default function AIHandoffModal({ open, variant = 'new', context = 'agent
   const isRedraft = variant === 'redraft'
   const isMandate = context === 'mandate'
   const isSigner = context === 'signer'
-  const prompt = isRedraft && mandate
+  const isStrategy = context === 'strategy'
+  const prompt = isStrategy
+    ? (isRedraft
+      ? `Sailor, I want to edit the strategy "${strategy ?? ''}". I want to change [describe the change].`
+      : `Sailor, I want to create a new strategy on this project.`)
+    : isRedraft && mandate
     ? `Sailor, redraft my "${mandate.title}" agent. I want to change [describe the change].`
     : isMandate
     ? `Sailor, I want to register a permission that lets my agent swap up to $100 USDC into ETH weekly on Base.`
@@ -68,11 +73,15 @@ export default function AIHandoffModal({ open, variant = 'new', context = 'agent
         <button type="button" className={styles.close} onClick={onClose} aria-label="Close">×</button>
 
         <h2 className={`${shared.displayHeadline} ${styles.headline}`}>
-          {isRedraft ? 'Send this back to your AI.' : isMandate ? 'Mandates start with your AI.' : isSigner ? 'Get started with your AI.' : 'Agents start with your AI.'}
+          {isStrategy ? (isRedraft ? 'Send this to your AI.' : 'Strategies start with your AI.') : isRedraft ? 'Send this back to your AI.' : isMandate ? 'Mandates start with your AI.' : isSigner ? 'Get started with your AI.' : 'Agents start with your AI.'}
         </h2>
 
         <p className={`${shared.italicMannerism} ${styles.lede}`}>
-          {isRedraft
+          {isStrategy
+            ? (isRedraft
+              ? 'Tell your AI what to change about this strategy — it updates how your agent runs.'
+              : 'A strategy is what your agent runs. Your AI creates and configures it for you.')
+            : isRedraft
             ? 'Tell your AI what to change. It will redraft the agent and a new signature request will appear here.'
             : isMandate
             ? 'A mandate defines the permissions your agents operate under. Your AI drafts it — you sign each permission onchain.'

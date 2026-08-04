@@ -2055,11 +2055,14 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
               )
             })()}
 
-            {/* ── Strategies / execution pipelines ─────────────────── */}
+            {/* ── Strategies ───────────────────────────────────────── */}
             {dashTab === 'strategies' && (
+            <>
+            <PageHead icon={<StrategyGlyph />} title="Strategies" info="What your agent runs. Create or edit strategies by asking the agent." />
             <section className={agentStyles.card}>
               <StrategiesSection />
             </section>
+            </>
             )}
 
             {/* ── RPC / Network config ─────────────────────────────── */}
@@ -2689,6 +2692,14 @@ function ActivityGlyph() {
   return (
     <svg {...pxSvg}>
       <path d="M1 2h2v2H1Z M4 2h7v2H4Z M1 5h2v2H1Z M4 5h6v2H4Z M1 8h2v2H1Z M4 8h5v2H4Z" />
+    </svg>
+  )
+}
+// Strategies — a pixel play triangle: what the agent runs.
+function StrategyGlyph() {
+  return (
+    <svg {...pxSvg}>
+      <path d="M3 2h1v8H3Z M4 3h1v6H4Z M5 4h1v4H5Z M6 5h1v2H6Z" />
     </svg>
   )
 }

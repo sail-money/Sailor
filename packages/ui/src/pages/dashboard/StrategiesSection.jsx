@@ -1,16 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import styles from './StrategiesSection.module.css'
-import dash from './Dashboard.module.css'
 import { ChainGlyph } from '../shared'
 import { chainDisplayName } from '../../lib/chains'
+import AIHandoffModal from './AIHandoffModal'
 import {
   useSailorStrategies,
-  useSailorExecutables,
   useSailorAccounts,
-  createStrategy,
   updateStrategy,
-  deleteStrategy,
-  createExecutable,
   getChainEnv,
   saveChainEnv,
 } from '../../hooks/useSailorData'
@@ -19,22 +15,15 @@ import {
 function smaChains(acc) {
   return [...new Set([acc?.chainId, ...(acc?.deployedChains ?? [])])].filter((c) => Number.isFinite(c))
 }
-const shortAddr = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '')
-
-const SUB_TABS = [
-  ['strategies', 'Strategies'],
-  ['executables', 'Executables'],
-  ['environment', 'Environment'],
-]
 
 export default function StrategiesSection() {
-  const [subTab, setSubTab] = useState('strategies')
   const [tick, setTick] = useState(0)
   const bump = () => setTick((t) => t + 1)
   const [err, setErr] = useState(null)
+  // { variant: 'new' | 'redraft', name?: string } | null — drives the AI-handoff popup.
+  const [handoff, setHandoff] = useState(null)
 
   const { strategies } = useSailorStrategies(tick)
-  const { executables } = useSailorExecutables(tick)
   const { accounts } = useSailorAccounts(tick)
 
   const run = async (fn) => {
@@ -49,136 +38,49 @@ export default function StrategiesSection() {
 
   return (
     <div className={styles.section}>
-      <div className={dash.segTabs} role="group" aria-label="Strategies sections">
-        {SUB_TABS.map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            aria-pressed={subTab === key}
-            className={`${dash.segTabBtn} ${subTab === key ? dash.segTabBtnActive : ''}`}
-            onClick={() => setSubTab(key)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
       {err && <div className={styles.error}>{err}</div>}
 
-      {subTab === 'strategies' && <StrategiesPanel strategies={strategies} accounts={accounts} executables={executables} run={run} />}
-      {subTab === 'executables' && <ExecutablesPanel executables={executables} run={run} />}
-      {subTab === 'environment' && <EnvironmentPanel accounts={accounts} />}
-    </div>
-  )
-}
-
-// ── Strategies panel ─────────────────────────────────────────────────────────
-// A strategy is one SMA + one executable. With a `chains` list the executable is replayed once per
-// chain; with no chains it runs once and drives chains itself via ctx.chain(id).
-
-function StrategiesPanel({ strategies, accounts, executables, run }) {
-  const [creating, setCreating] = useState(false)
-  return (
-    <>
       <div className={styles.headRow}>
-        <button type="button" className={styles.newBtn} onClick={() => setCreating((v) => !v)}>
-          {creating ? 'Cancel' : '+ New strategy'}
+        <button type="button" className={styles.newBtn} onClick={() => setHandoff({ variant: 'new' })}>
+          + New strategy
         </button>
       </div>
-      {creating && (
-        <NewStrategyForm
-          accounts={accounts}
-          executables={executables}
-          onCreate={(name, opts) => run(() => createStrategy(name, opts)).then(() => setCreating(false))}
-        />
-      )}
+
       {strategies.length === 0 ? (
         <p className={styles.empty}>No strategies yet — a Default is created after onboarding.</p>
       ) : (
-        strategies.map((s) => <StrategyCard key={s.name} strategy={s} accounts={accounts} run={run} />)
+        strategies.map((s) => (
+          <StrategyCard
+            key={s.name}
+            strategy={s}
+            run={run}
+            onEdit={() => setHandoff({ variant: 'redraft', name: s.name })}
+          />
+        ))
       )}
-    </>
-  )
-}
 
-/** Multi-select of an SMA's supported chains. Empty selection = executable-driven (multichain). */
-function ChainPicker({ available, chains, onToggle }) {
-  return (
-    <div className={styles.chainChoices}>
-      {available.map((c) => {
-        const on = chains.includes(c)
-        return (
-          <button
-            key={c}
-            type="button"
-            className={`${styles.chainChoice} ${on ? styles.chainChoiceOn : ''}`}
-            onClick={() => onToggle(c)}
-          >
-            <ChainGlyph chainId={c} size={14} />{chainDisplayName(c)}
-          </button>
-        )
-      })}
+      <div className={styles.envBlock}>
+        <span className={styles.eyebrowSmall}>Per-chain environment</span>
+        <EnvironmentPanel accounts={accounts} />
+      </div>
+
+      <AIHandoffModal
+        open={!!handoff}
+        context="strategy"
+        variant={handoff?.variant ?? 'new'}
+        strategy={handoff?.name ?? null}
+        onClose={() => setHandoff(null)}
+      />
     </div>
   )
 }
 
-function NewStrategyForm({ accounts, executables, onCreate }) {
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [executable, setExecutable] = useState(executables[0] ?? 'agent')
-  const [sma, setSma] = useState(accounts[0]?.safe ?? '')
-  const [chains, setChains] = useState([])
+// ── Strategy card ──────────────────────────────────────────────────────────────
+// Read-only except the Activate toggle. SMA + executable are intentionally hidden —
+// creating/editing a strategy is done by asking the agent (the Edit popup).
 
-  const selectedAcc = useMemo(() => accounts.find((a) => a.safe === sma), [accounts, sma])
-  const available = selectedAcc ? smaChains(selectedAcc) : []
-  const toggleChain = (c) => setChains((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]))
-
-  const canSave = name.trim() && executable && sma
-  return (
-    <div className={styles.card}>
-      <div className={styles.field}>
-        <label className={styles.label}>Name</label>
-        <input className={styles.input} value={name} placeholder="e.g. Yield rotation" onChange={(e) => setName(e.target.value)} />
-      </div>
-      <div className={styles.field}>
-        <label className={styles.label}>Executable</label>
-        <select className={styles.input} value={executable} onChange={(e) => setExecutable(e.target.value)}>
-          {(executables.length ? executables : ['agent']).map((n) => <option key={n} value={n}>{n}</option>)}
-        </select>
-      </div>
-      <div className={styles.field}>
-        <label className={styles.label}>SMA</label>
-        <select className={styles.input} value={sma} onChange={(e) => { setSma(e.target.value); setChains([]) }}>
-          {accounts.map((a) => <option key={a.safe} value={a.safe}>{a.name ? `${a.name} — ${shortAddr(a.safe)}` : shortAddr(a.safe)}</option>)}
-        </select>
-      </div>
-      <div className={styles.field}>
-        <label className={styles.label}>Replay chains — leave empty for executable-driven (multichain)</label>
-        <ChainPicker available={available} chains={chains} onToggle={toggleChain} />
-      </div>
-      <div className={styles.field}>
-        <label className={styles.label}>Description</label>
-        <input className={styles.input} value={description} placeholder="What this strategy does (optional)" onChange={(e) => setDescription(e.target.value)} />
-      </div>
-      <div className={styles.actions}>
-        <button
-          type="button"
-          className={styles.saveBtn}
-          disabled={!canSave}
-          onClick={() => onCreate(name.trim(), { executable, sma, chains, description: description.trim() })}
-        >
-          Create
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function StrategyCard({ strategy, accounts, run }) {
+function StrategyCard({ strategy, run, onEdit }) {
   const s = strategy
-  const [editingChains, setEditingChains] = useState(false)
-  const acc = useMemo(() => accounts.find((a) => a.safe?.toLowerCase() === s.sma?.toLowerCase()), [accounts, s.sma])
-  const available = acc ? smaChains(acc) : []
   const chains = s.chains ?? []
 
   return (
@@ -193,16 +95,11 @@ function StrategyCard({ strategy, accounts, run }) {
           <button type="button" className={styles.toggleBtn} onClick={() => run(() => updateStrategy(s.name, { active: !s.active }))}>
             {s.active ? 'Deactivate' : 'Activate'}
           </button>
-          {s.name !== 'Default' && (
-            <button type="button" className={styles.deleteBtn} onClick={() => run(() => deleteStrategy(s.name))}>Delete</button>
-          )}
+          <button type="button" className={styles.stepEditBtn} onClick={onEdit}>Edit</button>
         </div>
       </div>
 
       <div className={styles.stepRow}>
-        <span className={styles.stepExec}>{s.executable}</span>
-        <span className={styles.stepArrow}>→</span>
-        <span className={styles.stepSma}>{shortAddr(s.sma)}</span>
         <span className={styles.stepChains}>
           {chains.length > 0 ? (
             chains.map((c) => (
@@ -212,96 +109,12 @@ function StrategyCard({ strategy, accounts, run }) {
             <span className={styles.desc}>multichain (executable-driven)</span>
           )}
         </span>
-        <button type="button" className={styles.stepEditBtn} onClick={() => setEditingChains((v) => !v)}>
-          {editingChains ? 'Close' : 'Edit chains'}
-        </button>
-      </div>
-
-      {editingChains && (
-        <ChainsEditor
-          available={available}
-          initial={chains}
-          onSave={(next) => run(() => updateStrategy(s.name, { chains: next })).then(() => setEditingChains(false))}
-          onCancel={() => setEditingChains(false)}
-        />
-      )}
-    </div>
-  )
-}
-
-/** Edit a strategy's replay chains. Empty selection clears them → executable-driven (multichain). */
-function ChainsEditor({ available, initial, onSave, onCancel }) {
-  const [chains, setChains] = useState(initial ?? [])
-  const toggleChain = (c) => setChains((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]))
-  return (
-    <div className={styles.stepEditor}>
-      <div className={styles.field}>
-        <label className={styles.label}>Replay chains — leave empty for executable-driven (multichain)</label>
-        <ChainPicker available={available} chains={chains} onToggle={toggleChain} />
-      </div>
-      <div className={styles.actions}>
-        <button type="button" className={styles.cancelBtn} onClick={onCancel}>Cancel</button>
-        <button type="button" className={styles.saveBtn} onClick={() => onSave(chains)}>Save</button>
       </div>
     </div>
   )
 }
 
-// ── Executables panel ────────────────────────────────────────────────────────
-
-function ExecutablesPanel({ executables, run }) {
-  const [name, setName] = useState('')
-  const [popup, setPopup] = useState(null) // executable name whose config popup is open
-  const valid = /^[a-z][a-zA-Z0-9]*$/.test(name)
-  const dup = executables.includes(name)
-
-  return (
-    <>
-      <div className={styles.card}>
-        <span className={styles.eyebrowSmall}>New executable</span>
-        <div className={styles.execRow}>
-          <input className={styles.input} value={name} placeholder="camelCase name, e.g. checkData" onChange={(e) => setName(e.target.value)} />
-          <button type="button" className={styles.saveBtn} disabled={!valid || dup} onClick={() => run(() => createExecutable(name)).then(() => setName(''))}>
-            Create
-          </button>
-        </div>
-        {name && !valid && <p className={styles.hint}>Use camelCase letters/digits only (e.g. checkData).</p>}
-        {dup && <p className={styles.hint}>An executable named “{name}” already exists.</p>}
-      </div>
-
-      <div className={styles.card}>
-        {executables.length === 0 ? (
-          <p className={styles.empty}>No executables yet — create one above.</p>
-        ) : (
-          executables.map((n) => (
-            <div key={n} className={styles.execListRow}>
-              <span className={styles.execName}>{n}</span>
-              <code className={styles.execPath}>src/strategy/{n}.ts</code>
-              <button type="button" className={styles.stepEditBtn} onClick={() => setPopup(n)}>Edit</button>
-            </div>
-          ))
-        )}
-      </div>
-
-      {popup && (
-        <div className={styles.modalOverlay} role="dialog" aria-modal="true" onClick={() => setPopup(null)}>
-          <div className={styles.modalCard} onClick={(e) => e.stopPropagation()}>
-            <span className={styles.eyebrowSmall}>Configure executable</span>
-            <p className={styles.modalText}>
-              Executables are configured by the agent. To edit <code>{popup}</code>, tell the agent:
-            </p>
-            <code className={styles.modalCode}>let's configure the executable {popup}</code>
-            <div className={styles.actions}>
-              <button type="button" className={styles.saveBtn} onClick={() => setPopup(null)}>Got it</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  )
-}
-
-// ── Environment panel ────────────────────────────────────────────────────────
+// ── Environment (per-chain ctx.env values) ──────────────────────────────────────
 
 function EnvironmentPanel({ accounts }) {
   const chainIds = useMemo(
@@ -352,10 +165,6 @@ function EnvironmentPanel({ accounts }) {
 
   return (
     <>
-      <div className={styles.headRow}>
-        <span className={styles.hint}>Per-chain values injected as <code>ctx.env</code>.</span>
-      </div>
-
       <div className={styles.chainSwitcher} role="group" aria-label="Select chain">
         {chainIds.map((cid) => (
           <button
