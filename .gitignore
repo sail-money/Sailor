@@ -39,6 +39,15 @@ scaffold/.skeleton-check/
 **/.sail/mandate-draft.json
 **/.sail/activity.jsonl
 
+# Sandbox state root — the whole directory, unlike .sail/ above. Nothing in
+# .shipyard/ is ever authored: the sandbox creates all of it at runtime (SMA
+# record, .env.local, anvil logs, multi-MB chain-state dumps) and archives
+# whole worlds into _reset-backup-<timestamp>/ directories whose names cannot
+# be enumerated in advance. .sail/ needs a per-file list only because the
+# scaffold tracks a README and config.json there; .shipyard/ has no such
+# content, so a per-file list here would only leave gaps.
+**/.shipyard/
+
 # OS / editors
 .DS_Store
 .idea/
