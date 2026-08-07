@@ -43,7 +43,7 @@ Open the scaffold in Claude Code, Cursor, Codex, or any AI coding agent and say 
 | **SDK** (`@sail.money/sailor/sdk`) | `SailorClient`, encrypted keyring, EIP-712 signing, dispatch submission, deployment + chain registries, template encoders |
 | **CLI** (`sailor`) | Everything from `sailor init` to `sailor run`: keys, SMA deployment, mandate lifecycle, agent loop, doctor, session control |
 | **Dashboard** (`sailor ui`) | Local web UI for onboarding, balances, mandate health, activity, and owner signing |
-| **Sandbox** (`sailor sandbox`, or "Try it in a Sandbox" in onboarding) | A simulated onboarding path — pick up to 3 chains and it forks each one locally (real chain state, no real funds), so you can try the full setup → deploy → dashboard flow before touching mainnet. Fully isolated from your live project state |
+| **Shipyard** (`sailor sandbox`) | A simulation sandbox: forks the chains locally so an agent can go through setup → deploy → mandate → run with real liquidity and fake money. Real market state, frozen at the moment the fork starts, against the real deployed contracts: the place to prove a mandate permits what you think it permits, not to backtest a strategy. Fully isolated from live state. Needs Foundry. See [docs/shipyard.md](./docs/shipyard.md) |
 | **Skills** | 22 skills under `.agents/skills/`, organized by the five stations: onboarding and diagnostics, strategy definition, mandate construction (one skill per shared permission template, plus the full custom-permission lifecycle), agent construction with a verified code skeleton and its own chain-reconciled memory, and unattended operation through exit. The skills are the harness: any coding agent reads them natively and follows the same verified path in every project. |
 
 **About the scaffold.** `sailor init` scaffolds your project from `scaffold/`, and the agent arrives already equipped. The skills are organized by the five stations: setting up (onboarding, project state, the local servers), defining the strategy, constructing the mandate (one skill per shared permission template, plus the full custom-permission lifecycle), building the agent (a typecheck-verified tick-loop skeleton in `sailor-agent-build`), and operating it unattended through exit (automation, monitoring/tuning/revoke/withdraw, optional notifications and dashboards). The scaffold also ships `contracts/`, a Foundry workspace for authoring your own `IPermission` — there is no separate examples directory: authoring patterns live in the `sailor-mandates` skill, and the canonical agent loop is the verified skeleton in `sailor-agent-build`. Shipped, self-contained context in every scaffold, not repo furniture.
@@ -127,6 +127,7 @@ The scaffold follows the open [Agent Skills](https://agentskills.io) standard: a
 | [docs/docker.md](./docs/docker.md) | Image, volumes, key handling, dashboard access, headless operation |
 | [docs/templates-and-skills.md](./docs/templates-and-skills.md) | The shared-template catalog and how skills drive configuration and use |
 | [docs/architecture.md](./docs/architecture.md) | The Sailor ↔ Sail Protocol boundary: what's onchain vs what the harness does |
+| [docs/shipyard.md](./docs/shipyard.md) | Shipyard, the simulation sandbox: local forks of the real chains, with fake money |
 
 ## Security model
 

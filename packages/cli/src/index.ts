@@ -155,7 +155,7 @@ ui.action(action(uiCommand));
 // `sailor shipyard` gets the command rather than "unknown command". Commander
 // renders it inline as "sandbox|shipyard" — one entry, both spellings — the
 // same way `signer|station` already appears above.
-const sandbox = program.command("sandbox").alias("shipyard").description("Manage the local Sandbox dashboard (native local forks — see the onboarding wizard's Sandbox path)");
+const sandbox = program.command("sandbox").alias("shipyard").description("Manage Shipyard, the local simulation sandbox (native chain forks, fake money; needs Foundry)");
 sandbox.command("start")
   .description("Start the sandbox dashboard on its own port, rooted at .shipyard/sandbox/")
   .action(action(sandboxUiCommand));
