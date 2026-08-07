@@ -155,7 +155,7 @@ program
 program
   .command("update")
   .description(
-    "Re-sync agent tooling files (skills, AGENTS.md, Dockerfile) from the latest template",
+    "Re-sync agent tooling files (skills, soul.md, Dockerfile) from the latest template",
   )
   .action(action(updateCommand));
 

@@ -1,8 +1,8 @@
 # Getting started
 
-End-to-end path from nothing to a running, bounded agent — and how to get your money back out. Every command here is copy-pasteable. The agent-driven flow (open the scaffold in your AI coding agent and say **"start"**) walks the same journey conversationally, guided by `AGENTS.md`; this page is the manual version.
+End-to-end path from nothing to a running, bounded agent — and how to get your money back out. Every command here is copy-pasteable. The agent-driven flow (open the scaffold in your AI coding agent and say **"start"**) walks the same journey conversationally, guided by the `sailor-navigator` skill; this page is the manual version.
 
-The journey is five stations, in order: **ARRIVE → STRATEGY → MANDATE → AGENT → SAIL**. `AGENTS.md` is the map (each station names its owning skill, entry gate, and exit check); this page follows the same order with commands.
+The journey is five stations, in order: **ARRIVE → STRATEGY → MANDATE → AGENT → SAIL**. The `sailor-navigator` skill is the map (each station names its owning skill, entry gate, and exit check); this page follows the same order with commands.
 
 ## Station 1 — ARRIVE: set up the project, keys, account, and chain
 
@@ -20,7 +20,7 @@ docker run -d --name agent -P -v "${PWD}:/workspace" sailmoney/sailor
 docker exec agent sailor init
 ```
 
-`sailor init` scaffolds from `scaffold/`: your agent code (`src/`), a Foundry workspace for custom permissions (`contracts/`, with a test), the operator guide (`AGENTS.md`) and its skills (`.agents/skills/`), and the local workspace (`.sail/` — config, encrypted keys, state). You will also need a wallet (MetaMask, Rabby, …), an RPC URL for your chain (put it in `.sail/.env.local` as `RPC_URL=`), and a little gas. `sailor chains` lists the supported chains.
+`sailor init` scaffolds from `scaffold/`: your agent code (`src/`), a Foundry workspace for custom permissions (`contracts/`, with a test), the operator guide (the `sailor-navigator` skill) and the other skills (`.agents/skills/`), your own instructions file (`AGENTS.md`), and the local workspace (`.sail/` — config, encrypted keys, state). You will also need a wallet (MetaMask, Rabby, …), an RPC URL for your chain (put it in `.sail/.env.local` as `RPC_URL=`), and a little gas. `sailor chains` lists the supported chains.
 
 **Keys and owner:**
 

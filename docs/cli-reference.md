@@ -9,7 +9,7 @@ each command named here exists in the CLI source.
 | Command | What it does |
 |---|---|
 | `sailor init [dir]` | Scaffold a new agent project (`--template <name>`, `--chain <id>`, `--rpc-url <url>`, `--force` to re-init) |
-| `sailor update` | Re-sync agent tooling files (skills, `AGENTS.md`, `Dockerfile`) from the latest template — user code and state untouched |
+| `sailor update` | Re-sync agent tooling files (skills, `soul.md`, `Dockerfile`) from the latest template — user code and state untouched |
 
 ## Keys and owner
 

@@ -9,7 +9,7 @@ This skill is a gate and a router, deliberately thin. The template registry live
 
 ## Gate (fail-closed)
 
-Read `.sail/strategy.md` first. AGENTS.md station 3: "Gate: complete `.sail/strategy.md`". If the file is missing, any completeness dimension is not concrete, its JSON block lacks `"confirmedByUser": true`, or its `"version"` is not `3` — do **not** proceed. Hand back to [`sailor-strategy`](../sailor-strategy/SKILL.md) and return once the gate holds — a pre-`version: 3` file either has no resolved `actions[]` to plan from (`version` < 2) or has never had the per-action `exitPath` question asked (`version: 2`). The completeness checklist lives there, not here.
+Read `.sail/strategy.md` first. The sailor-navigator skill's Station 3 gate: "Gate: complete `.sail/strategy.md`". If the file is missing, any completeness dimension is not concrete, its JSON block lacks `"confirmedByUser": true`, or its `"version"` is not `3` — do **not** proceed. Hand back to [`sailor-strategy`](../sailor-strategy/SKILL.md) and return once the gate holds — a pre-`version: 3` file either has no resolved `actions[]` to plan from (`version` < 2) or has never had the per-action `exitPath` question asked (`version: 2`). The completeness checklist lives there, not here.
 
 ## Routing method
 
@@ -47,7 +47,7 @@ Every permission in the plan needs a simulation path decided HERE, at planning t
 ## Ordering rules (enforced here, specified elsewhere)
 
 - **Shared singletons: register ≠ configure.** Follow [`sailor-templates`](../sailor-templates/SKILL.md)'s reuse flow exactly — register, configure, then simulate ONCE (the single safety gate, [reuse-flow](../sailor-templates/references/reuse-flow.md) step 5); a registered-but-unconfigured template denies everything. The exit-verifier below checks that this one simulation passed — it does not call for a second run.
-- **Bespoke permissions:** AGENTS.md invariant 1 — "**Deploy → simulate → register.** Registration is authorization; nothing is authorized before its bounds are proven, including proven to reject what they must reject."
+- **Bespoke permissions:** the sailor-navigator skill's invariant 1 — "**Deploy → simulate → register.** Registration is authorization; nothing is authorized before its bounds are proven, including proven to reject what they must reject."
 - **A mixed plan composes both orderings independently, per row** — a template row's register→configure→simulate and a bespoke row's deploy→simulate→register don't block or reorder each other; sequence each row by its own kind, not by a single mandate-wide order.
 - **Every plan must answer the approve-coverage question before it is final** — not only for swap, for every action that needs one (step 1 above). Read [`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md) and pick the execution model as part of the plan, not after it.
 

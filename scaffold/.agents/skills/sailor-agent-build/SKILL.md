@@ -9,7 +9,7 @@ You typically arrive here from the mandate plan with a registered, simulate-veri
 
 ## Gate (fail-closed)
 
-Station 4 requires a **registered, configured, simulate-verified, and signed mandate** — `.sail/mandate.json` exists (AGENTS.md station 4 gate). If it doesn't, `sailor run --once` refuses with "Run `sailor mandate sign` first" — go back to [`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md) (its Handoff step signs the mandate) rather than writing agent code against permissions that aren't runnable yet.
+Station 4 requires a **registered, configured, simulate-verified, and signed mandate** — `.sail/mandate.json` exists (the sailor-navigator skill's Station 4 gate). If it doesn't, `sailor run --once` refuses with "Run `sailor mandate sign` first" — go back to [`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md) (its Handoff step signs the mandate) rather than writing agent code against permissions that aren't runnable yet.
 
 Read `.sail/strategy.md`'s JSON block and the current mandate state first. **The agent is built FROM the spec** — its tokens, venues, caps, cadence, risk bounds, and exit condition are already decided and confirmed there. Never re-ask the user for values the spec already carries. `.sail/strategy.md` stays the fixed intent throughout — the memory ledger records what actually happened against it, and never the other way around.
 

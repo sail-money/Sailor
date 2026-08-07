@@ -28,8 +28,8 @@ config encoders (`@sail.money/sdk/templates`), and the version-adaptive EIP-712 
 
 ## Skills: the five stations
 
-Each scaffolded project carries 22 on-demand skills under `.agents/skills/`, organized around the
-five-station journey `AGENTS.md` lays out (each station names its owning skill, entry gate, and
+Each scaffolded project carries 23 on-demand skills under `.agents/skills/`, organized around the
+five-station journey the `sailor-navigator` skill lays out (each station names its owning skill, entry gate, and
 exit check):
 
 1. **ARRIVE** — `sailor-onboarding`: project, keys, account, chain.

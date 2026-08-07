@@ -141,7 +141,7 @@ Every `references/<category>.md` must contain exactly three things:
 2. **Extension dimensions** — the category-specific rows appended to the core completeness gate.
 3. **Template routing** — which live template skill (or bespoke authoring) each action of the category maps to, with capability limits stated from the template's own schema.
 
-Adding a category to Sailor = one door line in `AGENTS.md` + one conforming reference file here + one routing row in the mandate planner. Nothing else changes. ([references/possibility-map.md](references/possibility-map.md) is not a category reference — it is the cross-category routing aid and follows its own format.)
+Adding a category to Sailor = one door line in the `sailor-navigator` skill's "What can be built here" list + one conforming reference file here + one routing row in the mandate planner. Nothing else changes. ([references/possibility-map.md](references/possibility-map.md) is not a category reference — it is the cross-category routing aid and follows its own format.)
 
 ## Handoff
 
