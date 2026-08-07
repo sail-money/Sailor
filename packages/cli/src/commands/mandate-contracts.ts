@@ -176,7 +176,7 @@ function fail(err: unknown, json = false): never {
  * instead of nothing while the command blocks for minutes.
  */
 function announceSigningUrl(json: boolean): void {
-  const url = signingPageUrl(projectPort(process.cwd()));
+  const url = signingPageUrl();
   if (json) {
     process.stdout.write(`${JSON.stringify({ status: "waiting_for_signature", url })}\n`);
   } else {

@@ -148,7 +148,7 @@ async function runOnboard(
 
   say(() =>
     console.log(
-      `\n→ Open the Sailor dashboard to approve signing requests:\n  ${signingPageUrl(projectPort(process.cwd()))}\n`,
+      `\n→ Open the Sailor dashboard to approve signing requests:\n  ${signingPageUrl()}\n`,
     ),
   );
 

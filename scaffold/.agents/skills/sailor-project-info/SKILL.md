@@ -7,6 +7,16 @@ description: Anytime read-only utility — commands and state files that answer 
 
 Every command here is read-only and supports `--json` for machine reading. Prefer `--json`; parse, don't scrape. None of them block on the browser.
 
+**Check both state roots.** Every command below reads the **live** root (`.sail/`) by default. A project onboarded through the sandbox path keeps its state under `.shipyard/sandbox/` (identical file shape), and a plain read will report it as empty. Before answering any "is X set up / what's the state" question, check for a sandbox and, if present, report both:
+
+```bash
+[ -f .shipyard/sandbox/account.json ] && sailor sandbox status   # sandbox exists + is the dashboard up?
+SAIL_DIR=.shipyard/sandbox sailor status --json                  # sandbox state (SMA, keys, mandate)
+sailor status --json                                             # live state
+```
+
+`SAIL_DIR=.shipyard/sandbox` makes any command here read the sandbox root. When both roots are populated, say which is which — never conflate a fork SMA with a live one. (Full sandbox model: [`sailor-onboarding`](../sailor-onboarding/SKILL.md) "Two state roots".)
+
 | Command | Reports | Backed by |
 |---|---|---|
 | `sailor status` | One-screen setup progress: keys present, account, signed mandate, session, agent run state | Local: `.sail/account.json`, `mandate.json`, `session.json`, `keys/`, agent pid file |
@@ -25,7 +35,8 @@ Every command here is read-only and supports `--json` for machine reading. Prefe
 - "What can the agent do right now?" — on-chain `getPermissions()` is the truth; `mandate sign` reconciles against it. `state/mandates.json` is an append-only historical record — a permission revoked on-chain still appears there.
 - "Is the RPC working / is there gas?" — `sailor doctor --json`.
 - "Same address on another chain?" — `account.json` `deployedChains`, verified by `sailor account predict`.
-- "Is anything running?" — `.sail/runtime/ui.json` (dashboard), `.sail/runtime/server.json` (signing server), agent pid via `sailor status`.
+- "Is anything running?" — `.sail/runtime/ui.json` (dashboard), `.sail/runtime/server.json` (signing server), agent pid via `sailor status`; `.shipyard/sandbox/runtime/ui.json` or `sailor sandbox status` (sandbox dashboard).
+- "Is this a sandbox or live SMA?" — `.shipyard/sandbox/account.json` = a fork SMA (zero real funds); `.sail/account.json` = live. `curl -s <dashboard-url>/api/mode` disambiguates a running dashboard.
 
 Run `sailor doctor` before any operation that spends gas — it is the cheapest way to catch a dead RPC, an unfunded wallet, or a kernel mismatch first. (Full preflight semantics and its role as Station 1's exit verifier: [`sailor-onboarding`](../sailor-onboarding/SKILL.md).)
 
