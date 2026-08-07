@@ -30,7 +30,8 @@ export type Chain =
   | "bsc"
   | "worldchain"
   | "hyperevm"
-  | "megaeth";
+  | "megaeth"
+  | "robinhood";
 
 // Every chain the onboarding picker offers (SUPPORTED_NETWORKS in the UI) must
 // have an entry here, or provisioning it throws "Unsupported sandbox chain id".
@@ -49,6 +50,7 @@ export const CHAIN_IDS: Record<Chain, number> = {
   worldchain: 480,
   hyperevm: 999,
   megaeth: 4326,
+  robinhood: 4663,
 };
 
 // Deterministic, non-colliding default port per chain so up to MAX_SANDBOX_CHAINS
@@ -65,6 +67,7 @@ export const CHAIN_PORTS: Record<Chain, number> = {
   worldchain: 18553,
   hyperevm: 18554,
   megaeth: 18555,
+  robinhood: 18556,
 };
 
 /** Default cap on how many chains one sandbox session may fork at once — keeps
@@ -269,6 +272,7 @@ const UPSTREAM_ENV_CANDIDATES: Record<Chain, string[]> = {
   worldchain: ["WORLD_RPC_URL", "WORLDCHAIN_RPC_URL"],
   hyperevm: ["HYPEREVM_RPC_URL", "HYPER_RPC_URL"],
   megaeth: ["MEGAETH_RPC_URL"],
+  robinhood: ["ROBINHOOD_RPC_URL"],
 };
 
 const PUBLIC_UPSTREAM_FALLBACKS: Record<Chain, string> = {
@@ -283,6 +287,7 @@ const PUBLIC_UPSTREAM_FALLBACKS: Record<Chain, string> = {
   worldchain: "https://worldchain-mainnet.g.alchemy.com/public",
   hyperevm: "https://rpc.hyperliquid.xyz/evm",
   megaeth: "https://mainnet.megaeth.com/rpc",
+  robinhood: "https://rpc.mainnet.chain.robinhood.com",
 };
 
 function resolveUpstreamRpc(chain: Chain): { url: string; warning?: string } {
