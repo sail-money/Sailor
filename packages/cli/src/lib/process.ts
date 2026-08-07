@@ -1,6 +1,23 @@
 import fs from "node:fs";
 import net from "node:net";
+import path from "node:path";
 import { sailPath } from "./io.js";
+
+/**
+ * Is `anvil` resolvable on PATH? Foundry ships it, and the sandbox cannot fork
+ * a chain without it.
+ *
+ * Both parameters are injectable so callers and tests can decide the answer
+ * rather than inheriting whatever the host machine happens to have installed.
+ */
+export function anvilOnPath(
+  pathEnv: string | undefined = process.env["PATH"],
+  exists: (p: string) => boolean = fs.existsSync,
+): boolean {
+  return (pathEnv ?? "")
+    .split(path.delimiter)
+    .some((dir) => dir.length > 0 && exists(path.join(dir, "anvil")));
+}
 
 /** Path to the agent PID file for a given chain (or legacy chain-agnostic). */
 export function agentPidPath(chainId?: number): string {

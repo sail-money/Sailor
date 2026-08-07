@@ -93,6 +93,16 @@ export function clampSandboxChainCap(raw: unknown): number {
   return Math.min(n, SANDBOX_CHAINS_CEILING);
 }
 
+/**
+ * The single wording for "Foundry isn't installed", shared by the two places
+ * that can detect it: this module, when `spawn("anvil")` fails with ENOENT
+ * mid-provisioning, and the CLI's `sailor sandbox` preflight, which looks for
+ * the binary before starting anything. Exported so the two can never drift
+ * into two differently-worded versions of the same problem.
+ */
+export const ANVIL_MISSING_MESSAGE =
+  "anvil was not found on PATH. Sandbox mode requires Foundry (https://getfoundry.sh) — install it and try again.";
+
 export class TooManySandboxChainsError extends Error {
   constructor(requested: number, cap: number = MAX_SANDBOX_CHAINS) {
     super(`Sandbox mode supports at most ${cap} chains at once (got ${requested}).`);
@@ -399,9 +409,7 @@ export async function startFork(opts: {
       child = spawn("anvil", args, { stdio: ["ignore", logFd, logFd], detached: true });
     } catch (e: any) {
       if (e?.code === "ENOENT") {
-        throw new Error(
-          "anvil was not found on PATH. Sandbox mode requires Foundry (https://getfoundry.sh) — install it and try again.",
-        );
+        throw new Error(ANVIL_MISSING_MESSAGE);
       }
       throw e;
     }

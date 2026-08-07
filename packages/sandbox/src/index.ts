@@ -4,6 +4,7 @@ export {
   MAX_SANDBOX_CHAINS,
   SANDBOX_CHAINS_CEILING,
   clampSandboxChainCap,
+  ANVIL_MISSING_MESSAGE,
   TooManySandboxChainsError,
   waitForRpc,
   ensureLocalRpc,
