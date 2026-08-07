@@ -2006,8 +2006,11 @@ a.fundAddr { text-decoration: none; }
      scanline offset below both read it, so they can never drift apart. */
   --dash-sidebar-w: 248px;
   padding: 0;
-  min-height: 100vh;
-  height: 100vh;
+  /* Subtract the sandbox banner (0 outside sandbox) so the fixed-height,
+     overflow-hidden frame fits under it instead of pushing its footer and
+     the sidebar bottom off-screen. */
+  min-height: calc(100vh - var(--sandbox-banner-h, 0px));
+  height: calc(100vh - var(--sandbox-banner-h, 0px));
   background: var(--ocean-dark);
   background-image: none;
   flex-direction: row;

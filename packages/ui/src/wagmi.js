@@ -4,6 +4,7 @@ import { createConfig, http } from 'wagmi'
 import * as viemChains from 'wagmi/chains'
 import { chains as sailChains } from '@sail/sdk/chains'
 import { defineChain } from 'viem'
+import { createSandboxConnector } from './lib/sandboxWallet'
 
 // viem/wagmi's built-in chain objects for the SDK-supported ids only, indexed
 // by id. These carry the full metadata (multicall3, ENS, etc.) wagmi relies on,
@@ -78,22 +79,49 @@ export const walletConnectProjectId = resolveProjectId()
  *  wallets that work without the WalletConnect relay. */
 export const walletConnectEnabled = walletConnectProjectId !== ''
 
-// With an id: RainbowKit's default wallet set (WalletConnect included), which
-// is what lets a Safe be connected through Safe's WalletConnect app.
-// Without one: injected browser wallets plus `safeWallet`, which speaks the
-// Safe Apps SDK over the iframe and so needs no relay at all.
-export const wagmiConfig = walletConnectEnabled
-  ? getDefaultConfig({
-      appName: 'Sailor',
-      projectId: walletConnectProjectId,
+/**
+ * `sandbox`, when given `{ forks: { [chainId]: rpcUrl }, primaryChainId }`,
+ * builds a config with ONLY the sandbox's own dev-wallet connector —
+ * `multiInjectedProviderDiscovery: false` so a real wallet extension installed
+ * in the browser can neither appear nor auto-reconnect on a sandbox page.
+ * Every chain still needs a transport (not just the forked ones) or
+ * RainbowKitProvider crashes at mount on a partial map; every chain with no
+ * fork of its own gets its normal default RPC, unchanged.
+ *
+ * Otherwise this is the live config. With a project id: RainbowKit's default
+ * wallet set (WalletConnect included), which is what lets a Safe be connected
+ * through Safe's WalletConnect app. Without one: injected browser wallets plus
+ * `safeWallet`, which speaks the Safe Apps SDK over the iframe and so needs no
+ * relay at all.
+ */
+export function buildWagmiConfig(sandbox) {
+  if (sandbox?.forks && Object.keys(sandbox.forks).length > 0) {
+    const forks = Object.fromEntries(Object.entries(sandbox.forks).map(([id, url]) => [Number(id), url]))
+    return createConfig({
       chains,
+      connectors: [createSandboxConnector({ forks, primaryChainId: sandbox.primaryChainId })],
+      transports: Object.fromEntries(
+        chains.map((c) => [c.id, http(forks[c.id])]),
+      ),
+      multiInjectedProviderDiscovery: false,
       ssr: false,
     })
-  : createConfig({
-      chains,
-      connectors: connectorsForWallets(
-        [{ groupName: 'Installed', wallets: [injectedWallet, safeWallet] }],
-        { appName: 'Sailor', projectId: '' },
-      ),
-      transports: Object.fromEntries(chains.map((c) => [c.id, http()])),
-    })
+  }
+  return walletConnectEnabled
+    ? getDefaultConfig({
+        appName: 'Sailor',
+        projectId: walletConnectProjectId,
+        chains,
+        ssr: false,
+      })
+    : createConfig({
+        chains,
+        connectors: connectorsForWallets(
+          [{ groupName: 'Installed', wallets: [injectedWallet, safeWallet] }],
+          { appName: 'Sailor', projectId: '' },
+        ),
+        transports: Object.fromEntries(chains.map((c) => [c.id, http()])),
+      })
+}
+
+export const wagmiConfig = buildWagmiConfig(null)

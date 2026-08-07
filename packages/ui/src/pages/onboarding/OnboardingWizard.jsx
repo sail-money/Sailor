@@ -17,6 +17,14 @@ import shared from '../shared/shared.module.css'
 import styles from './OnboardingWizard.module.css'
 import WalletConnectSetup from './WalletConnectSetup'
 import { useSigningSocket } from '../../hooks/useSigningSocket'
+import { useSandbox } from '../../sandboxContext'
+
+// The chain cap for the Sandbox onboarding path (native local forks) is no
+// longer a hardcoded constant: it's resolved server-side (config.json, env
+// overridable) and read from the sandbox context as `maxChains`. It's enforced
+// client-side here for immediate feedback and again server-side by the
+// /api/sandbox/forks route (never trust the client alone for a resource limit).
+// Users change it from Sandbox settings.
 
 // Set to true when the welcome "Already have an SMA? Connect wallet" link starts
 // a connect flow, so we can route onward once the wallet connects.
@@ -55,6 +63,7 @@ const PROGRESS_STEPS = ['network', 'connect', 'keygen', 'create-sma']
  */
 export default function OnboardingWizard({ onboardState, onComplete, onActiveDeployChange, requestedStep, additional, onCancel }) {
   const { address } = useAccount()
+  const { isSandbox, activateForks, maxChains } = useSandbox()
   // Additional-SMA mode (creating another SMA from the dashboard): the owner is
   // already connected and the agent key already exists, so skip welcome / connect
   // / keygen and run just network → deploy.
@@ -101,11 +110,13 @@ export default function OnboardingWizard({ onboardState, onComplete, onActiveDep
   // at the connect step (ConnectStep auto-continues when already connected).
 
   function toggleChain(chainId) {
-    setSelectedChainIds(prev =>
-      prev.includes(chainId)
-        ? prev.filter(id => id !== chainId)
-        : [...prev, chainId]
-    )
+    setSelectedChainIds(prev => {
+      if (prev.includes(chainId)) return prev.filter(id => id !== chainId)
+      // Sandbox mode forks one local anvil per chain — capped so a session
+      // can't quietly spin up an unbounded number of them.
+      if (isSandbox && prev.length >= maxChains) return prev
+      return [...prev, chainId]
+    })
   }
 
   // Progress steps in order. Additional-SMA mode runs a shorter flow (network →
@@ -122,12 +133,17 @@ export default function OnboardingWizard({ onboardState, onComplete, onActiveDep
     <div key={step} className={styles.embeddedStage}>
       {step === 'welcome' && (
             <WelcomeState
+              isSandbox={isSandbox}
+              maxChains={maxChains}
               onStart={() => setStep('network')}
               onConnected={onComplete}
             />
           )}
           {step === 'network' && (
             <NetworkStep
+              isSandbox={isSandbox}
+              maxChains={maxChains}
+              activateForks={activateForks}
               selected={selectedChainIds}
               onToggle={toggleChain}
               onBack={additional ? onCancel : () => setStep('welcome')}
@@ -198,9 +214,11 @@ function ProgressDots({ current, total }) {
 }
 
 /* ── Step 0: Welcome / setup overview ── */
-function WelcomeState({ onStart, onConnected }) {
+function WelcomeState({ isSandbox, maxChains, onStart, onConnected }) {
   const { isConnected } = useAccount()
   const { openConnectModal } = useConnectModal()
+  const [launching, setLaunching] = useState(false)
+  const [launchError, setLaunchError] = useState(null)
 
   // Once the wallet connects (from the "Connect wallet" link below), continue to
   // the dashboard — the backend surfaces the SMAs this owner already has. This is
@@ -220,6 +238,47 @@ function WelcomeState({ onStart, onConnected }) {
     if (isConnected) { onConnected?.(); return }
     _welcomeConnectPending = true
     openConnectModal?.()
+  }
+
+  // Only offered from the LIVE welcome screen — a sandbox page IS the launch
+  // target, it doesn't launch another one. Starts (or finds) this project's
+  // sandbox server and navigates the browser there; the sandbox's own wizard
+  // then opens on its own "you're in a simulated environment" welcome below.
+  async function handleEnterSandbox() {
+    setLaunching(true)
+    setLaunchError(null)
+    try {
+      const res = await fetch('/api/sandbox/launch', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Could not start the sandbox.')
+      window.location.href = `http://localhost:${data.port}/#/dashboard`
+    } catch (err) {
+      setLaunchError(err.message || 'Could not start the sandbox.')
+      setLaunching(false)
+    }
+  }
+
+  if (isSandbox) {
+    return (
+      <GlassCard className={styles.welcomeCard}>
+        <div className={styles.cardSai} aria-hidden>
+          <Sai size={64} animate />
+        </div>
+        <header className={styles.cardHeader}>
+          <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
+            You're in a Sandbox
+          </h1>
+          <p className={styles.cardSub}>
+            A simulated environment — nothing here touches real funds or mainnet. Next, pick up to{' '}
+            {maxChains} {maxChains === 1 ? 'chain' : 'chains'}; each one spins up its own local fork to onboard against.
+          </p>
+        </header>
+        <div className={styles.welcomeCta}>
+          <SailButton fullWidth onClick={onStart}>Continue →</SailButton>
+        </div>
+        <p className={styles.fineprint}>Local only — never reaches a public network.</p>
+      </GlassCard>
+    )
   }
 
   return (
@@ -256,6 +315,10 @@ function WelcomeState({ onStart, onConnected }) {
           </button>
         )
       )}
+      <button className={styles.skipLink} onClick={handleEnterSandbox} disabled={launching}>
+        {launching ? 'Starting sandbox…' : 'Try it in a Sandbox →'}
+      </button>
+      {launchError && <p className={styles.fineprint}>{launchError}</p>}
       {/* WalletConnect is a precondition for connecting a Safe or a mobile
           wallet, so it belongs before the connect modal rather than after a
           dead row in it. Collapsed by default — see WalletConnectSetup. */}
@@ -264,10 +327,71 @@ function WelcomeState({ onStart, onConnected }) {
   )
 }
 
-/* ── Step 1: Network selection (multi-select) ── */
-function NetworkStep({ selected, onToggle, onBack, onDone, progressIndex, progressTotal }) {
+const FORK_CHIP_LABEL = { ready: '⚓ ready', spawning: '⚓ starting…', failed: '⚓ failed' }
+
+/* ── Step 1: Network selection (multi-select; capped + forked in Sandbox mode) ── */
+function NetworkStep({ isSandbox, maxChains, activateForks, selected, onToggle, onBack, onDone, progressIndex, progressTotal }) {
   const mainnets = SUPPORTED_NETWORKS.filter(n => n.group === 'mainnet')
   const testnets = SUPPORTED_NETWORKS.filter(n => n.group === 'testnet')
+
+  const [provisioning, setProvisioning] = useState(false)
+  const [forkStatus, setForkStatus] = useState({})
+  const [provisionError, setProvisionError] = useState(null)
+
+  // Poll the sandbox's own fork manifest until every selected chain reports
+  // ready, then hand every fork's RPC to wagmi (activateForks) and advance —
+  // the connect step that follows auto-connects against the primary one.
+  useEffect(() => {
+    if (!provisioning) return
+    let cancelled = false
+    let timer
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/sandbox/forks', { cache: 'no-store' })
+        const data = await res.json()
+        if (cancelled) return
+        setForkStatus(data.forks || {})
+        const entries = selected.map((id) => data.forks?.[String(id)]).filter(Boolean)
+        if (entries.some((f) => f.status === 'failed')) {
+          setProvisionError('One or more chains failed to fork — see below, or go back and pick different chains.')
+          return
+        }
+        if (entries.length === selected.length && entries.every((f) => f.status === 'ready')) {
+          const forks = Object.fromEntries(entries.map((f) => [f.chainId, f.rpcUrl]))
+          activateForks?.({ forks, primary: selected[0] })
+          onDone?.()
+          return
+        }
+      } catch {
+        // transient — keep polling
+      }
+      if (!cancelled) timer = setTimeout(poll, 1200)
+    }
+    poll()
+    return () => { cancelled = true; clearTimeout(timer) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [provisioning])
+
+  async function handleContinue() {
+    if (!isSandbox) { onDone?.(); return }
+    setProvisionError(null)
+    setProvisioning(true)
+    try {
+      const res = await fetch('/api/sandbox/forks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chainIds: selected }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Could not start the sandbox forks.')
+      setForkStatus(data.forks || {})
+    } catch (err) {
+      setProvisioning(false)
+      setProvisionError(err.message || 'Could not start the sandbox forks.')
+    }
+  }
+
+  const atCap = isSandbox && selected.length >= maxChains
 
   return (
     <GlassCard className={`${styles.authCard} ${styles.networkStepCard}`}>
@@ -276,16 +400,23 @@ function NetworkStep({ selected, onToggle, onBack, onDone, progressIndex, progre
         kicker={`STEP ${progressIndex + 1} OF ${progressTotal}`}
         title="Choose your networks"
         sub={
-          <>
-            <span className={styles.cardSubLead}>
-              Same SMA address on every chain.{' '}
-              <InfoTip label="What is an SMA?">
-                Separately Managed Account — a self-custodial Safe that holds your capital. You stay
-                the owner; the agent can only act within the mandate you set.
-              </InfoTip>
-            </span>
-            Deployed at a deterministic address, so it’s identical everywhere.
-          </>
+          isSandbox ? (
+            <>
+              Up to {maxChains} {maxChains === 1 ? 'chain' : 'chains'} — each spins up its own local fork to onboard against.
+              {atCap && ' Deselect one to pick a different chain, or raise the limit in Sandbox settings (⚙, top bar).'}
+            </>
+          ) : (
+            <>
+              <span className={styles.cardSubLead}>
+                Same SMA address on every chain.{' '}
+                <InfoTip label="What is an SMA?">
+                  Separately Managed Account — a self-custodial Safe that holds your capital. You stay
+                  the owner; the agent can only act within the mandate you set.
+                </InfoTip>
+              </span>
+              Deployed at a deterministic address, so it’s identical everywhere.
+            </>
+          )
         }
         onBack={onBack}
       />
@@ -293,10 +424,17 @@ function NetworkStep({ selected, onToggle, onBack, onDone, progressIndex, progre
         <span className={styles.networkGroupLabel}>Mainnet</span>
         <div className={styles.networkGrid}>
           {mainnets.map(net => (
-            <NetworkCard key={net.chainId} net={net} selected={selected.includes(net.chainId)} onToggle={onToggle} />
+            <NetworkCard
+              key={net.chainId}
+              net={net}
+              selected={selected.includes(net.chainId)}
+              disabled={provisioning || (atCap && !selected.includes(net.chainId))}
+              onToggle={onToggle}
+              forkChip={isSandbox ? FORK_CHIP_LABEL[forkStatus[String(net.chainId)]?.status] : null}
+            />
           ))}
         </div>
-        {testnets.length > 0 && (
+        {!isSandbox && testnets.length > 0 && (
           <>
             <span className={styles.networkGroupLabel}>Testnet</span>
             <div className={styles.networkGrid}>
@@ -307,11 +445,16 @@ function NetworkStep({ selected, onToggle, onBack, onDone, progressIndex, progre
           </>
         )}
       </div>
-      <SailButton fullWidth onClick={onDone} disabled={selected.length === 0}>
+      <SailButton fullWidth onClick={handleContinue} disabled={selected.length === 0 || provisioning}>
         {selected.length === 0
           ? 'Select at least one network'
-          : 'Continue →'}
+          : provisioning
+            ? 'Starting sandbox forks…'
+            : isSandbox
+              ? `Continue → (forks ${selected.length} chain${selected.length > 1 ? 's' : ''})`
+              : 'Continue →'}
       </SailButton>
+      {provisionError && <p className={styles.fineprint}>{provisionError}</p>}
     </GlassCard>
   )
 }
@@ -377,13 +520,15 @@ function passwordStrength(pw) {
   return { level, label: ['', 'Weak', 'Fair', 'Good', 'Strong'][level] }
 }
 
-function NetworkCard({ net, selected, onToggle }) {
+function NetworkCard({ net, selected, disabled, onToggle, forkChip }) {
   const live = LIVE_CHAIN_IDS.has(net.chainId)
+  const blocked = !live || (disabled && !selected)
   return (
     <button
       type="button"
       className={`${styles.networkCard} ${selected ? styles.networkCardSelected : ''} ${!live ? styles.networkCardSoon : ''}`}
-      onClick={() => live && onToggle(net.chainId)}
+      onClick={() => live && !disabled && onToggle(net.chainId)}
+      disabled={blocked}
       style={{ '--net-color': live ? net.color : 'rgba(255,255,255,0.18)', '--net-ink': live ? checkInk(net.color) : '#fff' }}
       title={live ? undefined : 'Sail kernel coming soon'}
     >
@@ -391,7 +536,7 @@ function NetworkCard({ net, selected, onToggle }) {
         <ChainGlyph chainId={net.chainId} size={20} color={live ? undefined : 'rgba(255,255,255,0.25)'} />
       </span>
       <span className={styles.networkName}>{net.name}</span>
-      <span className={styles.networkDesc}>{live ? net.description : 'Coming soon'}</span>
+      <span className={styles.networkDesc}>{forkChip || (live ? net.description : 'Coming soon')}</span>
       {live && (
         <span className={`${styles.networkCheck} ${selected ? styles.networkCheckOn : ''}`}>
           {selected && <BrandCheck />}
@@ -741,6 +886,10 @@ export function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, exis
   const { sendTransactionAsync } = useSendTransaction()
   const { signTypedDataAsync } = useSignTypedData()
   const { switchChainAsync } = useSwitchChain()
+  // In Sandbox mode, every RPC call this step makes by raw `fetch` (simulation,
+  // receipt polling) must hit the fork, never the public network — `forks` is
+  // the same { chainId: rpcUrl } map the wagmi transport was built from.
+  const { forks } = useSandbox()
 
   // Per-chain status: 'pending' | 'switching' | 'building' | 'wallet' | 'confirming' | 'done' | 'error'.
   // Chains the parent already recorded as deployed (e.g. the user went Back
@@ -793,7 +942,7 @@ export function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, exis
     // kernel.createAccount path won't work → fall back to the two-step register path.
     // This handles both "factory not trusted" (UntrustedFactory error) and any other
     // revert the selective kernel might produce with this factory on this chain.
-    const rpc = PUBLIC_RPC[chainId]
+    const rpc = forks[chainId] || PUBLIC_RPC[chainId]
     let useRegisterPath = false
     if (rpc) {
       const sim = await fetch(rpc, {
@@ -832,7 +981,7 @@ export function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, exis
       setStatus(chainId, 'wallet')
       const deployHash = await sendTransactionAsync({ to: path.deployTx.to, data: path.deployTx.data, chainId })
       setStatus(chainId, 'confirming')
-      const deployReceipt = await waitForReceipt(deployHash, chainId)
+      const deployReceipt = await waitForReceipt(deployHash, chainId, forks[chainId])
 
       // Parse the Safe address from ProxyCreation event (topic[1] = proxy address, indexed)
       // ProxyCreation(address indexed proxy, address singleton) — factory emits this
@@ -887,7 +1036,7 @@ export function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, exis
       setStatus(chainId, 'wallet')
       const registerHash = await sendTransactionAsync({ to: exec.to, data: exec.data, chainId })
       setStatus(chainId, 'confirming')
-      const registerReceipt = await waitForReceipt(registerHash, chainId)
+      const registerReceipt = await waitForReceipt(registerHash, chainId, forks[chainId])
       if (registerReceipt?.status === '0x0') throw new Error('registerAccount reverted — check the kernel address and try again.')
 
       // Add-network mode (existingSafe set): this is the SAME SMA on a new chain, not a
@@ -918,7 +1067,7 @@ export function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, exis
     const hash = await sendTransactionAsync({ to: body.to, data: body.data, chainId })
 
     setStatus(chainId, 'confirming')
-    const receipt = await waitForReceipt(hash, chainId)
+    const receipt = await waitForReceipt(hash, chainId, forks[chainId])
     // Check tx status before looking for the event — a reverted tx has no logs.
     if (receipt?.status === '0x0') {
       throw new Error('createAccount transaction reverted. The Safe factory may not be supported on this chain — try again and the wizard will use the register path.')
@@ -1081,8 +1230,12 @@ export function CreateSmaStep({ owner, managerAddress, chainIds, saltNonce, exis
 const PUBLIC_RPC = defaultRpcUrls
 
 // Poll for a transaction receipt (public client not available as hook here).
-async function waitForReceipt(hash, chainId) {
-  const rpc = PUBLIC_RPC[chainId]
+// `rpcOverride` is the sandbox's own fork RPC when one is active for this
+// chain — a receipt for a fork-only transaction will never appear on the
+// public network, so this must never silently fall back to it once sandbox
+// mode is active for this chain.
+async function waitForReceipt(hash, chainId, rpcOverride) {
+  const rpc = rpcOverride || PUBLIC_RPC[chainId]
   if (!rpc) throw new Error(`No public RPC for chain ${chainId}`)
   for (let i = 0; i < 60; i++) {
     await new Promise(r => setTimeout(r, 2000))

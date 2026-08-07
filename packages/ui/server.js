@@ -1,4 +1,6 @@
+import { spawn } from 'node:child_process'
 import fs from 'node:fs'
+import net from 'node:net'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import cors from 'cors'
@@ -6,6 +8,7 @@ import express from 'express'
 import { WebSocket, WebSocketServer } from 'ws'
 import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, chains, defaultRpcUrls, getNativeCurrencySymbol, getSailDeployment, readPermissionRegistrationFee } from '@sail/sdk'
 import * as accountStore from '@sail/sdk/accounts'
+import { MAX_SANDBOX_CHAINS, SANDBOX_CHAINS_CEILING, TooManySandboxChainsError, activateSandboxBackup, clampSandboxChainCap, dumpSandboxState, enforceSandboxChainCap, fundErc20, fundNative, isPidAlive, listSandboxBackups, refreshSandboxForks, resetSandbox, resetSandboxProject, restartSandboxFork, resumeSandboxForks, sandboxDirFor, startPeriodicStateDump, startSandboxForks, stopSandboxFork, usdcAddressFor } from '@sail/sandbox'
 import { createPublicClient, createWalletClient, defineChain, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
 
@@ -70,6 +73,87 @@ function parseEnvFile(file) {
     out[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim()
   }
   return out
+}
+
+// ── Live ⇄ Sandbox peer server launch ────────────────────────────────────────
+// The live dashboard's "Try it in a Sandbox" button and the sandbox dashboard's
+// "Exit to live dashboard" link both need to start (or find) a SEPARATE server
+// process — never toggle a flag on this one. Both directions reuse this same
+// self-spawn: this process knows its own file (`_thisFile`) and can launch
+// another copy of itself pointed at the other root/port, exactly like the CLI
+// does when it first starts either server.
+
+/** Resolves the first free TCP port at or above `from` (probes 127.0.0.1). */
+function findFreePort(from) {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer()
+    server.unref()
+    server.on('error', () => findFreePort(from + 1).then(resolve, reject))
+    server.listen(from, '127.0.0.1', () => server.close(() => resolve(from)))
+  })
+}
+
+/** Waits until something is listening on `port`, or `timeoutMs` elapses. */
+function waitForPortOpen(port, timeoutMs) {
+  const deadline = Date.now() + timeoutMs
+  return new Promise((resolve) => {
+    const attempt = () => {
+      const socket = net.connect(port, '127.0.0.1')
+      socket.once('connect', () => { socket.destroy(); resolve(true) })
+      socket.once('error', () => {
+        socket.destroy()
+        if (Date.now() > deadline) resolve(false)
+        else setTimeout(attempt, 150)
+      })
+    }
+    attempt()
+  })
+}
+
+/** Same deterministic-port formula as the CLI's `projectPort()` (packages/cli/src/lib/packagePaths.ts)
+ *  — kept in sync by hand since this file ships as a separate esbuild bundle — so a
+ *  server started from the browser lands on the same port `sailor ui start` / `sailor
+ *  sandbox start` would pick from the terminal, instead of stacking a redundant instance. */
+function deterministicPort(seed) {
+  const hash = [...seed].reduce((h, c) => (((h << 5) - h) + c.charCodeAt(0)) >>> 0, 0)
+  return 3333 + (hash % 667)
+}
+
+function readJsonSafe(file) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf-8')) } catch { return null }
+}
+
+/** Ensure a peer server (the other of live/sandbox) is running for this same
+ *  project, starting it detached if necessary. Never touches `this` process —
+ *  only ever reads/writes the peer's own runtime file. */
+async function ensurePeerServerRunning({ targetSailDir, targetMode, runtimeFile, preferredPort }) {
+  const existing = readJsonSafe(runtimeFile)
+  if (existing?.pid && isPidAlive(existing.pid)) return { port: existing.port, started: false }
+
+  const port = await findFreePort(preferredPort)
+  const runtimeDir = path.dirname(runtimeFile)
+  fs.mkdirSync(runtimeDir, { recursive: true })
+  const logFd = fs.openSync(path.join(runtimeDir, 'ui.log'), 'a')
+
+  const child = spawn(process.execPath, [_thisFile], {
+    detached: true,
+    stdio: ['ignore', logFd, logFd],
+    env: {
+      ...process.env,
+      SAIL_DIR: targetSailDir,
+      SERVE_DIST: '1',
+      PORT: String(port),
+      SAILOR_UI_MODE: targetMode,
+    },
+  })
+  child.unref()
+  fs.closeSync(logFd)
+
+  const ready = await waitForPortOpen(port, 10_000)
+  if (!ready) throw new Error(`The ${targetMode} server did not start within 10s.`)
+
+  fs.writeFileSync(runtimeFile, JSON.stringify({ pid: child.pid, port, startedAt: new Date().toISOString() }, null, 2))
+  return { port, started: true }
 }
 
 /**
@@ -279,9 +363,17 @@ const OVERVIEW_TTL_MS = 10_000
  * data. There is no hosted backend — this runs on the user's machine
  * alongside the Vite dev server.
  *
- * @param {string} sailDir Absolute path to the project's `.sail/` directory.
+ * @param {string} sailDir Absolute path to the project's `.sail/` directory —
+ *   or, for a sandbox instance, its `.shipyard/sandbox/` directory (same shape,
+ *   different root; see `mode`).
+ * @param {{ port?: number, mode?: 'live' | 'sandbox' }} [opts] `mode: 'sandbox'`
+ *   enables the `/api/sandbox/*` fork-lifecycle routes. The CLI spawns two
+ *   independent server processes — a live one (default mode, `.sail/`) and,
+ *   on demand, a sandbox one (`mode: 'sandbox'`, `.shipyard/sandbox/`) — so
+ *   there is no single process, and no runtime flag, that can serve both a
+ *   real account and a sandbox account at once.
  */
-export function startServer(sailDir, { port = PORT } = {}) {
+export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
   const app = express()
   // Behind a reverse proxy (see SAILOR_HOST exposure), set SAILOR_TRUST_PROXY so Express
   // derives req.ip from X-Forwarded-For — otherwise the rate limiter keys on the proxy's
@@ -330,6 +422,21 @@ export function startServer(sailDir, { port = PORT } = {}) {
       fs.mkdirSync(sailDir, { recursive: true })
       fs.writeFileSync(at('config.json'), `${JSON.stringify(config, null, 2)}\n`)
     } catch { /* best-effort: never block SMA creation on a config write */ }
+  }
+
+  // Effective sandbox chain cap — how many local forks one sandbox session may
+  // run at once. Precedence: env > project config.json > default, clamped to
+  // the supported range ([1, SANDBOX_CHAINS_CEILING]). Re-read per call so a
+  // change written through POST /api/sandbox/config takes effect on the next
+  // fork operation without restarting the server.
+  const resolveSandboxChainCap = () => {
+    const fromEnv = Number(process.env.SAILOR_MAX_SANDBOX_CHAINS)
+    if (Number.isFinite(fromEnv) && fromEnv > 0) return clampSandboxChainCap(fromEnv)
+    try {
+      const cfg = JSON.parse(fs.readFileSync(at('config.json'), 'utf-8'))
+      if (cfg?.maxSandboxChains != null) return clampSandboxChainCap(cfg.maxSandboxChains)
+    } catch { /* no project config — use default */ }
+    return MAX_SANDBOX_CHAINS
   }
 
   // All .sail/account.json + state/accounts.json access goes through the SDK's accounts
@@ -1208,6 +1315,17 @@ export function startServer(sailDir, { port = PORT } = {}) {
     }
   }
 
+  // A daemon serves exactly one state root (live `.sail/` vs a sandbox's
+  // `.shipyard/sandbox/`). A dashboard must only surface a daemon rooted at
+  // ITS OWN root — the port-scan fallback can otherwise land on the other
+  // surface's daemon, whose approvals would then be logged to (and its
+  // requests drawn from) the wrong directory. Daemons advertise their root in
+  // /config.sailDir; an older daemon that doesn't is accepted as before.
+  function stationMatchesThisRoot(config) {
+    if (!config?.sailDir) return true
+    return path.resolve(String(config.sailDir)) === path.resolve(sailDir)
+  }
+
   async function discoverStation() {
     if (stationCache && Date.now() < stationCache.expiresAt) {
       return stationCache
@@ -1217,7 +1335,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
       const { port, requestSecret } = JSON.parse(fs.readFileSync(at('runtime/server.json'), 'utf-8'))
       if (port) {
         const config = await fetch(`http://127.0.0.1:${port}/config`, { signal: AbortSignal.timeout(500) }).then(r => r.ok ? r.json() : null).catch(() => null)
-        if (config) {
+        if (config && stationMatchesThisRoot(config)) {
           const secret = requestSecret ?? secretFromConfig(config)
           stationCache = { port, secret, expiresAt: Date.now() + 10_000 }
           return stationCache
@@ -1225,11 +1343,11 @@ export function startServer(sailDir, { port = PORT } = {}) {
       }
     } catch { /* fall through to port-scan */ }
     // 2. Port-scan the known range (same as the signing UI page does), reading
-    //    the secret out of /config's wsUrl.
+    //    the secret out of /config's wsUrl. Skip daemons rooted elsewhere.
     for (const port of STATION_PORTS) {
       try {
         const config = await fetch(`http://127.0.0.1:${port}/config`, { signal: AbortSignal.timeout(300) }).then(r => r.ok ? r.json() : null).catch(() => null)
-        if (config) {
+        if (config && stationMatchesThisRoot(config)) {
           stationCache = { port, secret: secretFromConfig(config), expiresAt: Date.now() + 10_000 }
           return stationCache
         }
@@ -1992,6 +2110,330 @@ export function startServer(sailDir, { port = PORT } = {}) {
     res.json({ running: RUNNING_VERSION, installed, stale: Boolean(RUNNING_VERSION && installed && installed !== RUNNING_VERSION) })
   })
 
+  // Lets the frontend tell a sandbox page apart from a live one (mounts the
+  // SandboxBanner / gates the dev-wallet connector) without ever trusting a
+  // client-supplied flag — this process's own `mode` is fixed at spawn time.
+  app.get('/api/mode', (_req, res) => {
+    res.json({ mode })
+  })
+
+  // A plain positive decimal string ("0.1", "1000", "5") — the fund routes
+  // validate amounts this way (not via `Number(...)`) so an 18-decimal ETH
+  // amount survives to fundNative/fundErc20 without floating-point rounding.
+  function isPositiveDecimalString(value) {
+    return /^\d+(\.\d+)?$/.test(value) && Number(value) > 0
+  }
+
+  // ── Sandbox (native local-fork simulation) ──────────────────────────────
+  // Only registered on a sandbox-mode server instance (see startServer's
+  // `mode` option) — the live server never has these routes at all, so there
+  // is no branch here to forget: a request to spin up/tear down anvil forks
+  // has no code path that could ever land on a real chain.
+  if (mode === 'sandbox') {
+    app.post('/api/sandbox/forks', async (req, res) => {
+      const { chainIds, primary } = req.body ?? {}
+      if (!Array.isArray(chainIds) || chainIds.length === 0 || chainIds.some((c) => !Number.isInteger(c))) {
+        return res.status(400).json({ error: 'chainIds must be a non-empty array of integer chain ids' })
+      }
+      for (const chainId of chainIds) {
+        try {
+          getSailDeployment(chainId)
+        } catch {
+          return res.status(400).json({ error: `Chain ${chainId} has no Sail deployment to fork — pick a supported network.` })
+        }
+      }
+      try {
+        const result = await startSandboxForks({ sandboxDir: sailDir, chains: chainIds, primary, maxChains: resolveSandboxChainCap() })
+        res.json({ ok: true, ...result })
+      } catch (e) {
+        const status = e instanceof TooManySandboxChainsError ? 400 : 500
+        res.status(status).json({ error: e?.message || String(e) })
+      }
+    })
+
+    app.get('/api/sandbox/forks', async (_req, res) => {
+      try {
+        const forks = await refreshSandboxForks(sailDir)
+        res.json({ forks })
+      } catch (e) {
+        res.status(500).json({ error: e?.message || String(e) })
+      }
+    })
+
+    // How many forks are currently running (answering as "ready"). The chain
+    // cap governs this count; a fork that's "stopped"/"failed"/"spawning"
+    // doesn't occupy a live slot.
+    const countActiveForks = async () => {
+      const forks = await refreshSandboxForks(sailDir)
+      return Object.values(forks).filter((f) => f.status === 'ready').length
+    }
+
+    // Sandbox chain-cap config. GET reports the effective cap (env > config >
+    // default), the hard ceiling, the default, and how many forks are live now
+    // — everything the UI needs to render "N of cap networks active" and gate
+    // the per-chain toggles. POST persists a new cap into config.json (clamped
+    // to the supported range); it does NOT stop any running fork — reducing a
+    // live over-cap set is the explicit POST /api/sandbox/forks/reduce below.
+    app.get('/api/sandbox/config', async (_req, res) => {
+      try {
+        const maxChains = resolveSandboxChainCap()
+        const activeCount = await countActiveForks()
+        res.json({ maxChains, defaultMax: MAX_SANDBOX_CHAINS, ceiling: SANDBOX_CHAINS_CEILING, activeCount, overCap: activeCount > maxChains })
+      } catch (e) {
+        res.status(500).json({ error: e?.message || String(e) })
+      }
+    })
+
+    app.post('/api/sandbox/config', async (req, res) => {
+      const { maxChains } = req.body ?? {}
+      if (!Number.isInteger(maxChains) || maxChains < 1) {
+        return res.status(400).json({ error: 'maxChains must be a positive integer' })
+      }
+      const clamped = clampSandboxChainCap(maxChains)
+      try {
+        const config = (() => { try { return JSON.parse(fs.readFileSync(at('config.json'), 'utf-8')) } catch { return {} } })()
+        config.maxSandboxChains = clamped
+        fs.mkdirSync(sailDir, { recursive: true })
+        fs.writeFileSync(at('config.json'), `${JSON.stringify(config, null, 2)}\n`)
+      } catch (e) {
+        return res.status(500).json({ error: e?.message || String(e) })
+      }
+      // Report the *effective* cap, which can differ from what we just wrote if
+      // SAILOR_MAX_SANDBOX_CHAINS is set (env wins) — so the UI never shows a
+      // saved value the server won't actually honor.
+      const effective = resolveSandboxChainCap()
+      const activeCount = await countActiveForks()
+      res.json({ ok: true, maxChains: effective, requested: clamped, ceiling: SANDBOX_CHAINS_CEILING, activeCount, overCap: activeCount > effective })
+    })
+
+    // Explicit "reduce now": stop the lowest-priority live forks until the live
+    // set is within the cap (keeps primary + most recent — see
+    // enforceSandboxChainCap). The one-click action behind the settings warning
+    // when a lowered cap leaves more forks running than allowed.
+    app.post('/api/sandbox/forks/reduce', async (_req, res) => {
+      try {
+        const result = await enforceSandboxChainCap(sailDir, resolveSandboxChainCap())
+        res.json({ ok: true, ...result })
+      } catch (e) {
+        res.status(500).json({ error: e?.message || String(e) })
+      }
+    })
+
+    app.post('/api/sandbox/reset', async (req, res) => {
+      try {
+        await resetSandbox(sailDir, { purgeState: Boolean(req.body?.purgeState) })
+        res.json({ ok: true })
+      } catch (e) {
+        res.status(500).json({ error: e?.message || String(e) })
+      }
+    })
+
+    // Settings-modal "Reset sandbox" — a full wipe, not just the forks: stops
+    // every fork, purges the manifest, retires each chain's dumped anvil
+    // state, and moves the SMA record/mandate/activity log/keys into a
+    // timestamped backup dir (see resetSandboxProject) so the project looks
+    // brand new (onboarding wizard reappears) without destroying anything.
+    // Saved worlds: every reset (and every activation) archives the whole
+    // sandbox world into _reset-backup-<stamp>/. These two routes let the
+    // settings panel navigate between them — list what's saved, and swap a
+    // previous world back in (current one is archived first, its forks
+    // restart from their dumped chain state).
+    app.get('/api/sandbox/backups', (_req, res) => {
+      try {
+        res.json({ backups: listSandboxBackups(sailDir) })
+      } catch (e) {
+        res.status(500).json({ error: e?.message || String(e) })
+      }
+    })
+
+    app.post('/api/sandbox/backups/activate', async (req, res) => {
+      const name = String(req.body?.name ?? '')
+      try {
+        const result = await activateSandboxBackup(sailDir, name)
+        res.json({ ok: true, ...result })
+      } catch (e) {
+        const message = e?.message || String(e)
+        const status = /Not a sandbox backup name/.test(message) ? 400
+          : /No sandbox backup named/.test(message) ? 404
+          : 500
+        res.status(status).json({ error: message })
+      }
+    })
+
+    app.post('/api/sandbox/reset-project', async (_req, res) => {
+      try {
+        const result = await resetSandboxProject(sailDir)
+        res.json({ ok: true, ...result })
+      } catch (e) {
+        res.status(500).json({ error: e?.message || String(e) })
+      }
+    })
+
+    // Settings-modal "Fund gas" — sets an address's native balance directly
+    // via anvil_setBalance on the requested chain's sandbox fork. No faucet or
+    // real transfer involved; this only ever runs against this sandbox's own
+    // forked RPC (see the mode === 'sandbox' gate around this whole block).
+    app.post('/api/sandbox/fund/native', async (req, res) => {
+      const { chainId, address, amountEth } = req.body ?? {}
+      if (!Number.isInteger(chainId)) return res.status(400).json({ error: 'chainId must be an integer' })
+      if (!isAddress(address ?? '')) return res.status(400).json({ error: 'address must be a valid 0x address' })
+      // Validated as a string, not routed through Number for the actual value
+      // passed to fundNative — a JS double can't safely round-trip an 18-decimal
+      // ETH amount, and this is a whole-token amount (e.g. "0.1" = 0.1 ETH), not wei.
+      const amountStr = String(amountEth ?? '').trim()
+      if (!isPositiveDecimalString(amountStr)) return res.status(400).json({ error: 'amountEth must be a positive decimal amount, e.g. "0.1"' })
+      try {
+        const forks = await refreshSandboxForks(sailDir)
+        const fork = forks[String(chainId)]
+        if (!fork?.rpcUrl || fork.status !== 'ready') return res.status(400).json({ error: 'That chain has no ready fork to fund on.' })
+        const result = await fundNative(fork.rpcUrl, address, amountStr)
+        res.json({ ok: true, ...result })
+      } catch (e) {
+        res.status(500).json({ error: e?.message || String(e) })
+      }
+    })
+
+    // Settings-modal "Fund USDC" — writes a token balance directly via the
+    // balanceOf storage slot (no whale account needed) so a chosen SMA can be
+    // funded with USDC on any sandbox fork that has a known USDC deployment.
+    app.post('/api/sandbox/fund/usdc', async (req, res) => {
+      const { chainId, safe, amount } = req.body ?? {}
+      if (!Number.isInteger(chainId)) return res.status(400).json({ error: 'chainId must be an integer' })
+      if (!isAddress(safe ?? '')) return res.status(400).json({ error: 'safe must be a valid 0x address' })
+      // A whole-USDC amount (e.g. "100" = 100 USDC), validated as a string —
+      // see the native-funding route above for why this isn't routed through Number.
+      const amountStr = String(amount ?? '').trim()
+      if (!isPositiveDecimalString(amountStr)) return res.status(400).json({ error: 'amount must be a positive decimal amount, e.g. "100"' })
+      const token = usdcAddressFor(chainId)
+      if (!token) return res.status(400).json({ error: `No known USDC deployment for chain ${chainId} in sandbox mode.` })
+      try {
+        const forks = await refreshSandboxForks(sailDir)
+        const fork = forks[String(chainId)]
+        if (!fork?.rpcUrl || fork.status !== 'ready') return res.status(400).json({ error: 'That chain has no ready fork to fund on.' })
+        const result = await fundErc20(fork.rpcUrl, token, safe, amountStr)
+        res.json({ ok: true, token, ...result })
+      } catch (e) {
+        res.status(500).json({ error: e?.message || String(e) })
+      }
+    })
+
+    // Maps stopSandboxFork/restartSandboxFork's thrown-Error-message convention
+    // to an HTTP status — both throw plain Errors (no custom error classes),
+    // distinguished by message text, so the client can tell "unknown chain"
+    // from "can't touch a process we don't own" from an actual failure.
+    function sandboxForkErrorStatus(message) {
+      if (/No sandbox fork tracked/.test(message)) return 404
+      if (/adopted an already-running process/.test(message)) return 409
+      return 500
+    }
+
+    app.post('/api/sandbox/forks/:chainId/stop', async (req, res) => {
+      const chainId = Number(req.params.chainId)
+      if (!Number.isInteger(chainId)) return res.status(400).json({ error: 'chainId must be an integer' })
+      try {
+        const fork = await stopSandboxFork(sailDir, chainId)
+        res.json({ ok: true, fork })
+      } catch (e) {
+        const message = e?.message || String(e)
+        res.status(sandboxForkErrorStatus(message)).json({ error: message })
+      }
+    })
+
+    app.post('/api/sandbox/forks/:chainId/restart', async (req, res) => {
+      const chainId = Number(req.params.chainId)
+      if (!Number.isInteger(chainId)) return res.status(400).json({ error: 'chainId must be an integer' })
+      // Turning a parked/stopped fork back on must respect the cap. Restarting a
+      // fork that's already live (stop→start in place) doesn't add a slot, so
+      // it's always allowed; only bringing a currently-not-live chain up counts
+      // against the limit.
+      try {
+        const forks = await refreshSandboxForks(sailDir)
+        const cap = resolveSandboxChainCap()
+        const activeCount = Object.values(forks).filter((f) => f.status === 'ready').length
+        const alreadyActive = forks[String(chainId)]?.status === 'ready'
+        if (!alreadyActive && activeCount >= cap) {
+          return res.status(409).json({ error: `Sandbox is at its ${cap}-chain limit — stop another fork or raise the limit in Sandbox settings before starting this one.` })
+        }
+      } catch { /* if the pre-check itself fails, fall through and let the restart attempt surface the real error */ }
+      try {
+        const fork = await restartSandboxFork(sailDir, chainId)
+        res.json({ ok: true, fork })
+      } catch (e) {
+        const message = e?.message || String(e)
+        res.status(sandboxForkErrorStatus(message)).json({ error: message })
+      }
+    })
+
+    // "Exit to live dashboard" — ensure the live server for this same project is
+    // running (starting it if not) and hand the browser its port to navigate to.
+    app.post('/api/sandbox/exit', async (_req, res) => {
+      try {
+        const projectRoot = path.resolve(sailDir, '..', '..') // sailDir is <root>/.shipyard/sandbox
+        const liveSailDir = path.join(projectRoot, '.sail')
+        const runtimeFile = path.join(liveSailDir, 'runtime', 'ui.json')
+        const result = await ensurePeerServerRunning({
+          targetSailDir: liveSailDir,
+          targetMode: 'live',
+          runtimeFile,
+          preferredPort: deterministicPort(projectRoot),
+        })
+        res.json(result)
+      } catch (e) {
+        res.status(500).json({ error: e?.message || String(e) })
+      }
+    })
+
+    // ── Session persistence ──────────────────────────────────────────────
+    // Resume: bring back any forks a previous sandbox session left tracked in
+    // the manifest, each loading its dumped chain state — so `sailor sandbox
+    // stop` + `sailor sandbox start` (or a reboot in between) lands the user
+    // back in the same world: same deployed SMA, same signed mandates, same
+    // funded balances. Best-effort and idempotent: forks already alive are
+    // skipped, per-chain failures are logged, and a fresh (never-onboarded)
+    // sandbox has an empty manifest so this is a no-op.
+    resumeSandboxForks(sailDir, { maxChains: resolveSandboxChainCap() })
+      .then(({ resumed, parked, failed }) => {
+        if (resumed.length) console.log(`Sandbox forks resumed from previous session: ${resumed.join(', ')}`)
+        if (parked.length) console.log(`Sandbox forks parked (over the ${resolveSandboxChainCap()}-chain limit — resumable from the UI): ${parked.join(', ')}`)
+        for (const [chainId, message] of Object.entries(failed)) {
+          console.warn(`⚠ Could not resume sandbox fork for chain ${chainId}: ${message}`)
+        }
+      })
+      .catch((e) => console.warn(`⚠ Sandbox fork resume failed: ${e?.message || e}`))
+
+    // Durability: `stopFork` only dumps chain state on a *graceful* stop, so
+    // dump every live fork periodically too — a crash, reboot, or plain
+    // `kill -9` then costs at most the last interval, not the whole session.
+    // unref'd so an exiting server never waits on it.
+    const dumpIntervalMs = Number(process.env.SAILOR_SANDBOX_DUMP_INTERVAL_MS) || 60_000
+    const dumpTimer = setInterval(() => {
+      dumpSandboxState(sailDir).catch(() => { /* best-effort; next tick retries */ })
+    }, dumpIntervalMs)
+    dumpTimer.unref()
+  }
+
+  // "Try it in a Sandbox" — only offered from the live dashboard. Ensures this
+  // project's sandbox server is running (starting it if not) and hands the
+  // browser its port to navigate to.
+  if (mode === 'live') {
+    app.post('/api/sandbox/launch', async (_req, res) => {
+      try {
+        const projectRoot = path.dirname(sailDir) // sailDir is <root>/.sail in live mode
+        const sandboxDir = sandboxDirFor(projectRoot)
+        const runtimeFile = path.join(sandboxDir, 'runtime', 'ui.json')
+        const result = await ensurePeerServerRunning({
+          targetSailDir: sandboxDir,
+          targetMode: 'sandbox',
+          runtimeFile,
+          preferredPort: deterministicPort(`${projectRoot}:sandbox`),
+        })
+        res.json(result)
+      } catch (e) {
+        res.status(500).json({ error: e?.message || String(e) })
+      }
+    })
+  }
+
   // Serve the built UI if available. SERVE_DIST=1 is the explicit flag set by
   // `sailor ui start`, but we also auto-detect: if index.html exists next to
   // this server file (or at SAILOR_UI_DIST), serve it without the flag so that
@@ -2048,6 +2490,42 @@ export function startServer(sailDir, { port = PORT } = {}) {
   const httpServer = app.listen(port, bindHost, () => {
     console.log(`Sailor UI running at http://localhost:${port} (reading ${sailDir})`)
   })
+
+  // Crash-durable session persistence (sandbox mode only). `stopFork` dumps each
+  // fork's chain state only on a *graceful* stop, so an ungraceful death — an
+  // anvil panic (flaky fork upstream), a `kill -9`, a host reboot — would lose
+  // every mandate/deploy/balance created since the session came up. This server
+  // is the one long-lived process that owns the (detached) forks, so it drives a
+  // periodic `dumpSandboxState` for its whole lifetime. Cleared on shutdown; the
+  // graceful `sailor sandbox stop` path dumps separately.
+  if (mode === 'sandbox') {
+    const stopPeriodicDump = startPeriodicStateDump(sailDir, {
+      onError: (err) => console.warn(`sandbox periodic state dump failed (will retry): ${err?.message || err}`),
+    })
+    const stopDump = () => { try { stopPeriodicDump() } catch { /* already stopped */ } }
+    httpServer.on('close', stopDump)
+    // Attaching a SIGTERM/SIGINT listener suppresses Node's default
+    // terminate-on-signal, so these handlers must exit the process themselves —
+    // otherwise `sailor sandbox stop` (which SIGTERMs this pid) and Ctrl+C would
+    // leave the server bound to its port with the forks still live. We force
+    // `process.exit` rather than waiting on `httpServer.close()` to drain: a
+    // connected dashboard/signer holds a WebSocket open, and `close()` blocks
+    // until every such connection ends — which would hang `sailor sandbox stop`
+    // for as long as a browser tab is open. Flush one last state dump first
+    // (this is the graceful path, so nothing since the last tick is lost), but
+    // bound it so a wedged RPC can never block the exit.
+    let shuttingDown = false
+    const shutdown = async () => {
+      if (shuttingDown) return
+      shuttingDown = true
+      stopDump()
+      const flush = dumpSandboxState(sailDir).catch(() => {})
+      await Promise.race([flush, new Promise((r) => setTimeout(r, 3000))])
+      process.exit(0)
+    }
+    process.once('SIGTERM', shutdown)
+    process.once('SIGINT', shutdown)
+  }
 
   // ── Signing-server WebSocket proxy ────────────────────────────────────────
   // The signing page (#/signer, `#/station` kept as a v1.2.0-compatible alias)
@@ -2122,12 +2600,15 @@ export function startServer(sailDir, { port = PORT } = {}) {
 }
 
 // Allow running directly: `SAIL_DIR=/path/to/.sail node server.js`.
-// The CLI's `sailor ui` command spawns this with SAIL_DIR set.
+// The CLI's `sailor ui` command spawns this with SAIL_DIR set; its sandbox
+// spawn logic additionally sets SAILOR_UI_MODE=sandbox to enable the
+// /api/sandbox/* routes for that instance only.
 // Use case-insensitive comparison on Windows: path.resolve() and __filename
 // can disagree on drive-letter case (c:\ vs C:\), breaking a strict === check.
 const _norm = p => path.resolve(p)[process.platform === 'win32' ? 'toLowerCase' : 'toString']()
 const isMain = Boolean(process.argv[1]) && _norm(process.argv[1]) === _norm(_thisFile)
 if (isMain) {
   const sailDir = process.env.SAIL_DIR || path.join(process.cwd(), '.sail')
-  startServer(sailDir)
+  const mode = process.env.SAILOR_UI_MODE === 'sandbox' ? 'sandbox' : 'live'
+  startServer(sailDir, { mode })
 }

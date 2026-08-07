@@ -8,7 +8,9 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  /* less the sandbox banner height (0 outside sandbox) so a full-height page
+     is exactly one screen, not one screen plus the banner. */
+  min-height: calc(100vh - var(--sandbox-banner-h, 0px));
   padding: 0;
   background: transparent;
 }
@@ -718,9 +720,11 @@
 
 .drawer {
   position: fixed;
-  top: 0;
+  /* sit below the sandbox banner (top/height both fall back to the live
+     full-height values outside sandbox, where the var is 0). */
+  top: var(--sandbox-banner-h, 0px);
   right: 0;
-  height: 100vh;
+  height: calc(100vh - var(--sandbox-banner-h, 0px));
   width: min(520px, 100vw);
   background: rgba(8, 12, 22, 0.92);
   border-left: 1px solid var(--glass-border, rgba(255, 255, 255, 0.10));
