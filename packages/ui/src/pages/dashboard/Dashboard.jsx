@@ -1677,8 +1677,10 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
   }
 
   const [sandboxLaunching, setSandboxLaunching] = useState(false)
+  const [sandboxLaunchError, setSandboxLaunchError] = useState(null)
   async function enterSandbox() {
     setSandboxLaunching(true)
+    setSandboxLaunchError(null)
     try {
       const res = await fetch('/api/sandbox/launch', { method: 'POST' })
       const data = await res.json()
@@ -1686,7 +1688,10 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
         window.location.href = `http://localhost:${data.port}/#/dashboard`
         return
       }
-    } catch { /* fall through */ }
+      throw new Error(data?.error || 'Could not start Shipyard.')
+    } catch (err) {
+      setSandboxLaunchError(err.message || 'Could not start Shipyard.')
+    }
     setSandboxLaunching(false)
   }
 
@@ -1744,7 +1749,7 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
         {isSandbox === false && (
           <button type="button" className={styles.sidebarUtilLink} onClick={enterSandbox} disabled={sandboxLaunching}>
             <span className={styles.sidebarUtilIcon} aria-hidden>⚓</span>
-            <span className={styles.sidebarUtilLabel}>{sandboxLaunching ? 'Starting sandbox…' : 'Enter Sandbox'}</span>
+            <span className={styles.sidebarUtilLabel}>{sandboxLaunching ? 'Starting Shipyard…' : 'Enter Shipyard'}</span>
             <ArrowOutIcon />
           </button>
         )}
@@ -2170,6 +2175,28 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
                     )}
                   </div>
                 </section>
+
+                {/* Shipyard invitation. It sits at the foot of the mandates
+                    subpage rather than the welcome screen: this is the point
+                    where someone has a mandate worth rehearsing, whereas a new
+                    user has nothing to test yet. Deliberately a plain text link
+                    so it cannot compete with the mandate tiles above. Hidden
+                    inside Shipyard itself, which is already the target. */}
+                {isSandbox === false && (
+                  <p className={styles.shipyardInvite}>
+                    <button
+                      type="button"
+                      className={styles.shipyardInviteLink}
+                      onClick={enterSandbox}
+                      disabled={sandboxLaunching}
+                    >
+                      {sandboxLaunching ? 'Starting Shipyard…' : 'Try it in Shipyard, a local simulation sandbox →'}
+                    </button>
+                    {sandboxLaunchError && (
+                      <span className={styles.shipyardInviteError}>{sandboxLaunchError}</span>
+                    )}
+                  </p>
+                )}
                 </>
               )
             })()}

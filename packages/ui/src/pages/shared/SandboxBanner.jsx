@@ -137,10 +137,9 @@ export default function SandboxBanner() {
     <>
       <div className={styles.bar} role="status" ref={barRef}>
         <span className={styles.mark} aria-hidden>⚓</span>
-        <span className={styles.copy}>
-          Sandbox
-          <span className={styles.copyMuted}> · nothing here is real</span>
-        </span>
+        {/* One sentence, unsplit and unstyled-in-parts on purpose: its only job
+            is making sure nobody believes they are looking at real money. */}
+        <span className={styles.copy}>Shipyard: simulation sandbox. No real funds.</span>
 
         {entries.length > 0 && (
           <div className={styles.forkChips}>
