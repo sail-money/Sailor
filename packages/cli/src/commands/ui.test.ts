@@ -55,6 +55,13 @@ test("anvilOnPath: finds the binary in any PATH entry", () => {
   assert.equal(anvilOnPath(pathEnv, exists), true);
 });
 
+test("anvilOnPath: finds anvil.exe in PATH entry on Windows", () => {
+  const dirs = ["C:\\Windows", "C:\\Users\\user\\.foundry\\bin"];
+  const pathEnv = dirs.join(path.delimiter);
+  const exists = (p: string): boolean => p === path.join("C:\\Users\\user\\.foundry\\bin", "anvil.exe");
+  assert.equal(anvilOnPath(pathEnv, exists), true);
+});
+
 test("anvilOnPath: false when no PATH entry holds it", () => {
   const pathEnv = ["/usr/bin", "/usr/local/bin"].join(path.delimiter);
   assert.equal(anvilOnPath(pathEnv, () => false), false);
