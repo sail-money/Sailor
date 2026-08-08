@@ -1,6 +1,6 @@
 ---
 name: sailor-strategy
-description: Station 2 — turn the user's intent into a complete, concrete strategy spec at .sail/strategy.md. Use when the user says "I want to DCA", "earn yield on my USDC", "stake my ETH", "rebalance my portfolio", "pay contributors weekly", "invest", "what should my agent do", or asks to define, plan, or change their strategy — and whenever .sail/strategy.md is missing or incomplete while mandate work is being requested. Elicits the intent in the user's own financial terms, then every completeness dimension (chains, tokens, venues, amounts, caps, cadence, risk bounds, exit condition); routing to templates or bespoke follows the intent, never leads it. Every token is resolved (address + decimals + liquidity) before it enters the spec.
+description: Station 2 AND the single skill for creating or configuring a strategy — turn the user's intent into a complete, concrete strategy spec at .sail/strategy.md, then wire the executable to run. THE skill to call whenever the user wants to create or configure a strategy, reached by normal navigation OR by direct intent. Use when the user says "I want to DCA", "earn yield on my USDC", "stake my ETH", "rebalance my portfolio", "pay contributors weekly", "invest", "what should my agent do", "create a strategy", "add a strategy", "configure a strategy", "new strategy", "wire up a strategy", "new executable", or asks to define, plan, or change their strategy — and whenever .sail/strategy.md is missing or incomplete while mandate work is being requested. Elicits the intent in the user's own financial terms, then every completeness dimension (chains, tokens, venues, amounts, caps, cadence, risk bounds, exit condition); routing to templates or bespoke follows the intent, never leads it. Every token is resolved (address + decimals + liquidity) before it enters the spec.
 ---
 
 # sailor-strategy — make the strategy concrete (Station 2)
@@ -14,6 +14,32 @@ Then read `.sail/strategy.md`. If it exists, every dimension in the completeness
 ## Role
 
 You are an interviewer and a scribe, not an investment advisor. Never recommend what to invest in, never predict returns, never rank assets or venues by expected performance. The user decides WHAT; this station makes it CONCRETE; the protocol makes it SAFE.
+
+## Creating a strategy — the flow (standalone or in-navigation)
+
+This skill is **THE** entry point for creating or configuring a strategy — whether the user arrived by normal navigation (this is Station 2) or jumped straight in ("create a strategy", "add a strategy", "wire up a new executable"). The flow is the same either way; each step maps to the command that performs it. Steps 1–3 and 5–6 settle the **intent** (the three acts below → `.sail/strategy.md`); steps 4, 7–8 are the **execution config** that wires an executable to run — the model, `.sail/strategies/strategies.json`, and the full `sailor strategy` CLI live in [references/execution-config.md](references/execution-config.md).
+
+**Strategy creation is an anytime action.** It is reachable by direct intent at any point in a session — "create a strategy", "add a strategy", "wire up a new executable" — and is **not** gated behind reaching Station 2 in sequence. It self-bootstraps: if there is no SMA yet, it jumps to [`sailor-onboarding`](../sailor-onboarding/SKILL.md) to create and verify one (doctor-green), then returns here and continues. You never turn the user away for arriving "out of order."
+
+**Requirements to create a strategy — gather these before running `sailor strategy create`:**
+
+- **name** — 2–3 words, unique.
+- **SMA** — the account address the strategy operates (step 1; bootstrap via `sailor-onboarding` if none).
+- **executable** — the runnable script; default **`agent`** (`src/strategy/agent.ts`, falling back to legacy `src/agent.ts`).
+- **description** — a concise line for the dashboard.
+- **chain(s)** — required only in **per-chain** mode (the `--chains` list); omitted for cross-chain.
+- **all per-chain environment variables** — every value the executable reads via `ctx.env`, set per chain (step 4).
+
+1. **Which SMA?** One → use it; several → let the user pick. **None, or the user wants a new one** → jump to [`../sailor-onboarding/SKILL.md`](../sailor-onboarding/SKILL.md) to create and verify it (doctor-green), then return here. → `--sma <address>`.
+2. **What should it do?** Elicit the intent in the user's own financial terms and route it — via the category references and any project recipes (see "The category contract" below). This is Acts 1–3.
+3. **Which chains, and which mode?** Same logic on every listed chain → **per-chain** (`--chains <ids>`; the executable is replayed once per chain). Chains the executable drives itself (reads on one, acts on another) → **cross-chain** (omit `--chains`).
+4. **Per-chain env.** Any value the executable reads per chain lives in `.sail/env/<chain-slug>.json` — **shared across every strategy in the project**, reached via `ctx.env`. `sailor strategy env set <chain> KEY=value` **creates that env file** (one per chain, e.g. `base.json`) and sets the key; set every variable the executable reads before the first run. → `sailor strategy env set <chain> KEY=value`.
+5. **A concise description** for the dashboard. → `--description "<text>"`.
+6. **A 2–3 word name.** → `sailor strategy create <name>`.
+7. **Active by default.** `create` makes the strategy active immediately; pass `--inactive` to create it paused, then `sailor strategy activate|deactivate <name>` to toggle.
+8. **Run the `sailor strategy` commands** to persist the config (`create`, `env set`, …).
+
+**When each step fires.** Jumping in directly to wire an executable that already exists, you run the commands now. In the station journey, the intent (steps 1–3, 5–6) is fixed *here* and persisted to `.sail/strategy.md`; the executable is written at Station 4, so the `strategies.json` wiring (steps 4, 7–8, per [references/execution-config.md](references/execution-config.md)) is performed there. Either path, this skill owns the flow — then it hands to **Station 3** ([`../sailor-mandate-planner/SKILL.md`](../sailor-mandate-planner/SKILL.md)).
 
 ## The pre-specified fast path (first-class, not a deviation)
 
@@ -35,7 +61,7 @@ The user's financial intent leads; enforcement routing follows. If the opening m
 
 Elicit in the user's financial vocabulary — accumulate, earn, provide liquidity, take leverage, hedge, automate a flow, act on a condition. The mapping to enforcement (which template, or bespoke) is your step, done AFTER the intent is clear — never make the user speak in templates.
 
-**Routing aids — consult, never force.** When a category reference fits the intent, use it: its archetypes pre-fill structural defaults, and its routing rows are Station 3's canon for that category. When none fits — or the intent is exotic or unclear — consult [references/possibility-map.md](references/possibility-map.md): it maps financial goals to the bound shapes that enforce them, and routes each action to a template or to bespoke authoring. **Lazy-loading rule: a plain DCA / deposit / payment never loads the map.** Defaults from any aid are **structural only** (cadences, band widths, caps as a fraction of allocated capital, conservative LTV): never an invented venue or token address, never an asset recommendation.
+**Routing aids — consult, never force.** When a category reference fits the intent, use it: its archetypes pre-fill structural defaults, and its routing rows are Station 3's canon for that category. **Read categories from two places:** the **three core recipes** shipped with Sailor — `references/trading.md`, `references/yield.md`, `references/payments.md` (they ship in this skill's `references/` and are refreshed by `sailor update`) — AND any **project recipes** in `.sail/recipes/*.md` (project-specific categories you add, which persist across `sailor update`). Consult both, and treat a matching project recipe exactly like a core one (it conforms to the same three-part contract below). When none fits — or the intent is exotic or unclear — consult [references/possibility-map.md](references/possibility-map.md): it maps financial goals to the bound shapes that enforce them, and routes each action to a template or to bespoke authoring. **Lazy-loading rule: a plain DCA / deposit / payment never loads the map.** Defaults from any aid are **structural only** (cadences, band widths, caps as a fraction of allocated capital, conservative LTV): never an invented venue or token address, never an asset recommendation.
 
 **Routing is per-action, whatever the category.** An action a shared template can express routes to that template; one it cannot routes to bespoke authoring at Station 3 — the protocol working as designed, not a detour. A `category: "custom"` strategy still gets the full completeness gate, and its actions still route individually: a custom strategy with a plain swap leg uses the swap template for that leg. Establish each action's route during this act — Act 3's disclosures count on it. **When intent is ambiguous between readings, ask — never resolve ambiguity toward the reading that is easier to build.**
 
@@ -135,13 +161,40 @@ A complete worked example (a two-chain DCA with real Base/Arbitrum addresses) is
 
 ## The category contract
 
-Every `references/<category>.md` must contain exactly three things:
+There are two kinds of category file, same contract for both. The **three core recipes** — `references/trading.md`, `references/yield.md`, `references/payments.md` — ship with Sailor in this skill's `references/` and are refreshed by `sailor update`. **Project recipes** live in `.sail/recipes/<category>.md`, are specific to one project, and persist across `sailor update` (the updater never touches `.sail/`). A category file of either kind must contain exactly three things:
 
 1. **2–3 archetypes**, each with pre-filled structural defaults for most dimensions.
 2. **Extension dimensions** — the category-specific rows appended to the core completeness gate.
 3. **Template routing** — which live template skill (or bespoke authoring) each action of the category maps to, with capability limits stated from the template's own schema.
 
-Adding a category to Sailor = one door line in the `sailor-navigator` skill's "What can be built here" list + one conforming reference file here + one routing row in the mandate planner. Nothing else changes. ([references/possibility-map.md](references/possibility-map.md) is not a category reference — it is the cross-category routing aid and follows its own format.)
+**Copy-me skeleton** — paste into a new category file and fill in the three required sections:
+
+```markdown
+# <Category> — archetypes, extension dimensions, routing
+
+A routing aid consulted when the intent fits this category — not the boundary of what can be built.
+
+## Archetypes
+### <Archetype name> — <one-line description>
+Defaults: <structural only — cadences, band widths, caps as a fraction of allocated capital, conservative LTV>. The user supplies: <the fields the user must name>.
+
+## Extension dimensions (append to the core gate)
+| Dimension | Concrete means |
+|---|---|
+| <name> | <what "concrete" means for it> |
+
+## Routing (Station 3 reads this)
+| Action | Route |
+|---|---|
+| <action> | <template skill, or "bespoke via sailor-mandates"> |
+```
+
+**Adding a category to Sailor — two audiences:**
+
+- **PROJECT (for the user):** drop a conforming `<name>.md` into [`.sail/recipes/`](../../../.sail/recipes/README.md) per the contract above. It **survives `sailor update`**, needs **no skill edit and no navigator door line**, and is read automatically alongside the built-ins (see the method in Act 2). This is the normal way to teach one project a new category. If there is a new category to add not in the skill, add it here with a descriptive name.
+- **SAILOR (a maintainer, shipping it to everyone):** add a built-in in the repo — one conforming `references/<name>.md` here + one door line in the `sailor-navigator` skill's "What can be built here" list + one routing row in the mandate planner — shipped to every project via `sailor update`.
+
+([references/possibility-map.md](references/possibility-map.md) is not a category reference — it is the cross-category routing aid and follows its own format.)
 
 ## Handoff
 

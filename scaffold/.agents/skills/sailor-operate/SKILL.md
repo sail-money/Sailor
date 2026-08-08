@@ -11,9 +11,9 @@ The agent is live; this skill answers the operator's questions about it. Station
 
 ## What the agent runs — execution strategies
 
-`sailor run` executes **execution strategies** (`.sail/strategies/strategies.json`), not a single hard-coded `src/agent.ts`. Each active strategy is a pipeline of steps, and every step binds an **executable** (`src/strategy/<name>.ts`) to an **SMA** and its **chains**. By default `run` executes every active strategy each tick; `sailor run --strategy <name>` runs just one (the lever for per-strategy schedules). A brand-new SMA auto-gets a **Default** strategy at onboarding, so zero-config `sailor run` behaves as before.
+`sailor run` executes **execution strategies** (`.sail/strategies/strategies.json`), not a single hard-coded `src/agent.ts`. Each active strategy binds **one executable** (`src/strategy/<name>.ts`) to an **SMA** and an optional **chains** list — there are no steps and no pipeline. By default `run` executes every active strategy each tick; `sailor run --strategy <name>` runs just one (the lever for per-strategy schedules). Nothing is auto-seeded: a project has **no strategies until one is created**, so `sailor run` with none reports "No active strategies…" — creating one is [`sailor-strategy`](../sailor-strategy/SKILL.md)'s job.
 
-How `sailor run` executes strategies — the two run modes, `ctx.chain(id)`, `--strategy`/`--sma`/`--chains` filters, per-chain `ctx.env` at runtime, and running strategies at different cadences → **[references/execution-strategies.md](references/execution-strategies.md)**. The model, the `.sail/strategies/strategies.json` config, and the `sailor strategy …` creation CLI live with **[`sailor-agent-build` → execution-strategy-config](../sailor-agent-build/references/execution-strategy-config.md)**.
+The two run modes (per-chain / cross-chain), `ctx.chain(id)`, and per-chain `ctx.env` at runtime are documented in **[`sailor-agent-build`](../sailor-agent-build/SKILL.md)**; running strategies at different cadences is in **[`sailor-automation`](../sailor-automation/SKILL.md)**. The model, the `.sail/strategies/strategies.json` config, and the `sailor strategy …` creation CLI live with **[`sailor-strategy` → execution-config](../sailor-strategy/references/execution-config.md)**. Keep this skill focused on monitor / tune / revoke / exit.
 
 ## "What is my agent doing?"
 

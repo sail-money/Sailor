@@ -28,7 +28,7 @@ describe('Strategies API', () => {
     await onboard()
     const create = await fix.api.post('/api/strategies').send({ name: 'Yield', sma: SAFE, executable: 'agent', chains: [8453], description: 'rotate' })
     expect(create.status).toBe(200)
-    expect(create.body.strategy).toMatchObject({ name: 'Yield', description: 'rotate', active: false, executable: 'agent' })
+    expect(create.body.strategy).toMatchObject({ name: 'Yield', description: 'rotate', active: true, executable: 'agent' })
     expect(create.body.strategy.chains).toEqual([8453])
 
     // sma + executable are required.
@@ -66,7 +66,7 @@ describe('Strategies API', () => {
     expect(fs.existsSync(file)).toBe(true)
   })
 
-  it('sets chains and clears to executable-driven (multichain)', async () => {
+  it('sets chains and clears to executable-driven (cross-chain)', async () => {
     await onboard()
     await fix.api.post('/api/strategies').send({ name: 'Flow', sma: SAFE, executable: 'agent', chains: [8453] })
 

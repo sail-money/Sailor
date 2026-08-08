@@ -59,7 +59,6 @@ import {
   registrationDeadline,
 } from "../lib/registration.js";
 import { type StoredAccount, upsertAccountInList } from "../lib/state.js";
-import { ensureDefaultStrategy } from "@sail/sdk/strategies";
 import { type SigningChannel, createSigningChannel, signingPageUrl } from "../signing/client.js";
 
 export interface OnboardOptions {
@@ -819,9 +818,6 @@ async function persistAccount(
   // Persist through the single account-state writer: it registers the SMA in the
   // multi-SMA list AND mirrors it into account.json (both files in sync).
   upsertAccountInList(stored);
-  // Seed the Default strategy the first time an SMA is created, so `sailor run` works with zero
-  // extra config (agent executable → this SMA on its first deployed chain). No-op if any exists.
-  ensureDefaultStrategy();
 }
 
 function printSummary(smaAddress: Address, agentAddress: Address, permissions: Address[]): void {

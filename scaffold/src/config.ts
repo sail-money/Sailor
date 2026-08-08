@@ -1,6 +1,6 @@
 /**
  * LEGACY helper for standalone scripts that need a single RPC + chain from the environment.
- * `sailor run` does NOT use this — it gets its chain(s) from the active strategy's steps
+ * `sailor run` does NOT use this — it gets its chain(s) from the active strategy
  * (see the sailor-strategy skill). Kept only for one-off scripts; not on the runner path.
  */
 export function getEnvConfig(): { rpcUrl: string; chainId: number } {
@@ -16,7 +16,7 @@ export function getEnvConfig(): { rpcUrl: string; chainId: number } {
     throw new Error(
       "CHAIN_ID is not set.\n" +
         "This legacy helper needs CHAIN_ID only for standalone scripts — set it in .sail/.env.local.\n" +
-        "`sailor run` does not use it; the chain(s) come from your active strategy's steps.",
+        "`sailor run` does not use it; the chain(s) come from your active strategy.",
     );
   }
   const chainId = Number(process.env["CHAIN_ID"]);

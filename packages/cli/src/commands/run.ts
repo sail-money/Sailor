@@ -33,7 +33,6 @@ import { readActiveAccount } from "@sail/sdk/accounts";
 import {
   type StoredStrategy,
   deployedChainsForSma,
-  ensureDefaultStrategy,
   getStrategy,
   readActiveStrategies,
   readChainEnv,
@@ -190,13 +189,10 @@ export async function runCommand(opts: {
   } else {
     strategies = readActiveStrategies();
     if (strategies.length === 0) {
-      // Back-compat: no strategies configured → synthesize (and persist) the Default from the
-      // active/first SMA on its first deployed chain.
-      const seeded = ensureDefaultStrategy(readActiveAccount());
-      if (!seeded) {
-        throw new Error('No SMA to run. Create one (`sailor onboard --new-sma`) first.');
-      }
-      strategies = [seeded];
+      throw new Error(
+        "No active strategies. Create one with the sailor-strategy skill, or run " +
+          "`sailor strategy create <name> --sma <address> --executable <name>`.",
+      );
     }
   }
 
@@ -210,8 +206,8 @@ export async function runCommand(opts: {
     strategies = strategies.filter((s) => checksum(s.sma) === smaFilter);
   }
 
-  // The chains a strategy would run on under the current filters: for a chainAgnostic strategy
-  // (`chains` set), `chains` ∩ (deployed ∩ filter); for a multichain strategy (no `chains`), the
+  // The chains a strategy would run on under the current filters: for a per-chain strategy
+  // (`chains` set), `chains` ∩ (deployed ∩ filter); for a cross-chain strategy (no `chains`), the
   // whole deployed set ∩ filter (it runs once, default-bound to the first). Empty ⇒ nothing to run.
   const runnableChainsFor = (s: StoredStrategy): number[] => {
     const deployed = deployedChainsForSma(checksum(s.sma));
@@ -690,8 +686,8 @@ export async function runCommand(opts: {
   };
 
   /**
-   * Run one strategy. chainAgnostic (`chains` set) → replay the executable once per listed chain,
-   * each tick's default ctx bound to that chain. Multichain (no `chains`) → run once, default-bound
+   * Run one strategy. Per-chain (`chains` set) → replay the executable once per listed chain,
+   * each tick's default ctx bound to that chain. Cross-chain (no `chains`) → run once, default-bound
    * to the SMA's first deployed chain, letting the executable reach others via `ctx.chain(id)`.
    */
   const runStrategy = async (strategy: StoredStrategy): Promise<void> => {
@@ -726,7 +722,7 @@ export async function runCommand(opts: {
   // ── Header ────────────────────────────────────────────────────────────────────
   console.log("Sailor agent running");
   for (const s of strategies) {
-    const mode = s.chains && s.chains.length > 0 ? `replay chains [${s.chains.join(",")}]` : "multichain (executable-driven)";
+    const mode = s.chains && s.chains.length > 0 ? `per-chain [${s.chains.join(",")}]` : "cross-chain (executable-driven)";
     console.log(`Strategy: ${s.name} → ${s.executable} @ ${checksum(s.sma).slice(0, 8)}… (${mode})`);
   }
   console.log(once ? "Mode: single tick (--once)" : `Interval: ${intervalSec}s`);

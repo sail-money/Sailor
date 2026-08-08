@@ -37,7 +37,7 @@ function parseChains(arg?: string): number[] {
 
 /** One-line mode label for a strategy. */
 function modeLabel(chains?: number[]): string {
-  return chains && chains.length > 0 ? `chains [${chains.join(", ")}]` : "multichain (executable-driven)";
+  return chains && chains.length > 0 ? `per-chain [${chains.join(", ")}]` : "cross-chain (executable-driven)";
 }
 
 /** `sailor strategy list [--json]` */
@@ -64,7 +64,7 @@ export async function strategyList(opts: { json?: boolean }): Promise<void> {
  */
 export async function strategyCreate(
   name: string,
-  opts: { sma?: string; executable?: string; chains?: string; description?: string } = {},
+  opts: { sma?: string; executable?: string; chains?: string; description?: string; inactive?: boolean } = {},
 ): Promise<void> {
   if (!opts.sma) throw new Error("Missing --sma <address>.");
   if (!opts.executable) throw new Error("Missing --executable <name>.");
@@ -75,12 +75,15 @@ export async function strategyCreate(
   const s = createStrategy(name, {
     sma: checksum(opts.sma),
     executable: opts.executable,
+    active: !opts.inactive,
     ...(chains.length > 0 ? { chains } : {}),
   });
   if (opts.description?.trim()) setStrategyDescription(s.name, opts.description);
   console.log(
-    `Created strategy "${s.name}" (inactive): ${s.executable} → ${checksum(s.sma)} (${modeLabel(s.chains)}). ` +
-      `Activate with \`sailor strategy activate ${s.name}\`.`,
+    `Created strategy "${s.name}" (${s.active ? "active" : "inactive"}): ${s.executable} → ${checksum(s.sma)} (${modeLabel(s.chains)}).` +
+      (s.active
+        ? ` Deactivate with \`sailor strategy deactivate ${s.name}\`.`
+        : ` Activate with \`sailor strategy activate ${s.name}\`.`),
   );
 }
 
@@ -93,7 +96,7 @@ export async function strategySetActive(name: string, active: boolean): Promise<
 
 /**
  * `sailor strategy set-chains <name> [--chains <ids> | --clear]`
- * Set the replay chain set, or `--clear` it to switch the strategy to executable-driven (multichain).
+ * Set the replay chain set, or `--clear` it to switch the strategy to executable-driven (cross-chain).
  */
 export async function strategySetChains(name: string, opts: { chains?: string; clear?: boolean }): Promise<void> {
   if (opts.clear) {

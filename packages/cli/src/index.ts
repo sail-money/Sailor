@@ -486,11 +486,12 @@ strategy
   .action(actionWith<{ json?: boolean }>(strategyList));
 strategy
   .command("create <name>")
-  .description("Create a new (inactive) strategy: one SMA + one executable")
+  .description("Create a new (active) strategy: one SMA + one executable")
   .requiredOption("--sma <address>", "SMA the strategy runs against")
   .requiredOption("--executable <name>", "Executable name → src/strategy/<name>.ts")
-  .option("--chains <ids>", "Comma-separated chain ids/slugs to replay on; omit for executable-driven (multichain)")
+  .option("--chains <ids>", "Comma-separated chain ids/slugs to replay on; omit for executable-driven (cross-chain)")
   .option("--description <text>", "Human description shown in the dashboard")
+  .option("--inactive", "Create the strategy inactive (default: active)")
   .action(actArgs(strategyCreate));
 strategy
   .command("activate <name>")
@@ -502,7 +503,7 @@ strategy
   .action(actArgs((name: string) => strategySetActive(name, false)));
 strategy
   .command("set-chains <name>")
-  .description("Set the replay chains, or --clear for executable-driven (multichain)")
+  .description("Set the replay chains, or --clear for executable-driven (cross-chain)")
   .option("--chains <ids>", "Comma-separated chain ids or slugs to replay on")
   .option("--clear", "Clear chains → executable-driven mode")
   .action(actArgs(strategySetChains));

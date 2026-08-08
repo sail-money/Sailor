@@ -340,9 +340,6 @@ export function startServer(sailDir, { port = PORT } = {}) {
   const listAccounts = () => accountStore.listAccounts(sailDir)
   const upsertActiveAccount = (fields) => {
     const record = accountStore.persistAccount(fields, sailDir)
-    // Seed the Default strategy on SMA creation (any onboarding path funnels through here), so the
-    // next `sailor run` uses it. Idempotent — no-op once any strategy exists.
-    try { strategyStore.ensureDefaultStrategy(record, sailDir) } catch {}
     return record
   }
 
@@ -575,7 +572,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
       const active = await syncDeployedChains(target)
 
       // Switching to an SMA on a different chain must move config.json.chainId too,
-      // or the stage machine / CLI active chain goes stale (multichain case).
+      // or the stage machine / CLI active chain goes stale (cross-chain case).
       syncConfigChainId(active.chainId)
       res.json({ ok: true, active })
     } catch (err) {

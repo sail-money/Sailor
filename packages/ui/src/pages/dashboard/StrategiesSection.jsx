@@ -106,7 +106,7 @@ function StrategyCard({ strategy, run, onEdit }) {
               <span key={c} className={styles.chainPill} title={chainDisplayName(c)}><ChainGlyph chainId={c} size={13} /></span>
             ))
           ) : (
-            <span className={styles.desc}>multichain (executable-driven)</span>
+            <span className={styles.desc}>cross-chain (executable-driven)</span>
           )}
         </span>
       </div>

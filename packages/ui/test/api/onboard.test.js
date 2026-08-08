@@ -130,7 +130,7 @@ describe('POST /api/onboard/complete', () => {
     expect(state.body.hasAccount).toBe(true)
   })
 
-  it('seeds the Default strategy for the created SMA (so the next sailor run uses it)', async () => {
+  it('does not auto-seed a strategy on SMA creation (strategies are created explicitly)', async () => {
     const safe = '0x8E637d9573Ad81B60cb93edA78b9C827860950a4'
     const res = await fix.api.post('/api/onboard/complete').send({
       safe,
@@ -140,17 +140,10 @@ describe('POST /api/onboard/complete', () => {
     })
     expect(res.status).toBe(200)
 
+    // No hardcoded "Default": a project has zero strategies until the user creates one
+    // (via the sailor-strategy flow or `sailor strategy create`).
     const file = path.join(fix.sailDir, 'strategies', 'strategies.json')
-    expect(fs.existsSync(file)).toBe(true)
-    const doc = JSON.parse(fs.readFileSync(file, 'utf-8'))
-    expect(doc.strategies).toHaveLength(1)
-    const s = doc.strategies[0]
-    expect(s.name).toBe('Default')
-    expect(s.active).toBe(true)
-    expect(s.executable).toBe('agent')
-    expect(s.chains).toEqual([8453])
-    expect(s.sma.toLowerCase()).toBe(safe.toLowerCase())
-    expect(s.pipeline).toBeUndefined()
+    expect(fs.existsSync(file)).toBe(false)
   })
 
   it('rejects invalid safe address', async () => {

@@ -5,7 +5,7 @@ description: Station 4 — build the agent's brain, the tick loop in src/agent.t
 
 # sailor-agent-build — build the brain (Station 4)
 
-You typically arrive here from the mandate plan with a registered, simulate-verified, **signed** mandate. This station turns the strategy spec into the agent's tick loop in `src/agent.ts`. Dispatch mechanics (the selective model, signing, permission resolution) live in [`sailor-transactions`](../sailor-transactions/SKILL.md); the agent's own memory of what it's done — the append-only, chain-reconciled ledger the skeleton reads and writes every tick — is owned by [`sailor-memory`](../sailor-memory/SKILL.md). This skill is about the decision logic that sits on top of both. Once the loop is written, wire it to run — register the executable as a **strategy** (SMA + optional chains) in `.sail/strategies/strategies.json`: see [references/execution-strategy-config.md](references/execution-strategy-config.md) for the model, the config file, and the `sailor strategy` CLI. How the runner then executes it each tick lives in [`sailor-operate` → execution-strategies](../sailor-operate/references/execution-strategies.md).
+You typically arrive here from the mandate plan with a registered, simulate-verified, **signed** mandate. This station turns the strategy spec into the agent's tick loop in `src/agent.ts`. Dispatch mechanics (the selective model, signing, permission resolution) live in [`sailor-transactions`](../sailor-transactions/SKILL.md); the agent's own memory of what it's done — the append-only, chain-reconciled ledger the skeleton reads and writes every tick — is owned by [`sailor-memory`](../sailor-memory/SKILL.md). This skill is about the decision logic that sits on top of both. Once the loop is written, wire it to run — register the executable as a **strategy** (SMA + optional chains) in `.sail/strategies/strategies.json`: see [`sailor-strategy` → references/execution-config.md](../sailor-strategy/references/execution-config.md) for the model, the config file, and the `sailor strategy` CLI. How the runner then executes it each tick — the two run modes and per-chain env — is covered in "Run modes and per-chain env" below; running strategies at different cadences lives in [`sailor-automation`](../sailor-automation/SKILL.md).
 
 ## Gate (fail-closed)
 
@@ -32,6 +32,37 @@ Verify the agent code against these — every one is a real failure mode the loo
 - **Cadence guard.** Never double-fire a period. The runner ticks on its own interval (`SAILOR_INTERVAL`); the agent must track its own last-action time and skip until the period has elapsed. Read it from the memory ledger (`sailor-memory`), not `ctx.data` — `ctx.data` resets on every fresh process (exactly what the shipped GitHub Actions / Docker hosts start per tick), so a cadence guard sourced from it is not a guard at all.
 - **Bounded retries with backoff.** If you retry a transient failure, cap the attempts and space them out (track a counter/next-attempt time in `ctx.data`) — do not hammer a dead RPC or a reverting venue every tick. Unlike cadence, a lost retry counter after a restart is harmless (worst case: one extra retry), so `ctx.data` is fine here.
 - **Log every decision and its inputs.** Call `ctx.log(msg)` at each branch. The runner appends it to `.sail/activity.jsonl` as a `log` entry and emits its own structured events around your dispatches (schema: [`sailor-operate`](../sailor-operate/SKILL.md)). Your job is `ctx.log`; the structured events are the runner's — you do not write the file yourself. Separately, every acted-or-skipped decision the agent itself makes is recorded to the memory ledger — see [`sailor-memory`](../sailor-memory/SKILL.md).
+
+## Run modes and per-chain env
+
+How the runner executes your executable each tick is set by whether its strategy carries a `chains` list (the `strategies.json` wiring — [`sailor-strategy` → execution-config](../sailor-strategy/references/execution-config.md)). Two modes:
+
+- **per-chain** — `chains` is set. The runner **replays the executable once per listed chain**, sequentially; each replay's top-level `ctx` is already bound to that chain (`ctx.chainId`, `ctx.env`). Same code, every chain — the common case. Write against the top-level `ctx`.
+- **cross-chain** — `chains` is omitted. The runner invokes the executable **once**; the default `ctx` is bound to the SMA's primary chain, and the executable drives chains itself via `ctx.chain(id)`, which returns a handle `{ chainId, publicClient, client, env, read, dispatch }` bound to this SMA on that chain (it throws if the SMA isn't deployed there).
+
+In **both** modes the executable can reach any chain the SMA is deployed on via `ctx.chain(id)`; the `chains` list only sets the default replay behavior.
+
+**Per-chain env.** `ctx.env` values come from `.sail/env/<chain-slug>.json` — one file per chain (`base.json`, `arbitrum.json`, …), **shared across every strategy in the project**, loaded for whichever chain the executable is running on. They reach the executable via `ctx.env` (the current/default chain) and `ctx.chain(id).env` (that chain's values), and **never** via `process.env`. Write the logic once against `ctx.env.MORPHO_TOKEN_ADDR` and set each chain's address in that chain's env file. (Setting these files: `sailor strategy env set <chain> KEY=value` — see [`sailor-strategy` → execution-config](../sailor-strategy/references/execution-config.md).)
+
+```ts
+// cross-chain (no chains list): read on Base, act on Arbitrum — one flow.
+async tick(ctx: AgentContext): Promise<Dispatch[]> {
+  const base = ctx.chain(8453);
+  const arb  = ctx.chain(42161);
+  const bal = await base.read.balance(base.env.USDC as `0x${string}`);
+  if (bal < MIN) return [];
+  return [ arb.dispatch({ calls: [/* supply on Arbitrum */] }) ];
+}
+```
+
+```ts
+// per-chain (chains list): same script, replayed per chain — just use the top-level ctx.
+async tick(ctx: AgentContext): Promise<Dispatch[]> {
+  const token = ctx.env.MORPHO_TOKEN_ADDR as `0x${string}`;  // this chain's value
+  const bal = await ctx.read.balance(token);
+  return bal > MIN ? [{ calls: [/* … on ctx.chainId */] }] : [];
+}
+```
 
 ## The canonical skeleton
 
