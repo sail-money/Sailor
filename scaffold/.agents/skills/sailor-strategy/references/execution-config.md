@@ -1,6 +1,6 @@
 # Execution config — registering an executable as a strategy & the `strategies.json` file
 
-> **Two artifacts, one skill.** [`sailor-strategy`](../SKILL.md) owns both. `.sail/strategy.md` is the **intent** — *what you want financially* (the three acts of the skill). This doc is the **execution** side: how you register a runnable executable as a **strategy**, and the `.sail/strategies/strategies.json` config that wires it to run. For how the runner *executes* these each tick — the two run modes and per-chain `ctx.env` — see [`sailor-agent-build`](../../sailor-agent-build/SKILL.md); for running strategies at different cadences, see [`sailor-automation`](../../sailor-automation/SKILL.md).
+> **Two artifacts, one skill.** [`sailor-strategy`](../SKILL.md) owns both, and both are created together at Station 2. `.sail/strategy.md` is the **intent** — *what you want financially* (the three acts of the skill). This doc is the **execution** side: how you register a runnable executable as a **strategy**, and the `.sail/strategies/strategies.json` config that wires it to run. For how the runner *executes* these each tick — the two run modes and per-chain `ctx.env` — see [`sailor-agent-build`](../../sailor-agent-build/SKILL.md); for running strategies at different cadences, see [`sailor-automation`](../../sailor-automation/SKILL.md).
 
 ## The model
 
