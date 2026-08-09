@@ -118,9 +118,10 @@ export function useSailorMandate(trigger) {
   return { mandates: Array.isArray(data) ? data : (data ? [data] : []), loading, error }
 }
 
-/** Execution strategies from `.sail/strategies/strategies.json`. Polls every 5s. */
-export function useSailorStrategies(trigger) {
-  const { data, loading, error } = usePolledJson('/api/strategies', { strategies: [] }, POLL_MS, trigger)
+/** Execution strategies from `.sail/strategies/strategies.json`, filtered to one SMA. Polls every 5s. */
+export function useSailorStrategies(sma, trigger) {
+  const path = sma ? `/api/strategies/${encodeURIComponent(sma)}` : '/api/strategies'
+  const { data, loading, error } = usePolledJson(path, { strategies: [] }, POLL_MS, trigger)
   return { strategies: Array.isArray(data?.strategies) ? data.strategies : [], loading, error }
 }
 

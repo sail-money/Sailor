@@ -611,6 +611,16 @@ export function startServer(sailDir, { port = PORT } = {}) {
     catch (err) { serverError(res, err) }
   })
 
+  // GET /api/strategies/:sma — the strategies bound to one SMA (checksummed match; 400 on non-address).
+  app.get('/api/strategies/:sma', (req, res) => {
+    const { sma } = req.params
+    if (!isAddress(sma)) { res.status(400).json({ error: 'invalid SMA address' }); return }
+    try {
+      const want = getAddress(sma)
+      res.json({ strategies: strategyStore.listStrategies(sailDir).filter((s) => getAddress(s.sma) === want) })
+    } catch (err) { serverError(res, err) }
+  })
+
   // Create a new (inactive) strategy: one SMA + one executable (+ optional replay chains, description).
   app.post('/api/strategies', (req, res) => {
     const { name, sma, executable, chains, description } = req.body ?? {}

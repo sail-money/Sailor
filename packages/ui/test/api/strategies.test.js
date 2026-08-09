@@ -81,6 +81,22 @@ describe('Strategies API', () => {
     expect(set.body.strategy.chains).toEqual([8453])
   })
 
+  it('GET /api/strategies/:sma filters to one SMA (case-insensitive), 400 on non-address', async () => {
+    await onboard()
+    await fix.api.post('/api/strategies').send({ name: 'yield', sma: SAFE, executable: 'agent', chains: [8453] })
+
+    const forSma = await fix.api.get(`/api/strategies/${SAFE.toLowerCase()}`)
+    expect(forSma.status).toBe(200)
+    expect(forSma.body.strategies.map((s) => s.name)).toEqual(['yield'])
+
+    const other = await fix.api.get('/api/strategies/0x1111111111111111111111111111111111111111')
+    expect(other.status).toBe(200)
+    expect(other.body.strategies).toEqual([])
+
+    const bad = await fix.api.get('/api/strategies/not-an-address')
+    expect(bad.status).toBe(400)
+  })
+
   it('scaffolds an executable and lists it (camelCase enforced)', async () => {
     const bad = await fix.api.post('/api/executables').send({ name: 'bad_name' })
     expect(bad.status).toBe(400)

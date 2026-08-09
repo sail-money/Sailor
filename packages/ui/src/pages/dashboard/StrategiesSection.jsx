@@ -23,8 +23,9 @@ export default function StrategiesSection() {
   // { variant: 'new' | 'redraft', name?: string } | null — drives the AI-handoff popup.
   const [handoff, setHandoff] = useState(null)
 
-  const { strategies } = useSailorStrategies(tick)
   const { accounts } = useSailorAccounts(tick)
+  const activeAccount = accounts.find((a) => a.active) ?? accounts[0] ?? null
+  const { strategies } = useSailorStrategies(activeAccount?.safe ?? null, tick)
 
   const run = async (fn) => {
     try {
@@ -88,7 +89,18 @@ function StrategyCard({ strategy, run, onEdit }) {
     <div className={`${styles.card} ${s.active ? styles.cardActive : ''}`}>
       <div className={styles.cardHead}>
         <div className={styles.cardMeta}>
-          <span className={styles.name}>{s.name}</span>
+          <div className={styles.stepRow}>
+            <span className={styles.name}>{s.name}</span>
+            <span className={styles.stepChains}>
+              {chains.length > 0 ? (
+                chains.map((c) => (
+                  <span key={c} className={styles.chainPill} title={chainDisplayName(c)}><ChainGlyph chainId={c} size={13} /></span>
+                ))
+              ) : (
+                <span className={styles.desc}>cross-chain (executable-driven)</span>
+              )}
+            </span>
+          </div>
           {s.active && <span className={styles.tagActive}>active</span>}
           {s.description && <span className={styles.desc}>{s.description}</span>}
         </div>
@@ -100,17 +112,6 @@ function StrategyCard({ strategy, run, onEdit }) {
         </div>
       </div>
 
-      <div className={styles.stepRow}>
-        <span className={styles.stepChains}>
-          {chains.length > 0 ? (
-            chains.map((c) => (
-              <span key={c} className={styles.chainPill} title={chainDisplayName(c)}><ChainGlyph chainId={c} size={13} /></span>
-            ))
-          ) : (
-            <span className={styles.desc}>cross-chain (executable-driven)</span>
-          )}
-        </span>
-      </div>
     </div>
   )
 }
