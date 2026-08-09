@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { getAddress } from "viem";
 import { persistAccount } from "../accounts.js";
 import {
+  DEFAULT_EXECUTABLE,
   createStrategyExecutable,
   createStrategy,
   deleteStrategy,
@@ -64,7 +65,7 @@ test("createStrategyExecutable: scaffolds the shared executable template and rej
 test("createStrategy: writes strategies.json to disk in the flat v2 shape", () => {
   const sailDir = tmpSailDir();
   seedSma(sailDir, 8453, [8453, 42161]);
-  createStrategy("Alpha", { sma: SAFE, executable: "agent", chains: [8453] }, sailDir);
+  createStrategy("dcaBase", { sma: SAFE, executable: "agent", chains: [8453] }, sailDir);
 
   const file = path.join(sailDir, "strategies", "strategies.json");
   assert.ok(fs.existsSync(file), "strategies.json must be written to disk");
@@ -76,23 +77,23 @@ test("createStrategy: writes strategies.json to disk in the flat v2 shape", () =
 test("createStrategy: active by default (opt out with active:false), checksums the SMA, rejects duplicates", () => {
   const sailDir = tmpSailDir();
   seedSma(sailDir, 8453, [8453]);
-  const s = createStrategy("Alpha", { sma: SAFE, executable: "agent", chains: [8453] }, sailDir);
+  const s = createStrategy("dcaBase", { sma: SAFE, executable: "agent", chains: [8453] }, sailDir);
   assert.equal(s.active, true);
   assert.equal(s.sma, getAddress(SAFE));
   assert.equal(s.executable, "agent");
   assert.deepEqual(s.chains, [8453]);
-  const inactive = createStrategy("Beta", { sma: SAFE, executable: "agent", active: false }, sailDir);
+  const inactive = createStrategy("rebalance", { sma: SAFE, executable: "agent", active: false }, sailDir);
   assert.equal(inactive.active, false);
-  assert.throws(() => createStrategy("alpha", { sma: SAFE, executable: "agent" }, sailDir), /already exists/i);
+  assert.throws(() => createStrategy("dcaBase", { sma: SAFE, executable: "agent" }, sailDir), /already exists/i);
 });
 
 test("createStrategy: filters chains to the SMA's deployed set and rejects when none valid", () => {
   const sailDir = tmpSailDir();
   seedSma(sailDir, 8453, [8453, 42161]);
-  const s = createStrategy("Alpha", { sma: SAFE, executable: "agent", chains: [42161, 10, 8453] }, sailDir);
+  const s = createStrategy("dcaBase", { sma: SAFE, executable: "agent", chains: [42161, 10, 8453] }, sailDir);
   assert.deepEqual(s.chains, [42161, 8453]); // 10 (not deployed) dropped
   assert.throws(
-    () => createStrategy("Beta", { sma: SAFE, executable: "agent", chains: [10] }, sailDir),
+    () => createStrategy("rebalance", { sma: SAFE, executable: "agent", chains: [10] }, sailDir),
     /deployed set/i,
   );
 });
@@ -100,20 +101,38 @@ test("createStrategy: filters chains to the SMA's deployed set and rejects when 
 test("createStrategy: omitting chains stores no key (executable-driven / cross-chain)", () => {
   const sailDir = tmpSailDir();
   seedSma(sailDir, 8453, [8453, 42161]);
-  const s = createStrategy("Multi", { sma: SAFE, executable: "agent" }, sailDir);
+  const s = createStrategy("crossChain", { sma: SAFE, executable: "agent" }, sailDir);
   assert.equal(s.chains, undefined);
-  assert.equal(getStrategy("Multi", sailDir)?.chains, undefined);
+  assert.equal(getStrategy("crossChain", sailDir)?.chains, undefined);
+});
+
+test("createStrategy: defaults the executable to the agent when omitted", () => {
+  const sailDir = tmpSailDir();
+  seedSma(sailDir, 8453, [8453]);
+  const s = createStrategy("dcaBase", { sma: SAFE }, sailDir);
+  assert.equal(s.executable, DEFAULT_EXECUTABLE);
+  assert.equal(getStrategy("dcaBase", sailDir)?.executable, DEFAULT_EXECUTABLE);
+});
+
+test("createStrategy: strategy names must be camelCase (the spec filename + --strategy selector)", () => {
+  const sailDir = tmpSailDir();
+  seedSma(sailDir, 8453, [8453]);
+  assert.throws(() => createStrategy("DCA daily", { sma: SAFE }, sailDir), /camelCase/i);
+  assert.throws(() => createStrategy("with-space", { sma: SAFE }, sailDir), /camelCase/i);
+  assert.throws(() => createStrategy("", { sma: SAFE }, sailDir), /camelCase/i);
+  const ok = createStrategy("dcaDaily", { sma: SAFE }, sailDir);
+  assert.equal(ok.name, "dcaDaily");
 });
 
 test("createStrategy: rejects unknown SMA and bad executable name", () => {
   const sailDir = tmpSailDir();
   seedSma(sailDir, 8453, [8453]);
   assert.throws(
-    () => createStrategy("Alpha", { sma: "0x00000000000000000000000000000000000000BB", executable: "agent", chains: [8453] }, sailDir),
+    () => createStrategy("dcaBase", { sma: "0x00000000000000000000000000000000000000BB", executable: "agent", chains: [8453] }, sailDir),
     /not a known account/i,
   );
   assert.throws(
-    () => createStrategy("Beta", { sma: SAFE, executable: "bad_name", chains: [8453] }, sailDir),
+    () => createStrategy("rebalance", { sma: SAFE, executable: "bad_name", chains: [8453] }, sailDir),
     /Invalid executable/i,
   );
 });
@@ -121,26 +140,26 @@ test("createStrategy: rejects unknown SMA and bad executable name", () => {
 test("setStrategyChains: sets a replay set and clears it to executable-driven", () => {
   const sailDir = tmpSailDir();
   seedSma(sailDir, 8453, [8453, 42161]);
-  createStrategy("Alpha", { sma: SAFE, executable: "agent", chains: [8453] }, sailDir);
+  createStrategy("dcaBase", { sma: SAFE, executable: "agent", chains: [8453] }, sailDir);
 
-  const cleared = setStrategyChains("Alpha", null, sailDir);
+  const cleared = setStrategyChains("dcaBase", null, sailDir);
   assert.equal(cleared?.chains, undefined);
 
-  const set = setStrategyChains("Alpha", [8453, 42161], sailDir);
+  const set = setStrategyChains("dcaBase", [8453, 42161], sailDir);
   assert.deepEqual(set?.chains, [8453, 42161]);
 });
 
 test("readActiveStrategies + setStrategyActive + deleteStrategy", () => {
   const sailDir = tmpSailDir();
   seedSma(sailDir, 8453, [8453]);
-  createStrategy("Alpha", { sma: SAFE, executable: "agent" }, sailDir);
+  createStrategy("dcaBase", { sma: SAFE, executable: "agent" }, sailDir);
   assert.equal(readActiveStrategies(sailDir).length, 1); // active by default
-  setStrategyActive("Alpha", false, sailDir);
+  setStrategyActive("dcaBase", false, sailDir);
   assert.deepEqual(readActiveStrategies(sailDir), []);
-  setStrategyActive("Alpha", true, sailDir);
+  setStrategyActive("dcaBase", true, sailDir);
   assert.equal(readActiveStrategies(sailDir).length, 1);
-  assert.ok(deleteStrategy("Alpha", sailDir));
-  assert.equal(getStrategy("Alpha", sailDir), undefined);
+  assert.ok(deleteStrategy("dcaBase", sailDir));
+  assert.equal(getStrategy("dcaBase", sailDir), undefined);
 });
 
 test("readChainEnv: reads .sail/env/<slug>.json, {} when missing", () => {

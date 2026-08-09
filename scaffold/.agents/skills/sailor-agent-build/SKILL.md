@@ -1,17 +1,17 @@
 ---
 name: sailor-agent-build
-description: Station 4 — build the agent's brain, the tick loop in src/agent.ts, from the strategy spec and the registered mandate. Use when the user says "build my agent", "write the agent code", "agent logic", "tick loop", "src/agent.ts", or "make it trade automatically" — and structurally once the mandate is registered and simulate-verified and .sail/strategy.md is complete.
+description: Station 4 — build the agent's brain, the tick loop in src/agent.ts, from the strategy spec and the registered mandate. Use when the user says "build my agent", "write the agent code", "agent logic", "tick loop", "src/agent.ts", or "make it trade automatically" — and structurally once the mandate is registered and simulate-verified and the strategy's spec (`.sail/strategies/<name>.md`) is complete.
 ---
 
 # sailor-agent-build — build the brain (Station 4)
 
-You typically arrive here from the mandate plan with a registered, simulate-verified, **signed** mandate. This station turns the strategy spec into the agent's tick loop in `src/strategy/<name>.ts` (or `src/agent.ts`). Dispatch mechanics (the selective model, signing, permission resolution) live in [`sailor-transactions`](../sailor-transactions/SKILL.md); the agent's own memory of what it's done — the append-only, chain-reconciled ledger the skeleton reads and writes every tick — is owned by [`sailor-memory`](../sailor-memory/SKILL.md). This skill is about the decision logic that sits on top of both. The strategy's execution config (`.sail/strategies/strategies.json`) was already registered at Station 2 — see [`sailor-strategy` → references/execution-config.md](../sailor-strategy/references/execution-config.md) for the model, the config file, and the `sailor strategy` CLI — so here the spec becomes the tick loop that fulfills it. How the runner then executes it each tick — the two run modes and per-chain env — is covered in "Run modes and per-chain env" below; running strategies at different cadences lives in [`sailor-automation`](../sailor-automation/SKILL.md).
+You typically arrive here from the mandate plan with a registered, simulate-verified, **signed** mandate. This station turns the strategy spec into the agent's tick loop in `src/agent.ts` (or the strategy's custom `src/strategy/<name>.ts`). Dispatch mechanics (the selective model, signing, permission resolution) live in [`sailor-transactions`](../sailor-transactions/SKILL.md); the agent's own memory of what it's done — the append-only, chain-reconciled ledger the skeleton reads and writes every tick — is owned by [`sailor-memory`](../sailor-memory/SKILL.md). This skill is about the decision logic that sits on top of both. The strategy's execution config (`.sail/strategies/strategies.json`) was already registered at Station 2 — see [`sailor-strategy` → references/execution-config.md](../sailor-strategy/references/execution-config.md) for the model, the config file, and the `sailor strategy` CLI — so here the spec becomes the tick loop that fulfills it. How the runner then executes it each tick — the two run modes and per-chain env — is covered in "Run modes and per-chain env" below; running strategies at different cadences lives in [`sailor-automation`](../sailor-automation/SKILL.md).
 
 ## Gate (fail-closed)
 
 Station 4 requires a **registered, configured, simulate-verified, and signed mandate** — `.sail/mandate.json` exists (the sailor-navigator skill's Station 4 gate). If it doesn't, `sailor run --once` refuses with "Run `sailor mandate sign` first" — go back to [`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md) (its Handoff step signs the mandate) rather than writing agent code against permissions that aren't runnable yet.
 
-Read `.sail/strategy.md`'s JSON block and the current mandate state first. **The agent is built FROM the spec** — its tokens, venues, caps, cadence, risk bounds, and exit condition are already decided and confirmed there. Never re-ask the user for values the spec already carries. `.sail/strategy.md` stays the fixed intent throughout — the memory ledger records what actually happened against it, and never the other way around.
+Read the strategy's spec — `.sail/strategies/<name>.md`, its JSON block (`name` matches the strategy's entry in `strategies.json`) — and the current mandate state first. **The agent is built FROM the spec** — its tokens, venues, caps, cadence, risk bounds, and exit condition are already decided and confirmed there. Never re-ask the user for values the spec already carries. The spec stays the fixed intent throughout — the memory ledger records what actually happened against it, and never the other way around.
 
 ## The translation method
 
@@ -66,12 +66,12 @@ async tick(ctx: AgentContext): Promise<Dispatch[]> {
 
 ## The canonical skeleton
 
-A complete `tick()` in the **read → decide → act** shape, derived from the DCA reference. Every value marked `FROM SPEC` comes from `.sail/strategy.md`; the placeholder addresses are `0x0…0` — replace them with the spec's resolved addresses. Adapt it into `src/agent.ts`.
+A complete `tick()` in the **read → decide → act** shape, derived from the DCA reference. Every value marked `FROM SPEC` comes from the strategy's `.sail/strategies/<name>.md`; the placeholder addresses are `0x0…0` — replace them with the spec's resolved addresses. Adapt it into `src/agent.ts`.
 
 ```ts
 // @sailor-skeleton
 // Canonical Sailor agent loop — the read → decide → act shape.
-// Adapt into src/agent.ts. Every value marked FROM SPEC comes from .sail/strategy.md;
+// Adapt into src/agent.ts. Every value marked FROM SPEC comes from the strategy's .sail/strategies/<name>.md;
 // do not re-ask the user for it. Replace the 0x0…0 placeholders with the spec's addresses.
 
 import fs from "node:fs";
@@ -79,7 +79,7 @@ import path from "node:path";
 import type { Agent, AgentContext, Address, Call, Dispatch } from "@sail.money/sailor/sdk";
 import { decodeFunctionData, encodeFunctionData, formatUnits, parseEventLogs } from "viem";
 
-// ── Strategy constants (FROM SPEC — .sail/strategy.md) ──────────────────────
+// ── Strategy constants (FROM SPEC — .sail/strategies/<name>.md) ─────────────
 const TOKEN_IN: Address = "0x0000000000000000000000000000000000000000"; // FROM SPEC: sell-side token (resolved address)
 const TOKEN_IN_SYMBOL = "TOKEN_IN"; // FROM SPEC: sell-side token symbol — ledger "human" strings only
 const TOKEN_OUT: Address = "0x0000000000000000000000000000000000000000"; // FROM SPEC: buy-side token
@@ -474,6 +474,6 @@ For where decision data comes from (prices, yields, RPC upgrades), see [referenc
 
 Run `sailor run --once` and confirm it completes cleanly against the live mandate (a clean tick, or a deliberate `[]` skip — not a crash). That is Station 4's exit verifier. A first `--once` run only ever produces a `skipped` ledger entry (there's nothing yet to reconcile) — that's expected, not a bug; the first `acted` entry lands once a later tick reconciles a confirmed dispatch. See [`sailor-memory`](../sailor-memory/SKILL.md) for the ledger this loop maintains.
 
-**Fund the SMA with trading capital — the step Station 1 deliberately skipped.** Station 1 funded gas (the owner and agent wallets, so they can submit transactions) — never the token the agent actually trades with, because at that point the strategy didn't exist yet. It exists now: read `.sail/strategy.md`'s resolved `actions[]` for each action's `tokenIn` (symbol + address) — that's what the SMA needs to hold. Tell the user plainly, by name: "Your agent trades from `<SMA address>` on `<chain>` — send it the `<tokenIn.symbol>` you want it to manage" (the SMA is the same address on every supported chain, but only acts on the one it's configured for — name that one). Show the current balance if you can — `sailor ui start` opens the dashboard, which already surfaces it, or point to a block explorer for the SMA address — so the user sees what's there before deciding how much to add. Frame this as putting the agent to work, not a warning: funded, the tick loop's balance precondition passes and it acts within the mandate; unfunded, it runs cleanly and skips every tick, logging `balance <n> < min <n>` (see the skeleton's precondition check above) — expected, not a bug, and now the user knows why if they see it.
+**Fund the SMA with trading capital — the step Station 1 deliberately skipped.** Station 1 funded gas (the owner and agent wallets, so they can submit transactions) — never the token the agent actually trades with, because at that point the strategy didn't exist yet. It exists now: read the strategy's `.sail/strategies/<name>.md` resolved `actions[]` for each action's `tokenIn` (symbol + address) — that's what the SMA needs to hold. Tell the user plainly, by name: "Your agent trades from `<SMA address>` on `<chain>` — send it the `<tokenIn.symbol>` you want it to manage" (the SMA is the same address on every supported chain, but only acts on the one it's configured for — name that one). Show the current balance if you can — `sailor ui start` opens the dashboard, which already surfaces it, or point to a block explorer for the SMA address — so the user sees what's there before deciding how much to add. Frame this as putting the agent to work, not a warning: funded, the tick loop's balance precondition passes and it acts within the mandate; unfunded, it runs cleanly and skips every tick, logging `balance <n> < min <n>` (see the skeleton's precondition check above) — expected, not a bug, and now the user knows why if they see it.
 
 Then proceed to Station 5: [`sailor-automation`](../sailor-automation/SKILL.md) to launch it unattended, and the sailor-operate skill to monitor, tune, pause/resume, revoke, and exit.

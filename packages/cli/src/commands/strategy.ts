@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { chainBySlug, getChain } from "@sail/sdk/chains";
 import {
+  DEFAULT_EXECUTABLE,
   createStrategy,
   createStrategyExecutable,
   deleteStrategy,
@@ -48,7 +49,7 @@ export async function strategyList(opts: { json?: boolean }): Promise<void> {
     return;
   }
   if (strategies.length === 0) {
-    console.log("No strategies configured. Create one with `sailor strategy create <name> --sma <addr> --executable <name>`.");
+    console.log("No strategies configured. Create one with `sailor strategy create <name> --sma <addr>` (the `agent` executable is the default).");
     return;
   }
   for (const s of strategies) {
@@ -58,23 +59,23 @@ export async function strategyList(opts: { json?: boolean }): Promise<void> {
 }
 
 /**
- * `sailor strategy create <name> --sma <addr> --executable <name> [--chains <ids>] [--description <text>]`
+ * `sailor strategy create <name> --sma <addr> [--executable <name>] [--chains <ids>] [--description <text>]`
  * With `--chains` the executable is replayed once per chain; without it the strategy runs once and the
- * executable drives chains via `ctx.chain(id)`.
+ * executable drives chains via `ctx.chain(id)`. `--executable` defaults to `agent`.
  */
 export async function strategyCreate(
   name: string,
   opts: { sma?: string; executable?: string; chains?: string; description?: string; inactive?: boolean } = {},
 ): Promise<void> {
   if (!opts.sma) throw new Error("Missing --sma <address>.");
-  if (!opts.executable) throw new Error("Missing --executable <name>.");
-  if (!isValidExecutableName(opts.executable)) {
-    throw new Error(`Invalid executable name "${opts.executable}" — use camelCase (e.g. agent, checkData).`);
+  const executable = opts.executable ?? DEFAULT_EXECUTABLE;
+  if (!isValidExecutableName(executable)) {
+    throw new Error(`Invalid executable name "${executable}" — use camelCase (e.g. agent, checkData).`);
   }
   const chains = parseChains(opts.chains);
   const s = createStrategy(name, {
     sma: checksum(opts.sma),
-    executable: opts.executable,
+    executable,
     active: !opts.inactive,
     ...(chains.length > 0 ? { chains } : {}),
   });

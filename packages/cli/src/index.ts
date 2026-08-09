@@ -488,7 +488,7 @@ strategy
   .command("create <name>")
   .description("Create a new (active) strategy: one SMA + one executable")
   .requiredOption("--sma <address>", "SMA the strategy runs against")
-  .requiredOption("--executable <name>", "Executable name → src/strategy/<name>.ts")
+  .option("--executable <name>", "Executable name: default agent → src/agent.ts; custom → src/strategy/<name>.ts")
   .option("--chains <ids>", "Comma-separated chain ids/slugs to replay on; omit for executable-driven (cross-chain)")
   .option("--description <text>", "Human description shown in the dashboard")
   .option("--inactive", "Create the strategy inactive (default: active)")

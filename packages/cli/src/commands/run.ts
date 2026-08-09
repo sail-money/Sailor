@@ -78,19 +78,21 @@ function loadAgentData(filePath: string | undefined): Record<string, unknown> {
 /**
  * Dynamically imports an executable by name from the current project.
  *
- * Resolution order: `src/strategy/<name>.ts|.js` (and built `dist/strategy/<name>.js`), then — for
- * the default `agent` name — the legacy `src/agent.ts` candidates, so existing projects keep
- * working. `.ts` files load via tsx's tsImport(); `.js` via plain dynamic import().
+ * The default `agent` executable keeps the classic `src/agent.ts` path (so existing projects run
+ * unchanged); named/custom executables resolve from `src/strategy/<name>.ts` (and built
+ * `dist/strategy/<name>.js`). `.ts` files load via tsx's tsImport(); `.js` via plain dynamic import().
  */
 async function loadExecutable(name: string): Promise<Agent> {
-  const perName = [
-    `src/strategy/${name}.ts`,
-    `src/strategy/${name}.js`,
-    `dist/strategy/${name}.js`,
-    `dist/src/strategy/${name}.js`,
-  ];
-  const legacy = name === "agent" ? ["src/agent.ts", "src/agent.js", "dist/agent.js", "dist/src/agent.js"] : [];
-  for (const rel of [...perName, ...legacy]) {
+  const candidates =
+    name === "agent"
+      ? ["src/agent.ts", "src/agent.js", "dist/agent.js", "dist/src/agent.js"]
+      : [
+          `src/strategy/${name}.ts`,
+          `src/strategy/${name}.js`,
+          `dist/strategy/${name}.js`,
+          `dist/src/strategy/${name}.js`,
+        ];
+  for (const rel of candidates) {
     const abs = path.join(process.cwd(), rel);
     if (!fs.existsSync(abs)) continue;
 
@@ -112,8 +114,8 @@ async function loadExecutable(name: string): Promise<Agent> {
     return agent;
   }
   throw new Error(
-    `No executable "${name}" found. Expected src/strategy/${name}.ts` +
-      (name === "agent" ? " (or the legacy src/agent.ts)" : "") +
+    `No executable "${name}" found. Expected ` +
+      (name === "agent" ? "src/agent.ts" : `src/strategy/${name}.ts`) +
       ". Ensure tsx is installed: pnpm add tsx",
   );
 }
@@ -191,7 +193,7 @@ export async function runCommand(opts: {
     if (strategies.length === 0) {
       throw new Error(
         "No active strategies. Create one with the sailor-strategy skill, or run " +
-          "`sailor strategy create <name> --sma <address> --executable <name>`.",
+          "`sailor strategy create <name> --sma <address>` (the `agent` executable is the default).",
       );
     }
   }

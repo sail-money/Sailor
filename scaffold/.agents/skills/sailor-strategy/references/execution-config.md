@@ -1,6 +1,6 @@
 # Execution config — registering an executable as a strategy & the `strategies.json` file
 
-> **Two artifacts, one skill.** [`sailor-strategy`](../SKILL.md) owns both, and both are created together at Station 2. `.sail/strategy.md` is the **intent** — *what you want financially* (the three acts of the skill). This doc is the **execution** side: how you register a runnable executable as a **strategy**, and the `.sail/strategies/strategies.json` config that wires it to run. For how the runner *executes* these each tick — the two run modes and per-chain `ctx.env` — see [`sailor-agent-build`](../../sailor-agent-build/SKILL.md); for running strategies at different cadences, see [`sailor-automation`](../../sailor-automation/SKILL.md).
+> **Two artifacts, one skill.** [`sailor-strategy`](../SKILL.md) owns both, and both are created together at Station 2. `.sail/strategies/<name>.md` (one per strategy) is the **intent** — *what you want financially* (the three acts of the skill). This doc is the **execution** side: how you register a runnable executable as a **strategy**, and the `.sail/strategies/strategies.json` config that wires it to run. For how the runner *executes* these each tick — the two run modes and per-chain `ctx.env` — see [`sailor-agent-build`](../../sailor-agent-build/SKILL.md); for running strategies at different cadences, see [`sailor-automation`](../../sailor-automation/SKILL.md).
 
 ## The model
 
@@ -9,7 +9,7 @@ Executable   a runnable script:  src/strategy/<name>.ts  (exports an Agent with 
 Strategy     { name, description?, active, sma, executable, chains? }  — one SMA, one executable
 ```
 
-- **Executable** — `src/strategy/<name>.ts`, exporting `export const agent: Agent` with a `tick(ctx)` (same interface as the classic `src/agent.ts`). The default executable is **`agent`** (resolves `src/strategy/agent.ts`, falling back to the legacy `src/agent.ts`). Names are unique and **camelCase** (`agent`, `checkData`, `rebalance`). An executable **never hardcodes an SMA or a chain** — so one script is reusable across many strategies and SMAs.
+- **Executable** — `src/agent.ts` for the default `agent`, or `src/strategy/<name>.ts` for a named one, each exporting `export const agent: Agent` with a `tick(ctx)`. The default executable is **`agent`** — the classic path **`src/agent.ts`**, unchanged, so existing projects run as-is. Only custom executables (`checkData`, `rebalance`) live at `src/strategy/<name>.ts`. Names are unique and **camelCase**. An executable **never hardcodes an SMA or a chain** — so one script is reusable across many strategies and SMAs.
 - **Strategy** — binds **one executable** to **one SMA**, with an **`active`** flag. An SMA can have many strategies; each strategy has exactly one executable — a strategy is one executable that runs.
 - **`chains?`** — an optional replay set. Its presence picks the run mode (below).
 
@@ -24,7 +24,7 @@ Strategy     { name, description?, active, sma, executable, chains? }  — one S
       "description": "…",          // optional, shown in the dashboard
       "active": true,               // runs every tick when true — `create` sets this true by default
       "sma": "0xAbc…",             // the SMA this strategy operates
-      "executable": "agent",       // src/strategy/agent.ts (or legacy src/agent.ts)
+      "executable": "agent",       // default: src/agent.ts; a custom name → src/strategy/<name>.ts
       "chains": [8453]              // OPTIONAL — omit for executable-driven (cross-chain)
     }
   ]

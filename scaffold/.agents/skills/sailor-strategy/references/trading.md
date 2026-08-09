@@ -44,7 +44,7 @@ Both swap templates are ERC-20 → ERC-20 only (native value rejected) — an ET
 | Agent-managed exit (swap-out) | Same shared template as the entry (`SwapPermission`/`SwapPermissionNoOracle`), reconfigured with the reverse pair added to `tokensIn`/`tokensOut` — a config-only leg, not a second permission. The template's `maxAmountPerTx` is ONE value shared across every configured pair on that registration (confirmed in the frozen source), so entry and exit cannot carry different caps on one registration — size the shared cap to whichever leg needs more (almost always the exit ceiling); a generous or effectively unbounded cap costs nothing extra since the price floor (`sailor-mandate-planner`'s position-exit sizing rule) protects every trade regardless of cap size |
 | Venues the swap templates don't cover (aggregators, perps, exotic routers) | bespoke via [`sailor-mandates`](../../sailor-mandates/SKILL.md) |
 
-## Worked example — a complete `.sail/strategy.md` (example values, not a recommendation)
+## Worked example — a complete `.sail/strategies/<name>.md` (example values, not a recommendation)
 
 A two-chain DCA: the same USDC→WETH leg split across Base and Arbitrum (their own resolved
 addresses and pools — the two actions never share one entry). Router addresses are each chain's

@@ -44,14 +44,14 @@ The same owner, permission signer, manager, and salt produce the **same SMA addr
 
 ## Station 2 — STRATEGY: make the intent concrete
 
-Before any mandate, the strategy becomes a complete, concrete spec at `.sail/strategy.md` — chains, tokens (resolved addresses + decimals), venues, amounts, caps, cadence, risk bounds, and an exit condition, all concrete. There is no CLI command for the spec itself; it is a guided conversation. The [`sailor-strategy`](../scaffold/.agents/skills/sailor-strategy/SKILL.md) skill runs it (categories: Trading, Yield, Payments & treasury, or anything else on-chain) and writes the spec. Station 2 also registers the **execution config** — `.sail/strategies/strategies.json` — binding the executable to the SMA:
+Before any mandate, the strategy becomes a complete, concrete spec — one per strategy, at `.sail/strategies/<name>.md` (camelCase name = the `--strategy` selector) — chains, tokens (resolved addresses + decimals), venues, amounts, caps, cadence, risk bounds, and an exit condition, all concrete. There is no CLI command for the spec itself; it is a guided conversation. The [`sailor-strategy`](../scaffold/.agents/skills/sailor-strategy/SKILL.md) skill runs it (categories: Trading, Yield, Payments & treasury, or anything else on-chain) and writes the spec. Station 2 also registers the **execution config** — `.sail/strategies/strategies.json` — binding the executable to the SMA:
 
 ```bash
 sailor strategy create <name> --sma <yourSMA> [--chains <ids>] --description "…"
 sailor strategy env set <chain> KEY=value   # per-chain env the executable reads via ctx.env, if any
 ```
 
-Every later station reads these. **Exit check:** `.sail/strategy.md` exists with every dimension concrete, AND `.sail/strategies/strategies.json` registered via `sailor strategy create`.
+Every later station reads these. **Exit check:** each strategy's `.sail/strategies/<name>.md` exists with every dimension concrete, AND `.sail/strategies/strategies.json` registered via `sailor strategy create`.
 
 ## Station 3 — MANDATE: turn the strategy into enforced bounds
 

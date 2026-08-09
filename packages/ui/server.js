@@ -671,7 +671,7 @@ export function startServer(sailDir, { port = PORT } = {}) {
     } catch (err) { res.status(400).json({ error: err.message }) }
   })
 
-  // GET /api/executables — names of src/strategy/*.{ts,js} (plus legacy src/agent.ts as "agent").
+  // GET /api/executables — names of src/strategy/*.{ts,js} (plus the default agent from src/agent.*).
   app.get('/api/executables', (req, res) => {
     try {
       const names = new Set()

@@ -85,8 +85,9 @@ sailor keys generate --type agent-wallet
 sailor owner connect
 sailor onboard --new-sma
 
-# STRATEGY — make the strategy concrete (.sail/strategy.md). No CLI step; the
-#   skills flow runs it as a guided conversation, then every later station reads it.
+# STRATEGY — make the strategy concrete (one spec per strategy: .sail/strategies/<name>.md;
+#   then .sail/strategies/strategies.json via `sailor strategy create`). No CLI step for the spec;
+#   the skills flow runs it as a guided conversation, then every later station reads it.
 
 # MANDATE — register + configure a shared permission singleton (both required;
 #   a registered-but-unconfigured singleton denies every call):

@@ -1,6 +1,6 @@
 ---
 name: sailor-mandate-planner
-description: Station 3 entry — turn a complete strategy spec into a mandate plan, routing each action to a shared permission template or to bespoke authoring. Use when the user says "build the mandate", "which template do I need", "turn my strategy into permissions", "register permissions", "what bounds does my agent need" — and structurally whenever .sail/strategy.md is complete and mandate work begins.
+description: Station 3 entry — turn a complete strategy spec into a mandate plan, routing each action to a shared permission template or to bespoke authoring. Use when the user says "build the mandate", "which template do I need", "turn my strategy into permissions", "register permissions", "what bounds does my agent need" — and structurally whenever a strategy spec (`.sail/strategies/<name>.md` — per SMA: all of them) is complete and mandate work begins.
 ---
 
 # sailor-mandate-planner — route the strategy into enforced bounds (Station 3)
@@ -9,7 +9,7 @@ This skill is a gate and a router, deliberately thin. The template registry live
 
 ## Gate (fail-closed)
 
-Read `.sail/strategy.md` first. The sailor-navigator skill's Station 3 gate: "Gate: complete `.sail/strategy.md`". If the file is missing, any completeness dimension is not concrete, its JSON block lacks `"confirmedByUser": true`, or its `"version"` is not `3` — do **not** proceed. Hand back to [`sailor-strategy`](../sailor-strategy/SKILL.md) and return once the gate holds — a pre-`version: 3` file either has no resolved `actions[]` to plan from (`version` < 2) or has never had the per-action `exitPath` question asked (`version: 2`). The completeness checklist lives there, not here.
+Read **every** strategy spec for the SMA first — all of its `.sail/strategies/*.md` (one per strategy, each indexed by an entry in `.sail/strategies/strategies.json`): the mandate is built from their combined `actions[]`, and a mandate plan that covers only some of the SMA's strategies is incomplete. The sailor-navigator skill's Station 3 gate: "Gate: a complete spec for every strategy the mandate will bound". If any spec file is missing, any completeness dimension is not concrete, its JSON block lacks `"confirmedByUser": true`, or its `"version"` is not `3` — do **not** proceed. Hand back to [`sailor-strategy`](../sailor-strategy/SKILL.md) and return once the gate holds — a pre-`version: 3` file either has no resolved `actions[]` to plan from (`version` < 2) or has never had the per-action `exitPath` question asked (`version: 2`). The completeness checklist lives there, not here.
 
 ## Routing method
 

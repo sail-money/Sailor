@@ -54,6 +54,15 @@ export function isValidExecutableName(name: string): boolean {
   return EXECUTABLE_RE.test(name);
 }
 
+/** The default executable a strategy runs — the classic `src/agent.ts` (named executables live at `src/strategy/<name>.ts`). */
+export const DEFAULT_EXECUTABLE = "agent" as const;
+
+/** Strategy names must be camelCase with no separators — the name is also the spec filename
+ *  (`.sail/strategies/<name>.md`) and the `--strategy` selector. */
+export function isValidStrategyName(name: string): boolean {
+  return isValidExecutableName(name);
+}
+
 /** Source body for a new `src/strategy/<name>.ts` executable. */
 export function renderExecutableTemplate(name: string): string {
   if (!isValidExecutableName(name)) {
@@ -249,24 +258,30 @@ function validateStrategyTarget(
 
 /**
  * Create a new strategy (active by default): one SMA + one executable, optionally pinned to a
- * `chains` subset. Pass `active: false` to create it inactive. Validates the name is
- * unique/non-empty, the executable name is camelCase, the SMA is a known account, and any `chains`
- * intersect the SMA's deployed set (≥1). Omitting `chains` stores no key (cross-chain mode). Throws
- * on any violation.
+ * `chains` subset. Pass `active: false` to create it inactive. The executable defaults to `agent`
+ * (`src/agent.ts` — named executables live at `src/strategy/<name>.ts`) when omitted. Validates the name is
+ * unique and camelCase (it is also the spec filename and `--strategy` selector), the executable name
+ * is camelCase, the SMA is a known account, and any `chains` intersect the SMA's deployed set (≥1).
+ * Omitting `chains` stores no key (cross-chain mode). Throws on any violation.
  */
 export function createStrategy(
   name: string,
-  opts: { sma: string; executable: string; chains?: number[]; active?: boolean },
+  opts: { sma: string; executable?: string; chains?: number[]; active?: boolean },
   sailDir: string = defaultSailDir(),
 ): StoredStrategy {
   const clean = name.trim();
-  if (!clean) throw new Error("Strategy name must not be empty.");
-  const { sma, chains } = validateStrategyTarget(opts.executable, opts.sma, opts.chains, sailDir);
+  if (!isValidStrategyName(clean)) {
+    throw new Error(
+      `Invalid strategy name "${clean}" — use camelCase with no spaces or separators (e.g. dcaDaily); it is the spec filename and --strategy selector.`,
+    );
+  }
+  const executable = opts.executable ?? DEFAULT_EXECUTABLE;
+  const { sma, chains } = validateStrategyTarget(executable, opts.sma, opts.chains, sailDir);
   const strategies = load(sailDir);
   if (strategies.some((s) => eqName(s.name, clean))) {
     throw new Error(`A strategy named "${clean}" already exists.`);
   }
-  const strategy: StoredStrategy = { name: clean, active: opts.active ?? true, sma, executable: opts.executable };
+  const strategy: StoredStrategy = { name: clean, active: opts.active ?? true, sma, executable };
   if (chains) strategy.chains = chains;
   strategies.push(strategy);
   commit(strategies, sailDir);

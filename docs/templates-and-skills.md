@@ -33,7 +33,7 @@ five-station journey the `sailor-navigator` skill lays out (each station names i
 exit check):
 
 1. **ARRIVE** — `sailor-onboarding`: project, keys, account, chain.
-2. **STRATEGY** — `sailor-strategy`: the guided conversation that writes the concrete spec to `.sail/strategy.md`.
+2. **STRATEGY** — `sailor-strategy`: the guided conversation that writes the concrete spec — one per strategy, to `.sail/strategies/<name>.md`.
 3. **MANDATE** — `sailor-mandate-planner` routes each action of the spec to a shared template or bespoke authoring. Hub-and-spoke: `sailor-templates` is the catalog + register→configure reuse flow; one spoke per template (`sailor-template-swap`, `-swap-no-oracle`, `-transfer`, `-withdraw`, `-deposit`, `-borrow`, `-approve-batch`); `sailor-mandates` is the bespoke-`IPermission` lifecycle.
 4. **AGENT** — `sailor-agent-build`: the tick loop (dispatch mechanics in `sailor-transactions`; the agent's own append-only, chain-reconciled memory in `sailor-memory`).
 5. **SAIL** — `sailor-automation` (run unattended), `sailor-operate` (monitor, tune, pause, revoke, exit), `sailor-extend` (optional notifications/dashboards).

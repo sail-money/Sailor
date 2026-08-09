@@ -1,6 +1,6 @@
 ---
 name: sailor-strategy
-description: Station 2 AND the single skill for creating or configuring a strategy — turn the user's intent into a complete, concrete strategy spec at .sail/strategy.md, then wire the executable to run. THE skill to call whenever the user wants to create or configure a strategy, reached by normal navigation OR by direct intent. Use when the user says "I want to DCA", "earn yield on my USDC", "stake my ETH", "rebalance my portfolio", "pay contributors weekly", "invest", "what should my agent do", "create a strategy", "add a strategy", "configure a strategy", "new strategy", "wire up a strategy", "new executable", or asks to define, plan, or change their strategy — and whenever .sail/strategy.md is missing or incomplete while mandate work is being requested. Elicits the intent in the user's own financial terms, then every completeness dimension (chains, tokens, venues, amounts, caps, cadence, risk bounds, exit condition); routing to templates or bespoke follows the intent, never leads it. Every token is resolved (address + decimals + liquidity) before it enters the spec.
+description: Station 2 AND the single skill for creating or configuring a strategy — turn the user's intent into a complete, concrete strategy spec at .sail/strategies/<name>.md (one spec file per strategy), then wire each executable to run. THE skill to call whenever the user wants to create or configure a strategy, reached by normal navigation OR by direct intent. Use when the user says "I want to DCA", "earn yield on my USDC", "stake my ETH", "rebalance my portfolio", "pay contributors weekly", "invest", "what should my agent do", "create a strategy", "add a strategy", "configure a strategy", "new strategy", "wire up a strategy", "new executable", or asks to define, plan, or change their strategy — and whenever a strategy spec (.sail/strategies/<name>.md) is missing or incomplete while mandate work is being requested. Elicits the intent in the user's own financial terms, then every completeness dimension (chains, tokens, venues, amounts, caps, cadence, risk bounds, exit condition); routing to templates or bespoke follows the intent, never leads it. Every token is resolved (address + decimals + liquidity) before it enters the spec.
 ---
 
 # sailor-strategy — make the strategy concrete (Station 2)
@@ -9,7 +9,7 @@ description: Station 2 AND the single skill for creating or configuring a strate
 
 Station 2 requires Station 1 complete. Run `sailor doctor` — if it is not green (RPC connected, chain-id matches, keys present, gas funded), hand back to [`sailor-onboarding`](../sailor-onboarding/SKILL.md) and return here once it passes.
 
-Then read `.sail/strategy.md`. If it exists, every dimension in the completeness gate below is concrete, its JSON block has `"confirmedByUser": true`, AND `"version": 3` — this station is already done: confirm the existing spec with the user instead of re-eliciting. An older `version` predates the resolved-artifact schema below — `version: 1` never captured addresses/pools; `version: 2` captured those but never asked the per-action exit-path question — either way, treat it as incomplete and re-run Act 2/3 to backfill the current shape. If it exists but is incomplete, resume from the gaps only.
+Then read the strategy specs in `.sail/strategies/` (one `.md` per strategy — there is no single project-wide spec file anymore). For each `.sail/strategies/<name>.md`: if every dimension in the completeness gate below is concrete, its JSON block has `"confirmedByUser": true`, AND `"version": 3` — that strategy is already done: confirm its existing spec with the user instead of re-eliciting. An older `version` predates the resolved-artifact schema below — `version: 1` never captured addresses/pools; `version: 2` captured those but never asked the per-action exit-path question — either way, treat it as incomplete and re-run Act 2/3 to backfill the current shape. If a spec exists but is incomplete, resume from its gaps only.
 
 ## Role
 
@@ -17,29 +17,33 @@ You are an interviewer and a scribe, not an investment advisor. Never recommend 
 
 ## Creating a strategy — the flow (standalone or in-navigation)
 
-This skill is **THE** entry point for creating or configuring a strategy — whether the user arrived by normal navigation (this is Station 2) or jumped straight in ("create a strategy", "add a strategy", "wire up a new executable"). Station 2 owns both strategy artifacts: `.sail/strategy.md` (the financial intent) and `.sail/strategies/strategies.json` (the execution config that registers the strategy to run). Steps 1–3 and 5–6 settle the **intent** (the three acts below → `.sail/strategy.md`); steps 4, 7–8 generate the **execution config** (`.sail/strategies/strategies.json`) using `sailor strategy create` and `sailor strategy env set`. The model, `.sail/strategies/strategies.json`, and the full `sailor strategy` CLI live in [references/execution-config.md](references/execution-config.md).
+This skill is **THE** entry point for creating or configuring a strategy — whether the user arrived by normal navigation (this is Station 2) or jumped straight in ("create a strategy", "add a strategy", "wire up a new executable"). Station 2 owns the strategy artifacts: one spec per strategy at `.sail/strategies/<name>.md` (the financial intent, following [references/strategy-template.md](references/strategy-template.md)) and `.sail/strategies/strategies.json` (the execution config that registers each to run). Steps 1–3 and 5–6 settle each strategy's **intent** (the three acts below → `.sail/strategies/<name>.md`); steps 7–8 generate the **execution config** (`.sail/strategies/strategies.json`, plus per-chain env files) using `sailor strategy create` and `sailor strategy env set`, derived from the spec just written. The model, `.sail/strategies/strategies.json`, and the full `sailor strategy` CLI live in [references/execution-config.md](references/execution-config.md).
 
 **Strategy creation is an anytime action.** It is reachable by direct intent at any point in a session — "create a strategy", "add a strategy", "wire up a new executable" — and is **not** gated behind reaching Station 2 in sequence. It self-bootstraps: if there is no SMA yet, it jumps to [`sailor-onboarding`](../sailor-onboarding/SKILL.md) to create and verify one (doctor-green), then returns here and continues. You never turn the user away for arriving "out of order."
 
+**One strategy, or several?** Decide this before eliciting further detail. The default is **one** strategy — almost always the right call. Split into several only when the intents are genuinely different in a way that warrants independent execution: separate cadences, unrelated portfolios/venues, or separate SMAs. Keep interdependent moves in the SAME strategy even when that means many actions (a multi-leg DCA, an exit-pair) — steps: a spec per strategy, `strategies.json` entry per strategy; never merge two strategies into one spec to "simplify".
+
 **Requirements to create a strategy — gather these before running `sailor strategy create`:**
 
-- **name** — 2–3 words, unique.
+- **name** — 2–3 words, unique, **camelCase** (no spaces or separators, e.g. `dcaDaily`). It is the spec filename (`.sail/strategies/<name>.md`) and the `--strategy` selector.
 - **SMA** — the account address the strategy operates (step 1; bootstrap via `sailor-onboarding` if none).
-- **executable** — the runnable script; default **`agent`** (`src/strategy/agent.ts`, falling back to legacy `src/agent.ts`).
+- **executable** — the runnable script; default **`agent`** (keeps the classic path: **`src/agent.ts`**). Omit it unless the strategy needs its own `src/strategy/<name>.ts` (scaffold one with `sailor strategy new-executable <name>`).
 - **description** — a concise line for the dashboard.
 - **chain(s)** — required only in **per-chain** mode (the `--chains` list); omitted for cross-chain.
 - **all per-chain environment variables** — every value the executable reads via `ctx.env`, set per chain (step 4).
+
+Start by writing the strategy's spec to `.sail/strategies/<name>.md` (copy and fill [references/strategy-template.md](references/strategy-template.md)), then register it in `.sail/strategies/strategies.json` with the `sailor strategy` commands — the spec is the durable intent, the config is derived from it.
 
 1. **Which SMA?** One → use it; several → let the user pick. **None, or the user wants a new one** → jump to [`../sailor-onboarding/SKILL.md`](../sailor-onboarding/SKILL.md) to create and verify it (doctor-green), then return here. → `--sma <address>`.
 2. **What should it do?** Elicit the intent in the user's own financial terms and route it — via the category references and any project recipes (see "The category contract" below). This is Acts 1–3.
 3. **Which chains, and which mode?** Same logic on every listed chain → **per-chain** (`--chains <ids>`; the executable is replayed once per chain). Chains the executable drives itself (reads on one, acts on another) → **cross-chain** (omit `--chains`).
 4. **Per-chain env.** Any value the executable reads per chain lives in `.sail/env/<chain-slug>.json` — **shared across every strategy in the project**, reached via `ctx.env`. `sailor strategy env set <chain> KEY=value` **creates that env file** (one per chain, e.g. `base.json`) and sets the key; set every variable the executable reads before the first run. → `sailor strategy env set <chain> KEY=value`.
 5. **A concise description** for the dashboard. → `--description "<text>"`.
-6. **A 2–3 word name.** → `sailor strategy create <name>`.
+6. **A 2–3 word camelCase name** (matches the spec filename and the `--strategy` selector). → `sailor strategy create <name>`.
 7. **Active by default.** `create` makes the strategy active immediately; pass `--inactive` to create it paused, then `sailor strategy activate|deactivate <name>` to toggle.
 8. **Run the `sailor strategy` commands** to persist the config (`create`, `env set`, …).
 
-**When each step fires.** In Station 2, both strategy artifacts are completed before moving to Station 3. First, the intent (steps 1–3, 5–6) is settled and persisted to `.sail/strategy.md`. Then, using the details gathered (name, SMA, executable default `agent`, chains, and env), run `sailor strategy create` and `sailor strategy env set` (steps 4, 7–8) to register the strategy in `.sail/strategies/strategies.json`. Later at Station 4, the executable code itself (`src/strategy/<name>.ts` or `src/agent.ts`) is authored to fulfill the registered strategy. This skill owns both strategy steps — then hands to **Station 3** ([`../sailor-mandate-planner/SKILL.md`](../sailor-mandate-planner/SKILL.md)).
+**When each step fires.** In Station 2, each strategy's artifacts are completed before moving to Station 3. Per strategy: first the intent (steps 1–3, 5–6) is settled and persisted to `.sail/strategies/<name>.md`. Then, using the details the spec gathered (name, SMA, executable — default `agent`, chains/mode, and per-chain env), run `sailor strategy create` and `sailor strategy env set` (steps 4, 7–8) to register it in `.sail/strategies/strategies.json`, derived from the spec. At Station 4, the registered executable's tick logic (`src/agent.ts` for the default `agent`, or the strategy's custom `src/strategy/<executable>.ts`) is authored to fulfill it. This skill owns both steps per strategy — then hands the whole set to **Station 3** ([`../sailor-mandate-planner/SKILL.md`](../sailor-mandate-planner/SKILL.md)).
 
 ## The pre-specified fast path (first-class, not a deviation)
 
@@ -73,11 +77,11 @@ Fill the dimensions by **infer-then-confirm**: extract everything the user's wor
 
 ### Act 3 — CONFIRM
 
-Render the full spec, walk the completeness checklist below with the user, get their explicit confirmation, then write `.sail/strategy.md`.
+Render the full strategy (spec) summary, walk the completeness checklist below with the user, get their explicit confirmation, then write its spec to `.sail/strategies/<name>.md`.
 
 **The confirmation surface is the resolved artifact, not a paraphrase.** What the user reviews before approving must show every resolved concrete value per action — token addresses, decimals, venue/router address, pool address + fee tier, the cap in both human terms and base units, direction (tokenIn→tokenOut, explicit, never implied by list order) — as one scannable table, the same shape that gets persisted (see "Spec format" below): "here is exactly what your agent will be bounded to do, in concrete terms — confirm this is right." This composes with, and does not replace, the disclosures below.
 
-**Persist AND say where.** Immediately after confirmation, write `.sail/strategy.md` in the format below, then tell the user in one line: "Saved to `.sail/strategy.md` — the full resolved detail (addresses, pools, caps) lives there if you want to check it, or edit it directly; I'll pick up your changes and re-confirm them next time either station runs." Resolution and persistence happen regardless of whether the strategy arrived via full elicitation or the pre-specified fast path — the fast path still resolves every token and still writes the artifact; it only skips the back-and-forth, never the resolution or the write.
+**Persist AND say where.** Immediately after confirmation, write the strategy's spec to `.sail/strategies/<name>.md` in the format below, then tell the user in one line: "Saved to `.sail/strategies/<name>.md` — the full resolved detail (addresses, pools, caps) lives there if you want to check it, or edit it directly; I'll pick up your changes and re-confirm them next time either station runs." Resolution and persistence happen regardless of whether the strategy arrived via full elicitation or the pre-specified fast path — the fast path still resolves every token and still writes the artifact; it only skips the back-and-forth, never the resolution or the write.
 
 **Disclose bespoke Solidity before the user approves.** Using the per-action routes established in Act 2 (from the category reference's routing rows, or the possibility map), count how many of the spec's actions map to a shared template vs. bespoke authoring. If any action is bespoke (M > 0), the confirmation summary must say so plainly before they approve:
 
@@ -112,17 +116,21 @@ Show this line only when at least one action needs approve coverage; say nothing
 | Exit path (per position-opening action) | *How* the position that action builds gets unwound — agent-managed, owner-managed, or explicitly declined. Recorded per action in `exitPath`; never silently absent. Applies to accumulate-direction swaps, deposits, and borrows — not to actions that are themselves an exit (withdraw/transfer/repay legs). |
 | Provenance | When each token/pool was resolved, and against which RPC per chain — so a stale artifact (a pool that's moved, a resolution from weeks ago) is detectable before it's trusted. |
 
-## Spec format — `.sail/strategy.md`
+## Spec format — one `.sail/strategies/<name>.md` per strategy
 
-Human-readable markdown (title, category, archetype, one-paragraph intent in the user's own words, a strategy-wide dimensions table, and an **Actions** table — one row per action, the resolved detail: route, direction with addresses, venue/pool, caps in both forms, risk bounds, exit path) plus **one** fenced ```json block carrying the machine form. Later stations read the JSON; the markdown is for humans. The two are the same data in two shapes — never let them drift (the JSON is regenerated from the same resolved values the table renders, not typed separately).
+Each strategy gets its own spec at `.sail/strategies/<name>.md` — a camelCase name, equal to the filename and the `--strategy` selector. Copy and fill [references/strategy-template.md](references/strategy-template.md). Human-readable markdown (title, an Identity header with the strategy's operational wiring: `name`, SMA, executable default `agent`, chains/mode, per-chain env; a one-paragraph intent in the user's own words; a strategy-wide dimensions table; and an **Actions** table — one row per action, the resolved detail: route, direction with addresses, venue/pool, caps in both forms, risk bounds, exit path) plus **one** fenced ```json block carrying the machine form. Later stations read the JSON; the markdown is for humans. The two are the same data in two shapes — never let them drift (the JSON is regenerated from the same resolved values the table renders, not typed separately). The spec also drives the execution config: `create` reads `name`/`sma`/`executable`/`chains`, and `env set` writes each `env` key.
 
 Every action carries its own `tokenIn`/`tokenOut`/`venue`/`pool`/`caps`/`riskBounds` — a strategy is one or more actions, and two actions (even the "same" swap on two chains, as in a multi-chain DCA) never share one entry, because their addresses differ per chain. Position-opening actions also carry `exitPath` (see below).
 
 ```json
 {
+  "name": "<camelCase name — the spec filename and --strategy selector>",
   "category": "trading | yield | payments | custom",
   "archetype": "<archetype id or 'custom'>",
+  "executable": "agent",
+  "sma": "<the SMA this strategy operates>",
   "chains": [<chainId>, ...],
+  "env": { "<chain-slug>": { "KEY": "<value>", "...": "per-chain env the executable reads via ctx.env" } },
   "actions": [
     {
       "id": "<short id, e.g. 'swap-base'>",
@@ -155,7 +163,7 @@ Every action carries its own `tokenIn`/`tokenOut`/`venue`/`pool`/`caps`/`riskBou
 
 `tokenOut`/`venue`/`pool` are swap-shaped fields — omit them on an action whose `kind` doesn't have them (a `transfer` action has `tokenIn` + `recipients`, no `tokenOut`/`pool`; a `withdraw` action has `tokenIn` + `venue` and carries NO `recipients` — the proceeds are pinned to the SMA; a `deposit`/`borrow` action has `tokenIn` + `venue`, no `pool` unless the market itself is a pool). Never emit an empty placeholder for a field that doesn't apply — omit the key. `exitPath` follows the same rule: only position-opening actions (accumulate-direction swap, deposit, borrow) carry it; an action that is itself an exit leg (withdraw/transfer/repay) omits it. `actionIds` is populated only when `managedBy: "agent"` — it names the id(s) of the paired exit action(s) already representable in `actions[]` today (a reverse-direction `kind: "swap"` row, a `kind: "withdraw"` row, or the repay/unwind leg); `owner` and `none-declined` carry no `actionIds`.
 
-`version: 3` is the resolved-artifact schema in this section (per-action `actions[]`, `provenance`, `exitPath`). A file written under `version: 2` (no `exitPath` — the exit-path question was never asked) or `version: 1` (flat top-level `tokens`/`venues`/`caps`, no per-action route/pool/provenance) predates it — see the precondition above.
+`version: 3` is the resolved-artifact schema in this section (per-action `actions[]`, `provenance`, `exitPath`). A file written under `version: 2` (no `exitPath` — the exit-path question was never asked) or `version: 1` (flat top-level `tokens`/`venues`/`caps`, no per-action route/pool/provenance) predates it — see the precondition above. The operational keys above (`name`, `sma`, `executable`, `env`) are separate from that artifact schema: `name` is required and must equal the spec filename and the `--strategy` selector; `executable` defaults to `agent` and is set only for a custom `src/strategy/<executable>.ts`; `chains` present → per-chain replay mode (the list the executable is replayed on), absent → cross-chain (executable-driven); `env` holds the per-chain `ctx.env` values keyed by chain slug. They were added without a version bump — a `version: 3` file may carry them or not, absence taking the defaults.
 
 A complete worked example (a two-chain DCA with real Base/Arbitrum addresses) is in [references/trading.md](references/trading.md).
 
@@ -198,4 +206,4 @@ Defaults: <structural only — cadences, band widths, caps as a fraction of allo
 
 ## Handoff
 
-Exit verifier: every dimension concrete (including each position-opening action's `exitPath`), user explicitly confirmed, `.sail/strategy.md` written with `"confirmedByUser": true` and `"version": 3`, AND `.sail/strategies/strategies.json` created via `sailor strategy create` (with per-chain env set via `sailor strategy env set` if needed). Next: **Station 3 — [`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)**, which routes each action of the spec to a shared template or bespoke authoring.
+Exit verifier: every dimension concrete (including each position-opening action's `exitPath`), user explicitly confirmed, `.sail/strategies/<name>.md` written with `"confirmedByUser": true` and `"version": 3`, AND `.sail/strategies/strategies.json` created via `sailor strategy create` (with per-chain env set via `sailor strategy env set` if needed). Next: **Station 3 — [`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)**, which routes each action of the spec to a shared template or bespoke authoring.
