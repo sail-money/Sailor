@@ -59,10 +59,11 @@ export default function StrategiesSection() {
         ))
       )}
 
-      <div className={styles.envBlock}>
+      {/* Uncomment for enabling environmnet at UI level */}
+      {/* <div className={styles.envBlock}>
         <span className={styles.eyebrowSmall}>Per-chain environment</span>
         <EnvironmentPanel accounts={accounts} />
-      </div>
+      </div> */}
 
       <AIHandoffModal
         open={!!handoff}
