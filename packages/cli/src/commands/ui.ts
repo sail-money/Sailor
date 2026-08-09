@@ -2,9 +2,9 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
-import { getSandboxForks, resetSandbox, sandboxDirFor } from "@sail/sandbox";
+import { ANVIL_MISSING_MESSAGE, getSandboxForks, resetSandbox, sandboxDirFor } from "@sail/sandbox";
 import { cliDistDir, packageRoot, projectPort } from "../lib/packagePaths.js";
-import { findFreePort, isProcessAlive } from "../lib/process.js";
+import { anvilOnPath, findFreePort, isProcessAlive } from "../lib/process.js";
 import {
   tailnetDnsName,
   tailscaleAvailable,
@@ -49,6 +49,25 @@ function portSeedFor(projectRoot: string, mode: UiMode): string {
 
 function labelFor(mode: UiMode): string {
   return mode === "sandbox" ? "Sailor Sandbox" : "Sailor UI";
+}
+
+/**
+ * Sandbox-only preflight: refuse before anything is spawned when Foundry is
+ * missing.
+ *
+ * `startFork` already raises the same error, but it runs inside the UI *server*
+ * process behind `POST /api/sandbox/forks` — so without this the terminal
+ * prints "Sailor Sandbox running" and the user only learns Foundry is missing
+ * when the browser reports a fork failure seconds later. Live `sailor ui` never
+ * forks anything, so it must stay unaffected: Foundry is not a requirement for
+ * normal Sailor use.
+ */
+export function assertSandboxPrerequisites(
+  mode: UiMode,
+  hasAnvil: () => boolean = anvilOnPath,
+): void {
+  if (mode !== "sandbox") return;
+  if (!hasAnvil()) throw new Error(ANVIL_MISSING_MESSAGE);
 }
 
 function readState(projectRoot: string, mode: UiMode): UiState | null {
@@ -137,6 +156,10 @@ async function runUiCommand(opts: UiOptions, mode: UiMode): Promise<void> {
   const uiDistDir = path.join(packageRoot(), "packages", "ui", "dist");
   const serverBundle = path.resolve(distDir, "server.cjs");
   const projectRoot = process.cwd();
+
+  // Foundry has to be here before we promise the user a sandbox — see
+  // assertSandboxPrerequisites. No-op for live mode.
+  assertSandboxPrerequisites(mode);
 
   // The native sandbox spins up its own anvil fork(s) on the same deterministic
   // ports an external harness tool (e.g. Shipyard) may already be managing for

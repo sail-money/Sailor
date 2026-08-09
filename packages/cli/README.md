@@ -34,4 +34,5 @@ sailor init my-fund
 - `sailor session pause|resume` — control the agent session
 - `sailor signer start|status|stop` — manage the browser signing daemon (`station` is a deprecated alias)
 - `sailor ui start|stop|status` — start/stop the local dashboard
+- `sailor sandbox start|stop|status` — Shipyard, the simulation sandbox: local chain forks with fake money (needs Foundry; `shipyard` is an alias)
 ```

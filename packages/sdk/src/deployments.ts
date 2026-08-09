@@ -144,7 +144,9 @@ const CREATE2_TEMPLATES: Record<string, Address> = {
   swapNoOracle: "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
   borrow: "0x3e2666051599223cEAb10De55C89A0842857d8AF",
   deposit: "0xBfB5e13a97b12Ee89d2F2b9B65eCf7e0E371911f",
-  withdraw: "0xF5eF5dda450a130e3020d54f565E830e4a7531f8",
+  // WithdrawPermission v2 (salt preimage `sail.template.withdraw.v2`), deployed in a
+  // later batch than the other six. Gates ERC-4626 withdraw/redeem and Aave withdraw.
+  withdraw: "0xB8A6CC40466c0C33a230f87a1EBC368568B96269",
   transfer: "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
   approveAndCallBatch: "0x0535A4D51333484ef583103DAB1a9449756ab732",
 };

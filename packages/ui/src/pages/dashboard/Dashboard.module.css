@@ -2214,3 +2214,37 @@ a.fundAddr { text-decoration: none; }
   background: var(--accent-blue);
   vertical-align: middle;
 }
+
+/* ── Shipyard invitation ──
+   Foot of the mandates subpage. Quiet on purpose: a plain text link at
+   tertiary weight, so it reads as an aside to the mandate tiles above
+   rather than another action competing with them. */
+.shipyardInvite {
+  margin: 18px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.shipyardInviteLink {
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+
+.shipyardInviteLink:hover:not(:disabled) { color: var(--text-secondary); }
+.shipyardInviteLink:disabled { cursor: default; opacity: 0.6; }
+
+.shipyardInviteError {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--danger);
+}

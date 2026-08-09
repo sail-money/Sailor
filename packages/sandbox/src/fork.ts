@@ -30,7 +30,8 @@ export type Chain =
   | "bsc"
   | "worldchain"
   | "hyperevm"
-  | "megaeth";
+  | "megaeth"
+  | "robinhood";
 
 // Every chain the onboarding picker offers (SUPPORTED_NETWORKS in the UI) must
 // have an entry here, or provisioning it throws "Unsupported sandbox chain id".
@@ -49,6 +50,7 @@ export const CHAIN_IDS: Record<Chain, number> = {
   worldchain: 480,
   hyperevm: 999,
   megaeth: 4326,
+  robinhood: 4663,
 };
 
 // Deterministic, non-colliding default port per chain so up to MAX_SANDBOX_CHAINS
@@ -65,6 +67,7 @@ export const CHAIN_PORTS: Record<Chain, number> = {
   worldchain: 18553,
   hyperevm: 18554,
   megaeth: 18555,
+  robinhood: 18556,
 };
 
 /** Default cap on how many chains one sandbox session may fork at once — keeps
@@ -92,6 +95,16 @@ export function clampSandboxChainCap(raw: unknown): number {
   if (!Number.isFinite(n) || n < 1) return MAX_SANDBOX_CHAINS;
   return Math.min(n, SANDBOX_CHAINS_CEILING);
 }
+
+/**
+ * The single wording for "Foundry isn't installed", shared by the two places
+ * that can detect it: this module, when `spawn("anvil")` fails with ENOENT
+ * mid-provisioning, and the CLI's `sailor sandbox` preflight, which looks for
+ * the binary before starting anything. Exported so the two can never drift
+ * into two differently-worded versions of the same problem.
+ */
+export const ANVIL_MISSING_MESSAGE =
+  "anvil was not found on PATH. Sandbox mode requires Foundry (https://getfoundry.sh) — install it and try again.";
 
 export class TooManySandboxChainsError extends Error {
   constructor(requested: number, cap: number = MAX_SANDBOX_CHAINS) {
@@ -259,6 +272,7 @@ const UPSTREAM_ENV_CANDIDATES: Record<Chain, string[]> = {
   worldchain: ["WORLD_RPC_URL", "WORLDCHAIN_RPC_URL"],
   hyperevm: ["HYPEREVM_RPC_URL", "HYPER_RPC_URL"],
   megaeth: ["MEGAETH_RPC_URL"],
+  robinhood: ["ROBINHOOD_RPC_URL"],
 };
 
 const PUBLIC_UPSTREAM_FALLBACKS: Record<Chain, string> = {
@@ -273,6 +287,7 @@ const PUBLIC_UPSTREAM_FALLBACKS: Record<Chain, string> = {
   worldchain: "https://worldchain-mainnet.g.alchemy.com/public",
   hyperevm: "https://rpc.hyperliquid.xyz/evm",
   megaeth: "https://mainnet.megaeth.com/rpc",
+  robinhood: "https://rpc.mainnet.chain.robinhood.com",
 };
 
 function resolveUpstreamRpc(chain: Chain): { url: string; warning?: string } {
@@ -399,9 +414,7 @@ export async function startFork(opts: {
       child = spawn("anvil", args, { stdio: ["ignore", logFd, logFd], detached: true });
     } catch (e: any) {
       if (e?.code === "ENOENT") {
-        throw new Error(
-          "anvil was not found on PATH. Sandbox mode requires Foundry (https://getfoundry.sh) — install it and try again.",
-        );
+        throw new Error(ANVIL_MISSING_MESSAGE);
       }
       throw e;
     }

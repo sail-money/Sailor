@@ -68,7 +68,7 @@ This skill owns **Station 1 (ARRIVE)**. Read state to find where the project is 
 **Before reading the state table below, determine which state root is live.** A Sailor project has two parallel `SAIL_DIR`s with the *identical* file shape (`account.json`, `config.json`, `keys/`, `state/mandates.json`, `runtime/`):
 
 - **Live** — `.sail/` — real chains, real funds. The default `SAIL_DIR`.
-- **Sandbox** — `.shipyard/sandbox/` — local anvil forks of real chains, zero real funds, fully rewindable. A **first-class Sailor feature** (`sailor sandbox start`, and the onboarding wizard's **"Try it in a Sandbox →"** / dashboard **"Enter Sandbox"** button). Not to be confused with the separate Shipyard CLI: `sailor sandbox` is native and needs no `shipyard attach`.
+- **Sandbox** — `.shipyard/sandbox/` — local anvil forks of real chains, zero real funds, fully rewindable. A **first-class Sailor feature**, named **Shipyard** in the interface (`sailor sandbox start`, or the dashboard's **"Enter Shipyard"** link). Not to be confused with the separate Shipyard CLI: `sailor sandbox` is native and needs no `shipyard attach`.
 
 The catch: `sailor status`, `sailor doctor`, and every state file read the **live** root by default. **A user who onboarded through the Sandbox path has a deployed SMA, a running fork, and often a mandate — all under `.shipyard/sandbox/`, invisible to a plain `.sail/` read.** If you only check `.sail/`, you will wrongly conclude "nothing set up" and restart onboarding from scratch, destroying their progress. This is the single most common Station-1 misread.
 
@@ -90,7 +90,7 @@ Read the **active root** (sandbox if one is populated and in use — see above �
 
 | state (in the active root) | Where you are |
 |---|---|
-| No `account.json` (chain chosen or not — `config.json.chainId` may still be `null`) | Station 1 — hand the user to the setup UI below for ALL of: chain choice, agent wallet + passphrase, SMA deploy. Do not ask which chain, or for a passphrase, in chat — `sailor init` is chain-neutral by design; the wizard decides. The wizard also offers **"Try it in a Sandbox →"** — if the user takes it, the SMA lands under `.shipyard/sandbox/` and you continue from there |
+| No `account.json` (chain chosen or not — `config.json.chainId` may still be `null`) | Station 1 — hand the user to the setup UI below for ALL of: chain choice, agent wallet + passphrase, SMA deploy. Do not ask which chain, or for a passphrase, in chat — `sailor init` is chain-neutral by design; the wizard decides. If the user starts Shipyard instead (`sailor sandbox start`), the SMA lands under `.shipyard/sandbox/` and you continue from there |
 | `account.json` exists, no `strategy.md` | Station 1 complete → **Station 2**: hand off to [`sailor-strategy`](../sailor-strategy/SKILL.md) |
 | `account.json` + a complete `strategy.md`, no tracked mandates | Strategy defined → **Station 3**: hand off to [`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md) |
 | `account.json` + tracked mandates in `state/mandates.json` | Mandate exists → **Stations 4–5**: build/run the agent (dispatch mechanics in [`sailor-transactions`](../sailor-transactions/SKILL.md)), then run unattended ([`sailor-automation`](../sailor-automation/SKILL.md)) and offer notifications + a dashboard ([`sailor-extend`](../sailor-extend/SKILL.md)) |

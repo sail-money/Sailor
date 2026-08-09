@@ -80,6 +80,100 @@ describe("probe-mandate: TransferPermission", () => {
   });
 });
 
+describe("probe-mandate: WithdrawPermission v2 — 4626 withdraw/redeem + Aave withdraw", () => {
+  const VAULT = "0x2222222222222222222222222222222222222222" as Address;
+  const W_4626 = toFunctionSelector("withdraw(uint256,address,address)"); // 0xb460af94
+  const R_4626 = toFunctionSelector("redeem(uint256,address,address)"); //   0xba087652
+  const W_AAVE = toFunctionSelector("withdraw(address,uint256,address)"); // 0x69328dec
+  // v2 config layout: (address[] targets, address[] tokens, uint256 maxAmountPerTx).
+  const blob = encodeAbiParameters(
+    [{ type: "address[]" }, { type: "address[]" }, { type: "uint256" }],
+    [[VAULT], [USDC], CAP],
+  );
+  const cfg = decodeConfig("WithdrawPermission", blob);
+  const { probes, notes } = generateProbes("WithdrawPermission", cfg, SMA);
+  const byLabel = (re: RegExp) => probes.find((p: any) => re.test(p.label));
+
+  test("decodes the v2 config blob (targets, tokens, cap) — no v1 `recipient` field", () => {
+    assert.equal(cfg.cap, CAP);
+    assert.equal((cfg.targets as string[])[0].toLowerCase(), VAULT.toLowerCase());
+    assert.equal((cfg.tokens as string[])[0].toLowerCase(), USDC.toLowerCase());
+    assert.equal(cfg.recipient, undefined, "v1 single-recipient field is gone");
+  });
+
+  test("covers all three gated selectors, each with a must-pass at the cap", () => {
+    for (const [sel, name] of [[W_4626, "4626 withdraw"], [R_4626, "4626 redeem"], [W_AAVE, "aave withdraw"]] as const) {
+      const pass = probes.find((p: any) => p.expect === "pass" && SEL(p) === sel);
+      assert.ok(pass, `${name} has a must-pass probe`);
+    }
+    // No probe may use the v1 ERC-20 transfer selector as a must-pass.
+    assert.ok(
+      !probes.some((p: any) => p.expect === "pass" && SEL(p) === "0xa9059cbb"),
+      "v1 transfer selector is never a must-pass under v2",
+    );
+  });
+
+  test("redeem's cap is denominated in SHARES, and over-cap shares are rejected", () => {
+    const pass = probes.find((p: any) => p.expect === "pass" && SEL(p) === R_4626)!;
+    const over = probes.find((p: any) => p.expect === "fail" && SEL(p) === R_4626 && /OVER-CAP/i.test(p.label))!;
+    assert.ok(pass && over);
+    assert.ok(/SHARES/.test(pass.label), "the passing redeem probe names its unit as shares");
+    assert.ok(/SHARES/.test(over.label), "the over-cap redeem probe names its unit as shares");
+    // redeem(shares, receiver, owner): shares is calldata word 0 (bytes 4..36).
+    const sharesOf = (p: any) => BigInt(`0x${(p.calldata as string).slice(10, 74)}`);
+    assert.equal(sharesOf(pass), CAP, "passing redeem sits exactly at the cap, in shares");
+    assert.equal(sharesOf(over), CAP + 1n, "over-cap redeem is cap+1 shares");
+  });
+
+  test("both ERC-4626 paths pin receiver AND owner to the account", () => {
+    // Count how many of the two address words in the calldata are the SMA.
+    const smaWords = (p: any) =>
+      (p.calldata as string).toLowerCase().split(SMA.slice(2).toLowerCase()).length - 1;
+
+    // Each must-pass 4626 probe carries the SMA twice: once as receiver, once as owner.
+    for (const sel of [W_4626, R_4626]) {
+      const pass = probes.find((p: any) => p.expect === "pass" && SEL(p) === sel)!;
+      assert.ok(pass, "must-pass probe exists");
+      assert.equal(smaWords(pass), 2, "receiver and owner are both the SMA");
+    }
+
+    // Each negative swaps exactly one of the two out, so the SMA appears exactly once.
+    for (const re of [/4626 withdraw: WRONG receiver/i, /4626 withdraw: WRONG owner/i, /4626 redeem: WRONG owner/i]) {
+      const p = byLabel(re)!;
+      assert.ok(p, `probe ${re} exists`);
+      assert.equal(p.expect, "fail");
+      assert.equal(smaWords(p), 1, "exactly one of receiver/owner was swapped away from the SMA");
+    }
+  });
+
+  test("the Aave path gates the asset on the token allowlist and pins `to`", () => {
+    const offAsset = byLabel(/aave withdraw: OFF-ALLOWLIST asset/i)!;
+    const wrongTo = byLabel(/aave withdraw: WRONG `to`/i)!;
+    assert.equal(SEL(offAsset), W_AAVE);
+    assert.equal(offAsset.expect, "fail");
+    assert.ok(!(offAsset.calldata as string).toLowerCase().includes(USDC.slice(2).toLowerCase()), "off-allowlist asset is not USDC");
+    assert.equal(wrongTo.expect, "fail");
+  });
+
+  test("off-allowlist target, non-zero native value, and unknown selectors are rejected", () => {
+    const offTarget = byLabel(/OFF-ALLOWLIST target/i)!;
+    assert.equal(offTarget.expect, "fail");
+    assert.ok((offTarget.target as string).toLowerCase() !== VAULT.toLowerCase());
+
+    const nativeValue = probes.find((p: any) => p.value !== "0")!;
+    assert.ok(nativeValue, "a non-zero-value probe exists");
+    assert.equal(nativeValue.expect, "fail");
+
+    const unknownSel = probes.find((p: any) => SEL(p) === "0xa9059cbb")!;
+    assert.ok(unknownSel, "the v1 transfer selector is probed as an unknown selector");
+    assert.equal(unknownSel.expect, "fail");
+  });
+
+  test("notes disclose that the token allowlist binds only the Aave path", () => {
+    assert.ok(notes.some((n) => /token allowlist/i.test(n) && /Aave/i.test(n)));
+  });
+});
+
 describe("probe-mandate: SwapPermissionNoOracle — F15 selector per router + zero-floor", () => {
   const mkSwapBlob = (router: Address) =>
     encodeAbiParameters(
@@ -248,7 +342,7 @@ describe("probe-mandate: all seven shared templates are covered (guards removed)
   test("no template throws a 'not covered' guard", () => {
     const all = [
       ["TransferPermission", encodeAbiParameters([{ type: "address[]" }, { type: "address[]" }, { type: "uint256" }], [[REC], [USDC], 1n])],
-      ["WithdrawPermission", encodeAbiParameters([{ type: "address[]" }, { type: "address" }, { type: "uint256" }], [[USDC], REC, 1n])],
+      ["WithdrawPermission", encodeAbiParameters([{ type: "address[]" }, { type: "address[]" }, { type: "uint256" }], [[POOL], [USDC], 1n])],
       ["DepositPermission", encodeAbiParameters([{ type: "address[]" }, { type: "address[]" }, { type: "uint256" }], [[POOL], [USDC], 1n])],
       ["SwapPermissionNoOracle", encodeAbiParameters([{ type: "address[]" }, { type: "address[]" }, { type: "address[]" }, { type: "uint256" }], [[REC], [USDC], [WETH], 1n])],
       ["SwapPermission", encodeAbiParameters([{ type: "address[]" }, { type: "address[]" }, { type: "address[]" }, { type: "uint256" }, { type: "uint256" }, { type: "address" }, { type: "uint256" }], [[REC], [USDC], [WETH], 1n, 100n, ORACLE_C, 3600n])],

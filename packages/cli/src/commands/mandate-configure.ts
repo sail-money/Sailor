@@ -97,9 +97,10 @@ type TemplateEntry = {
  * card that hid them would disclose LESS than a bespoke card.
  *
  * PROVENANCE / STALENESS ANCHOR: sourced from the Protocol template NatSpec at
- * github.com/sail-money/Protocol @ d5bc27a (2026-07-02), verified against each
- * contract's evaluate()/evaluateBatch() logic. Re-verify against the source when
- * bumping the deployed templates; a docs:check-style drift guard is deferred.
+ * github.com/sail-money/Protocol @ d5bc27a (2026-07-02), except WithdrawPermission,
+ * which is v2 and sourced @ 23c5350 — verified against each contract's
+ * evaluate()/evaluateBatch() logic. Re-verify against the source when bumping the
+ * deployed templates; a docs:check-style drift guard is deferred.
  */
 const SHARED_TEMPLATE_EXPLANATIONS: Record<string, { protocol: string; enforced: string[]; notEnforced: string[] }> = {
   SwapPermission: {
@@ -170,13 +171,17 @@ const SHARED_TEMPLATE_EXPLANATIONS: Record<string, { protocol: string; enforced:
   WithdrawPermission: {
     protocol: "Sail reference template",
     enforced: [
-      "Token (call target) must be on the account's allowlist; amount ≤ the per-tx cap",
-      "Destination must equal the single configured allowedRecipient — not an open set",
-      "On transferFrom, the source must be the account itself",
+      "Target (vault/pool) must be on the account's allowlist; a call carrying non-zero native value is rejected",
+      "Only three exit selectors are recognized — ERC-4626 withdraw(assets,receiver,owner) and redeem(shares,receiver,owner), plus Aave v2/v3 withdraw(asset,amount,to) — anything else is denied",
+      "On both ERC-4626 paths, receiver AND owner must be the account itself — proceeds can't be redirected, and shares owned by a third party can't be burned",
+      "On the Aave path, the recipient must be the account itself and the withdrawn asset must be on the token allowlist",
+      "Amount ≤ the per-tx cap — measured in ASSETS on ERC-4626 withdraw and on Aave, in SHARES on ERC-4626 redeem",
     ],
     notEnforced: [
-      "The pinned destination can be changed by reconfiguring — it is only as trustworthy as the mandate-signer key",
-      "The cap is per-transaction, not cumulative — many at-cap withdrawals to the pinned address are possible",
+      "The token allowlist constrains ONLY the Aave path, where the asset sits in calldata — on the ERC-4626 paths the vault is bounded by the target allowlist alone, and its underlying asset is never inspected",
+      "The mandate signer can reconfigure the targets, tokens, and cap at any time with a fresh nonce — these bounds are only as trustworthy as that key",
+      "An allowlisted but malicious vault or pool is not vetted — it constrains where and how much you exit, not the venue's honesty",
+      "The cap is per-transaction, not cumulative — many at-cap exits are possible; on the redeem path it is denominated in shares, whose value in underlying assets moves with the share price",
     ],
   },
   ApproveAndCallBatchPermission: {

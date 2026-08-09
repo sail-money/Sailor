@@ -11,9 +11,9 @@ tooling to create SMAs, construct mandates, and build and run strategy agents. S
 | Package / path | Name | Role |
 |---|---|---|
 | `packages/sdk` | `@sail/sdk` | SailorClient, LocalKeyring, kernel ABIs, EIP-712 builders, deployment registry, per-chain address registry (publishes to npm as `@sail.money/sdk`) |
-| `packages/cli` | `sailor` | CLI: init, update, keys, account, mandate, onboard, signer, ui, run, service, trigger, session, scan, status, owner, doctor, capabilities, chains |
+| `packages/cli` | `sailor` | CLI: init, update, keys, account, mandate, onboard, signer, ui, sandbox, run, service, trigger, session, scan, status, owner, doctor, capabilities, chains |
 | `packages/ui` | `sailor-ui` | Local dashboard + browser-driven onboarding wizard (per-project port, 3333–3999) |
-| `packages/sandbox` | `@sail/sandbox` | Native anvil fork engine backing the Sandbox onboarding path — `startFork`/`stopFork`, chain-id/port tables, fork manifest. Internal; not published standalone |
+| `packages/sandbox` | `@sail/sandbox` | Native anvil fork engine behind Shipyard, the simulation sandbox — `startFork`/`stopFork`, chain-id/port tables, fork manifest. Internal; not published standalone |
 | `scaffold` | — | Default agent starter: neutral blank scaffold + Foundry workspace + onboarding guide (AGENTS.md) |
 | `scaffold/contracts` | — | Solidity reference: IPermission scaffold (not a project template) |
 
@@ -132,7 +132,9 @@ Per-chain vars always take precedence for their specific chain, so multi-chain p
 
 ## Sandbox
 
-"Try it in a Sandbox" (onboarding welcome screen) and `sailor sandbox start` both start a
+Named **Shipyard** in the interface and in user-facing docs (see `docs/shipyard.md`); "sandbox"
+stays the command and the internal vocabulary. `sailor sandbox start` (alias `sailor shipyard`)
+and the dashboard's Shipyard links both start a
 **second, independent** `packages/ui/server.js` process — same code, different root and port —
 rather than a mode flag on the live server. Two directories, never one:
 

@@ -88,6 +88,19 @@ and has no dependency on the tool that produced it.
 | `sailor ui start` | Local dashboard (per-project port in 3333–3999; `--expose tailscale` serves it HTTPS on your tailnet — never public) |
 | `sailor ui stop` / `status` | Stop / inspect it |
 
+## Shipyard (simulation sandbox)
+
+Local forks of the real chains, with fake money, on a second dashboard of their own. Requires
+Foundry (`anvil`). Full guide: [shipyard.md](./shipyard.md).
+
+| Command | What it does |
+|---|---|
+| `sailor sandbox start` | Start the Shipyard dashboard on its own port, rooted at `.shipyard/sandbox/` (bare `sailor sandbox` does the same) |
+| `sailor sandbox stop` | Stop the dashboard and its forks, saving chain state so the next start resumes the same world (`--keep-forks` stops only the dashboard) |
+| `sailor sandbox status` | Show whether the Shipyard dashboard is running |
+
+(`sailor shipyard …` is an alias of `sandbox`, so either spelling works.)
+
 ## Diagnostics
 
 | Command | What it does |

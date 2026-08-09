@@ -1,5 +1,5 @@
 {
-  "_comment": "Reuse registry for the shared permission templates in Protocol/contracts/templates. These are CONFIGURABLE SINGLETONS: deployed ONCE, then every SMA reuses that address via register + configure (no per-SMA deploy). All seven templates bind to the current CREATE2 kernel 0x38b508756c976e876EFF05a29E731A4d348BA6ED. Deploy is CREATE2 with a global salt (gitCommit 1dc1960, deploy version create2-2026-07-01), so the kernel and every template land at the SAME address on every chain — the per-chain blocks below are identical by construction, not independent deployments. Deployed by 0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6 on 2026-07-01. Supersedes the prior EOA-governed 2026-06-09 deploy (kernel 0x02ABC18B65A328de2e749F56ba79ACF2718a6659) — those addresses are dead; do not reuse them.",
+  "_comment": "Reuse registry for the shared permission templates in Protocol/contracts/templates. These are CONFIGURABLE SINGLETONS: deployed ONCE, then every SMA reuses that address via register + configure (no per-SMA deploy). All seven templates bind to the current CREATE2 kernel 0x38b508756c976e876EFF05a29E731A4d348BA6ED. Deploy is CREATE2 with a global salt, so the kernel and every template land at the SAME address on every chain — the per-chain blocks below are identical by construction, not independent deployments. The kernel and six of the seven templates come from gitCommit 1dc1960, deploy version create2-2026-07-01, deployed by 0xB01dCE443d052e44b7D13726c0EC9fFB7f5815B6 on 2026-07-01. WithdrawPermission is the exception: it is v2 (salt preimage sail.template.withdraw.v2, sail-money/Protocol commit 23c5350), deployed in a later batch and superseding the v1 template 0xF5eF5dda450a130e3020d54f565E830e4a7531f8 — do not register or configure v1: it is a different contract (ERC-20 transfer gate, incompatible config blob) that merely shares the name, and it remains deployed only for accounts already registered on it. v2 self-declares permissionId sail.permission.WithdrawPermission.v2 / permissionVersion v2, so a consumer resolving by introspection rather than by raw address can tell the two apart. Being CREATE2 on the same global-salt scheme (with a rotated salt), v2 is likewise identical across all 12 chains. Supersedes the prior EOA-governed 2026-06-09 deploy (kernel 0x02ABC18B65A328de2e749F56ba79ACF2718a6659) — those addresses are dead; do not reuse them.",
   "_schema": "sail.skills.templates.deployed/v1",
   "kernel": "0x38b508756c976e876EFF05a29E731A4d348BA6ED",
   "chains": {
@@ -10,7 +10,7 @@
       "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
       "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
       "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
-      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
+      "WithdrawPermission": "0xB8A6CC40466c0C33a230f87a1EBC368568B96269"
     },
     "8453": {
       "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
@@ -19,7 +19,7 @@
       "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
       "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
       "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
-      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
+      "WithdrawPermission": "0xB8A6CC40466c0C33a230f87a1EBC368568B96269"
     },
     "42161": {
       "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
@@ -28,7 +28,7 @@
       "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
       "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
       "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
-      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
+      "WithdrawPermission": "0xB8A6CC40466c0C33a230f87a1EBC368568B96269"
     },
     "10": {
       "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
@@ -37,7 +37,7 @@
       "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
       "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
       "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
-      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
+      "WithdrawPermission": "0xB8A6CC40466c0C33a230f87a1EBC368568B96269"
     },
     "130": {
       "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
@@ -46,7 +46,7 @@
       "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
       "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
       "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
-      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
+      "WithdrawPermission": "0xB8A6CC40466c0C33a230f87a1EBC368568B96269"
     },
     "56": {
       "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
@@ -55,7 +55,7 @@
       "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
       "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
       "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
-      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
+      "WithdrawPermission": "0xB8A6CC40466c0C33a230f87a1EBC368568B96269"
     },
     "480": {
       "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
@@ -64,7 +64,7 @@
       "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
       "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
       "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
-      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
+      "WithdrawPermission": "0xB8A6CC40466c0C33a230f87a1EBC368568B96269"
     },
     "999": {
       "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
@@ -73,7 +73,7 @@
       "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
       "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
       "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
-      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
+      "WithdrawPermission": "0xB8A6CC40466c0C33a230f87a1EBC368568B96269"
     },
     "4326": {
       "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
@@ -82,7 +82,7 @@
       "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
       "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
       "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
-      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
+      "WithdrawPermission": "0xB8A6CC40466c0C33a230f87a1EBC368568B96269"
     },
     "4663": {
       "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
@@ -91,7 +91,7 @@
       "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
       "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
       "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
-      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
+      "WithdrawPermission": "0xB8A6CC40466c0C33a230f87a1EBC368568B96269"
     },
     "84532": {
       "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
@@ -100,7 +100,7 @@
       "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
       "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
       "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
-      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
+      "WithdrawPermission": "0xB8A6CC40466c0C33a230f87a1EBC368568B96269"
     },
     "11155111": {
       "ApproveAndCallBatchPermission": "0x0535A4D51333484ef583103DAB1a9449756ab732",
@@ -109,7 +109,7 @@
       "SwapPermission": "0x35cEEa0db96997Cc3CF3beB42FFa36A499342F7C",
       "SwapPermissionNoOracle": "0x34Ba96CbEd1f46c88A5265E645DC5fe41662b519",
       "TransferPermission": "0xda909a1CC584fb7559Ce4A828b008B473Da095e1",
-      "WithdrawPermission": "0xF5eF5dda450a130e3020d54f565E830e4a7531f8"
+      "WithdrawPermission": "0xB8A6CC40466c0C33a230f87a1EBC368568B96269"
     }
   },
   "_oraclesComment": "IOracle adapters (getPrice(base,quote)) usable as `priceOracle` in SwapPermission config. SwapPermission requires a non-zero IOracle adapter. Keyed chainId -> label. `pairs` lists the directional token pairs each adapter serves (both directions); any other pair reverts. catalog.mjs surfaces these so the swap skill can pick a default oracle. An IOracle adapter reads only its named pool/tokens — it has no kernel or template-address dependency, so it remains valid against the current CREATE2 SwapPermission singleton.",

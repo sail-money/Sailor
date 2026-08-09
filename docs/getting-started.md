@@ -72,6 +72,8 @@ sailor mandate simulate --address <permission> --sma <yourSMA> \
 
 Verdicts are `PASS` / `FAIL` / `REVERT`; `--expect` makes a mismatch exit non-zero. **Exit check:** every permission registered and configured, with simulate passing the must-pass cases and rejecting the must-fail cases. (Order is always deploy → simulate → register for bespoke; register → configure → simulate for shared templates.) [`sailor-mandate-planner`](../scaffold/.agents/skills/sailor-mandate-planner/SKILL.md) routes each action of the spec to a template or bespoke.
 
+**Optional: rehearse it first.** [Shipyard](./shipyard.md) forks the real chains onto your own machine with fake money, so you can take the whole journey (deploy, register, configure, run) without spending anything. It needs Foundry, and it keeps its own state entirely separate from `.sail/`. Start it with `sailor sandbox start`.
+
 ## Station 4 — AGENT: build the tick loop
 
 The agent's decision logic lives in `src/agent.ts` — a `tick()` that reads state, decides, and returns dispatches within the mandate's bounds. The [`sailor-agent-build`](../scaffold/.agents/skills/sailor-agent-build/SKILL.md) skill carries the canonical, typecheck-verified skeleton (read → decide → act) to adapt. Then:
@@ -95,7 +97,7 @@ sailor mandate revoke --address <perm>     # remove one permission (owner-signed
 sailor mandate revoke --all                # remove every permission
 ```
 
-**Get your money out.** The SMA is a Safe you control directly: `sailor ui start` → the dashboard's Open-in-Safe link (chain-aware) opens `app.safe.global` for your account, where you move funds with your own wallet signature — this works regardless of agent, mandate, or session state. If a withdraw permission is registered, the agent can also consolidate funds to you within its bounds. Full shutdown: pause → withdraw → revoke.
+**Get your money out.** The SMA is a Safe you control directly: `sailor ui start` → the dashboard's Open-in-Safe link (chain-aware) opens `app.safe.global` for your account, where you move funds with your own wallet signature — this works regardless of agent, mandate, or session state. Two permissions cover the agent-mediated route, and they do different jobs: a withdraw permission exits a vault or lending position back into the SMA, and a transfer permission moves tokens the SMA holds out to a recipient you pinned. Getting funds all the way from a position to your own address needs both. Full shutdown: pause → withdraw → revoke.
 
 ---
 

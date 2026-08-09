@@ -15,6 +15,7 @@ import { mainnetChains, chainColor, chainDescription } from '../../lib/chains'
 import { ChainGlyph, GlassCard, InfoTip, Sai, SailButton } from '../shared'
 import shared from '../shared/shared.module.css'
 import styles from './OnboardingWizard.module.css'
+import WalletConnectSetup from './WalletConnectSetup'
 import { useSigningSocket } from '../../hooks/useSigningSocket'
 import { useSandbox } from '../../sandboxContext'
 
@@ -216,8 +217,6 @@ function ProgressDots({ current, total }) {
 function WelcomeState({ isSandbox, maxChains, onStart, onConnected }) {
   const { isConnected } = useAccount()
   const { openConnectModal } = useConnectModal()
-  const [launching, setLaunching] = useState(false)
-  const [launchError, setLaunchError] = useState(null)
 
   // Once the wallet connects (from the "Connect wallet" link below), continue to
   // the dashboard — the backend surfaces the SMAs this owner already has. This is
@@ -239,24 +238,6 @@ function WelcomeState({ isSandbox, maxChains, onStart, onConnected }) {
     openConnectModal?.()
   }
 
-  // Only offered from the LIVE welcome screen — a sandbox page IS the launch
-  // target, it doesn't launch another one. Starts (or finds) this project's
-  // sandbox server and navigates the browser there; the sandbox's own wizard
-  // then opens on its own "you're in a simulated environment" welcome below.
-  async function handleEnterSandbox() {
-    setLaunching(true)
-    setLaunchError(null)
-    try {
-      const res = await fetch('/api/sandbox/launch', { method: 'POST' })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error || 'Could not start the sandbox.')
-      window.location.href = `http://localhost:${data.port}/#/dashboard`
-    } catch (err) {
-      setLaunchError(err.message || 'Could not start the sandbox.')
-      setLaunching(false)
-    }
-  }
-
   if (isSandbox) {
     return (
       <GlassCard className={styles.welcomeCard}>
@@ -265,7 +246,7 @@ function WelcomeState({ isSandbox, maxChains, onStart, onConnected }) {
         </div>
         <header className={styles.cardHeader}>
           <h1 className={`${shared.displayHeadline} ${styles.cardHeadline}`}>
-            You're in a Sandbox
+            You're in Shipyard
           </h1>
           <p className={styles.cardSub}>
             A simulated environment — nothing here touches real funds or mainnet. Next, pick up to{' '}
@@ -314,10 +295,10 @@ function WelcomeState({ isSandbox, maxChains, onStart, onConnected }) {
           </button>
         )
       )}
-      <button className={styles.skipLink} onClick={handleEnterSandbox} disabled={launching}>
-        {launching ? 'Starting sandbox…' : 'Try it in a Sandbox →'}
-      </button>
-      {launchError && <p className={styles.fineprint}>{launchError}</p>}
+      {/* WalletConnect is a precondition for connecting a Safe or a mobile
+          wallet, so it belongs before the connect modal rather than after a
+          dead row in it. Collapsed by default — see WalletConnectSetup. */}
+      <WalletConnectSetup />
     </GlassCard>
   )
 }

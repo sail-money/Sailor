@@ -34,7 +34,7 @@ sailor sandbox stop     # SIGTERM via the pid file
 
 - Port: deterministic per project but seeded distinctly from the live UI (`<projectPath>:sandbox`), so the two dashboards never collide. Read `.shipyard/sandbox/runtime/ui.json` (`{ pid, port, startedAt }`) for the actual port — don't assume.
 - **Health / mode check:** `curl -s http://localhost:<port>/api/mode` → `{"mode":"sandbox"}` (the live dashboard returns `{"mode":"live"}`). Use this to tell the two apart when both are up.
-- The live and sandbox dashboards expose **Enter Sandbox / Exit** links to switch between them — the user need not remember two URLs.
+- The live and sandbox dashboards expose **Enter Shipyard / Exit** links to switch between them — the user need not remember two URLs.
 - Its state (SMA, keys, mandate, activity) is entirely separate from `.sail/` — see `.shipyard/sandbox/{account,config,forks}.json`, `keys/`, `state/`. To inspect it from the CLI, prefix any read with `SAIL_DIR=.shipyard/sandbox` (e.g. `SAIL_DIR=.shipyard/sandbox sailor status`).
 
 ## Signing server — `sailor signer`
