@@ -249,7 +249,7 @@ function WelcomeState({ isSandbox, maxChains, onStart, onConnected }) {
             You're in Shipyard
           </h1>
           <p className={styles.cardSub}>
-            A simulated environment — nothing here touches real funds or mainnet. Next, pick up to{' '}
+            A simulated environment. Nothing here touches real funds or mainnet. Next, pick up to{' '}
             {maxChains} {maxChains === 1 ? 'chain' : 'chains'}; each one spins up its own local fork to onboard against.
           </p>
         </header>
@@ -329,7 +329,7 @@ function NetworkStep({ isSandbox, maxChains, activateForks, selected, onToggle, 
         setForkStatus(data.forks || {})
         const entries = selected.map((id) => data.forks?.[String(id)]).filter(Boolean)
         if (entries.some((f) => f.status === 'failed')) {
-          setProvisionError('One or more chains failed to fork — see below, or go back and pick different chains.')
+          setProvisionError('One or more chains failed to fork. See below, or go back and pick different chains.')
           return
         }
         if (entries.length === selected.length && entries.every((f) => f.status === 'ready')) {
@@ -378,7 +378,7 @@ function NetworkStep({ isSandbox, maxChains, activateForks, selected, onToggle, 
         sub={
           isSandbox ? (
             <>
-              Up to {maxChains} {maxChains === 1 ? 'chain' : 'chains'} — each spins up its own local fork to onboard against.
+              Up to {maxChains} {maxChains === 1 ? 'chain' : 'chains'}, each spinning up its own local fork to onboard against.
               {atCap && ' Deselect one to pick a different chain, or raise the limit in Sandbox settings (⚙, top bar).'}
             </>
           ) : (

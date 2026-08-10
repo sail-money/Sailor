@@ -2139,7 +2139,7 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
         try {
           getSailDeployment(chainId)
         } catch {
-          return res.status(400).json({ error: `Chain ${chainId} has no Sail deployment to fork — pick a supported network.` })
+          return res.status(400).json({ error: `Chain ${chainId} has no Sail deployment to fork. Pick a supported network.` })
         }
       }
       try {
@@ -2352,7 +2352,7 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
         const activeCount = Object.values(forks).filter((f) => f.status === 'ready').length
         const alreadyActive = forks[String(chainId)]?.status === 'ready'
         if (!alreadyActive && activeCount >= cap) {
-          return res.status(409).json({ error: `Sandbox is at its ${cap}-chain limit — stop another fork or raise the limit in Sandbox settings before starting this one.` })
+          return res.status(409).json({ error: `Sandbox is at its ${cap}-chain limit. Stop another fork, or raise the limit in Sandbox settings, before starting this one.` })
         }
       } catch { /* if the pre-check itself fails, fall through and let the restart attempt surface the real error */ }
       try {
@@ -2394,7 +2394,7 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
     resumeSandboxForks(sailDir, { maxChains: resolveSandboxChainCap() })
       .then(({ resumed, parked, failed }) => {
         if (resumed.length) console.log(`Sandbox forks resumed from previous session: ${resumed.join(', ')}`)
-        if (parked.length) console.log(`Sandbox forks parked (over the ${resolveSandboxChainCap()}-chain limit — resumable from the UI): ${parked.join(', ')}`)
+        if (parked.length) console.log(`Sandbox forks parked (over the ${resolveSandboxChainCap()}-chain limit, resumable from the UI): ${parked.join(', ')}`)
         for (const [chainId, message] of Object.entries(failed)) {
           console.warn(`⚠ Could not resume sandbox fork for chain ${chainId}: ${message}`)
         }

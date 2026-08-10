@@ -93,7 +93,7 @@ export default function SmaForkControls({ chains }) {
                 className={styles.toggle}
                 onClick={() => toggle(chain.id, running)}
                 disabled={busy || spawning || (startBlocked)}
-                title={startBlocked ? `At the ${maxChains}-fork limit — stop another or raise the limit in Sandbox settings` : undefined}
+                title={startBlocked ? `At the ${maxChains}-fork limit. Stop another, or raise the limit in Sandbox settings.` : undefined}
               >
                 {busy ? '…' : running ? 'Stop' : 'Start'}
               </button>

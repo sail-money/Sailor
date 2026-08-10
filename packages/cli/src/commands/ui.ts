@@ -386,5 +386,5 @@ export async function sandboxUiStop(opts: SandboxStopOptions = {}): Promise<void
 
   console.log("Stopping sandbox forks (saving chain state)…");
   await resetSandbox(sandboxDir);
-  console.log("Sandbox forks stopped. Chain state saved — `sailor sandbox start` will resume this session.");
+  console.log("Sandbox forks stopped. Chain state saved. `sailor sandbox start` will resume this session.");
 }

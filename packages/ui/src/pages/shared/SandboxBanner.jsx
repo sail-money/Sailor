@@ -149,7 +149,7 @@ export default function SandboxBanner() {
                 type="button"
                 className={styles.forkChip}
                 onClick={() => openFork(Number(chainId))}
-                title={`${chainLabel(fork)} — ${STATUS_LABELS[fork.status] ?? fork.status ?? 'unknown'}`}
+                title={`${chainLabel(fork)}: ${STATUS_LABELS[fork.status] ?? fork.status ?? 'unknown'}`}
               >
                 <ChainGlyph chainId={Number(chainId)} size={13} />
                 <span className={styles.forkChipDot} data-status={fork.status ?? 'spawning'} aria-hidden />
@@ -165,7 +165,7 @@ export default function SandboxBanner() {
             className={styles.capSummary}
             data-at-cap={atCap ? 'true' : undefined}
             onClick={() => setSettingsOpen(true)}
-            title={`${activeCount} of ${maxChains} network forks running — click to change the limit in Sandbox settings`}
+            title={`${activeCount} of ${maxChains} network forks running. Click to change the limit in Sandbox settings.`}
           >
             {activeCount}/{maxChains} active
           </button>

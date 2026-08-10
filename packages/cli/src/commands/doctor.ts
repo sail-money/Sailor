@@ -355,10 +355,10 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
   }
 
   if (sandboxReady) {
-    console.log("  \u2713 anvil found \u2014 sandbox mode is available.");
+    console.log("  \u2713 anvil found. Sandbox mode is available.");
   } else {
     console.log(
-      "  \u2192 anvil not found. This is fine for normal use \u2014 only \"sailor sandbox\" needs it.\n" +
+      "  \u2192 anvil not found. This is fine for normal use: only \"sailor sandbox\" needs it.\n" +
         "    Install Foundry (https://getfoundry.sh) to try the setup flow against local forks.",
     );
   }
