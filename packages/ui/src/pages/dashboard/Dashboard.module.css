@@ -2145,6 +2145,16 @@ a.fundAddr { text-decoration: none; }
   transition: color 150ms ease, background 150ms ease;
 }
 .sidebarUtilLink:hover { color: var(--text-secondary); background: rgba(255, 255, 255, 0.03); }
+
+/* Enter Shipyard only. Its resting appearance is deliberately left alone; this
+   adds a faint glow on hover so the control reads as live, composed from the
+   same --accent-glow the rest of the dashboard uses and the same 150ms timing
+   as the shared rule above. Scoped to this one entry so the sibling Docs and
+   portfolio links keep their plain-link hover. */
+.sidebarUtilLinkShipyard {
+  transition: color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+}
+.sidebarUtilLinkShipyard:hover:not(:disabled) { box-shadow: 0 0 18px var(--accent-glow); }
 .sidebarUtilIcon {
   display: inline-flex;
   align-items: center;

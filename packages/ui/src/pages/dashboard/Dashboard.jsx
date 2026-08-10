@@ -1747,10 +1747,13 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
             the portfolio link and section nav above are. Never shown from
             inside a sandbox page itself (that page IS the launch target). */}
         {isSandbox === false && (
-          <button type="button" className={styles.sidebarUtilLink} onClick={enterSandbox} disabled={sandboxLaunching}>
-            <span className={styles.sidebarUtilIcon} aria-hidden>⚓</span>
+          <button
+            type="button"
+            className={`${styles.sidebarUtilLink} ${styles.sidebarUtilLinkShipyard}`}
+            onClick={enterSandbox}
+            disabled={sandboxLaunching}
+          >
             <span className={styles.sidebarUtilLabel}>{sandboxLaunching ? 'Starting Shipyard…' : 'Enter Shipyard'}</span>
-            <ArrowOutIcon />
           </button>
         )}
 
