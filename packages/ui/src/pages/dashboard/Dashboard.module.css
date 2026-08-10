@@ -2146,15 +2146,40 @@ a.fundAddr { text-decoration: none; }
 }
 .sidebarUtilLink:hover { color: var(--text-secondary); background: rgba(255, 255, 255, 0.03); }
 
-/* Enter Shipyard only. Its resting appearance is deliberately left alone; this
-   adds a faint glow on hover so the control reads as live, composed from the
-   same --accent-glow the rest of the dashboard uses and the same 150ms timing
-   as the shared rule above. Scoped to this one entry so the sibling Docs and
-   portfolio links keep their plain-link hover. */
+/* Enter Shipyard only. Scoped to this one entry so the sibling Docs and
+   portfolio links keep their plain-link treatment.
+
+   Every visual property is declared here on purpose. This is the sidebar's only
+   <button>; its siblings are <a>. Left undeclared, the browser supplied the
+   fill, the border, the widget appearance, the cursor and the text alignment,
+   so the control rendered differently per browser and platform (Chrome/macOS
+   drew rgb(107,107,107) with a 2px outset border). The properties the shared
+   rule above already sets (padding, radius, font, colour) are not repeated.
+   Focus comes from the global button:focus-visible convention in globals.css. */
 .sidebarUtilLinkShipyard {
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--surface-900);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-xl);
+  cursor: pointer;
+  /* Centred, matching the approved look. The label is the button's only child
+     and stretches full width, so without this the browser's own centring for
+     <button> was doing the work. */
+  text-align: center;
   transition: color 150ms ease, background 150ms ease, box-shadow 150ms ease;
 }
-.sidebarUtilLinkShipyard:hover:not(:disabled) { box-shadow: 0 0 18px var(--accent-glow); }
+
+/* The shared `.sidebarUtilLink:hover` sets a 3%-white background, which outranks
+   this class's own background (one class + a pseudo-class beats one class). That
+   would wash the fill out to near-transparent on hover, so the fill is restated
+   here and lifted one surface step instead: the button stays a solid object and
+   gains the glow, rather than dissolving into the sidebar. */
+.sidebarUtilLinkShipyard:hover:not(:disabled) {
+  background: var(--surface-800);
+  box-shadow: 0 0 18px var(--accent-glow);
+}
+.sidebarUtilLinkShipyard:disabled { cursor: default; }
 .sidebarUtilIcon {
   display: inline-flex;
   align-items: center;
