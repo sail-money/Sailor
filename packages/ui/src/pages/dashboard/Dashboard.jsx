@@ -1752,6 +1752,7 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
             className={`${styles.sidebarUtilLink} ${styles.sidebarUtilLinkShipyard}`}
             onClick={enterSandbox}
             disabled={sandboxLaunching}
+            title="Simulation sandbox. No real funds."
           >
             <span className={styles.sidebarUtilLabel}>{sandboxLaunching ? 'Starting Shipyard…' : 'Enter Shipyard'}</span>
           </button>

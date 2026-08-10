@@ -2149,34 +2149,39 @@ a.fundAddr { text-decoration: none; }
 /* Enter Shipyard only. Scoped to this one entry so the sibling Docs and
    portfolio links keep their plain-link treatment.
 
-   Every visual property is declared here on purpose. This is the sidebar's only
-   <button>; its siblings are <a>. Left undeclared, the browser supplied the
-   fill, the border, the widget appearance, the cursor and the text alignment,
-   so the control rendered differently per browser and platform (Chrome/macOS
-   drew rgb(107,107,107) with a 2px outset border). The properties the shared
-   rule above already sets (padding, radius, font, colour) are not repeated.
-   Focus comes from the global button:focus-visible convention in globals.css. */
+   Shipyard is a feature, not the product, and this sits on the welcome screen
+   whose job is "Start setup". So the entry is findable, not seen: at rest it
+   reads exactly like its sibling links, and the raised object only appears on
+   hover or keyboard focus.
+
+   Every visual property is still declared. This is the sidebar's only <button>;
+   its siblings are <a>. "Transparent at rest" must not mean "undeclared" or the
+   browser refills it with native chrome, which was the original bug (Chrome on
+   macOS drew rgb(107,107,107) with a 2px outset border). The border is
+   `1px solid transparent` rather than `none` so revealing it on hover cannot
+   shift the layout. Font and colour come from the shared rule above, which
+   declares them explicitly. */
 .sidebarUtilLinkShipyard {
   -webkit-appearance: none;
   appearance: none;
-  background: var(--surface-900);
-  border: 1px solid var(--glass-border);
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: var(--r-xl);
   cursor: pointer;
-  /* Centred, matching the approved look. The label is the button's only child
-     and stretches full width, so without this the browser's own centring for
-     <button> was doing the work. */
-  text-align: center;
-  transition: color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+  padding: 9px 10px;
+  text-align: left;
+  transition: color 150ms ease, background 150ms ease, border-color 150ms ease,
+    box-shadow 150ms ease;
 }
 
-/* The shared `.sidebarUtilLink:hover` sets a 3%-white background, which outranks
-   this class's own background (one class + a pseudo-class beats one class). That
-   would wash the fill out to near-transparent on hover, so the fill is restated
-   here and lifted one surface step instead: the button stays a solid object and
-   gains the glow, rather than dissolving into the sidebar. */
-.sidebarUtilLinkShipyard:hover:not(:disabled) {
-  background: var(--surface-800);
+/* The object appears. Same treatment for keyboard focus as for hover, so the
+   control is not discoverable by pointer only. This outranks the shared
+   `.sidebarUtilLink:hover` 3%-white background (three pseudo-classes' worth of
+   specificity against two), so the fill here is what renders. */
+.sidebarUtilLinkShipyard:hover:not(:disabled),
+.sidebarUtilLinkShipyard:focus-visible {
+  background: var(--surface-900);
+  border-color: var(--glass-border);
   box-shadow: 0 0 18px var(--accent-glow);
 }
 .sidebarUtilLinkShipyard:disabled { cursor: default; }
