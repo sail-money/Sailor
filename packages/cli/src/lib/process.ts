@@ -13,10 +13,12 @@ import { sailPath } from "./io.js";
 export function anvilOnPath(
   pathEnv: string | undefined = process.env["PATH"],
   exists: (p: string) => boolean = fs.existsSync,
+  platform: NodeJS.Platform = process.platform,
 ): boolean {
-  const exes = process.platform === "win32" ? ["anvil.exe", "anvil.cmd", "anvil.bat", "anvil"] : ["anvil"];
+  const exes = platform === "win32" ? ["anvil.exe", "anvil.cmd", "anvil.bat", "anvil"] : ["anvil"];
+  const delimiter = platform === "win32" ? ";" : ":";
   return (pathEnv ?? "")
-    .split(path.delimiter)
+    .split(delimiter)
     .some((dir) => dir.length > 0 && exes.some((exe) => exists(path.join(dir, exe))));
 }
 
