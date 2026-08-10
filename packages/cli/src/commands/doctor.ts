@@ -21,6 +21,7 @@ import { checkContractExists } from "../lib/contract-check.js";
 import { parseEnvFile, readActiveAccount, readJsonFile, sailPath } from "../lib/io.js";
 import { keyExists, resolveKeyPath } from "../lib/keys.js";
 import { IPERMISSION_ABI } from "../lib/permission-resolver.js";
+import { anvilOnPath } from "../lib/process.js";
 import { ProjectContext } from "../lib/project.js";
 import type { StoredAccount } from "../lib/state.js";
 
@@ -250,6 +251,11 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
     // Balance reads are best-effort; a failure shouldn't abort the preflight.
   }
 
+  // Sandbox mode ("sailor sandbox") forks chains with Foundry's anvil. It is
+  // optional functionality, so its absence is reported, never treated as a
+  // broken install — `healthy` deliberately does not consider it.
+  const sandboxReady = anvilOnPath();
+
   if (options.json) {
     console.log(
       JSON.stringify(
@@ -265,6 +271,7 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
             manager: managerAddr ? { address: managerAddr, ...(managerBal ?? {}) } : null,
           },
           passphrase: { keystorePresent: managerKeystorePresent, envSet: passphraseSet },
+          sandbox: { anvilOnPath: sandboxReady },
           account: safe,
           saltNonce: stored?.saltNonce ?? null,
           permissions,
@@ -344,6 +351,15 @@ export async function doctor(options: { json?: boolean; account?: string } = {})
       "  ⚠ SAIL_PASSPHRASE is not set, but an agent keystore exists.\n" +
         '    "sailor run" will prompt interactively; CI and the scheduled cron will fail to unlock it.\n' +
         "    Add SAIL_PASSPHRASE to .sail/.env.local (the dashboard does this automatically when it creates the key).",
+    );
+  }
+
+  if (sandboxReady) {
+    console.log("  \u2713 anvil found. Sandbox mode is available.");
+  } else {
+    console.log(
+      "  \u2192 anvil not found. This is fine for normal use: only \"sailor sandbox\" needs it.\n" +
+        "    Install Foundry (https://getfoundry.sh) to try the setup flow against local forks.",
     );
   }
 

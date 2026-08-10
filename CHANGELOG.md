@@ -5,6 +5,39 @@ All notable changes to Sailor are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Shipyard**, a simulation sandbox. `sailor sandbox start` (alias `sailor shipyard`) forks the
+  real chains locally with anvil and serves a second dashboard, on its own port and rooted at
+  `.shipyard/sandbox/`, entirely separate from live `.sail/` state. The Sail contracts and chain
+  state are the real ones, carried in by the fork; only the money is fake, so an agent can be
+  taken through deploy, register, configure, and run without spending anything. Requires Foundry.
+  Chain state is saved on stop and resumes on the next start. Documented in
+  [docs/shipyard.md](docs/shipyard.md).
+- `sailor sandbox stop --keep-forks` stops the dashboard but leaves the forks running.
+- `sailor doctor` reports whether `anvil` is on `PATH`. Shipyard is optional, so its absence is
+  informational and does not affect the overall health verdict.
+
+### Changed
+
+- `sailor sandbox start` now checks for Foundry before starting anything, instead of reporting
+  success in the terminal and failing later in the browser when the first fork is provisioned.
+- The Shipyard invitation moved from the onboarding welcome screen to the dashboard's mandates
+  page, where there is a mandate worth rehearsing. New users are no longer steered into a
+  simulation before they have set anything up.
+
+### Fixed
+
+- `.shipyard/` is git-ignored. The sandbox writes an SMA record, `.env.local`, keys, and
+  multi-megabyte chain-state dumps there, none of which should ever be committed.
+- Robinhood Chain can be forked. The network picker is built from the SDK chain registry, which
+  had gained Robinhood, while the fork engine's own chain table had not: selecting it failed with
+  `Unsupported sandbox chain id: 4663` at fork time. A test now pins the two lists together in
+  both directions, so a chain offered to users that cannot be forked (or the reverse) fails CI
+  instead of a first run.
+
 ## [2.1.3] - 2026-07-31
 
 ### Fixed

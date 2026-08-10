@@ -383,7 +383,7 @@ export async function accountDeployChain(options: DeployChainOptions): Promise<v
   try {
     await channel.start();
 
-    const signingUrl = signingPageUrl(projectPort(process.cwd()));
+    const signingUrl = signingPageUrl();
     if (json) {
       console.log(
         JSON.stringify(

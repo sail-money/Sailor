@@ -45,9 +45,16 @@ export type AccountFields = Partial<AccountRecord> & { safe?: string };
 /** The list entry shape, annotated with the derived `active` flag on read. */
 export type ListedAccount = AccountRecord & { active: boolean };
 
-/** `<cwd>/.sail` — the default project state directory. */
+/**
+ * The default project state directory: `SAIL_DIR` (absolute, or relative to
+ * cwd) when set — e.g. a sandbox's `.shipyard/sandbox/` — else `<cwd>/.sail`.
+ * Must stay in lockstep with the CLI's `resolveSailDir` (packages/cli lib/io.ts)
+ * and the UI server's SAIL_DIR resolution, or the two halves read different
+ * accounts for the same invocation.
+ */
 export function defaultSailDir(): string {
-  return path.join(process.cwd(), ".sail");
+  const override = process.env["SAIL_DIR"];
+  return override ? path.resolve(process.cwd(), override) : path.join(process.cwd(), ".sail");
 }
 
 const accountPath = (sailDir: string): string => path.join(sailDir, "account.json");

@@ -7,9 +7,15 @@ import type {
   SigningTypedDataRequest,
 } from "@sail/sdk";
 import type { Address } from "viem";
+import { sandboxDirFor } from "@sail/sandbox";
+import { resolveSailDir } from "../lib/io.js";
+import { projectPort } from "../lib/packagePaths.js";
 import { SigningServer, reapStaleRuntimeState } from "./server.js";
 
-const RUNTIME_SERVER_FILE = join(".sail", "runtime", "server.json");
+/** The daemon-discovery descriptor, under the resolved state root (SAIL_DIR-aware). */
+function runtimeServerFile(projectRoot: string): string {
+  return join(resolveSailDir(projectRoot), "runtime", "server.json");
+}
 
 export type SigningRequestInput =
   | Omit<SigningTxRequest, "id" | "createdAt">
@@ -160,7 +166,7 @@ function toLoopbackIPv4(url: string): string {
 }
 
 function readRuntimeServerState(projectRoot: string): RuntimeServerState | null {
-  const file = join(projectRoot, RUNTIME_SERVER_FILE);
+  const file = runtimeServerFile(projectRoot);
   if (!existsSync(file)) return null;
   try {
     return JSON.parse(readFileSync(file, "utf8")) as RuntimeServerState;
@@ -171,13 +177,18 @@ function readRuntimeServerState(projectRoot: string): RuntimeServerState | null 
 
 /**
  * The URL a user should open to approve this channel's signing requests.
- * Always uses the project dashboard port — the hash route distinguishes
- * the signing page from the main dashboard. (`#/station` is a v1.2.0-compatible
+ * Uses the dashboard port of the surface the resolved state root belongs to —
+ * the sandbox dashboard when `SAIL_DIR` points at the project's sandbox dir,
+ * the live dashboard otherwise (they seed their deterministic ports
+ * differently — see ui.ts's portSeedFor). The hash route distinguishes the
+ * signing page from the main dashboard. (`#/station` is a v1.2.0-compatible
  * alias the router also accepts — see main.jsx — but new URLs always print
  * the canonical `#/signer`.)
  */
-export function signingPageUrl(dashboardPort: number): string {
-  return `http://localhost:${dashboardPort}/#/signer`;
+export function signingPageUrl(projectRoot: string = process.cwd()): string {
+  const isSandbox = resolveSailDir(projectRoot) === sandboxDirFor(projectRoot);
+  const port = projectPort(isSandbox ? `${projectRoot}:sandbox` : projectRoot);
+  return `http://localhost:${port}/#/signer`;
 }
 
 /** Return a {@link SigningClient} for a reachable daemon, or null if none runs. */
@@ -203,7 +214,7 @@ export async function createSigningChannel(
 ): Promise<SigningChannel> {
   // Clear any orphaned descriptor (crashed predecessor) before discovery so we
   // neither route to a dead server nor refuse to advertise because of stale state.
-  reapStaleRuntimeState(projectRoot);
+  reapStaleRuntimeState(resolveSailDir(projectRoot));
   const daemon = await discoverDaemon(projectRoot);
   if (daemon) return daemon;
   // Ephemeral fallback: advertise a discoverable runtime descriptor so the

@@ -53,6 +53,19 @@ flowchart TD
 - **Monitoring & control** — `doctor`, `status`, the dashboard, the append-only
   `.sail/activity.jsonl`, and instant session pause/resume.
 
+## Two modes, one codebase
+
+The dashboard runs in one of two modes: live, or **Shipyard**, the simulation sandbox. They are
+not a flag on a shared server. Each is a separate process running the same server code, pointed
+at a different state root (`.sail/` versus `.shipyard/sandbox/`) on a different port, and the
+fork-lifecycle routes exist only on the Shipyard instance. Nothing in the live process can read
+or write the Shipyard root, and nothing in Shipyard can reach the live one.
+
+That separation is what makes the boundary above testable: in Shipyard the kernel, the permission
+contracts, and the Safe are the real deployed contracts, carried in by a local fork of the chain,
+so a dispatch is evaluated by the same code that would evaluate it on mainnet. Only the money is
+fake. See [shipyard.md](./shipyard.md).
+
 ## The boundary, in one sentence
 
 Sailor can *propose* and *submit*; only the kernel and the owner-signed mandate decide what

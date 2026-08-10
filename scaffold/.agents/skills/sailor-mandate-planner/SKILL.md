@@ -9,7 +9,7 @@ This skill is a gate and a router, deliberately thin. The template registry live
 
 ## Gate (fail-closed)
 
-Read `.sail/strategy.md` first. AGENTS.md station 3: "Gate: complete `.sail/strategy.md`". If the file is missing, any completeness dimension is not concrete, its JSON block lacks `"confirmedByUser": true`, or its `"version"` is not `3` — do **not** proceed. Hand back to [`sailor-strategy`](../sailor-strategy/SKILL.md) and return once the gate holds — a pre-`version: 3` file either has no resolved `actions[]` to plan from (`version` < 2) or has never had the per-action `exitPath` question asked (`version: 2`). The completeness checklist lives there, not here.
+Read `strategy.md` from the **active state root** first — `.sail/strategy.md` normally, or `.shipyard/sandbox/strategy.md` if this project's Station 1/2 work happened in the native sandbox (see [`sailor-onboarding`](../sailor-onboarding/SKILL.md)'s "Two state roots"). AGENTS.md station 3: "Gate: complete `strategy.md`". If the file is missing, any completeness dimension is not concrete, its JSON block lacks `"confirmedByUser": true`, or its `"version"` is not `3` — do **not** proceed. Hand back to [`sailor-strategy`](../sailor-strategy/SKILL.md) and return once the gate holds — a pre-`version: 3` file either has no resolved `actions[]` to plan from (`version` < 2) or has never had the per-action `exitPath` question asked (`version: 2`). The completeness checklist lives there, not here.
 
 ## Routing method
 

@@ -17,18 +17,21 @@
 
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { resolveSailDir } from "../lib/io.js";
 import { emit } from "../lib/output.js";
-import { projectPort } from "../lib/packagePaths.js";
 import { ProjectContext } from "../lib/project.js";
-import { discoverDaemon } from "../signing/client.js";
+import { discoverDaemon, signingPageUrl } from "../signing/client.js";
 import { SigningServer } from "../signing/server.js";
 
-const RUNTIME_SERVER_FILE = join(".sail", "runtime", "server.json");
+/** Path to the daemon-discovery descriptor under the resolved state root (SAIL_DIR-aware). */
+function runtimeServerFile(projectRoot: string): string {
+  return join(resolveSailDir(projectRoot), "runtime", "server.json");
+}
 
 type RuntimeServerState = { url?: string; port?: number; pid?: number; startedAt?: string };
 
 function readState(projectRoot: string): RuntimeServerState | null {
-  const file = join(projectRoot, RUNTIME_SERVER_FILE);
+  const file = runtimeServerFile(projectRoot);
   if (!existsSync(file)) return null;
   try {
     return JSON.parse(readFileSync(file, "utf8")) as RuntimeServerState;
@@ -55,7 +58,7 @@ export async function signerStart(options: { json?: boolean }): Promise<void> {
       options.json,
       () => {
         console.log("A signing server is already running for this project.");
-        console.log(`  http://localhost:${projectPort(projectRoot)}/#/signer`);
+        console.log(`  ${signingPageUrl(projectRoot)}`);
       },
       { status: "already-running", url: existing.url, ...state },
     );
@@ -68,7 +71,7 @@ export async function signerStart(options: { json?: boolean }): Promise<void> {
   emit(
     options.json,
     () => {
-      const dashboardUrl = `http://localhost:${projectPort(projectRoot)}/#/signer`;
+      const dashboardUrl = signingPageUrl(projectRoot);
       console.log("✓ Signing server started");
       console.log("→ Open the signing page in your browser:");
       console.log(`  ${dashboardUrl}`);
@@ -118,7 +121,7 @@ export async function signerStop(options: { json?: boolean }): Promise<void> {
   // server.json is stale or was corrupted.
   const daemon = await discoverDaemon(projectRoot);
   if (!daemon) {
-    const file = join(projectRoot, RUNTIME_SERVER_FILE);
+    const file = runtimeServerFile(projectRoot);
     try {
       if (existsSync(file)) rmSync(file);
     } catch {
@@ -138,7 +141,7 @@ export async function signerStop(options: { json?: boolean }): Promise<void> {
       pid: state.pid,
     });
   } catch {
-    const file = join(projectRoot, RUNTIME_SERVER_FILE);
+    const file = runtimeServerFile(projectRoot);
     try {
       if (existsSync(file)) rmSync(file);
     } catch {

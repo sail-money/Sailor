@@ -1,0 +1,117 @@
+/* Per-SMA fork on/off controls on the sandbox Overview. Quiet, hairline-boxed
+   list that sits under the "SMA live in" chip row — same monochrome + blue
+   language as the rest of the dashboard. */
+
+.wrap {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 8px;
+  background: var(--surface-900, transparent);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.count {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+.count[data-at-cap='true'] {
+  color: var(--status-expired, #cf8a1a);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chainName {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--status-expired);
+}
+.dot[data-status='ready'] { background: var(--status-success); }
+.dot[data-status='failed'] { background: var(--status-revoked); }
+.dot[data-status='spawning'] { background: var(--accent-blue); }
+
+.toggle {
+  flex-shrink: 0;
+  min-width: 60px;
+  padding: 4px 12px;
+  background: transparent;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+.toggle:hover:not(:disabled) {
+  border-color: var(--accent-blue);
+  color: var(--text-primary);
+  background: var(--aqua-soft);
+}
+.toggle:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+
+.error {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  color: var(--status-revoked, #e5484d);
+}

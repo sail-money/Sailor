@@ -23,12 +23,15 @@ jobs:
           cache: 'pnpm'
       - name: Install
         run: pnpm install --frozen-lockfile
-      # SDK must be built first — esbuild resolves @sail/sdk via the workspace
-      # symlink, which points to packages/sdk/dist/index.js.
-      - name: Build SDK
-        run: pnpm --filter @sail/sdk build
+      # Workspace deps must be built first — esbuild resolves @sail/sdk and
+      # @sail/sandbox via workspace symlinks, which point at their dist/ entries.
+      - name: Build workspace deps
+        run: pnpm --filter @sail/sdk build && pnpm --filter @sail/sandbox build
+      # Path filter, not `--filter sailor`: the ROOT workspace project is also
+      # named `sailor`, so a name filter selects both and runs the root build
+      # chain concurrently with this one.
       - name: Build CLI bundle
-        run: pnpm --filter sailor build
+        run: pnpm --filter ./packages/cli build
       # Unit + integration tests: SDK, CLI (signing-confirmation protocol,
       # isConfigured retry, arbitrary-tx contract), and UI (station state machine).
       - name: Unit tests

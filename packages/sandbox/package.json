@@ -1,0 +1,32 @@
+{
+  "name": "@sail/sandbox",
+  "version": "0.0.1",
+  "description": "Native local-fork sandbox engine for Sailor — spins up anvil forks (preserving real chain IDs) so onboarding can run against a simulated environment. Internal workspace package, not published standalone.",
+  "type": "module",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test --test-concurrency=1 \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0",
+    "tsx": "^4.22.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

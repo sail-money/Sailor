@@ -39,7 +39,7 @@ So — **what should your agent do?**
 Two permitted deviations from the verbatim script:
 
 1. **Skip-to-intent** — if the user's opening message already states what they want ("help me build a DCA bot"), do not present the doors: acknowledge their goal, deliver a compressed welcome (identity + the journey + the safety promise, in 2–3 lines), and proceed with their intent into Station 2.
-2. **Resume** — if `.sail/` shows a partially set-up project (see the state table below), replace the script with `Welcome back — here's where we left off:` followed by a short station-status readout built from `.sail/` state (which stations are complete, which is next), then continue from the incomplete station. No doors menu on resume unless Station 2 (STRATEGY) is the incomplete one.
+2. **Resume** — if the active state root (`.sail/` **or** `.shipyard/sandbox/` — see "Two state roots" below; always check the sandbox too) shows a partially set-up project, replace the script with `Welcome back — here's where we left off:` followed by a short station-status readout built from that root (which stations are complete, which is next), then continue from the incomplete station. When the progress is in the sandbox, say so plainly — e.g. `Welcome back — you've deployed an SMA in the sandbox (chain 130, fork). Here's where we left off:` — so the user knows they're on forks, not mainnet. No doors menu on resume unless Station 2 (STRATEGY) is the incomplete one.
 
 Compose with these two standing rules:
 
@@ -61,15 +61,38 @@ The published package is **`@sail.money/sailor`** — always use the scoped name
 
 After upgrading the CLI, run `sailor update` from the project root to pull in updated skills, `AGENTS.md`, `Dockerfile`, and other tooling files. User files (`src/`, `contracts/`, `.sail/`, `package.json`) are never touched.
 
-This skill owns **Station 1 (ARRIVE)**. Read `.sail/` to find where the project is and enter at the right point — never re-run completed work. Station 1 has two internal steps (pick the chain, then deploy the SMA + agent wallet); everything past it is a handoff to the next station per `AGENTS.md`.
+This skill owns **Station 1 (ARRIVE)**. Read state to find where the project is and enter at the right point — never re-run completed work. Station 1 has two internal steps (pick the chain, then deploy the SMA + agent wallet); everything past it is a handoff to the next station per `AGENTS.md`.
+
+## Two state roots — check the sandbox before deciding anything
+
+**Before reading the state table below, determine which state root is live.** A Sailor project has two parallel `SAIL_DIR`s with the *identical* file shape (`account.json`, `config.json`, `keys/`, `state/mandates.json`, `runtime/`):
+
+- **Live** — `.sail/` — real chains, real funds. The default `SAIL_DIR`.
+- **Sandbox** — `.shipyard/sandbox/` — local anvil forks of real chains, zero real funds, fully rewindable. A **first-class Sailor feature**, named **Shipyard** in the interface (`sailor sandbox start`, or the dashboard's **"Enter Shipyard"** link). Not to be confused with the separate Shipyard CLI: `sailor sandbox` is native and needs no `shipyard attach`.
+
+The catch: `sailor status`, `sailor doctor`, and every state file read the **live** root by default. **A user who onboarded through the Sandbox path has a deployed SMA, a running fork, and often a mandate — all under `.shipyard/sandbox/`, invisible to a plain `.sail/` read.** If you only check `.sail/`, you will wrongly conclude "nothing set up" and restart onboarding from scratch, destroying their progress. This is the single most common Station-1 misread.
+
+**So, first thing, always:**
+
+```bash
+[ -f .shipyard/sandbox/account.json ] && echo "SANDBOX SMA EXISTS" || echo "no sandbox SMA"
+sailor sandbox status                      # ● running <url> (pid) if a sandbox dashboard is up
+SAIL_DIR=.shipyard/sandbox sailor status   # reads the SANDBOX root — SMA, keys, mandate
+```
+
+Any sailor command reads the sandbox root when you prefix it with `SAIL_DIR=.shipyard/sandbox` (the SDK honors `SAIL_DIR`; `.sail/` is only the default). Use that prefix for every status/doctor/mandate read while the user is working in the sandbox. If a sandbox and a live root are BOTH populated, ask the user which one this session is about — never assume.
+
+The sandbox is a legitimate place to complete Stations 1–4: deploy the SMA, define the strategy, build and simulate the mandate, and dry-run the agent — all against forks, rewindable, before spending a cent. Treat sandbox onboarding as real onboarding progress; the only thing it defers is going live (redeploying against `.sail/` on the real chain), which is the user's explicit decision, not an automatic step.
 
 ## Determine where the user is
 
-| `.sail/` state | Where you are |
+Read the **active root** (sandbox if one is populated and in use — see above — otherwise `.sail/`). Substitute that root for `.sail/` in the table:
+
+| state (in the active root) | Where you are |
 |---|---|
-| No `account.json` (chain chosen or not — `config.json.chainId` may still be `null`) | Station 1 — hand the user to the setup UI below for ALL of: chain choice, agent wallet + passphrase, SMA deploy. Do not ask which chain, or for a passphrase, in chat — `sailor init` is chain-neutral by design; the wizard decides |
-| `account.json` exists, no `.sail/strategy.md` | Station 1 complete → **Station 2**: hand off to [`sailor-strategy`](../sailor-strategy/SKILL.md) |
-| `account.json` + a complete `.sail/strategy.md`, no tracked mandates | Strategy defined → **Station 3**: hand off to [`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md) |
+| No `account.json` (chain chosen or not — `config.json.chainId` may still be `null`) | Station 1 — hand the user to the setup UI below for ALL of: chain choice, agent wallet + passphrase, SMA deploy. Do not ask which chain, or for a passphrase, in chat — `sailor init` is chain-neutral by design; the wizard decides. If the user starts Shipyard instead (`sailor sandbox start`), the SMA lands under `.shipyard/sandbox/` and you continue from there |
+| `account.json` exists, no `strategy.md` | Station 1 complete → **Station 2**: hand off to [`sailor-strategy`](../sailor-strategy/SKILL.md) |
+| `account.json` + a complete `strategy.md`, no tracked mandates | Strategy defined → **Station 3**: hand off to [`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md) |
 | `account.json` + tracked mandates in `state/mandates.json` | Mandate exists → **Stations 4–5**: build/run the agent (dispatch mechanics in [`sailor-transactions`](../sailor-transactions/SKILL.md)), then run unattended ([`sailor-automation`](../sailor-automation/SKILL.md)) and offer notifications + a dashboard ([`sailor-extend`](../sailor-extend/SKILL.md)) |
 
 Supported chains: Ethereum (1), Base (8453), Arbitrum (42161), Optimism (10), Unichain (130), BSC (56), World Chain (480), HyperEVM (999), MegaETH (4326), Robinhood (4663), Base Sepolia (84532), Eth Sepolia (11155111). `sailor chains --json` lists them with kernel addresses.
@@ -128,3 +151,5 @@ During setup, always ask before anything that costs gas.
 ## Station 1 exit verifier
 
 `sailor doctor` — read-only preflight: kernel dispatch model, permission health, RPC reachability, chain-id match, gas balances in both wallets. **Station 1 is not complete until `doctor` is all green** (RPC connected, chain-id matches, keys present, gas funded). `doctor`'s RPC check tolerates the public fallback (no RPC_URL needed to go green) — Station 1 never needs the user's own RPC endpoint. Then → [`sailor-strategy`](../sailor-strategy/SKILL.md) (Station 2), which will ask for it at the first step that genuinely needs it (token resolution) — not here.
+
+**In the sandbox, verify against the sandbox root:** `SAIL_DIR=.shipyard/sandbox sailor doctor` — it checks the fork RPC (from `.shipyard/sandbox/forks.json`) and the sandbox wallets. Gas funding on a fork is free (`sailor sandbox` provisions it, or top up any address on the fork); a red gas balance in the sandbox is fixed on the fork, never with real funds.
