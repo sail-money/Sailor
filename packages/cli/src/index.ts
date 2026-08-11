@@ -59,8 +59,8 @@ import { sessionPause, sessionResume } from "./commands/session.js";
 import { signerStart, signerStatus, signerStop } from "./commands/signer.js";
 import { status } from "./commands/status.js";
 import { type TriggerGithubOptions, triggerGithub } from "./commands/trigger.js";
-import { type UiOptions, uiCommand, uiStatus, uiStop } from "./commands/ui.js";
 import { updateCommand } from "./commands/update.js";
+import { type SandboxStopOptions, type UiOptions, sandboxUiCommand, sandboxUiStatus, sandboxUiStop, uiCommand, uiStatus, uiStop } from "./commands/ui.js";
 import { closePrompts } from "./lib/io.js";
 import { packageRoot } from "./lib/packagePaths.js";
 
@@ -171,6 +171,26 @@ ui.command("status")
   .description("Show whether the dashboard is running")
   .action(() => uiStatus());
 ui.action(action(uiCommand));
+
+// `shipyard` is an alias, not a rename: the product is called Shipyard and its
+// state lives in `.shipyard/`, but the command stays `sandbox` (the CLI is
+// already `sailor`, so `sailor shipyard` would put the brand on the brand).
+// The alias exists so someone who reads "Shipyard" in the docs and types
+// `sailor shipyard` gets the command rather than "unknown command". Commander
+// renders it inline as "sandbox|shipyard" — one entry, both spellings — the
+// same way `signer|station` already appears above.
+const sandbox = program.command("sandbox").alias("shipyard").description("Manage Shipyard, the local simulation sandbox (native chain forks, fake money; needs Foundry)");
+sandbox.command("start")
+  .description("Start the sandbox dashboard on its own port, rooted at .shipyard/sandbox/")
+  .action(action(sandboxUiCommand));
+sandbox.command("stop")
+  .description("Stop the sandbox dashboard and its forks (chain state is saved and resumes on next start)")
+  .option("--keep-forks", "leave the anvil forks running; only stop the dashboard server")
+  .action((opts: SandboxStopOptions) => action(() => sandboxUiStop(opts))());
+sandbox.command("status")
+  .description("Show whether the sandbox dashboard is running")
+  .action(action(sandboxUiStatus));
+sandbox.action(action(sandboxUiCommand));
 
 const keys = program.command("keys").description("Manage local signing keys");
 keys
@@ -359,6 +379,10 @@ mandate
   .option("--label <text>", "Inline single call: human-readable label")
   .option("--calls <file>", "Batch: JSON array of { target, calldata, value?, expect?, label? }")
   .option("--json", "Emit machine-readable JSON")
+  .option(
+    "--summary",
+    "Condense output to counts (total / pass / fail / matched) plus full detail for MISMATCHES only",
+  )
   .action(actionWith<SimulateOptions>(mandateSimulate));
 mandate
   .command("update")

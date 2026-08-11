@@ -48,6 +48,12 @@
 }
 
 :root {
+    /* Height of the fixed sandbox banner, 0 when not in sandbox mode.
+       SandboxBanner measures its own rendered height into this var (it can
+       change with viewport/content), and the full-viewport app frames
+       subtract it from 100vh so nothing overflows below the fold. */
+    --sandbox-banner-h: 0px;
+
     /* ── Text ──
        Four-step ink ramp. Tertiary/quaternary were nudged up
        (0.48→0.56, 0.30→0.40) so meta labels that carry real

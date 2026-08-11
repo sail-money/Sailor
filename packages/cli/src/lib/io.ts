@@ -10,9 +10,24 @@ import { type Address, getAddress, isAddress } from "viem";
 
 // ── .sail/ filesystem helpers ───────────────────────────────────────────────
 
-/** Absolute path to the current project's `.sail/` directory. */
+/**
+ * Resolve the state directory for a project root, honoring `SAIL_DIR`.
+ *
+ * `SAIL_DIR` (absolute, or relative to `projectRoot`) points the whole CLI —
+ * activity log, accounts, mandate tracking, keys, `.env.local`, the signing
+ * daemon's runtime descriptor — at an alternate root. The UI server
+ * (packages/ui/server.js) already resolves its state this way; the sandbox
+ * (`.shipyard/sandbox/`) relies on both halves agreeing, so signing/dispatch
+ * driven from the sandbox UI lands in the sandbox's own state, never `.sail/`.
+ */
+export function resolveSailDir(projectRoot: string = process.cwd()): string {
+  const override = process.env["SAIL_DIR"];
+  return override ? path.resolve(projectRoot, override) : path.join(projectRoot, ".sail");
+}
+
+/** Absolute path to the current project's state directory (`.sail/` unless `SAIL_DIR` overrides). */
 export function sailDir(): string {
-  return path.join(process.cwd(), ".sail");
+  return resolveSailDir();
 }
 
 /** Joins segments under `.sail/`. */

@@ -23,14 +23,15 @@ function copyDir(src, dest) {
  *
  * `patches` is an object of relative-path → string content written into the
  * temp dir after copying, so individual tests can tweak state without forking
- * a new fixture folder.
+ * a new fixture folder. `opts.mode: 'sandbox'` starts the server with the
+ * /api/sandbox/* routes enabled, same as a real sandbox instance.
  *
  * Usage:
  *   const { api, cleanup } = loadFixture('onboarded')
  *   const res = await api.get('/api/overview')
  *   cleanup()
  */
-export function loadFixture(name, patches = {}) {
+export function loadFixture(name, patches = {}, opts = {}) {
   const src = path.join(FIXTURES, name)
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), `sailor-test-${name}-`))
   copyDir(src, tmp)
@@ -41,7 +42,7 @@ export function loadFixture(name, patches = {}) {
     fs.writeFileSync(dest, content)
   }
 
-  const server = startServer(tmp, { port: 0 })
+  const server = startServer(tmp, { port: 0, mode: opts.mode ?? 'live' })
 
   return {
     server,
