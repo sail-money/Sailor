@@ -57,10 +57,12 @@ export function isValidExecutableName(name: string): boolean {
 /** The default executable a strategy runs — the classic `src/agent.ts` (named executables live at `src/strategy/<name>.ts`). */
 export const DEFAULT_EXECUTABLE = "agent" as const;
 
-/** Strategy names must be camelCase with no separators — the name is also the spec filename
+const STRATEGY_NAME_RE = /^[a-zA-Z][a-zA-Z0-9]*$/;
+/** Strategy names allow letters/digits only, starting with a letter (camelCase or PascalCase,
+ *  e.g. `dcaDaily`, `Yield`) — no spaces or separators. The name is also the spec filename
  *  (`.sail/strategies/<name>.md`) and the `--strategy` selector. */
 export function isValidStrategyName(name: string): boolean {
-  return isValidExecutableName(name);
+  return STRATEGY_NAME_RE.test(name);
 }
 
 /** Source body for a new `src/strategy/<name>.ts` executable. */
@@ -272,7 +274,7 @@ export function createStrategy(
   const clean = name.trim();
   if (!isValidStrategyName(clean)) {
     throw new Error(
-      `Invalid strategy name "${clean}" — use camelCase with no spaces or separators (e.g. dcaDaily); it is the spec filename and --strategy selector.`,
+      `Invalid strategy name "${clean}" — use camelCase or PascalCase with no spaces or separators (e.g. dcaDaily, Yield); it is the spec filename and --strategy selector.`,
     );
   }
   const executable = opts.executable ?? DEFAULT_EXECUTABLE;
