@@ -21,7 +21,10 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+
+const require = createRequire(import.meta.url);
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const rel = (p) => relative(ROOT, p);
@@ -108,9 +111,13 @@ function main() {
     written.push({ name, ...b });
   });
 
-  const tsc = join(ROOT, "node_modules", ".bin", "tsc");
+  // Run tsc's own JS entry point via `node`, not the `node_modules/.bin/tsc`
+  // shim directly — that shim is a POSIX shebang script, and Windows' native
+  // process spawn (no shell) can't execute it, failing with ENOENT before tsc
+  // ever runs (silently, since execFileSync's stdout/stderr are then empty).
+  const tsc = require.resolve("typescript/bin/tsc");
   try {
-    execFileSync(tsc, ["-p", join(workDir, "tsconfig.json"), "--noEmit"], {
+    execFileSync(process.execPath, [tsc, "-p", join(workDir, "tsconfig.json"), "--noEmit"], {
       cwd: ROOT,
       stdio: "pipe",
     });

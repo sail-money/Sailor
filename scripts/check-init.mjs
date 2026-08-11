@@ -48,8 +48,9 @@ try {
     fail(`\`sailor init ${PROJECT}\` exited non-zero.\n  ${out || err.message}`);
   }
 
-  // A successful fresh init prints the AGENTS.md onboarding banner.
-  if (!/AGENTS\.md/i.test(stdout)) {
+  // A successful fresh init prints the mandatory-read banner pointing at the
+  // sailor-navigator skill.
+  if (!/sailor-navigator/i.test(stdout)) {
     fail(`init did not report success.\n  stdout: ${stdout.trim()}`);
   }
 
