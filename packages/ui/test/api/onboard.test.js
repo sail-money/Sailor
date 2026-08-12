@@ -130,6 +130,22 @@ describe('POST /api/onboard/complete', () => {
     expect(state.body.hasAccount).toBe(true)
   })
 
+  it('does not auto-seed a strategy on SMA creation (strategies are created explicitly)', async () => {
+    const safe = '0x8E637d9573Ad81B60cb93edA78b9C827860950a4'
+    const res = await fix.api.post('/api/onboard/complete').send({
+      safe,
+      owner: '0x7f8c6DB60b46F7eCBA131b882fBea1Fed4F5f4F5',
+      manager: '0xa6D478146f03E9473582aCe099c67e3CbB5EC2BE',
+      chainId: 8453,
+    })
+    expect(res.status).toBe(200)
+
+    // No hardcoded "Default": a project has zero strategies until the user creates one
+    // (via the sailor-strategy flow or `sailor strategy create`).
+    const file = path.join(fix.sailDir, 'strategies', 'strategies.json')
+    expect(fs.existsSync(file)).toBe(false)
+  })
+
   it('rejects invalid safe address', async () => {
     const res = await fix.api.post('/api/onboard/complete').send({
       safe: 'bad',

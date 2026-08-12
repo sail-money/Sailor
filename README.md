@@ -44,7 +44,7 @@ Open the scaffold in Claude Code, Cursor, Codex, or any AI coding agent and say 
 | **CLI** (`sailor`) | Everything from `sailor init` to `sailor run`: keys, SMA deployment, mandate lifecycle, agent loop, doctor, session control |
 | **Dashboard** (`sailor ui`) | Local web UI for onboarding, balances, mandate health, activity, and owner signing |
 | **Shipyard** (`sailor sandbox`) | A simulation sandbox: forks the chains locally so an agent can go through setup → deploy → mandate → run with real liquidity and fake money. Real market state, frozen at the moment the fork starts, against the real deployed contracts: the place to prove a mandate permits what you think it permits, not to backtest a strategy. Fully isolated from live state. Needs Foundry. See [docs/shipyard.md](./docs/shipyard.md) |
-| **Skills** | 22 skills under `.agents/skills/`, organized by the five stations: onboarding and diagnostics, strategy definition, mandate construction (one skill per shared permission template, plus the full custom-permission lifecycle), agent construction with a verified code skeleton and its own chain-reconciled memory, and unattended operation through exit. The skills are the harness: any coding agent reads them natively and follows the same verified path in every project. |
+| **Skills** | Set of skills under `.agents/skills/`, organized by the five stations: onboarding and diagnostics, strategy definition, mandate construction (one skill per shared permission template, plus the full custom-permission lifecycle), agent construction with a verified code skeleton and its own chain-reconciled memory, and unattended operation through exit. The skills are the harness: any coding agent reads them natively and follows the same verified path in every project. |
 
 **About the scaffold.** `sailor init` scaffolds your project from `scaffold/`, and the agent arrives already equipped. The skills are organized by the five stations: setting up (onboarding, project state, the local servers), defining the strategy, constructing the mandate (one skill per shared permission template, plus the full custom-permission lifecycle), building the agent (a typecheck-verified tick-loop skeleton in `sailor-agent-build`), and operating it unattended through exit (automation, monitoring/tuning/revoke/withdraw, optional notifications and dashboards). The scaffold also ships `contracts/`, a Foundry workspace for authoring your own `IPermission` — there is no separate examples directory: authoring patterns live in the `sailor-mandates` skill, and the canonical agent loop is the verified skeleton in `sailor-agent-build`. Shipped, self-contained context in every scaffold, not repo furniture.
 
@@ -94,7 +94,7 @@ Project files live on your host via the volume mount; prefix `sailor` commands w
 
 ## Quickstart
 
-The recommended path is agent-driven: open the scaffolded folder in Claude Code, Cursor, Codex, or any AI coding agent and say **"start"** — the scaffold's `AGENTS.md` and skills walk the agent through everything below. The journey is five stations: **ARRIVE → STRATEGY → MANDATE → AGENT → SAIL** (`AGENTS.md` is the map). The direct-CLI version of the same journey:
+The recommended path is agent-driven: open the scaffolded folder in Claude Code, Cursor, Codex, or any AI coding agent and say **"start"** — the scaffold's skills walk the agent through everything below. The journey is five stations: **ARRIVE → STRATEGY → MANDATE → AGENT → SAIL** (the `sailor-navigator` skill is the map). The direct-CLI version of the same journey:
 
 ```bash
 npx @sail.money/sailor init my-agent && cd my-agent && npm install
@@ -104,8 +104,9 @@ sailor keys generate --type agent-wallet
 sailor owner connect
 sailor onboard --new-sma
 
-# STRATEGY — make the strategy concrete (.sail/strategy.md). No CLI step; the
-#   skills flow runs it as a guided conversation, then every later station reads it.
+# STRATEGY — make the strategy concrete (one spec per strategy: .sail/strategies/<name>.md;
+#   then .sail/strategies/strategies.json via `sailor strategy create`). No CLI step for the spec;
+#   the skills flow runs it as a guided conversation, then every later station reads it.
 
 # MANDATE — register + configure a shared permission singleton (both required;
 #   a registered-but-unconfigured singleton denies every call):
@@ -133,7 +134,7 @@ Longer walkthrough, including revocation: [docs/getting-started.md](./docs/getti
 
 ## How the agent is guided (skills)
 
-The scaffold follows the open [Agent Skills](https://agentskills.io) standard: a slim, always-loaded `AGENTS.md` carries the project map and hard invariants, while detailed procedures live in on-demand skills under `.agents/skills/` — onboarding, transactions, mandate authoring, shared-template configuration (one skill per template), automation, and more. Shared templates are registered and configured *through* the skills because the safe order of operations (register → configure → simulate → verify) is encoded there once, instead of re-derived by every agent. Skills are plain markdown; agents that don't scan skills follow the routing table in `AGENTS.md` to the same files. See [docs/templates-and-skills.md](./docs/templates-and-skills.md).
+The scaffold follows the open [Agent Skills](https://agentskills.io) standard: the `sailor-navigator` skill, loaded first, carries the project map and hard safety invariants, while detailed procedures live in the other on-demand skills under `.agents/skills/` — onboarding, transactions, mandate authoring, shared-template configuration (one skill per template), automation, and more. Shared templates are registered and configured *through* the skills because the safe order of operations (register → configure → simulate → verify) is encoded there once, instead of re-derived by every agent. Skills are plain markdown; agents that don't scan skills read `sailor-navigator` and follow its links to the same files. `AGENTS.md` now holds the user's own project instructions. See [docs/templates-and-skills.md](./docs/templates-and-skills.md).
 
 ## Documentation
 

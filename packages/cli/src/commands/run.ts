@@ -4,10 +4,12 @@ import { pathToFileURL } from "node:url";
 import {
   type Agent,
   type AgentContext,
+  type ChainHandle,
   type Dispatch,
   type ILocalKeyring,
   SailorClient,
   getChain,
+  getDefaultRpcUrl,
 } from "@sail/sdk";
 import { http, type Address, type Hex, createPublicClient, createWalletClient, defineChain, getAddress } from "viem";
 import {
@@ -28,64 +30,38 @@ import {
 } from "../lib/permission-resolver.js";
 import { clearAgentPid, writeAgentPid } from "../lib/process.js";
 import { readActiveAccount } from "@sail/sdk/accounts";
-import type { StoredAccount, StoredMandate } from "../lib/state.js";
+import {
+  type StoredStrategy,
+  deployedChainsForSma,
+  getStrategy,
+  readActiveStrategies,
+  readChainEnv,
+} from "@sail/sdk/strategies";
+import type { StoredMandate } from "../lib/state.js";
 
 const DEFAULT_INTERVAL_SEC = 60;
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** The manager signer loaded for one SMA (its address + signing fns + viem account). */
+type Signer = Awaited<ReturnType<typeof loadManagerSigner>>;
+
 /**
  * Runner-level dispatch annotation.
  *
- * Extends the SDK's `Dispatch` type with an optional `permission` override.
- * The core SDK `Dispatch` type is intentionally kept clean — this is a
- * runner-internal concern only.
- *
- * When an agent sets `permission`, the runner uses it directly and skips the
- * off-chain evaluate() probe. When absent (the default), the runner probes all
- * registered permissions automatically and routes to the correct one.
- *
- * Backward compatible: existing agents that never set `permission` continue to
- * work unchanged via the probe path.
- *
- * Example of how an agent CAN override (skip probe for a known permission):
- *   return [{ ...dispatch, permission: KNOWN_PERMISSION_ADDRESS }];
+ * Extends the SDK's `Dispatch` type with an optional `permission` override and a `chainId` routing
+ * tag. When an agent sets `permission`, the runner uses it directly and skips the off-chain
+ * evaluate() probe. `chainId` (set by `ctx.chain(id).dispatch`) tells the runner which chain to
+ * execute the intent on; an untagged intent defaults to the tick's default chain.
  */
-type RunnerDispatch = Dispatch & { permission?: Address };
+type RunnerDispatch = Dispatch & { permission?: Address; chainId?: number };
 
 /** Minimal ERC-20 ABI fragments for read helpers. */
 const ERC20_READ_ABI = [
-  {
-    type: "function",
-    name: "balanceOf",
-    stateMutability: "view",
-    inputs: [{ name: "account", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "allowance",
-    stateMutability: "view",
-    inputs: [
-      { name: "owner", type: "address" },
-      { name: "spender", type: "address" },
-    ],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "decimals",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "uint8" }],
-  },
-  {
-    type: "function",
-    name: "symbol",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "string" }],
-  },
+  { type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] },
+  { type: "function", name: "allowance", stateMutability: "view", inputs: [{ name: "owner", type: "address" }, { name: "spender", type: "address" }], outputs: [{ name: "", type: "uint256" }] },
+  { type: "function", name: "decimals", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint8" }] },
+  { type: "function", name: "symbol", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "string" }] },
 ] as const;
 
 /** Loads the agent data slot from SAILOR_DATA (a JSON file path), or {} . */
@@ -100,27 +76,30 @@ function loadAgentData(filePath: string | undefined): Record<string, unknown> {
 }
 
 /**
- * Dynamically imports the agent from the current project.
+ * Dynamically imports an executable by name from the current project.
  *
- * For .ts files: uses tsx's tsImport() which handles the .js→.ts resolution that
- * Node's native TypeScript support doesn't do. tsx must be installed in the
- * project or the CLI's node_modules.
- * For .js files: plain dynamic import().
+ * The default `agent` executable keeps the classic `src/agent.ts` path (so existing projects run
+ * unchanged); named/custom executables resolve from `src/strategy/<name>.ts` (and built
+ * `dist/strategy/<name>.js`). `.ts` files load via tsx's tsImport(); `.js` via plain dynamic import().
  */
-async function loadAgent(): Promise<Agent> {
-  const candidates = ["src/agent.ts", "src/agent.js", "dist/agent.js", "dist/src/agent.js"];
+async function loadExecutable(name: string): Promise<Agent> {
+  const candidates =
+    name === "agent"
+      ? ["src/agent.ts", "src/agent.js", "dist/agent.js", "dist/src/agent.js"]
+      : [
+          `src/strategy/${name}.ts`,
+          `src/strategy/${name}.js`,
+          `dist/strategy/${name}.js`,
+          `dist/src/strategy/${name}.js`,
+        ];
   for (const rel of candidates) {
     const abs = path.join(process.cwd(), rel);
     if (!fs.existsSync(abs)) continue;
 
     let mod: { agent?: Agent; default?: Agent };
     if (abs.endsWith(".ts")) {
-      // tsx resolves .js import specifiers to .ts source files — required for
-      // TypeScript agents that use the standard .js extension convention.
-      // Pass absUrl as both specifier and parentURL. The specifier must be a
-      // file URL (not a bare path) so Windows paths like C:\... aren't
-      // misread as a URL with scheme "c:". parentURL is only used to resolve
-      // relative specifiers, so passing absUrl (an absolute URL) is safe.
+      // tsx resolves .js import specifiers to .ts source files. The specifier must be a file URL
+      // (not a bare path) so Windows paths like C:\... aren't misread as a URL with scheme "c:".
       const { tsImport } = await import("tsx/esm/api");
       const absUrl = pathToFileURL(abs).href;
       mod = (await tsImport(absUrl, absUrl)) as typeof mod;
@@ -135,31 +114,58 @@ async function loadAgent(): Promise<Agent> {
     return agent;
   }
   throw new Error(
-    "No agent found. Expected src/agent.ts (loaded via tsx) or a built dist/agent.js.\n" +
-      "If src/agent.ts exists, ensure tsx is installed: pnpm add tsx",
+    `No executable "${name}" found. Expected ` +
+      (name === "agent" ? "src/agent.ts" : `src/strategy/${name}.ts`) +
+      ". Ensure tsx is installed: pnpm add tsx",
   );
 }
 
 /**
- * `sailor run [--once]` — the agent execution loop.
+ * Validate an RPC URL to prevent SSRF against internal endpoints (e.g. AWS IMDS at
+ * 169.254.169.254) via a crafted .env.local. Throws on a bad/blocked URL.
+ */
+function assertSafeRpcUrl(rpcUrl: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(rpcUrl);
+  } catch {
+    throw new Error(`RPC_URL is not a valid URL: ${rpcUrl}`);
+  }
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    throw new Error(`RPC_URL must use http or https — got: ${parsed.protocol}`);
+  }
+  const blocked =
+    /^(169\.254\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|127\.|0\.0\.0\.0|::1$|fd[0-9a-f]{2}:)/i;
+  if (blocked.test(parsed.hostname) && !process.env.SAILOR_ALLOW_LOCAL_RPC) {
+    throw new Error(
+      `RPC_URL hostname "${parsed.hostname}" is a private or link-local address. ` +
+        "Set SAILOR_ALLOW_LOCAL_RPC=1 to allow local RPC endpoints (dev only).",
+    );
+  }
+}
+
+/**
+ * `sailor run [--once]` — the strategy execution loop.
  *
- * Each tick calls agent.tick(ctx); for every returned Dispatch the runner
- * previews it against the kernel, executes approved ones, and records the
- * outcome to .sail/activity.jsonl. A denied or failing dispatch is logged and
- * skipped — it never stops the loop.
+ * Each tick runs every active strategy (or the one named by `--strategy`). A strategy is one SMA +
+ * one executable: with a `chains` list the executable is replayed once per chain; without one it
+ * runs once, default-bound to the SMA's primary deployed chain, and may drive other chains via
+ * `ctx.chain(id)`. Returned Dispatch intents are grouped by their chain tag; for each the runner
+ * resolves the authorising permission, previews it, executes approved ones, and records the outcome
+ * to .sail/activity.jsonl. A denied or failing dispatch is logged and skipped — it never stops the
+ * loop. The chain comes solely from the strategy; `CHAIN_ID` is no longer read.
  */
 export async function runCommand(opts: {
   once?: boolean;
-  chain?: number;
+  strategy?: string;
   reason?: string;
+  sma?: string;
+  chains?: number[];
 }): Promise<void> {
   const once = opts.once === true;
 
-  // ── Load required local state ──────────────────────────────────────────────
-  const account = readActiveAccount();
-  if (!account) {
-    throw new Error('No account found at .sail/account.json.\nRun "sailor onboard --new-sma" first.');
-  }
+  // A mandate must exist somewhere in the project before running (permissions are read on-chain
+  // per SMA per tick; this is just the "you haven't signed anything yet" gate).
   const mandateRaw = readJsonFile<StoredMandate | StoredMandate[]>(sailPath("mandate.json"));
   const mandate = Array.isArray(mandateRaw) ? mandateRaw[0] : mandateRaw;
   if (!mandate) {
@@ -167,133 +173,59 @@ export async function runCommand(opts: {
   }
 
   const env = parseEnvFile(sailPath(".env.local"));
-
-  // Inject .env.local values into process.env for anything not already set
-  // by the shell. This lets operators store SAIL_PASSPHRASE in .env.local for
-  // non-interactive use (CI, launchd, systemd) without having to export it in
-  // the shell — useful since the file is already gitignored and keys-protected.
-  // Values already set in the environment (e.g. CI secrets) take precedence.
+  // Inject shared .env.local values into process.env for anything not already set by the shell
+  // (e.g. SAIL_PASSPHRASE for headless use). Per-chain values live in .sail/env/<slug>.json and
+  // reach executables via ctx.env, NOT process.env.
   for (const [k, v] of Object.entries(env)) {
     if (v && !process.env[k]) process.env[k] = v;
   }
 
-  // Observability label for WHY this run fired: --reason flag > SAIL_RUN_REASON
-  // (shell or .env.local, injected above) > "manual". Recorded in the run header
-  // and every tick_start event; it does NOT affect execution.
   const runReason = opts.reason ?? process.env.SAIL_RUN_REASON ?? "manual";
 
-  // CHAIN_ID resolution order: --chain flag > shell env > .env.local > config.json chainId.
-  const configChainId = readJsonFile<{ chainId?: number }>(sailPath("config.json"))?.chainId;
-  const chainIdRaw = opts.chain != null
-    ? String(opts.chain)
-    : process.env.CHAIN_ID ?? env.CHAIN_ID ?? (configChainId != null ? String(configChainId) : undefined);
-  if (!chainIdRaw) {
-    throw new Error(
-      "CHAIN_ID must be set in .sail/.env.local or .sail/config.json.\n" +
-        "  CHAIN_ID=8453   (Base) or CHAIN_ID=42161   (Arbitrum)",
-    );
-  }
-  const chainId = Number(chainIdRaw);
-  if (Number.isNaN(chainId)) {
-    throw new Error(`Invalid CHAIN_ID: "${chainIdRaw}".`);
-  }
-  // RPC resolution: getRpcUrl checks named vars (BASE_RPC_URL, ARBITRUM_RPC_URL),
-  // then RPC_URL_<chainId>, then generic RPC_URL — so per-chain keys always win.
-  const rpcUrl = getRpcUrl(chainId);
-  if (!rpcUrl) {
-    throw new Error(
-      "RPC_URL must be set in .sail/.env.local.\n" +
-        "  RPC_URL=https://your-rpc-endpoint  (or BASE_RPC_URL / RPC_URL_8453 for per-chain config)",
-    );
-  }
-
-  // Validate the RPC URL to prevent SSRF attacks against internal network
-  // endpoints (e.g., AWS IMDSv1 at 169.254.169.254) via a crafted .env.local.
-  try {
-    const parsed = new URL(rpcUrl);
-    if (!["http:", "https:"].includes(parsed.protocol)) {
-      throw new Error(`RPC_URL must use http or https — got: ${parsed.protocol}`);
-    }
-    // Block RFC-1918, link-local, and loopback ranges (except explicit localhost
-    // dev usage, which operators can allow by setting SAILOR_ALLOW_LOCAL_RPC=1).
-    const blocked =
-      /^(169\.254\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|127\.|0\.0\.0\.0|::1$|fd[0-9a-f]{2}:)/i;
-    if (blocked.test(parsed.hostname) && !process.env.SAILOR_ALLOW_LOCAL_RPC) {
+  // ── Resolve which strategies to run ─────────────────────────────────────────
+  let strategies: StoredStrategy[];
+  if (opts.strategy) {
+    const s = getStrategy(opts.strategy);
+    if (!s) throw new Error(`No strategy named "${opts.strategy}". List them with \`sailor strategy list\`.`);
+    strategies = [s];
+  } else {
+    strategies = readActiveStrategies();
+    if (strategies.length === 0) {
       throw new Error(
-        `RPC_URL hostname "${parsed.hostname}" is a private or link-local address. ` +
-          "Set SAILOR_ALLOW_LOCAL_RPC=1 to allow local RPC endpoints (dev only).",
+        "No active strategies. Create one with the sailor-strategy skill, or run " +
+          "`sailor strategy create <name> --sma <address>` (the `agent` executable is the default).",
       );
     }
-  } catch (e) {
-    if ((e as Error).message.startsWith("RPC_URL")) throw e;
-    throw new Error(`RPC_URL is not a valid URL: ${rpcUrl}`);
   }
 
-  if (!keyExists("manager", account.safe)) {
-    throw new Error(
-      'No manager key found.\nRun "sailor keys generate" and choose "manager" first.',
-    );
+  // Optional run-time filters (do NOT change stored config): restrict to a specific SMA and/or
+  // chains. The `--sma` filter drops non-matching strategies here; the `--chains` filter narrows the
+  // deployed/replay set each strategy runs on (applied per strategy in `runStrategy`). With no
+  // filter, every chosen strategy runs on its full chain set.
+  const smaFilter = opts.sma ? checksum(opts.sma) : null;
+  const chainFilter = opts.chains && opts.chains.length > 0 ? new Set(opts.chains) : null;
+  if (smaFilter) {
+    strategies = strategies.filter((s) => checksum(s.sma) === smaFilter);
   }
 
-  // ── Resolve kernel address (registry, overridable via env) ───────────────────
-  let kernel: Address | undefined;
-  let mandateFactory: Address | undefined;
-  let chainName = `Chain ${chainId}`;
-  try {
-    const cfg = getChain(chainId);
-    kernel = checksum(cfg.kernel);
-    mandateFactory = checksum(cfg.mandateFactory);
-    chainName = cfg.name;
-  } catch {
-    // chain not in the SDK chain registry — env override may still supply it
-  }
-  if (env.KERNEL_ADDRESS) kernel = checksum(env.KERNEL_ADDRESS);
-  if (env.MANDATE_FACTORY) mandateFactory = checksum(env.MANDATE_FACTORY);
-  if (!kernel) {
-    throw new Error(
-      `No SailKernel address for chain ${chainId}.\nConfigure the chain in the SDK chain registry or set KERNEL_ADDRESS in .sail/.env.local.`,
-    );
-  }
-
-  // ── Load the manager key (SAIL_PASSPHRASE env skips interactive prompt) ──────
-  const manager = await loadManagerSigner(account.safe);
-  // Clear the passphrase from the process environment immediately after loading
-  // the key. Agent code runs in the same process and can read process.env.
-  delete process.env.SAIL_PASSPHRASE;
-  closePrompts();
-  const agentManager: ILocalKeyring = {
-    address: manager.address,
-    sign: manager.sign.bind(manager),
-    signTyped: manager.signTyped.bind(manager),
+  // The chains a strategy would run on under the current filters: for a per-chain strategy
+  // (`chains` set), `chains` ∩ (deployed ∩ filter); for a cross-chain strategy (no `chains`), the
+  // whole deployed set ∩ filter (it runs once, default-bound to the first). Empty ⇒ nothing to run.
+  const runnableChainsFor = (s: StoredStrategy): number[] => {
+    const deployed = deployedChainsForSma(checksum(s.sma));
+    const allowed = chainFilter ? deployed.filter((c) => chainFilter.has(c)) : deployed;
+    if (allowed.length === 0) return [];
+    if (s.chains && s.chains.length > 0) return s.chains.filter((c) => allowed.includes(c));
+    return allowed;
   };
 
-  // ── Build clients ────────────────────────────────────────────────────────────
-  const accountAddr = checksum(account.safe);
-  const chain = defineChain({
-    id: chainId,
-    name: chainName,
-    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-    rpcUrls: { default: { http: [rpcUrl] } },
-  });
-  const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
-  const walletClient = createWalletClient({
-    account: manager.viemAccount,
-    chain,
-    transport: http(rpcUrl),
-  });
-  const readClient = new SailorClient({ rpcUrl, chainId, kernel, mandateFactory });
-  const execClient = readClient.withSigner(walletClient);
-
-  const agent = await loadAgent();
-
-  // Detect the kernel's dispatch model once at startup. Conjunctive kernels have
-  // no previewBatch, so the runner skips the preview step for them.
-  let isConjunctive = false;
-  try {
-    const caps = await readClient.capabilities();
-    isConjunctive = caps.dispatchModel === "conjunctive";
-  } catch {
-    // advisory — default to attempting preview (will throw and be caught per-dispatch)
+  strategies = strategies.filter((s) => runnableChainsFor(s).length > 0);
+  if (strategies.length === 0) {
+    const filterMsg =
+      smaFilter || chainFilter
+        ? `No active strategy matches the filter (${[smaFilter && `sma ${smaFilter}`, chainFilter && `chains ${[...chainFilter].join(",")}`].filter(Boolean).join(", ")}).`
+        : "No strategy to run. Create one with `sailor strategy create` (or activate a configured strategy).";
+    throw new Error(filterMsg);
   }
 
   const intervalSec = (() => {
@@ -307,178 +239,222 @@ export async function runCommand(opts: {
     appendActivity({ ts: nowIso(), actor: "agent", type: "log", msg });
   };
 
-  // Open data slot — seeded once from SAILOR_DATA (JSON file) if set, else {}.
-  // The same object is passed every tick so agents can cache across ticks.
-  // _publicClient: kept for one release so agents written against the old
-  // undocumented key still work. Use ctx.publicClient instead.
-  const agentData: Record<string, unknown> = {
-    ...loadAgentData(process.env.SAILOR_DATA ?? env.SAILOR_DATA),
-    _publicClient: publicClient,
-  };
-
-  // SMA balance reader: native ETH via getBalance, ERC-20 via balanceOf.
-  const readBalance = async (token: Address | "native"): Promise<bigint> => {
-    if (token === "native") {
-      return publicClient.getBalance({ address: accountAddr });
+  // ── Load a manager signer per distinct SMA (up front, so the passphrase can be scrubbed) ─────
+  const distinctSmas = [...new Set(strategies.map((s) => checksum(s.sma)))];
+  const signers = new Map<string, Signer>();
+  for (const safe of distinctSmas) {
+    if (!keyExists("manager", safe)) {
+      throw new Error(
+        `No manager key for SMA ${safe}.\nRun "sailor keys generate" (agent wallet) for it first.`,
+      );
     }
-    return publicClient.readContract({
-      address: token,
-      abi: ERC20_READ_ABI,
-      functionName: "balanceOf",
-      args: [accountAddr],
-    });
+    signers.set(safe, await loadManagerSigner(safe));
+  }
+  // Scrub the passphrase now that every key is loaded — executable code runs in this process.
+  delete process.env.SAIL_PASSPHRASE;
+  closePrompts();
+  const agentManagerFor = new Map<string, ILocalKeyring>();
+  for (const [safe, m] of signers) {
+    agentManagerFor.set(safe, { address: m.address, sign: m.sign.bind(m), signTyped: m.signTyped.bind(m) });
+  }
+
+  // Cache executables by name (import once) and runtimes by `${safe}:${chainId}` (build clients once).
+  const executableCache = new Map<string, Agent>();
+  const loadExecutableFor = async (name: string): Promise<Agent> => {
+    const cached = executableCache.get(name);
+    if (cached) return cached;
+    const agent = await loadExecutable(name);
+    executableCache.set(name, agent);
+    return agent;
   };
 
-  const readAllowance = (token: Address, owner: Address, spender: Address): Promise<bigint> =>
-    publicClient.readContract({
-      address: token,
-      abi: ERC20_READ_ABI,
-      functionName: "allowance",
-      args: [owner, spender],
-    });
+  type ChainRuntime = NonNullable<Awaited<ReturnType<typeof buildRuntime>>>;
+  const runtimeCache = new Map<string, ChainRuntime | null>();
 
-  // Decimals are immutable — cache per token for the lifetime of this run.
-  const decimalsCache = new Map<Address, number>();
-  const readDecimals = async (token: Address): Promise<number> => {
-    const key = getAddress(token);
-    const cached = decimalsCache.get(key);
-    if (cached !== undefined) return cached;
-    const d = await publicClient.readContract({
-      address: token,
-      abi: ERC20_READ_ABI,
-      functionName: "decimals",
-    });
-    decimalsCache.set(key, d);
-    return d;
-  };
+  /**
+   * Build (or return null for) the per-(SMA, chain) runtime: RPC, kernel, clients, capability
+   * detection, data slot, and read helpers. Returns null when the chain can't run (missing/invalid
+   * RPC or an unresolvable kernel) so one misconfigured (SMA, chain) never aborts the others.
+   */
+  const buildRuntime = async (safe: string, chainId: number) => {
+    const accountAddr = checksum(safe);
+    const signer = signers.get(accountAddr);
+    const agentManager = agentManagerFor.get(accountAddr);
+    if (!signer || !agentManager) {
+      console.error(`skip ${accountAddr}: no manager signer loaded`);
+      return null;
+    }
 
-  // Symbols are immutable too — cache per token. Best-effort: a token without a
-  // string symbol() just yields undefined (the amount still shows, sans ticker).
-  const symbolCache = new Map<Address, string | undefined>();
-  const readSymbol = async (token: Address): Promise<string | undefined> => {
-    const key = getAddress(token);
-    if (symbolCache.has(key)) return symbolCache.get(key);
-    let sym: string | undefined;
+    let kernel: Address | undefined;
+    let mandateFactory: Address | undefined;
+    let chainName = `Chain ${chainId}`;
     try {
-      sym = (await publicClient.readContract({
-        address: token,
-        abi: ERC20_READ_ABI,
-        functionName: "symbol",
-      })) as string;
+      const cfg = getChain(chainId);
+      kernel = checksum(cfg.kernel);
+      mandateFactory = checksum(cfg.mandateFactory);
+      chainName = cfg.name;
     } catch {
-      sym = undefined;
+      // chain not in the SDK registry — env override may still supply the kernel
     }
-    symbolCache.set(key, sym);
-    return sym;
-  };
-
-  // Decode "how much moved" for a dispatch so the activity feed shows a real
-  // amount instead of $0.00 (S4). First call whose calldata is a standard ERC-20
-  // approve/transfer/transferFrom wins; otherwise a non-zero native `value`.
-  // Returns activity fields to spread onto the event, or {} when nothing is
-  // decodable (feed then shows no amount rather than a fabricated zero).
-  const describeDispatchValue = async (
-    calls: readonly { target: Address; data: Hex; value?: bigint }[],
-  ): Promise<Record<string, unknown>> => {
-    for (const c of calls) {
-      const move = decodeTokenMove(c.data);
-      if (!move) continue;
-      let decimals: number;
-      try {
-        decimals = await readDecimals(c.target);
-      } catch {
-        continue; // can't read decimals → can't format; try the next call
-      }
-      return {
-        amount: move.amount.toString(),
-        amountFormatted: formatTokenAmount(move.amount, decimals),
-        token: getAddress(c.target),
-        tokenSymbol: await readSymbol(c.target),
-        tokenDecimals: decimals,
-        // `approve` sets an allowance, not a transfer — label it so the UI can
-        // say "approve 5 USDC" vs "swap 5 USDC" without implying funds moved.
-        amountKind: move.fn === "approve" ? "allowance" : "transfer",
-        // Max-uint (unlimited) approvals would otherwise render as a ~78-digit
-        // number; flag them so the UI shows "unlimited" instead.
-        ...(isUnlimitedAmount(move.amount) ? { unlimited: true } : {}),
-      };
+    if (env.KERNEL_ADDRESS) kernel = checksum(env.KERNEL_ADDRESS);
+    if (env.MANDATE_FACTORY) mandateFactory = checksum(env.MANDATE_FACTORY);
+    if (!kernel) {
+      console.error(`skip chain ${chainId}: no SailKernel address (not in registry, no KERNEL_ADDRESS).`);
+      return null;
     }
-    const nativeCall = calls.find((c) => (c.value ?? 0n) > 0n);
-    if (nativeCall) {
-      const value = nativeCall.value ?? 0n;
-      return {
-        amount: value.toString(),
-        amountFormatted: formatTokenAmount(value, 18),
-        tokenSymbol: chain.nativeCurrency.symbol,
-        tokenDecimals: 18,
-        amountKind: "native",
-      };
+
+    // Configured RPC wins; else the chain registry's public default (rate-limited — set your own
+    // RPC_URL in .sail/.env.local for production). ponytail: public default is fine for dev/first-run.
+    const rpcUrl = getRpcUrl(chainId) ?? getDefaultRpcUrl(chainId);
+    if (!rpcUrl) {
+      console.error(`skip chain ${chainId} (${chainName}): no RPC configured and no registry default.`);
+      return null;
     }
-    return {};
-  };
-
-  // ── One tick: agent.tick → preview → execute → log ───────────────────────────
-  async function runTick(): Promise<void> {
-    appendActivity({ ts: nowIso(), actor: "agent", type: "tick_start", chainId, reason: runReason });
-
-    // Fetch the current block once per tick. Real block number + timestamp are used
-    // in the off-chain evaluate() probe so time- or block-gated permissions get
-    // accurate context and don't produce false negatives.
-    let blockInfo = { number: 0n, timestamp: 0n };
     try {
-      const block = await publicClient.getBlock();
-      blockInfo = {
-        number:    block.number    ?? 0n,
-        timestamp: block.timestamp ?? 0n,
-      };
-    } catch {
-      // RPC unavailable — proceed with zeros; per-dispatch calls will surface the error
+      assertSafeRpcUrl(rpcUrl);
+    } catch (e) {
+      console.error(`skip chain ${chainId} (${chainName}): ${(e as Error).message}`);
+      return null;
     }
-    const blockNumber = blockInfo.number;
 
-    const ctx: AgentContext = {
-      safe: accountAddr,
-      account: accountAddr,
-      chainId,
-      blockNumber,
-      timestamp: Math.floor(Date.now() / 1000),
-      now: new Date(),
-      // Expose a constrained client to agent code: dispatch and strategy namespaces
-      // use the exec client (wallet attached) so agents can sign dispatches, but
-      // fees, principal, account, mandate, and session use the read-only client
-      // (no wallet) so agent code cannot call fees.collect(), account.create(),
-      // or other privileged write operations that bypass the dispatch gate and
-      // are authorized solely by msg.sender == manager key.
-      client: Object.assign(Object.create(readClient) as typeof readClient, {
-        dispatch: execClient.dispatch,
-        strategy: execClient.strategy,
-      }),
-      publicClient,
-      manager: agentManager,
-      log,
-      data: agentData,
-      read: {
-        balance: readBalance,
-        allowance: readAllowance,
-        decimals: readDecimals,
-      },
+    const chain = defineChain({
+      id: chainId,
+      name: chainName,
+      nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+      rpcUrls: { default: { http: [rpcUrl] } },
+    });
+    const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
+    const walletClient = createWalletClient({ account: signer.viemAccount, chain, transport: http(rpcUrl) });
+    const readClient = new SailorClient({ rpcUrl, chainId, kernel, mandateFactory });
+    const execClient = readClient.withSigner(walletClient);
+
+    let isConjunctive = false;
+    try {
+      const caps = await readClient.capabilities();
+      isConjunctive = caps.dispatchModel === "conjunctive";
+    } catch {
+      // advisory — default to attempting preview (throws are caught per-dispatch)
+    }
+
+    const data: Record<string, unknown> = {
+      ...loadAgentData(process.env.SAILOR_DATA ?? env.SAILOR_DATA),
+      _publicClient: publicClient,
     };
 
-    let dispatches: Dispatch[];
-    try {
-      dispatches = await agent.tick(ctx);
-    } catch (err) {
-      const reason = (err as Error).message;
-      console.error(`tick error: ${reason}`);
-      appendActivity({ ts: nowIso(), actor: "agent", type: "error", reason, chainId });
-      appendActivity({ ts: nowIso(), actor: "agent", type: "tick_end", chainId });
-      return;
-    }
+    const readBalance = async (token: Address | "native"): Promise<bigint> =>
+      token === "native"
+        ? publicClient.getBalance({ address: accountAddr })
+        : publicClient.readContract({ address: token, abi: ERC20_READ_ABI, functionName: "balanceOf", args: [accountAddr] });
 
-    // ── Per-tick setup for permission resolution ────────────────────────────────
-    // Fetch registered permissions once per tick (one eth_call). Registration
-    // order is preserved — first-by-registration-order wins when two permissions
-    // both accept a call (intentional, deterministic behaviour).
+    const readAllowance = (token: Address, owner: Address, spender: Address): Promise<bigint> =>
+      publicClient.readContract({ address: token, abi: ERC20_READ_ABI, functionName: "allowance", args: [owner, spender] });
+
+    const decimalsCache = new Map<Address, number>();
+    const readDecimals = async (token: Address): Promise<number> => {
+      const key = getAddress(token);
+      const cached = decimalsCache.get(key);
+      if (cached !== undefined) return cached;
+      const d = await publicClient.readContract({ address: token, abi: ERC20_READ_ABI, functionName: "decimals" });
+      decimalsCache.set(key, d);
+      return d;
+    };
+
+    const symbolCache = new Map<Address, string | undefined>();
+    const readSymbol = async (token: Address): Promise<string | undefined> => {
+      const key = getAddress(token);
+      if (symbolCache.has(key)) return symbolCache.get(key);
+      let sym: string | undefined;
+      try {
+        sym = (await publicClient.readContract({ address: token, abi: ERC20_READ_ABI, functionName: "symbol" })) as string;
+      } catch {
+        sym = undefined;
+      }
+      symbolCache.set(key, sym);
+      return sym;
+    };
+
+    const describeDispatchValue = async (
+      calls: readonly { target: Address; data: Hex; value?: bigint }[],
+    ): Promise<Record<string, unknown>> => {
+      for (const c of calls) {
+        const move = decodeTokenMove(c.data);
+        if (!move) continue;
+        let decimals: number;
+        try {
+          decimals = await readDecimals(c.target);
+        } catch {
+          continue;
+        }
+        return {
+          amount: move.amount.toString(),
+          amountFormatted: formatTokenAmount(move.amount, decimals),
+          token: getAddress(c.target),
+          tokenSymbol: await readSymbol(c.target),
+          tokenDecimals: decimals,
+          amountKind: move.fn === "approve" ? "allowance" : "transfer",
+          ...(isUnlimitedAmount(move.amount) ? { unlimited: true } : {}),
+        };
+      }
+      const nativeCall = calls.find((c) => (c.value ?? 0n) > 0n);
+      if (nativeCall) {
+        const value = nativeCall.value ?? 0n;
+        return { amount: value.toString(), amountFormatted: formatTokenAmount(value, 18), tokenSymbol: chain.nativeCurrency.symbol, tokenDecimals: 18, amountKind: "native" };
+      }
+      return {};
+    };
+
+    return {
+      accountAddr,
+      chainId,
+      chainName,
+      kernel,
+      chain,
+      publicClient,
+      readClient,
+      execClient,
+      isConjunctive,
+      signer,
+      agentManager,
+      data,
+      readBalance,
+      readAllowance,
+      readDecimals,
+      describeDispatchValue,
+    };
+  };
+
+  const getRuntime = async (safe: string, chainId: number): Promise<ChainRuntime | null> => {
+    const key = `${checksum(safe)}:${chainId}`;
+    if (runtimeCache.has(key)) return runtimeCache.get(key) ?? null;
+    const rt = await buildRuntime(safe, chainId);
+    runtimeCache.set(key, rt);
+    return rt;
+  };
+
+  type BlockInfo = { number: bigint; timestamp: bigint };
+
+  // Fetch the current block for a runtime; zeros when the RPC is unavailable (per-call errors surface later).
+  const getBlockInfo = async (rt: ChainRuntime): Promise<BlockInfo> => {
+    try {
+      const block = await rt.publicClient.getBlock();
+      return { number: block.number ?? 0n, timestamp: block.timestamp ?? 0n };
+    } catch {
+      return { number: 0n, timestamp: 0n };
+    }
+  };
+
+  /**
+   * Resolve → preview → execute → log a runtime's dispatches, then a one-line per-chain summary.
+   * Failures are swallowed and the loop continues — a denied/reverted/erroring dispatch never stops
+   * the run.
+   */
+  const executeDispatches = async (
+    rt: ChainRuntime,
+    dispatches: Dispatch[],
+    blockInfo: BlockInfo,
+  ): Promise<void> => {
+    const { accountAddr, kernel, publicClient, readClient, execClient, isConjunctive, signer, agentManager } = rt;
+
     let registeredPermissions: Address[] = [];
     try {
       const perms = await readClient.mandate.list(accountAddr);
@@ -487,14 +463,11 @@ export async function runCommand(opts: {
       console.error(`could not read registered permissions: ${(err as Error).message}`);
     }
 
-    // ── Dispatch loop ───────────────────────────────────────────────────────────
     let tickExecuted = 0;
     let tickReverted = 0;
-    let tickSkipped  = 0;
+    let tickSkipped = 0;
 
     for (const rawDispatch of dispatches) {
-      // Cast to RunnerDispatch so agents can optionally annotate with a
-      // `permission` override without the core SDK type needing to change.
       const dispatch = rawDispatch as RunnerDispatch;
       const [firstCall] = dispatch.calls;
       const target = firstCall?.target ?? ("0x" as Address);
@@ -505,7 +478,6 @@ export async function runCommand(opts: {
           tickSkipped++;
           continue;
         }
-
         if (registeredPermissions.length === 0) {
           appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_denied", target, reason: "no_registered_permissions" });
           console.log("skipped: no permissions registered on this SMA — run `sailor mandate sign` first");
@@ -513,77 +485,37 @@ export async function runCommand(opts: {
           continue;
         }
 
-        // ── Resolve the authorising permission ────────────────────────────────
-        //
-        // PRIMARY PATH — off-chain evaluate() probe: iterate each registered
-        //   permission in registration order, call evaluate(txData, ctx) via
-        //   eth_call, use the first that returns true. Requires zero protocol
-        //   knowledge from the agent; the runner finds the correct permission
-        //   automatically.
-        //
-        // OVERRIDE — if the agent set `dispatch.permission`, use it directly and
-        //   skip the probe. This is an optimisation/escape hatch, not the
-        //   recommended path — probe-primary is the default everyone gets.
-        //
-        // Registration-order first-match for overlapping permissions is
-        // intentional: deterministic, documented, and semantically equivalent
-        // since the kernel's selective model accepts any registered permission
-        // that approves the call.
         let permission: Address | undefined;
-
         if (dispatch.permission) {
-          // Agent-supplied explicit override — skip probe.
           permission = dispatch.permission;
         } else if (dispatch.calls.length > 1) {
-          // Batch dispatch: find a batch-aware permission that accepts the whole
-          // call sequence. Uses kernel.previewBatch (eth_call) per candidate.
           permission = await resolvePermissionForBatch({
             publicClient,
-            kernel: kernel!, // narrowed: runCommand validates kernel before runTick runs
-            account:               accountAddr,
-            calls:                 dispatch.calls,
+            kernel,
+            account: accountAddr,
+            calls: dispatch.calls,
             registeredPermissions,
           });
         } else {
-          // Single-call dispatch: find a permission whose evaluate() accepts it.
           permission = await resolvePermissionForCall({
             publicClient,
-            kernel: kernel!, // narrowed: runCommand validates kernel before runTick runs
-            account:               accountAddr,
-            manager:               agentManager.address,
-            call:                  firstCall as NonNullable<typeof firstCall>,
+            kernel,
+            account: accountAddr,
+            manager: agentManager.address,
+            call: firstCall as NonNullable<typeof firstCall>,
             registeredPermissions,
             blockInfo,
           });
         }
 
-        // ── No matching permission → skip, do NOT kill the tick ───────────────
         if (!permission) {
-          const selector =
-            firstCall?.data && firstCall.data.length >= 10
-              ? firstCall.data.slice(0, 10)
-              : "0x";
-          appendActivity({
-            ts:     nowIso(),
-            actor:  "agent",
-            type:   "dispatch_denied",
-            target,
-            reason: "no_permission_match",
-          });
-          console.log(
-            `skipped: no registered permission authorizes call to ${target} (selector ${selector})`,
-          );
-          // Phase 4 hook: sailor status / dashboard can surface no_permission_match
-          // entries from activity.jsonl to make dropped calls visible in the UI.
+          const selector = firstCall?.data && firstCall.data.length >= 10 ? firstCall.data.slice(0, 10) : "0x";
+          appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_denied", target, reason: "no_permission_match" });
+          console.log(`skipped: no registered permission authorizes call to ${target} (selector ${selector})`);
           tickSkipped++;
           continue;
         }
 
-        // ── Preview (batch only, selective kernel) ────────────────────────────
-        // Conjunctive kernels have no previewBatch. For batch dispatches on
-        // selective kernels, previewBatch validates the full call sequence before
-        // submitting. Single-call dispatches skip preview — previewBatch would
-        // spuriously deny valid IPermission contracts (PermissionNotBatchAware).
         if (!isConjunctive && dispatch.calls.length > 1) {
           const preview = await execClient.dispatch.preview(accountAddr, permission, dispatch.calls);
           if (!preview.approved) {
@@ -595,35 +527,19 @@ export async function runCommand(opts: {
           }
         }
 
-        // ── Execute ───────────────────────────────────────────────────────────
-        // Decode how much this dispatch moves so the activity feed shows a real
-        // amount, not $0.00 (S4). Best-effort; {} when undecodable.
-        const dispatchValue = await describeDispatchValue(dispatch.calls);
+        const dispatchValue = await rt.describeDispatchValue(dispatch.calls);
         appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_approved", permission, target, ...dispatchValue });
         const result =
           dispatch.calls.length > 1
-            ? await execClient.dispatch.batch(accountAddr, permission, dispatch.calls, manager)
-            : await execClient.dispatch.single(
-                accountAddr,
-                permission,
-                firstCall as NonNullable<typeof firstCall>,
-                manager,
-              );
+            ? await execClient.dispatch.batch(accountAddr, permission, dispatch.calls, signer)
+            : await execClient.dispatch.single(accountAddr, permission, firstCall as NonNullable<typeof firstCall>, signer);
 
-        // On conjunctive kernels each dispatch is a separate on-chain tx and
-        // nonces are consumed sequentially. dispatch.single already awaits the
-        // receipt internally and bumps its nonce cache, but on a load-balanced
-        // RPC the nonce view can lag. Waiting here guarantees the on-chain nonce
-        // is definitively consumed before the next dispatch is signed, preventing
-        // "replacement transaction underpriced" errors between sequential intents.
-        // Selective kernels use dispatchBatch (handled above) so this is skipped.
         if (isConjunctive && result.txHash) {
           try {
             await publicClient.waitForTransactionReceipt({ hash: result.txHash, timeout: 30_000 });
-            // Brief pause for RPC nonce propagation on load-balanced endpoints.
             await new Promise((resolve) => setTimeout(resolve, 500));
           } catch {
-            // receipt already confirmed by dispatch.single — this is belt-and-suspenders
+            // receipt already confirmed by dispatch.single — belt-and-suspenders
           }
         }
 
@@ -636,12 +552,7 @@ export async function runCommand(opts: {
           console.log(`executed: ${result.txHash}`);
           tickExecuted++;
         }
-
       } catch (err) {
-        // One failed dispatch must not stop the loop.
-        // enrichKernelRevert (called inside dispatch.single/batch) already decodes
-        // kernel error selectors (InvalidManagerSignature, PermissionDenied, etc.)
-        // into human-readable messages, so err.message surfaces the root cause.
         const reason = (err as Error).message;
         console.error(`dispatch error: ${reason}`);
         appendActivity({ ts: nowIso(), actor: "agent", type: "error", permission: (dispatch as RunnerDispatch).permission, target, reason });
@@ -649,34 +560,185 @@ export async function runCommand(opts: {
       }
     }
 
-    // ── Tick summary ──────────────────────────────────────────────────────────
     if (dispatches.length > 0) {
       const parts = [`${tickExecuted} executed`];
       if (tickReverted > 0) parts.push(`${tickReverted} reverted`);
       if (tickSkipped > 0) parts.push(`${tickSkipped} skipped`);
-      console.log(`tick complete: ${parts.join(", ")}`);
+      console.log(`tick complete [${rt.chainName} · ${accountAddr.slice(0, 8)}…]: ${parts.join(", ")}`);
+    }
+  };
+
+  let stopping = false;
+
+  // The SMA client, constrained so agent code can dispatch/strategy-swap but not call privileged
+  // writes (dispatch/strategy use the exec client; everything else the read-only client).
+  const constrainedClient = (rt: ChainRuntime) =>
+    Object.assign(Object.create(rt.readClient) as typeof rt.readClient, {
+      dispatch: rt.execClient.dispatch,
+      strategy: rt.execClient.strategy,
+    });
+
+  // A per-chain handle (ctx.chain(id)). `dispatch()` only TAGS the intent with this handle's chain;
+  // the runner routes + executes it later, so no on-chain write happens here.
+  const handleForRuntime = (rt: ChainRuntime): ChainHandle => ({
+    chainId: rt.chainId,
+    publicClient: rt.publicClient,
+    client: constrainedClient(rt),
+    env: readChainEnv(rt.chainId),
+    read: { balance: rt.readBalance, allowance: rt.readAllowance, decimals: rt.readDecimals },
+    dispatch: (intent) => ({
+      txHash: "0x",
+      success: false,
+      gasUsed: 0n,
+      calls: intent.calls,
+      ...(intent.permission ? { permission: intent.permission } : {}),
+      chainId: rt.chainId,
+    }),
+  });
+
+  /**
+   * Build the ONE AgentContext shape for a tick: top-level fields bind to `defaultChainId`, and
+   * `ctx.chain(id)` reaches any chain in `allowed` (the SMA's deployed set, narrowed by --chains).
+   * Runtimes for `allowed` are pre-built (and cached) so `ctx.chain(id)` returns synchronously.
+   * Returns null when the default chain's runtime can't be built (already logged).
+   */
+  const makeCtx = async (
+    sma: string,
+    defaultChainId: number,
+    allowed: number[],
+  ): Promise<AgentContext | null> => {
+    const defaultRt = await getRuntime(sma, defaultChainId);
+    if (!defaultRt) return null;
+
+    const chainRuntimes = new Map<number, ChainRuntime>([[defaultChainId, defaultRt]]);
+    for (const id of allowed) {
+      if (chainRuntimes.has(id)) continue;
+      const rt = await getRuntime(sma, id);
+      if (rt) chainRuntimes.set(id, rt);
     }
 
-    appendActivity({ ts: nowIso(), actor: "agent", type: "tick_end", chainId });
-  }
+    const blockInfo = await getBlockInfo(defaultRt);
+
+    const chain = (chainId: number): ChainHandle => {
+      if (!allowed.includes(chainId)) {
+        throw new Error(
+          `ctx.chain(${chainId}): SMA ${sma} is not deployed on chain ${chainId} (or it's outside the run filter). Available: ${allowed.join(", ")}.`,
+        );
+      }
+      const rt = chainRuntimes.get(chainId);
+      if (!rt) throw new Error(`ctx.chain(${chainId}): runtime unavailable (no RPC/kernel/signer for ${sma}).`);
+      return handleForRuntime(rt);
+    };
+
+    return {
+      safe: defaultRt.accountAddr,
+      account: defaultRt.accountAddr,
+      chainId: defaultRt.chainId,
+      blockNumber: blockInfo.number,
+      timestamp: Math.floor(Date.now() / 1000),
+      now: new Date(),
+      client: constrainedClient(defaultRt),
+      publicClient: defaultRt.publicClient,
+      manager: defaultRt.agentManager,
+      log,
+      data: defaultRt.data,
+      env: readChainEnv(defaultRt.chainId),
+      read: { balance: defaultRt.readBalance, allowance: defaultRt.readAllowance, decimals: defaultRt.readDecimals },
+      chain,
+    };
+  };
+
+  // Invoke agent.tick, swallowing (and logging) a thrown tick so one bad executable never stops the loop.
+  const invokeTick = async (agent: Agent, ctx: AgentContext, chainId: number): Promise<Dispatch[]> => {
+    try {
+      return await agent.tick(ctx);
+    } catch (err) {
+      const reason = (err as Error).message;
+      console.error(`tick error: ${reason}`);
+      appendActivity({ ts: nowIso(), actor: "agent", type: "error", reason, chainId });
+      return [];
+    }
+  };
+
+  // Group returned dispatches by their chain tag (untagged → `defaultChain`) and execute each group
+  // on its chain, sequentially per chain (nonce safety). A chain with no runtime is skipped.
+  const routeAndExecute = async (sma: string, dispatches: Dispatch[], defaultChain: number): Promise<void> => {
+    const groups = new Map<number, Dispatch[]>();
+    for (const d of dispatches as RunnerDispatch[]) {
+      const chainId = d.chainId ?? defaultChain;
+      const group = groups.get(chainId) ?? [];
+      group.push(d);
+      groups.set(chainId, group);
+    }
+    for (const [chainId, group] of groups) {
+      const rt = await getRuntime(sma, chainId);
+      if (!rt) continue; // unrunnable (SMA, chain) already logged
+      await executeDispatches(rt, group, await getBlockInfo(rt));
+    }
+  };
+
+  // One tick on one default chain: build ctx, run tick, route + execute, bookended with activity events.
+  const runOnChain = async (agent: Agent, sma: string, defaultChain: number, allowed: number[]): Promise<void> => {
+    const ctx = await makeCtx(sma, defaultChain, allowed);
+    if (!ctx) return; // unrunnable default (SMA, chain) already logged
+    appendActivity({ ts: nowIso(), actor: "agent", type: "tick_start", chainId: defaultChain, reason: runReason });
+    const dispatches = await invokeTick(agent, ctx, defaultChain);
+    await routeAndExecute(sma, dispatches, defaultChain);
+    appendActivity({ ts: nowIso(), actor: "agent", type: "tick_end", chainId: defaultChain });
+  };
+
+  /**
+   * Run one strategy. Per-chain (`chains` set) → replay the executable once per listed chain,
+   * each tick's default ctx bound to that chain. Cross-chain (no `chains`) → run once, default-bound
+   * to the SMA's first deployed chain, letting the executable reach others via `ctx.chain(id)`.
+   */
+  const runStrategy = async (strategy: StoredStrategy): Promise<void> => {
+    const sma = checksum(strategy.sma);
+    const agent = await loadExecutableFor(strategy.executable);
+    const deployed = deployedChainsForSma(sma);
+    const allowed = chainFilter ? deployed.filter((c) => chainFilter.has(c)) : deployed;
+    if (allowed.length === 0) return;
+
+    if (strategy.chains && strategy.chains.length > 0) {
+      for (const chainId of strategy.chains) {
+        if (stopping) break;
+        if (!allowed.includes(chainId)) continue; // outside the --chains filter
+        await runOnChain(agent, sma, chainId, allowed);
+      }
+    } else {
+      await runOnChain(agent, sma, allowed[0], allowed);
+    }
+  };
+
+  const runCycle = async (): Promise<void> => {
+    for (const strategy of strategies) {
+      if (stopping) break;
+      try {
+        await runStrategy(strategy);
+      } catch (e) {
+        console.error(`strategy error: ${(e as Error).message}`);
+      }
+    }
+  };
 
   // ── Header ────────────────────────────────────────────────────────────────────
   console.log("Sailor agent running");
-  console.log(`Account: ${accountAddr}`);
-  console.log(`Chain: ${chainName} (${chainId})`);
+  for (const s of strategies) {
+    const mode = s.chains && s.chains.length > 0 ? `per-chain [${s.chains.join(",")}]` : "cross-chain (executable-driven)";
+    console.log(`Strategy: ${s.name} → ${s.executable} @ ${checksum(s.sma).slice(0, 8)}… (${mode})`);
+  }
   console.log(once ? "Mode: single tick (--once)" : `Interval: ${intervalSec}s`);
   console.log(`Reason: ${runReason}`);
   console.log("Press Ctrl+C to stop");
   console.log("");
 
-  // ── PID file + clean shutdown ───────────────────────────────────────────────
-  writeAgentPid(chainId);
-  let stopping = false;
+  // ── PID + clean shutdown (one agent.pid for the process) ────────────────────
+  writeAgentPid();
   const shutdown = (): void => {
     if (stopping) return;
     stopping = true;
     console.log("\nStopping agent…");
-    clearAgentPid(chainId);
+    clearAgentPid();
     process.exit(0);
   };
   process.on("SIGINT", shutdown);
@@ -685,15 +747,15 @@ export async function runCommand(opts: {
   // ── Run ──────────────────────────────────────────────────────────────────────
   try {
     if (once) {
-      await runTick();
+      await runCycle();
       return;
     }
     while (!stopping) {
-      await runTick();
+      await runCycle();
       if (stopping) break;
       await sleep(intervalSec * 1000);
     }
   } finally {
-    clearAgentPid(chainId);
+    clearAgentPid();
   }
 }

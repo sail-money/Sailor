@@ -9,6 +9,12 @@ The agent is live; this skill answers the operator's questions about it. Station
 
 **Gate:** a launched agent, or at minimum a registered mandate. Read-only state questions can also be answered by [`sailor-project-info`](../sailor-project-info/SKILL.md); this skill adds the operating actions (tune, pause, revoke, exit).
 
+## What the agent runs — execution strategies
+
+`sailor run` executes **execution strategies** (`.sail/strategies/strategies.json`), not a single hard-coded `src/agent.ts`. Each active strategy binds **one executable** (`src/strategy/<name>.ts`) to an **SMA** and an optional **chains** list — there are no steps and no pipeline. By default `run` executes every active strategy each tick; `sailor run --strategy <name>` runs just one (the lever for per-strategy schedules). Nothing is auto-seeded: a project has **no strategies until one is created**, so `sailor run` with none reports "No active strategies…" — creating one is [`sailor-strategy`](../sailor-strategy/SKILL.md)'s job.
+
+The two run modes (per-chain / cross-chain), `ctx.chain(id)`, and per-chain `ctx.env` at runtime are documented in **[`sailor-agent-build`](../sailor-agent-build/SKILL.md)**; running strategies at different cadences is in **[`sailor-automation`](../sailor-automation/SKILL.md)**. The model, the `.sail/strategies/strategies.json` config, and the `sailor strategy …` creation CLI live with **[`sailor-strategy` → execution-config](../sailor-strategy/references/execution-config.md)**. Keep this skill focused on monitor / tune / revoke / exit.
+
 ## "What is my agent doing?"
 
 Every tick appends to `.sail/activity.jsonl` — append-only JSON, one event per line, trivially tailable. Event types the runner writes:
@@ -35,13 +41,13 @@ Visual path: `sailor ui start` → the dashboard shows account state, mandate he
 
 ## "Why was a dispatch denied?"
 
-A denial is information, not a failure (AGENTS.md invariant 3). Find the `dispatch_denied` event, read its `reason`, and map it to one of three causes:
+A denial is information, not a failure (the sailor-navigator skill's invariant 3). Find the `dispatch_denied` event, read its `reason`, and map it to one of three causes:
 
 1. **The call was outside the permission's bounds** → the system worked as designed. If the strategy legitimately needs that call, the bounds are too tight — go to "Change the bounds" (with the user).
 2. **The permission is misconfigured** (registered but not configured, wrong allowlist/cap) → retune it (below). `no_registered_permissions` means nothing is registered for that action yet — back to [`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md).
 3. **The agent built the wrong dispatch** (wrong selector/target/recipient) → fix the tick loop ([`sailor-agent-build`](../sailor-agent-build/SKILL.md)).
 
-Never route around the kernel. A denial is corrected by fixing the bounds or the code, never by bypassing the check — and never by asking for or accepting a private key as a shortcut (AGENTS.md invariant 6). If none of the three causes above resolves it, that's an honest failure to report to the user, not a reason to reach for credentials.
+Never route around the kernel. A denial is corrected by fixing the bounds or the code, never by bypassing the check — and never by asking for or accepting a private key as a shortcut (the sailor-navigator skill's invariant 6). If none of the three causes above resolves it, that's an honest failure to report to the user, not a reason to reach for credentials.
 
 ## "Change the bounds" (tune)
 
@@ -56,7 +62,7 @@ other shared template needs the blob pre-built and passed via `--params`; see
 
 Follow the template's own steps ([`sailor-templates`](../sailor-templates/SKILL.md) reuse flow + the matching `sailor-template-*` spoke). (`sailor mandate update` changes only tracked *metadata* — name/source/artifact paths — not bounds.)
 
-**Widening requires the user's explicit, informed approval** (AGENTS.md invariant 2): before any signature, state plainly what the change lets the agent newly do. Narrowing is safe to propose freely, but still confirm.
+**Widening requires the user's explicit, informed approval** (the sailor-navigator skill's invariant 2): before any signature, state plainly what the change lets the agent newly do. Narrowing is safe to propose freely, but still confirm.
 
 ## "Pause / resume"
 

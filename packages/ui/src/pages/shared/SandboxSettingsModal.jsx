@@ -299,7 +299,7 @@ export default function SandboxSettingsModal({ open, onClose, forks, onReset }) 
 
   function backupLabel(b) {
     const when = b.savedAt ? new Date(b.savedAt).toLocaleString() : b.name
-    return b.smaName ? `${b.smaName} — ${when}` : when
+    return b.smaName ? `${b.smaName}, ${when}` : when
   }
 
   function backupSummary(b) {
@@ -317,7 +317,7 @@ export default function SandboxSettingsModal({ open, onClose, forks, onReset }) 
         <button type="button" className={styles.close} onClick={onClose} aria-label="Close">×</button>
 
         <h2 className={styles.title}>Sandbox settings</h2>
-        <p className={styles.subtitle}>Project-level controls for this local sandbox only — none of this touches a real chain.</p>
+        <p className={styles.subtitle}>Project-level controls for this local sandbox only. Nothing here touches a real chain.</p>
 
         {/* ── Active networks (chain cap) ──────────────────────────────── */}
         {(() => {
@@ -333,7 +333,7 @@ export default function SandboxSettingsModal({ open, onClose, forks, onReset }) 
               <h3 className={styles.sectionTitle}>Active networks</h3>
               <p className={styles.sectionCopy}>
                 Each network you onboard runs its own local anvil fork. This limit caps how many run at
-                once, keeping resource use bounded — {liveActiveCount} of {maxChains ?? '…'} running now.
+                once, keeping resource use bounded. {liveActiveCount} of {maxChains ?? '…'} running now.
                 Turn individual forks on or off from the chips in the top bar (click a chip → Stop / Start),
                 or per-SMA on the dashboard Overview.
               </p>
@@ -348,7 +348,7 @@ export default function SandboxSettingsModal({ open, onClose, forks, onReset }) 
                   step="1"
                   value={capInput}
                   onChange={(e) => { setCapInput(e.target.value); setCapStatus('idle'); setCapError('') }}
-                  aria-label={`Maximum active forks — 1 to ${ceiling}`}
+                  aria-label={`Maximum active forks, 1 to ${ceiling}`}
                 />
                 <SailButton
                   variant="secondary"
@@ -359,7 +359,7 @@ export default function SandboxSettingsModal({ open, onClose, forks, onReset }) 
                   {capStatus === 'saving' ? 'Saving…' : capStatus === 'saved' && !dirty ? 'Saved ✓' : 'Save'}
                 </SailButton>
               </div>
-              <p className={styles.capHint}>Up to {ceiling} — one per supported network.</p>
+              <p className={styles.capHint}>Up to {ceiling}, one per supported network.</p>
               {envPinned && (
                 <p className={styles.capHint}>
                   An environment override (SAILOR_MAX_SANDBOX_CHAINS) is pinning the effective limit to {cap.maxChains}.
@@ -392,7 +392,7 @@ export default function SandboxSettingsModal({ open, onClose, forks, onReset }) 
           <h3 className={styles.sectionTitle}>Fund gas</h3>
           <p className={styles.sectionCopy}>
             Set an agent wallet's native balance directly on a forked chain. Amount is in whole tokens
-            (e.g. 0.1 = 0.1 ETH), not wei — the 18 decimals are handled for you.
+            (e.g. 0.1 = 0.1 ETH), not wei. The 18 decimals are handled for you.
           </p>
 
           {accountsLoading ? (
@@ -428,7 +428,7 @@ export default function SandboxSettingsModal({ open, onClose, forks, onReset }) 
                           step="any"
                           value={form.amountEth}
                           onChange={(e) => updateGasForm(account.manager, { amountEth: e.target.value })}
-                          aria-label={`Amount in ${nativeCurrencySymbol(Number(form.chainId))} — whole tokens, e.g. 0.1`}
+                          aria-label={`Amount in ${nativeCurrencySymbol(Number(form.chainId))}, whole tokens, e.g. 0.1`}
                         />
                         <span className={styles.amountUnit}>{nativeCurrencySymbol(Number(form.chainId))}</span>
                       </div>
@@ -454,7 +454,7 @@ export default function SandboxSettingsModal({ open, onClose, forks, onReset }) 
           <h3 className={styles.sectionTitle}>Fund USDC</h3>
           <p className={styles.sectionCopy}>
             Write a USDC balance directly onto a chosen SMA. Amount is in whole USDC (e.g. 100 = 100
-            USDC), not base units — the 6 decimals are handled for you.
+            USDC), not base units. The 6 decimals are handled for you.
           </p>
 
           {accounts.length === 0 ? (
@@ -483,7 +483,7 @@ export default function SandboxSettingsModal({ open, onClose, forks, onReset }) 
                   step="any"
                   value={usdcAmount}
                   onChange={(e) => setUsdcAmount(e.target.value)}
-                  aria-label="Amount in USDC — whole tokens, e.g. 100"
+                  aria-label="Amount in USDC, whole tokens, e.g. 100"
                 />
                 <span className={styles.amountUnit}>USDC</span>
               </div>
@@ -505,15 +505,15 @@ export default function SandboxSettingsModal({ open, onClose, forks, onReset }) 
           {resetStep === 'done' ? (
             <p className={styles.sectionCopy}>
               Sandbox reset. The SMA, mandate, activity log, and keys were moved to{' '}
-              {backupDir ? <code className={styles.backupPath}>{backupDir.split('/').pop()}</code> : 'a backup folder'}, not deleted —
-              you can bring that world back anytime from “Restore a backup” below.
+              {backupDir ? <code className={styles.backupPath}>{backupDir.split('/').pop()}</code> : 'a backup folder'}, not deleted.
+              You can bring that world back anytime from “Restore a backup” below.
               Reload the page to start onboarding fresh.
             </p>
           ) : (
             <>
               <p className={styles.sectionCopy}>
                 Stops every fork and wipes this sandbox's SMA, mandate, activity log, and keys back to a blank
-                project. Nothing is deleted — everything is moved into a timestamped backup folder.
+                project. Nothing is deleted: everything is moved into a timestamped backup folder.
               </p>
               <label className={styles.confirmLabel}>
                 <input
@@ -541,20 +541,20 @@ export default function SandboxSettingsModal({ open, onClose, forks, onReset }) 
           <h3 className={styles.sectionTitle}>Restore a backup</h3>
           {restoreStep === 'done' ? (
             <p className={styles.sectionCopy}>
-              World restored — its forks are starting back up with their saved chain state. Reloading…
+              World restored. Its forks are starting back up with their saved chain state. Reloading…
             </p>
           ) : (
             <>
               <p className={styles.sectionCopy}>
                 Reactivate a sandbox world saved by an earlier reset (or restore). The current world is
                 saved as a new backup first, then the selected one's forks restart with their saved chain
-                state — SMA, mandates, balances, and activity history included.
+                state, including SMA, mandates, balances, and activity history.
               </p>
 
               {backupsLoading ? (
                 <p className={styles.empty}>Loading backups…</p>
               ) : backups.length === 0 ? (
-                <p className={styles.empty}>No backups yet — resetting the sandbox creates one.</p>
+                <p className={styles.empty}>No backups yet. Resetting the sandbox creates one.</p>
               ) : (
                 <ul className={styles.rowList}>
                   {backups.map((b) => (

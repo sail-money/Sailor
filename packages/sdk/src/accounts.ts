@@ -1,13 +1,16 @@
 // Single owner of the on-disk SMA state under `.sail/`.
 //
-// TWO files, kept in sync by this module and this module ONLY — no other code path
-// should read or write them directly:
-//   - `account.json`          the ACTIVE SMA (a full copy of one list entry)
-//   - `state/accounts.json`   the master list of every known SMA
+// `state/accounts.json` (the master list of every known SMA) is the source of truth. Each entry
+// carries a `selected` flag (the SMA the UI renders / operates on — exactly one, or none after a
+// reset). Which SMA the agent RUNS is no longer a per-account flag: `sailor run` is driven entirely
+// by execution strategies (`.sail/strategies/strategies.json`), where each step names its own SMA.
+//
+// TRANSITIONAL: `account.json` is still written as a verbatim mirror of the `selected` entry, so
+// every existing reader keeps working unchanged. The one line that would delete it (flag-only
+// cutover) is left commented in `commit()` with a TODO — flip it there when ready.
 //
 // `persistAccount` MERGES by `safe`, so a partial write can never drop a stored field
-// (saltNonce / managers / deployedChains / txHash / name / addedAt); it mirrors the merged
-// record into `account.json` too, so the active copy and its list entry stay identical.
+// (saltNonce / managers / deployedChains / txHash / name / addedAt / flags).
 //
 // `sailDir` is optional everywhere and defaults to `<cwd>/.sail` — CLI callers (always in the
 // project cwd) omit it; the UI server and signing daemon pass their own dir (they run against
@@ -37,6 +40,8 @@ export type AccountRecord = {
   name: string;
   /** ISO-8601 timestamp first added to the list; null for a legacy backfill. */
   addedAt: string | null;
+  /** The SMA the UI renders / operates on. Exactly one entry is `selected` (or none after a reset). */
+  selected?: boolean;
 };
 
 /** Input to `persistAccount`: any subset of fields; `safe` picks the target (defaults to active). */
@@ -109,11 +114,67 @@ function uniqAddrs(...sources: unknown[]): string[] {
   return out;
 }
 
+// ── Load / commit — flags live on `state/accounts.json`; account.json mirrors `selected`. ─────
+
+/**
+ * Read the list with the `selected`/`executable` flags guaranteed. Pure — never writes.
+ *
+ * Migration is lazy: a list that predates the flags (no entry defines the key) has `selected`
+ * derived from the legacy `account.json.safe` (else the first entry), and `executable` defaulted
+ * to `selected`. A list where the key IS present but every value is false (a deliberate reset via
+ * `clearActiveAccount`) is respected as-is — we do NOT re-derive a selection.
+ */
+function load(sailDir: string): AccountRecord[] {
+  const list = readJson<AccountRecord[]>(listPath(sailDir));
+  // Read account.json DIRECTLY (never via readActiveAccount, which calls back into load).
+  const legacy = readJson<AccountRecord>(accountPath(sailDir));
+  let accounts: AccountRecord[] = Array.isArray(list) ? list.slice() : [];
+  if (accounts.length === 0 && legacy?.safe) {
+    accounts = [{ ...legacy, name: legacy.name ?? "SMA 1", addedAt: legacy.addedAt ?? null }];
+  }
+  if (accounts.length === 0) return accounts;
+
+  // selection migration — only when no entry defines the key yet. `selected` mirrors what
+  // account.json used to mean: the pointed-at SMA is active; NO account.json ⇒ nothing selected
+  // (a list entry alone never made an SMA active). An all-false list (a deliberate reset via
+  // clearActiveAccount) also has the key present, so it is respected here, not re-derived.
+  if (accounts.every((a) => a.selected === undefined)) {
+    if (legacy?.safe) {
+      let sel = accounts.findIndex((a) => sameAddr(a.safe, legacy.safe));
+      if (sel === -1) {
+        // account.json points at an SMA not in the list — old readActiveAccount returned it
+        // regardless, so inject it as the selected entry rather than picking a list member.
+        accounts.push({ ...legacy, name: legacy.name ?? "SMA 1", addedAt: legacy.addedAt ?? null });
+        sel = accounts.length - 1;
+      }
+      accounts = accounts.map((a, i) => ({ ...a, selected: i === sel }));
+    } else {
+      accounts = accounts.map((a) => ({ ...a, selected: false }));
+    }
+  }
+  return accounts;
+}
+
+/**
+ * Write the list, then mirror the `selected` entry into `account.json` (transitional — see the
+ * file header). `readActiveAccount` still resolves from the flag, so the mirror is purely for
+ * back-compat with any external reader.
+ */
+function commit(accounts: AccountRecord[], sailDir: string): void {
+  fs.mkdirSync(path.join(sailDir, "state"), { recursive: true });
+  writeJson(listPath(sailDir), accounts);
+  // TODO: flag-only cutover — once `selected` is the sole source of truth, stop mirroring
+  // and delete account.json here instead of writing it:
+  // fs.rmSync(accountPath(sailDir), { force: true });
+  const selected = accounts.find((a) => a.selected);
+  if (selected) writeJson(accountPath(sailDir), selected);
+}
+
 // ── Reads ───────────────────────────────────────────────────────────────────
 
-/** The active SMA (`account.json`), or null before one exists. */
+/** The SMA the UI renders / operates on (the `selected` entry), or null before one exists. */
 export function readActiveAccount(sailDir: string = defaultSailDir()): AccountRecord | null {
-  return readJson<AccountRecord>(accountPath(sailDir));
+  return load(sailDir).find((a) => a.selected) ?? null;
 }
 
 /** The active SMA's address, or null. */
@@ -123,44 +184,25 @@ export function readActiveSafe(sailDir: string = defaultSailDir()): string | nul
 
 /**
  * Every known SMA (`state/accounts.json`), each annotated with a derived `active` boolean
- * (the entry whose `safe` matches `account.json`). Falls back to the single active account
- * when no list exists yet, and to `[]` when there is nothing at all.
+ * (= `selected`). The `selected` flag rides along on each entry. Returns `[]`
+ * when there is nothing at all.
  */
 export function listAccounts(sailDir: string = defaultSailDir()): ListedAccount[] {
-  const active = readActiveSafe(sailDir);
-  const list = readJson<AccountRecord[]>(listPath(sailDir));
-  if (Array.isArray(list)) {
-    return list.map((a) => ({ ...a, active: sameAddr(a.safe, active) }));
-  }
-  const single = readActiveAccount(sailDir);
-  if (single?.safe) {
-    return [{ ...single, name: single.name ?? "My SMA", addedAt: single.addedAt ?? null, active: true }];
-  }
-  return [];
+  return load(sailDir).map((a) => ({ ...a, active: !!a.selected }));
 }
 
-// ── Writes (each keeps account.json and its list entry identical) ─────────────
+// ── Writes (source of truth = the list; account.json mirrors the selected entry) ──────────────
 
 /**
- * Merge-upsert an SMA by `safe` (defaults to the active safe) into `state/accounts.json`, then
- * mirror the merged record into `account.json`. Only defined values overwrite; unioned lists and
- * stored fields survive. This is the sole writer of new/updated SMA state.
+ * Merge-upsert an SMA by `safe` (defaults to the selected safe) into `state/accounts.json`.
+ * Only defined values overwrite; unioned lists and stored fields survive. The merged SMA becomes
+ * the `selected` one (mirrors the old "writes account.json"). This is the sole writer of new/updated
+ * SMA state.
  */
 export function persistAccount(fields: AccountFields, sailDir: string = defaultSailDir()): AccountRecord {
-  const safe = fields.safe ?? readActiveSafe(sailDir);
+  const accounts = load(sailDir);
+  const safe = fields.safe ?? accounts.find((a) => a.selected)?.safe;
   if (!safe) throw new Error("persistAccount: no target safe (none provided and no active account)");
-
-  fs.mkdirSync(path.join(sailDir, "state"), { recursive: true });
-  // Load the list; if absent, backfill from the currently-active account.json so
-  // registering a second SMA never silently drops the first.
-  let accounts: AccountRecord[] = [];
-  const existingList = readJson<AccountRecord[]>(listPath(sailDir));
-  if (Array.isArray(existingList)) {
-    accounts = existingList;
-  } else {
-    const prev = readActiveAccount(sailDir);
-    if (prev?.safe) accounts.push({ ...prev, name: prev.name ?? "SMA 1", addedAt: prev.addedAt ?? null });
-  }
 
   const idx = accounts.findIndex((a) => sameAddr(a.safe, safe));
   const existing = (idx === -1 ? {} : accounts[idx]) as Partial<AccountRecord>;
@@ -183,32 +225,39 @@ export function persistAccount(fields: AccountFields, sailDir: string = defaultS
   const record = merged as AccountRecord;
   if (idx === -1) accounts.push(record);
   else accounts[idx] = record;
-  writeJson(listPath(sailDir), accounts);
-  writeJson(accountPath(sailDir), record);
+  // The persisted SMA becomes the selected one; clear it elsewhere.
+  for (const a of accounts) a.selected = a === record;
+  commit(accounts, sailDir);
   return record;
 }
 
-/** Make a known SMA the active one: copy its list entry → account.json. Returns it, or null. */
+/** Make a known SMA the UI-selected one. Returns it, or null. */
 export function switchAccount(safe: string, sailDir: string = defaultSailDir()): AccountRecord | null {
-  const list = readJson<AccountRecord[]>(listPath(sailDir));
-  const target = Array.isArray(list) ? list.find((a) => sameAddr(a.safe, safe)) : null;
+  const accounts = load(sailDir);
+  const target = accounts.find((a) => sameAddr(a.safe, safe));
   if (!target) return null;
-  writeJson(accountPath(sailDir), target);
+  for (const a of accounts) a.selected = a === target;
+  commit(accounts, sailDir);
   return target;
 }
 
-/** Rename an SMA in the list; keep `account.json` in step when it is the active one. */
+/** Rename an SMA in the list. */
 export function renameAccount(safe: string, name: string, sailDir: string = defaultSailDir()): void {
-  const list = readJson<AccountRecord[]>(listPath(sailDir));
-  if (!Array.isArray(list)) return;
-  const idx = list.findIndex((a) => sameAddr(a.safe, safe));
+  const accounts = load(sailDir);
+  const idx = accounts.findIndex((a) => sameAddr(a.safe, safe));
   if (idx === -1) return;
-  list[idx] = { ...list[idx], name };
-  writeJson(listPath(sailDir), list);
-  if (sameAddr(readActiveSafe(sailDir), safe)) writeJson(accountPath(sailDir), list[idx]);
+  accounts[idx] = { ...accounts[idx], name };
+  commit(accounts, sailDir);
 }
 
-/** Clear the active pointer (remove account.json). The list is left intact. */
+/**
+ * Clear the UI-selected pointer so the onboarding wizard shows again. Unsets `selected` on every
+ * entry (persisted, so `load` won't re-derive one) while KEEPING the `executable` target, then
+ * removes the legacy `account.json` mirror. The SMA list itself is left intact.
+ */
 export function clearActiveAccount(sailDir: string = defaultSailDir()): void {
+  const accounts = load(sailDir).map((a) => ({ ...a, selected: false }));
+  fs.mkdirSync(path.join(sailDir, "state"), { recursive: true });
+  writeJson(listPath(sailDir), accounts);
   fs.rmSync(accountPath(sailDir), { force: true });
 }

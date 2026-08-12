@@ -30,6 +30,7 @@ import AddSignerModal from './AddSignerModal'
 import RotateSignerModal from './RotateSignerModal'
 import FundGasModal from './FundGasModal'
 import RpcSection from './RpcSection'
+import StrategiesSection from './StrategiesSection'
 import SmaForkControls from './SmaForkControls'
 import {
   useSailorAccount,
@@ -1643,6 +1644,8 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
               networkIds: [...netIds],
               mandateCount: isCurrent ? (isMultiChain && chainOverviews.length > 0 ? chainOverviews.reduce((sum, ov) => sum + (ov.mandateCount ?? 0), 0) : (overview?.mandateCount ?? 0)) : 0,
               createdAt: a.addedAt ?? null,
+              // Whether `sailor run` executes against this SMA (separate from UI selection).
+              executable: !!a.executable,
             })
           } else {
             const entry = byId.get(key)
@@ -1747,10 +1750,14 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
             the portfolio link and section nav above are. Never shown from
             inside a sandbox page itself (that page IS the launch target). */}
         {isSandbox === false && (
-          <button type="button" className={styles.sidebarUtilLink} onClick={enterSandbox} disabled={sandboxLaunching}>
-            <span className={styles.sidebarUtilIcon} aria-hidden>⚓</span>
+          <button
+            type="button"
+            className={`${styles.sidebarUtilLink} ${styles.sidebarUtilLinkShipyard}`}
+            onClick={enterSandbox}
+            disabled={sandboxLaunching}
+            title="Simulation sandbox. No real funds."
+          >
             <span className={styles.sidebarUtilLabel}>{sandboxLaunching ? 'Starting Shipyard…' : 'Enter Shipyard'}</span>
-            <ArrowOutIcon />
           </button>
         )}
 
@@ -1762,7 +1769,7 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
              sections, and claiming tab semantics without the full keyboard
              pattern (roving tabindex, aria-controls) misleads screen readers. */
           <nav className={styles.sidebarNav} aria-label="Dashboard sections">
-            {[['sma', 'Overview'], ['gas', 'Gas wallets'], ['mandates', 'Mandates'], ['activity', 'Activity'], ['rpc', 'RPCs']].map(([key, label]) => (
+            {[['sma', 'Overview'], ['gas', 'Gas wallets'], ['mandates', 'Mandates'], ['strategies', 'Strategies'], ['activity', 'Activity'], ['rpc', 'RPCs']].map(([key, label]) => (
               <button
                 key={key}
                 type="button"
@@ -2201,6 +2208,16 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
               )
             })()}
 
+            {/* ── Strategies ───────────────────────────────────────── */}
+            {dashTab === 'strategies' && (
+            <>
+            <PageHead icon={<StrategyGlyph />} title="Strategies" info="What your agent runs. Create or edit strategies by asking the agent." />
+            <section className={agentStyles.card}>
+              <StrategiesSection />
+            </section>
+            </>
+            )}
+
             {/* ── RPC / Network config ─────────────────────────────── */}
             {dashTab === 'rpc' && (
             <>
@@ -2225,13 +2242,13 @@ function DashboardContent({ draft, onReset, onboardState, onOnboardComplete, onA
             />
             <section className={agentStyles.card}>
               <header className={agentStyles.cardHead}>
-                <div className={styles.activityFilter} role="group" aria-label="Filter by actor">
+                <div className={styles.segTabs} role="group" aria-label="Filter by actor">
                   {ACTIVITY_FILTERS.map((f) => (
                     <button
                       key={f.key}
                       type="button"
                       aria-pressed={activityActorFilter === f.key}
-                      className={`${styles.activityFilterBtn} ${activityActorFilter === f.key ? styles.activityFilterBtnActive : ''}`}
+                      className={`${styles.segTabBtn} ${activityActorFilter === f.key ? styles.segTabBtnActive : ''}`}
                       onClick={() => setActivityActorFilter(f.key)}
                     >
                       {f.label}
@@ -2828,6 +2845,14 @@ function ActivityGlyph() {
   return (
     <svg {...pxSvg}>
       <path d="M1 2h2v2H1Z M4 2h7v2H4Z M1 5h2v2H1Z M4 5h6v2H4Z M1 8h2v2H1Z M4 8h5v2H4Z" />
+    </svg>
+  )
+}
+// Strategies — a pixel play triangle: what the agent runs.
+function StrategyGlyph() {
+  return (
+    <svg {...pxSvg}>
+      <path d="M3 2h1v8H3Z M4 3h1v6H4Z M5 4h1v4H5Z M6 5h1v2H6Z" />
     </svg>
   )
 }

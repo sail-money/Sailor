@@ -1,8 +1,8 @@
 # Getting started
 
-End-to-end path from nothing to a running, bounded agent — and how to get your money back out. Every command here is copy-pasteable. The agent-driven flow (open the scaffold in your AI coding agent and say **"start"**) walks the same journey conversationally, guided by `AGENTS.md`; this page is the manual version.
+End-to-end path from nothing to a running, bounded agent — and how to get your money back out. Every command here is copy-pasteable. The agent-driven flow (open the scaffold in your AI coding agent and say **"start"**) walks the same journey conversationally, guided by the `sailor-navigator` skill; this page is the manual version.
 
-The journey is five stations, in order: **ARRIVE → STRATEGY → MANDATE → AGENT → SAIL**. `AGENTS.md` is the map (each station names its owning skill, entry gate, and exit check); this page follows the same order with commands.
+The journey is five stations, in order: **ARRIVE → STRATEGY → MANDATE → AGENT → SAIL**. The `sailor-navigator` skill is the map (each station names its owning skill, entry gate, and exit check); this page follows the same order with commands.
 
 ## Station 1 — ARRIVE: set up the project, keys, account, and chain
 
@@ -20,7 +20,7 @@ docker run -d --name agent -P -v "${PWD}:/workspace" sailmoney/sailor
 docker exec agent sailor init
 ```
 
-`sailor init` scaffolds from `scaffold/`: your agent code (`src/`), a Foundry workspace for custom permissions (`contracts/`, with a test), the operator guide (`AGENTS.md`) and its skills (`.agents/skills/`), and the local workspace (`.sail/` — config, encrypted keys, state). You will also need a wallet (MetaMask, Rabby, …), an RPC URL for your chain (put it in `.sail/.env.local` as `RPC_URL=`), and a little gas. `sailor chains` lists the supported chains.
+`sailor init` scaffolds from `scaffold/`: your agent code (`src/`), a Foundry workspace for custom permissions (`contracts/`, with a test), the operator guide (the `sailor-navigator` skill) and the other skills (`.agents/skills/`), your own instructions file (`AGENTS.md`), and the local workspace (`.sail/` — config, encrypted keys, state). You will also need a wallet (MetaMask, Rabby, …), an RPC URL for your chain (put it in `.sail/.env.local` as `RPC_URL=`), and a little gas. `sailor chains` lists the supported chains.
 
 **Keys and owner:**
 
@@ -44,7 +44,14 @@ The same owner, permission signer, manager, and salt produce the **same SMA addr
 
 ## Station 2 — STRATEGY: make the intent concrete
 
-Before any mandate, the strategy becomes a complete, concrete spec at `.sail/strategy.md` — chains, tokens (resolved addresses + decimals), venues, amounts, caps, cadence, risk bounds, and an exit condition, all concrete. There is no CLI command for this; it is a guided conversation. The [`sailor-strategy`](../scaffold/.agents/skills/sailor-strategy/SKILL.md) skill runs it (categories: Trading, Yield, Payments & treasury, or anything else on-chain) and writes the spec. Every later station reads it. **Exit check:** `.sail/strategy.md` exists with every dimension concrete.
+Before any mandate, the strategy becomes a complete, concrete spec — one per strategy, at `.sail/strategies/<name>.md` (camelCase name = the `--strategy` selector) — chains, tokens (resolved addresses + decimals), venues, amounts, caps, cadence, risk bounds, and an exit condition, all concrete. There is no CLI command for the spec itself; it is a guided conversation. The [`sailor-strategy`](../scaffold/.agents/skills/sailor-strategy/SKILL.md) skill runs it (categories: Trading, Yield, Payments & treasury, or anything else on-chain) and writes the spec. Station 2 also registers the **execution config** — `.sail/strategies/strategies.json` — binding the executable to the SMA:
+
+```bash
+sailor strategy create <name> --sma <yourSMA> [--chains <ids>] --description "…"
+sailor strategy env set <chain> KEY=value   # per-chain env the executable reads via ctx.env, if any
+```
+
+Every later station reads these. **Exit check:** each strategy's `.sail/strategies/<name>.md` exists with every dimension concrete, AND `.sail/strategies/strategies.json` registered via `sailor strategy create`.
 
 ## Station 3 — MANDATE: turn the strategy into enforced bounds
 

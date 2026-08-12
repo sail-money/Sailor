@@ -1,6 +1,6 @@
 ---
 name: sailor-mandate-planner
-description: Station 3 entry — turn a complete strategy spec into a mandate plan, routing each action to a shared permission template or to bespoke authoring. Use when the user says "build the mandate", "which template do I need", "turn my strategy into permissions", "register permissions", "what bounds does my agent need" — and structurally whenever .sail/strategy.md is complete and mandate work begins.
+description: Station 3 entry — turn a complete strategy spec into a mandate plan, routing each action to a shared permission template or to bespoke authoring. Use when the user says "build the mandate", "which template do I need", "turn my strategy into permissions", "register permissions", "what bounds does my agent need" — and structurally whenever a strategy spec (`.sail/strategies/<name>.md` — per SMA: all of them) is complete and mandate work begins.
 ---
 
 # sailor-mandate-planner — route the strategy into enforced bounds (Station 3)
@@ -9,7 +9,7 @@ This skill is a gate and a router, deliberately thin. The template registry live
 
 ## Gate (fail-closed)
 
-Read `strategy.md` from the **active state root** first — `.sail/strategy.md` normally, or `.shipyard/sandbox/strategy.md` if this project's Station 1/2 work happened in the native sandbox (see [`sailor-onboarding`](../sailor-onboarding/SKILL.md)'s "Two state roots"). AGENTS.md station 3: "Gate: complete `strategy.md`". If the file is missing, any completeness dimension is not concrete, its JSON block lacks `"confirmedByUser": true`, or its `"version"` is not `3` — do **not** proceed. Hand back to [`sailor-strategy`](../sailor-strategy/SKILL.md) and return once the gate holds — a pre-`version: 3` file either has no resolved `actions[]` to plan from (`version` < 2) or has never had the per-action `exitPath` question asked (`version: 2`). The completeness checklist lives there, not here.
+Read **every** strategy spec for the SMA first — all of its `.sail/strategies/*.md` (one per strategy, each indexed by an entry in `.sail/strategies/strategies.json`), or `.shipyard/sandbox/strategies/*.md` if this project's Station 1/2 work happened in the native sandbox (see [`sailor-onboarding`](../sailor-onboarding/SKILL.md)'s "Two state roots"): the mandate is built from their combined `actions[]`, and a mandate plan that covers only some of the SMA's strategies is incomplete. The sailor-navigator skill's Station 3 gate: "Gate: a complete spec for every strategy the mandate will bound". If any spec file is missing, any completeness dimension is not concrete, its JSON block lacks `"confirmedByUser": true`, or its `"version"` is not `3` — do **not** proceed. Hand back to [`sailor-strategy`](../sailor-strategy/SKILL.md) and return once the gate holds — a pre-`version: 3` file either has no resolved `actions[]` to plan from (`version` < 2) or has never had the per-action `exitPath` question asked (`version: 2`). The completeness checklist lives there, not here.
 
 ## Routing method
 
@@ -47,7 +47,7 @@ Every permission in the plan needs a simulation path decided HERE, at planning t
 ## Ordering rules (enforced here, specified elsewhere)
 
 - **Shared singletons: register ≠ configure.** Follow [`sailor-templates`](../sailor-templates/SKILL.md)'s reuse flow exactly — register, configure, then simulate ONCE (the single safety gate, [reuse-flow](../sailor-templates/references/reuse-flow.md) step 5); a registered-but-unconfigured template denies everything. The exit-verifier below checks that this one simulation passed — it does not call for a second run.
-- **Bespoke permissions:** AGENTS.md invariant 1 — "**Deploy → simulate → register.** Registration is authorization; nothing is authorized before its bounds are proven, including proven to reject what they must reject."
+- **Bespoke permissions:** the sailor-navigator skill's invariant 1 — "**Deploy → simulate → register.** Registration is authorization; nothing is authorized before its bounds are proven, including proven to reject what they must reject."
 - **A mixed plan composes both orderings independently, per row** — a template row's register→configure→simulate and a bespoke row's deploy→simulate→register don't block or reorder each other; sequence each row by its own kind, not by a single mandate-wide order.
 - **Every plan must answer the approve-coverage question before it is final** — not only for swap, for every action that needs one (step 1 above). Read [`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md) and pick the execution model as part of the plan, not after it.
 

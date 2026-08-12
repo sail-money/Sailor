@@ -8,6 +8,7 @@ import express from 'express'
 import { WebSocket, WebSocketServer } from 'ws'
 import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, chains, defaultRpcUrls, getNativeCurrencySymbol, getSailDeployment, readPermissionRegistrationFee } from '@sail/sdk'
 import * as accountStore from '@sail/sdk/accounts'
+import * as strategyStore from '@sail/sdk/strategies'
 import { MAX_SANDBOX_CHAINS, SANDBOX_CHAINS_CEILING, TooManySandboxChainsError, activateSandboxBackup, clampSandboxChainCap, dumpSandboxState, enforceSandboxChainCap, fundErc20, fundNative, isPidAlive, listSandboxBackups, refreshSandboxForks, resetSandbox, resetSandboxProject, restartSandboxFork, resumeSandboxForks, sandboxDirFor, startPeriodicStateDump, startSandboxForks, stopSandboxFork, usdcAddressFor } from '@sail/sandbox'
 import { createPublicClient, createWalletClient, defineChain, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
@@ -444,7 +445,10 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
   // sailDir so the handlers below read as before.
   const readActiveAccount = () => accountStore.readActiveAccount(sailDir)
   const listAccounts = () => accountStore.listAccounts(sailDir)
-  const upsertActiveAccount = (fields) => accountStore.persistAccount(fields, sailDir)
+  const upsertActiveAccount = (fields) => {
+    const record = accountStore.persistAccount(fields, sailDir)
+    return record
+  }
 
   // ── Per-SMA-per-chain overview cache ────────────────────────────────────
   // Keyed by `${safe}-${chainId}` so multi-chain SMAs get independent snapshots.
@@ -675,7 +679,7 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
       const active = await syncDeployedChains(target)
 
       // Switching to an SMA on a different chain must move config.json.chainId too,
-      // or the stage machine / CLI active chain goes stale (multichain case).
+      // or the stage machine / CLI active chain goes stale (cross-chain case).
       syncConfigChainId(active.chainId)
       res.json({ ok: true, active })
     } catch (err) {
@@ -702,6 +706,119 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
       accountStore.renameAccount(safe, cleanName, sailDir)
       res.json({ ok: true })
     } catch (err) {
+      serverError(res, err)
+    }
+  })
+
+  // ── Strategies: execution pipelines (which executables run on which SMAs/chains) ──
+  const projectRoot = path.dirname(sailDir) // holds src/strategy/<name>.ts
+
+  app.get('/api/strategies', (req, res) => {
+    try { res.json({ strategies: strategyStore.listStrategies(sailDir) }) }
+    catch (err) { serverError(res, err) }
+  })
+
+  // GET /api/strategies/:sma — the strategies bound to one SMA (checksummed match; 400 on non-address).
+  app.get('/api/strategies/:sma', (req, res) => {
+    const { sma } = req.params
+    if (!isAddress(sma)) { res.status(400).json({ error: 'invalid SMA address' }); return }
+    try {
+      const want = getAddress(sma)
+      res.json({ strategies: strategyStore.listStrategies(sailDir).filter((s) => getAddress(s.sma) === want) })
+    } catch (err) { serverError(res, err) }
+  })
+
+  // Create a new (inactive) strategy: one SMA + one executable (+ optional replay chains, description).
+  app.post('/api/strategies', (req, res) => {
+    const { name, sma, executable, chains, description } = req.body ?? {}
+    if (!name || typeof name !== 'string') { res.status(400).json({ error: 'name is required' }); return }
+    if (!sma || typeof sma !== 'string') { res.status(400).json({ error: 'sma is required' }); return }
+    if (!executable || typeof executable !== 'string') { res.status(400).json({ error: 'executable is required' }); return }
+    try {
+      const opts = { sma: sma.trim(), executable: executable.trim() }
+      if (Array.isArray(chains) && chains.length > 0) opts.chains = chains.map(Number)
+      const s = strategyStore.createStrategy(name.trim(), opts, sailDir)
+      if (typeof description === 'string' && description.trim()) {
+        strategyStore.setStrategyDescription(s.name, description, sailDir)
+      }
+      res.json({ ok: true, strategy: strategyStore.getStrategy(s.name, sailDir) })
+    } catch (err) { res.status(400).json({ error: err.message }) }
+  })
+
+  // Update a strategy: active flag, description, and/or replay chains (empty/null → executable-driven).
+  app.post('/api/strategies/:name', (req, res) => {
+    const { active, description, chains } = req.body ?? {}
+    try {
+      if (typeof active === 'boolean' && !strategyStore.setStrategyActive(req.params.name, active, sailDir)) {
+        res.status(404).json({ error: 'strategy not found' }); return
+      }
+      if (typeof description === 'string') strategyStore.setStrategyDescription(req.params.name, description, sailDir)
+      if (chains !== undefined) {
+        const next = Array.isArray(chains) && chains.length > 0 ? chains.map(Number) : null
+        if (!strategyStore.setStrategyChains(req.params.name, next, sailDir)) {
+          res.status(404).json({ error: 'strategy not found' }); return
+        }
+      }
+      const s = strategyStore.getStrategy(req.params.name, sailDir)
+      if (!s) { res.status(404).json({ error: 'strategy not found' }); return }
+      res.json({ ok: true, strategy: s })
+    } catch (err) { res.status(400).json({ error: err.message }) }
+  })
+
+  app.delete('/api/strategies/:name', (req, res) => {
+    try {
+      if (!strategyStore.deleteStrategy(req.params.name, sailDir)) { res.status(404).json({ error: 'strategy not found' }); return }
+      res.json({ ok: true })
+    } catch (err) { serverError(res, err) }
+  })
+
+  // GET /api/env/:chain — the per-chain env map from .sail/env/<slug>.json (chain = numeric id).
+  app.get('/api/env/:chain', (req, res) => {
+    try { res.json({ chainId: Number(req.params.chain), values: strategyStore.readChainEnv(Number(req.params.chain), sailDir) }) }
+    catch (err) { serverError(res, err) }
+  })
+
+  // POST /api/env/:chain { values } — replace the per-chain env map.
+  app.post('/api/env/:chain', (req, res) => {
+    const values = req.body?.values ?? {}
+    if (typeof values !== 'object' || Array.isArray(values)) { res.status(400).json({ error: 'values must be an object' }); return }
+    try {
+      const written = strategyStore.writeChainEnv(Number(req.params.chain), values, sailDir)
+      res.json({ ok: true, chainId: Number(req.params.chain), values: written })
+    } catch (err) { res.status(400).json({ error: err.message }) }
+  })
+
+  // GET /api/executables — names of src/strategy/*.{ts,js} (plus the default agent from src/agent.*).
+  app.get('/api/executables', (req, res) => {
+    try {
+      const names = new Set()
+      try {
+        for (const f of fs.readdirSync(path.join(projectRoot, 'src', 'strategy'))) {
+          const m = /^([a-zA-Z0-9]+)\.(ts|js)$/.exec(f)
+          if (m) names.add(m[1])
+        }
+      } catch {}
+      if (fs.existsSync(path.join(projectRoot, 'src', 'agent.ts')) || fs.existsSync(path.join(projectRoot, 'src', 'agent.js'))) {
+        names.add('agent')
+      }
+      res.json({ executables: [...names].sort() })
+    } catch (err) { serverError(res, err) }
+  })
+
+  // POST /api/executables { name } — scaffold a new src/strategy/<name>.ts.
+  app.post('/api/executables', (req, res) => {
+    const name = String(req.body?.name ?? '').trim()
+    try {
+      strategyStore.createStrategyExecutable(name, projectRoot)
+      res.json({ ok: true, name })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      if (/Invalid executable name/i.test(message)) {
+        res.status(400).json({ error: 'name must be camelCase letters/digits (e.g. checkData)' }); return
+      }
+      if (/already exists/i.test(message)) {
+        res.status(409).json({ error: `executable "${name}" already exists` }); return
+      }
       serverError(res, err)
     }
   })
@@ -2139,7 +2256,7 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
         try {
           getSailDeployment(chainId)
         } catch {
-          return res.status(400).json({ error: `Chain ${chainId} has no Sail deployment to fork — pick a supported network.` })
+          return res.status(400).json({ error: `Chain ${chainId} has no Sail deployment to fork. Pick a supported network.` })
         }
       }
       try {
@@ -2352,7 +2469,7 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
         const activeCount = Object.values(forks).filter((f) => f.status === 'ready').length
         const alreadyActive = forks[String(chainId)]?.status === 'ready'
         if (!alreadyActive && activeCount >= cap) {
-          return res.status(409).json({ error: `Sandbox is at its ${cap}-chain limit — stop another fork or raise the limit in Sandbox settings before starting this one.` })
+          return res.status(409).json({ error: `Sandbox is at its ${cap}-chain limit. Stop another fork, or raise the limit in Sandbox settings, before starting this one.` })
         }
       } catch { /* if the pre-check itself fails, fall through and let the restart attempt surface the real error */ }
       try {
@@ -2394,7 +2511,7 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
     resumeSandboxForks(sailDir, { maxChains: resolveSandboxChainCap() })
       .then(({ resumed, parked, failed }) => {
         if (resumed.length) console.log(`Sandbox forks resumed from previous session: ${resumed.join(', ')}`)
-        if (parked.length) console.log(`Sandbox forks parked (over the ${resolveSandboxChainCap()}-chain limit — resumable from the UI): ${parked.join(', ')}`)
+        if (parked.length) console.log(`Sandbox forks parked (over the ${resolveSandboxChainCap()}-chain limit, resumable from the UI): ${parked.join(', ')}`)
         for (const [chainId, message] of Object.entries(failed)) {
           console.warn(`⚠ Could not resume sandbox fork for chain ${chainId}: ${message}`)
         }

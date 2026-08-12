@@ -104,7 +104,7 @@ export function clampSandboxChainCap(raw: unknown): number {
  * into two differently-worded versions of the same problem.
  */
 export const ANVIL_MISSING_MESSAGE =
-  "anvil was not found on PATH. Sandbox mode requires Foundry (https://getfoundry.sh) — install it and try again.";
+  "anvil was not found on PATH. Sandbox mode requires Foundry (https://getfoundry.sh). Install it and try again.";
 
 export class TooManySandboxChainsError extends Error {
   constructor(requested: number, cap: number = MAX_SANDBOX_CHAINS) {
@@ -297,7 +297,7 @@ function resolveUpstreamRpc(chain: Chain): { url: string; warning?: string } {
   return {
     url: PUBLIC_UPSTREAM_FALLBACKS[chain],
     warning:
-      `No ${names.join(" / ")} set — forking ${chain} against a public, rate-limited RPC. ` +
+      `No ${names.join(" / ")} set. Forking ${chain} against a public, rate-limited RPC. ` +
       `Set one of those env vars for a faster, more reliable sandbox.`,
   };
 }
@@ -330,7 +330,7 @@ export async function startFork(opts: {
     if (existingChainId !== chainId) {
       throw new Error(
         `Port ${port} is already serving chain ${existingChainId}, not ${chain} (${chainId}). ` +
-          `Free the port or pick a different chain — refusing to guess.`,
+          `Free the port or pick a different chain. Refusing to guess.`,
       );
     }
     if (loadStateFile && existsSync(loadStateFile)) {
@@ -338,7 +338,7 @@ export async function startFork(opts: {
       // owns — so it's skipped, and the caller should know their saved state
       // isn't what this fork is showing.
       console.warn(
-        `⚠ Adopted an already-running ${chain} fork on port ${port} — saved state from ${loadStateFile} was NOT loaded into it.`,
+        `⚠ Adopted an already-running ${chain} fork on port ${port}. Saved state from ${loadStateFile} was NOT loaded into it.`,
       );
     }
     const forkState: ForkState = {
@@ -429,7 +429,7 @@ export async function startFork(opts: {
 
     if (attempt < MAX_SPAWN_ATTEMPTS) {
       console.warn(
-        `⚠ anvil for ${chain} exited during startup (attempt ${attempt}/${MAX_SPAWN_ATTEMPTS}) — retrying. Log: ${logPath}`,
+        `⚠ anvil for ${chain} exited during startup (attempt ${attempt}/${MAX_SPAWN_ATTEMPTS}), retrying. Log: ${logPath}`,
       );
     }
   }
@@ -448,7 +448,7 @@ export async function startFork(opts: {
       // state file with the fresh fork's empty state.
       loadFailed = true;
       console.warn(
-        `⚠ Failed to load previous state for ${chain} from ${loadStateFile}: ${truncateError(e)} — will keep retrying; state dumps are paused for this fork until it loads.`,
+        `⚠ Failed to load previous state for ${chain} from ${loadStateFile}: ${truncateError(e)}. Will keep retrying; state dumps are paused for this fork until it loads.`,
       );
     }
   }
@@ -467,7 +467,7 @@ export async function startFork(opts: {
     ready,
     status: ready ? "ready" : died ? "failed" : "spawning",
     error: died
-      ? `anvil exited during startup after ${MAX_SPAWN_ATTEMPTS} attempts${lastLogLine(logPath) ? ` — ${lastLogLine(logPath)}` : ""}. Restart the fork to try again.`
+      ? `anvil exited during startup after ${MAX_SPAWN_ATTEMPTS} attempts${lastLogLine(logPath) ? `: ${lastLogLine(logPath)}` : ""}. Restart the fork to try again.`
       : undefined,
     adopted: false,
     // A saved-state load that hasn't happened yet is a recorded debt: the

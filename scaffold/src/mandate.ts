@@ -4,8 +4,9 @@
  * Put your token addresses, protocol contracts, amounts, and other
  * constants here. Import them into agent.ts.
  *
- * For the strategy-constants pattern (constants read from .sail/strategy.md, fed
- * into the tick loop), see the skeleton in the sailor-agent-build skill.
+ * For the strategy-constants pattern (constants read from the strategy's
+ * .sail/strategies/<name>.md, fed into the tick loop), see the skeleton in the
+ * sailor-agent-build skill.
  *
  * For authoring a bespoke on-chain permission for this strategy's venue:
  *   see contracts/ (the scaffold) and the sailor-mandates skill.

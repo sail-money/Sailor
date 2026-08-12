@@ -26,7 +26,6 @@ docker build -t sailor-agent .
 docker run -d --restart=always \
   -e RPC_URL=<your-rpc-url> \
   -e SAIL_PASSPHRASE=<your-passphrase> \
-  -e CHAIN_ID=8453 \  # example: Base — use your project's chain id
   -e AGENT_INTERVAL=300 \
   --name sailor-agent \
   sailor-agent
@@ -68,7 +67,6 @@ docker pull <registry>/<image>:latest
 docker run -d --restart=always \
   -e RPC_URL=<your-rpc-url> \
   -e SAIL_PASSPHRASE=<your-passphrase> \
-  -e CHAIN_ID=8453 \  # example: Base — use your project's chain id
   -e AGENT_INTERVAL=300 \
   <registry>/<image>:latest
 ```

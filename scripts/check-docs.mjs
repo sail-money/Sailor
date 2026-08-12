@@ -198,18 +198,43 @@ function codeRegions(md) {
 // ── 4. Skills consistency ─────────────────────────────────────────────────────
 //
 // The scaffolded template ships agent skills under .agents/skills/. AGENTS.md is
-// the routing layer: it must point at every skill that exists, and every skill it
-// points at must exist with valid frontmatter — otherwise an agent either never
-// discovers a workflow or follows a dangling pointer.
+// the USER's own file (their project instructions) and carries no skill routing
+// to check against, so completeness is checked against this manually maintained
+// list instead — add a name here when a new skill ships, remove one when a
+// skill is deleted.
+
+const EXPECTED_SKILLS = [
+  "sailor-agent-build",
+  "sailor-automation",
+  "sailor-extend",
+  "sailor-mandate-planner",
+  "sailor-mandates",
+  "sailor-memory",
+  "sailor-navigator",
+  "sailor-onboarding",
+  "sailor-operate",
+  "sailor-project-info",
+  "sailor-servers",
+  "sailor-strategy",
+  "sailor-swap-quote",
+  "sailor-template-approve-batch",
+  "sailor-template-borrow",
+  "sailor-template-deposit",
+  "sailor-template-swap",
+  "sailor-template-swap-no-oracle",
+  "sailor-template-transfer",
+  "sailor-template-withdraw",
+  "sailor-templates",
+  "sailor-token-resolve",
+  "sailor-transactions",
+];
 
 function checkSkills(errors) {
   const skillsRoot = join(ROOT, "scaffold/.agents/skills");
-  const agentsPath = join(ROOT, "scaffold/AGENTS.md");
   if (!existsSync(skillsRoot)) {
     errors.push("scaffold/.agents/skills: directory missing");
     return;
   }
-  const agentsMd = readFileSync(agentsPath, "utf-8");
   const dirs = readdirSync(skillsRoot).filter((d) =>
     statSync(join(skillsRoot, d)).isDirectory(),
   );
@@ -230,14 +255,16 @@ function checkSkills(errors) {
     const description = fm[1].match(/^description:\s*(.+)$/m)?.[1]?.trim();
     if (name !== d) errors.push(`${rel(skillFile)}: frontmatter name "${name}" ≠ directory "${d}"`);
     if (!description) errors.push(`${rel(skillFile)}: frontmatter description missing or empty`);
-    if (!agentsMd.includes(`.agents/skills/${d}/SKILL.md`)) {
-      errors.push(`scaffold/AGENTS.md: routing table does not reference .agents/skills/${d}/SKILL.md`);
+    if (!EXPECTED_SKILLS.includes(d)) {
+      errors.push(
+        `scaffold/.agents/skills/${d}: not in EXPECTED_SKILLS (scripts/check-docs.mjs) — add it there if this skill is intentional`,
+      );
     }
   }
 
-  for (const m of agentsMd.matchAll(/\.agents\/skills\/([\w-]+)\/SKILL\.md/g)) {
-    if (!dirs.includes(m[1])) {
-      errors.push(`scaffold/AGENTS.md: references .agents/skills/${m[1]}/SKILL.md which does not exist`);
+  for (const name of EXPECTED_SKILLS) {
+    if (!dirs.includes(name)) {
+      errors.push(`scaffold/.agents/skills/${name}: listed in EXPECTED_SKILLS (scripts/check-docs.mjs) but missing`);
     }
   }
 }

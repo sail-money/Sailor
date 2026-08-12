@@ -1,0 +1,314 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.headRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.eyebrow {
+  font-size: var(--t-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.eyebrowSmall {
+  font-size: var(--t-xs);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.newBtn {
+  font-size: var(--t-xs);
+  color: var(--accent-blue);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-1);
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: border-color 160ms var(--ease-sail);
+}
+.newBtn:hover { border-color: var(--accent-blue); }
+
+.error {
+  font-size: var(--t-xs);
+  color: #e5484d;
+  border: 1px solid rgba(229, 72, 77, 0.35);
+  border-radius: var(--r-1);
+  padding: var(--s2);
+}
+
+.empty,
+.emptySteps {
+  font-size: var(--t-sm);
+  color: var(--text-tertiary);
+}
+.emptySteps { padding: var(--s1) 0; }
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-2);
+  padding: var(--s3);
+  background: rgba(127, 127, 127, 0.035);
+}
+.cardActive { border-color: var(--accent-blue); }
+
+.cardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+.cardMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.name {
+  font-size: var(--t-base);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.desc {
+  font-size: var(--t-xs);
+  color: var(--text-tertiary);
+}
+.tagActive {
+  align-self: flex-start;
+  font-size: var(--t-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent-blue);
+}
+
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-shrink: 0;
+}
+.toggleBtn,
+.deleteBtn,
+.addStepBtn,
+.cancelBtn {
+  font-size: var(--t-xs);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-1);
+  padding: 4px 10px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color 160ms var(--ease-sail);
+}
+.toggleBtn:hover,
+.addStepBtn:hover,
+.cancelBtn:hover { border-color: var(--accent-blue); }
+.deleteBtn { color: var(--text-tertiary); }
+.deleteBtn:hover { border-color: #e5484d; color: #e5484d; }
+.addStepBtn { align-self: flex-start; }
+
+.pipeSelectWrap { display: inline-flex; }
+.pipeSelect,
+.input {
+  font-size: var(--t-xs);
+  color: var(--text-primary);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-1);
+  padding: 5px 8px;
+}
+.input { width: 100%; }
+.input::placeholder { color: var(--text-quaternary); }
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.stepRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-1);
+  padding: 6px 10px;
+  font-size: var(--t-xs);
+}
+.stepExec { font-weight: 600; color: var(--text-primary); }
+.stepArrow { color: var(--text-quaternary); }
+.stepSma { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.stepChains { display: inline-flex; gap: 4px; margin-left: auto; }
+.chainPill { display: inline-flex; align-items: center; }
+.removeStep {
+  background: transparent;
+  border: none;
+  color: var(--text-quaternary);
+  cursor: pointer;
+  font-size: var(--t-xs);
+  padding: 0 2px;
+}
+.removeStep:hover { color: #e5484d; }
+
+.stepEditor,
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.stepEditor { gap: var(--s2); border-top: 1px solid var(--hairline); padding-top: var(--s2); margin-top: 2px; }
+.label {
+  font-size: var(--t-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-tertiary);
+}
+
+.chainChoices { display: flex; flex-wrap: wrap; gap: 6px; }
+.chainChoice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--t-xs);
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-1);
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: border-color 160ms var(--ease-sail);
+}
+.chainChoiceOn {
+  border-color: var(--accent-blue);
+  color: var(--text-primary);
+}
+
+.actions,
+.execRow {
+  display: flex;
+  gap: var(--s2);
+  align-items: center;
+}
+.actions { justify-content: flex-end; }
+.execRow { align-items: stretch; }
+.execRow .input { flex: 1; }
+
+.saveBtn {
+  font-size: var(--t-xs);
+  color: #fff;
+  background: var(--accent-blue);
+  border: 1px solid var(--accent-blue);
+  border-radius: var(--r-1);
+  padding: 5px 14px;
+  cursor: pointer;
+}
+.saveBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Sub-tabs reuse the shared segmented control from Dashboard.module.css (.segTabs). */
+
+.stepEditBtn {
+  font-size: var(--t-micro);
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-1);
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.stepEditBtn:hover { border-color: var(--accent-blue); }
+
+/* Executables list */
+.execListRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.execListRow:last-child { border-bottom: none; }
+.execName { font-weight: 600; font-size: var(--t-sm); color: var(--text-primary); }
+.execPath { font-size: var(--t-micro); color: var(--text-tertiary); margin-right: auto; }
+
+/* Config popup */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: var(--s3);
+}
+.modalCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  max-width: 440px;
+  width: 100%;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-3);
+  padding: var(--s4);
+  background: var(--bg, #14151a);
+}
+.modalText { font-size: var(--t-sm); color: var(--text-secondary); }
+.modalCode {
+  display: block;
+  font-size: var(--t-sm);
+  color: var(--text-primary);
+  background: rgba(127, 127, 127, 0.14);
+  border-radius: var(--r-1);
+  padding: var(--s2);
+}
+
+/* Chain switcher (Environment tab) */
+.chainSwitcher { display: flex; flex-wrap: wrap; gap: 6px; }
+.chainSwitchBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--t-xs);
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-1);
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: border-color 160ms var(--ease-sail);
+}
+.chainSwitchBtnActive { border-color: var(--accent-blue); color: var(--text-primary); }
+
+/* Environment Name|Value table */
+.envTableHead,
+.envRow {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr auto;
+  gap: var(--s2);
+  align-items: center;
+}
+.envTableHead { padding-bottom: 4px; }
+.envRow { padding: 3px 0; }
+.envActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  padding-top: var(--s2);
+}
+
+.hint { font-size: var(--t-xs); color: var(--text-tertiary); }
+.configHint { font-size: var(--t-xs); color: var(--text-secondary); }
+.configHint code {
+  font-size: var(--t-micro);
+  background: rgba(127, 127, 127, 0.12);
+  border-radius: 4px;
+  padding: 1px 5px;
+}

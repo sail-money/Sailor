@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { chains, chainBySlug, getNativeCurrencySymbol } from "../chains.js";
+import { chains, chainBySlug, getDefaultRpcUrl, getNativeCurrencySymbol } from "../chains.js";
+
+test("every chain ships a usable default RPC (the runner's no-config fallback)", () => {
+  for (const c of Object.values(chains)) {
+    const url = getDefaultRpcUrl(c.chainId);
+    assert.ok(url && /^https:\/\//.test(url), `chain ${c.chainId} (${c.slug}) has no https default RPC: ${JSON.stringify(url)}`);
+  }
+});
 
 test("every chain has a unique, non-empty slug", () => {
   const slugs = Object.values(chains).map((c) => c.slug);
