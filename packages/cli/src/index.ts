@@ -22,9 +22,9 @@ import { type CloneOptions, clone } from "./commands/clone.js";
 import { doctor } from "./commands/doctor.js";
 import {
   type HarborListOptions,
-  type HarborStartOptions,
+  type HarborCreateOptions,
   harborList,
-  harborStart,
+  harborCreate,
 } from "./commands/harbor.js";
 import { initCommand } from "./commands/init.js";
 import { type KeysGenerateOptions, keysExportCi, keysGenerate, keysShow } from "./commands/keys.js";
@@ -793,16 +793,16 @@ harborCmd
   .action(actionWith<HarborListOptions>(harborList));
 
 harborCmd
-  .command("start <slug> [dir]")
-  .description("Download the latest release of an agent and set up a new project with it")
+  .command("create <slug> [dir]")
+  .description("Create a new project from the latest release of an agent")
   .option("--registry <owner/repo>", "Registry repo (default: sail-money/Dock)")
   .option("--chain <id>", "Chain id the agent must support")
   .option("--yes", "Apply the verified blueprint without an interactive import confirmation")
   .option("--agent <executable>", "Coding-agent executable to launch", "codex")
   .option("--no-agent", "Stop after install/typecheck and print the coding-agent handoff")
   .action(
-    actArgs<[string, string | undefined, HarborStartOptions]>((slug, dir, opts) =>
-      harborStart(slug, dir, opts),
+    actArgs<[string, string | undefined, HarborCreateOptions]>((slug, dir, opts) =>
+      harborCreate(slug, dir, opts),
     ),
   );
 

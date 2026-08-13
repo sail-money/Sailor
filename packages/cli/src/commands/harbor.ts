@@ -11,10 +11,10 @@ import {
 import { blueprintStart } from "./blueprint-start.js";
 
 /**
- * `sailor harbor list | start` — the one-word entry point for Harbor, the library of
+ * `sailor harbor list | create` — the one-word entry point for Harbor, the library of
  * ready-to-run money agents. Blueprints are published as GitHub releases in the registry
  * (`sail-money/Dock` by default), one release per agent tagged `<slug>-v<n>` with a `.tar.gz`
- * blueprint artifact. `list` shows what is available; `start` downloads the latest release for
+ * blueprint artifact. `list` shows what is available; `create` downloads the latest release for
  * a slug and hands off to `blueprint start` (skeleton + import + install + guided onboarding).
  *
  * Discovery and download are deliberately the only things here: trust (verification, secret
@@ -163,29 +163,29 @@ export async function harborList(
     if (e.summary) console.log(`    ${e.summary}`);
     console.log();
   }
-  console.log("Start one with: sailor harbor start <slug>");
+  console.log("Create one with: sailor harbor create <slug>");
 }
 
-// ── start ──────────────────────────────────────────────────────────────────────
+// ── create ─────────────────────────────────────────────────────────────────────
 
-export interface HarborStartOptions {
+export interface HarborCreateOptions {
   registry?: string;
   chain?: string;
   yes?: boolean;
   agent?: string | false;
 }
 
-export interface HarborStartDependencies {
+export interface HarborCreateDependencies {
   listReleases?: typeof listReleases;
   downloadAsset?: typeof downloadAsset;
   blueprintStart?: typeof blueprintStart;
 }
 
-export async function harborStart(
+export async function harborCreate(
   slug: string,
   dir: string | undefined,
-  options: HarborStartOptions = {},
-  deps: HarborStartDependencies = {},
+  options: HarborCreateOptions = {},
+  deps: HarborCreateDependencies = {},
 ): Promise<void> {
   const registry = options.registry ?? DEFAULT_REGISTRY;
   const list = deps.listReleases ?? listReleases;

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
 import type { ListedRelease } from "../lib/github.js";
-import { harborList, harborStart } from "./harbor.js";
+import { harborList, harborCreate } from "./harbor.js";
 
 function release(
   tag: string,
@@ -99,9 +99,9 @@ test("list handles a not-found registry gracefully", async () => {
   assert.match(out, /No registry at sail-money\/Dock yet/);
 });
 
-test("start reports a clear error when the registry is not published", async () => {
+test("create reports a clear error when the registry is not published", async () => {
   await assert.rejects(
-    harborStart(
+    harborCreate(
       "dca",
       undefined,
       {},
@@ -117,9 +117,9 @@ test("start reports a clear error when the registry is not published", async () 
   );
 });
 
-// ── start ──────────────────────────────────────────────────────────────────────
+// ── create ─────────────────────────────────────────────────────────────────────
 
-test("start resolves the latest version and hands the archive to blueprint start", async () => {
+test("create resolves the latest version and hands the archive to blueprint start", async () => {
   const releases = [
     release("dca-v1", "dca-v1.tar.gz"),
     release("dca-v2", "dca-v2.tar.gz"),
@@ -129,7 +129,7 @@ test("start resolves the latest version and hands the archive to blueprint start
   let handedOff:
     | { source: string; dir: string; opts: { chain?: string; yes?: boolean } }
     | undefined;
-  await harborStart(
+  await harborCreate(
     "dca",
     "my-dca",
     {},
@@ -150,9 +150,9 @@ test("start resolves the latest version and hands the archive to blueprint start
   assert.equal(handedOff.dir, "my-dca");
 });
 
-test("start defaults the project directory to the slug", async () => {
+test("create defaults the project directory to the slug", async () => {
   let handedOff: { dir: string } | undefined;
-  await harborStart(
+  await harborCreate(
     "yield",
     undefined,
     {},
@@ -167,9 +167,9 @@ test("start defaults the project directory to the slug", async () => {
   assert.equal(handedOff?.dir, "yield");
 });
 
-test("start forwards chain/yes/agent options to blueprint start", async () => {
+test("create forwards chain/yes/agent options to blueprint start", async () => {
   let opts: { chain?: string; yes?: boolean; agent?: string | false } | undefined;
-  await harborStart(
+  await harborCreate(
     "dca",
     undefined,
     { chain: "8453", yes: true, agent: "claude" },
@@ -184,9 +184,9 @@ test("start forwards chain/yes/agent options to blueprint start", async () => {
   assert.deepEqual(opts, { chain: "8453", yes: true, agent: "claude" });
 });
 
-test("start errors when no release matches the slug", async () => {
+test("create errors when no release matches the slug", async () => {
   await assert.rejects(
-    harborStart(
+    harborCreate(
       "nope",
       undefined,
       {},
@@ -200,7 +200,7 @@ test("start errors when no release matches the slug", async () => {
   );
 });
 
-test("start refuses a release with no archive asset", async () => {
+test("create refuses a release with no archive asset", async () => {
   const bare: ListedRelease = {
     tag: "dca-v1",
     name: "",
@@ -209,7 +209,7 @@ test("start refuses a release with no archive asset", async () => {
     assets: [],
   };
   await assert.rejects(
-    harborStart(
+    harborCreate(
       "dca",
       undefined,
       {},
