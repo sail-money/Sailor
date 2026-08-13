@@ -1,19 +1,19 @@
 ---
 name: sailor-operate
-description: "Station 5 — operate a live agent. Answers the operator's running-agent questions: \"what did my agent do\", \"is my agent working\", \"why was it denied\", \"pause my agent\", \"stop the agent\", \"change the caps\", \"widen the mandate\", \"narrow the mandate\", \"withdraw my funds\", \"get my money out\", \"shut it all down\", \"my agent seems stuck\". Reading .sail/activity.jsonl, tuning bounds, pausing, revoking, and exiting to the owner."
+description: Operate a live agent: read what it did, tune bounds, pause or revoke, and exit to the owner. Use when asked what my agent did, pause my agent, change the caps, withdraw my funds, or shut it down.
 ---
 
 # sailor-operate — monitor, tune, revoke, exit (Station 5)
 
-The agent is live; this skill answers the operator's questions about it. Station 5 has two halves: [`sailor-automation`](../sailor-automation/SKILL.md) launches the agent unattended, and this skill operates it thereafter. Operating is the steady state — there is no "next" station.
+The agent is live; this skill answers the operator's questions about it. Station 5 has two halves: `sailor-automation` launches the agent unattended, and this skill operates it thereafter. Operating is the steady state — there is no "next" station.
 
-**Gate:** a launched agent, or at minimum a registered mandate. Read-only state questions can also be answered by [`sailor-project-info`](../sailor-project-info/SKILL.md); this skill adds the operating actions (tune, pause, revoke, exit).
+**Gate:** a launched agent, or at minimum a registered mandate. Read-only state questions can also be answered by `sailor-project-info`; this skill adds the operating actions (tune, pause, revoke, exit).
 
 ## What the agent runs — execution strategies
 
-`sailor run` executes **execution strategies** (`.sail/strategies/strategies.json`), not a single hard-coded `src/agent.ts`. Each active strategy binds **one executable** (`src/strategy/<name>.ts`) to an **SMA** and an optional **chains** list — there are no steps and no pipeline. By default `run` executes every active strategy each tick; `sailor run --strategy <name>` runs just one (the lever for per-strategy schedules). Nothing is auto-seeded: a project has **no strategies until one is created**, so `sailor run` with none reports "No active strategies…" — creating one is [`sailor-strategy`](../sailor-strategy/SKILL.md)'s job.
+`sailor run` executes **execution strategies** (`.sail/strategies/strategies.json`), not a single hard-coded `src/agent.ts`. Each active strategy binds **one executable** (`src/strategy/<name>.ts`) to an **SMA** and an optional **chains** list — there are no steps and no pipeline. By default `run` executes every active strategy each tick; `sailor run --strategy <name>` runs just one (the lever for per-strategy schedules). Nothing is auto-seeded: a project has **no strategies until one is created**, so `sailor run` with none reports "No active strategies…" — creating one is `sailor-strategy`'s job.
 
-The two run modes (per-chain / cross-chain), `ctx.chain(id)`, and per-chain `ctx.env` at runtime are documented in **[`sailor-agent-build`](../sailor-agent-build/SKILL.md)**; running strategies at different cadences is in **[`sailor-automation`](../sailor-automation/SKILL.md)**. The model, the `.sail/strategies/strategies.json` config, and the `sailor strategy …` creation CLI live with **[`sailor-strategy` → execution-config](../sailor-strategy/references/execution-config.md)**. Keep this skill focused on monitor / tune / revoke / exit.
+The two run modes (per-chain / cross-chain), `ctx.chain(id)`, and per-chain `ctx.env` at runtime are documented in **`sailor-agent-build`**; running strategies at different cadences is in **`sailor-automation`**. The model, the `.sail/strategies/strategies.json` config, and the `sailor strategy …` creation CLI live with **[`sailor-strategy` → execution-config](../sailor-strategy/references/execution-config.md)**. Keep this skill focused on monitor / tune / revoke / exit.
 
 ## "What is my agent doing?"
 
@@ -44,8 +44,8 @@ Visual path: `sailor ui start` → the dashboard shows account state, mandate he
 A denial is information, not a failure (the sailor-navigator skill's invariant 3). Find the `dispatch_denied` event, read its `reason`, and map it to one of three causes:
 
 1. **The call was outside the permission's bounds** → the system worked as designed. If the strategy legitimately needs that call, the bounds are too tight — go to "Change the bounds" (with the user).
-2. **The permission is misconfigured** (registered but not configured, wrong allowlist/cap) → retune it (below). `no_registered_permissions` means nothing is registered for that action yet — back to [`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md).
-3. **The agent built the wrong dispatch** (wrong selector/target/recipient) → fix the tick loop ([`sailor-agent-build`](../sailor-agent-build/SKILL.md)).
+2. **The permission is misconfigured** (registered but not configured, wrong allowlist/cap) → retune it (below). `no_registered_permissions` means nothing is registered for that action yet — back to `sailor-mandate-planner`.
+3. **The agent built the wrong dispatch** (wrong selector/target/recipient) → fix the tick loop (`sailor-agent-build`).
 
 Never route around the kernel. A denial is corrected by fixing the bounds or the code, never by bypassing the check — and never by asking for or accepting a private key as a shortcut (the sailor-navigator skill's invariant 6). If none of the three causes above resolves it, that's an honest failure to report to the user, not a reason to reach for credentials.
 
@@ -60,9 +60,14 @@ sailor mandate configure --address <SINGLETON> --sma <SMA> --params <0x-new-blob
 other shared template needs the blob pre-built and passed via `--params`; see
 [`sailor-templates` reuse-flow](../sailor-templates/references/reuse-flow.md).)
 
-Follow the template's own steps ([`sailor-templates`](../sailor-templates/SKILL.md) reuse flow + the matching `sailor-template-*` spoke). (`sailor mandate update` changes only tracked *metadata* — name/source/artifact paths — not bounds.)
+Follow the template's own steps (`sailor-templates` reuse flow + the matching `sailor-templates` spoke). (`sailor mandate update` changes only tracked *metadata* — name/source/artifact paths — not bounds.)
 
 **Widening requires the user's explicit, informed approval** (the sailor-navigator skill's invariant 2): before any signature, state plainly what the change lets the agent newly do. Narrowing is safe to propose freely, but still confirm.
+
+When widening, re-assess risk first with `sailor-risk`: state what the
+newly allowed action risks (thin pool, manipulation, approval exposure, oracle, venue, MEV)
+alongside what it newly permits, so the user approves the authority and its risk together, not
+one without the other.
 
 ## "Pause / resume"
 
@@ -90,7 +95,7 @@ Beyond the protocol, the **Safe is the owner's ultimate control** — the owner 
 Two paths; use both understanding which is sovereign:
 
 - **(a) Safe app — the sovereign exit.** The SMA is a Safe the owner controls directly. `sailor ui start` → the dashboard's **Open in Safe** link goes to `app.safe.global` for this account, chain-aware (it maps the account's chain to the right Safe prefix). From there the owner moves funds with their own wallet signature. This works **regardless of agent, mandate, or session state** — it is the guaranteed way out and needs no permission.
-- **(b) Agent-mediated exit and payout — within bounds.** Two distinct permissions, and a full round trip to the owner needs both. If a `WithdrawPermission` is registered ([`sailor-template-withdraw`](../sailor-template-withdraw/SKILL.md)), the agent (or a one-off `sailor run --once`) can unwind a vault or lending position within the mandate's cap — the proceeds land in the SMA itself, which is all this permission can do. Moving those funds onward to the owner's address is `TransferPermission` ([`sailor-template-transfer`](../sailor-template-transfer/SKILL.md)) with that address as a one-entry recipient allowlist. Convenient for routine operation; bounded by the permissions.
+- **(b) Agent-mediated exit and payout — within bounds.** Two distinct permissions, and a full round trip to the owner needs both. If a `WithdrawPermission` is registered (`sailor-templates` (withdraw)), the agent (or a one-off `sailor run --once`) can unwind a vault or lending position within the mandate's cap — the proceeds land in the SMA itself, which is all this permission can do. Moving those funds onward to the owner's address is `TransferPermission` (`sailor-templates` (transfer)) with that address as a one-entry recipient allowlist. Convenient for routine operation; bounded by the permissions.
 
 Use (b) for routine exits and sweeps while running; use (a) whenever you want certainty, or the agent is paused/misbehaving/unresponsive.
 
@@ -114,4 +119,4 @@ Rotation **clears every attached mandate on-chain (fail-closed)** and re-approve
 
 ## Where to go from here
 
-Operating is the steady state — no next station. For run/transaction notifications or a strategy-specific dashboard, see [`sailor-extend`](../sailor-extend/SKILL.md); to change how the agent is scheduled/hosted, [`sailor-automation`](../sailor-automation/SKILL.md).
+Operating is the steady state — no next station. For run/transaction notifications or a strategy-specific dashboard, see `sailor-extend`; to change how the agent is scheduled/hosted, `sailor-automation`.

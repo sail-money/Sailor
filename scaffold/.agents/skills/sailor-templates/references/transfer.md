@@ -1,20 +1,9 @@
----
-name: sailor-template-transfer
-description: "Gate an SMA's ERC-20 transfers by REUSING the shared TransferPermission singleton (Protocol/contracts/templates/TransferPermission.sol) — register + configure, no per-SMA deploy. Use for payment, payroll, paying contributors, treasury moves, or any strategy that sends approved tokens — within a per-tx cap, only to a recipient allowlist (a whitelist of partner protocols, CEX deposit addrs, co-manager wallets). For returning funds to a single fixed Safe, use this template with a one-entry recipient allowlist; sailor-template-withdraw exits vault and lending positions into the SMA and cannot pay an external address. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps)."
-compatibility: A Sailor project (`@sail.money/sailor/sdk`, `sailor` CLI). Requires TransferPermission deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
-metadata:
-  workspace: sailor-harness
-  classification: generic
-  status: draft
-  origin: Protocol/contracts/templates/TransferPermission.sol
----
+# TransferPermission — bounded transfer to an allowlist via the shared singleton
 
-# sailor-template-transfer — bounded transfer to an allowlist via the shared singleton
-
-You typically arrive here from the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) with a complete strategy spec — this spoke covers the bounded-transfer permission of that plan.
+You typically arrive here from the mandate plan (`sailor-mandate-planner`) with a complete strategy spec — this spoke covers the bounded-transfer permission of that plan.
 
 Reuse the shared **`TransferPermission`** singleton. Family overview + flow:
-[`sailor-templates`](../sailor-templates/SKILL.md).
+`sailor-templates`.
 
 ## What it enforces (per account, from source)
 
@@ -44,7 +33,7 @@ abi.encode(address[] allowedRecipients, address[] allowedTokens, uint256 maxAmou
 Pay three contributors in USDC, capped at 1,000 USDC per transfer, on a weekly cadence (the
 schedule is an agent-side guard — permissions are stateless). The token (USDC) is the verified
 Unichain continuity address; **recipients are user-supplied — confirm each is checksummed and a
-valid address on the target chain (via [`sailor-token-resolve`](../sailor-token-resolve/SKILL.md)
+valid address on the target chain (via `sailor-token-resolve`
 for the token, and with the user for the payees) before configuring.** The recipient placeholders
 below are not real addresses.
 
@@ -77,14 +66,14 @@ BLOB=$(cast abi-encode "f(address[],address[],uint256)" \
 sailor mandate configure --address <TRANSFER_PERMISSION> --sma <SMA> --params "$BLOB"
 
 # ONE mandatory safety gate — generate the lean probes from the same $BLOB, then run simulate once.
-# See sailor-templates/references/reuse-flow.md step 5.
+# See reuse-flow.md step 5.
 node scripts/probe-mandate.mjs --template TransferPermission --params "$BLOB" --sma <SMA> --address <TRANSFER_PERMISSION>
 ```
 
 ## Steps
 
 Register → configure → simulate → reconfigure mechanics (and the encoding gotcha) live in
-[`sailor-templates` reuse-flow](../sailor-templates/references/reuse-flow.md) — follow it.
+[`sailor-templates` reuse-flow](reuse-flow.md) — follow it.
 `sailor mandate register` registers only; `configureDirect` (owner tx) is the half that makes the
 permission live. Template-specific bits:
 
@@ -98,4 +87,4 @@ permission live. Template-specific bits:
 
 ## Next
 
-Simulate passing → back to the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) for the next permission.
+Simulate passing → back to the mandate plan (`sailor-mandate-planner`) for the next permission.

@@ -1,6 +1,6 @@
 # Execution config — registering an executable as a strategy & the `strategies.json` file
 
-> **Two artifacts, one skill.** [`sailor-strategy`](../SKILL.md) owns both, and both are created together at Station 2. `.sail/strategies/<name>.md` (one per strategy) is the **intent** — *what you want financially* (the three acts of the skill). This doc is the **execution** side: how you register a runnable executable as a **strategy**, and the `.sail/strategies/strategies.json` config that wires it to run. For how the runner *executes* these each tick — the two run modes and per-chain `ctx.env` — see [`sailor-agent-build`](../../sailor-agent-build/SKILL.md); for running strategies at different cadences, see [`sailor-automation`](../../sailor-automation/SKILL.md).
+> **Two artifacts, one skill.** `sailor-strategy` owns both, and both are created together at Station 2. `.sail/strategies/<name>.md` (one per strategy) is the **intent** — *what you want financially* (the three acts of the skill). This doc is the **execution** side: how you register a runnable executable as a **strategy**, and the `.sail/strategies/strategies.json` config that wires it to run. For how the runner *executes* these each tick — the two run modes and per-chain `ctx.env` — see `sailor-agent-build`; for running strategies at different cadences, see `sailor-automation`.
 
 ## The model
 
@@ -108,5 +108,5 @@ Other commands: `sailor strategy list [--json]`, `delete <name>`, `env show <cha
 - **cross-chain** — omit chains; one script coordinates across chains via `ctx.chain(id)`.
 
 → For how these run each tick (the run modes at runtime, `ctx.chain(id)`, and per-chain `ctx.env`), see
-[`sailor-agent-build`](../../sailor-agent-build/SKILL.md); for running strategies at different cadences,
-see [`sailor-automation`](../../sailor-automation/SKILL.md).
+`sailor-agent-build`; for running strategies at different cadences,
+see `sailor-automation`.

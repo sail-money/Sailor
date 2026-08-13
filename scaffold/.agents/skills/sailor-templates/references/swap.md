@@ -1,22 +1,11 @@
----
-name: sailor-template-swap
-description: "Gate an SMA's DEX swaps by REUSING the shared SwapPermission singleton (Protocol/contracts/templates/SwapPermission.sol) — register + configure, no per-SMA deploy. The oracle-gated tier: use when a trade is large relative to the target pool's depth (manipulation-resistant slippage band via a MANDATORY IOracle adapter — priceOracle is required), or the pair already has a deployed adapter. For regular trade sizes, sailor-template-swap-no-oracle is the default. On Uniswap V3, V3-02, or V2 with router + token-in/out allowlists, a per-tx cap, and a slippage limit. For the LI.FI aggregator or Pendle, author a bespoke permission via sailor-mandates. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps)."
-compatibility: A Sailor project (`@sail.money/sailor/sdk`, `sailor` CLI). Requires SwapPermission deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
-metadata:
-  workspace: sailor-harness
-  classification: generic
-  status: draft
-  origin: Protocol/contracts/templates/SwapPermission.sol
----
+# SwapPermission — bounded DEX swap via the shared singleton
 
-# sailor-template-swap — bounded DEX swap via the shared singleton
-
-You typically arrive here from the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) with a complete strategy spec — this spoke covers the bounded-swap permission of that plan.
+You typically arrive here from the mandate plan (`sailor-mandate-planner`) with a complete strategy spec — this spoke covers the bounded-swap permission of that plan.
 
 Reuse the shared **`SwapPermission`** singleton instead of authoring/deploying a swap contract.
 Register its address on the SMA and `configure()` your routers, token allowlists, cap, and
 
-slippage. Family overview + flow: [`sailor-templates`](../sailor-templates/SKILL.md).
+slippage. Family overview + flow: `sailor-templates`.
 
 ## What it enforces (per account, from source)
 
@@ -40,7 +29,7 @@ mandatory — see below): `amountOutMin ≥ amountIn × price/10^dec ×
 > **⛔ The oracle is MANDATORY (contract `v2`, hardened in PR #45).** `_applyConfig` reverts
 > `OracleRequired()` if `priceOracle == 0` and `MissingPriceAge()` if `maxPriceAgeSec == 0`.
 > There is **no oracle-disabled mode** on this template — for tokens with no oracle use the
-> separate [`SwapPermissionNoOracle`](../sailor-template-swap-no-oracle/SKILL.md) (live-pool
+> separate `sailor-templates` (swap-no-oracle) (live-pool
 > hallucination band). `maxSlippageBps == 0` is **NOT** a bypass — it means zero tolerance
 > (exact-out-or-better), the strictest valid setting. `maxSlippageBps > 9_999` reverts
 > `SlippageBpsTooLarge`.
@@ -53,7 +42,7 @@ mandatory — see below): `amountOutMin ≥ amountIn × price/10^dec ×
 `SwapPermission` authorizes the swap **call** only. The router pulls `tokenIn` via an ERC-20
 allowance, and the `approve(router, amount)` that establishes it is a **separate transaction this
 permission does not cover** (same rule as every protocol permission — see
-[`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md)). A swap with
+[`sailor-mandates/references/approvals.md`](../../sailor-mandates/references/approvals.md)). A swap with
 no/insufficient allowance reverts inside the router and the tick fails. **Every** bounded swap
 needs the allowance handled — decide how at mandate-build time, not when the first tick reverts.
 
@@ -61,7 +50,7 @@ needs the allowance handled — decide how at mandate-build time, not when the f
   allowance.** Deploy a small bespoke `IPermission` bounding a standalone `approve(router, amount)`
   call (target == token, selector == `approve`, spender ∈ the router allowlist, value == 0 — the
   `BoundedErc20Approve` worked example in
-  [`sailor-mandates/references/authoring-patterns.md`](../sailor-mandates/references/authoring-patterns.md))
+  [`sailor-mandates/references/authoring-patterns.md`](../../sailor-mandates/references/authoring-patterns.md))
   and register it alongside `SwapPermission` in the same signing session. At runtime the agent
   reads `allowance(SMA, router)` and, when it's short, dispatches its own `approve()` first — gated
   by that permission, needing no one else's signature — before swapping on a later tick. Size the
@@ -73,7 +62,7 @@ needs the allowance handled — decide how at mandate-build time, not when the f
   it. An unlimited allowance's only real-world difference from a bounded one is exposure to a
   future, unrelated router-contract bug, the same tail risk most wallets already accept by default.
   Full reasoning: [`sailor-mandates/references/approvals.md` → "Swaps are a special
-  case"](../sailor-mandates/references/approvals.md#swaps-are-a-special-case).
+  case"](../../sailor-mandates/references/approvals.md#swaps-are-a-special-case).
 
   > **Disclose this to the user before they sign — say it plainly, in these terms:** "Your agent
   > will hold a permission that lets it approve <ROUTER> for itself, so it can trade indefinitely
@@ -90,7 +79,7 @@ needs the allowance handled — decide how at mandate-build time, not when the f
   required station of the golden path.
 - **Zero standing allowance instead?** The atomic **`ApproveAndCallBatchPermission`** batch
   (`[approve(router, amountIn), swap, approve(router, 0)]`, see
-  [`sailor-template-approve-batch`](../sailor-template-approve-batch/SKILL.md)) never leaves an
+  `sailor-templates` (approve-batch)) never leaves an
   allowance open between ticks — but **`evaluateBatch()` has no output-token allowlist and no
   min-out/slippage check**: the swap inside the batch is bound only by the approve/consume/reset
   shape (amount cap, allowlisted target+selector, recipient pin), never by `SwapPermission`'s price
@@ -121,8 +110,7 @@ verify.
 this band is measured against is fee-exclusive; a real fill is fee-inclusive, so the band only
 clears when `maxSlippageBps` is bigger than the venue's swap fee plus the agent's own slippage — a
 tolerance at or below that sum silently rejects every trade. Formula, a field example, and the
-sizing recommendation: [`sailor-template-swap-no-oracle` → "Tolerance vs. pool
-fee"](../sailor-template-swap-no-oracle/SKILL.md) (the "⚠️ Tolerance vs. pool fee" section)
+sizing recommendation: `sailor-templates` (swap-no-oracle), the "⚠️ Tolerance vs. pool fee" section
 (same mechanism, oracle price in place of pool spot).
 
 ### Worked example — single-leg USDC → WETH (Unichain)
@@ -176,7 +164,7 @@ adapter** for this pair on this chain (`0x0` reverts):
 > **Register ≠ configure.** `sailor mandate register` only registers the singleton on the kernel;
 > it does NOT configure it. A registered-but-unconfigured singleton denies every call. You must
 > do both — steps 3a (register) and 3b (configure). Full mechanics + the encoding gotcha:
-> [`sailor-templates` reuse-flow](../sailor-templates/references/reuse-flow.md).
+> [`sailor-templates` reuse-flow](reuse-flow.md).
 
 1. **Address:** `node .agents/skills/sailor-templates/catalog.mjs --chain <id>` → `SwapPermission`
    address. It's the same address on every chain (CREATE2); see `deployed.json`.
@@ -211,7 +199,7 @@ adapter** for this pair on this chain (`0x0` reverts):
    node scripts/probe-mandate.mjs --template SwapPermission --params <0x-config-blob> \
      --sma <SMA> --address <SWAP_PERMISSION>
    ```
-   See [sailor-templates/references/reuse-flow.md](../sailor-templates/references/reuse-flow.md) step 5.
+   See [reuse-flow.md](reuse-flow.md) step 5.
 5. **Reconfigure** later (new cap / extra output token) — re-run step 3b with a new blob; same
    address, no re-register.
 
@@ -231,7 +219,7 @@ export const DCA_LEGS = [
 ] as const;
 ```
 
-The agent must re-quote via [`sailor-swap-quote`](../sailor-swap-quote/SKILL.md) close to dispatch time
+The agent must re-quote via `sailor-swap-quote` close to dispatch time
 and embed the floor `amountOutMinimum` in the swap calldata — under single-dispatch `SwapPermission`
 (the default) the on-chain `maxSlippageBps` genuinely enforces it: `evaluate()` decodes
 `amountOutMinimum` from the call and rejects anything below the oracle-implied floor. **Match the
@@ -241,7 +229,7 @@ reads `allowance(SMA, router)` before every swap and, when it's short, dispatche
 dispatch, then swaps on a later tick once the allowance clears; under the owner-set-standing
 opt-out, the same read instead **stalls (never self-approves)** when short, since no permission
 covers a standalone approve in that model and the owner is the only one who can top it up. See
-[sailor-agent-build](../sailor-agent-build/SKILL.md)'s canonical skeleton for both branches.
+`sailor-agent-build`'s canonical skeleton for both branches.
 Under the atomic-batch alternative the agent instead returns one `Dispatch`
 whose `calls` is the 3-element `[approve(router, amountIn), swap, approve(router, 0)]` and must NOT
 pre-approve out of band (the batch requires a zero pre-batch allowance) — and must accept that the
@@ -250,14 +238,14 @@ courtesy to the router, not a kernel-enforced bound.
 
 ## Beyond this template — routing
 - **Token has no `IOracle` adapter** → this template REQUIRES a non-zero oracle and will not
-  configure without one. Use [`sailor-template-swap-no-oracle`](../sailor-template-swap-no-oracle/SKILL.md)
+  configure without one. Use `sailor-templates` (swap-no-oracle)
   (live-pool hallucination band — catches honest mistakes, NOT MEV/flash-loan attacks) or author a
   bespoke permission. There is no oracle-off mode on `SwapPermission`.
 - **Aggregator (LI.FI) or opaque calldata** → a bespoke permission bounds the perimeter the route
-  can't expose; use [`sailor-mandates`](../sailor-mandates/SKILL.md).
+  can't expose; use `sailor-mandates`.
 - **`SwapPermission` not deployed on your chain** → check `deployed.json` first (it's live on all
   12 Sailor-bundled chains as of the current deploy); for anything outside that set, author your
-  own via [`sailor-mandates`](../sailor-mandates/SKILL.md).
+  own via `sailor-mandates`.
 
 ## Notes
 - `priceOracle` must return a meaningful `updatedAt` — evaluate fails closed on a stale price, not
@@ -265,4 +253,4 @@ courtesy to the router, not a kernel-enforced bound.
 
 ## Next
 
-Simulate passing → back to the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) for the next permission.
+Simulate passing → back to the mandate plan (`sailor-mandate-planner`) for the next permission.

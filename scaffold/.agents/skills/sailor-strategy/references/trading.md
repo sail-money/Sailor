@@ -1,6 +1,6 @@
 # Trading — archetypes, extension dimensions, routing
 
-A routing aid consulted when the intent fits this category — not the boundary of what can be built. Conforms to the category contract in [../SKILL.md](../SKILL.md), including its structural-only-defaults rule.
+A routing aid consulted when the intent fits this category — not the boundary of what can be built. Conforms to the category contract in `sailor-strategy`, including its structural-only-defaults rule.
 
 ## Archetypes
 
@@ -19,7 +19,7 @@ Defaults: cadence = event-driven (each tick checks price against the levels); pe
 |---|---|
 | Pair(s) | tokenIn/tokenOut per leg, both resolved via `sailor-token-resolve` |
 | Venue + fee tier | The exact router and pool fee tier the leg trades on (token-resolve reports swap-ready tiers) |
-| Slippage tolerance | `maxSlippageBps` — sized with a live quote from [`sailor-swap-quote`](../../sailor-swap-quote/SKILL.md). This is the agent's own slippage, not the swap permission's on-chain band tolerance — copying it verbatim into the band silently rejects every trade once the pool's fee is added; [`sailor-mandate-planner`](../../sailor-mandate-planner/SKILL.md) checks this at plan time |
+| Slippage tolerance | `maxSlippageBps` — sized with a live quote from `sailor-swap-quote`. This is the agent's own slippage, not the swap permission's on-chain band tolerance — copying it verbatim into the band silently rejects every trade once the pool's fee is added; `sailor-mandate-planner` checks this at plan time |
 | Price source | `SwapPermissionNoOracle` by default; `SwapPermission` (oracle-gated) only when size vs pool depth warrants it — see below |
 | Exit path (accumulate-direction actions only) | Agent-managed — a swap-out leg, same shared template, tokenIn/tokenOut reversed, reusing the entry's registration (see routing below for the shared-cap consequence) — or owner-managed (exit manually; the sovereign Safe exit always works, see `sailor-operate`) — or explicitly declined. Asked once per action; never silently absent |
 
@@ -27,22 +27,22 @@ Defaults: cadence = event-driven (each tick checks price against the levels); pe
 
 **Soft trigger — cap vs pool depth.** `sailor-token-resolve` reports pool liquidity. Cap large relative to the target pool's depth → raise the oracle option explicitly, in the moment ("at this size in this pool, price manipulation is a real consideration — an oracle-gated permission protects against it; here's whether one is available"). Cap small vs a deep pool → say nothing, default silently. Never a hard gate — the user may proceed no-oracle at any size; the decision is theirs.
 
-**Detect-and-route when the oracle path is wanted.** Check `sailor-templates/deployed.json`'s `oracles` section for an adapter covering this pair on this chain. Adapter exists → route to `SwapPermission` with that address, zero user Solidity. None deployed → say so plainly: no adapter exists for this pair here; using the oracle tier means deploying one — a custom `IOracle` wrapper around a price feed, real work with real safety stakes (a wrong oracle is worse than none: false confidence) — and `SwapPermissionNoOracle` remains appropriate for most sizes. If the user still wants one built, route via [`sailor-mandates`](../../sailor-mandates/SKILL.md), flagged as the most safety-critical bespoke work in the catalog — no adapter generator, no shortcuts.
+**Detect-and-route when the oracle path is wanted.** Check `sailor-templates/deployed.json`'s `oracles` section for an adapter covering this pair on this chain. Adapter exists → route to `SwapPermission` with that address, zero user Solidity. None deployed → say so plainly: no adapter exists for this pair here; using the oracle tier means deploying one — a custom `IOracle` wrapper around a price feed, real work with real safety stakes (a wrong oracle is worse than none: false confidence) — and `SwapPermissionNoOracle` remains appropriate for most sizes. If the user still wants one built, route via `sailor-mandates`, flagged as the most safety-critical bespoke work in the catalog — no adapter generator, no shortcuts.
 
 Both swap templates are ERC-20 → ERC-20 only (native value rejected) — an ETH leg trades as WETH.
 
-**Feasibility (verify, don't advise).** The pair's pool must actually exist with real liquidity on the target chain — [`sailor-token-resolve`](../../sailor-token-resolve/SKILL.md)'s venue map answers this. No pool on that chain → the leg can't be built there: pick a chain where the pool exists (loop back to Station 1 if it needs adding), or route it bespoke.
+**Feasibility (verify, don't advise).** The pair's pool must actually exist with real liquidity on the target chain — `sailor-token-resolve`'s venue map answers this. No pool on that chain → the leg can't be built there: pick a chain where the pool exists (loop back to Station 1 if it needs adding), or route it bespoke.
 
 ## Routing (Station 3 reads this)
 
 | Action | Route |
 |---|---|
-| Bounded swap (the common case) | [`sailor-template-swap-no-oracle`](../../sailor-template-swap-no-oracle/SKILL.md) — the default; see the price-source decision above |
-| Bounded swap where size vs pool depth warrants an oracle | [`sailor-template-swap`](../../sailor-template-swap/SKILL.md) — see detect-and-route above |
-| Swap's approve coverage | The agent grants its own allowance via a small bespoke permission (default — see either swap spoke's "Approve coverage"; standing or bounded-per-trade, the user's choice, neither one stalls); owner-set-on-the-Safe is a simpler opt-out; zero-standing-allowance alternative: [`sailor-template-approve-batch`](../../sailor-template-approve-batch/SKILL.md) (does not check min-out) |
-| Live quotes / `amountOutMinimum` sizing | [`sailor-swap-quote`](../../sailor-swap-quote/SKILL.md) |
+| Bounded swap (the common case) | `sailor-templates` (swap-no-oracle) — the default; see the price-source decision above |
+| Bounded swap where size vs pool depth warrants an oracle | `sailor-templates` (swap) — see detect-and-route above |
+| Swap's approve coverage | The agent grants its own allowance via a small bespoke permission (default — see either swap spoke's "Approve coverage"; standing or bounded-per-trade, the user's choice, neither one stalls); owner-set-on-the-Safe is a simpler opt-out; zero-standing-allowance alternative: `sailor-templates` (approve-batch) (does not check min-out) |
+| Live quotes / `amountOutMinimum` sizing | `sailor-swap-quote` |
 | Agent-managed exit (swap-out) | Same shared template as the entry (`SwapPermission`/`SwapPermissionNoOracle`), reconfigured with the reverse pair added to `tokensIn`/`tokensOut` — a config-only leg, not a second permission. The template's `maxAmountPerTx` is ONE value shared across every configured pair on that registration (confirmed in the frozen source), so entry and exit cannot carry different caps on one registration — size the shared cap to whichever leg needs more (almost always the exit ceiling); a generous or effectively unbounded cap costs nothing extra since the price floor (`sailor-mandate-planner`'s position-exit sizing rule) protects every trade regardless of cap size |
-| Venues the swap templates don't cover (aggregators, perps, exotic routers) | bespoke via [`sailor-mandates`](../../sailor-mandates/SKILL.md) |
+| Venues the swap templates don't cover (aggregators, perps, exotic routers) | bespoke via `sailor-mandates` |
 
 ## Worked example — a complete `.sail/strategies/<name>.md` (example values, not a recommendation)
 

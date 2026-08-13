@@ -1,11 +1,11 @@
 ---
 name: sailor-extend
-description: Recipes for extending a live agent with notifications (Telegram, email) and a strategy-specific dashboard. Use once the agent is live to offer and build run/transaction alerts, monitoring, or a custom view of the strategy — the optional layer of Station 5 (SAIL). Offer this proactively when the agent goes live, not only when the operator asks; the operator may opt out.
+description: Add notifications (Telegram, email) and a strategy-specific dashboard to a live agent. Use once the agent is live to offer alerts, monitoring, or a custom view, and when the user asks for notifications or a dashboard.
 ---
 
 # sailor-extend — notifications and custom dashboards
 
-These are user-land code the assistant writes into this project — not Sailor features. (For operating the running agent itself — reading activity, tuning, pausing, revoking, exiting — see [`sailor-operate`](../sailor-operate/SKILL.md); this skill is the optional notifications/dashboard layer on top.)
+These are user-land code the assistant writes into this project — not Sailor features. (For operating the running agent itself — reading activity, tuning, pausing, revoking, exiting — see `sailor-operate`; this skill is the optional notifications/dashboard layer on top.)
 
 ## Notifications
 

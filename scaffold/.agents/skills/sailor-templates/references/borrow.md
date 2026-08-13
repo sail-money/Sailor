@@ -1,20 +1,9 @@
----
-name: sailor-template-borrow
-description: "Gate an SMA's lending borrows by REUSING the shared BorrowPermission singleton (Protocol/contracts/templates/BorrowPermission.sol) — register + configure, no per-SMA deploy. Use for a lending / leverage / looping strategy that borrows against Aave / Morpho / Compound with a protocol + asset allowlist, per-tx cap, and an on-chain LTV ceiling (health-factor guard) via collateral + borrow oracles. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps)."
-compatibility: A Sailor project (`@sail.money/sailor/sdk`, `sailor` CLI). Requires BorrowPermission deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
-metadata:
-  workspace: sailor-harness
-  classification: generic
-  status: draft
-  origin: Protocol/contracts/templates/BorrowPermission.sol
----
+# BorrowPermission — bounded lending borrow via the shared singleton
 
-# sailor-template-borrow — bounded lending borrow via the shared singleton
-
-You typically arrive here from the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) with a complete strategy spec — this spoke covers the bounded-borrow permission of that plan (the collateral-supply leg is a separate [`sailor-template-deposit`](../sailor-template-deposit/SKILL.md) permission).
+You typically arrive here from the mandate plan (`sailor-mandate-planner`) with a complete strategy spec — this spoke covers the bounded-borrow permission of that plan (the collateral-supply leg is a separate `sailor-templates` (deposit) permission).
 
 Reuse the shared **`BorrowPermission`** singleton. Family overview + flow:
-[`sailor-templates`](../sailor-templates/SKILL.md).
+`sailor-templates`.
 
 ## What it enforces (per account, from source)
 
@@ -42,7 +31,7 @@ value (via `borrowOracle`) against collateral value (via `collateralOracle`) mus
 > `getPrice(asset, address(0))` — the numeraire quote side is `address(0)`, not a real token.
 > Full contract: `Protocol/docs/oracle-adapters.md` (workspace-only reference — not shipped into
 > a scaffolded project; ask the harness if you need it read out).
-> The one adapter that ships in this repo, [`UniV3TwapOracle`](../sailor-templates/oracles/UniV3TwapOracle.sol),
+> The one adapter that ships in this repo, [`UniV3TwapOracle`](../oracles/UniV3TwapOracle.sol),
 > only serves the **swap-oracle** role — its `getPrice` reverts `UnsupportedPair` unless both
 > `base` and `quote` are its pool's actual `token0`/`token1`, which `address(0)` (and an account
 > address) never is. **Wiring `UniV3TwapOracle` in as `collateralOracle`/`borrowOracle` does not
@@ -58,8 +47,8 @@ value (via `borrowOracle`) against collateral value (via `collateralOracle`) mus
 `onBehalfOf`/`receiver == SMA` — so `BorrowPermission` alone needs **no** approve coverage. Two
 adjacent legs of the same strategy do, and this permission covers neither:
 
-- **The collateral-supply leg is a separate [`sailor-template-deposit`](../sailor-template-deposit/SKILL.md) permission** (`deposit`/`supply` on the collateral asset) — that call pulls via allowance and needs its own approve coverage exactly as documented in deposit's "Approve coverage" section. Configure it alongside `BorrowPermission`, not instead of it.
-- **The unwind leg (`repay`) pulls the debt asset from the SMA via allowance** and needs approve coverage too — but there is **no shared `RepayPermission` template**; it's bespoke via [`sailor-mandates`](../sailor-mandates/SKILL.md). See [`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md) for the rule and [references/yield.md](../sailor-strategy/references/yield.md)'s "Unwind path" dimension before assuming a borrow strategy is complete once `BorrowPermission` simulates clean.
+- **The collateral-supply leg is a separate `sailor-templates` (deposit) permission** (`deposit`/`supply` on the collateral asset) — that call pulls via allowance and needs its own approve coverage exactly as documented in deposit's "Approve coverage" section. Configure it alongside `BorrowPermission`, not instead of it.
+- **The unwind leg (`repay`) pulls the debt asset from the SMA via allowance** and needs approve coverage too — but there is **no shared `RepayPermission` template**; it's bespoke via `sailor-mandates`. See [`sailor-mandates/references/approvals.md`](../../sailor-mandates/references/approvals.md) for the rule and [references/yield.md](../../sailor-strategy/references/yield.md)'s "Unwind path" dimension before assuming a borrow strategy is complete once `BorrowPermission` simulates clean.
 
 ## Config blob (authoritative — `config-schemas.md`)
 
@@ -123,7 +112,7 @@ sailor mandate configure --address <BORROW_PERMISSION> --sma <SMA> --params "$BL
 
 # ONE mandatory safety gate — generate the lean probes from the same $BLOB, then run simulate once.
 # --protocol picks the borrow calldata shape (aave|morpho|compound); the LTV probe is config-honest
-# (must-fail LTV proof only when both oracles are set). See sailor-templates/references/reuse-flow.md step 5.
+# (must-fail LTV proof only when both oracles are set). See reuse-flow.md step 5.
 node scripts/probe-mandate.mjs --template BorrowPermission --params "$BLOB" --protocol <aave|morpho|compound> \
   --sma <SMA> --address <BORROW_PERMISSION>
 ```
@@ -131,7 +120,7 @@ node scripts/probe-mandate.mjs --template BorrowPermission --params "$BLOB" --pr
 ## Steps
 
 Register → configure → simulate → reconfigure mechanics (and the encoding gotcha) live in
-[`sailor-templates` reuse-flow](../sailor-templates/references/reuse-flow.md) — follow it.
+[`sailor-templates` reuse-flow](reuse-flow.md) — follow it.
 `sailor mandate register` registers only; `configureDirect` (owner tx) is the half that makes the
 permission live. Template-specific bits:
 
@@ -146,4 +135,4 @@ permission live. Template-specific bits:
 
 ## Next
 
-Simulate passing → back to the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) for the next permission.
+Simulate passing → back to the mandate plan (`sailor-mandate-planner`) for the next permission.

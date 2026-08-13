@@ -203,7 +203,9 @@ test("import replaces the stock surface and prunes what the design does not use"
 
   assert.equal(fs.readFileSync(path.join(proj, "AGENTS.md"), "utf-8"), "# blueprint surface\n");
   assert.ok(!fs.existsSync(path.join(proj, "src", "mandate.ts")), "pruned path must be gone");
-  assert.deepEqual(fs.readdirSync(path.join(proj, ".agents", "skills")).sort(), ["sailor-operate"]);
+  // keepSkills names only sailor-operate, but sailor-mandates is a core skill and is
+  // protected from pruning. sailor-strategy is custom and not kept, so it goes.
+  assert.deepEqual(fs.readdirSync(path.join(proj, ".agents", "skills")).sort(), ["sailor-mandates", "sailor-operate"]);
 });
 
 test("import never deletes a skill the artifact itself ships", async () => {
@@ -215,8 +217,21 @@ test("import never deletes a skill the artifact itself ships", async () => {
   const { threw } = await capture(() => blueprintImport(art, proj, { yes: true }));
   assert.equal(threw, null, threw?.message);
   // keepSkills is empty, yet the shipped skill survives — otherwise import would delete
-  // what it just installed.
-  assert.deepEqual(fs.readdirSync(path.join(proj, ".agents", "skills")).sort(), ["bp-skill"]);
+  // what it just installed. sailor-mandates is core, so it survives too.
+  assert.deepEqual(fs.readdirSync(path.join(proj, ".agents", "skills")).sort(), ["bp-skill", "sailor-mandates"]);
+});
+
+test("import never prunes a core skill, even when keepSkills is empty", async () => {
+  const art = await buildArtifact({
+    files: { "AGENTS.md": "# s\n" },
+    surface: { keepSkills: [] },
+  });
+  // sailor-navigator is the operating guide; a blueprint cannot remove it. sailor-strategy
+  // is custom, so an empty keepSkills prunes it.
+  const proj = makeProject(["sailor-navigator", "sailor-strategy"]);
+  const { threw } = await capture(() => blueprintImport(art, proj, { yes: true }));
+  assert.equal(threw, null, threw?.message);
+  assert.deepEqual(fs.readdirSync(path.join(proj, ".agents", "skills")).sort(), ["sailor-navigator"]);
 });
 
 test("import never writes the manifest into the project", async () => {

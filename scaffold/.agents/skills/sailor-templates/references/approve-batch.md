@@ -1,23 +1,12 @@
----
-name: sailor-template-approve-batch
-description: "Gate an SMA's \"approve → call → reset\" interactions by REUSING the shared ApproveAndCallBatchPermission singleton (Protocol/contracts/templates/ApproveAndCallBatchPermission.sol) — register + configure, no per-SMA deploy. Use when an autonomous, recurring, or unattended agent must approve an ERC-20 to a protocol, make one consuming call, and reset the allowance to zero — all in one atomic batch — so no standing allowance is ever left open, with token/spender/target/selector allowlists and a per-token approval cap. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps)."
-compatibility: A Sailor project (`@sail.money/sailor/sdk`, `sailor` CLI). Requires ApproveAndCallBatchPermission deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
-metadata:
-  workspace: sailor-harness
-  classification: generic
-  status: draft
-  origin: Protocol/contracts/templates/ApproveAndCallBatchPermission.sol
----
+# ApproveAndCallBatchPermission — atomic approve/call/reset via the shared singleton
 
-# sailor-template-approve-batch — atomic approve/call/reset via the shared singleton
-
-You typically arrive here from the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) with a complete strategy spec — this spoke covers the atomic approve/call/reset permission that lets an autonomous agent run an approve-then-act step unattended.
+You typically arrive here from the mandate plan (`sailor-mandate-planner`) with a complete strategy spec — this spoke covers the atomic approve/call/reset permission that lets an autonomous agent run an approve-then-act step unattended.
 
 Reuse the shared **`ApproveAndCallBatchPermission`** singleton — the safest way to bracket a
 single protocol interaction that needs an allowance. Family overview + flow:
-[`sailor-templates`](../sailor-templates/SKILL.md). This template is the **atomic-batch** approve
+`sailor-templates`. This template is the **atomic-batch** approve
 model; when to choose it over the per-call model is owned by
-[`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md).
+[`sailor-mandates/references/approvals.md`](../../sailor-mandates/references/approvals.md).
 
 ## What it enforces (per account, from source)
 
@@ -92,7 +81,7 @@ sailor mandate configure --address <APPROVE_AND_CALL_BATCH_PERMISSION> --sma <SM
 # ONE mandatory safety gate — generate the lean batch probes from the same $BLOB. This template is
 # enforced by evaluateBatch(), so the probes are BATCH arrays and the script prints the direct
 # evaluateBatch() staticcall mechanism (single-call `sailor mandate simulate` can't exercise a batch).
-# See sailor-templates/references/reuse-flow.md step 5.
+# See reuse-flow.md step 5.
 node scripts/probe-mandate.mjs --template ApproveAndCallBatchPermission --params "$BLOB" \
   --sma <SMA> --address <APPROVE_AND_CALL_BATCH_PERMISSION>
 ```
@@ -100,7 +89,7 @@ node scripts/probe-mandate.mjs --template ApproveAndCallBatchPermission --params
 ## Steps
 
 Register → configure → simulate → reconfigure mechanics live in
-[`sailor-templates` reuse-flow](../sailor-templates/references/reuse-flow.md) — follow it.
+[`sailor-templates` reuse-flow](reuse-flow.md) — follow it.
 `sailor mandate register` registers only; `configureDirect` (owner tx) is the half that makes the
 permission live. Template-specific bits:
 
@@ -119,4 +108,4 @@ permission live. Template-specific bits:
 
 ## Next
 
-Simulate passing → back to the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) for the next permission.
+Simulate passing → back to the mandate plan (`sailor-mandate-planner`) for the next permission.

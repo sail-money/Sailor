@@ -1,6 +1,6 @@
 # Self-hosted runner — reliable timing on a dedicated machine
 
-(Who it's for / best for: see [`sailor-automation`](../SKILL.md)'s comparison table.) A self-hosted
+(Who it's for / best for: see `sailor-automation`'s comparison table.) A self-hosted
 runner polls GitHub directly — it picks up jobs immediately, with no shared queue and no drift.
 
 ## How it works

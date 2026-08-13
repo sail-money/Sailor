@@ -1,6 +1,6 @@
 ---
 name: sailor-project-info
-description: Anytime read-only utility — commands and state files that answer questions about the project, account, mandate, chains, keys, or environment. Use when the user asks "what's the state of…", "is X set up", "am I ready", "check my setup", "run a preflight", "which chains…", "what permissions are registered", or before any operation that needs current state.
+description: Answer read-only questions about project state: account, mandate, chains, keys, and environment. Use when asked what's the state of, is this set up, or check my setup, or before any operation that needs current state.
 ---
 
 # sailor-project-info — read-only state: account, mandate, chains, keys
@@ -15,7 +15,7 @@ SAIL_DIR=.shipyard/sandbox sailor status --json                  # sandbox state
 sailor status --json                                             # live state
 ```
 
-`SAIL_DIR=.shipyard/sandbox` makes any command here read the sandbox root. When both roots are populated, say which is which — never conflate a fork SMA with a live one. (Full sandbox model: [`sailor-onboarding`](../sailor-onboarding/SKILL.md) "Two state roots".)
+`SAIL_DIR=.shipyard/sandbox` makes any command here read the sandbox root. When both roots are populated, say which is which — never conflate a fork SMA with a live one. (Full sandbox model: `sailor-onboarding` "Two state roots".)
 
 | Command | Reports | Backed by |
 |---|---|---|
@@ -38,9 +38,9 @@ sailor status --json                                             # live state
 - "Is anything running?" — `.sail/runtime/ui.json` (dashboard), `.sail/runtime/server.json` (signing server), agent pid via `sailor status`; `.shipyard/sandbox/runtime/ui.json` or `sailor sandbox status` (sandbox dashboard).
 - "Is this a sandbox or live SMA?" — `.shipyard/sandbox/account.json` = a fork SMA (zero real funds); `.sail/account.json` = live. `curl -s <dashboard-url>/api/mode` disambiguates a running dashboard.
 
-Run `sailor doctor` before any operation that spends gas — it is the cheapest way to catch a dead RPC, an unfunded wallet, or a kernel mismatch first. (Full preflight semantics and its role as Station 1's exit verifier: [`sailor-onboarding`](../sailor-onboarding/SKILL.md).)
+Run `sailor doctor` before any operation that spends gas — it is the cheapest way to catch a dead RPC, an unfunded wallet, or a kernel mismatch first. (Full preflight semantics and its role as Station 1's exit verifier: `sailor-onboarding`.)
 
-- "What is the permission registration fee?" — read live from the chain; mechanics and current value are owned by [`sailor-mandates`](../sailor-mandates/SKILL.md) (Registration fee section).
+- "What is the permission registration fee?" — read live from the chain; mechanics and current value are owned by `sailor-mandates` (Registration fee section).
 
 ## Worked sample — `sailor doctor --json` on a fresh project
 

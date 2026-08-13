@@ -1,6 +1,6 @@
 ---
 name: sailor-automation
-description: "Run the agent unattended — four options by reliability and infra overhead: (1) GitHub Actions cloud runner (zero infra, cron drifts), (2) self-hosted runner (reliable timing, user-managed machine), (3) Docker image — run locally or on any cloud VM via a registry, (4) local daemon on the project machine (no Docker, simplest). See references/ for each option. Use after sailor run --once works."
+description: Run the agent unattended on a schedule, choosing the right option by reliability and infrastructure (GitHub Actions, self-hosted runner, Docker, or a local daemon). Use after sailor run --once works and the operator wants it running without them.
 ---
 
 # sailor-automation — running the agent unattended (Station 5)
@@ -16,7 +16,7 @@ Confirm `sailor run --once` works first. Four options; pick by latency, infra co
 
 ## Per-strategy schedules (different execution ratios)
 
-Any option above runs `sailor run` — which by default executes **all active** execution strategies each fire. To run strategies at **different cadences**, give each scheduler its own `--strategy <name>` and its own schedule: e.g. one GitHub Action `sailor run --once --strategy Yield` every 5 min, a second `sailor run --once --strategy Rebalance` hourly. Same project, different execution ratios. See [`sailor-strategy` → execution-config](../sailor-strategy/references/execution-config.md) for the strategy model and the `sailor strategy …` setup commands, and [`sailor-agent-build`](../sailor-agent-build/SKILL.md) for the per-chain / cross-chain run modes.
+Any option above runs `sailor run` — which by default executes **all active** execution strategies each fire. To run strategies at **different cadences**, give each scheduler its own `--strategy <name>` and its own schedule: e.g. one GitHub Action `sailor run --once --strategy Yield` every 5 min, a second `sailor run --once --strategy Rebalance` hourly. Same project, different execution ratios. See [`sailor-strategy` → execution-config](../sailor-strategy/references/execution-config.md) for the strategy model and the `sailor strategy …` setup commands, and `sailor-agent-build` for the per-chain / cross-chain run modes.
 
 ## Which option fits you?
 
@@ -55,4 +55,4 @@ A failing run's logs show the same stderr as the local runner (`reverted: <txHas
 
 ## Once it's running
 
-This skill covers **launch**. Everything after — reading activity, tuning bounds, pausing, revoking, and exiting funds to the owner — lives in [`sailor-operate`](../sailor-operate/SKILL.md).
+This skill covers **launch**. Everything after — reading activity, tuning bounds, pausing, revoking, and exiting funds to the owner — lives in `sailor-operate`.

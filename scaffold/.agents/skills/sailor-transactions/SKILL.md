@@ -1,6 +1,6 @@
 ---
 name: sailor-transactions
-description: How dispatches and EVM transactions work in a Sailor project — the selective dispatch model, signing, batching, permission resolution, running the agent, and which CLI commands block on a browser signature. Use when building or debugging dispatches, writing agent tick code, running the agent, or reasoning about why a transaction was denied or reverted.
+description: How dispatches and EVM transactions work in Sailor: the selective dispatch model, signing, batching, and permission resolution. Use when building or debugging dispatches, writing tick code, or reasoning about why a transaction was denied.
 ---
 
 # sailor-transactions — dispatch mechanics: signing, batching, permission resolution
@@ -33,11 +33,11 @@ sailor run                    # continuous; interval SAILOR_INTERVAL seconds (de
 sailor run --strategy <name>  # run one strategy (default: all active strategies)
 ```
 
-`run` needs `.sail/account.json`, `.sail/mandate.json`, a manager key, and an RPC URL (`.sail/.env.local`). The chain(s) it runs on come **only** from the active strategy's steps — not `CHAIN_ID` or `config.json` (see [`sailor-strategy`](../sailor-strategy/SKILL.md)). Set `SAIL_PASSPHRASE` in `.env.local` to unlock the agent wallet non-interactively. Neither form blocks on a browser — the signed mandate is the authorization. Once the mandate is signed and the agent is running, the agent transacts autonomously within it — do not ask the user to confirm individual dispatches inside the mandate.
+`run` needs `.sail/account.json`, `.sail/mandate.json`, a manager key, and an RPC URL (`.sail/.env.local`). The chain(s) it runs on come **only** from the active strategy's steps — not `CHAIN_ID` or `config.json` (see `sailor-strategy`). Set `SAIL_PASSPHRASE` in `.env.local` to unlock the agent wallet non-interactively. Neither form blocks on a browser — the signed mandate is the authorization. Once the mandate is signed and the agent is running, the agent transacts autonomously within it — do not ask the user to confirm individual dispatches inside the mandate.
 
 ## Where results land
 
-Everything appends to `.sail/activity.jsonl` (event schema: [`sailor-operate`](../sailor-operate/SKILL.md)). On stderr, reverts surface as `reverted: <txHash>  (gas used: N)`; denials as `skipped: no registered permission authorizes call to <target> (selector 0x…)` — the rejected selector is in this stderr line, not the JSON event. A failed dispatch never stops the loop.
+Everything appends to `.sail/activity.jsonl` (event schema: `sailor-operate`). On stderr, reverts surface as `reverted: <txHash>  (gas used: N)`; denials as `skipped: no registered permission authorizes call to <target> (selector 0x…)` — the rejected selector is in this stderr line, not the JSON event. A failed dispatch never stops the loop.
 
 ## Commands that BLOCK on a browser signature
 

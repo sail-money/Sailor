@@ -1,155 +1,127 @@
 ---
 name: sailor-onboarding
-description: "Station 1 (ARRIVE) — walks the agent through setting up a new Sailor project or resuming a partially set-up one: SMA deployment, agent wallet creation, address prediction, and multi-chain deployment. Use when the project has no SMA yet, when .sail/account.json is missing or incomplete, when the user says \"start\", \"continue\", \"set up my wallet\", \"connect my wallet\", \"deploy my agent\", or \"fund the agent\", or when deploying the SMA to an additional chain."
+description: Set up a new Sailor project or resume a partial one: deploy the SMA, create the agent wallet, and connect chains. Use when the project has no SMA yet, when account state is missing, or when asked to start, set up my wallet, or deploy my agent.
 ---
 
 # sailor-onboarding — set up the project, keys, account, and chain (Station 1)
 
-## Voice and first contact
+## What this owns
 
-Explain *why*, not just *what* — the user is moving real funds. Use user-facing terms (SMA, mandate, permissions, agent wallet, owner). Assume crypto-native; teach the Sail-specific model.
+Station 1 (ARRIVE): get the project from nothing to a deployed SMA with a working agent wallet. Read
+state to find where the project is, and enter at the right point — never re-run completed work.
 
-Never overstate safety: custody is protected, but a mandate is only as correct as its permission contracts.
+Voice: explain *why*, not just *what* — the user is moving real funds. Use user-facing terms (SMA,
+mandate, permissions, agent wallet, owner). Assume crypto-native; teach the Sail-specific model. Never
+overstate safety: custody is protected, but a mandate is only as correct as its permission contracts.
+The first-contact script and its deviations are in
+[references/welcome-script.md](references/welcome-script.md).
 
-**Your first message to the user is the following script, delivered verbatim — do not rephrase it, do not "improve" it, keep the markdown intact:**
+## When to use
 
----
-
-Welcome aboard — I'm **Sailor**, here to help you navigate **Sail Protocol**.
-
-I'll take you from an idea to a **live DeFi agent** managing capital inside **bounds only you control**.
-
-Here's the journey:
-
-1. Set up your **SMA** — a self-custodial Safe account only you own — and your agent's wallet.
-2. **Define your agent's strategy** together.
-3. Turn it into a **mandate** — onchain permissions enforced on every transaction; your agent can **never exceed it**, and you can **revoke it anytime**.
-4. **Build and run your agent** — on your machine, on your schedule, inside its bounds.
-
-So — **what should your agent do?**
-
-- **Trading** — spot, DCA, rebalancing
-- **Yield** — lending, borrowing, liquidity providing, staking, looping
-- **Payments & treasury** — transfers, scheduled moves, operational flows
-
-…or anything else on-chain. **If it's on-chain, we can build it.**
-
----
-
-Two permitted deviations from the verbatim script:
-
-1. **Skip-to-intent** — if the user's opening message already states what they want ("help me build a DCA bot"), do not present the doors: acknowledge their goal, deliver a compressed welcome (identity + the journey + the safety promise, in 2–3 lines), and proceed with their intent into Station 2.
-2. **Resume** — if the active state root (`.sail/` **or** `.shipyard/sandbox/` — see "Two state roots" below; always check the sandbox too) shows a partially set-up project, replace the script with `Welcome back — here's where we left off:` followed by a short station-status readout built from that root (which stations are complete, which is next), then continue from the incomplete station. When the progress is in the sandbox, say so plainly — e.g. `Welcome back — you've deployed an SMA in the sandbox (chain 130, fork). Here's where we left off:` — so the user knows they're on forks, not mainnet. No doors menu on resume unless Station 2 (STRATEGY) is the incomplete one.
-
-Compose with these two standing rules:
-
-- If the user's first message is an npm install command, run it, then deliver the welcome immediately after it completes — do not wait for another message.
-- Do not describe, mention, or present any code in `src/` as the user's strategy — treat strategy definition as a blank slate; ask what they want.
-
-**Ask for things at the moment they're needed, never before.** Two applications, both load-bearing: (1) chain choice and agent-wallet creation are **setup UI decisions** — the chat may discuss chains (mechanics, fees, what Sail supports) but never fixes one; the wizard below is where the user actually decides, and it also creates the agent wallet + passphrase (never ask for a passphrase in chat — it is a secret and must never appear in the transcript). (2) RPC endpoints are asked for at the first step that genuinely needs the user's own RPC — never here. Station 1 runs entirely on public fallbacks; see the exit verifier below for where the real ask lives.
-
-After the welcome, the setup interface (`sailor ui start`, `sailor signer start`) launches when you reach the SMA-deployment step below — not before the user has responded. "Responded" means any of: saying "start" (or similar) again, confirming readiness in any form ("yes", "let's go", "ready"), or stating a strategy category/intent ("I want to DCA", "earn yield on my USDC") — the last of these already implies readiness and also triggers the skip-to-intent deviation above. What it does **not** mean: launching the interface off the user's very first message, before the welcome script above has been shown at all — the point of this gate is to never open a signing surface before the user has seen what they're agreeing to.
+- The project has no SMA yet, or `.sail/account.json` is missing or incomplete.
+- The user says "start", "set up my wallet", "connect my wallet", "deploy my agent", "fund the agent".
+- Deploying the SMA to an additional chain.
 
 ## Running the CLI
 
-**Determine the installation mode first** — read `.sail/config.json → installMode` before running any command:
+Read `.sail/config.json → installMode` first: `"local"` (or absent) → run `sailor <command>` directly;
+`"docker"` → prefix commands with `docker exec <containerName>` (read from the same config), but
+read/write project files from local paths. Full detail: `sailor-servers` ("Docker installation").
 
-- `"local"` (or field absent) — `sailor` is on the PATH. Run commands directly: `sailor <command>`
-- `"docker"` — sailor runs in a container: prefix every command with `docker exec <containerName>` (read `containerName` from the same config), but read/write project files directly from local paths (they are volume-mounted, not inside the container). Full detail — starting the container, resolving host ports, the `docker exec` pattern — is in [`sailor-servers`](../sailor-servers/SKILL.md) ("Docker installation").
-
-The published package is **`@sail.money/sailor`** — always use the scoped name with the registry. The bare name `sailor` is a different, unrelated npm package; never `npx sailor@<version>` or `npm i sailor`. Install it (`npm i -g @sail.money/sailor`, or as a project dep), after which the `sailor` bin works bare (`sailor <command>`) and `npx sailor <command>` resolves the installed bin. Every `sailor …` command in these skills assumes it is installed. Confirm the toolchain up front and pin a recent version — `npx @sail.money/sailor@latest --version` — because an old cached `npx` build can be missing newer commands (e.g. `mandate simulate`); if a documented command reports "unknown command", you are on a stale version, not hitting a missing feature.
-
-After upgrading the CLI, run `sailor update` from the project root to pull in updated skills, `Dockerfile`, and other tooling files. User files (`src/`, `contracts/`, `.sail/`, `package.json`) are never touched.
-
-This skill owns **Station 1 (ARRIVE)**. Read state to find where the project is and enter at the right point — never re-run completed work. Station 1 has two internal steps (pick the chain, then deploy the SMA + agent wallet); everything past it is a handoff to the next station per the sailor-navigator skill.
-
-## Two state roots — check the sandbox before deciding anything
-
-**Before reading the state table below, determine which state root is live.** A Sailor project has two parallel `SAIL_DIR`s with the *identical* file shape (`account.json`, `config.json`, `keys/`, `state/mandates.json`, `runtime/`):
-
-- **Live** — `.sail/` — real chains, real funds. The default `SAIL_DIR`.
-- **Sandbox** — `.shipyard/sandbox/` — local anvil forks of real chains, zero real funds, fully rewindable. A **first-class Sailor feature**, named **Shipyard** in the interface (`sailor sandbox start`, or the dashboard's **"Enter Shipyard"** link). Not to be confused with the separate Shipyard CLI: `sailor sandbox` is native and needs no `shipyard attach`.
-
-The catch: `sailor status`, `sailor doctor`, and every state file read the **live** root by default. **A user who onboarded through the Sandbox path has a deployed SMA, a running fork, and often a mandate — all under `.shipyard/sandbox/`, invisible to a plain `.sail/` read.** If you only check `.sail/`, you will wrongly conclude "nothing set up" and restart onboarding from scratch, destroying their progress. This is the single most common Station-1 misread.
-
-**So, first thing, always:**
-
-```bash
-[ -f .shipyard/sandbox/account.json ] && echo "SANDBOX SMA EXISTS" || echo "no sandbox SMA"
-sailor sandbox status                      # ● running <url> (pid) if a sandbox dashboard is up
-SAIL_DIR=.shipyard/sandbox sailor status   # reads the SANDBOX root — SMA, keys, mandate
-```
-
-Any sailor command reads the sandbox root when you prefix it with `SAIL_DIR=.shipyard/sandbox` (the SDK honors `SAIL_DIR`; `.sail/` is only the default). Use that prefix for every status/doctor/mandate read while the user is working in the sandbox. If a sandbox and a live root are BOTH populated, ask the user which one this session is about — never assume.
-
-The sandbox is a legitimate place to complete Stations 1–4: deploy the SMA, define the strategy, build and simulate the mandate, and dry-run the agent — all against forks, rewindable, before spending a cent. Treat sandbox onboarding as real onboarding progress; the only thing it defers is going live (redeploying against `.sail/` on the real chain), which is the user's explicit decision, not an automatic step.
+The published package is **`@sail.money/sailor`** — always the scoped name. The bare `sailor` is an
+unrelated package; never `npx sailor@<version>` or `npm i sailor`. Pin a recent version
+(`npx @sail.money/sailor@latest --version`) — an old cached `npx` build can be missing newer commands.
+After upgrading the CLI, run `sailor update` from the project root.
 
 ## Determine where the user is
 
-Read the **active root** (sandbox if one is populated and in use — see above — otherwise `.sail/`). Substitute that root for `.sail/` in the table:
+**Check the sandbox root before deciding anything.** A Sailor project has two parallel `SAIL_DIR`s with
+identical file shape: `.sail/` (live) and `.shipyard/sandbox/` (the native sandbox, named **Shipyard**).
+`sailor status`/`doctor` read the **live** root only — a user who onboarded through Shipyard has an SMA
+and mandate under `.shipyard/sandbox/`, invisible to a plain `.sail/` read. This is the single most
+common Station-1 misread. Always check first:
+
+```bash
+[ -f .shipyard/sandbox/account.json ] && echo "SANDBOX SMA EXISTS" || echo "no sandbox SMA"
+SAIL_DIR=.shipyard/sandbox sailor status   # reads the SANDBOX root
+```
+
+Prefix any command with `SAIL_DIR=.shipyard/sandbox` to read the sandbox root. If both roots are
+populated, ask which one this session is about. (Full detection logic lives in `sailor-navigator`'s
+"Two state roots".)
+
+Read the **active root**, substitute it for `.sail/` below:
 
 | state (in the active root) | Where you are |
 |---|---|
-| No `account.json` (chain chosen or not — `config.json.chainId` may still be `null`) | Station 1 — hand the user to the setup UI below for ALL of: chain choice, agent wallet + passphrase, SMA deploy. Do not ask which chain, or for a passphrase, in chat — `sailor init` is chain-neutral by design; the wizard decides. If the user starts Shipyard instead (`sailor sandbox start`), the SMA lands under `.shipyard/sandbox/` and you continue from there |
-| `account.json` exists, no `strategies/*.md` specs | Station 1 complete → **Station 2**: hand off to [`sailor-strategy`](../sailor-strategy/SKILL.md) |
-| `account.json` + at least one complete `strategies/<name>.md` + `strategies/strategies.json`, no tracked mandates | Strategy defined → **Station 3**: hand off to [`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md) |
-| `account.json` + tracked mandates in `state/mandates.json` | Mandate exists → **Stations 4–5**: build/run the agent (dispatch mechanics in [`sailor-transactions`](../sailor-transactions/SKILL.md)), then run unattended ([`sailor-automation`](../sailor-automation/SKILL.md)) and offer notifications + a dashboard ([`sailor-extend`](../sailor-extend/SKILL.md)) |
+| No `account.json` | Station 1 — hand the user to the setup UI for ALL of: chain choice, agent wallet + passphrase, SMA deploy. Never ask which chain or for a passphrase in chat. |
+| `account.json` exists, no `strategies/*.md` | Station 1 complete → Station 2 (`sailor-strategy`). |
+| + complete `strategies/<name>.md` + `strategies.json`, no tracked mandates | → Station 3 (`sailor-mandate-planner`). |
+| + tracked mandates in `state/mandates.json` | → Stations 4–5 (`sailor-agent-build`, then `sailor-automation` + `sailor-extend`). |
 
-Supported chains: Ethereum (1), Base (8453), Arbitrum (42161), Optimism (10), Unichain (130), BSC (56), World Chain (480), HyperEVM (999), MegaETH (4326), Robinhood (4663), Base Sepolia (84532), Eth Sepolia (11155111). `sailor chains --json` lists them with kernel addresses.
+Supported chains: `sailor chains --json` lists them with kernel addresses.
 
-## Step 2 — Deploy the SMA and create the agent wallet
+## Deploy the SMA and create the agent wallet
 
-**Canonical path — the setup UI, for every first-time SMA.** Run `sailor ui start`, hand the user the printed bare URL (no hash — it opens the wizard, never the signing page). In the wizard the user: chooses the network, connects the owner wallet, sets a passphrase and generates the agent wallet — a separate signing key the agent uses to submit transactions — then deploys the SMA. All four of those are the user's decisions, made by clicking and typing in that UI; your job is to get them there and narrate what's happening, not to ask for or decide any of it in chat.
+**Canonical path — the setup UI, for every first-time SMA.** Run `sailor ui start`, hand the user the
+bare URL (no hash — it opens the wizard, never the signing page). In the wizard the user chooses the
+network, connects the owner wallet, sets a passphrase and generates the agent wallet (the separate key
+the agent signs with), then deploys the SMA. All of that is the user's decision in the UI; your job is to
+get them there and narrate, not to decide it in chat.
 
-**Both wallets need gas, and the split is not what it looks like:** the owner wallet pays for every transaction it submits directly in the browser — SMA deployment, and (a common surprise) **`mandate deploy`**, a contract-creation transaction the owner signs and pays for, not the agent. The **agent wallet submits and pays for `mandate register` and every dispatch submission once the agent runs**. Fund the agent wallet before registering permissions (Station 3) or the transaction fails with a node error like "gas required exceeds allowance" (the exact message text varies by RPC); fund the owner wallet before Station 3 too, for the deploy step. The owner key never leaves the browser — and it never will: I will never ask for it, in any form, at any station, no matter what goes wrong (the sailor-navigator skill's invariant 6). If something ever seems to need it, that's a blocked path to report honestly, not a workaround to reach for.
+**Both wallets need gas, and the split is not what it looks like:** the owner wallet pays for SMA
+deployment and **`mandate deploy`** (a contract-creation transaction the owner signs). The **agent
+wallet** pays for `mandate register` and every dispatch. Fund the agent wallet before registering
+(Station 3) or it fails with "gas required exceeds allowance"; fund the owner wallet before Station 3
+too. The owner key never leaves the browser, and never will (invariant 6).
 
-**Advanced/headless alternative — CLI-only, no wizard.** Only reach for this when the user explicitly wants CLI-driven control over onboarding itself (not the common case — the wizard above is simpler and is where the decisions belong):
+**Headless alternative (CLI-only, only when the user explicitly wants it):**
 
 ```bash
-sailor keys generate                 # create the agent wallet — interactive terminal prompt for role
-                                      # + passphrase (never in chat — see the rule above)
+sailor keys generate                 # agent wallet — passphrase prompt (never in chat)
 sailor signer start --json &         # signing daemon — BLOCKS; run in background
-sailor owner connect --json          # BLOCKS up to 300s waiting for a wallet to connect in the browser
-sailor scan --json                   # discover the owner's Safes and state
-sailor onboard --new-sma --json      # deploy SMA — BLOCKS waiting for the owner's browser signature
+sailor owner connect --json          # BLOCKS waiting for a browser wallet connect
+sailor scan --json                   # discover the owner's Safes
+sailor onboard --new-sma --json      # deploy SMA — BLOCKS for the owner's browser signature
 ```
 
-`sailor ui start` must ALSO be running before this path prints a usable URL — the signing-page route it prints (`.../#/signer`) is served by the dashboard, not the daemon itself. `onboard --new-sma` pushes a `create-sma` signing request to the browser, waits for the owner to approve (default timeout 10 minutes), then persists the SMA to `.sail/account.json`. Tell the user: "approve the request on the signing page in your browser."
+`sailor ui start` must also be running before this path prints a usable URL.
 
 ## Deterministic address (salt)
 
-Every SMA deployment uses a CREATE2 salt (default `0`). The kernel binds the salt to the owner, the agent (manager) wallet, and the fee policy — so **create the agent wallet first, then predict**:
+Every SMA deploy uses a CREATE2 salt (default `0`). **Create the agent wallet first, then predict:**
 
 ```bash
 sailor account predict --owner <owner> --manager <agent-wallet> --json
 ```
 
-The salt is saved to `.sail/account.json` (`saltNonce`) automatically on deploy. All supported chains share the same protocol addresses via CREATE2, so the same owner, manager, and salt produce the same SMA address on every chain. `predict` reads no keys and spends no gas. Use `--salt <n>` for a non-default salt, `--chain <id>` for one chain only.
-
-If `predict` errors with "depends on the agent (manager) wallet", the agent wallet does not exist yet — generate it first.
+The salt is saved to `.sail/account.json` (`saltNonce`) on deploy. Same owner + manager + salt → same
+SMA address on every chain (CREATE2). `predict` reads no keys, spends no gas. If it errors with "depends
+on the agent (manager) wallet", generate the wallet first.
 
 ## Multi-chain deployment
 
-Once the SMA is live on one chain, deploy it at the same address on another supported chain:
-
 ```bash
-sailor account predict --json                  # confirm the address matches first
-sailor account deploy-chain --chain 42161 --json   # BLOCKS waiting for the owner's browser signature
+sailor account deploy-chain --chain 42161 --json   # BLOCKS for the owner's browser signature
 ```
 
-The owner approves in the browser (switch the wallet to the target chain before signing); no new salt or agent wallet is needed. The command is idempotent — if the SMA already has code at the predicted address on the target chain it records the chain and exits cleanly. Deployed chains accumulate in `account.json` `deployedChains`.
-
-If `deploy-chain` refuses with an address mismatch, the SMA was deployed against the old per-chain contracts (pre-CREATE2) and cannot be reproduced cross-chain — the fix it prints is to deploy a fresh SMA with `sailor onboard --new-sma`.
+Idempotent — records the chain and exits cleanly if code already exists at the predicted address.
+Deployed chains accumulate in `account.json` `deployedChains`.
 
 ## Gas requirements
 
-- Owner wallet: SMA deployment, mandate signing (EIP-712), any additional-chain deployment, and `mandate deploy` (a contract-creation transaction the owner pays for in the browser).
-- Agent wallet: `mandate register`, `mandate revoke`, and every dispatch submission once the agent runs, plus the per-permission registration fee. Fund it before registering. Fee mechanics (per-permission charge, `N × fee`, disclosure, preflight) are owned by [`sailor-mandates`](../sailor-mandates/SKILL.md) (Registration fee section).
+- **Owner wallet:** SMA deployment, mandate signing, additional-chain deployment, `mandate deploy`.
+- **Agent wallet:** `mandate register`, `mandate revoke`, every dispatch, plus the per-permission
+  registration fee (owned by `sailor-mandates`, "Registration fee").
 
 During setup, always ask before anything that costs gas.
 
 ## Station 1 exit verifier
 
-`sailor doctor` — read-only preflight: kernel dispatch model, permission health, RPC reachability, chain-id match, gas balances in both wallets. **Station 1 is not complete until `doctor` is all green** (RPC connected, chain-id matches, keys present, gas funded). `doctor`'s RPC check tolerates the public fallback (no RPC_URL needed to go green) — Station 1 never needs the user's own RPC endpoint. Then → [`sailor-strategy`](../sailor-strategy/SKILL.md) (Station 2), which will ask for it at the first step that genuinely needs it (token resolution) — not here.
+`sailor doctor` — read-only preflight: kernel dispatch model, permission health, RPC reachability,
+chain-id match, gas balances. **Station 1 is not complete until `doctor` is all green.** `doctor`'s RPC
+check tolerates the public fallback, so Station 1 never needs the user's own RPC — `sailor-strategy`
+asks for it at the first step that genuinely needs it (token resolution). Then → `sailor-strategy`.
 
-**In the sandbox, verify against the sandbox root:** `SAIL_DIR=.shipyard/sandbox sailor doctor` — it checks the fork RPC (from `.shipyard/sandbox/forks.json`) and the sandbox wallets. Gas funding on a fork is free (`sailor sandbox` provisions it, or top up any address on the fork); a red gas balance in the sandbox is fixed on the fork, never with real funds.
+In the sandbox, verify against the sandbox root: `SAIL_DIR=.shipyard/sandbox sailor doctor` (gas funding
+on a fork is free).

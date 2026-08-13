@@ -53,6 +53,30 @@ const PRUNE_PROTECTED = [
   ".env.local",
 ];
 
+/**
+ * Skill names that must survive any blueprint import, whatever `surface.keepSkills` asks
+ * to prune. Read from the project's `.agents/skill-registry.json` (the single source of
+ * truth), falling back to the shipped scaffold copy for projects that predate the registry.
+ * An empty set means "no core protection" — the pre-registry behavior, not a regression.
+ */
+function readCoreSkills(projectRoot: string): Set<string> {
+  const candidates = [
+    path.join(projectRoot, ".agents", "skill-registry.json"),
+    path.join(packageRoot(), "scaffold", ".agents", "skill-registry.json"),
+  ];
+  for (const p of candidates) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(p, "utf-8")) as { core?: unknown };
+      if (Array.isArray(parsed.core)) {
+        return new Set(parsed.core.filter((s): s is string => typeof s === "string"));
+      }
+    } catch {
+      // missing or unparseable — try the next source
+    }
+  }
+  return new Set();
+}
+
 export interface BlueprintVerifyOptions {
   chain?: string;
   json?: boolean;
@@ -314,7 +338,7 @@ export async function blueprintImport(
     );
     const skillsDir = path.join(projectRoot, ".agents", "skills");
     if (Array.isArray(m.surface?.keepSkills) && fs.existsSync(skillsDir)) {
-      const keep = new Set([...m.surface.keepSkills, ...shipped]);
+      const keep = new Set([...m.surface.keepSkills, ...shipped, ...readCoreSkills(projectRoot)]);
       for (const e of fs.readdirSync(skillsDir, { withFileTypes: true })) {
         if (e.isDirectory() && !keep.has(e.name)) removals.push(`.agents/skills/${e.name}`);
       }
@@ -445,7 +469,7 @@ function assertApplied(projectRoot: string, m: BlueprintManifest, shipped: Set<s
 
   const skillsDir = path.join(projectRoot, ".agents", "skills");
   if (Array.isArray(m.surface?.keepSkills) && fs.existsSync(skillsDir)) {
-    const keep = new Set([...m.surface.keepSkills, ...shipped]);
+    const keep = new Set([...m.surface.keepSkills, ...shipped, ...readCoreSkills(projectRoot)]);
     for (const e of fs.readdirSync(skillsDir, { withFileTypes: true })) {
       if (e.isDirectory() && !keep.has(e.name)) problems.push(`.agents/skills/${e.name}: should have been pruned`);
     }

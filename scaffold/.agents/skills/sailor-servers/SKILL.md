@@ -1,6 +1,6 @@
 ---
 name: sailor-servers
-description: Anytime utility — start, stop, and health-check the two local servers (the Sailor dashboard and the signing server), and set up Docker or remote access. Use when launching the UI, when the dashboard won't open, when a signing request needs a browser, when a port or pid question comes up, when a command appears stuck waiting for a signature, or for remote access (tailscale).
+description: Start, stop, and health-check the local dashboard and signing server, and set up remote access. Use when launching the UI, when the dashboard won't open, when a signing request needs a browser, or for a port or pid question.
 ---
 
 # sailor-servers — the dashboard and signing server

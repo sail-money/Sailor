@@ -1,27 +1,16 @@
----
-name: sailor-template-withdraw
-description: "Gate an SMA's exits from vaults / lending pools by REUSING the shared WithdrawPermission singleton (Protocol/contracts/templates/WithdrawPermission.sol) — register + configure, no per-SMA deploy. Use to exit, unwind, redeem, or cash out a position that supplies ERC-4626 vaults (withdraw/redeem) or Aave v2/v3 (withdraw), with a target allowlist and a per-tx cap; proceeds always land in the SMA itself. To move ERC-20 tokens the SMA already holds OUT to a fixed recipient, use sailor-template-transfer instead. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps)."
-compatibility: A Sailor project (`@sail.money/sailor/sdk`, `sailor` CLI). Requires WithdrawPermission deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
-metadata:
-  workspace: sailor-harness
-  classification: generic
-  status: draft
-  origin: Protocol/contracts/templates/WithdrawPermission.sol
----
+# WithdrawPermission — bounded vault / lending-pool exit via the shared singleton
 
-# sailor-template-withdraw — bounded vault / lending-pool exit via the shared singleton
-
-You typically arrive here from the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) with a complete strategy spec — this spoke covers the bounded-exit permission of that plan.
+You typically arrive here from the mandate plan (`sailor-mandate-planner`) with a complete strategy spec — this spoke covers the bounded-exit permission of that plan.
 
 Reuse the shared **`WithdrawPermission`** singleton. Family overview + flow:
-[`sailor-templates`](../sailor-templates/SKILL.md). This is the counterpart to
-[`sailor-template-deposit`](../sailor-template-deposit/SKILL.md): deposit supplies a venue,
+`sailor-templates`. This is the counterpart to
+`sailor-templates` (deposit): deposit supplies a venue,
 withdraw exits it. The operator/agent chooses the vault (ERC-4626) or lending market (Aave
 v2/v3) — this template gates the exit, not the choice of venue.
 
 > **Routing.** This template gates *protocol exits*. It does **not** gate plain ERC-20
 > transfers. To move tokens the SMA already holds out to a fixed destination, use
-> [`sailor-template-transfer`](../sailor-template-transfer/SKILL.md) with a one-entry recipient
+> `sailor-templates` (transfer) with a one-entry recipient
 > allowlist. An exit and a payout are two permissions, not one.
 
 ## What it enforces (per account, from source)
@@ -56,7 +45,7 @@ recipient or position owner equals the account — on the ERC-4626 paths **both 
 > is `maxAmountPerTx × sharePrice`. These templates are intentionally oracle-free, so sizing a
 > redeem cap is the operator's job. `withdraw` and the Aave path cap the asset amount directly.
 
-Unlike [`sailor-template-deposit`](../sailor-template-deposit/SKILL.md), these exits need no
+Unlike `sailor-templates` (deposit), these exits need no
 ERC-20 approve: the account burns its own shares or aTokens, so there is no allowance
 precondition to arrange.
 
@@ -111,14 +100,14 @@ sailor mandate configure --address <WITHDRAW_PERMISSION> --sma <SMA> --params "$
 # ONE mandatory safety gate — generate the lean probes from the same $BLOB, then run simulate once.
 # The probes exercise all three gated selectors against the permission; they are not live calls,
 # so a target that implements only one of the two interfaces still probes correctly.
-# See sailor-templates/references/reuse-flow.md step 5.
+# See reuse-flow.md step 5.
 node scripts/probe-mandate.mjs --template WithdrawPermission --params "$BLOB" --sma <SMA> --address <WITHDRAW_PERMISSION>
 ```
 
 ## Steps
 
 Register → configure → simulate → reconfigure mechanics (and the encoding gotcha) live in
-[`sailor-templates` reuse-flow](../sailor-templates/references/reuse-flow.md) — follow it.
+[`sailor-templates` reuse-flow](reuse-flow.md) — follow it.
 `sailor mandate register` registers only; `configureDirect` (owner tx) is the half that makes the
 permission live. Template-specific bits:
 
@@ -151,4 +140,4 @@ permission live. Template-specific bits:
 
 ## Next
 
-Simulate passing → back to the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) for the next permission.
+Simulate passing → back to the mandate plan (`sailor-mandate-planner`) for the next permission.

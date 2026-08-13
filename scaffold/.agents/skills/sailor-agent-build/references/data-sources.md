@@ -14,7 +14,7 @@ Guidance by **question**, not by vendor. Two rules run through all of it: prefer
 
 ## Token metadata — address, decimals, is it swap-ready?
 
-Use [`sailor-token-resolve`](../../sailor-token-resolve/SKILL.md). Never hand-type an address or assume decimals.
+Use `sailor-token-resolve`. Never hand-type an address or assume decimals.
 
 ## RPC — the endpoint the reads run against
 

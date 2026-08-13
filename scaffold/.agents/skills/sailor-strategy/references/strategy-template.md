@@ -94,5 +94,8 @@ Key notes:
   another strategy's keys when setting yours).
 - Position-opening actions carry `exitPath` (agent/owner/none-declined); exit-leg actions (withdraw,
   transfer, repay) do not. Omit keys that don't apply — never emit an empty placeholder.
+- Fields are kind-shaped: `tokenOut` and `pool` only on swaps; `venue` on swaps/deposits/withdrawals/borrows;
+  `recipients` only on transfers; a `withdraw` carries NO `recipients` (proceeds are pinned to the SMA).
+  `exitPath.actionIds` is populated only when `managedBy: "agent"` — it names the paired exit action ids.
 - `version: 3` is the current resolved-artifact schema; `confirmedByUser` must be `true` for Station 3
   to accept the spec.

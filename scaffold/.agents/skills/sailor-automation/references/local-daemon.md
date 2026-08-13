@@ -1,6 +1,6 @@
 # Local daemon — run on the project machine
 
-(Who it's for / best for: see [`sailor-automation`](../SKILL.md)'s comparison table.)
+(Who it's for / best for: see `sailor-automation`'s comparison table.)
 
 ## Setup
 

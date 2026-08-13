@@ -1,6 +1,6 @@
 ---
 name: sailor-memory
-description: Owns the agent's memory model — the append-only, chain-reconciled ledger at .sail/memory/ledger.jsonl that records every tick, acted or skipped, so a fresh process recovers its own trading history. Use when building or reviewing the tick loop's memory behavior, when the cadence guard needs a source of truth, when asked "what has my agent actually done", "why did it skip", "does it remember its last trade", or "where does my agent's history live".
+description: Own the agent's memory: the append-only, chain-reconciled ledger of every tick, acted or skipped, so a fresh process recovers its history. Use when building the tick loop's memory, and when asked what the agent has done or why it skipped.
 ---
 
 # sailor-memory — the agent's own history (Station 4 foundation)
@@ -42,7 +42,7 @@ Every entry carries `ts` (unix seconds), `block`, `chainId`, and `kind`.
 }
 ```
 
-`outcome` is one of **`confirmed` / `reverted` / `unverified`** — the same doctrine [`sailor-transactions`](../sailor-transactions/SKILL.md) already uses for the signing flow: `confirmed` (mined with a successful receipt), `reverted` (mined but the transaction reverted), `unverified` (submitted — there's a `txHash` — but the receipt couldn't be read; not a failure, just unobserved). A `reverted` or `unverified` entry still carries what's knowable (the submitted calldata's `amountIn`, the `txHash`, `gasUsed` if the receipt was readable) and leaves the rest `null` — never a fabricated success.
+`outcome` is one of **`confirmed` / `reverted` / `unverified`** — the same doctrine `sailor-transactions` already uses for the signing flow: `confirmed` (mined with a successful receipt), `reverted` (mined but the transaction reverted), `unverified` (submitted — there's a `txHash` — but the receipt couldn't be read; not a failure, just unobserved). A `reverted` or `unverified` entry still carries what's knowable (the submitted calldata's `amountIn`, the `txHash`, `gasUsed` if the receipt was readable) and leaves the rest `null` — never a fabricated success.
 
 **`kind: "skipped"`** — the agent considered acting and chose not to, with why:
 
@@ -56,7 +56,7 @@ This schema is a contract — the state snapshot and journal stages read it. Kee
 
 ## How the tick loop maintains it
 
-The mechanics live in the skeleton ([`sailor-agent-build`](../sailor-agent-build/SKILL.md)'s canonical `tick()`), not repeated here — the model is:
+The mechanics live in the skeleton (`sailor-agent-build`'s canonical `tick()`), not repeated here — the model is:
 
 1. **At the top of every tick, reconcile first.** `sailor run` already appends `dispatch_executed` / `dispatch_reverted` to `.sail/activity.jsonl` only *after* awaiting the dispatch's receipt — so by the time any tick starts (same process or a fresh one), the previous tick's outcome is always already on disk. The loop scans for any not-yet-ledgered dispatch, pulls the receipt + the submitted calldata + fresh balance reads, and appends the `acted` entry from that — never from what it meant to do.
 2. **Then read memory.** The cadence guard's "last acted" comes from the ledger's last `outcome: "confirmed"` `acted` entry, not `ctx.data`. This is the same fix Commit C's cadence work was reaching for, arrived at differently — see "Superseding ctx.data" below.

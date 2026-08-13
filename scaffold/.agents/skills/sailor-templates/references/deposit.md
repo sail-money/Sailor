@@ -1,25 +1,14 @@
----
-name: sailor-template-deposit
-description: "Gate an SMA's deposits into vaults / lending pools by REUSING the shared DepositPermission singleton (Protocol/contracts/templates/DepositPermission.sol) — register + configure, no per-SMA deploy. Use for a yield / earn / APY / farm strategy that supplies tokens into ERC-4626 vaults (deposit/mint) or Aave v2/v3 (deposit/supply), with a target + token allowlist and a per-tx cap; the resulting position always accrues to the SMA. NOTE: `sailor mandate register` only registers — you must also configure per-account (see steps)."
-compatibility: A Sailor project (`@sail.money/sailor/sdk`, `sailor` CLI). Requires DepositPermission deployed on the target chain (recorded in sailor-templates/deployed.json); run sailor-templates first.
-metadata:
-  workspace: sailor-harness
-  classification: generic
-  status: draft
-  origin: Protocol/contracts/templates/DepositPermission.sol
----
+# DepositPermission — bounded vault/lending deposit via the shared singleton
 
-# sailor-template-deposit — bounded vault/lending deposit via the shared singleton
-
-You typically arrive here from the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) with a complete strategy spec — this spoke covers the bounded-deposit permission of that plan.
+You typically arrive here from the mandate plan (`sailor-mandate-planner`) with a complete strategy spec — this spoke covers the bounded-deposit permission of that plan.
 
 Reuse the shared **`DepositPermission`** singleton. Family overview + flow:
-[`sailor-templates`](../sailor-templates/SKILL.md). The operator/agent chooses the target vault
+`sailor-templates`. The operator/agent chooses the target vault
 (ERC-4626) or lending market (Aave v2/v3) — this template gates the deposit, not the choice
 of venue.
 
 > **Entry only.** This template gates `deposit`/`mint`/`supply`; it has no exit selector. Unwinding
-> the position is [`sailor-template-withdraw`](../sailor-template-withdraw/SKILL.md) — a separate
+> the position is `sailor-templates` (withdraw) — a separate
 > registration and config. A yield strategy with an agent-managed exit needs both.
 
 ## What it enforces (per account, from source)
@@ -49,17 +38,17 @@ allowlist enforced — Aave checks the `asset` arg, ERC-4626 requires the `targe
 selectors pulls the asset via an ERC-20 allowance, and the `approve(target, amount)` that
 establishes it is a **separate transaction this permission does not cover** (same rule as every
 protocol permission — see
-[`sailor-mandates/references/approvals.md`](../sailor-mandates/references/approvals.md)). A
+[`sailor-mandates/references/approvals.md`](../../sailor-mandates/references/approvals.md)). A
 deposit with no/insufficient allowance reverts inside the vault or lending pool and the tick
 fails. **Every** bounded deposit needs the allowance handled — decide how at mandate-build time,
 not when the first tick reverts. This applies identically when the deposit is the
-collateral-supply leg of a borrow strategy ([`sailor-template-borrow`](../sailor-template-borrow/SKILL.md)) — supplying collateral is a deposit, so it needs the same approve coverage.
+collateral-supply leg of a borrow strategy (`sailor-templates` (borrow)) — supplying collateral is a deposit, so it needs the same approve coverage.
 
 - **Autonomous agent (yield/looping strategy) — default:** do NOT use `DepositPermission` alone;
   register the shared **`ApproveAndCallBatchPermission`** singleton and dispatch each deposit as
   one atomic `[approve(target, amount), deposit/supply, approve(target, 0)]` batch — no
   lingering allowance, no per-tick owner signature. See
-  [`sailor-template-approve-batch`](../sailor-template-approve-batch/SKILL.md).
+  `sailor-templates` (approve-batch).
 - **Owner in the loop per deposit:** keep `DepositPermission`; the owner pre-approves the
   vault/lending pool. The agent must read `allowance(SMA, target)` and **stall (never
   self-approve)** when it is below the deposit amount — `approve()` is an owner-side action the
@@ -110,14 +99,14 @@ sailor mandate configure --address <DEPOSIT_PERMISSION> --sma <SMA> --params "$B
 
 # ONE mandatory safety gate — generate the lean probes from the same $BLOB, then run simulate once.
 # Uses the ERC-4626 deposit(assets,receiver) shape; for an Aave-style pool, probe that path with
-# cast call. See sailor-templates/references/reuse-flow.md step 5.
+# cast call. See reuse-flow.md step 5.
 node scripts/probe-mandate.mjs --template DepositPermission --params "$BLOB" --sma <SMA> --address <DEPOSIT_PERMISSION>
 ```
 
 ## Steps
 
 Register → configure → simulate → reconfigure mechanics (and the encoding gotcha) live in
-[`sailor-templates` reuse-flow](../sailor-templates/references/reuse-flow.md) — follow it.
+[`sailor-templates` reuse-flow](reuse-flow.md) — follow it.
 `sailor mandate register` registers only; `configureDirect` (owner tx) is the half that makes the
 permission live. Template-specific bits:
 
@@ -131,4 +120,4 @@ permission live. Template-specific bits:
 
 ## Next
 
-Simulate passing → back to the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) for the next permission.
+Simulate passing → back to the mandate plan (`sailor-mandate-planner`) for the next permission.

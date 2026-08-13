@@ -1,6 +1,6 @@
 ---
 name: sailor-templates
-description: Registry + reuse guide for Sail's shared permission templates (Protocol/contracts/templates). Load this to gate my agent / set a spending cap / reuse a permission — to know which permission primitives are available as reusable templates and bound an SMA's mandate by REUSING a configurable singleton — deploy once, then register + configure per SMA (no per-SMA deploy). Covers swap (oracle-gated and no-oracle), borrow, transfer, deposit, withdraw, and approve-and-call-batch. All seven are deployed today, at the SAME address on every supported chain (CREATE2); addresses live in deployed.json.
+description: The registry and reuse guide for Sail's shared permission templates: which primitives exist and how to bound a mandate by reusing a configurable singleton. Use to pick the right template for an action, before any register or configure.
 compatibility: Node 18+; a Sailor project (`@sail.money/sailor/sdk`, `sailor` CLI); read access to the workspace `Protocol/contracts/templates/` (or set SAIL_PROTOCOL_DIR).
 metadata:
   workspace: sailor-harness
@@ -40,26 +40,26 @@ metadata:
 
 ## The seven templates
 
-| Primitive | Contract | Deployed? | Skill |
+| Primitive | Contract | Deployed? | Reference |
 |---|---|---|---|
-| DEX swap (oracle band) | `SwapPermission` | ✅ 12 chains | [`sailor-template-swap`](../sailor-template-swap/SKILL.md) |
-| DEX swap (no oracle) | `SwapPermissionNoOracle` | ✅ 12 chains | [`sailor-template-swap-no-oracle`](../sailor-template-swap-no-oracle/SKILL.md) |
-| Lending borrow | `BorrowPermission` | ✅ 12 chains | [`sailor-template-borrow`](../sailor-template-borrow/SKILL.md) |
-| Transfer (allowlist) | `TransferPermission` | ✅ 12 chains | [`sailor-template-transfer`](../sailor-template-transfer/SKILL.md) |
-| Vault/lending deposit | `DepositPermission` | ✅ 12 chains | [`sailor-template-deposit`](../sailor-template-deposit/SKILL.md) |
-| Vault/lending exit (to the SMA) | `WithdrawPermission` | ✅ 12 chains | [`sailor-template-withdraw`](../sailor-template-withdraw/SKILL.md) |
-| Approve+call batch | `ApproveAndCallBatchPermission` | ✅ 12 chains | [`sailor-template-approve-batch`](../sailor-template-approve-batch/SKILL.md) |
+| DEX swap (oracle band) | `SwapPermission` | ✅ 12 chains | [references/swap.md](references/swap.md) |
+| DEX swap (no oracle) | `SwapPermissionNoOracle` | ✅ 12 chains | [references/swap-no-oracle.md](references/swap-no-oracle.md) |
+| Lending borrow | `BorrowPermission` | ✅ 12 chains | [references/borrow.md](references/borrow.md) |
+| Transfer (allowlist) | `TransferPermission` | ✅ 12 chains | [references/transfer.md](references/transfer.md) |
+| Vault/lending deposit | `DepositPermission` | ✅ 12 chains | [references/deposit.md](references/deposit.md) |
+| Vault/lending exit (to the SMA) | `WithdrawPermission` | ✅ 12 chains | [references/withdraw.md](references/withdraw.md) |
+| Approve+call batch | `ApproveAndCallBatchPermission` | ✅ 12 chains | [references/approve-batch.md](references/approve-batch.md) |
 
 Authoritative config tuples + enforced invariants (from source):
 [references/config-schemas.md](references/config-schemas.md).
 
 ### One source of truth per concern
 
-This hub is canonical for everything shared; each spoke skill carries only what's unique to its
+This hub is canonical for everything shared; each reference carries only what's unique to its
 primitive (selectors, invariants, config blob, probe cases) and defers the rest here. When
 something changes, edit it in ONE place:
 
-| Concern | Lives in | Spokes do |
+| Concern | Lives in | References do |
 |---|---|---|
 | Which templates exist | source contracts, auto-detected by [`catalog.mjs`](catalog.mjs) | — |
 | Deployed addresses (per chain) | [`deployed.json`](deployed.json) | link here |
@@ -68,8 +68,8 @@ something changes, edit it in ONE place:
 | Config tuples + invariants | [references/config-schemas.md](references/config-schemas.md) | quote only their own tuple |
 
 So a change to the CLI flow is a single edit to
-`reuse-flow.md`, not seven spoke edits. The deliberately-fuller [`sailor-template-swap`](../sailor-template-swap/SKILL.md)
-is the worked-example exemplar; the other spokes stay thin.
+`reuse-flow.md`, not seven reference edits. The deliberately-fuller `references/swap.md`
+is the worked-example exemplar; the others stay thin.
 
 ## Step 1 — see what exists / deployment status
 
@@ -133,7 +133,7 @@ approve-and-call-batch primitives. A strategy that needs any other venue or boun
 (GMX, Gains, Synthetix), prediction markets (Azuro, Limitless), the LI.FI aggregator, **`repay`
 to unwind a borrow position (no shared template — `BorrowPermission` covers `borrow()` only)**,
 or anything else on-chain — is authored as a bespoke `IPermission` via
-[`sailor-mandates`](../sailor-mandates/SKILL.md), starting from the `contracts/`
+`sailor-mandates`, starting from the `contracts/`
 scaffold: full expressiveness, same kernel guarantees.
 
 Any bespoke permission that gates a call pulling an ERC-20 from the SMA via allowance (repay,
@@ -157,8 +157,8 @@ just because it has no pre-built spoke skill to remind you.
 
 ## Next
 
-Chose a template? Open its matching spoke skill (`sailor-template-*`) and follow its steps.
-Authoring bespoke? [`sailor-mandates`](../sailor-mandates/SKILL.md). Either way, return to the
-mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) — the mandate is
+Chose a template? Open its reference (`references/<template>.md`) and follow its steps.
+Authoring bespoke? `sailor-mandates`. Either way, return to the
+mandate plan (`sailor-mandate-planner`) — the mandate is
 complete only when every permission in the plan is registered, configured, and
 simulate-verified.

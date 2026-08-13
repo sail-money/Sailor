@@ -1,6 +1,6 @@
 # Payments & treasury — archetypes, extension dimensions, routing
 
-A routing aid consulted when the intent fits this category — not the boundary of what can be built. Conforms to the category contract in [../SKILL.md](../SKILL.md), including its structural-only-defaults rule.
+A routing aid consulted when the intent fits this category — not the boundary of what can be built. Conforms to the category contract in `sailor-strategy`, including its structural-only-defaults rule.
 
 ## Archetypes
 
@@ -22,13 +22,13 @@ Defaults: schedule = the user's; per-tx cap = the largest scheduled move. The us
 | Schedule | The schedule is an agent-side cadence guard (permissions are stateless); wire and confirm it before go-live |
 | Native-ETH exclusion | `TransferPermission` covers ERC-20 `transfer`/`transferFrom` only, and every shared template rejects calls carrying native value (`value == 0`). Native-ETH payments need wrapped ETH or a bespoke permission |
 
-**Feasibility (verify, don't advise).** Recipients are user-supplied addresses — confirm each is checksummed and valid for the intended chain before it enters the spec. The token being paid must exist on that chain — resolve it via [`sailor-token-resolve`](../../sailor-token-resolve/SKILL.md). A recipient or token that isn't valid on the target chain is caught here, not after signing.
+**Feasibility (verify, don't advise).** Recipients are user-supplied addresses — confirm each is checksummed and valid for the intended chain before it enters the spec. The token being paid must exist on that chain — resolve it via `sailor-token-resolve`. A recipient or token that isn't valid on the target chain is caught here, not after signing.
 
 ## Routing (Station 3 reads this)
 
 | Action | Route |
 |---|---|
-| Transfers to a multi-recipient allowlist | [`sailor-template-transfer`](../../sailor-template-transfer/SKILL.md) |
-| Consolidation to ONE fixed recipient (owner's Safe) | [`sailor-template-transfer`](../../sailor-template-transfer/SKILL.md) with a one-entry recipient allowlist |
-| Exiting a vault or lending position first, so there is something to sweep | [`sailor-template-withdraw`](../../sailor-template-withdraw/SKILL.md) — pays the SMA only; pair it with a transfer to reach the owner |
-| Native-ETH payments, or per-recipient caps that must differ | bespoke via [`sailor-mandates`](../../sailor-mandates/SKILL.md) |
+| Transfers to a multi-recipient allowlist | `sailor-templates` (transfer) |
+| Consolidation to ONE fixed recipient (owner's Safe) | `sailor-templates` (transfer) with a one-entry recipient allowlist |
+| Exiting a vault or lending position first, so there is something to sweep | `sailor-templates` (withdraw) — pays the SMA only; pair it with a transfer to reach the owner |
+| Native-ETH payments, or per-recipient caps that must differ | bespoke via `sailor-mandates` |

@@ -9,7 +9,7 @@ moves that make exotic-venue integration tractable, not reasons to avoid it.
 Each entry: **SYMPTOM → CAUSE → THE MOVE.** Two sibling references own adjacent ground and are
 pointed to, never restated: [dark-reverts.md](dark-reverts.md) (the diagnostic ladder for a call
 that reverts with no data, and the pin-against-deployed-contract principle) and
-[`sailor-template-swap-no-oracle`](../../sailor-template-swap-no-oracle/SKILL.md)'s "⚠️ Tolerance
+`sailor-templates` (swap-no-oracle), the "⚠️ Tolerance
 vs. pool fee" section (the band-tolerance rule). [authoring-patterns.md](authoring-patterns.md)
 owns general permission-code gotchas; this file owns venue-*integration* technique specifically.
 
@@ -84,7 +84,7 @@ silently dropped **all three** V4 legs of a five-leg basket — the loop kept go
 distinguishing, and the run *looked* clean.
 **The move:** a failed leg is an outcome, not noise. Record it the same way the runner already
 records everything else — the ledger's `acted` (`confirmed`/`reverted`/`unverified`) and `skipped`
-(with `reason`) doctrine exists precisely for this; see [`sailor-memory`](../../sailor-memory/SKILL.md)
+(with `reason`) doctrine exists precisely for this; see `sailor-memory`
 rather than inventing a parallel logging scheme. And make the loop's own summary report attempted
 vs. executed counts (`sailor-agent-build`'s skeleton already does this in its tick summary) so a
 dropped leg is visible in the output the moment it happens, not discovered hours later by counting

@@ -1,6 +1,6 @@
 ---
 name: sailor-swap-quote
-description: Fetch a live Uniswap V3 quote via QuoterV2 and compute a slippage-adjusted amountOutMinimum for a swap. Use after sailor-token-resolve to show the user the current price and to produce the amountOutMinimum floor the agent must embed in every swap dispatch. Runs the bundled `scripts/quote-swap.mjs` (no dependencies, no gas).
+description: Fetch a live Uniswap V3 quote and compute the slippage-adjusted amountOutMinimum for a swap. Use after resolving tokens to show the current price and produce the floor embedded in every swap dispatch.
 ---
 
 # sailor-swap-quote — live price + amountOutMinimum floor
@@ -10,7 +10,7 @@ The actual number: how much tokenOut the user's amountIn buys right now, and the
 
 ## When to load
 
-**Precondition:** run [`sailor-token-resolve`](../sailor-token-resolve/SKILL.md) first — this skill's inputs (tokenIn/tokenOut addresses, decimals, and the fee tier) come from its output, and it must have returned `swapReady: true` for the pair. Do not hand-type these; a wrong decimals or a non-existent tier produces a wrong or reverting quote.
+**Precondition:** run `sailor-token-resolve` first — this skill's inputs (tokenIn/tokenOut addresses, decimals, and the fee tier) come from its output, and it must have returned `swapReady: true` for the pair. Do not hand-type these; a wrong decimals or a non-existent tier produces a wrong or reverting quote.
 
 - Before presenting a mandate to the user (show them the current price).
 - To validate `amountOutMinimum` before the agent dispatches a real swap.
@@ -64,14 +64,13 @@ is the most common reason a legitimate swap gets rejected.
 
 1. **Show the user** the `human.price` line before they approve the mandate.
 2. **Record `amountOutMinimum`** as the floor the agent's dispatch logic must
-   respect. Hand the full quote to [`sailor-template-swap`](../sailor-template-swap/SKILL.md) or
-   [`sailor-template-swap-no-oracle`](../sailor-template-swap-no-oracle/SKILL.md) — the mandate's
+   respect. Hand the full quote to `sailor-templates` (swap) or
+   `sailor-templates` (swap-no-oracle) — the mandate's
    `maxSlippageBps`/`toleranceBps` bound is the on-chain enforcement of this, but **do not copy
    `--slippage-bps` verbatim into that field** — this quote's `amountOut` already has the pool's
    fee baked in, while the mandate's band is checked against a fee-*exclusive* reference price. The
    band tolerance needs its own, larger number: see
-   [`sailor-template-swap-no-oracle` → "Tolerance vs. pool
-   fee"](../sailor-template-swap-no-oracle/SKILL.md) (the "⚠️ Tolerance vs. pool fee" section).
+   `sailor-templates` (swap-no-oracle), the "⚠️ Tolerance vs. pool fee" section.
 
 ## If it fails
 

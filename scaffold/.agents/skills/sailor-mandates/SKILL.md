@@ -1,11 +1,18 @@
 ---
 name: sailor-mandates
-description: "The full permission-contract lifecycle — designing bounds with the user, authoring Solidity permissions, Foundry testing, deploying, simulating, and authorizing on the SMA, plus revoke/update/list and clone templates. Use when anything touches a permission contract or the mandate: writing or changing what the agent is allowed to do, deploying or registering permissions, or verifying them before authorization."
+description: Author, test, deploy, simulate, and revoke bespoke permission contracts in Solidity that bound the agent beyond the shared templates. Use when a strategy needs a permission no template covers, or to change, verify, or revoke what the agent may do.
 ---
 
 # sailor-mandates — the bespoke permission-contract lifecycle
 
 The lifecycle is an ordered set of gates. **The order is the correctness model** — skipping a gate or reordering them is how funds get lost. Never authorize (register) anything that has not passed every earlier gate.
+
+## When to use
+
+- A strategy needs a permission no shared template covers — `sailor-templates` has the seven; anything
+  else is bespoke.
+- To change, verify, or revoke what the agent may do.
+- Not here: reusing a shared template (`sailor-templates`), or routing the plan (`sailor-mandate-planner`).
 
 ## Gate 1 — Pin the strategy bounds with the user
 
@@ -124,4 +131,4 @@ The fee is read via `readPermissionRegistrationFee()` (from `@sail.money/sailor/
 
 ## Next
 
-Once this permission is deployed, simulate-verified (Gate 6), and registered (Gate 7), return to the mandate plan ([`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md)) for the next permission. When every permission in the plan is deployed/registered/configured and simulate-verified, return there one last time — its Handoff step signs the mandate (`sailor mandate sign`) and hands off to Station 4.
+Once this permission is deployed, simulate-verified (Gate 6), and registered (Gate 7), return to the mandate plan (`sailor-mandate-planner`) for the next permission. When every permission in the plan is deployed/registered/configured and simulate-verified, return there one last time — its Handoff step signs the mandate (`sailor mandate sign`) and hands off to Station 4.

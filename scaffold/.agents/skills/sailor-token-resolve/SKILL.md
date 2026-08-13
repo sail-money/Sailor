@@ -1,6 +1,6 @@
 ---
 name: sailor-token-resolve
-description: Resolve the tokens a user names by symbol or address into on-chain metadata (address, decimals) AND a cross-chain, cross-DEX liquidity map — which Sail chain and which protocol (Uniswap V3/V4, Sushiswap, PancakeSwap, Aerodrome…) actually hold liquidity, how deep each pool is, and whether the leg is swap-ready. Use BEFORE building any swap/DCA/LP/lending mandate, or whenever a user says "a portfolio of X and Y" / "DCA into A, B, C" / "can I swap X here?". Pass every symbol at once. Resolves ANY symbol — curated registry → keyless GeckoTerminal DEX index → on-chain symbol()+decimals() — and recommends which chain to act on. Runs the bundled `scripts/resolve-token.mjs` (no dependencies, no gas, no API key).
+description: Resolve tokens named by symbol or address into on-chain metadata and a cross-chain liquidity map, so the agent knows where each token is swap-ready. Use before building any swap, DCA, or lending mandate, and when the user names a portfolio.
 ---
 
 # sailor-token-resolve — tokens → addresses + where the liquidity lives
@@ -17,7 +17,7 @@ non-zero USDC→token quote — Sail's executable fast-path route.
 
 - The user names one or more tokens and you need addresses/decimals for a mandate.
 - A user describes a **portfolio / DCA / basket** — resolve every symbol in one call.
-- Before `sailor-swap-quote` or `sailor-template-swap` — both consume this skill's output.
+- Before `sailor-swap-quote` or `sailor-templates` (swap) — both consume this skill's output.
 - Whenever the user asks "can I swap X here?", "where's the best liquidity for X?", or
   "which chain should I use for this strategy?"
 
@@ -61,7 +61,7 @@ script (`sailor-swap-quote`'s `quote-swap.mjs`, `doctor`, the runner) reads the 
 
 | Invocation | stdout shape |
 |---|---|
-| 1 symbol, single configured chain / `--chain` | **bare object** — `{address, decimals, feeTier, swapReady, quote, venues[], …}` (the shape `sailor-swap-quote` / `sailor-template-swap` expect) |
+| 1 symbol, single configured chain / `--chain` | **bare object** — `{address, decimals, feeTier, swapReady, quote, venues[], …}` (the shape `sailor-swap-quote` / `sailor-templates` (swap) expect) |
 | 1 symbol, ≥2 configured chains | **array** of bare objects (one per chain) |
 | ≥2 symbols | **portfolio**: `{ tokens: [tokenWrapper…], summary }` |
 | 1 symbol + `--json`/`--all-chains` | **token wrapper** (see below) |
@@ -115,7 +115,7 @@ count) is:
 
 ## `sailRoutable` — what Sail's fast path can actually swap
 
-Sail's `sailor-template-swap` fast path routes through **Uniswap V3** (everywhere) and the
+Sail's `sailor-templates` (swap) fast path routes through **Uniswap V3** (everywhere) and the
 **Uniswap V4** Universal Router (on Unichain). Those venues are marked `sailRoutable: true`.
 Sushiswap, PancakeSwap, Aerodrome (and Uniswap V2) are detected and surfaced so you can see
 *where the liquidity really is*, but they're `sailRoutable: false` — Sail can't route them via
@@ -160,7 +160,7 @@ A typical read of the result:
   routable USDC pool. If the project is configured for Base, good; if not, `suggest-sma`.
 
 Then, for each `route`/chosen-chain leg, hand `(address, decimals, feeTier)` to
-[`sailor-swap-quote`](../sailor-swap-quote/SKILL.md) → [`sailor-template-swap`](../sailor-template-swap/SKILL.md).
+`sailor-swap-quote` → `sailor-templates` (swap).
 
 ## Important
 
