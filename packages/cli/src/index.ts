@@ -21,10 +21,10 @@ import { type ChainsOptions, chainsCommand } from "./commands/chains.js";
 import { type CloneOptions, clone } from "./commands/clone.js";
 import { doctor } from "./commands/doctor.js";
 import {
-  type HarborListOptions,
   type HarborCreateOptions,
-  harborList,
+  type HarborListOptions,
   harborCreate,
+  harborList,
 } from "./commands/harbor.js";
 import { initCommand } from "./commands/init.js";
 import { type KeysGenerateOptions, keysExportCi, keysGenerate, keysShow } from "./commands/keys.js";
@@ -786,11 +786,13 @@ const harborCmd = program
   .description("Discover and start ready-to-run agents from the registry (sail-money/Dock)");
 
 harborCmd
-  .command("list")
-  .description("List the agents available in the registry")
+  .command("list [query]")
+  .description("List the agents available in the registry, optionally filtered by a search term")
   .option("--registry <owner/repo>", "Registry repo (default: sail-money/Dock)")
   .option("--json", "Emit machine-readable JSON")
-  .action(actionWith<HarborListOptions>(harborList));
+  .action(
+    actArgs<[string | undefined, HarborListOptions]>((query, opts) => harborList(query, opts)),
+  );
 
 harborCmd
   .command("create <slug> [dir]")

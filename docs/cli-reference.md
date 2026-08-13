@@ -27,7 +27,7 @@ and has no dependency on the tool that produced it.
 
 | Command | What it does |
 |---|---|
-| `sailor harbor list` | List the ready-to-run agents published in the registry (`--registry <owner/repo>`, `--json`) |
+| `sailor harbor list [query]` | List the ready-to-run agents published in the registry, optionally filtered by a search term over name and description (`--registry <owner/repo>`, `--json`) |
 | `sailor harbor create <slug> [dir]` | Create a new project from the latest release of an agent (`--registry <owner/repo>`, `--chain <id>`, `--yes`, `--agent <executable>`, `--no-agent`) |
 
 Harbor is the one-word entry point over blueprints. `harbor create` resolves a slug to the latest

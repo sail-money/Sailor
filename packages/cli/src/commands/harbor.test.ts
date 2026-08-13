@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
 import type { ListedRelease } from "../lib/github.js";
-import { harborList, harborCreate } from "./harbor.js";
+import { harborCreate, harborList } from "./harbor.js";
 
 function release(
   tag: string,
@@ -56,7 +56,7 @@ test("list summarizes the latest release per slug", async () => {
     release("yield-v1", "yield-v1.tar.gz", { body: "Earn yield on idle stables.", downloads: 7 }),
   ];
   const { out, threw } = await capture(() =>
-    harborList({}, { listReleases: async () => releases }),
+    harborList(undefined, {}, { listReleases: async () => releases }),
   );
   assert.equal(threw, null, threw?.message);
   assert.match(out, /Available agents/);
@@ -68,7 +68,11 @@ test("list summarizes the latest release per slug", async () => {
 
 test("list emits JSON with the registry and count", async () => {
   const { out } = await capture(() =>
-    harborList({ json: true }, { listReleases: async () => [release("dca-v1", "dca.tar.gz")] }),
+    harborList(
+      undefined,
+      { json: true },
+      { listReleases: async () => [release("dca-v1", "dca.tar.gz")] },
+    ),
   );
   const parsed = JSON.parse(out) as { registry: string; count: number; agents: { slug: string }[] };
   assert.equal(parsed.registry, "sail-money/Dock");
@@ -77,8 +81,68 @@ test("list emits JSON with the registry and count", async () => {
 });
 
 test("list reports an empty registry gracefully", async () => {
-  const { out } = await capture(() => harborList({}, { listReleases: async () => [] }));
+  const { out } = await capture(() => harborList(undefined, {}, { listReleases: async () => [] }));
   assert.match(out, /None published yet/);
+});
+
+test("list filters by a query across slug, name, and description", async () => {
+  const releases = [
+    release("dca-v1", "dca.tar.gz", {
+      name: "Dollar cost averaging",
+      body: "Buy a token on a schedule.",
+    }),
+    release("yield-v1", "yield.tar.gz", {
+      name: "Yield optimizer",
+      body: "Earn yield on idle stablecoins.",
+    }),
+  ];
+  const { out } = await capture(() =>
+    harborList("yield", {}, { listReleases: async () => releases }),
+  );
+  assert.match(out, /Agents matching "yield"/);
+  assert.match(out, /yield {2}yield-v1/);
+  assert.doesNotMatch(out, /dca/);
+});
+
+test("list filter is case-insensitive and folds hyphens to spaces", async () => {
+  const releases = [
+    release("dollar-cost-averaging-v1", "dca.tar.gz", { body: "Buy on a schedule." }),
+    release("yield-v1", "yield.tar.gz", { body: "Earn yield." }),
+  ];
+  const { out } = await capture(() =>
+    harborList("Dollar Cost", {}, { listReleases: async () => releases }),
+  );
+  assert.match(out, /dollar-cost-averaging/);
+  assert.doesNotMatch(out, /yield/);
+});
+
+test("list filter with no match points to the full list", async () => {
+  const { out } = await capture(() =>
+    harborList(
+      "doesnotexist",
+      {},
+      {
+        listReleases: async () => [release("dca-v1", "dca.tar.gz")],
+      },
+    ),
+  );
+  assert.match(out, /No agent matches "doesnotexist"/);
+});
+
+test("list JSON includes the query when filtering", async () => {
+  const { out } = await capture(() =>
+    harborList(
+      "yield",
+      { json: true },
+      {
+        listReleases: async () => [release("yield-v1", "yield.tar.gz")],
+      },
+    ),
+  );
+  const parsed = JSON.parse(out) as { query: string; count: number; agents: { slug: string }[] };
+  assert.equal(parsed.query, "yield");
+  assert.equal(parsed.count, 1);
+  assert.equal(parsed.agents[0].slug, "yield");
 });
 
 function notFound(): Error {
@@ -88,6 +152,7 @@ function notFound(): Error {
 test("list handles a not-found registry gracefully", async () => {
   const { out } = await capture(() =>
     harborList(
+      undefined,
       {},
       {
         listReleases: async () => {

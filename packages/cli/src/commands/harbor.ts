@@ -89,8 +89,8 @@ interface HarborEntry {
   downloads: number;
 }
 
-/** Collapse a release list into one entry per slug: latest version and its download count. */
-function summarize(releases: ListedRelease[]): HarborEntry[] {
+/** Collapse a release list into one entry per slug (latest version), filtered by query if given. */
+function summarize(releases: ListedRelease[], query?: string): HarborEntry[] {
   const bySlug = new Map<string, ListedRelease>();
   for (const r of releases) {
     const slug = slugFromTag(r.tag);
@@ -99,6 +99,7 @@ function summarize(releases: ListedRelease[]): HarborEntry[] {
   }
   const entries: HarborEntry[] = [];
   for (const [slug, r] of bySlug) {
+    if (query && !matchesRelease(r, slug, query)) continue;
     const archive = r.assets.find((a) => a.name.endsWith(".tar.gz") || a.name.endsWith(".zip"));
     entries.push({
       slug,
@@ -109,6 +110,24 @@ function summarize(releases: ListedRelease[]): HarborEntry[] {
     });
   }
   return entries.sort((a, b) => a.slug.localeCompare(b.slug));
+}
+
+/** Normalize a search string: lowercase, fold hyphens/underscores to spaces, collapse whitespace. */
+function normalizeSearch(s: string): string {
+  return s.toLowerCase().replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * A query matches when every word appears in the slug, name, or body. Words are matched as
+ * substrings after normalization, so "dollar cost" finds a slug "dollar-cost-averaging" and a
+ * body "Dollar cost averages into…", and the case never matters.
+ */
+function matchesRelease(r: ListedRelease, slug: string, query: string): boolean {
+  const haystack = normalizeSearch(`${slug} ${r.name} ${r.body}`);
+  return normalizeSearch(query)
+    .split(" ")
+    .filter((t) => t.length > 0)
+    .every((t) => haystack.includes(t));
 }
 
 // ── list ───────────────────────────────────────────────────────────────────────
@@ -123,11 +142,13 @@ export interface HarborListDependencies {
 }
 
 export async function harborList(
+  query: string | undefined,
   options: HarborListOptions = {},
   deps: HarborListDependencies = {},
 ): Promise<void> {
   const registry = options.registry ?? DEFAULT_REGISTRY;
   const list = deps.listReleases ?? listReleases;
+  const q = query?.trim() ? query.trim() : undefined;
   let releases: ListedRelease[];
   try {
     releases = await list(registry);
@@ -143,19 +164,30 @@ export async function harborList(
     }
     return;
   }
-  const entries = summarize(releases);
+  const entries = summarize(releases, q);
 
   if (options.json) {
-    console.log(JSON.stringify({ registry, count: entries.length, agents: entries }, null, 2));
+    console.log(
+      JSON.stringify(
+        { registry, ...(q ? { query: q } : {}), count: entries.length, agents: entries },
+        null,
+        2,
+      ),
+    );
     return;
   }
 
-  console.log(`Available agents (${registry}):\n`);
+  console.log(q ? `Agents matching "${q}" (${registry}):\n` : `Available agents (${registry}):\n`);
   if (entries.length === 0) {
-    console.log("  None published yet.");
-    console.log(
-      `\n  Publish one to ${registry}, or build and share a project with \`sailor share\`.`,
-    );
+    if (q) {
+      console.log(`  No agent matches "${q}".`);
+      console.log("\n  Run `sailor harbor list` to see everything available.");
+    } else {
+      console.log("  None published yet.");
+      console.log(
+        `\n  Publish one to ${registry}, or build and share a project with \`sailor share\`.`,
+      );
+    }
     return;
   }
   for (const e of entries) {
