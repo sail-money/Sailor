@@ -5,25 +5,25 @@ import { parseReleaseRef } from "./github.js";
 // Run with: npx tsx --test packages/cli/src/lib/github.test.ts
 
 test("parseReleaseRef accepts owner/repo@tag shorthand", () => {
-  assert.deepEqual(parseReleaseRef("sail-money/Dock@dca-rebalancer-v3"), {
-    repo: "sail-money/Dock",
+  assert.deepEqual(parseReleaseRef("sail-money/harbor@dca-rebalancer-v3"), {
+    repo: "sail-money/harbor",
     tag: "dca-rebalancer-v3",
   });
 });
 
 test("parseReleaseRef accepts a release page URL", () => {
   assert.deepEqual(
-    parseReleaseRef("https://github.com/sail-money/Dock/releases/tag/dca-rebalancer"),
-    { repo: "sail-money/Dock", tag: "dca-rebalancer" },
+    parseReleaseRef("https://github.com/sail-money/harbor/releases/tag/dca-rebalancer"),
+    { repo: "sail-money/harbor", tag: "dca-rebalancer" },
   );
 });
 
 test("parseReleaseRef accepts an asset download URL and captures the filename", () => {
   assert.deepEqual(
     parseReleaseRef(
-      "https://github.com/sail-money/Dock/releases/download/dca-rebalancer/dca-rebalancer.tar.gz",
+      "https://github.com/sail-money/harbor/releases/download/dca-rebalancer/dca-rebalancer.tar.gz",
     ),
-    { repo: "sail-money/Dock", tag: "dca-rebalancer", asset: "dca-rebalancer.tar.gz" },
+    { repo: "sail-money/harbor", tag: "dca-rebalancer", asset: "dca-rebalancer.tar.gz" },
   );
 });
 

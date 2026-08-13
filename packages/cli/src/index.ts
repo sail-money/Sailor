@@ -783,12 +783,12 @@ blueprintCmd
 // The one-word entry point: discover and start ready-to-run agents from the registry.
 const harborCmd = program
   .command("harbor")
-  .description("Discover and start ready-to-run agents from the registry (sail-money/Dock)");
+  .description("Discover and start ready-to-run agents from the registry (sail-money/harbor)");
 
 harborCmd
   .command("list [query]")
   .description("List the agents available in the registry, optionally filtered by a search term")
-  .option("--registry <owner/repo>", "Registry repo (default: sail-money/Dock)")
+  .option("--registry <owner/repo>", "Registry repo (default: sail-money/harbor)")
   .option("--json", "Emit machine-readable JSON")
   .action(
     actArgs<[string | undefined, HarborListOptions]>((query, opts) => harborList(query, opts)),
@@ -797,7 +797,7 @@ harborCmd
 harborCmd
   .command("create <slug> [dir]")
   .description("Create a new project from the latest release of an agent")
-  .option("--registry <owner/repo>", "Registry repo (default: sail-money/Dock)")
+  .option("--registry <owner/repo>", "Registry repo (default: sail-money/harbor)")
   .option("--chain <id>", "Chain id the agent must support")
   .option("--yes", "Apply the verified blueprint without an interactive import confirmation")
   .option("--agent <executable>", "Coding-agent executable to launch", "codex")
@@ -818,7 +818,7 @@ if (process.env.SAILOR_EXPERIMENTAL === "1") {
     .description(
       "Share a sanitized copy of this project — opens a registry PR, or --local writes a .tar.gz",
     )
-    .option("--repo <owner/repo>", "Registry repo (default: sail-money/Dock)")
+    .option("--repo <owner/repo>", "Registry repo (default: sail-money/harbor)")
     .option("--base <branch>", "Base branch to PR against", "main")
     .option("--local", "Write a portable .tar.gz instead of opening a PR (no GitHub/token needed)")
     .option("--out <path>", "Output archive path for --local (default: ./<slug>.tar.gz)")

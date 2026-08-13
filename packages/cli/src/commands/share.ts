@@ -36,7 +36,7 @@ import {
  * (SAIL_GH_TOKEN / GITHUB_TOKEN) — same contract as `sailor trigger github`.
  */
 
-const DEFAULT_REGISTRY = "sail-money/Dock";
+const DEFAULT_REGISTRY = "sail-money/harbor";
 
 export interface ShareOptions {
   repo?: string;

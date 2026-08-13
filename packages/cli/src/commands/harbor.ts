@@ -13,7 +13,7 @@ import { blueprintStart } from "./blueprint-start.js";
 /**
  * `sailor harbor list | create` — the one-word entry point for Harbor, the library of
  * ready-to-run money agents. Blueprints are published as GitHub releases in the registry
- * (`sail-money/Dock` by default), one release per agent tagged `<slug>-v<n>` with a `.tar.gz`
+ * (`sail-money/harbor` by default), one release per agent tagged `<slug>-v<n>` with a `.tar.gz`
  * blueprint artifact. `list` shows what is available; `create` downloads the latest release for
  * a slug and hands off to `blueprint start` (skeleton + import + install + guided onboarding).
  *
@@ -21,7 +21,7 @@ import { blueprintStart } from "./blueprint-start.js";
  * scan, import confirmation) lives in `blueprint import`, which `blueprint start` calls.
  */
 
-const DEFAULT_REGISTRY = "sail-money/Dock";
+const DEFAULT_REGISTRY = "sail-money/harbor";
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 

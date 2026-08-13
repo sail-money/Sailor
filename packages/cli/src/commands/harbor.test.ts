@@ -75,7 +75,7 @@ test("list emits JSON with the registry and count", async () => {
     ),
   );
   const parsed = JSON.parse(out) as { registry: string; count: number; agents: { slug: string }[] };
-  assert.equal(parsed.registry, "sail-money/Dock");
+  assert.equal(parsed.registry, "sail-money/harbor");
   assert.equal(parsed.count, 1);
   assert.equal(parsed.agents[0].slug, "dca");
 });
@@ -146,7 +146,7 @@ test("list JSON includes the query when filtering", async () => {
 });
 
 function notFound(): Error {
-  return new Error("GitHub returned 404 while listing releases on sail-money/Dock: Not Found");
+  return new Error("GitHub returned 404 while listing releases on sail-money/harbor: Not Found");
 }
 
 test("list handles a not-found registry gracefully", async () => {
@@ -161,7 +161,7 @@ test("list handles a not-found registry gracefully", async () => {
       },
     ),
   );
-  assert.match(out, /No registry at sail-money\/Dock yet/);
+  assert.match(out, /No registry at sail-money\/harbor yet/);
 });
 
 test("create reports a clear error when the registry is not published", async () => {
