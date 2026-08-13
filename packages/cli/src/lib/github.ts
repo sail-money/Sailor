@@ -131,6 +131,17 @@ export interface Release {
   assets: ReleaseAsset[];
 }
 
+export interface ListedRelease extends Release {
+  name: string;
+  body: string;
+  publishedAt: string;
+}
+
+/** True if `err` is a GitHub 404 (repo or endpoint not found). */
+export function isGithubNotFound(err: unknown): boolean {
+  return err instanceof Error && /GitHub returned 404/.test(err.message);
+}
+
 /** Fetch a release by tag. Token optional for public repos. */
 export async function getReleaseByTag(repo: string, tag: string): Promise<Release> {
   const token = process.env.SAIL_GH_TOKEN ?? process.env.GITHUB_TOKEN;
@@ -158,6 +169,52 @@ export async function getReleaseByTag(repo: string, tag: string): Promise<Releas
       downloadCount: a.download_count,
     })),
   };
+}
+
+/**
+ * List all releases on a repo, newest first, following pagination (100 per page, up to
+ * 10 pages). Token optional for public repos. This is what `sailor harbor list` and
+ * `sailor harbor start` use to discover blueprints in the registry.
+ */
+export async function listReleases(repo: string): Promise<ListedRelease[]> {
+  const token = process.env.SAIL_GH_TOKEN ?? process.env.GITHUB_TOKEN;
+  const out: ListedRelease[] = [];
+  for (let page = 1; page <= 10; page++) {
+    const res = await fetch(`${GH_API}/repos/${repo}/releases?per_page=100&page=${page}`, {
+      headers: ghHeaders(token),
+    });
+    if (!res.ok) throw await ghError(res, `listing releases on ${repo}`);
+    const rels = (await res.json()) as Array<{
+      tag_name: string;
+      name: string | null;
+      body: string | null;
+      published_at: string | null;
+      assets: Array<{
+        name: string;
+        browser_download_url: string;
+        url: string;
+        size: number;
+        download_count: number;
+      }>;
+    }>;
+    for (const r of rels) {
+      out.push({
+        tag: r.tag_name,
+        name: r.name ?? "",
+        body: r.body ?? "",
+        publishedAt: r.published_at ?? "",
+        assets: r.assets.map((a) => ({
+          name: a.name,
+          downloadUrl: a.browser_download_url,
+          apiUrl: a.url,
+          size: a.size,
+          downloadCount: a.download_count,
+        })),
+      });
+    }
+    if (rels.length < 100) break;
+  }
+  return out;
 }
 
 /** Download a release asset to a Buffer. Token optional for public repos. */

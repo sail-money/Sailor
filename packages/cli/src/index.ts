@@ -8,8 +8,7 @@ import {
   accountDeployChain,
   accountPredict,
 } from "./commands/account.js";
-import { capabilities } from "./commands/capabilities.js";
-import { type ChainsOptions, chainsCommand } from "./commands/chains.js";
+import { type BlueprintStartOptions, blueprintStart } from "./commands/blueprint-start.js";
 import {
   type BlueprintImportOptions,
   type BlueprintVerifyOptions,
@@ -17,12 +16,16 @@ import {
   blueprintInspect,
   blueprintVerify,
 } from "./commands/blueprint.js";
-import {
-  type BlueprintStartOptions,
-  blueprintStart,
-} from "./commands/blueprint-start.js";
+import { capabilities } from "./commands/capabilities.js";
+import { type ChainsOptions, chainsCommand } from "./commands/chains.js";
 import { type CloneOptions, clone } from "./commands/clone.js";
 import { doctor } from "./commands/doctor.js";
+import {
+  type HarborListOptions,
+  type HarborStartOptions,
+  harborList,
+  harborStart,
+} from "./commands/harbor.js";
 import { initCommand } from "./commands/init.js";
 import { type KeysGenerateOptions, keysExportCi, keysGenerate, keysShow } from "./commands/keys.js";
 import { type ConfigureOptions, mandateConfigure } from "./commands/mandate-configure.js";
@@ -46,16 +49,6 @@ import { type OnboardOptions, onboard } from "./commands/onboard.js";
 import { ownerConnect, ownerShow } from "./commands/owner.js";
 import { type RotateSignerOptions, rotateSigner } from "./commands/rotate-signer.js";
 import { runCommand } from "./commands/run.js";
-import {
-  strategyCreate,
-  strategyDelete,
-  strategyEnvSet,
-  strategyEnvShow,
-  strategyList,
-  strategyNewExecutable,
-  strategySetActive,
-  strategySetChains,
-} from "./commands/strategy.js";
 import { scan } from "./commands/scan.js";
 import {
   type ServiceInstallOptions,
@@ -71,9 +64,28 @@ import { sessionPause, sessionResume } from "./commands/session.js";
 import { type ShareOptions, share } from "./commands/share.js";
 import { signerStart, signerStatus, signerStop } from "./commands/signer.js";
 import { status } from "./commands/status.js";
+import {
+  strategyCreate,
+  strategyDelete,
+  strategyEnvSet,
+  strategyEnvShow,
+  strategyList,
+  strategyNewExecutable,
+  strategySetActive,
+  strategySetChains,
+} from "./commands/strategy.js";
 import { type TriggerGithubOptions, triggerGithub } from "./commands/trigger.js";
+import {
+  type SandboxStopOptions,
+  type UiOptions,
+  sandboxUiCommand,
+  sandboxUiStatus,
+  sandboxUiStop,
+  uiCommand,
+  uiStatus,
+  uiStop,
+} from "./commands/ui.js";
 import { updateCommand } from "./commands/update.js";
-import { type SandboxStopOptions, type UiOptions, sandboxUiCommand, sandboxUiStatus, sandboxUiStop, uiCommand, uiStatus, uiStop } from "./commands/ui.js";
 import { closePrompts } from "./lib/io.js";
 import { packageRoot } from "./lib/packagePaths.js";
 
@@ -95,7 +107,12 @@ function cliVersion(): string {
 
 const program = new Command();
 
-program.name("sailor").description("The Sailor CLI — the harness for building and operating DeFi agents on Sail Protocol").version(cliVersion());
+program
+  .name("sailor")
+  .description(
+    "The Sailor CLI — the harness for building and operating DeFi agents on Sail Protocol",
+  )
+  .version(cliVersion());
 
 /** Wraps a command action with consistent error handling and prompt cleanup. */
 function action(fn: () => Promise<void>): () => Promise<void> {
@@ -126,7 +143,9 @@ function actionWith<T>(fn: (opts: T) => Promise<void> | void): (opts: T) => Prom
 }
 
 /** Like {@link action} but for handlers that take positional args (commander passes them through). */
-function actArgs<A extends unknown[]>(fn: (...args: A) => Promise<void> | void): (...args: A) => Promise<void> {
+function actArgs<A extends unknown[]>(
+  fn: (...args: A) => Promise<void> | void,
+): (...args: A) => Promise<void> {
   return async (...args: A) => {
     try {
       await fn(...args);
@@ -167,9 +186,7 @@ program
 
 program
   .command("update")
-  .description(
-    "Re-sync agent tooling files (skills, soul.md, Dockerfile) from the latest template",
-  )
+  .description("Re-sync agent tooling files (skills, soul.md, Dockerfile) from the latest template")
   .action(action(updateCommand));
 
 const ui = program.command("ui").description("Manage the local Sailor dashboard");
@@ -192,15 +209,25 @@ ui.action(action(uiCommand));
 // `sailor shipyard` gets the command rather than "unknown command". Commander
 // renders it inline as "sandbox|shipyard" — one entry, both spellings — the
 // same way `signer|station` already appears above.
-const sandbox = program.command("sandbox").alias("shipyard").description("Manage Shipyard, the local simulation sandbox (native chain forks, fake money; needs Foundry)");
-sandbox.command("start")
+const sandbox = program
+  .command("sandbox")
+  .alias("shipyard")
+  .description(
+    "Manage Shipyard, the local simulation sandbox (native chain forks, fake money; needs Foundry)",
+  );
+sandbox
+  .command("start")
   .description("Start the sandbox dashboard on its own port, rooted at .shipyard/sandbox/")
   .action(action(sandboxUiCommand));
-sandbox.command("stop")
-  .description("Stop the sandbox dashboard and its forks (chain state is saved and resumes on next start)")
+sandbox
+  .command("stop")
+  .description(
+    "Stop the sandbox dashboard and its forks (chain state is saved and resumes on next start)",
+  )
   .option("--keep-forks", "leave the anvil forks running; only stop the dashboard server")
   .action((opts: SandboxStopOptions) => action(() => sandboxUiStop(opts))());
-sandbox.command("status")
+sandbox
+  .command("status")
   .description("Show whether the sandbox dashboard is running")
   .action(action(sandboxUiStatus));
 sandbox.action(action(sandboxUiCommand));
@@ -278,9 +305,16 @@ mandate
 mandate
   .command("deploy")
   .description("Deploy a Foundry-compiled permission contract via the browser signing UI")
-  .option("--artifact <path>", "Path to the Foundry artifact JSON (contracts/out/<Name>.sol/<Name>.json)")
+  .option(
+    "--artifact <path>",
+    "Path to the Foundry artifact JSON (contracts/out/<Name>.sol/<Name>.json)",
+  )
   .option("--contract <name>", "Contract name; resolves to <out>/<name>.sol/<name>.json")
-  .option("--out <dir>", "Foundry output directory — the contracts/ workspace's out/", "contracts/out")
+  .option(
+    "--out <dir>",
+    "Foundry output directory — the contracts/ workspace's out/",
+    "contracts/out",
+  )
   .option("--name <label>", "Label to track this permission under (defaults to contract name)")
   .option(
     "--args <json>",
@@ -309,7 +343,9 @@ mandate
   ] as const;
   mandate
     .command("register")
-    .description("Register one or more already-deployed permissions on an SMA (EIP-712 RegisterPermission; a comma-separated list registers all in one signature)")
+    .description(
+      "Register one or more already-deployed permissions on an SMA (EIP-712 RegisterPermission; a comma-separated list registers all in one signature)",
+    )
     .requiredOption(...registerOptions[0])
     .requiredOption(...registerOptions[1])
     .option("--label <label>", "Human-readable label shown in the signing UI")
@@ -494,24 +530,35 @@ program
   )
   .option("--sma <address>", "Only run active-strategy steps that target this SMA")
   .option("--chains <ids>", "Only run active-strategy steps on these chains (comma-separated ids)")
-  .action(async (opts: { once?: boolean; strategy?: string; reason?: string; sma?: string; chains?: string }) => {
-    try {
-      await runCommand({
-        once: opts.once,
-        strategy: opts.strategy,
-        reason: opts.reason,
-        sma: opts.sma,
-        chains: opts.chains
-          ? opts.chains.split(",").map((c) => Number(c.trim())).filter((n) => Number.isFinite(n))
-          : undefined,
-      });
-    } catch (err) {
-      console.error(`Error: ${(err as Error).message}`);
+  .action(
+    async (opts: {
+      once?: boolean;
+      strategy?: string;
+      reason?: string;
+      sma?: string;
+      chains?: string;
+    }) => {
+      try {
+        await runCommand({
+          once: opts.once,
+          strategy: opts.strategy,
+          reason: opts.reason,
+          sma: opts.sma,
+          chains: opts.chains
+            ? opts.chains
+                .split(",")
+                .map((c) => Number(c.trim()))
+                .filter((n) => Number.isFinite(n))
+            : undefined,
+        });
+      } catch (err) {
+        console.error(`Error: ${(err as Error).message}`);
+        closePrompts();
+        process.exit(1);
+      }
       closePrompts();
-      process.exit(1);
-    }
-    closePrompts();
-  });
+    },
+  );
 
 const strategy = program
   .command("strategy")
@@ -525,8 +572,14 @@ strategy
   .command("create <name>")
   .description("Create a new (active) strategy: one SMA + one executable")
   .requiredOption("--sma <address>", "SMA the strategy runs against")
-  .option("--executable <name>", "Executable name: default agent → src/agent.ts; custom → src/strategy/<name>.ts")
-  .option("--chains <ids>", "Comma-separated chain ids/slugs to replay on; omit for executable-driven (cross-chain)")
+  .option(
+    "--executable <name>",
+    "Executable name: default agent → src/agent.ts; custom → src/strategy/<name>.ts",
+  )
+  .option(
+    "--chains <ids>",
+    "Comma-separated chain ids/slugs to replay on; omit for executable-driven (cross-chain)",
+  )
   .option("--description <text>", "Human description shown in the dashboard")
   .option("--inactive", "Create the strategy inactive (default: active)")
   .action(actArgs(strategyCreate));
@@ -544,15 +597,14 @@ strategy
   .option("--chains <ids>", "Comma-separated chain ids or slugs to replay on")
   .option("--clear", "Clear chains → executable-driven mode")
   .action(actArgs(strategySetChains));
-strategy
-  .command("delete <name>")
-  .description("Delete a strategy")
-  .action(actArgs(strategyDelete));
+strategy.command("delete <name>").description("Delete a strategy").action(actArgs(strategyDelete));
 strategy
   .command("new-executable <name>")
   .description("Scaffold a new executable at src/strategy/<name>.ts (camelCase name)")
   .action(actArgs(strategyNewExecutable));
-const strategyEnv = strategy.command("env").description("Manage per-chain env values (.sail/env/<slug>.json)");
+const strategyEnv = strategy
+  .command("env")
+  .description("Manage per-chain env values (.sail/env/<slug>.json)");
 strategyEnv
   .command("show <chain>")
   .description("Show env values for a chain (id or slug)")
@@ -726,6 +778,33 @@ blueprintCmd
     }
     closePrompts();
   });
+
+// ── Harbor ────────────────────────────────────────────────────────────────────
+// The one-word entry point: discover and start ready-to-run agents from the registry.
+const harborCmd = program
+  .command("harbor")
+  .description("Discover and start ready-to-run agents from the registry (sail-money/Dock)");
+
+harborCmd
+  .command("list")
+  .description("List the agents available in the registry")
+  .option("--registry <owner/repo>", "Registry repo (default: sail-money/Dock)")
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<HarborListOptions>(harborList));
+
+harborCmd
+  .command("start <slug> [dir]")
+  .description("Download the latest release of an agent and set up a new project with it")
+  .option("--registry <owner/repo>", "Registry repo (default: sail-money/Dock)")
+  .option("--chain <id>", "Chain id the agent must support")
+  .option("--yes", "Apply the verified blueprint without an interactive import confirmation")
+  .option("--agent <executable>", "Coding-agent executable to launch", "codex")
+  .option("--no-agent", "Stop after install/typecheck and print the coding-agent handoff")
+  .action(
+    actArgs<[string, string | undefined, HarborStartOptions]>((slug, dir, opts) =>
+      harborStart(slug, dir, opts),
+    ),
+  );
 
 // ── Experimental (private) ─────────────────────────────────────────────────
 // `share` / `clone` are gated behind SAILOR_EXPERIMENTAL=1 while the

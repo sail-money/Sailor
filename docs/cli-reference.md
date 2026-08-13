@@ -23,6 +23,16 @@ each command named here exists in the CLI source.
 Blueprint verification proves integrity, not publisher identity. `start` consumes a local artifact
 and has no dependency on the tool that produced it.
 
+## Harbor
+
+| Command | What it does |
+|---|---|
+| `sailor harbor list` | List the ready-to-run agents published in the registry (`--registry <owner/repo>`, `--json`) |
+| `sailor harbor start <slug> [dir]` | Download the latest release of an agent and set up a new project with it (`--registry <owner/repo>`, `--chain <id>`, `--yes`, `--agent <executable>`, `--no-agent`) |
+
+Harbor is the one-word entry point over blueprints. `harbor start` resolves a slug to the latest
+release in the registry, downloads it, and hands off to `blueprint start`.
+
 ## Keys and owner
 
 | Command | What it does |

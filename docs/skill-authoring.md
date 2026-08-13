@@ -87,8 +87,8 @@ of truth for the name list and the core vs custom classification.
 
 - **core** — what makes it a Sailor agent (identical across every agent). Ships in the npm
   package, protected from blueprint pruning, updated by `sailor update`.
-- **custom** — what makes it *this* agent (strategy-specific). Selectable per blueprint, updated
-  by `sailor harbor update`.
+- **custom** — what makes it *this* agent (strategy-specific). Selectable per blueprint, and
+  refreshed with the blueprint when a new version of that blueprint ships.
 
 When you add a skill, you add it to the registry in the same change. The CLI's blueprint import
 reads the registry and refuses to prune a core skill, whatever a manifest asks for.
