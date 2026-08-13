@@ -20,6 +20,6 @@
     }
   },
   "files": {
-    "ignore": ["**/dist/**", "**/node_modules/**", "**/.sail/**"]
+    "ignore": ["**/dist/**", "**/node_modules/**", "**/.sail/**", "**/out/**", "**/cache/**", "**/broadcast/**"]
   }
 }

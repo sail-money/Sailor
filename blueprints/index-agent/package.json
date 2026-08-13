@@ -1,0 +1,19 @@
+{
+  "name": "index-agent",
+  "version": "0.1.0",
+  "description": "Sailor index agent: DCA + rebalance a weighted token basket toward global target weights across chains",
+  "type": "module",
+  "scripts": {
+    "test": "tsx --test src/**/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@sail.money/sailor": "^2.0.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.22.4",
+    "typescript": "^5.5.0"
+  }
+}

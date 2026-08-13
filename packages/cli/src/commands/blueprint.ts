@@ -55,6 +55,12 @@ const PRUNE_PROTECTED = [
 ];
 
 /**
+ * Project manifest files a blueprint may overwrite (they are part of the agent surface
+ * the blueprint supplies) but never remove — a project must always keep its manifest.
+ */
+const WRITABLE_MANIFEST = ["package.json", "package-lock.json"];
+
+/**
  * Skill names that must survive any blueprint import, whatever `surface.keepSkills` asks
  * to prune. Read from the project's `.agents/skill-registry.json` (the single source of
  * truth), falling back to the shipped scaffold copy for projects that predate the registry.
@@ -249,10 +255,21 @@ export async function blueprintInspect(source: string, opts: { json?: boolean })
  * or touches protected state. Mirrors kit.mjs `prunablePath`: an absolute path is an error
  * rather than being silently reinterpreted as relative.
  */
-function safeTarget(projectRoot: string, rel: string): string | null {
+function safeTarget(
+  projectRoot: string,
+  rel: string,
+  opts: { write?: boolean } = {},
+): string | null {
   if (!isSafeRelativePath(rel)) return null;
   const head = rel.split("/")[0];
-  if (PRUNE_PROTECTED.includes(head) || PRUNE_PROTECTED.includes(rel)) return null;
+  const isManifest = WRITABLE_MANIFEST.includes(head) || WRITABLE_MANIFEST.includes(rel);
+  if (isManifest) {
+    // package.json / package-lock.json may be written (a blueprint supplies them) but
+    // never removed; everything else in PRUNE_PROTECTED is off-limits both ways.
+    if (!opts.write) return null;
+  } else if (PRUNE_PROTECTED.includes(head) || PRUNE_PROTECTED.includes(rel)) {
+    return null;
+  }
   const projAbs = path.resolve(projectRoot);
   const abs = path.resolve(projAbs, rel);
   if (abs === projAbs || !abs.startsWith(projAbs + path.sep)) return null;
@@ -314,7 +331,7 @@ export async function blueprintImport(
     const writes: { rel: string; abs: string; role: string; overwrites: boolean }[] = [];
     for (const entry of m.contents) {
       if (m.surface?.fragment && entry.path === m.surface.fragment.path) continue; // appended, not copied
-      const abs = safeTarget(projectRoot, entry.path);
+      const abs = safeTarget(projectRoot, entry.path, { write: true });
       if (!abs) throw new Error(`manifest declares an unsafe destination: ${entry.path}`);
       writes.push({ rel: entry.path, abs, role: entry.role, overwrites: fs.existsSync(abs) });
     }

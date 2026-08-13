@@ -1,0 +1,27 @@
+{
+  "schema": "sail.skill-registry/v1",
+  "note": "Single source of truth for the core vs custom classification of the scaffold skills. Core skills ship in the npm package, are protected from blueprint pruning, and update via `sailor update`. Custom skills are selectable per blueprint and update via `sailor harbor update`. The flat `.agents/skills/` layout is intentional: a skill's path is always `.agents/skills/<name>/SKILL.md`, so skills reference each other by name, not by path.",
+  "core": [
+    "sailor-automation",
+    "sailor-extend",
+    "sailor-mandate-planner",
+    "sailor-mandates",
+    "sailor-memory",
+    "sailor-navigator",
+    "sailor-onboarding",
+    "sailor-operate",
+    "sailor-project-info",
+    "sailor-risk",
+    "sailor-servers",
+    "sailor-templates",
+    "sailor-token-resolve",
+    "sailor-transactions"
+  ],
+  "custom": [
+    "sailor-agent-build",
+    "sailor-cctp-bridge",
+    "sailor-index",
+    "sailor-strategy",
+    "sailor-swap-quote"
+  ]
+}

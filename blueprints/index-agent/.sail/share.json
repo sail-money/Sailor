@@ -1,0 +1,12 @@
+{
+  "name": "Index",
+  "slug": "index",
+  "summary": "Invest USDC into a weighted token basket and keep it rebalanced across the chains you choose",
+  "description": "Deposit USDC and let the agent build a diversified token basket. It invests your USDC into the basket and keeps it rebalanced toward your target weights, buying and selling across chains. USDC is the deposit asset and the only asset bridged across chains.",
+  "strategy": "Holds a global weighted token basket. Invests any idle USDC across the basket in proportion to target weights, and rebalances whenever drift exceeds the band: sells overweight tokens and buys underweight ones, on the chain with the best liquidity.",
+  "mandate": "A swap permission to buy and sell tokens through the router, and a CCTP bridge permission to move USDC between chains, locked to the account's own address on the destination chain.",
+  "chains": [1, 10, 130, 480, 999, 42161, 8453],
+  "tags": ["index", "invest", "rebalance", "multi-chain"],
+  "author": "aadopico",
+  "sailorVersion": "2.0.0"
+}

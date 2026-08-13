@@ -171,6 +171,28 @@ test("import refuses a payload package.json with auto-running scripts", async ()
   assert.match(threw?.message ?? "", /auto-running scripts/);
 });
 
+test("import writes a payload package.json (agent surface) but refuses to prune it", async () => {
+  const manifest = '{"name":"bp-pkg","dependencies":{"viem":"^2"}}\n';
+  const art = await buildArtifact({
+    files: { "AGENTS.md": "# s\n", "package.json": manifest },
+    roles: { "package.json": "config" },
+  });
+  const proj = makeProject();
+  const { threw } = await capture(() => blueprintImport(art, proj, { yes: true }));
+  assert.equal(threw, null, threw?.message);
+  assert.equal(fs.readFileSync(path.join(proj, "package.json"), "utf-8"), manifest);
+
+  // A blueprint may overwrite the manifest but never remove it.
+  const pruneArt = await buildArtifact({
+    files: { "AGENTS.md": "# s\n" },
+    surface: { pruned: ["package.json"] },
+  });
+  const proj2 = makeProject();
+  const { threw: pruneThrew } = await capture(() => blueprintImport(pruneArt, proj2, { yes: true }));
+  assert.equal(pruneThrew, null, pruneThrew?.message);
+  assert.ok(fs.existsSync(path.join(proj2, "package.json")), "package.json must survive a prune request");
+});
+
 test("import refuses unattended when stdin is not a TTY and --yes is absent", async () => {
   const art = await buildArtifact();
   const { threw } = await capture(() => blueprintImport(art, makeProject(), {}));
