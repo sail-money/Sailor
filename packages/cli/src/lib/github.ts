@@ -228,6 +228,59 @@ export async function downloadAsset(url: string): Promise<Buffer> {
   return Buffer.from(await res.arrayBuffer());
 }
 
+export interface CreateReleaseInput {
+  tag: string;
+  name?: string;
+  body?: string;
+  assetName?: string;
+  assetBytes?: Uint8Array;
+}
+
+export interface CreatedRelease {
+  tag: string;
+  htmlUrl: string;
+}
+
+/**
+ * Create a release (and optionally attach a binary asset) on a repo. Requires a token
+ * with `contents: write` on the repo — this is the write path `sailor harbor publish`
+ * uses to release a blueprint into the registry.
+ */
+export async function createRelease(
+  repo: string,
+  input: CreateReleaseInput,
+): Promise<CreatedRelease> {
+  const token = resolveToken();
+  const res = await fetch(`${GH_API}/repos/${repo}/releases`, {
+    method: "POST",
+    headers: { ...ghHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      tag_name: input.tag,
+      name: input.name ?? input.tag,
+      body: input.body ?? "",
+      draft: false,
+      prerelease: false,
+    }),
+  });
+  if (res.status !== 201) throw await ghError(res, `creating release "${input.tag}" on ${repo}`);
+  const rel = (await res.json()) as { id: number; html_url: string };
+
+  if (input.assetName && input.assetBytes) {
+    const up = await fetch(
+      `${GH_API}/repos/${repo}/releases/${rel.id}/assets?name=${encodeURIComponent(input.assetName)}`,
+      {
+        method: "POST",
+        headers: { ...ghHeaders(token), "Content-Type": "application/octet-stream" },
+        body: input.assetBytes as unknown as BodyInit,
+      },
+    );
+    if (up.status !== 201)
+      throw await ghError(up, `uploading asset "${input.assetName}" to ${input.tag}`);
+  }
+
+  return { tag: input.tag, htmlUrl: rel.html_url };
+}
+
 /**
  * Parse a release reference from user input. Accepts:
  *   - `owner/repo@tag`

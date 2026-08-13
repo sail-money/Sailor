@@ -26,6 +26,10 @@ import {
   harborCreate,
   harborList,
 } from "./commands/harbor.js";
+import {
+  type HarborPublishOptions,
+  harborPublish,
+} from "./commands/harbor-publish.js";
 import { initCommand } from "./commands/init.js";
 import { type KeysGenerateOptions, keysExportCi, keysGenerate, keysShow } from "./commands/keys.js";
 import { type ConfigureOptions, mandateConfigure } from "./commands/mandate-configure.js";
@@ -807,6 +811,15 @@ harborCmd
       harborCreate(slug, dir, opts),
     ),
   );
+
+harborCmd
+  .command("publish")
+  .description("Package this project as a blueprint and release it to the registry")
+  .option("--registry <owner/repo>", "Registry repo (default: sail-money/harbor)")
+  .option("--local", "Write the blueprint .tar.gz locally instead of releasing (no GitHub/token)")
+  .option("--out <path>", "Output archive path for --local")
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<HarborPublishOptions>(harborPublish));
 
 // ── Experimental (private) ─────────────────────────────────────────────────
 // `share` / `clone` are gated behind SAILOR_EXPERIMENTAL=1 while the

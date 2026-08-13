@@ -29,9 +29,12 @@ and has no dependency on the tool that produced it.
 |---|---|
 | `sailor harbor list [query]` | List the ready-to-run agents published in the registry, optionally filtered by a search term over name and description (`--registry <owner/repo>`, `--json`) |
 | `sailor harbor create <slug> [dir]` | Create a new project from the latest release of an agent (`--registry <owner/repo>`, `--chain <id>`, `--yes`, `--agent <executable>`, `--no-agent`) |
+| `sailor harbor publish` | Package this project as a blueprint and release it to the registry, tagged `<slug>-v<n>` (`--registry <owner/repo>`, `--local` to write a `.tar.gz` instead, `--out <path>`, `--json`) |
 
 Harbor is the one-word entry point over blueprints. `harbor create` resolves a slug to the latest
-release in the registry, downloads it, and hands off to `blueprint start`.
+release in the registry, downloads it, and hands off to `blueprint start`. `harbor publish` is the
+producer: it packages the project's agent surface (skills, AGENTS.md, src, contracts) into a
+self-contained blueprint, redacts the publisher's addresses, and releases it for `create` to fetch.
 
 ## Keys and owner
 
