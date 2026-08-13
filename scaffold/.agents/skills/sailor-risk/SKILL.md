@@ -1,6 +1,7 @@
 ---
 name: sailor-risk
 description: Assess and disclose the technical risks of a strategy or action (pool depth, manipulation, approval hygiene, oracle trust, venue, MEV) before the user approves it. Use when creating or changing a strategy, mandate, or position, and when asked whether something is safe.
+station: anytime
 ---
 
 # sailor-risk — assess and disclose technical risk before approval

@@ -1,6 +1,7 @@
 ---
 name: sailor-strategy
 description: Turn the user's intent into a complete, concrete strategy spec (one file per strategy) and wire it to an executable. Use when the user wants to create or change a strategy: I want to DCA, earn yield, rebalance, or what should my agent do.
+station: strategy
 ---
 
 # sailor-strategy — make the strategy concrete

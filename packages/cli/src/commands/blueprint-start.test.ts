@@ -28,10 +28,9 @@ async function inTempCwd(
 function dependencies(events: string[]): BlueprintStartDependencies {
   return {
     hasExecutable: () => true,
-    init: async (dir) => {
-      assert.equal(typeof dir, "string");
-      fs.mkdirSync(path.join(process.cwd(), dir as string, ".sail"), { recursive: true });
-      events.push(`init:${dir}`);
+    scaffold: (dest, name) => {
+      fs.mkdirSync(path.join(dest, ".sail"), { recursive: true });
+      events.push(`scaffold:${name}`);
     },
     importBlueprint: async (artifact, project, opts: BlueprintImportOptions) => {
       assert.equal(path.isAbsolute(artifact), true);
@@ -51,7 +50,7 @@ test("start owns the whole artifact-to-guided-onboarding sequence", { concurrenc
     const events: string[] = [];
     await blueprintStart(artifact, "new-dca", { chain: "130", yes: true }, dependencies(events));
     assert.deepEqual(events.slice(0, 4), [
-      "init:new-dca",
+      "scaffold:new-dca",
       "import:new-dca",
       "npm:install",
       "npm:run typecheck --if-present",
@@ -79,7 +78,7 @@ test("--no-agent stops after install/typecheck", { concurrency: false }, async (
     const events: string[] = [];
     await blueprintStart(artifact, "prepared-only", { yes: true, agent: false }, dependencies(events));
     assert.deepEqual(events, [
-      "init:prepared-only",
+      "scaffold:prepared-only",
       "import:prepared-only",
       "npm:install",
       "npm:run typecheck --if-present",
@@ -94,7 +93,7 @@ test("start refuses an existing target before scaffolding", { concurrency: false
     await assert.rejects(
       blueprintStart(artifact, "already-here", { yes: true }, {
         hasExecutable: () => true,
-        init: async () => {
+        scaffold: () => {
           touched = true;
         },
       }),
@@ -110,8 +109,8 @@ test("a declined import retains the scaffold and never installs", { concurrency:
     await assert.rejects(
       blueprintStart(artifact, "declined", {}, {
         hasExecutable: () => true,
-        init: async (dir) => {
-          fs.mkdirSync(path.join(process.cwd(), dir as string, ".sail"), { recursive: true });
+        scaffold: (dest) => {
+          fs.mkdirSync(path.join(dest, ".sail"), { recursive: true });
         },
         importBlueprint: async () => false,
         run: () => {

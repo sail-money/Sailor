@@ -1,6 +1,7 @@
 ---
 name: sailor-mandates
 description: Author, test, deploy, simulate, and revoke bespoke permission contracts in Solidity that bound the agent beyond the shared templates. Use when a strategy needs a permission no template covers, or to change, verify, or revoke what the agent may do.
+station: mandate
 ---
 
 # sailor-mandates — the bespoke permission-contract lifecycle

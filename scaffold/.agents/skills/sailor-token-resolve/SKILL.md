@@ -1,6 +1,7 @@
 ---
 name: sailor-token-resolve
 description: Resolve tokens named by symbol or address into on-chain metadata and a cross-chain liquidity map, so the agent knows where each token is swap-ready. Use before building any swap, DCA, or lending mandate, and when the user names a portfolio.
+station: anytime
 ---
 
 # sailor-token-resolve — tokens → addresses + where the liquidity lives

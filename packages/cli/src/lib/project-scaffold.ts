@@ -32,6 +32,13 @@ before changing strategy code or running commands that touch funds.
 `;
 
 /**
+ * Path (relative to the project root) of the marker written by `sailor blueprint import`.
+ * Its presence means "this is a Harbor agent whose surface came from a blueprint", and
+ * `sailor update` uses it to leave the agent surface (.agents/, soul.md) untouched.
+ */
+export const BLUEPRINT_MARKER = ".sail/.blueprint";
+
+/**
  * Create `.sail/{keys,runtime,state}`, write `config.json`, `.env.example`, and
  * `.sail/.env.local`. `preserveConfig` keeps an existing `.sail/config.json`
  * (clone ships a sanitized one already) instead of overwriting it.

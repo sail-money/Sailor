@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { blueprintImport } from "./blueprint.js";
-import { initCommand } from "./init.js";
+import { scaffoldProjectWorkspace } from "../lib/project-scaffold.js";
 
 export interface BlueprintStartOptions {
   chain?: string;
@@ -11,12 +11,12 @@ export interface BlueprintStartOptions {
   agent?: string | false;
 }
 
-type InitFn = typeof initCommand;
+type ScaffoldFn = typeof scaffoldProjectWorkspace;
 type ImportFn = typeof blueprintImport;
 type RunFn = (command: string, args: string[], cwd: string, label: string) => void;
 
 export interface BlueprintStartDependencies {
-  init?: InitFn;
+  scaffold?: ScaffoldFn;
   importBlueprint?: ImportFn;
   run?: RunFn;
   hasExecutable?: (name: string) => boolean;
@@ -85,7 +85,7 @@ export async function blueprintStart(
     throw new Error(`Refusing to overwrite existing project: ${projectRoot}`);
   }
 
-  const init = dependencies.init ?? initCommand;
+  const scaffold = dependencies.scaffold ?? scaffoldProjectWorkspace;
   const importBlueprint = dependencies.importBlueprint ?? blueprintImport;
   const run = dependencies.run ?? runExternal;
   const hasExecutable = dependencies.hasExecutable ?? executableOnPath;
@@ -104,8 +104,11 @@ export async function blueprintStart(
   console.log(`  chain     ${opts.chain ?? "chosen during blueprint intake"}`);
 
   try {
-    console.log("\n[create Sailor project]");
-    await init(dir, { chain: opts.chain });
+    // Model C: scaffold only the project workspace (.sail/, config, env templates). The
+    // blueprint's payload supplies the entire agent surface — skills, AGENTS.md, agent code,
+    // package.json — so there is no full `init` and nothing to prune afterwards.
+    console.log("\n[create project skeleton]");
+    scaffold(projectRoot, path.basename(projectRoot), { chain: opts.chain });
 
     console.log("\n[verify and import blueprint]");
     const imported = await importBlueprint(artifact, projectRoot, {

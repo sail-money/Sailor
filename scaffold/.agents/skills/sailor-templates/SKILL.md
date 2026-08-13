@@ -1,6 +1,7 @@
 ---
 name: sailor-templates
 description: The registry and reuse guide for Sail's shared permission templates: which primitives exist and how to bound a mandate by reusing a configurable singleton. Use to pick the right template for an action, before any register or configure.
+station: mandate
 compatibility: Node 18+; a Sailor project (`@sail.money/sailor/sdk`, `sailor` CLI); read access to the workspace `Protocol/contracts/templates/` (or set SAIL_PROTOCOL_DIR).
 metadata:
   workspace: sailor-harness

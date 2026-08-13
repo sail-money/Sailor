@@ -11,6 +11,7 @@ import {
 import { safeExtract } from "../lib/clone-safety.js";
 import { confirm } from "../lib/io.js";
 import { packageRoot } from "../lib/packagePaths.js";
+import { BLUEPRINT_MARKER } from "../lib/project-scaffold.js";
 import { scanForSecrets } from "../lib/share.js";
 
 /**
@@ -399,6 +400,27 @@ export async function blueprintImport(
       for (const p of problems) console.error(`  ${p}`);
       throw new Error("post-import verification failed");
     }
+
+    // 9. Mark the project as a Harbor agent. `sailor update` reads this marker and leaves the
+    //    agent surface (.agents/, soul.md) alone rather than re-copying the stock scaffold over
+    //    what the blueprint delivered. It records the blueprint identity (slug/version) for the
+    //    future `sailor harbor update` refresh path, but NOT the full manifest.
+    const b = m.blueprint ?? {};
+    fs.mkdirSync(path.join(projectRoot, ".sail"), { recursive: true });
+    fs.writeFileSync(
+      path.join(projectRoot, BLUEPRINT_MARKER),
+      `${JSON.stringify(
+        {
+          slug: b.slug ?? null,
+          version: b.version ?? null,
+          kind: b.kind ?? null,
+          importedAt: new Date().toISOString(),
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
 
     console.log(`\n✓ imported ${describe(m)}`);
     console.log(`  ${writes.length} file(s) written, ${removals.length} removed, surface verified against the manifest.`);

@@ -1,6 +1,7 @@
 ---
 name: sailor-transactions
 description: How dispatches and EVM transactions work in Sailor: the selective dispatch model, signing, batching, and permission resolution. Use when building or debugging dispatches, writing tick code, or reasoning about why a transaction was denied.
+station: agent
 ---
 
 # sailor-transactions — dispatch mechanics: signing, batching, permission resolution

@@ -1,6 +1,7 @@
 ---
 name: sailor-memory
 description: Own the agent's memory: the append-only, chain-reconciled ledger of every tick, acted or skipped, so a fresh process recovers its history. Use when building the tick loop's memory, and when asked what the agent has done or why it skipped.
+station: agent
 ---
 
 # sailor-memory — the agent's own history (Station 4 foundation)

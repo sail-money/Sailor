@@ -1,6 +1,7 @@
 ---
 name: sailor-mandate-planner
 description: Turn a complete strategy spec into a mandate plan, routing each action to a shared permission template or bespoke authoring. Use when asked to build the mandate or register permissions, and whenever a spec is complete and mandate work begins.
+station: mandate
 ---
 
 # sailor-mandate-planner — route the strategy into enforced bounds (Station 3)

@@ -1,6 +1,7 @@
 ---
 name: sailor-onboarding
 description: Set up a new Sailor project or resume a partial one: deploy the SMA, create the agent wallet, and connect chains. Use when the project has no SMA yet, when account state is missing, or when asked to start, set up my wallet, or deploy my agent.
+station: arrive
 ---
 
 # sailor-onboarding — set up the project, keys, account, and chain (Station 1)

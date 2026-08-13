@@ -25,6 +25,7 @@ top-level body taxes every future turn, whether the task uses it or not.
 ---
 name: sailor-risk
 description: <one line>
+station: anytime
 ---
 ```
 
@@ -35,6 +36,11 @@ description: <one line>
   **when** to use it, plus two to four concrete trigger phrases. Target roughly 120 to 280
   characters; hard stop at 300. No markdown, no em-dashes. This line is the discovery signal —
   if a user's phrasing would not match it, the skill will not be found.
+- `station` — where the skill sits in the five-station flow, as the structured twin of the prose
+  map in `sailor-navigator`. Exactly one value: `arrive`, `strategy`, `mandate`, `agent`, or
+  `sail` for a station owner/support skill, or `anytime` for a utility that is not a station
+  (the navigator itself, risk, project-info, servers, token-resolve, swap-quote). Never leave it
+  off a new skill.
 
 Good:
 

@@ -1,6 +1,7 @@
 ---
 name: sailor-automation
 description: Run the agent unattended on a schedule, choosing the right option by reliability and infrastructure (GitHub Actions, self-hosted runner, Docker, or a local daemon). Use after sailor run --once works and the operator wants it running without them.
+station: sail
 ---
 
 # sailor-automation — running the agent unattended (Station 5)

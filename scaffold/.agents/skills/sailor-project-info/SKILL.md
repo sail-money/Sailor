@@ -1,6 +1,7 @@
 ---
 name: sailor-project-info
 description: Answer read-only questions about project state: account, mandate, chains, keys, and environment. Use when asked what's the state of, is this set up, or check my setup, or before any operation that needs current state.
+station: anytime
 ---
 
 # sailor-project-info — read-only state: account, mandate, chains, keys

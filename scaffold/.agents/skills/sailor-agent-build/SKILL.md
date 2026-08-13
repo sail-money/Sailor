@@ -1,6 +1,7 @@
 ---
 name: sailor-agent-build
 description: Build the agent's executable (the tick loop in src/agent.ts) from a complete strategy spec and registered mandate. Use when asked to build my agent or make it trade automatically, once the mandate is registered and simulate-verified.
+station: agent
 ---
 
 # sailor-agent-build — build the brain (Station 4)

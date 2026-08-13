@@ -1,6 +1,7 @@
 ---
 name: sailor-swap-quote
 description: Fetch a live Uniswap V3 quote and compute the slippage-adjusted amountOutMinimum for a swap. Use after resolving tokens to show the current price and produce the floor embedded in every swap dispatch.
+station: anytime
 ---
 
 # sailor-swap-quote — live price + amountOutMinimum floor

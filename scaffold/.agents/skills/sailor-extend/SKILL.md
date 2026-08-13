@@ -1,6 +1,7 @@
 ---
 name: sailor-extend
 description: Add notifications (Telegram, email) and a strategy-specific dashboard to a live agent. Use once the agent is live to offer alerts, monitoring, or a custom view, and when the user asks for notifications or a dashboard.
+station: sail
 ---
 
 # sailor-extend — notifications and custom dashboards

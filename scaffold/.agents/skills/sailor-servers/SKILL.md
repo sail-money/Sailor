@@ -1,6 +1,7 @@
 ---
 name: sailor-servers
 description: Start, stop, and health-check the local dashboard and signing server, and set up remote access. Use when launching the UI, when the dashboard won't open, when a signing request needs a browser, or for a port or pid question.
+station: anytime
 ---
 
 # sailor-servers — the dashboard and signing server

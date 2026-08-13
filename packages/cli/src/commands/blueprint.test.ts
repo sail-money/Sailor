@@ -247,6 +247,18 @@ test("import never writes the manifest into the project", async () => {
   assert.ok(!walk(proj).includes("blueprint.manifest.json"));
 });
 
+test("import writes the .sail/.blueprint marker with the blueprint identity", async () => {
+  const art = await buildArtifact();
+  const proj = makeProject();
+  const { threw } = await capture(() => blueprintImport(art, proj, { yes: true }));
+  assert.equal(threw, null, threw?.message);
+  const marker = JSON.parse(fs.readFileSync(path.join(proj, ".sail", ".blueprint"), "utf-8"));
+  assert.equal(marker.slug, "t-bp");
+  assert.equal(marker.version, "v1");
+  assert.equal(marker.kind, "crystallized");
+  assert.ok(marker.importedAt, "importedAt should be recorded for the future harbor update path");
+});
+
 test("import appends a fragment instead of overwriting its target, idempotently", async () => {
   const art = await buildArtifact({
     files: { "AGENTS.md": "# replaced surface\n", "notes.fragment.md": "## build notes\n" },
