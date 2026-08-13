@@ -48,20 +48,8 @@
       "types": "./dist/blueprint/index.d.ts"
     }
   },
-  "files": [
-    "dist",
-    "README.md"
-  ],
-  "keywords": [
-    "sail",
-    "sail-protocol",
-    "defi",
-    "eip712",
-    "safe",
-    "sma",
-    "viem",
-    "ethereum"
-  ],
+  "files": ["dist", "README.md"],
+  "keywords": ["sail", "sail-protocol", "defi", "eip712", "safe", "sma", "viem", "ethereum"],
   "repository": {
     "type": "git",
     "url": "https://github.com/sail-money/Sailor.git",
@@ -79,11 +67,9 @@
     "access": "public"
   },
   "scripts": {
-    "prebuild": "node scripts/generate-intelligence.mjs",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test \"src/**/*.test.ts\"",
-    "generate:intelligence": "node scripts/generate-intelligence.mjs"
+    "test": "tsx --test \"src/**/*.test.ts\""
   },
   "peerDependencies": {
     "viem": "^2.0.0"

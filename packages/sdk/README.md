@@ -25,7 +25,6 @@ npm install @sail.money/sdk viem
 | `DISPATCH_EIP712_FIELDS` | Typed struct field lists keyed by dispatch model |
 | `LocalKeyring` | Encrypted manager key (geth keystore v3) |
 | `sailDeployments` | Live staging addresses (Ethereum, Base, Arbitrum, Unichain, Base Sepolia, Eth Sepolia) |
-| `SailIntelligence` | Typed client for the Sail Intelligence API |
 
 ## Dispatch signing
 
