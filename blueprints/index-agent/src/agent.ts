@@ -20,18 +20,25 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Address, Agent, AgentContext, Dispatch } from "@sail.money/sailor/sdk";
 import { encodeFunctionData } from "viem";
+import {
+  buildSnapshot,
+  composeReport,
+  sendTelegramReport,
+  shouldRun,
+  writeSnapshot,
+} from "./report.js";
 
 // ── Config (.sail/index.json) ────────────────────────────────────────────────
 
-type ChainToken = { chainId: number; address: Address; decimals: number; feeTier: number };
+export type ChainToken = { chainId: number; address: Address; decimals: number; feeTier: number };
 
-type BasketToken = {
+export type BasketToken = {
   symbol: string;
   weight: number; // 0..1, sums to 1.0 across the basket
   chains: ChainToken[]; // ordered deepest-liquidity-first: the routing preference
 };
 
-type IndexConfig = {
+export type IndexConfig = {
   chains: number[];
   usdc: Record<string, Address>; // chainId -> USDC
   router: Record<string, Address>; // chainId -> Uniswap V3 SwapRouter02
@@ -50,9 +57,13 @@ type IndexConfig = {
   dca?: { amountUsd: number; periodSec: number };
   rebalanceBandBps: number; // basis points, e.g. 500 = ±5 percentage points
   maxSlippageBps: number;
+  /** Optional. How often (seconds) the agent trims overweight holdings. 0 or absent = every run. */
+  rebalancePeriodSec?: number;
+  /** Optional. When present, the agent sends a Telegram report every `cadenceSec`. */
+  report?: { cadenceSec: number; channel: "telegram" };
 };
 
-function loadConfig(): IndexConfig {
+export function loadConfig(): IndexConfig {
   return JSON.parse(
     fs.readFileSync(path.join(process.cwd(), ".sail", "index.json"), "utf-8"),
   ) as IndexConfig;
@@ -196,6 +207,55 @@ function lastInvestTs(): number {
   return 0;
 }
 
+/** Timestamp of the most recent rebalance trim, to honor the rebalance cadence. */
+function lastRebalanceTs(): number {
+  const lines = readLines(ledgerPath());
+  for (let i = lines.length - 1; i >= 0; i--) {
+    try {
+      const e = JSON.parse(lines[i]) as { kind?: string; ts?: number };
+      if (e.kind === "rebalanced") return e.ts ?? 0;
+    } catch {
+      // skip
+    }
+  }
+  return 0;
+}
+
+/** Timestamp of the most recent report, to honor the report cadence. */
+function lastReportTs(): number {
+  const lines = readLines(ledgerPath());
+  for (let i = lines.length - 1; i >= 0; i--) {
+    try {
+      const e = JSON.parse(lines[i]) as { kind?: string; ts?: number };
+      if (e.kind === "reported") return e.ts ?? 0;
+    } catch {
+      // skip
+    }
+  }
+  return 0;
+}
+
+/**
+ * Cumulative USDC spent on buys and received from sells, read from the ledger.
+ * The cost basis of current holdings is `invested - sold`; unrealized P&L is
+ * `investedValue - costBasis` (which equals total return while there are no
+ * withdrawals).
+ */
+function cumulativeCost(): { invested: bigint; sold: bigint } {
+  let invested = 0n;
+  let sold = 0n;
+  for (const line of readLines(ledgerPath())) {
+    try {
+      const e = JSON.parse(line) as { kind?: string; amount?: string };
+      if (e.kind === "bought" && e.amount) invested += BigInt(e.amount);
+      else if (e.kind === "sold" && e.amount) sold += BigInt(e.amount);
+    } catch {
+      // skip
+    }
+  }
+  return { invested, sold };
+}
+
 // ── Pricing and dispatch ─────────────────────────────────────────────────────
 
 const USDC_DECIMALS = 6;
@@ -261,7 +321,11 @@ async function swap(
 }
 
 /** USDC-denominated value of the SMA's holding of a token on one chain. */
-async function usdcValueOf(ctx: AgentContext, cfg: IndexConfig, spec: ChainToken): Promise<bigint> {
+export async function usdcValueOf(
+  ctx: AgentContext,
+  cfg: IndexConfig,
+  spec: ChainToken,
+): Promise<bigint> {
   const balance = await ctx.chain(spec.chainId).read.balance(spec.address);
   if (balance === 0n) return 0n;
   const oneUnit = 10n ** BigInt(spec.decimals);
@@ -417,30 +481,51 @@ export const agent: Agent = {
     const cap = BigInt(Math.round(cfg.bridge.maxPerTxUsd * 1e6));
 
     // 2. Rebalance the overweight leg: sell tokens that drifted above their target
-    //    band back to USDC. The USDC this raises is invested on a later tick.
-    for (const e of entries) {
-      const excessBps = e.weightBps - e.targetBps;
-      if (excessBps <= bandBps) continue;
-      const chainId = await pickSellChain(ctx, cfg, e.token);
-      if (chainId === null) {
-        ctx.log(`no balance to sell ${e.token.symbol} — skipping`);
-        continue;
+    //    band back to USDC. The USDC this raises is invested on a later tick. Trimming
+    //    follows the rebalance cadence (rebalancePeriodSec); buying toward target stays
+    //    continuous so deposits are invested promptly.
+    const rebalanceDue = shouldRun(ctx.timestamp, lastRebalanceTs(), cfg.rebalancePeriodSec ?? 0);
+    if (rebalanceDue) {
+      let sold = false;
+      for (const e of entries) {
+        const excessBps = e.weightBps - e.targetBps;
+        if (excessBps <= bandBps) continue;
+        const chainId = await pickSellChain(ctx, cfg, e.token);
+        if (chainId === null) {
+          ctx.log(`no balance to sell ${e.token.symbol} — skipping`);
+          continue;
+        }
+        const spec = specFor(e.token, chainId);
+        if (!spec) continue;
+        const balance = await ctx.chain(chainId).read.balance(spec.address);
+        const amountIn = (balance * excessBps) / e.weightBps; // excess fraction of the holding
+        if (amountIn === 0n) continue;
+        const proceeds = await quoteSwap(
+          ctx,
+          chainId,
+          cfg,
+          spec.address,
+          cfg.usdc[String(chainId)],
+          amountIn,
+          spec.feeTier,
+        );
+        if (proceeds === null) continue;
+        const d = await swap(
+          ctx,
+          chainId,
+          cfg,
+          spec.address,
+          cfg.usdc[String(chainId)],
+          amountIn,
+          spec.feeTier,
+        );
+        if (d) {
+          dispatches.push(d);
+          sold = true;
+          appendLedger({ ts: ctx.timestamp, kind: "sold", amount: proceeds.toString() });
+        }
       }
-      const spec = specFor(e.token, chainId);
-      if (!spec) continue;
-      const balance = await ctx.chain(chainId).read.balance(spec.address);
-      const amountIn = (balance * excessBps) / e.weightBps; // excess fraction of the holding
-      if (amountIn === 0n) continue;
-      const d = await swap(
-        ctx,
-        chainId,
-        cfg,
-        spec.address,
-        cfg.usdc[String(chainId)],
-        amountIn,
-        spec.feeTier,
-      );
-      if (d) dispatches.push(d);
+      if (sold) appendLedger({ ts: ctx.timestamp, kind: "rebalanced" });
     }
 
     // 3. Buy toward target. Two modes, chosen at onboarding:
@@ -481,7 +566,10 @@ export const agent: Agent = {
           buyUsd,
           spec.feeTier,
         );
-        if (d) dispatches.push(d);
+        if (d) {
+          dispatches.push(d);
+          appendLedger({ ts: ctx.timestamp, kind: "bought", amount: buyUsd.toString() });
+        }
         continue;
       }
 
@@ -506,6 +594,33 @@ export const agent: Agent = {
           dest,
           amount: buyUsd.toString(),
         });
+      }
+    }
+
+    // 4. Write the display snapshot (the report and the dashboard both read it), then
+    //    send a Telegram report when the cadence is due. Both are best-effort: a
+    //    snapshot or send failure never stops a dispatch.
+    const { invested, sold } = cumulativeCost();
+    const snapshot = buildSnapshot({
+      usdcTotal,
+      holdings: entries.map((e) => ({
+        symbol: e.token.symbol,
+        value: e.value,
+        targetBps: e.targetBps,
+      })),
+      bandBps: cfg.rebalanceBandBps,
+      costBasis: invested - sold,
+      asOf: ctx.timestamp,
+    });
+    writeSnapshot(snapshot);
+
+    if (cfg.report && shouldRun(ctx.timestamp, lastReportTs(), cfg.report.cadenceSec)) {
+      try {
+        const asOf = new Date(ctx.timestamp * 1000).toISOString().slice(0, 10);
+        await sendTelegramReport(composeReport(snapshot, { asOf }));
+        appendLedger({ ts: ctx.timestamp, kind: "reported" });
+      } catch (err) {
+        ctx.log(`report failed: ${(err as Error).message}`);
       }
     }
 

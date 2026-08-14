@@ -30,7 +30,9 @@ never edit it in place.
   ],
   "dca": { "amountUsd": 500, "periodSec": 604800 },
   "rebalanceBandBps": 500,
-  "maxSlippageBps": 100
+  "rebalancePeriodSec": 604800,
+  "maxSlippageBps": 100,
+  "report": { "cadenceSec": 604800, "channel": "telegram" }
 }
 ```
 
@@ -51,6 +53,9 @@ Every tick the runtime values the whole portfolio in USDC, then:
 
 Both modes route buys to the chain that holds enough USDC, and bridge USDC when none does.
 
+After deciding, every tick also writes the display snapshot (`.sail/state/snapshot.json`) and, when
+`report` is set and its cadence is due, sends a Telegram report.
+
 Field notes:
 
 - `chains` — the full user-named chain set (chain ids, not CCTP domains). The SMA must be
@@ -66,6 +71,13 @@ Field notes:
 - `dca` — optional. Present means cadence-DCA mode (`amountUsd` per `periodSec`); absent means
   invest-on-deposit mode (deploy all idle USDC). This is the single switch set by the one
   onboarding question.
+- `rebalanceBandBps` — how far a weight may drift (basis points) before the agent trades.
+- `rebalancePeriodSec` — optional. How often (seconds) the agent trims overweight holdings;
+  0 or absent means every run. Buying toward target stays continuous so deposits are invested
+  promptly.
+- `report` — optional. When present, the agent sends a Telegram report every `cadenceSec`.
+  The bot token and chat id are secrets read from `.sail/.env.local` (`TELEGRAM_BOT_TOKEN` and
+  `TELEGRAM_CHAT_ID`), never written here.
 - `basket[].weight` — sums to 1.0 across the basket, global (not per chain).
 - `basket[].chains` — ordered deepest-liquidity-first. That order IS the routing preference:
   the runtime buys on the first chain that holds enough USDC, and bridges to the first chain

@@ -1,6 +1,6 @@
 ---
 name: sailor-index
-description: Define an index strategy: deposit USDC, hold a weighted token basket across the user's chosen chains, rebalance to global target weights, and route buys to the chain with enough liquidity. Use when the user wants an auto-investing index agent, or to change an existing basket.
+description: "Define an index strategy: deposit USDC, hold a weighted token basket across the user's chosen chains, rebalance to global target weights, and route buys to the chain with enough liquidity. Use when the user wants an auto-investing index agent, or to change an existing basket."
 station: strategy
 ---
 
@@ -52,6 +52,8 @@ Elicit in the user's financial words. The index-specific fields, all user decisi
    - **Invest on deposit** (the default) — every time USDC arrives, the next tick invests it across the basket.
    - **Cadence DCA** — buy a fixed dollar amount every period (for example $500 every week); the rest of the USDC stays as the funding pool. Record the amount and period.
 5. **Rebalance band** — how far a weight may drift before the agent trades (default ±5 percentage points).
+6. **Rebalance cadence** — how often the agent trims overweight holdings. Ask: every run (default), daily, weekly, or monthly. Recorded as `rebalancePeriodSec` (seconds; 0 or absent means every run). Buying toward target stays continuous so deposits are invested promptly.
+7. **Reports** — ask: "Do you want a periodic Telegram report?" If yes, ask the cadence (daily, weekly, monthly). Recorded as `report`. The bot token and chat id are secrets, never in the spec: put `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.sail/.env.local`.
 
 Then establish the **routing policy**: the preferred chain (cheapest to operate, usually where USDC already sits), and the liquidity threshold that moves a token to another chain (the slippage that would move the price too far for the trade size). This policy is fixed in the spec; the decision of which chain holds each buy is made live at each tick, so a token can move chains as conditions change without changing the mandate.
 
@@ -70,6 +72,8 @@ Every dimension concrete before confirming:
 | Deposit | USDC resolved per chain |
 | Funding mode | invest-on-deposit (default) or cadence DCA with amount + period, stated |
 | Rebalance band | ± percentage points, stated |
+| Rebalance cadence | every run (default) or a period in seconds, stated |
+| Reports | on or off; if on, cadence + channel stated |
 | Routing policy | preferred chain + liquidity threshold, stated |
 | Feasibility | every basket token has a routable USDC pool on at least one named chain (from `sailor-token-resolve`) |
 
@@ -92,6 +96,9 @@ with the index envelope, and `.sail/index.json` derived from it (see `references
 3. `sailor-cctp-bridge` authors, deploys, simulates, and registers the bridge permission when the
    chain set spans more than one chain.
 4. Run the agent — the pre-built runtime (`src/agent.ts`) reads `.sail/index.json` and drives the loop.
+5. Surface the pre-built dashboard (`pnpm dashboard`, a local read-only page at a local port) and,
+   if the user opted into reports, confirm the Telegram report arrives. The dashboard title is a
+   user parameter; write it to `.sail/dashboard.json` (`{ "title": "…" }`).
 
 ## Pitfalls
 

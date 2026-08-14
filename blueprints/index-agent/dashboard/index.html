@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Index dashboard</title>
+<style>
+  :root {
+    --bg: #0b0e11;
+    --card: #1e2329;
+    --accent: #00c805;
+    --text: #ffffff;
+    --muted: #848e9c;
+    --border: rgba(255, 255, 255, 0.06);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 40px 24px 80px; }
+  header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding-bottom: 20px; border-bottom: 1px solid var(--border); margin-bottom: 28px;
+  }
+  .title { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 600; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .asof { color: var(--muted); font-size: 13px; }
+  .label { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+  .hero { margin-bottom: 24px; }
+  .hero .big { font-size: 44px; font-weight: 700; letter-spacing: -0.02em; margin: 8px 0 4px; font-variant-numeric: tabular-nums; }
+  .hero .asset { color: var(--muted); font-size: 16px; }
+  .pnl { font-size: 15px; font-variant-numeric: tabular-nums; }
+  .pos { color: var(--accent); }
+  .neg { color: #ff5b5b; }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 28px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .card .label { margin-bottom: 8px; }
+  .card .val { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .section-title { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  td { padding: 14px 10px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; font-size: 14px; }
+  tr:last-child td { border-bottom: none; }
+  .sym { font-weight: 600; }
+  .muted { color: var(--muted); }
+  .bar { width: 100%; height: 6px; background: #2a3038; border-radius: 3px; overflow: hidden; }
+  .bar > span { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+  .pill { display: inline-block; font-size: 12px; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--accent); color: var(--accent); }
+  .pill.buy { border-color: #f0b90b; color: #f0b90b; }
+  .pill.sell { border-color: #ff5b5b; color: #ff5b5b; }
+  .empty { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 32px; color: var(--muted); text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="title"><span class="dot"></span><span id="title">Your index</span></div>
+    <div class="asof" id="asof"></div>
+  </header>
+
+  <div id="empty" class="empty" hidden>
+    No data yet. The agent writes a snapshot here on its first run.
+  </div>
+
+  <div id="main" hidden>
+    <section class="hero">
+      <div class="label">Portfolio value</div>
+      <div class="big"><span id="total"></span> <span class="asset">USDC</span></div>
+      <div class="pnl" id="pnl"></div>
+    </section>
+
+    <section class="cards">
+      <div class="card"><div class="label">Cost basis</div><div class="val" id="costBasis">—</div></div>
+      <div class="card"><div class="label">Holdings value</div><div class="val" id="holdingsVal"></div></div>
+      <div class="card"><div class="label">USDC reserve</div><div class="val" id="reserve"></div></div>
+    </section>
+
+    <div class="section-title">Holdings · current vs target weight</div>
+    <table>
+      <thead>
+        <tr><th>Asset</th><th>Value</th><th>Weight</th><th>Target</th><th>Allocation</th><th>Status</th></tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const usd = (s) => Number(s) / 1e6;
+  const money = (s) => "$" + usd(s).toFixed(2);
+  const pct = (bps) => (Number(bps) / 100).toFixed(1) + "%";
+  const esc = (t) =>
+    String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  async function load() {
+    let snap;
+    try {
+      const r = await fetch("/snapshot.json");
+      snap = await r.json();
+    } catch {
+      return;
+    }
+    if (snap.ready === false) {
+      document.getElementById("empty").hidden = false;
+      return;
+    }
+    document.getElementById("title").textContent = snap.title ?? "Your index";
+    if (snap.asOf) {
+      document.getElementById("asof").textContent =
+        "as of " + new Date(snap.asOf * 1000).toLocaleString();
+    }
+    document.getElementById("total").textContent = usd(snap.totalValue).toFixed(2);
+    document.getElementById("holdingsVal").textContent = money(snap.investedValue);
+    document.getElementById("reserve").textContent = money(snap.idleUsdc);
+
+    if (snap.costBasis) {
+      document.getElementById("costBasis").textContent = money(snap.costBasis);
+      const pnl = Number(snap.investedValue) - Number(snap.costBasis);
+      const costBasisNum = Number(snap.costBasis);
+      const el = document.getElementById("pnl");
+      const sign = pnl >= 0 ? "+" : "";
+      const pctSuffix = costBasisNum > 0 ? ` (${sign}${((pnl / costBasisNum) * 100).toFixed(2)}%)` : "";
+      el.textContent = `${sign}$${(pnl / 1e6).toFixed(2)}${pctSuffix} unrealized`;
+      el.className = "pnl " + (pnl >= 0 ? "pos" : "neg");
+    } else {
+      document.getElementById("pnl").textContent = "";
+      document.getElementById("costBasis").textContent = "—";
+    }
+
+    const rows = document.getElementById("rows");
+    rows.innerHTML = "";
+    if (!snap.holdings || snap.holdings.length === 0) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="6" class="muted">Nothing invested yet.</td>`;
+      rows.appendChild(tr);
+    } else {
+      for (const h of snap.holdings) {
+        const tr = document.createElement("tr");
+        const w = Number(h.weightBps) / 100;
+        const status = h.status === "in-band" ? "in band" : h.status;
+        tr.innerHTML = `
+          <td class="sym">${esc(h.symbol)}</td>
+          <td>${money(h.value)}</td>
+          <td>${pct(h.weightBps)}</td>
+          <td class="muted">${pct(h.targetBps)}</td>
+          <td style="width:180px"><div class="bar"><span style="width:${Math.max(0, Math.min(100, w))}%"></span></div></td>
+          <td><span class="pill ${esc(h.status)}">${esc(status)}</span></td>`;
+        rows.appendChild(tr);
+      }
+    }
+    document.getElementById("main").hidden = false;
+  }
+
+  load();
+  setInterval(load, 15000);
+</script>
+</body>
+</html>

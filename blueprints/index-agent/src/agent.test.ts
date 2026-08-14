@@ -364,3 +364,43 @@ test("in-flight bridge guard → no re-bridge while mint pending", async () => {
   );
   assert.equal(dispatches.length, 0);
 });
+
+test("rebalance cadence: trims only after the period elapses", async () => {
+  const config = { ...twoTokenConfig(), rebalancePeriodSec: 604800 };
+  const recent = JSON.stringify({ ts: T0 - 100, kind: "rebalanced" });
+  const dispatches = await run(
+    config,
+    makeCtx({ timestamp: T0, balances: { [`8453:${WETH_BASE}`]: 100_000_000n } }),
+    `${recent}\n`,
+  );
+  assert.equal(dispatches.length, 0);
+});
+
+test("rebalance cadence: trims when the period has elapsed", async () => {
+  const config = { ...twoTokenConfig(), rebalancePeriodSec: 604800 };
+  const dispatches = await run(
+    config,
+    makeCtx({ timestamp: T0, balances: { [`8453:${WETH_BASE}`]: 100_000_000n } }),
+  );
+  assert.equal(dispatches.length, 1);
+});
+
+test("records cost basis in the snapshot on a buy", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "index-cost-test-"));
+  fs.mkdirSync(path.join(dir, ".sail"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".sail", "index.json"), JSON.stringify(twoTokenConfig()));
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    await agent.tick(
+      makeCtx({ timestamp: T0, balances: { [`8453:${USDC_BASE}`]: 1_000_000_000n } }),
+    );
+    const raw = fs.readFileSync(path.join(dir, ".sail", "state", "snapshot.json"), "utf-8");
+    const snap = JSON.parse(raw);
+    // $1000 USDC deployed across the basket -> cost basis $1000.
+    assert.equal(snap.costBasis, "1000000000");
+  } finally {
+    process.chdir(prev);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

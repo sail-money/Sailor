@@ -1,6 +1,6 @@
 ---
 name: sailor-operate
-description: Operate a live agent: read what it did, tune bounds, pause or revoke, and exit to the owner. Use when asked what my agent did, pause my agent, change the caps, withdraw my funds, or shut it down.
+description: "Operate a live agent: read what it did, tune bounds, pause or revoke, and exit to the owner. Use when asked what my agent did, pause my agent, change the caps, withdraw my funds, or shut it down."
 station: sail
 ---
 

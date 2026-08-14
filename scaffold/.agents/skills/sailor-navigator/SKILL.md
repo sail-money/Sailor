@@ -1,6 +1,6 @@
 ---
 name: sailor-navigator
-description: The Sailor operating guide and map: the five-station flow from setup to a live agent, plus the safety invariants. Load first on every session, before responding or running any command, and whenever unsure which station to be in.
+description: "The Sailor operating guide and map: the five-station flow from setup to a live agent, plus the safety invariants. Load first on every session, before responding or running any command, and whenever unsure which station to be in."
 station: anytime
 ---
 

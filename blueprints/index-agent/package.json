@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "test": "tsx --test src/**/*.test.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dashboard": "node dashboard/server.mjs"
   },
   "dependencies": {
     "viem": "^2.21.0"
