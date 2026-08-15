@@ -245,6 +245,7 @@ async function runUiCommand(opts: UiOptions, mode: UiMode): Promise<void> {
     env: {
       ...process.env,
       SAIL_DIR: sailDir,
+      SAIL_PROJECT_ROOT: projectRoot,
       SERVE_DIST: "1",
       PORT: String(port),
       SAILOR_UI_DIST: uiDistDir,

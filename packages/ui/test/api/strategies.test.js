@@ -98,12 +98,17 @@ describe('Strategies API', () => {
   })
 
   it('scaffolds an executable and lists it (camelCase enforced)', async () => {
+    // Keep state somewhere that cannot be mistaken for the project root. This
+    // covers custom SAIL_DIR values as well as .shipyard/sandbox's nested state.
+    fix.cleanup()
+    fix = loadFixture('onboarded', {}, { sailDirRel: path.join('state', 'custom') })
+
     const bad = await fix.api.post('/api/executables').send({ name: 'bad_name' })
     expect(bad.status).toBe(400)
 
     const ok = await fix.api.post('/api/executables').send({ name: 'checkData' })
     expect(ok.status).toBe(200)
-    const file = path.join(path.dirname(fix.sailDir), 'src', 'strategy', 'checkData.ts')
+    const file = path.join(fix.projectRoot, 'src', 'strategy', 'checkData.ts')
     expect(fs.existsSync(file)).toBe(true)
 
     const list = await fix.api.get('/api/executables')
