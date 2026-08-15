@@ -14,8 +14,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { getAddress } from "viem";
+import { defaultSailDir, listAccounts, readActiveAccount } from "./accounts.js";
 import { getChain } from "./chains.js";
-import { defaultSailDir, listAccounts } from "./accounts.js";
 
 /**
  * A stored strategy: one SMA + one executable. `chains` present → the runner replays the executable
@@ -178,6 +178,31 @@ export function getStrategy(name: string, sailDir: string = defaultSailDir()): S
 
 export function readActiveStrategies(sailDir: string = defaultSailDir()): StoredStrategy[] {
   return load(sailDir).filter((s) => s.active);
+}
+
+/**
+ * One-time compatibility migration for projects created before execution strategies existed.
+ *
+ * Only a missing strategies file is migrated. An existing file with an empty/inactive list is an
+ * intentional configuration and must be respected. Returns the created default strategy, or null
+ * when no migration was needed/possible.
+ */
+export function migrateLegacyDefaultStrategy(
+  sailDir: string = defaultSailDir(),
+): StoredStrategy | null {
+  if (fs.existsSync(strategiesPath(sailDir))) return null;
+  const account = readActiveAccount(sailDir);
+  if (!account) return null;
+  return createStrategy(
+    "default",
+    {
+      sma: account.safe,
+      executable: DEFAULT_EXECUTABLE,
+      chains: [account.chainId],
+      active: true,
+    },
+    sailDir,
+  );
 }
 
 /**
@@ -357,4 +382,3 @@ export function deleteStrategy(name: string, sailDir: string = defaultSailDir())
   commit(next, sailDir);
   return true;
 }
-

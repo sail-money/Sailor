@@ -7,12 +7,13 @@ import { getAddress } from "viem";
 import { persistAccount } from "../accounts.js";
 import {
   DEFAULT_EXECUTABLE,
-  createStrategyExecutable,
   createStrategy,
+  createStrategyExecutable,
   deleteStrategy,
   getStrategy,
   isValidExecutableName,
   listStrategies,
+  migrateLegacyDefaultStrategy,
   readActiveStrategies,
   readChainEnv,
   renderExecutableTemplate,
@@ -112,6 +113,34 @@ test("createStrategy: defaults the executable to the agent when omitted", () => 
   const s = createStrategy("dcaBase", { sma: SAFE }, sailDir);
   assert.equal(s.executable, DEFAULT_EXECUTABLE);
   assert.equal(getStrategy("dcaBase", sailDir)?.executable, DEFAULT_EXECUTABLE);
+});
+
+test("migrateLegacyDefaultStrategy: creates one active default for a pre-strategy project", () => {
+  const sailDir = tmpSailDir();
+  seedSma(sailDir, 8453, [8453, 42161]);
+
+  const migrated = migrateLegacyDefaultStrategy(sailDir);
+
+  assert.deepEqual(migrated, {
+    name: "default",
+    active: true,
+    sma: getAddress(SAFE),
+    executable: DEFAULT_EXECUTABLE,
+    chains: [8453],
+  });
+  assert.equal(migrateLegacyDefaultStrategy(sailDir), null, "migration must be idempotent");
+  assert.equal(listStrategies(sailDir).length, 1);
+});
+
+test("migrateLegacyDefaultStrategy: respects an existing empty strategy configuration", () => {
+  const sailDir = tmpSailDir();
+  seedSma(sailDir, 8453, [8453]);
+  const file = path.join(sailDir, "strategies", "strategies.json");
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${JSON.stringify({ version: 2, strategies: [] })}\n`);
+
+  assert.equal(migrateLegacyDefaultStrategy(sailDir), null);
+  assert.deepEqual(listStrategies(sailDir), []);
 });
 
 test("createStrategy: strategy names must be camelCase (the spec filename + --strategy selector)", () => {

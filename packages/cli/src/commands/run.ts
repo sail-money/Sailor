@@ -11,6 +11,14 @@ import {
   getChain,
   getDefaultRpcUrl,
 } from "@sail/sdk";
+import {
+  type StoredStrategy,
+  deployedChainsForSma,
+  getStrategy,
+  migrateLegacyDefaultStrategy,
+  readActiveStrategies,
+  readChainEnv,
+} from "@sail/sdk/strategies";
 import { http, type Address, type Hex, createPublicClient, createWalletClient, defineChain, getAddress } from "viem";
 import {
   appendActivity,
@@ -29,14 +37,6 @@ import {
   resolvePermissionForCall,
 } from "../lib/permission-resolver.js";
 import { clearAgentPid, writeAgentPid } from "../lib/process.js";
-import { readActiveAccount } from "@sail/sdk/accounts";
-import {
-  type StoredStrategy,
-  deployedChainsForSma,
-  getStrategy,
-  readActiveStrategies,
-  readChainEnv,
-} from "@sail/sdk/strategies";
 import type { StoredMandate } from "../lib/state.js";
 
 const DEFAULT_INTERVAL_SEC = 60;
@@ -55,6 +55,28 @@ type Signer = Awaited<ReturnType<typeof loadManagerSigner>>;
  * execute the intent on; an untagged intent defaults to the tick's default chain.
  */
 type RunnerDispatch = Dispatch & { permission?: Address; chainId?: number };
+
+export type StrategyRunFailure = { strategy: string; error: Error };
+
+/** Build an activity record that cannot be misattributed to the UI-selected SMA. */
+export function runtimeActivityEvent(
+  event: Record<string, unknown>,
+  safe: Address,
+  chainId: number,
+  strategy: string,
+): Record<string, unknown> {
+  return { ...event, safe, chainId, strategy };
+}
+
+/** Make scheduled/one-shot callers observe fatal strategy failures via a non-zero exit. */
+export function assertNoStrategyFailures(failures: StrategyRunFailure[]): void {
+  if (failures.length === 0) return;
+  const detail = failures.map(({ strategy, error }) => `${strategy}: ${error.message}`).join("; ");
+  throw new AggregateError(
+    failures.map(({ error }) => error),
+    `${failures.length} strategy execution(s) failed — ${detail}`,
+  );
+}
 
 /** Minimal ERC-20 ABI fragments for read helpers. */
 const ERC20_READ_ABI = [
@@ -182,6 +204,14 @@ export async function runCommand(opts: {
 
   const runReason = opts.reason ?? process.env.SAIL_RUN_REASON ?? "manual";
 
+  const migrated = migrateLegacyDefaultStrategy();
+  if (migrated) {
+    console.warn(
+      `Migrated legacy agent execution to strategy "${migrated.name}" ` +
+        `for SMA ${checksum(migrated.sma)} on chain ${migrated.chains?.[0]}.`,
+    );
+  }
+
   // ── Resolve which strategies to run ─────────────────────────────────────────
   let strategies: StoredStrategy[];
   if (opts.strategy) {
@@ -234,11 +264,6 @@ export async function runCommand(opts: {
     return Number.isNaN(n) || n <= 0 ? DEFAULT_INTERVAL_SEC : n;
   })();
 
-  const log = (msg: string): void => {
-    console.log(`[agent] ${msg}`);
-    appendActivity({ ts: nowIso(), actor: "agent", type: "log", msg });
-  };
-
   // ── Load a manager signer per distinct SMA (up front, so the passphrase can be scrubbed) ─────
   const distinctSmas = [...new Set(strategies.map((s) => checksum(s.sma)))];
   const signers = new Map<string, Signer>();
@@ -270,6 +295,14 @@ export async function runCommand(opts: {
 
   type ChainRuntime = NonNullable<Awaited<ReturnType<typeof buildRuntime>>>;
   const runtimeCache = new Map<string, ChainRuntime | null>();
+
+  const recordActivity = (
+    rt: Pick<ChainRuntime, "accountAddr" | "chainId">,
+    strategy: string,
+    event: Record<string, unknown>,
+  ): void => {
+    appendActivity(runtimeActivityEvent(event, rt.accountAddr, rt.chainId, strategy));
+  };
 
   /**
    * Build (or return null for) the per-(SMA, chain) runtime: RPC, kernel, clients, capability
@@ -452,6 +485,7 @@ export async function runCommand(opts: {
     rt: ChainRuntime,
     dispatches: Dispatch[],
     blockInfo: BlockInfo,
+    strategy: string,
   ): Promise<void> => {
     const { accountAddr, kernel, publicClient, readClient, execClient, isConjunctive, signer, agentManager } = rt;
 
@@ -474,12 +508,12 @@ export async function runCommand(opts: {
 
       try {
         if (dispatch.calls.length === 0) {
-          appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_denied", target, reason: "no calls" });
+          recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "dispatch_denied", target, reason: "no calls" });
           tickSkipped++;
           continue;
         }
         if (registeredPermissions.length === 0) {
-          appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_denied", target, reason: "no_registered_permissions" });
+          recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "dispatch_denied", target, reason: "no_registered_permissions" });
           console.log("skipped: no permissions registered on this SMA — run `sailor mandate sign` first");
           tickSkipped++;
           continue;
@@ -510,7 +544,7 @@ export async function runCommand(opts: {
 
         if (!permission) {
           const selector = firstCall?.data && firstCall.data.length >= 10 ? firstCall.data.slice(0, 10) : "0x";
-          appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_denied", target, reason: "no_permission_match" });
+          recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "dispatch_denied", target, reason: "no_permission_match" });
           console.log(`skipped: no registered permission authorizes call to ${target} (selector ${selector})`);
           tickSkipped++;
           continue;
@@ -520,7 +554,7 @@ export async function runCommand(opts: {
           const preview = await execClient.dispatch.preview(accountAddr, permission, dispatch.calls);
           if (!preview.approved) {
             const reason = preview.reason ?? "denied";
-            appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_denied", permission, target, reason });
+            recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "dispatch_denied", permission, target, reason });
             console.log(`denied: ${reason}`);
             tickSkipped++;
             continue;
@@ -528,7 +562,7 @@ export async function runCommand(opts: {
         }
 
         const dispatchValue = await rt.describeDispatchValue(dispatch.calls);
-        appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_approved", permission, target, ...dispatchValue });
+        recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "dispatch_approved", permission, target, ...dispatchValue });
         const result =
           dispatch.calls.length > 1
             ? await execClient.dispatch.batch(accountAddr, permission, dispatch.calls, signer)
@@ -544,18 +578,18 @@ export async function runCommand(opts: {
         }
 
         if (!result.success) {
-          appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_reverted", permission, target, txHash: result.txHash, gasUsed: String(result.gasUsed), ...dispatchValue });
+          recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "dispatch_reverted", permission, target, txHash: result.txHash, gasUsed: String(result.gasUsed), ...dispatchValue });
           console.error(`reverted: ${result.txHash}  (gas used: ${result.gasUsed})`);
           tickReverted++;
         } else {
-          appendActivity({ ts: nowIso(), actor: "agent", type: "dispatch_executed", permission, target, txHash: result.txHash, ...dispatchValue });
+          recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "dispatch_executed", permission, target, txHash: result.txHash, ...dispatchValue });
           console.log(`executed: ${result.txHash}`);
           tickExecuted++;
         }
       } catch (err) {
         const reason = (err as Error).message;
         console.error(`dispatch error: ${reason}`);
-        appendActivity({ ts: nowIso(), actor: "agent", type: "error", permission: (dispatch as RunnerDispatch).permission, target, reason });
+        recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "error", permission: (dispatch as RunnerDispatch).permission, target, reason });
         tickSkipped++;
       }
     }
@@ -606,7 +640,8 @@ export async function runCommand(opts: {
     sma: string,
     defaultChainId: number,
     allowed: number[],
-  ): Promise<AgentContext | null> => {
+    strategy: string,
+  ): Promise<{ ctx: AgentContext; runtime: ChainRuntime } | null> => {
     const defaultRt = await getRuntime(sma, defaultChainId);
     if (!defaultRt) return null;
 
@@ -630,7 +665,7 @@ export async function runCommand(opts: {
       return handleForRuntime(rt);
     };
 
-    return {
+    const ctx: AgentContext = {
       safe: defaultRt.accountAddr,
       account: defaultRt.accountAddr,
       chainId: defaultRt.chainId,
@@ -640,29 +675,45 @@ export async function runCommand(opts: {
       client: constrainedClient(defaultRt),
       publicClient: defaultRt.publicClient,
       manager: defaultRt.agentManager,
-      log,
+      log: (msg: string): void => {
+        console.log(`[agent] ${msg}`);
+        recordActivity(defaultRt, strategy, { ts: nowIso(), actor: "agent", type: "log", msg });
+      },
       data: defaultRt.data,
       env: readChainEnv(defaultRt.chainId),
       read: { balance: defaultRt.readBalance, allowance: defaultRt.readAllowance, decimals: defaultRt.readDecimals },
       chain,
     };
+    return { ctx, runtime: defaultRt };
   };
 
-  // Invoke agent.tick, swallowing (and logging) a thrown tick so one bad executable never stops the loop.
-  const invokeTick = async (agent: Agent, ctx: AgentContext, chainId: number): Promise<Dispatch[]> => {
+  // Log a thrown tick against its real runtime, then propagate it so --once can fail. The daemon's
+  // cycle boundary catches the error and continues with the remaining strategies.
+  const invokeTick = async (
+    agent: Agent,
+    ctx: AgentContext,
+    rt: ChainRuntime,
+    strategy: string,
+  ): Promise<Dispatch[]> => {
     try {
       return await agent.tick(ctx);
     } catch (err) {
-      const reason = (err as Error).message;
+      const error = err instanceof Error ? err : new Error(String(err));
+      const reason = error.message;
       console.error(`tick error: ${reason}`);
-      appendActivity({ ts: nowIso(), actor: "agent", type: "error", reason, chainId });
-      return [];
+      recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "error", reason });
+      throw error;
     }
   };
 
   // Group returned dispatches by their chain tag (untagged → `defaultChain`) and execute each group
-  // on its chain, sequentially per chain (nonce safety). A chain with no runtime is skipped.
-  const routeAndExecute = async (sma: string, dispatches: Dispatch[], defaultChain: number): Promise<void> => {
+  // on its chain, sequentially per chain (nonce safety).
+  const routeAndExecute = async (
+    sma: string,
+    dispatches: Dispatch[],
+    defaultChain: number,
+    strategy: string,
+  ): Promise<void> => {
     const groups = new Map<number, Dispatch[]>();
     for (const d of dispatches as RunnerDispatch[]) {
       const chainId = d.chainId ?? defaultChain;
@@ -672,19 +723,29 @@ export async function runCommand(opts: {
     }
     for (const [chainId, group] of groups) {
       const rt = await getRuntime(sma, chainId);
-      if (!rt) continue; // unrunnable (SMA, chain) already logged
-      await executeDispatches(rt, group, await getBlockInfo(rt));
+      if (!rt) throw new Error(`Runtime unavailable for SMA ${sma} on chain ${chainId}.`);
+      await executeDispatches(rt, group, await getBlockInfo(rt), strategy);
     }
   };
 
   // One tick on one default chain: build ctx, run tick, route + execute, bookended with activity events.
-  const runOnChain = async (agent: Agent, sma: string, defaultChain: number, allowed: number[]): Promise<void> => {
-    const ctx = await makeCtx(sma, defaultChain, allowed);
-    if (!ctx) return; // unrunnable default (SMA, chain) already logged
-    appendActivity({ ts: nowIso(), actor: "agent", type: "tick_start", chainId: defaultChain, reason: runReason });
-    const dispatches = await invokeTick(agent, ctx, defaultChain);
-    await routeAndExecute(sma, dispatches, defaultChain);
-    appendActivity({ ts: nowIso(), actor: "agent", type: "tick_end", chainId: defaultChain });
+  const runOnChain = async (
+    agent: Agent,
+    sma: string,
+    defaultChain: number,
+    allowed: number[],
+    strategy: string,
+  ): Promise<void> => {
+    const built = await makeCtx(sma, defaultChain, allowed, strategy);
+    if (!built) throw new Error(`Runtime unavailable for SMA ${sma} on chain ${defaultChain}.`);
+    const { ctx, runtime } = built;
+    recordActivity(runtime, strategy, { ts: nowIso(), actor: "agent", type: "tick_start", reason: runReason });
+    try {
+      const dispatches = await invokeTick(agent, ctx, runtime, strategy);
+      await routeAndExecute(sma, dispatches, defaultChain, strategy);
+    } finally {
+      recordActivity(runtime, strategy, { ts: nowIso(), actor: "agent", type: "tick_end" });
+    }
   };
 
   /**
@@ -700,25 +761,37 @@ export async function runCommand(opts: {
     if (allowed.length === 0) return;
 
     if (strategy.chains && strategy.chains.length > 0) {
+      const failures: Error[] = [];
       for (const chainId of strategy.chains) {
         if (stopping) break;
         if (!allowed.includes(chainId)) continue; // outside the --chains filter
-        await runOnChain(agent, sma, chainId, allowed);
+        try {
+          await runOnChain(agent, sma, chainId, allowed, strategy.name);
+        } catch (err) {
+          failures.push(err instanceof Error ? err : new Error(String(err)));
+        }
+      }
+      if (failures.length > 0) {
+        throw new AggregateError(failures, `${failures.length} chain execution(s) failed for ${strategy.name}`);
       }
     } else {
-      await runOnChain(agent, sma, allowed[0], allowed);
+      await runOnChain(agent, sma, allowed[0], allowed, strategy.name);
     }
   };
 
-  const runCycle = async (): Promise<void> => {
+  const runCycle = async (): Promise<StrategyRunFailure[]> => {
+    const failures: StrategyRunFailure[] = [];
     for (const strategy of strategies) {
       if (stopping) break;
       try {
         await runStrategy(strategy);
       } catch (e) {
-        console.error(`strategy error: ${(e as Error).message}`);
+        const error = e instanceof Error ? e : new Error(String(e));
+        failures.push({ strategy: strategy.name, error });
+        console.error(`strategy error [${strategy.name}]: ${error.message}`);
       }
     }
+    return failures;
   };
 
   // ── Header ────────────────────────────────────────────────────────────────────
@@ -747,7 +820,7 @@ export async function runCommand(opts: {
   // ── Run ──────────────────────────────────────────────────────────────────────
   try {
     if (once) {
-      await runCycle();
+      assertNoStrategyFailures(await runCycle());
       return;
     }
     while (!stopping) {
