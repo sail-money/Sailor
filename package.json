@@ -2,6 +2,7 @@
   "name": "sailor",
   "private": true,
   "version": "2.2.0",
+  "packageManager": "pnpm@10.34.5",
   "description": "The open-source harness for building and operating DeFi agents on Sail Protocol.",
   "keywords": [
     "harness",
@@ -70,7 +71,6 @@
     "typescript": "^5.5.0"
   },
   "dependencies": {
-    "pnpm": "^11.18.0",
     "tsx": "^4.22.4"
   }
 }

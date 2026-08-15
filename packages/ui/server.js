@@ -127,7 +127,7 @@ function readJsonSafe(file) {
 /** Ensure a peer server (the other of live/sandbox) is running for this same
  *  project, starting it detached if necessary. Never touches `this` process —
  *  only ever reads/writes the peer's own runtime file. */
-async function ensurePeerServerRunning({ targetSailDir, targetMode, runtimeFile, preferredPort }) {
+async function ensurePeerServerRunning({ targetSailDir, targetMode, runtimeFile, preferredPort, projectRoot }) {
   const existing = readJsonSafe(runtimeFile)
   if (existing?.pid && isPidAlive(existing.pid)) return { port: existing.port, started: false }
 
@@ -142,6 +142,7 @@ async function ensurePeerServerRunning({ targetSailDir, targetMode, runtimeFile,
     env: {
       ...process.env,
       SAIL_DIR: targetSailDir,
+      SAIL_PROJECT_ROOT: projectRoot,
       SERVE_DIST: '1',
       PORT: String(port),
       SAILOR_UI_MODE: targetMode,
@@ -367,14 +368,21 @@ const OVERVIEW_TTL_MS = 10_000
  * @param {string} sailDir Absolute path to the project's `.sail/` directory —
  *   or, for a sandbox instance, its `.shipyard/sandbox/` directory (same shape,
  *   different root; see `mode`).
- * @param {{ port?: number, mode?: 'live' | 'sandbox' }} [opts] `mode: 'sandbox'`
+ * @param {{ port?: number, mode?: 'live' | 'sandbox', projectRoot?: string }} [opts]
+ *   `projectRoot` identifies the directory that contains `src/`; callers that
+ *   support an arbitrary `SAIL_DIR` should pass it explicitly. `mode: 'sandbox'`
  *   enables the `/api/sandbox/*` fork-lifecycle routes. The CLI spawns two
  *   independent server processes — a live one (default mode, `.sail/`) and,
  *   on demand, a sandbox one (`mode: 'sandbox'`, `.shipyard/sandbox/`) — so
  *   there is no single process, and no runtime flag, that can serve both a
  *   real account and a sandbox account at once.
  */
-export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
+export function startServer(sailDir, {
+  port = PORT,
+  mode = 'live',
+  projectRoot = mode === 'sandbox' ? path.resolve(sailDir, '..', '..') : path.dirname(sailDir),
+} = {}) {
+  const resolvedProjectRoot = path.resolve(projectRoot)
   const app = express()
   // Behind a reverse proxy (see SAILOR_HOST exposure), set SAILOR_TRUST_PROXY so Express
   // derives req.ip from X-Forwarded-For — otherwise the rate limiter keys on the proxy's
@@ -711,8 +719,6 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
   })
 
   // ── Strategies: execution pipelines (which executables run on which SMAs/chains) ──
-  const projectRoot = path.dirname(sailDir) // holds src/strategy/<name>.ts
-
   app.get('/api/strategies', (req, res) => {
     try { res.json({ strategies: strategyStore.listStrategies(sailDir) }) }
     catch (err) { serverError(res, err) }
@@ -793,12 +799,12 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
     try {
       const names = new Set()
       try {
-        for (const f of fs.readdirSync(path.join(projectRoot, 'src', 'strategy'))) {
+        for (const f of fs.readdirSync(path.join(resolvedProjectRoot, 'src', 'strategy'))) {
           const m = /^([a-zA-Z0-9]+)\.(ts|js)$/.exec(f)
           if (m) names.add(m[1])
         }
       } catch {}
-      if (fs.existsSync(path.join(projectRoot, 'src', 'agent.ts')) || fs.existsSync(path.join(projectRoot, 'src', 'agent.js'))) {
+      if (fs.existsSync(path.join(resolvedProjectRoot, 'src', 'agent.ts')) || fs.existsSync(path.join(resolvedProjectRoot, 'src', 'agent.js'))) {
         names.add('agent')
       }
       res.json({ executables: [...names].sort() })
@@ -809,7 +815,7 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
   app.post('/api/executables', (req, res) => {
     const name = String(req.body?.name ?? '').trim()
     try {
-      strategyStore.createStrategyExecutable(name, projectRoot)
+      strategyStore.createStrategyExecutable(name, resolvedProjectRoot)
       res.json({ ok: true, name })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -2485,14 +2491,14 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
     // running (starting it if not) and hand the browser its port to navigate to.
     app.post('/api/sandbox/exit', async (_req, res) => {
       try {
-        const projectRoot = path.resolve(sailDir, '..', '..') // sailDir is <root>/.shipyard/sandbox
-        const liveSailDir = path.join(projectRoot, '.sail')
+        const liveSailDir = path.join(resolvedProjectRoot, '.sail')
         const runtimeFile = path.join(liveSailDir, 'runtime', 'ui.json')
         const result = await ensurePeerServerRunning({
           targetSailDir: liveSailDir,
           targetMode: 'live',
           runtimeFile,
-          preferredPort: deterministicPort(projectRoot),
+          preferredPort: deterministicPort(resolvedProjectRoot),
+          projectRoot: resolvedProjectRoot,
         })
         res.json(result)
       } catch (e) {
@@ -2535,14 +2541,14 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
   if (mode === 'live') {
     app.post('/api/sandbox/launch', async (_req, res) => {
       try {
-        const projectRoot = path.dirname(sailDir) // sailDir is <root>/.sail in live mode
-        const sandboxDir = sandboxDirFor(projectRoot)
+        const sandboxDir = sandboxDirFor(resolvedProjectRoot)
         const runtimeFile = path.join(sandboxDir, 'runtime', 'ui.json')
         const result = await ensurePeerServerRunning({
           targetSailDir: sandboxDir,
           targetMode: 'sandbox',
           runtimeFile,
-          preferredPort: deterministicPort(`${projectRoot}:sandbox`),
+          preferredPort: deterministicPort(`${resolvedProjectRoot}:sandbox`),
+          projectRoot: resolvedProjectRoot,
         })
         res.json(result)
       } catch (e) {
@@ -2727,5 +2733,6 @@ const isMain = Boolean(process.argv[1]) && _norm(process.argv[1]) === _norm(_thi
 if (isMain) {
   const sailDir = process.env.SAIL_DIR || path.join(process.cwd(), '.sail')
   const mode = process.env.SAILOR_UI_MODE === 'sandbox' ? 'sandbox' : 'live'
-  startServer(sailDir, { mode })
+  const projectRoot = process.env.SAIL_PROJECT_ROOT || process.cwd()
+  startServer(sailDir, { mode, projectRoot })
 }

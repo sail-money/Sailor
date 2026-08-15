@@ -19,7 +19,7 @@ function copyDir(src, dest) {
 
 /**
  * Copies a named fixture to a fresh temp dir and starts the server on an
- * ephemeral port. Returns { server, api, sailDir, cleanup }.
+ * ephemeral port. Returns { server, api, sailDir, projectRoot, cleanup }.
  *
  * `patches` is an object of relative-path → string content written into the
  * temp dir after copying, so individual tests can tweak state without forking
@@ -33,24 +33,29 @@ function copyDir(src, dest) {
  */
 export function loadFixture(name, patches = {}, opts = {}) {
   const src = path.join(FIXTURES, name)
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), `sailor-test-${name}-`))
-  copyDir(src, tmp)
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), `sailor-test-${name}-`))
+  const sailDir = path.join(
+    projectRoot,
+    opts.sailDirRel ?? (opts.mode === 'sandbox' ? path.join('.shipyard', 'sandbox') : '.sail'),
+  )
+  copyDir(src, sailDir)
 
   for (const [rel, content] of Object.entries(patches)) {
-    const dest = path.join(tmp, rel)
+    const dest = path.join(sailDir, rel)
     fs.mkdirSync(path.dirname(dest), { recursive: true })
     fs.writeFileSync(dest, content)
   }
 
-  const server = startServer(tmp, { port: 0, mode: opts.mode ?? 'live' })
+  const server = startServer(sailDir, { port: 0, mode: opts.mode ?? 'live', projectRoot })
 
   return {
     server,
     api: request(server),
-    sailDir: tmp,
+    sailDir,
+    projectRoot,
     cleanup() {
       server.close()
-      fs.rmSync(tmp, { recursive: true, force: true })
+      fs.rmSync(projectRoot, { recursive: true, force: true })
     },
   }
 }
