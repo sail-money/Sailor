@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { apiToken } from '../lib/apiAuth'
 
 /**
  * Shared WebSocket connection to the signing daemon.
@@ -38,7 +39,9 @@ const SERVER_OVERRIDE = (() => {
 function proxyWsUrl() {
   if (typeof window === 'undefined') return null
   const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${scheme}//${window.location.host}/api/station/ws`
+  const token = apiToken()
+  const q = token ? `?token=${encodeURIComponent(token)}` : ''
+  return `${scheme}//${window.location.host}/api/station/ws${q}`
 }
 
 /**

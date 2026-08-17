@@ -35,6 +35,7 @@ import { ownerConnect, ownerShow } from "./commands/owner.js";
 import { type RotateSignerOptions, rotateSigner } from "./commands/rotate-signer.js";
 import { runCommand } from "./commands/run.js";
 import {
+  parseChains,
   strategyCreate,
   strategyDelete,
   strategyEnvSet,
@@ -480,7 +481,7 @@ program
     "Label why this run fired (observability only; also read from SAIL_RUN_REASON)",
   )
   .option("--sma <address>", "Only run active-strategy steps that target this SMA")
-  .option("--chains <ids>", "Only run active-strategy steps on these chains (comma-separated ids)")
+  .option("--chains <ids>", "Only run active-strategy steps on these chains (comma-separated ids or slugs)")
   .action(async (opts: { once?: boolean; strategy?: string; reason?: string; sma?: string; chains?: string }) => {
     try {
       await runCommand({
@@ -488,9 +489,7 @@ program
         strategy: opts.strategy,
         reason: opts.reason,
         sma: opts.sma,
-        chains: opts.chains
-          ? opts.chains.split(",").map((c) => Number(c.trim())).filter((n) => Number.isFinite(n))
-          : undefined,
+        chains: opts.chains ? parseChains(opts.chains) : undefined,
       });
     } catch (err) {
       console.error(`Error: ${(err as Error).message}`);
@@ -543,6 +542,7 @@ const strategyEnv = strategy.command("env").description("Manage per-chain env va
 strategyEnv
   .command("show <chain>")
   .description("Show env values for a chain (id or slug)")
+  .option("--json", "Emit machine-readable JSON")
   .action(actArgs(strategyEnvShow));
 strategyEnv
   .command("set <chain> [assignments...]")

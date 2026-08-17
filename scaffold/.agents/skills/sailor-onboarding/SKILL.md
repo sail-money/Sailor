@@ -59,7 +59,7 @@ After the welcome, the setup interface (`sailor ui start`, `sailor signer start`
 
 The published package is **`@sail.money/sailor`** — always use the scoped name with the registry. The bare name `sailor` is a different, unrelated npm package; never `npx sailor@<version>` or `npm i sailor`. Install it (`npm i -g @sail.money/sailor`, or as a project dep), after which the `sailor` bin works bare (`sailor <command>`) and `npx sailor <command>` resolves the installed bin. Every `sailor …` command in these skills assumes it is installed. Confirm the toolchain up front and pin a recent version — `npx @sail.money/sailor@latest --version` — because an old cached `npx` build can be missing newer commands (e.g. `mandate simulate`); if a documented command reports "unknown command", you are on a stale version, not hitting a missing feature.
 
-After upgrading the CLI, run `sailor update` from the project root to pull in updated skills, `Dockerfile`, and other tooling files. User files (`src/`, `contracts/`, `.sail/`, `package.json`) are never touched.
+After upgrading the CLI, run `sailor update` from the project root to pull in updated skills, `Dockerfile`, and other tooling files. This is a **host-side** operation even when `installMode` is `"docker"` — it writes into the volume-mounted project, so do not `docker exec` it. User files (`src/`, `contracts/`, `.sail/`, `package.json`) are never touched.
 
 This skill owns **Station 1 (ARRIVE)**. Read state to find where the project is and enter at the right point — never re-run completed work. Station 1 has two internal steps (pick the chain, then deploy the SMA + agent wallet); everything past it is a handoff to the next station per the sailor-navigator skill.
 
@@ -91,7 +91,7 @@ Read the **active root** (sandbox if one is populated and in use — see above �
 | state (in the active root) | Where you are |
 |---|---|
 | No `account.json` (chain chosen or not — `config.json.chainId` may still be `null`) | Station 1 — hand the user to the setup UI below for ALL of: chain choice, agent wallet + passphrase, SMA deploy. Do not ask which chain, or for a passphrase, in chat — `sailor init` is chain-neutral by design; the wizard decides. If the user starts Shipyard instead (`sailor sandbox start`), the SMA lands under `.shipyard/sandbox/` and you continue from there |
-| `account.json` exists, no `strategies/*.md` specs | Station 1 complete → **Station 2**: hand off to [`sailor-strategy`](../sailor-strategy/SKILL.md) |
+| `account.json` exists, no `strategies/*.md` specs, and no tracked mandates | Station 1 complete → **Station 2**: hand off to [`sailor-strategy`](../sailor-strategy/SKILL.md) |
 | `account.json` + `strategies/strategies.json`, and EVERY strategy it indexes has a `strategies/<name>.md` meeting `sailor-strategy`'s completeness gate (every dimension concrete, `confirmedByUser: true`, `version: 3`) — not just one of them, no tracked mandates | Strategy defined → **Station 3**: hand off to [`sailor-mandate-planner`](../sailor-mandate-planner/SKILL.md) |
 | `account.json` + tracked mandates in `state/mandates.json` | Mandate exists → **Stations 4–5**: build/run the agent (dispatch mechanics in [`sailor-transactions`](../sailor-transactions/SKILL.md)), then run unattended ([`sailor-automation`](../sailor-automation/SKILL.md)) and offer notifications + a dashboard ([`sailor-extend`](../sailor-extend/SKILL.md)) |
 

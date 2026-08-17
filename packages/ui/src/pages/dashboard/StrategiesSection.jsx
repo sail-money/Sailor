@@ -48,7 +48,7 @@ export default function StrategiesSection() {
       </div>
 
       {strategies.length === 0 ? (
-        <p className={styles.empty}>No strategies yet — a Default is created after onboarding.</p>
+        <p className={styles.empty}>No strategies yet — none exist until you create one.</p>
       ) : (
         strategies.map((s) => (
           <StrategyCard

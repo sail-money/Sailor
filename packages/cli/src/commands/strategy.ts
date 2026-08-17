@@ -28,7 +28,7 @@ function resolveChainId(arg: string): number {
 }
 
 /** Parse a comma-separated chains arg (ids or slugs) → chainIds. Empty when arg omitted/blank. */
-function parseChains(arg?: string): number[] {
+export function parseChains(arg?: string): number[] {
   return (arg ?? "")
     .split(",")
     .map((c) => c.trim())
@@ -128,11 +128,15 @@ export async function strategyNewExecutable(name: string): Promise<void> {
   );
 }
 
-/** `sailor strategy env show <chain>` */
-export async function strategyEnvShow(chainArg: string): Promise<void> {
+/** `sailor strategy env show <chain> [--json]` */
+export async function strategyEnvShow(chainArg: string, opts: { json?: boolean } = {}): Promise<void> {
   const chainId = resolveChainId(chainArg);
   const env = readChainEnv(chainId);
   const slug = getChain(chainId).slug;
+  if (opts.json) {
+    console.log(JSON.stringify({ chainId, slug, env }, null, 2));
+    return;
+  }
   const keys = Object.keys(env);
   if (keys.length === 0) {
     console.log(`No env values for ${slug} (${chainId}). Set one with \`sailor strategy env set ${slug} KEY=VALUE\`.`);

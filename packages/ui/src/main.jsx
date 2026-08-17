@@ -10,7 +10,11 @@ import { SandboxBanner } from './pages/shared'
 import { SandboxProvider, useWagmiConfigState } from './sandboxContext'
 import { useSandboxMode } from './hooks/useSandboxMode'
 import { useWalletLifecycle } from './hooks/useWalletLifecycle'
+import { captureApiTokenFromUrl, installApiAuth } from './lib/apiAuth'
 import './styles/globals.css'
+
+captureApiTokenFromUrl()
+installApiAuth()
 
 const queryClient = new QueryClient()
 

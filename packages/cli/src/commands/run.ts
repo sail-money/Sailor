@@ -70,6 +70,15 @@ export function runtimeActivityEvent(
   return { ...event, safe, chainId, strategy };
 }
 
+/** Reject a dispatch whose chain tag is outside this run's allowed set. */
+export function assertDispatchChainAllowed(chainId: number, allowed: number[], sma: string): void {
+  if (!allowed.includes(chainId)) {
+    throw new Error(
+      `Dispatch tagged for chain ${chainId}, which is outside SMA ${sma}'s runnable set: ${allowed.join(", ")}.`,
+    );
+  }
+}
+
 /** Make scheduled/one-shot callers observe fatal strategy failures via a non-zero exit. */
 export function assertNoStrategyFailures(failures: StrategyRunFailure[]): void {
   if (failures.length === 0) return;
@@ -352,7 +361,7 @@ export async function runCommand(opts: {
     }
 
     // Configured RPC wins; else the chain registry's public default (rate-limited — set your own
-    // RPC_URL in .sail/.env.local for production). ponytail: public default is fine for dev/first-run.
+    // RPC_URL in .sail/.env.local for production). The public default is fine for dev/first-run.
     const rpcUrl = getRpcUrl(chainId) ?? getDefaultRpcUrl(chainId);
     if (!rpcUrl) {
       console.error(`skip chain ${chainId} (${chainName}): no RPC configured and no registry default.`);
@@ -731,11 +740,13 @@ export async function runCommand(opts: {
     sma: string,
     dispatches: Dispatch[],
     defaultChain: number,
+    allowed: number[],
     strategy: string,
   ): Promise<void> => {
     const groups = new Map<number, Dispatch[]>();
     for (const d of dispatches as RunnerDispatch[]) {
       const chainId = d.chainId ?? defaultChain;
+      assertDispatchChainAllowed(chainId, allowed, sma);
       const group = groups.get(chainId) ?? [];
       group.push(d);
       groups.set(chainId, group);
@@ -763,7 +774,7 @@ export async function runCommand(opts: {
     recordActivity(runtime, strategy, { ts: nowIso(), actor: "agent", type: "tick_start", reason: runReason });
     try {
       const dispatches = await invokeTick(agent, ctx, runtime, strategy);
-      await routeAndExecute(sma, dispatches, defaultChain, strategy);
+      await routeAndExecute(sma, dispatches, defaultChain, allowed, strategy);
     } finally {
       recordActivity(runtime, strategy, { ts: nowIso(), actor: "agent", type: "tick_end" });
     }

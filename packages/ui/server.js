@@ -398,19 +398,24 @@ export function startServer(sailDir, {
   app.use(cors({ origin: CORS_ORIGINS }))
   app.use(express.json())
 
-  // Bearer-token gate for routes that can change strategy config or read per-chain env values
-  // (which may contain secrets). No-op when SAILOR_API_TOKEN isn't set (the localhost-only
-  // default); once it IS set, only requests carrying it succeed — see the startup check below that
-  // requires it whenever SAILOR_HOST exposes the server beyond loopback.
+  // Bearer-token gate for every /api route except a tiny health/detection allowlist.
+  // No-op when SAILOR_API_TOKEN isn't set (the localhost-only default). Once it IS
+  // set — required whenever SAILOR_HOST leaves loopback — an unauthenticated client
+  // cannot switch SMAs, stop agents, manage keys, or read per-chain env. CORS does
+  // not restrict direct HTTP clients. Open the dashboard with ?token=<SAILOR_API_TOKEN>
+  // so the UI can send the header. Captured at listen-time so a later env change
+  // cannot retarget an already-running server.
+  const apiToken = process.env.SAILOR_API_TOKEN
   const requireAuth = (req, res, next) => {
-    const token = process.env.SAILOR_API_TOKEN
-    if (!token) return next()
-    if (req.get('authorization') === `Bearer ${token}`) return next()
+    if (!apiToken) return next()
+    if (req.get('authorization') === `Bearer ${apiToken}`) return next()
     res.status(401).json({ error: 'unauthorized' })
   }
-  app.use('/api/strategies', requireAuth)
-  app.use('/api/env', requireAuth)
-  app.use('/api/executables', requireAuth)
+  const publicApiPaths = new Set(['/mode', '/version'])
+  app.use('/api', (req, res, next) => {
+    if (publicApiPaths.has(req.path)) return next()
+    return requireAuth(req, res, next)
+  })
 
   // Throttle the key-management endpoints. This server can be exposed beyond
   // localhost (SAILOR_HOST), where a network client — which ignores CORS — could
@@ -2618,9 +2623,10 @@ export function startServer(sailDir, {
   }
 
   // Bind localhost by default so the key-management API isn't network-reachable.
-  // Set SAILOR_HOST=0.0.0.0 to expose it (behind a domain / for LAN access) — do
-  // that only with auth in front: SAILOR_API_TOKEN gates the strategy/env/executable
-  // routes above, and is required (not just recommended) once SAILOR_HOST leaves loopback.
+  // Set SAILOR_HOST=0.0.0.0 to expose it (behind a domain / for LAN access) —
+  // that requires SAILOR_API_TOKEN, which gates every /api route except
+  // /api/mode and /api/version. Prefer an authenticating reverse proxy; if you
+  // bind non-loopback directly, open the dashboard with ?token=<SAILOR_API_TOKEN>.
   const bindHost = process.env.SAILOR_HOST ?? '127.0.0.1'
   const isLoopbackHost = bindHost === '127.0.0.1' || bindHost === 'localhost' || bindHost === '::1'
   if (!isLoopbackHost && !process.env.SAILOR_API_TOKEN) {
@@ -2684,16 +2690,25 @@ export function startServer(sailDir, {
   const wss = new WebSocketServer({ noServer: true })
 
   httpServer.on('upgrade', (req, socket, head) => {
-    let pathname
+    let parsed
     try {
-      pathname = new URL(req.url, `http://localhost:${PORT}`).pathname
+      parsed = new URL(req.url, `http://localhost:${PORT}`)
     } catch {
       socket.destroy()
       return
     }
-    if (pathname !== '/api/station/ws') {
+    if (parsed.pathname !== '/api/station/ws') {
       socket.destroy()
       return
+    }
+    if (apiToken) {
+      const bearer = req.headers.authorization === `Bearer ${apiToken}`
+      const query = parsed.searchParams.get('token') === apiToken
+      if (!bearer && !query) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n')
+        socket.destroy()
+        return
+      }
     }
     wss.handleUpgrade(req, socket, head, (client) => relayToDaemon(client))
   })

@@ -50,9 +50,9 @@ function cliVersion(): string {
 }
 
 function scaffoldProjectWorkspace(dest: string, name: string, options: InitOptions): void {
-  // chainId is null when no --chain flag is provided. Station 1 of the onboarding flow handles
-  // chain selection conversationally — the assistant asks the user which chain to use
-  // and writes it into config.json before proceeding. This keeps init frictionless.
+  // chainId is null when no --chain flag is provided. Station 1 of the onboarding flow
+  // handles chain selection in the setup UI — chat must not pick or write the chain.
+  // The wizard writes it into config.json before proceeding. This keeps init frictionless.
   const chainId: number | null = options.chain
     ? (() => {
         const n = Number(options.chain);

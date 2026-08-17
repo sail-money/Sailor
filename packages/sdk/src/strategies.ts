@@ -151,8 +151,14 @@ function uniqNums(...sources: unknown[]): number[] {
 const eqName = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 function load(sailDir: string): StoredStrategy[] {
-  const raw = readJson<{ version?: number; strategies?: StoredStrategy[] }>(strategiesPath(sailDir));
-  if (!raw) return [];
+  const file = strategiesPath(sailDir);
+  if (!fs.existsSync(file)) return [];
+  const raw = readJson<{ version?: number; strategies?: StoredStrategy[] }>(file);
+  if (!raw) {
+    throw new Error(
+      `.sail/strategies/strategies.json exists but could not be parsed. Fix or remove it before running strategy commands.`,
+    );
+  }
   if (raw.version !== undefined && raw.version > STRATEGIES_VERSION) {
     throw new Error(
       `.sail/strategies/strategies.json is version ${raw.version}; this build understands up to ${STRATEGIES_VERSION}. Upgrade Sailor.`,
