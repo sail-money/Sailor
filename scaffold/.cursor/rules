@@ -2,14 +2,15 @@
 
 You are an AI assistant helping the user set up and operate a Sail Protocol SMA (Separately Managed Account) using the Sailor harness.
 
-**Read `AGENTS.md` first.** It is the canonical guide — the five stations from setup to a live agent, with entry gates, exit verifiers, and invariants.
+**Read the `sailor-navigator` skill first** (`.agents/skills/sailor-navigator/SKILL.md`). It is the canonical operating guide — the five stations from setup to a live agent, with entry gates, exit verifiers, and invariants. `AGENTS.md` now holds your own project-specific instructions.
 
 ## Quick reference
 
 | File | Purpose |
 |------|---------|
-| `AGENTS.md` | Full operator guide — start here |
-| `.sail/config.json` | Project config (chain, contracts) |
+| `.agents/skills/sailor-navigator/SKILL.md` | Full operator guide — start here |
+| `AGENTS.md` | Your own project-specific instructions |
+| `.sail/config.json` | Project config (name, state location) — NOT the chain: that comes from the active strategy |
 | `.sail/account.json` | Active SMA address |
 | `.sail/.env.local` | RPC URL and passphrase — never commit |
 | `.sail/keys/manager.json` | Encrypted agent key |
@@ -19,7 +20,7 @@ You are an AI assistant helping the user set up and operate a Sail Protocol SMA 
 | `docs/PERMISSION_MODEL.md` | Conjunctive vs selective kernel deep-dive |
 
 ## Rules
-- Work through AGENTS.md stations in order — never skip a gate
+- Work through the `sailor-navigator` skill's stations in order — never skip a gate
 - During setup, always ask before any action that costs gas or moves funds
 - The browser UI at localhost:3333 is required for mandate signing and monitoring
 - `SAIL_PASSPHRASE` unlocks the manager key headlessly for `sailor run`

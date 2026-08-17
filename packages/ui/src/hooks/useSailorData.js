@@ -118,6 +118,41 @@ export function useSailorMandate(trigger) {
   return { mandates: Array.isArray(data) ? data : (data ? [data] : []), loading, error }
 }
 
+/** Execution strategies from `.sail/strategies/strategies.json`, filtered to one SMA. Polls every 5s. */
+export function useSailorStrategies(sma, trigger) {
+  const path = sma ? `/api/strategies/${encodeURIComponent(sma)}` : '/api/strategies'
+  const { data, loading, error } = usePolledJson(path, { strategies: [] }, POLL_MS, trigger)
+  return { strategies: Array.isArray(data?.strategies) ? data.strategies : [], loading, error }
+}
+
+/** Executable names (src/strategy/*.ts + legacy agent). Polls every 10s. */
+export function useSailorExecutables(trigger) {
+  const { data, loading, error } = usePolledJson('/api/executables', { executables: [] }, 10000, trigger)
+  return { executables: Array.isArray(data?.executables) ? data.executables : [], loading, error }
+}
+
+async function postJson(url, body, label, method = 'POST') {
+  const res = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  })
+  if (!res.ok) {
+    const msg = await res.json().then((j) => j?.error).catch(() => null)
+    throw new Error(msg || `${label} failed (${res.status})`)
+  }
+  return res.json()
+}
+
+export const createStrategy = (name, opts) => postJson('/api/strategies', { name, ...opts }, 'Create strategy')
+export const updateStrategy = (name, fields) => postJson(`/api/strategies/${encodeURIComponent(name)}`, fields, 'Update strategy')
+export const deleteStrategy = (name) => postJson(`/api/strategies/${encodeURIComponent(name)}`, undefined, 'Delete strategy', 'DELETE')
+export const createExecutable = (name) => postJson('/api/executables', { name }, 'Create executable')
+
+export const getChainEnv = (chainId) =>
+  fetch(`/api/env/${chainId}`).then((r) => (r.ok ? r.json() : { values: {} })).then((j) => j.values ?? {}).catch(() => ({}))
+export const saveChainEnv = (chainId, values) => postJson(`/api/env/${chainId}`, { values }, 'Save env')
+
 /** Whether `sailor run` is currently running. Polls every 5s. */
 export function useSailorAgentStatus() {
   const { data, loading } = usePolledJson('/api/agent-status', { running: false }, 5000)

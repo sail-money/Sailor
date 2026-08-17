@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { createPublicClient, createTestClient, http } from "viem";
-import { anvilStateFilePath, clampSandboxChainCap, isPidAlive, probePort, startFork, stopFork, SANDBOX_CHAINS_CEILING } from "./fork.js";
+import { anvilStateFilePath, clampSandboxChainCap, ensureLocalRpc, isPidAlive, probePort, startFork, stopFork, SANDBOX_CHAINS_CEILING } from "./fork.js";
 import { readManifest, writeManifest } from "./manifest.js";
 import {
   MAX_SANDBOX_CHAINS,
@@ -42,6 +42,19 @@ test("resolveChainName accepts a numeric chainId", () => {
 
 test("resolveChainName rejects an unsupported chain", () => {
   assert.throws(() => resolveChainName(999999), /Unsupported sandbox chain/);
+});
+
+test("ensureLocalRpc writes SAILOR_ALLOW_LOCAL_RPC so sailor run can hit the fork", () => {
+  const dir = tmpSandboxDir();
+  try {
+    ensureLocalRpc(dir, 8453, "http://127.0.0.1:18546");
+    const env = readFileSync(join(dir, ".env.local"), "utf8");
+    assert.match(env, /RPC_URL=http:\/\/127\.0\.0\.1:18546/);
+    assert.match(env, /CHAIN_ID=8453/);
+    assert.match(env, /SAILOR_ALLOW_LOCAL_RPC=1/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("startSandboxForks rejects more than MAX_SANDBOX_CHAINS before spawning anything", async () => {
@@ -165,6 +178,7 @@ test("startFork adopts an already-listening port serving the right chain, instea
 
     const env = readFileSync(join(dir, ".env.local"), "utf8");
     assert.match(env, new RegExp(`RPC_URL_8453=http://127\\.0\\.0\\.1:${port}`));
+    assert.match(env, /SAILOR_ALLOW_LOCAL_RPC=1/);
   } finally {
     server.close();
     rmSync(dir, { recursive: true, force: true });
@@ -420,6 +434,7 @@ test(
 
       const env = readFileSync(join(dir, ".env.local"), "utf8");
       assert.match(env, /CHAIN_ID=84532/);
+      assert.match(env, /SAILOR_ALLOW_LOCAL_RPC=1/);
 
       await stopSandboxFork(dir, 84532);
     } finally {

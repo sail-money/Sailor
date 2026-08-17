@@ -9,7 +9,7 @@ each command named here exists in the CLI source.
 | Command | What it does |
 |---|---|
 | `sailor init [dir]` | Scaffold a new agent project (`--template <name>`, `--chain <id>`, `--rpc-url <url>`, `--force` to re-init) |
-| `sailor update` | Re-sync agent tooling files (skills, `AGENTS.md`, `Dockerfile`) from the latest template — user code and state untouched |
+| `sailor update` | Re-sync agent tooling files (skills, `soul.md`, `Dockerfile`) from the latest template — user code and state untouched |
 
 ## Keys and owner
 
@@ -63,7 +63,7 @@ each command named here exists in the CLI source.
 
 | Command | What it does |
 |---|---|
-| `sailor run` | The agent execution loop (`--once` for a single tick, `--chain <id>`, `--reason <text>`) |
+| `sailor run` | The agent execution loop (`--once` for a single tick, `--strategy <name>` to run one strategy, `--reason <text>`) — the chain(s) come from the active strategy, not a `--chain` flag |
 | `sailor service install` | Install the agent as an OS service that restarts on crash — launchd / systemd / Task Scheduler (`--interval <s>`, `--project <path>`, `--chain <id>`, `--force`) |
 | `sailor service status` / `stop` / `uninstall` / `logs` | Manage the installed service |
 | `sailor trigger github` | Fire the scaffold's GitHub Actions agent workflow on demand (`--workflow`, `--ref`, `--reason`, `--repo`) |

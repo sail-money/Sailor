@@ -177,6 +177,13 @@ export async function waitForRpc(rpcUrl: string, expectedChainId: number, timeou
  * the same generic `RPC_URL`/`CHAIN_ID` contract the rest of the Sailor stack
  * already reads, just rooted at the sandbox directory instead of `.sail/`.
  */
+/** Persist the runner's local-RPC override so `sailor run` can hit anvil forks. */
+function withAllowLocalRpc(lines: string[]): string[] {
+  const without = lines.filter((l) => !l.startsWith("SAILOR_ALLOW_LOCAL_RPC="));
+  without.push("SAILOR_ALLOW_LOCAL_RPC=1");
+  return without;
+}
+
 export function ensureLocalRpc(sandboxDir: string, chainId: number, rpcUrl: string): void {
   const envPath = join(sandboxDir, ".env.local");
   let content = "";
@@ -185,7 +192,7 @@ export function ensureLocalRpc(sandboxDir: string, chainId: number, rpcUrl: stri
   const lines = content.split("\n").filter((l) => l.trim());
   const withoutRpc = lines.filter((l) => !l.startsWith("RPC_URL="));
   const withoutChain = withoutRpc.filter((l) => !l.startsWith("CHAIN_ID="));
-  const newContent = [`RPC_URL=${rpcUrl}`, `CHAIN_ID=${chainId}`, ...withoutChain].join("\n") + "\n";
+  const newContent = withAllowLocalRpc([`RPC_URL=${rpcUrl}`, `CHAIN_ID=${chainId}`, ...withoutChain]).join("\n") + "\n";
 
   mkdirSync(sandboxDir, { recursive: true });
   writeFileSync(envPath, newContent);
@@ -227,7 +234,7 @@ export function ensurePerChainRpc(sandboxDir: string, chainId: number, rpcUrl: s
   lines.push(`${key}${rpcUrl}`);
 
   mkdirSync(sandboxDir, { recursive: true });
-  writeFileSync(envPath, lines.join("\n") + "\n");
+  writeFileSync(envPath, withAllowLocalRpc(lines).join("\n") + "\n");
 }
 
 /**

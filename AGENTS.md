@@ -1,6 +1,6 @@
 # Sailor — Codebase Guide
 
-This guide is for contributors to the Sailor codebase. The user-facing agent guide ships in scaffold/AGENTS.md.
+This guide is for contributors to the Sailor codebase. The user-facing operating guide ships as the `sailor-navigator` skill (scaffold/.agents/skills/sailor-navigator/SKILL.md); scaffold/AGENTS.md is the user's own project-instructions file.
 
 Sailor is the harness for building and operating DeFi agents on Sail Protocol. It does **not** deploy the protocol or author
 permission templates — it targets already-deployed SailKernel instances and gives operators the
@@ -14,7 +14,7 @@ tooling to create SMAs, construct mandates, and build and run strategy agents. S
 | `packages/cli` | `sailor` | CLI: init, update, keys, account, mandate, onboard, signer, ui, sandbox, run, service, trigger, session, scan, status, owner, doctor, capabilities, chains |
 | `packages/ui` | `sailor-ui` | Local dashboard + browser-driven onboarding wizard (per-project port, 3333–3999) |
 | `packages/sandbox` | `@sail/sandbox` | Native anvil fork engine behind Shipyard, the simulation sandbox — `startFork`/`stopFork`, chain-id/port tables, fork manifest. Internal; not published standalone |
-| `scaffold` | — | Default agent starter: neutral blank scaffold + Foundry workspace + onboarding guide (AGENTS.md) |
+| `scaffold` | — | Default agent starter: neutral blank scaffold + Foundry workspace + operating guide (`sailor-navigator` skill) |
 | `scaffold/contracts` | — | Solidity reference: IPermission scaffold (not a project template) |
 
 ## Protocol roles

@@ -8,6 +8,7 @@ import express from 'express'
 import { WebSocket, WebSocketServer } from 'ws'
 import { LocalKeyring, SAFE_V141, SailKernelAbi, buildSafeSetupInitializer, chains, defaultRpcUrls, getNativeCurrencySymbol, getSailDeployment, readPermissionRegistrationFee } from '@sail/sdk'
 import * as accountStore from '@sail/sdk/accounts'
+import * as strategyStore from '@sail/sdk/strategies'
 import { MAX_SANDBOX_CHAINS, SANDBOX_CHAINS_CEILING, TooManySandboxChainsError, activateSandboxBackup, clampSandboxChainCap, dumpSandboxState, enforceSandboxChainCap, fundErc20, fundNative, isPidAlive, listSandboxBackups, refreshSandboxForks, resetSandbox, resetSandboxProject, restartSandboxFork, resumeSandboxForks, sandboxDirFor, startPeriodicStateDump, startSandboxForks, stopSandboxFork, usdcAddressFor } from '@sail/sandbox'
 import { createPublicClient, createWalletClient, defineChain, encodeFunctionData, formatEther, getAddress, http, isAddress, toHex, zeroAddress } from 'viem'
 import { generatePrivateKey, mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
@@ -126,7 +127,7 @@ function readJsonSafe(file) {
 /** Ensure a peer server (the other of live/sandbox) is running for this same
  *  project, starting it detached if necessary. Never touches `this` process —
  *  only ever reads/writes the peer's own runtime file. */
-async function ensurePeerServerRunning({ targetSailDir, targetMode, runtimeFile, preferredPort }) {
+async function ensurePeerServerRunning({ targetSailDir, targetMode, runtimeFile, preferredPort, projectRoot }) {
   const existing = readJsonSafe(runtimeFile)
   if (existing?.pid && isPidAlive(existing.pid)) return { port: existing.port, started: false }
 
@@ -141,6 +142,7 @@ async function ensurePeerServerRunning({ targetSailDir, targetMode, runtimeFile,
     env: {
       ...process.env,
       SAIL_DIR: targetSailDir,
+      SAIL_PROJECT_ROOT: projectRoot,
       SERVE_DIST: '1',
       PORT: String(port),
       SAILOR_UI_MODE: targetMode,
@@ -366,14 +368,21 @@ const OVERVIEW_TTL_MS = 10_000
  * @param {string} sailDir Absolute path to the project's `.sail/` directory —
  *   or, for a sandbox instance, its `.shipyard/sandbox/` directory (same shape,
  *   different root; see `mode`).
- * @param {{ port?: number, mode?: 'live' | 'sandbox' }} [opts] `mode: 'sandbox'`
+ * @param {{ port?: number, mode?: 'live' | 'sandbox', projectRoot?: string }} [opts]
+ *   `projectRoot` identifies the directory that contains `src/`; callers that
+ *   support an arbitrary `SAIL_DIR` should pass it explicitly. `mode: 'sandbox'`
  *   enables the `/api/sandbox/*` fork-lifecycle routes. The CLI spawns two
  *   independent server processes — a live one (default mode, `.sail/`) and,
  *   on demand, a sandbox one (`mode: 'sandbox'`, `.shipyard/sandbox/`) — so
  *   there is no single process, and no runtime flag, that can serve both a
  *   real account and a sandbox account at once.
  */
-export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
+export function startServer(sailDir, {
+  port = PORT,
+  mode = 'live',
+  projectRoot = mode === 'sandbox' ? path.resolve(sailDir, '..', '..') : path.dirname(sailDir),
+} = {}) {
+  const resolvedProjectRoot = path.resolve(projectRoot)
   const app = express()
   // Behind a reverse proxy (see SAILOR_HOST exposure), set SAILOR_TRUST_PROXY so Express
   // derives req.ip from X-Forwarded-For — otherwise the rate limiter keys on the proxy's
@@ -388,6 +397,25 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
   }
   app.use(cors({ origin: CORS_ORIGINS }))
   app.use(express.json())
+
+  // Bearer-token gate for every /api route except a tiny health/detection allowlist.
+  // No-op when SAILOR_API_TOKEN isn't set (the localhost-only default). Once it IS
+  // set — required whenever SAILOR_HOST leaves loopback — an unauthenticated client
+  // cannot switch SMAs, stop agents, manage keys, or read per-chain env. CORS does
+  // not restrict direct HTTP clients. Open the dashboard with ?token=<SAILOR_API_TOKEN>
+  // so the UI can send the header. Captured at listen-time so a later env change
+  // cannot retarget an already-running server.
+  const apiToken = process.env.SAILOR_API_TOKEN
+  const requireAuth = (req, res, next) => {
+    if (!apiToken) return next()
+    if (req.get('authorization') === `Bearer ${apiToken}`) return next()
+    res.status(401).json({ error: 'unauthorized' })
+  }
+  const publicApiPaths = new Set(['/mode', '/version'])
+  app.use('/api', (req, res, next) => {
+    if (publicApiPaths.has(req.path)) return next()
+    return requireAuth(req, res, next)
+  })
 
   // Throttle the key-management endpoints. This server can be exposed beyond
   // localhost (SAILOR_HOST), where a network client — which ignores CORS — could
@@ -444,7 +472,10 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
   // sailDir so the handlers below read as before.
   const readActiveAccount = () => accountStore.readActiveAccount(sailDir)
   const listAccounts = () => accountStore.listAccounts(sailDir)
-  const upsertActiveAccount = (fields) => accountStore.persistAccount(fields, sailDir)
+  const upsertActiveAccount = (fields) => {
+    const record = accountStore.persistAccount(fields, sailDir)
+    return record
+  }
 
   // ── Per-SMA-per-chain overview cache ────────────────────────────────────
   // Keyed by `${safe}-${chainId}` so multi-chain SMAs get independent snapshots.
@@ -675,7 +706,7 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
       const active = await syncDeployedChains(target)
 
       // Switching to an SMA on a different chain must move config.json.chainId too,
-      // or the stage machine / CLI active chain goes stale (multichain case).
+      // or the stage machine / CLI active chain goes stale (cross-chain case).
       syncConfigChainId(active.chainId)
       res.json({ ok: true, active })
     } catch (err) {
@@ -702,6 +733,114 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
       accountStore.renameAccount(safe, cleanName, sailDir)
       res.json({ ok: true })
     } catch (err) {
+      serverError(res, err)
+    }
+  })
+
+  // ── Strategies: execution pipelines (which executables run on which SMAs/chains) ──
+  app.get('/api/strategies', (req, res) => {
+    try { res.json({ strategies: strategyStore.listStrategies(sailDir) }) }
+    catch (err) { serverError(res, err) }
+  })
+
+  // GET /api/strategies/:sma — the strategies bound to one SMA (checksummed match; 400 on non-address).
+  app.get('/api/strategies/:sma', (req, res) => {
+    const { sma } = req.params
+    if (!isAddress(sma)) { res.status(400).json({ error: 'invalid SMA address' }); return }
+    try {
+      const want = getAddress(sma)
+      res.json({ strategies: strategyStore.listStrategies(sailDir).filter((s) => getAddress(s.sma) === want) })
+    } catch (err) { serverError(res, err) }
+  })
+
+  // Create a new (inactive) strategy: one SMA + one executable (+ optional replay chains, description).
+  app.post('/api/strategies', (req, res) => {
+    const { name, sma, executable, chains, description } = req.body ?? {}
+    if (!name || typeof name !== 'string') { res.status(400).json({ error: 'name is required' }); return }
+    if (!sma || typeof sma !== 'string') { res.status(400).json({ error: 'sma is required' }); return }
+    if (!executable || typeof executable !== 'string') { res.status(400).json({ error: 'executable is required' }); return }
+    try {
+      const opts = { sma: sma.trim(), executable: executable.trim(), active: false }
+      if (Array.isArray(chains) && chains.length > 0) opts.chains = chains.map(Number)
+      const s = strategyStore.createStrategy(name.trim(), opts, sailDir)
+      if (typeof description === 'string' && description.trim()) {
+        strategyStore.setStrategyDescription(s.name, description, sailDir)
+      }
+      res.json({ ok: true, strategy: strategyStore.getStrategy(s.name, sailDir) })
+    } catch (err) { res.status(400).json({ error: err.message }) }
+  })
+
+  // Update a strategy: active flag, description, and/or replay chains (empty/null → executable-driven).
+  // strategyStore.updateStrategy validates every provided field (e.g. chains against the SMA's
+  // deployed set) before committing once, so an invalid field can't leave another field's change
+  // persisted on disk.
+  app.post('/api/strategies/:name', (req, res) => {
+    const { active, description, chains } = req.body ?? {}
+    try {
+      const updates = {}
+      if (typeof active === 'boolean') updates.active = active
+      if (typeof description === 'string') updates.description = description
+      if (chains !== undefined) updates.chains = Array.isArray(chains) && chains.length > 0 ? chains.map(Number) : null
+      const s = strategyStore.updateStrategy(req.params.name, updates, sailDir)
+      if (!s) { res.status(404).json({ error: 'strategy not found' }); return }
+      res.json({ ok: true, strategy: s })
+    } catch (err) { res.status(400).json({ error: err.message }) }
+  })
+
+  app.delete('/api/strategies/:name', (req, res) => {
+    try {
+      if (!strategyStore.deleteStrategy(req.params.name, sailDir)) { res.status(404).json({ error: 'strategy not found' }); return }
+      res.json({ ok: true })
+    } catch (err) { serverError(res, err) }
+  })
+
+  // GET /api/env/:chain — the per-chain env map from .sail/env/<slug>.json (chain = numeric id).
+  app.get('/api/env/:chain', (req, res) => {
+    try { res.json({ chainId: Number(req.params.chain), values: strategyStore.readChainEnv(Number(req.params.chain), sailDir) }) }
+    catch (err) { serverError(res, err) }
+  })
+
+  // POST /api/env/:chain { values } — replace the per-chain env map.
+  app.post('/api/env/:chain', (req, res) => {
+    const values = req.body?.values ?? {}
+    if (typeof values !== 'object' || Array.isArray(values)) { res.status(400).json({ error: 'values must be an object' }); return }
+    try {
+      const written = strategyStore.writeChainEnv(Number(req.params.chain), values, sailDir)
+      res.json({ ok: true, chainId: Number(req.params.chain), values: written })
+    } catch (err) { res.status(400).json({ error: err.message }) }
+  })
+
+  // GET /api/executables — names of src/strategy/*.{ts,js} (plus the default agent from src/agent.*).
+  app.get('/api/executables', (req, res) => {
+    try {
+      const names = new Set()
+      try {
+        for (const f of fs.readdirSync(path.join(resolvedProjectRoot, 'src', 'strategy'))) {
+          const m = /^([a-zA-Z0-9]+)\.(ts|js)$/.exec(f)
+          if (m) names.add(m[1])
+        }
+      } catch {}
+      if (fs.existsSync(path.join(resolvedProjectRoot, 'src', 'agent.ts')) || fs.existsSync(path.join(resolvedProjectRoot, 'src', 'agent.js'))) {
+        names.add('agent')
+      }
+      res.json({ executables: [...names].sort() })
+    } catch (err) { serverError(res, err) }
+  })
+
+  // POST /api/executables { name } — scaffold a new src/strategy/<name>.ts.
+  app.post('/api/executables', (req, res) => {
+    const name = String(req.body?.name ?? '').trim()
+    try {
+      strategyStore.createStrategyExecutable(name, resolvedProjectRoot)
+      res.json({ ok: true, name })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      if (/Invalid executable name/i.test(message)) {
+        res.status(400).json({ error: 'name must be camelCase letters/digits (e.g. checkData)' }); return
+      }
+      if (/already exists/i.test(message)) {
+        res.status(409).json({ error: `executable "${name}" already exists` }); return
+      }
       serverError(res, err)
     }
   })
@@ -2368,14 +2507,14 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
     // running (starting it if not) and hand the browser its port to navigate to.
     app.post('/api/sandbox/exit', async (_req, res) => {
       try {
-        const projectRoot = path.resolve(sailDir, '..', '..') // sailDir is <root>/.shipyard/sandbox
-        const liveSailDir = path.join(projectRoot, '.sail')
+        const liveSailDir = path.join(resolvedProjectRoot, '.sail')
         const runtimeFile = path.join(liveSailDir, 'runtime', 'ui.json')
         const result = await ensurePeerServerRunning({
           targetSailDir: liveSailDir,
           targetMode: 'live',
           runtimeFile,
-          preferredPort: deterministicPort(projectRoot),
+          preferredPort: deterministicPort(resolvedProjectRoot),
+          projectRoot: resolvedProjectRoot,
         })
         res.json(result)
       } catch (e) {
@@ -2418,14 +2557,14 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
   if (mode === 'live') {
     app.post('/api/sandbox/launch', async (_req, res) => {
       try {
-        const projectRoot = path.dirname(sailDir) // sailDir is <root>/.sail in live mode
-        const sandboxDir = sandboxDirFor(projectRoot)
+        const sandboxDir = sandboxDirFor(resolvedProjectRoot)
         const runtimeFile = path.join(sandboxDir, 'runtime', 'ui.json')
         const result = await ensurePeerServerRunning({
           targetSailDir: sandboxDir,
           targetMode: 'sandbox',
           runtimeFile,
-          preferredPort: deterministicPort(`${projectRoot}:sandbox`),
+          preferredPort: deterministicPort(`${resolvedProjectRoot}:sandbox`),
+          projectRoot: resolvedProjectRoot,
         })
         res.json(result)
       } catch (e) {
@@ -2484,9 +2623,18 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
   }
 
   // Bind localhost by default so the key-management API isn't network-reachable.
-  // Set SAILOR_HOST=0.0.0.0 to expose it (behind a domain / for LAN access) — do
-  // that only with auth in front, since these endpoints are unauthenticated.
+  // Set SAILOR_HOST=0.0.0.0 to expose it (behind a domain / for LAN access) —
+  // that requires SAILOR_API_TOKEN, which gates every /api route except
+  // /api/mode and /api/version. Prefer an authenticating reverse proxy; if you
+  // bind non-loopback directly, open the dashboard with ?token=<SAILOR_API_TOKEN>.
   const bindHost = process.env.SAILOR_HOST ?? '127.0.0.1'
+  const isLoopbackHost = bindHost === '127.0.0.1' || bindHost === 'localhost' || bindHost === '::1'
+  if (!isLoopbackHost && !process.env.SAILOR_API_TOKEN) {
+    throw new Error(
+      `SAILOR_HOST=${bindHost} exposes this server beyond localhost, but SAILOR_API_TOKEN is not set. ` +
+        'Set SAILOR_API_TOKEN before binding non-loopback, or unset SAILOR_HOST to stay on localhost.',
+    )
+  }
   const httpServer = app.listen(port, bindHost, () => {
     console.log(`Sailor UI running at http://localhost:${port} (reading ${sailDir})`)
   })
@@ -2542,16 +2690,25 @@ export function startServer(sailDir, { port = PORT, mode = 'live' } = {}) {
   const wss = new WebSocketServer({ noServer: true })
 
   httpServer.on('upgrade', (req, socket, head) => {
-    let pathname
+    let parsed
     try {
-      pathname = new URL(req.url, `http://localhost:${PORT}`).pathname
+      parsed = new URL(req.url, `http://localhost:${PORT}`)
     } catch {
       socket.destroy()
       return
     }
-    if (pathname !== '/api/station/ws') {
+    if (parsed.pathname !== '/api/station/ws') {
       socket.destroy()
       return
+    }
+    if (apiToken) {
+      const bearer = req.headers.authorization === `Bearer ${apiToken}`
+      const query = parsed.searchParams.get('token') === apiToken
+      if (!bearer && !query) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n')
+        socket.destroy()
+        return
+      }
     }
     wss.handleUpgrade(req, socket, head, (client) => relayToDaemon(client))
   })
@@ -2610,5 +2767,6 @@ const isMain = Boolean(process.argv[1]) && _norm(process.argv[1]) === _norm(_thi
 if (isMain) {
   const sailDir = process.env.SAIL_DIR || path.join(process.cwd(), '.sail')
   const mode = process.env.SAILOR_UI_MODE === 'sandbox' ? 'sandbox' : 'live'
-  startServer(sailDir, { mode })
+  const projectRoot = process.env.SAIL_PROJECT_ROOT || process.cwd()
+  startServer(sailDir, { mode, projectRoot })
 }

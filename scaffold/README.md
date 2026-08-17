@@ -4,7 +4,7 @@ Your DeFi agent — built with Sailor, its bounds enforced on-chain by Sail Prot
 
 > start
 
-Your assistant will walk you through the five stations — **ARRIVE** (project, keys, account, chain) → **STRATEGY** (define what the agent does) → **MANDATE** (the onchain bounds it runs inside) → **AGENT** (the tick loop) → **SAIL** (launch, operate, exit). `AGENTS.md` is the map: each station's owning skill, entry gate, and exit check.
+Your assistant will walk you through the five stations — **ARRIVE** (project, keys, account, chain) → **STRATEGY** (define what the agent does) → **MANDATE** (the onchain bounds it runs inside) → **AGENT** (the tick loop) → **SAIL** (launch, operate, exit). The `sailor-navigator` skill (`.agents/skills/sailor-navigator/SKILL.md`) is the map — each station's owning skill, entry gate, and exit check; your assistant loads it first.
 
 ## Project layout
 

@@ -446,6 +446,48 @@ export interface ISailorClient {
   capabilities(): Promise<KernelCapabilities>;
 }
 
+/** Helpers for reading an SMA's on-chain state on a given chain. */
+export type AgentReads = {
+  /**
+   * Returns the SMA's balance of `token`. Pass `'native'` for the chain's
+   * native asset (ETH), or an ERC-20 token address for its `balanceOf`.
+   */
+  balance: (token: Address | "native") => Promise<bigint>;
+  /**
+   * Returns the current ERC-20 allowance granted by `owner` to `spender`.
+   * Useful for checking whether an approve is needed before a supply/swap.
+   */
+  allowance: (token: Address, owner: Address, spender: Address) => Promise<bigint>;
+  /**
+   * Returns the ERC-20 token's `decimals()`. Cached for the lifetime of
+   * the runner process — safe to call multiple times without extra RPC cost.
+   */
+  decimals: (token: Address) => Promise<number>;
+};
+
+/** A dispatch intent an executable emits: the calls to run, and optionally the authorizing permission. */
+export type DispatchIntent = {
+  calls: Call[];
+  /** Explicit authorizing permission; when omitted the runner resolves it from the SMA's registered set. */
+  permission?: Address;
+};
+
+/**
+ * A per-chain handle bound to the strategy's SMA on one chain, reachable via `ctx.chain(id)` for any
+ * chain the SMA is deployed on. `dispatch(intent)` tags the intent with this handle's `chainId` so the
+ * runner routes it there; `read`/`publicClient`/`client`/`env` are all bound to that same chain.
+ */
+export type ChainHandle = {
+  chainId: number;
+  publicClient: PublicClient;
+  client: ISailorClient;
+  /** Per-chain env for this chain, from `.sail/env/<chain-slug>.json`. */
+  env: Record<string, string>;
+  read: AgentReads;
+  /** Build a dispatch intent tagged for this handle's chain, for the runner to route + execute. */
+  dispatch(intent: DispatchIntent): Dispatch & { permission?: Address; chainId: number };
+};
+
 /** Context passed to Agent.tick on every scheduled execution. */
 export type AgentContext = {
   safe: Address;
@@ -475,24 +517,21 @@ export type AgentContext = {
    * Defaults to an empty object.
    */
   data: Record<string, unknown>;
-  /** Helpers for reading the SMA's on-chain state. */
-  read: {
-    /**
-     * Returns the SMA's balance of `token`. Pass `'native'` for the chain's
-     * native asset (ETH), or an ERC-20 token address for its `balanceOf`.
-     */
-    balance: (token: Address | "native") => Promise<bigint>;
-    /**
-     * Returns the current ERC-20 allowance granted by `owner` to `spender`.
-     * Useful for checking whether an approve is needed before a supply/swap.
-     */
-    allowance: (token: Address, owner: Address, spender: Address) => Promise<bigint>;
-    /**
-     * Returns the ERC-20 token's `decimals()`. Cached for the lifetime of
-     * the runner process — safe to call multiple times without extra RPC cost.
-     */
-    decimals: (token: Address) => Promise<number>;
-  };
+  /**
+   * Per-chain environment values for this tick, loaded from `.sail/env/<chain-slug>.json`.
+   * Lets one executable read chain-specific addresses/config (e.g. `ctx.env.MORPHO_TOKEN_ADDR`)
+   * while the same strategy runs on multiple chains. Empty object when no env file exists.
+   */
+  env: Record<string, string>;
+  /** Helpers for reading the SMA's on-chain state (bound to the default chain). */
+  read: AgentReads;
+  /**
+   * Per-chain handle bound to this strategy's SMA — available for ANY chain the SMA is deployed on,
+   * in both run modes. Use it to read state or emit dispatches on a chain other than the default:
+   * `const base = ctx.chain(8453); return [base.dispatch({ calls })]`. Throws when the SMA is not
+   * deployed on `chainId`.
+   */
+  chain(chainId: number): ChainHandle;
 };
 
 /** A Sailor agent: define tick() and wire it up to a runner. */

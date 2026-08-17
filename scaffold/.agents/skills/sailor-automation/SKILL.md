@@ -14,6 +14,10 @@ Confirm `sailor run --once` works first. Four options; pick by latency, infra co
 | [Docker](references/docker-vm.md) | Users with basic container knowledge | High — persistent process | Docker + any machine |
 | [Local daemon](references/local-daemon.md) | Any user, runs on the project machine | Medium — depends on uptime | None |
 
+## Per-strategy schedules (different execution ratios)
+
+Any option above runs `sailor run` — which by default executes **all active** execution strategies each fire. To run strategies at **different cadences**, give each scheduler its own `--strategy <name>` and its own schedule: e.g. one GitHub Action `sailor run --once --strategy Yield` every 5 min, a second `sailor run --once --strategy Rebalance` hourly. Same project, different execution ratios. See [`sailor-strategy` → execution-config](../sailor-strategy/references/execution-config.md) for the strategy model and the `sailor strategy …` setup commands, and [`sailor-agent-build`](../sailor-agent-build/SKILL.md) for the per-chain / cross-chain run modes.
+
 ## Which option fits you?
 
 **1. Do you want to run the agent in the cloud or on a local / dedicated machine?**
