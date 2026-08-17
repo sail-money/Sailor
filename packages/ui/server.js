@@ -398,6 +398,20 @@ export function startServer(sailDir, {
   app.use(cors({ origin: CORS_ORIGINS }))
   app.use(express.json())
 
+  // Bearer-token gate for routes that can change strategy config or read per-chain env values
+  // (which may contain secrets). No-op when SAILOR_API_TOKEN isn't set (the localhost-only
+  // default); once it IS set, only requests carrying it succeed — see the startup check below that
+  // requires it whenever SAILOR_HOST exposes the server beyond loopback.
+  const requireAuth = (req, res, next) => {
+    const token = process.env.SAILOR_API_TOKEN
+    if (!token) return next()
+    if (req.get('authorization') === `Bearer ${token}`) return next()
+    res.status(401).json({ error: 'unauthorized' })
+  }
+  app.use('/api/strategies', requireAuth)
+  app.use('/api/env', requireAuth)
+  app.use('/api/executables', requireAuth)
+
   // Throttle the key-management endpoints. This server can be exposed beyond
   // localhost (SAILOR_HOST), where a network client — which ignores CORS — could
   // otherwise brute-force the keystore passphrase or spam the expensive scrypt KDF.
@@ -741,7 +755,7 @@ export function startServer(sailDir, {
     if (!sma || typeof sma !== 'string') { res.status(400).json({ error: 'sma is required' }); return }
     if (!executable || typeof executable !== 'string') { res.status(400).json({ error: 'executable is required' }); return }
     try {
-      const opts = { sma: sma.trim(), executable: executable.trim() }
+      const opts = { sma: sma.trim(), executable: executable.trim(), active: false }
       if (Array.isArray(chains) && chains.length > 0) opts.chains = chains.map(Number)
       const s = strategyStore.createStrategy(name.trim(), opts, sailDir)
       if (typeof description === 'string' && description.trim()) {
@@ -752,20 +766,17 @@ export function startServer(sailDir, {
   })
 
   // Update a strategy: active flag, description, and/or replay chains (empty/null → executable-driven).
+  // strategyStore.updateStrategy validates every provided field (e.g. chains against the SMA's
+  // deployed set) before committing once, so an invalid field can't leave another field's change
+  // persisted on disk.
   app.post('/api/strategies/:name', (req, res) => {
     const { active, description, chains } = req.body ?? {}
     try {
-      if (typeof active === 'boolean' && !strategyStore.setStrategyActive(req.params.name, active, sailDir)) {
-        res.status(404).json({ error: 'strategy not found' }); return
-      }
-      if (typeof description === 'string') strategyStore.setStrategyDescription(req.params.name, description, sailDir)
-      if (chains !== undefined) {
-        const next = Array.isArray(chains) && chains.length > 0 ? chains.map(Number) : null
-        if (!strategyStore.setStrategyChains(req.params.name, next, sailDir)) {
-          res.status(404).json({ error: 'strategy not found' }); return
-        }
-      }
-      const s = strategyStore.getStrategy(req.params.name, sailDir)
+      const updates = {}
+      if (typeof active === 'boolean') updates.active = active
+      if (typeof description === 'string') updates.description = description
+      if (chains !== undefined) updates.chains = Array.isArray(chains) && chains.length > 0 ? chains.map(Number) : null
+      const s = strategyStore.updateStrategy(req.params.name, updates, sailDir)
       if (!s) { res.status(404).json({ error: 'strategy not found' }); return }
       res.json({ ok: true, strategy: s })
     } catch (err) { res.status(400).json({ error: err.message }) }
@@ -2608,8 +2619,16 @@ export function startServer(sailDir, {
 
   // Bind localhost by default so the key-management API isn't network-reachable.
   // Set SAILOR_HOST=0.0.0.0 to expose it (behind a domain / for LAN access) — do
-  // that only with auth in front, since these endpoints are unauthenticated.
+  // that only with auth in front: SAILOR_API_TOKEN gates the strategy/env/executable
+  // routes above, and is required (not just recommended) once SAILOR_HOST leaves loopback.
   const bindHost = process.env.SAILOR_HOST ?? '127.0.0.1'
+  const isLoopbackHost = bindHost === '127.0.0.1' || bindHost === 'localhost' || bindHost === '::1'
+  if (!isLoopbackHost && !process.env.SAILOR_API_TOKEN) {
+    throw new Error(
+      `SAILOR_HOST=${bindHost} exposes this server beyond localhost, but SAILOR_API_TOKEN is not set. ` +
+        'Set SAILOR_API_TOKEN before binding non-loopback, or unset SAILOR_HOST to stay on localhost.',
+    )
+  }
   const httpServer = app.listen(port, bindHost, () => {
     console.log(`Sailor UI running at http://localhost:${port} (reading ${sailDir})`)
   })

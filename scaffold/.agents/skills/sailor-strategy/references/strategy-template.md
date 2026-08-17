@@ -35,6 +35,7 @@ skill; any category-specific extension rows (from a core or project recipe) appl
 | id | kind | chain | route | tokenIn → tokenOut | venue / pool | caps | risk bounds | exit path |
 |---|---|---|---|---|---|---|---|---|
 | `swap-base` | swap | 8453 | template: SwapPermission | USDC → WETH | Uniswap V3 / pool + fee tier | 25 USDC per tx | max slippage | agent-managed → `swap-base-out` |
+| `swap-base-out` | swap | 8453 | template: SwapPermission | WETH → USDC | Uniswap V3 / pool + fee tier | full position per tx | max slippage | exit leg — no further exit path |
 
 One row per action with every resolved concrete value — addresses, decimals, pool + fee tier, caps in
 both base units and human terms. This table is the same data as the JSON below; never let the two
@@ -68,7 +69,22 @@ drift.
         "perTx": { "baseUnits": "", "human": "<e.g. '25 USDC'>" }
       },
       "riskBounds": { "maxSlippageBps": 0 },
-      "exitPath": { "managedBy": "agent | owner | none-declined", "actionIds": [] }
+      "exitPath": { "managedBy": "agent | owner | none-declined", "actionIds": ["<exit-leg action id, e.g. 'swap-base-out'>"] }
+    },
+    {
+      "id": "<exit-leg id, e.g. 'swap-base-out'>",
+      "kind": "swap | deposit | borrow | transfer | withdraw | custom",
+      "chain": <chainId>,
+      "route": { "type": "template | bespoke", "name": "<TemplateSkill, or null if bespoke>" },
+      "tokenIn": { "symbol": "", "address": "0x…", "decimals": 0 },
+      "tokenOut": { "symbol": "", "address": "0x…", "decimals": 0 },
+      "venue": { "name": "", "address": "0x…" },
+      "pool": { "address": "0x…", "feeTier": 0, "observedLiquidityUsd": 0 },
+      "recipients": ["0x…"],
+      "caps": {
+        "perTx": { "baseUnits": "", "human": "<e.g. 'full position'>" }
+      },
+      "riskBounds": { "maxSlippageBps": 0 }
     }
   ],
   "cadence": "<schedule or 'no cadence'>",
@@ -77,10 +93,12 @@ drift.
     "resolvedAt": "<ISO 8601 UTC>",
     "chains": { "<chainId>": { "rpc": "<rpc label>" } }
   },
-  "confirmedByUser": true,
+  "confirmedByUser": false,
   "version": 3
 }
 ```
+
+`confirmedByUser` starts `false` in this template — set it to `true` only after the user has actually reviewed every resolved address, pool, and cap above; a copied spec must never satisfy Station 3's confirmation gate by default.
 
 Key notes:
 

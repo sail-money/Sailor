@@ -51,7 +51,7 @@ sailor strategy create <name> --sma <yourSMA> [--chains <ids>] --description "â€
 sailor strategy env set <chain> KEY=value   # per-chain env the executable reads via ctx.env, if any
 ```
 
-Every later station reads these. **Exit check:** each strategy's `.sail/strategies/<name>.md` exists with every dimension concrete, AND `.sail/strategies/strategies.json` registered via `sailor strategy create`.
+Before Station 3, present each resolved address, pool, and cap to the user for review and persist the approved values in `.sail/strategies/<name>.md`. Every later station reads these. **Exit check:** each strategy's `.sail/strategies/<name>.md` exists with every dimension concrete and user-reviewed values persisted, AND `.sail/strategies/strategies.json` registered via `sailor strategy create`.
 
 ## Station 3 â€” MANDATE: turn the strategy into enforced bounds
 

@@ -10,7 +10,7 @@ You are an AI assistant helping the user set up and operate a Sail Protocol SMA 
 |------|---------|
 | `.agents/skills/sailor-navigator/SKILL.md` | Full operator guide — start here |
 | `AGENTS.md` | Your own project-specific instructions |
-| `.sail/config.json` | Project config (chain, contracts) |
+| `.sail/config.json` | Project config (name, state location) — NOT the chain: that comes from the active strategy |
 | `.sail/account.json` | Active SMA address |
 | `.sail/.env.local` | RPC URL and passphrase — never commit |
 | `.sail/keys/manager.json` | Encrypted agent key |
