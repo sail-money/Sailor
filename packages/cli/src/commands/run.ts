@@ -32,6 +32,7 @@ import {
   sailPath,
 } from "../lib/io.js";
 import { getRpcUrl } from "../lib/chain.js";
+import { assertSafeRpcUrl } from "../lib/rpc-guard.js";
 import { decodeTokenMove, formatTokenAmount, isUnlimitedAmount } from "../lib/dispatch-value.js";
 import { keyExists, loadManagerSigner } from "../lib/keys.js";
 import {
@@ -154,37 +155,6 @@ async function loadExecutable(name: string): Promise<Agent> {
       (name === "agent" ? "src/agent.ts" : `src/strategy/${name}.ts`) +
       ". Ensure tsx is installed: pnpm add tsx",
   );
-}
-
-/**
- * Validate an RPC URL to prevent SSRF against internal endpoints (e.g. AWS IMDS at
- * 169.254.169.254) via a crafted .env.local. Throws on a bad/blocked URL.
- */
-function assertSafeRpcUrl(rpcUrl: string): void {
-  let parsed: URL;
-  try {
-    parsed = new URL(rpcUrl);
-  } catch {
-    throw new Error(`RPC_URL is not a valid URL: ${rpcUrl}`);
-  }
-  if (!["http:", "https:"].includes(parsed.protocol)) {
-    throw new Error(`RPC_URL must use http or https — got: ${parsed.protocol}`);
-  }
-  // URL.hostname keeps the brackets for IPv6 literals (e.g. "[::1]") — strip them before matching.
-  const host = parsed.hostname.replace(/^\[|\]$/g, "").toLowerCase();
-  const blockedName = host === "localhost" || host.endsWith(".localhost");
-  const blockedV4 =
-    /^(169\.254\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|127\.\d+\.\d+\.\d+|0\.0\.0\.0)$/.test(
-      host,
-    );
-  const blockedV6 = /^(::1?|::ffff:127\.|f[cd][0-9a-f]{2}:|fe80:)/.test(host);
-  // Note: a DNS name that resolves to a private address still passes here — this only inspects the URL.
-  if ((blockedName || blockedV4 || blockedV6) && !process.env.SAILOR_ALLOW_LOCAL_RPC) {
-    throw new Error(
-      `RPC_URL hostname "${parsed.hostname}" is a private or link-local address. ` +
-        "Set SAILOR_ALLOW_LOCAL_RPC=1 to allow local RPC endpoints (dev only).",
-    );
-  }
 }
 
 /**
