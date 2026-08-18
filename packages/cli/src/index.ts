@@ -79,16 +79,6 @@ import { sessionPause, sessionResume } from "./commands/session.js";
 import { type ShareOptions, share } from "./commands/share.js";
 import { signerStart, signerStatus, signerStop } from "./commands/signer.js";
 import { status } from "./commands/status.js";
-import {
-  strategyCreate,
-  strategyDelete,
-  strategyEnvSet,
-  strategyEnvShow,
-  strategyList,
-  strategyNewExecutable,
-  strategySetActive,
-  strategySetChains,
-} from "./commands/strategy.js";
 import { type TriggerGithubOptions, triggerGithub } from "./commands/trigger.js";
 import {
   type SandboxStopOptions,
@@ -561,60 +551,6 @@ program
     }
     closePrompts();
   });
-
-const strategy = program
-  .command("strategy")
-  .description("Configure execution strategies (which executables run on which SMAs and chains)");
-strategy
-  .command("list")
-  .description("List strategies (executable → SMA and chain mode)")
-  .option("--json", "Emit machine-readable JSON")
-  .action(actionWith<{ json?: boolean }>(strategyList));
-strategy
-  .command("create <name>")
-  .description("Create a new (active) strategy: one SMA + one executable")
-  .requiredOption("--sma <address>", "SMA the strategy runs against")
-  .option(
-    "--executable <name>",
-    "Executable name: default agent → src/agent.ts; custom → src/strategy/<name>.ts",
-  )
-  .option(
-    "--chains <ids>",
-    "Comma-separated chain ids/slugs to replay on; omit for executable-driven (cross-chain)",
-  )
-  .option("--description <text>", "Human description shown in the dashboard")
-  .option("--inactive", "Create the strategy inactive (default: active)")
-  .action(actArgs(strategyCreate));
-strategy
-  .command("activate <name>")
-  .description("Mark a strategy active (runs on the default `sailor run`)")
-  .action(actArgs((name: string) => strategySetActive(name, true)));
-strategy
-  .command("deactivate <name>")
-  .description("Mark a strategy inactive")
-  .action(actArgs((name: string) => strategySetActive(name, false)));
-strategy
-  .command("set-chains <name>")
-  .description("Set the replay chains, or --clear for executable-driven (cross-chain)")
-  .option("--chains <ids>", "Comma-separated chain ids or slugs to replay on")
-  .option("--clear", "Clear chains → executable-driven mode")
-  .action(actArgs(strategySetChains));
-strategy.command("delete <name>").description("Delete a strategy").action(actArgs(strategyDelete));
-strategy
-  .command("new-executable <name>")
-  .description("Scaffold a new executable at src/strategy/<name>.ts (camelCase name)")
-  .action(actArgs(strategyNewExecutable));
-const strategyEnv = strategy
-  .command("env")
-  .description("Manage per-chain env values (.sail/env/<slug>.json)");
-strategyEnv
-  .command("show <chain>")
-  .description("Show env values for a chain (id or slug)")
-  .action(actArgs(strategyEnvShow));
-strategyEnv
-  .command("set <chain> [assignments...]")
-  .description("Set env values for a chain: KEY=VALUE [KEY=VALUE ...]")
-  .action(actArgs(strategyEnvSet));
 
 const strategy = program
   .command("strategy")
