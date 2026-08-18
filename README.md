@@ -56,6 +56,8 @@ Open the scaffold in Claude Code, Cursor, Codex, or any AI coding agent and say 
 ```bash
 # bash / zsh (macOS, Linux)
 npx @sail.money/sailor init my-agent && cd my-agent && npm install
+# or install the CLI first, then init:
+npm i @sail.money/sailor ; npx sailor init
 ```
 
 ```powershell
