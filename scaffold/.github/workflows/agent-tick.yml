@@ -52,7 +52,13 @@ jobs:
 
       - name: Run agent tick
         env:
+          # Single-chain projects: just RPC_URL. Multi-chain projects: set the matching
+          # per-chain secret(s) below instead (unset ones resolve to "" and are ignored —
+          # see .sail/.env.example's Option A/B).
           RPC_URL: ${{ secrets.RPC_URL }}
+          BASE_RPC_URL: ${{ secrets.BASE_RPC_URL }}
+          ARBITRUM_RPC_URL: ${{ secrets.ARBITRUM_RPC_URL }}
+          UNICHAIN_RPC_URL: ${{ secrets.UNICHAIN_RPC_URL }}
           SAIL_PASSPHRASE: ${{ secrets.SAIL_PASSPHRASE }}
           # Chain(s) come from the active strategy's steps — sailor run does not read CHAIN_ID.
           # Labels the run: the dispatch reason, or "scheduled" for cron runs.

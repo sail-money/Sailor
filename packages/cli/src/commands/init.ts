@@ -50,9 +50,9 @@ function cliVersion(): string {
 }
 
 function scaffoldProjectWorkspace(dest: string, name: string, options: InitOptions): void {
-  // chainId is null when no --chain flag is provided. Station 1 of the onboarding flow handles
-  // chain selection conversationally — the assistant asks the user which chain to use
-  // and writes it into config.json before proceeding. This keeps init frictionless.
+  // chainId is null when no --chain flag is provided. Station 1 of the onboarding flow
+  // handles chain selection in the setup UI — chat must not pick or write the chain.
+  // The wizard writes it into config.json before proceeding. This keeps init frictionless.
   const chainId: number | null = options.chain
     ? (() => {
         const n = Number(options.chain);
@@ -354,14 +354,12 @@ function printWelcome(dest: string, name: string, inPlace: boolean, _hasRpc: boo
     console.log(
       "Permissions: none registered yet — your agent has no mandate to execute against.\n",
     );
-    console.log("Next (see the sailor-navigator skill — define the strategy, then build its mandate):");
-    console.log(
-      "  Write your permission contract in mandates/ (start from BoundedCallPermission.sol)",
-    );
-    console.log("  forge build");
-    console.log(`  sailor mandate deploy --contract <Name> --sma ${state.sma}`);
-    console.log(`  sailor mandate simulate --address <Name> --sma ${state.sma} --calls calls.json`);
-    console.log(`  sailor mandate register --address <Name> --sma ${state.sma}\n`);
+    console.log("Next (see the sailor-navigator skill):");
+    console.log("  Station 2 — define the strategy: the sailor-strategy skill writes its concrete spec");
+    console.log("    and registers it: sailor strategy create <name> --sma " + state.sma);
+    console.log("  Station 3 — the sailor-mandate-planner skill then reads that spec and decides");
+    console.log("    shared-template vs. bespoke, and only then walks you through deploying,");
+    console.log("    simulating, and registering the mandate.\n");
     console.log('Or open this folder in your AI coding agent and say: "continue"');
     return;
   }

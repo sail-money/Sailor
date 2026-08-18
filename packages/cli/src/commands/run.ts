@@ -10,11 +10,13 @@ import {
   SailorClient,
   getChain,
   getDefaultRpcUrl,
+  getNativeCurrencySymbol,
 } from "@sail/sdk";
 import {
   type StoredStrategy,
   deployedChainsForSma,
   getStrategy,
+  isValidExecutableName,
   migrateLegacyDefaultStrategy,
   readActiveStrategies,
   readChainEnv,
@@ -30,6 +32,7 @@ import {
   sailPath,
 } from "../lib/io.js";
 import { getRpcUrl } from "../lib/chain.js";
+import { assertSafeRpcUrl } from "../lib/rpc-guard.js";
 import { decodeTokenMove, formatTokenAmount, isUnlimitedAmount } from "../lib/dispatch-value.js";
 import { keyExists, loadManagerSigner } from "../lib/keys.js";
 import {
@@ -66,6 +69,15 @@ export function runtimeActivityEvent(
   strategy: string,
 ): Record<string, unknown> {
   return { ...event, safe, chainId, strategy };
+}
+
+/** Reject a dispatch whose chain tag is outside this run's allowed set. */
+export function assertDispatchChainAllowed(chainId: number, allowed: number[], sma: string): void {
+  if (!allowed.includes(chainId)) {
+    throw new Error(
+      `Dispatch tagged for chain ${chainId}, which is outside SMA ${sma}'s runnable set: ${allowed.join(", ")}.`,
+    );
+  }
 }
 
 /** Make scheduled/one-shot callers observe fatal strategy failures via a non-zero exit. */
@@ -105,6 +117,9 @@ function loadAgentData(filePath: string | undefined): Record<string, unknown> {
  * `dist/strategy/<name>.js`). `.ts` files load via tsx's tsImport(); `.js` via plain dynamic import().
  */
 async function loadExecutable(name: string): Promise<Agent> {
+  if (!isValidExecutableName(name)) {
+    throw new Error(`Invalid executable name "${name}" in strategies.json — use camelCase letters/digits only.`);
+  }
   const candidates =
     name === "agent"
       ? ["src/agent.ts", "src/agent.js", "dist/agent.js", "dist/src/agent.js"]
@@ -140,30 +155,6 @@ async function loadExecutable(name: string): Promise<Agent> {
       (name === "agent" ? "src/agent.ts" : `src/strategy/${name}.ts`) +
       ". Ensure tsx is installed: pnpm add tsx",
   );
-}
-
-/**
- * Validate an RPC URL to prevent SSRF against internal endpoints (e.g. AWS IMDS at
- * 169.254.169.254) via a crafted .env.local. Throws on a bad/blocked URL.
- */
-function assertSafeRpcUrl(rpcUrl: string): void {
-  let parsed: URL;
-  try {
-    parsed = new URL(rpcUrl);
-  } catch {
-    throw new Error(`RPC_URL is not a valid URL: ${rpcUrl}`);
-  }
-  if (!["http:", "https:"].includes(parsed.protocol)) {
-    throw new Error(`RPC_URL must use http or https — got: ${parsed.protocol}`);
-  }
-  const blocked =
-    /^(169\.254\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|127\.|0\.0\.0\.0|::1$|fd[0-9a-f]{2}:)/i;
-  if (blocked.test(parsed.hostname) && !process.env.SAILOR_ALLOW_LOCAL_RPC) {
-    throw new Error(
-      `RPC_URL hostname "${parsed.hostname}" is a private or link-local address. ` +
-        "Set SAILOR_ALLOW_LOCAL_RPC=1 to allow local RPC endpoints (dev only).",
-    );
-  }
 }
 
 /**
@@ -269,11 +260,14 @@ export async function runCommand(opts: {
   const signers = new Map<string, Signer>();
   for (const safe of distinctSmas) {
     if (!keyExists("manager", safe)) {
-      throw new Error(
-        `No manager key for SMA ${safe}.\nRun "sailor keys generate" (agent wallet) for it first.`,
-      );
+      console.error(`Skipping SMA ${safe}: no Agent wallet key. Run "sailor keys generate" for it first.`);
+      continue;
     }
     signers.set(safe, await loadManagerSigner(safe));
+  }
+  strategies = strategies.filter((s) => signers.has(checksum(s.sma)));
+  if (strategies.length === 0) {
+    throw new Error('No strategy has an Agent wallet key. Run "sailor keys generate" first.');
   }
   // Scrub the passphrase now that every key is loaded — executable code runs in this process.
   delete process.env.SAIL_PASSPHRASE;
@@ -314,7 +308,7 @@ export async function runCommand(opts: {
     const signer = signers.get(accountAddr);
     const agentManager = agentManagerFor.get(accountAddr);
     if (!signer || !agentManager) {
-      console.error(`skip ${accountAddr}: no manager signer loaded`);
+      console.error(`skip ${accountAddr}: no Agent wallet signer loaded`);
       return null;
     }
 
@@ -337,7 +331,7 @@ export async function runCommand(opts: {
     }
 
     // Configured RPC wins; else the chain registry's public default (rate-limited — set your own
-    // RPC_URL in .sail/.env.local for production). ponytail: public default is fine for dev/first-run.
+    // RPC_URL in .sail/.env.local for production). The public default is fine for dev/first-run.
     const rpcUrl = getRpcUrl(chainId) ?? getDefaultRpcUrl(chainId);
     if (!rpcUrl) {
       console.error(`skip chain ${chainId} (${chainName}): no RPC configured and no registry default.`);
@@ -350,10 +344,11 @@ export async function runCommand(opts: {
       return null;
     }
 
+    const nativeSymbol = getNativeCurrencySymbol(chainId);
     const chain = defineChain({
       id: chainId,
       name: chainName,
-      nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+      nativeCurrency: { name: nativeSymbol, symbol: nativeSymbol, decimals: 18 },
       rpcUrls: { default: { http: [rpcUrl] } },
     });
     const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
@@ -466,13 +461,15 @@ export async function runCommand(opts: {
 
   type BlockInfo = { number: bigint; timestamp: bigint };
 
-  // Fetch the current block for a runtime; zeros when the RPC is unavailable (per-call errors surface later).
-  const getBlockInfo = async (rt: ChainRuntime): Promise<BlockInfo> => {
+  // Fetch the current block for a runtime; null when the RPC is unavailable — callers must skip
+  // rather than evaluate permissions against a fabricated zero block/timestamp.
+  const getBlockInfo = async (rt: ChainRuntime): Promise<BlockInfo | null> => {
     try {
       const block = await rt.publicClient.getBlock();
       return { number: block.number ?? 0n, timestamp: block.timestamp ?? 0n };
-    } catch {
-      return { number: 0n, timestamp: 0n };
+    } catch (e) {
+      console.error(`skip chain ${rt.chainId}: block read failed: ${(e as Error).message}`);
+      return null;
     }
   };
 
@@ -653,6 +650,7 @@ export async function runCommand(opts: {
     }
 
     const blockInfo = await getBlockInfo(defaultRt);
+    if (!blockInfo) return null; // block read failed — already logged; don't evaluate against a fabricated block
 
     const chain = (chainId: number): ChainHandle => {
       if (!allowed.includes(chainId)) {
@@ -712,11 +710,13 @@ export async function runCommand(opts: {
     sma: string,
     dispatches: Dispatch[],
     defaultChain: number,
+    allowed: number[],
     strategy: string,
   ): Promise<void> => {
     const groups = new Map<number, Dispatch[]>();
     for (const d of dispatches as RunnerDispatch[]) {
       const chainId = d.chainId ?? defaultChain;
+      assertDispatchChainAllowed(chainId, allowed, sma);
       const group = groups.get(chainId) ?? [];
       group.push(d);
       groups.set(chainId, group);
@@ -724,7 +724,9 @@ export async function runCommand(opts: {
     for (const [chainId, group] of groups) {
       const rt = await getRuntime(sma, chainId);
       if (!rt) throw new Error(`Runtime unavailable for SMA ${sma} on chain ${chainId}.`);
-      await executeDispatches(rt, group, await getBlockInfo(rt), strategy);
+      const blockInfo = await getBlockInfo(rt);
+      if (!blockInfo) throw new Error(`Block read failed for SMA ${sma} on chain ${chainId}.`);
+      await executeDispatches(rt, group, blockInfo, strategy);
     }
   };
 
@@ -742,7 +744,7 @@ export async function runCommand(opts: {
     recordActivity(runtime, strategy, { ts: nowIso(), actor: "agent", type: "tick_start", reason: runReason });
     try {
       const dispatches = await invokeTick(agent, ctx, runtime, strategy);
-      await routeAndExecute(sma, dispatches, defaultChain, strategy);
+      await routeAndExecute(sma, dispatches, defaultChain, allowed, strategy);
     } finally {
       recordActivity(runtime, strategy, { ts: nowIso(), actor: "agent", type: "tick_end" });
     }

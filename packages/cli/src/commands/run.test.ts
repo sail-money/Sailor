@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { getAddress } from "viem";
-import { type StrategyRunFailure, assertNoStrategyFailures, runtimeActivityEvent } from "./run.js";
+import { type StrategyRunFailure, assertDispatchChainAllowed, assertNoStrategyFailures, runtimeActivityEvent } from "./run.js";
 
 const SAFE = getAddress("0x00000000000000000000000000000000000000AA");
 
@@ -26,6 +26,14 @@ test("runtimeActivityEvent pins activity to the executing SMA, chain, and strate
   });
 });
 
+test("assertDispatchChainAllowed rejects a tag outside the run filter", () => {
+  assert.doesNotThrow(() => assertDispatchChainAllowed(8453, [8453, 42161], SAFE));
+  assert.throws(
+    () => assertDispatchChainAllowed(10, [8453, 42161], SAFE),
+    /outside SMA .* runnable set: 8453, 42161/,
+  );
+});
+
 test("assertNoStrategyFailures leaves a successful --once cycle alone", () => {
   assert.doesNotThrow(() => assertNoStrategyFailures([]));
 });
@@ -40,6 +48,10 @@ test("assertNoStrategyFailures makes --once surface every fatal strategy error",
     () => assertNoStrategyFailures(failures),
     (error: unknown) => {
       assert.ok(error instanceof AggregateError);
+      assert.deepEqual(
+        error.errors.map((e: Error) => e.message),
+        ["executable missing", "runtime unavailable"],
+      );
       assert.match(error.message, /2 strategy execution\(s\) failed/);
       assert.match(error.message, /dcaBase: executable missing/);
       assert.match(error.message, /yieldArb: runtime unavailable/);

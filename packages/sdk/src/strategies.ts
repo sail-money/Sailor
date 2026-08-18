@@ -151,8 +151,20 @@ function uniqNums(...sources: unknown[]): number[] {
 const eqName = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 function load(sailDir: string): StoredStrategy[] {
-  const raw = readJson<{ strategies?: StoredStrategy[] }>(strategiesPath(sailDir));
-  return raw?.strategies ?? [];
+  const file = strategiesPath(sailDir);
+  if (!fs.existsSync(file)) return [];
+  const raw = readJson<{ version?: number; strategies?: StoredStrategy[] }>(file);
+  if (!raw) {
+    throw new Error(
+      `.sail/strategies/strategies.json exists but could not be parsed. Fix or remove it before running strategy commands.`,
+    );
+  }
+  if (raw.version !== undefined && raw.version > STRATEGIES_VERSION) {
+    throw new Error(
+      `.sail/strategies/strategies.json is version ${raw.version}; this build understands up to ${STRATEGIES_VERSION}. Upgrade Sailor.`,
+    );
+  }
+  return raw.strategies ?? [];
 }
 
 function commit(strategies: StoredStrategy[], sailDir: string): void {
@@ -361,9 +373,52 @@ export function setStrategyChains(name: string, chains: number[] | null, sailDir
   return s;
 }
 
+/**
+ * Update a strategy's `active`, `chains`, and/or `description` in one atomic write. Every provided
+ * field is validated (`chains` against the SMA's deployed set) before anything is mutated, so an
+ * invalid field never leaves an earlier field's change committed to disk. Returns the updated
+ * strategy, or null if unknown.
+ */
+export function updateStrategy(
+  name: string,
+  updates: { active?: boolean; chains?: number[] | null; description?: string },
+  sailDir: string = defaultSailDir(),
+): StoredStrategy | null {
+  const strategies = load(sailDir);
+  const s = strategies.find((x) => eqName(x.name, name));
+  if (!s) return null;
+
+  let nextChains: number[] | undefined;
+  const clearChains = "chains" in updates && (!updates.chains || updates.chains.length === 0);
+  if ("chains" in updates && !clearChains) {
+    const deployed = deployedChainsForSma(s.sma, sailDir);
+    nextChains = uniqNums(updates.chains).filter((c) => deployed.includes(c));
+    if (nextChains.length === 0) {
+      throw new Error(
+        `None of the chains [${updates.chains!.join(", ")}] are in ${s.sma}'s deployed set: ${deployed.join(", ")}.`,
+      );
+    }
+  }
+
+  // All fields validated above — mutate and commit once.
+  if (updates.active !== undefined) s.active = updates.active;
+  if (clearChains) delete s.chains;
+  else if (nextChains) s.chains = nextChains;
+  if (updates.description !== undefined) {
+    if (updates.description.trim()) s.description = updates.description.trim();
+    else delete s.description;
+  }
+  commit(strategies, sailDir);
+  return s;
+}
+
 export function renameStrategy(oldName: string, newName: string, sailDir: string = defaultSailDir()): StoredStrategy | null {
   const clean = newName.trim();
-  if (!clean) throw new Error("Strategy name must not be empty.");
+  if (!isValidStrategyName(clean)) {
+    throw new Error(
+      `Invalid strategy name "${clean}" — use camelCase or PascalCase with no spaces or separators (e.g. dcaDaily, Yield); it is the spec filename and --strategy selector.`,
+    );
+  }
   const strategies = load(sailDir);
   const s = strategies.find((x) => eqName(x.name, oldName));
   if (!s) return null;

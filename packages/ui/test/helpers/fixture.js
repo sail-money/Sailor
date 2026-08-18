@@ -33,6 +33,11 @@ function copyDir(src, dest) {
  */
 export function loadFixture(name, patches = {}, opts = {}) {
   const src = path.join(FIXTURES, name)
+  // `projectRoot` is the per-test isolated PROJECT root (like a real checkout); the fixture content
+  // is the project's state dir — matching real usage (sailDir = <project>/.sail, or
+  // <project>/.shipyard/sandbox for the native sandbox) so anything the server resolves relative to
+  // sailDir's parent (e.g. `src/strategy/*.ts`) also lands inside `projectRoot` and gets removed by
+  // `cleanup()` below, instead of escaping to a path shared across test runs.
   const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), `sailor-test-${name}-`))
   const sailDir = path.join(
     projectRoot,

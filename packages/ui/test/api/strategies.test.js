@@ -9,18 +9,12 @@ const MANAGER = '0xa6D478146f03E9473582aCe099c67e3CbB5EC2BE'
 
 describe('Strategies API', () => {
   let fix
-  // In tests the fixture temp dir IS the sailDir, so the server resolves the "project root"
-  // (src/strategy/…) to its parent — a shared temp path the fixture cleanup doesn't touch. Reset
-  // it around each test for isolation. (Real usage: sailDir = <project>/.sail, so root = <project>.)
-  const srcRoot = () => path.join(path.dirname(fix.sailDir), 'src')
   const onboard = () =>
     fix.api.post('/api/onboard/complete').send({ safe: SAFE, owner: OWNER, manager: MANAGER, chainId: 8453 })
   beforeEach(() => {
     fix = loadFixture('fresh')
-    fs.rmSync(srcRoot(), { recursive: true, force: true })
   })
   afterEach(() => {
-    fs.rmSync(srcRoot(), { recursive: true, force: true })
     fix.cleanup()
   })
 
@@ -28,7 +22,7 @@ describe('Strategies API', () => {
     await onboard()
     const create = await fix.api.post('/api/strategies').send({ name: 'Yield', sma: SAFE, executable: 'agent', chains: [8453], description: 'rotate' })
     expect(create.status).toBe(200)
-    expect(create.body.strategy).toMatchObject({ name: 'Yield', description: 'rotate', active: true, executable: 'agent' })
+    expect(create.body.strategy).toMatchObject({ name: 'Yield', description: 'rotate', active: false, executable: 'agent' })
     expect(create.body.strategy.chains).toEqual([8453])
 
     // sma + executable are required.

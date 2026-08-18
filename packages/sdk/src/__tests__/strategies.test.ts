@@ -63,6 +63,19 @@ test("createStrategyExecutable: scaffolds the shared executable template and rej
   assert.throws(() => createStrategyExecutable("bad_name", projectRoot), /Invalid executable name/i);
 });
 
+test("listStrategies: missing file is empty; a corrupt file throws and is not overwritten", () => {
+  const sailDir = tmpSailDir();
+  seedSma(sailDir, 8453, [8453]);
+  assert.deepEqual(listStrategies(sailDir), []);
+
+  const file = path.join(sailDir, "strategies", "strategies.json");
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, "{not json");
+  assert.throws(() => listStrategies(sailDir), /could not be parsed/i);
+  assert.throws(() => createStrategy("dcaBase", { sma: SAFE }, sailDir), /could not be parsed/i);
+  assert.equal(fs.readFileSync(file, "utf-8"), "{not json");
+});
+
 test("createStrategy: writes strategies.json to disk in the flat v2 shape", () => {
   const sailDir = tmpSailDir();
   seedSma(sailDir, 8453, [8453, 42161]);

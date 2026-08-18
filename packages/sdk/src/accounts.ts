@@ -117,11 +117,11 @@ function uniqAddrs(...sources: unknown[]): string[] {
 // ── Load / commit — flags live on `state/accounts.json`; account.json mirrors `selected`. ─────
 
 /**
- * Read the list with the `selected`/`executable` flags guaranteed. Pure — never writes.
+ * Read the list with the `selected` flag guaranteed. Pure — never writes.
  *
- * Migration is lazy: a list that predates the flags (no entry defines the key) has `selected`
- * derived from the legacy `account.json.safe` (else the first entry), and `executable` defaulted
- * to `selected`. A list where the key IS present but every value is false (a deliberate reset via
+ * Migration is lazy: a list that predates the flag (no entry defines the key) has `selected`
+ * derived from the legacy `account.json.safe` (else the first entry). A list where the key IS
+ * present but every value is false (a deliberate reset via
  * `clearActiveAccount`) is respected as-is — we do NOT re-derive a selection.
  */
 function load(sailDir: string): AccountRecord[] {
@@ -252,8 +252,8 @@ export function renameAccount(safe: string, name: string, sailDir: string = defa
 
 /**
  * Clear the UI-selected pointer so the onboarding wizard shows again. Unsets `selected` on every
- * entry (persisted, so `load` won't re-derive one) while KEEPING the `executable` target, then
- * removes the legacy `account.json` mirror. The SMA list itself is left intact.
+ * entry (persisted, so `load` won't re-derive one), then removes the legacy `account.json` mirror.
+ * The SMA list itself is left intact.
  */
 export function clearActiveAccount(sailDir: string = defaultSailDir()): void {
   const accounts = load(sailDir).map((a) => ({ ...a, selected: false }));
