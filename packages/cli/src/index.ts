@@ -20,16 +20,13 @@ import { capabilities } from "./commands/capabilities.js";
 import { type ChainsOptions, chainsCommand } from "./commands/chains.js";
 import { type CloneOptions, clone } from "./commands/clone.js";
 import { doctor } from "./commands/doctor.js";
+import { type HarborPublishOptions, harborPublish } from "./commands/harbor-publish.js";
 import {
   type HarborCreateOptions,
   type HarborListOptions,
   harborCreate,
   harborList,
 } from "./commands/harbor.js";
-import {
-  type HarborPublishOptions,
-  harborPublish,
-} from "./commands/harbor-publish.js";
 import { initCommand } from "./commands/init.js";
 import { type KeysGenerateOptions, keysExportCi, keysGenerate, keysShow } from "./commands/keys.js";
 import { type ConfigureOptions, mandateConfigure } from "./commands/mandate-configure.js";
@@ -53,17 +50,6 @@ import { type OnboardOptions, onboard } from "./commands/onboard.js";
 import { ownerConnect, ownerShow } from "./commands/owner.js";
 import { type RotateSignerOptions, rotateSigner } from "./commands/rotate-signer.js";
 import { runCommand } from "./commands/run.js";
-import {
-  parseChains,
-  strategyCreate,
-  strategyDelete,
-  strategyEnvSet,
-  strategyEnvShow,
-  strategyList,
-  strategyNewExecutable,
-  strategySetActive,
-  strategySetChains,
-} from "./commands/strategy.js";
 import { scan } from "./commands/scan.js";
 import {
   type ServiceInstallOptions,
@@ -79,6 +65,17 @@ import { sessionPause, sessionResume } from "./commands/session.js";
 import { type ShareOptions, share } from "./commands/share.js";
 import { signerStart, signerStatus, signerStop } from "./commands/signer.js";
 import { status } from "./commands/status.js";
+import {
+  parseChains,
+  strategyCreate,
+  strategyDelete,
+  strategyEnvSet,
+  strategyEnvShow,
+  strategyList,
+  strategyNewExecutable,
+  strategySetActive,
+  strategySetChains,
+} from "./commands/strategy.js";
 import { type TriggerGithubOptions, triggerGithub } from "./commands/trigger.js";
 import {
   type SandboxStopOptions,
@@ -148,7 +145,9 @@ function actionWith<T>(fn: (opts: T) => Promise<void> | void): (opts: T) => Prom
 }
 
 /** Like {@link action} but for handlers that take positional args (commander passes them through). */
-function actArgs<A extends unknown[]>(fn: (...args: A) => Promise<void> | void): (...args: A) => Promise<void> {
+function actArgs<A extends unknown[]>(
+  fn: (...args: A) => Promise<void> | void,
+): (...args: A) => Promise<void> {
   return async (...args: A) => {
     try {
       await fn(...args);
@@ -189,9 +188,7 @@ program
 
 program
   .command("update")
-  .description(
-    "Re-sync agent tooling files (skills, soul.md, Dockerfile) from the latest template",
-  )
+  .description("Re-sync agent tooling files (skills, soul.md, Dockerfile) from the latest template")
   .action(action(updateCommand));
 
 const ui = program.command("ui").description("Manage the local Sailor dashboard");
@@ -534,23 +531,34 @@ program
     "Label why this run fired (observability only; also read from SAIL_RUN_REASON)",
   )
   .option("--sma <address>", "Only run active-strategy steps that target this SMA")
-  .option("--chains <ids>", "Only run active-strategy steps on these chains (comma-separated ids or slugs)")
-  .action(async (opts: { once?: boolean; strategy?: string; reason?: string; sma?: string; chains?: string }) => {
-    try {
-      await runCommand({
-        once: opts.once,
-        strategy: opts.strategy,
-        reason: opts.reason,
-        sma: opts.sma,
-        chains: opts.chains ? parseChains(opts.chains) : undefined,
-      });
-    } catch (err) {
-      console.error(`Error: ${(err as Error).message}`);
+  .option(
+    "--chains <ids>",
+    "Only run active-strategy steps on these chains (comma-separated ids or slugs)",
+  )
+  .action(
+    async (opts: {
+      once?: boolean;
+      strategy?: string;
+      reason?: string;
+      sma?: string;
+      chains?: string;
+    }) => {
+      try {
+        await runCommand({
+          once: opts.once,
+          strategy: opts.strategy,
+          reason: opts.reason,
+          sma: opts.sma,
+          chains: opts.chains ? parseChains(opts.chains) : undefined,
+        });
+      } catch (err) {
+        console.error(`Error: ${(err as Error).message}`);
+        closePrompts();
+        process.exit(1);
+      }
       closePrompts();
-      process.exit(1);
-    }
-    closePrompts();
-  });
+    },
+  );
 
 const strategy = program
   .command("strategy")
@@ -564,8 +572,14 @@ strategy
   .command("create <name>")
   .description("Create a new (active) strategy: one SMA + one executable")
   .requiredOption("--sma <address>", "SMA the strategy runs against")
-  .option("--executable <name>", "Executable name: default agent → src/agent.ts; custom → src/strategy/<name>.ts")
-  .option("--chains <ids>", "Comma-separated chain ids/slugs to replay on; omit for executable-driven (cross-chain)")
+  .option(
+    "--executable <name>",
+    "Executable name: default agent → src/agent.ts; custom → src/strategy/<name>.ts",
+  )
+  .option(
+    "--chains <ids>",
+    "Comma-separated chain ids/slugs to replay on; omit for executable-driven (cross-chain)",
+  )
   .option("--description <text>", "Human description shown in the dashboard")
   .option("--inactive", "Create the strategy inactive (default: active)")
   .action(actArgs(strategyCreate));
@@ -583,15 +597,14 @@ strategy
   .option("--chains <ids>", "Comma-separated chain ids or slugs to replay on")
   .option("--clear", "Clear chains → executable-driven mode")
   .action(actArgs(strategySetChains));
-strategy
-  .command("delete <name>")
-  .description("Delete a strategy")
-  .action(actArgs(strategyDelete));
+strategy.command("delete <name>").description("Delete a strategy").action(actArgs(strategyDelete));
 strategy
   .command("new-executable <name>")
   .description("Scaffold a new executable at src/strategy/<name>.ts (camelCase name)")
   .action(actArgs(strategyNewExecutable));
-const strategyEnv = strategy.command("env").description("Manage per-chain env values (.sail/env/<slug>.json)");
+const strategyEnv = strategy
+  .command("env")
+  .description("Manage per-chain env values (.sail/env/<slug>.json)");
 strategyEnv
   .command("show <chain>")
   .description("Show env values for a chain (id or slug)")
@@ -798,9 +811,18 @@ harborCmd
 
 harborCmd
   .command("publish")
-  .description("Package this project as a blueprint and release it to the registry")
+  .description(
+    "Package this project as a blueprint and open a pull request to the registry (reviewed before release)",
+  )
   .option("--registry <owner/repo>", "Registry repo (default: sail-money/harbor)")
-  .option("--local", "Write the blueprint .tar.gz locally instead of releasing (no GitHub/token)")
+  .option(
+    "--local",
+    "Write the blueprint .tar.gz locally instead of opening a PR (no GitHub/token)",
+  )
+  .option(
+    "--release",
+    "Skip review: release directly instead of opening a pull request (maintainers only)",
+  )
   .option("--out <path>", "Output archive path for --local")
   .option("--json", "Emit machine-readable JSON")
   .action(actionWith<HarborPublishOptions>(harborPublish));

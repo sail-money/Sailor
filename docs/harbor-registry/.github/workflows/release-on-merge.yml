@@ -1,16 +1,18 @@
 name: release-on-merge
 
-# When a project folder under projects/ changes on main (i.e. a `sailor share`
-# PR merges), package that folder as a .tar.gz and publish/update a release
-# tagged <slug>-v<n>. The release asset is what `sailor clone` downloads,
-# and its download_count is the per-project metric.
+# When a contribution merges to main, turn it into a tagged release:
+#   - projects/<slug>/   source folders from `sailor share` (packaged on merge)
+#   - blueprints/<slug>/ pre-built blueprints from `sailor harbor publish` (artifact + manifest)
+# Each release is tagged <slug>-v<n>; the .tar.gz asset is what `sailor harbor create`
+# downloads, and its download_count is the per-agent metric.
 
 on:
   push:
     branches: [main]
     paths:
       - "projects/**"
-  workflow_dispatch: {} # allow manual re-runs (packages every project under projects/)
+      - "blueprints/**"
+  workflow_dispatch: {} # manual re-runs package/release everything
 
 permissions:
   contents: write
@@ -23,7 +25,7 @@ jobs:
         with:
           fetch-depth: 2 # need the previous commit to diff
 
-      - name: Determine changed project folders
+      - name: Determine changed slugs
         id: changed
         run: |
           set -euo pipefail
@@ -33,19 +35,19 @@ jobs:
             base="$(git rev-parse HEAD~1 || true)"
           fi
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            # Manual run: (re)package every project under projects/.
-            slugs=$(ls projects)
+            # Manual run: (re)package every project + blueprint.
+            slugs="$(ls projects 2>/dev/null || true) $(ls blueprints 2>/dev/null || true)"
           elif [ -n "$base" ]; then
-            slugs=$(git diff --name-only "$base" HEAD -- 'projects/*' \
-              | awk -F/ '{print $2}' | sort -u)
+            slugs="$(git diff --name-only "$base" HEAD -- 'projects/*' 'blueprints/*' \
+              | awk -F/ '{print $2}' | sort -u)"
           else
-            slugs=$(ls projects)
+            slugs="$(ls projects 2>/dev/null || true) $(ls blueprints 2>/dev/null || true)"
           fi
           echo "slugs<<EOF" >> "$GITHUB_OUTPUT"
           echo "$slugs" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
-      - name: Package and release each changed project
+      - name: Release projects/ (packaged on merge)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -54,7 +56,6 @@ jobs:
             [ -z "$slug" ] && continue
             [ -d "projects/$slug" ] || continue
 
-            # Next version: count existing releases tagged <slug>-v* and add 1.
             existing=$(gh release list --limit 200 \
               | awk '{print $1}' | { grep -cE "^${slug}-v[0-9]+$" || true; } | tr -d ' ')
             next=$((existing + 1))
@@ -65,6 +66,37 @@ jobs:
 
             gh release create "$tag" "$asset" \
               --title "$slug v$next" \
-              --notes "Automated release of projects/$slug (sailor share). Download with: sailor clone <source>"
+              --notes "Automated release of projects/$slug (sailor share). Download with: sailor harbor create $slug"
+            echo "Released $tag ($asset)"
+          done <<< "${{ steps.changed.outputs.slugs }}"
+
+      - name: Release blueprints/ (pre-built artifact)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r slug; do
+            [ -z "$slug" ] && continue
+            [ -d "blueprints/$slug" ] || continue
+            asset="blueprints/$slug/$slug.tar.gz"
+            [ -f "$asset" ] || { echo "missing artifact $asset; skipping"; continue; }
+
+            existing=$(gh release list --limit 200 \
+              | awk '{print $1}' | { grep -cE "^${slug}-v[0-9]+$" || true; } | tr -d ' ')
+            next=$((existing + 1))
+            tag="${slug}-v${next}"
+
+            title="$slug v$next"
+            notes="Automated release of blueprints/$slug. Download with: sailor harbor create $slug"
+            if [ -f "blueprints/$slug/manifest.json" ]; then
+              name=$(jq -r '.name // .slug // empty' "blueprints/$slug/manifest.json" 2>/dev/null || true)
+              summary=$(jq -r '.summary // .description // empty' "blueprints/$slug/manifest.json" 2>/dev/null || true)
+              [ -n "$name" ] && title="$name v$next"
+              if [ -n "$summary" ]; then
+                notes="$(printf '%s\nDownload with: sailor harbor create %s' "$summary" "$slug")"
+              fi
+            fi
+
+            gh release create "$tag" "$asset" --title "$title" --notes "$notes"
             echo "Released $tag ($asset)"
           done <<< "${{ steps.changed.outputs.slugs }}"

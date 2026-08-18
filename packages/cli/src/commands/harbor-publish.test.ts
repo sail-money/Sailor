@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import type { BlueprintManifest } from "@sail/sdk/blueprint";
+import type { SubmitContributionArgs } from "../lib/contribution.js";
 import type { ShareManifest } from "../lib/share.js";
 import { harborPublish } from "./harbor-publish.js";
 
@@ -50,11 +51,62 @@ async function inTempCwd(fn: () => Promise<void>): Promise<void> {
   }
 }
 
-test("publish computes the next release number and releases the asset", async () => {
+test("publish (default) opens a pull request committing the blueprint + manifest", async () => {
+  await inTempCwd(async () => {
+    let submitted: SubmitContributionArgs | undefined;
+    let populated: Record<string, string> = {};
+    await harborPublish(
+      {},
+      {
+        readShareManifest: () => shareManifest(),
+        packBlueprint: async () => ({
+          manifest: fakeManifest(),
+          files: new Map(),
+          redactions: [],
+          review: { addresses: [], binaries: [] },
+        }),
+        writeBlueprintArchive: () => makeArchivePath(),
+        listReleases: async () => [],
+        createRelease: async () => {
+          throw new Error("should not release directly in default mode");
+        },
+        submitContribution: async (args) => {
+          submitted = args;
+          // Run the populate callback against a scratch dir to verify what it writes.
+          const dir = fs.mkdtempSync(path.join(os.tmpdir(), "populate-"));
+          args.populate(dir);
+          populated = {
+            artifact: fs.readFileSync(path.join(dir, "blueprints", "dca", "dca.tar.gz"), "utf-8"),
+            manifest: fs.readFileSync(
+              path.join(dir, "blueprints", "dca", "manifest.json"),
+              "utf-8",
+            ),
+          };
+          return {
+            pr: { number: 7, htmlUrl: "https://github.com/sail-money/harbor/pull/7" },
+            direct: true,
+            pushTarget: "sail-money/harbor",
+          };
+        },
+      },
+    );
+
+    assert.ok(submitted);
+    assert.equal(submitted.repo, "sail-money/harbor");
+    assert.equal(submitted.base, "main");
+    assert.equal(submitted.branch, "publish/dca");
+    assert.equal(populated.artifact, "fake-archive-bytes");
+    const m = JSON.parse(populated.manifest);
+    assert.equal(m.slug, "dca");
+    assert.equal(m.name, "DCA");
+  });
+});
+
+test("publish --release computes the next release number and releases directly", async () => {
   await inTempCwd(async () => {
     let released: { tag: string; assetName: string; bytes: string } | undefined;
     await harborPublish(
-      {},
+      { release: true },
       {
         readShareManifest: () => shareManifest(),
         packBlueprint: async () => ({
@@ -79,6 +131,9 @@ test("publish computes the next release number and releases the asset", async ()
             tag: input.tag,
             htmlUrl: `https://github.com/sail-money/harbor/releases/tag/${input.tag}`,
           };
+        },
+        submitContribution: async () => {
+          throw new Error("should not open a PR in --release mode");
         },
       },
     );
@@ -105,6 +160,9 @@ test("publish --local writes the archive to disk", async () => {
         createRelease: async () => {
           throw new Error("should not release in --local mode");
         },
+        submitContribution: async () => {
+          throw new Error("should not open a PR in --local mode");
+        },
       },
     );
     assert.ok(fs.existsSync(path.join(process.cwd(), "dca-blueprint.tar.gz")));
@@ -124,6 +182,9 @@ test("publish errors when there is no slug", async () => {
           writeBlueprintArchive: () => makeArchivePath(),
           listReleases: async () => [],
           createRelease: async () => {
+            throw new Error("unused");
+          },
+          submitContribution: async () => {
             throw new Error("unused");
           },
         },
