@@ -6,6 +6,12 @@ station: strategy
 
 # sailor-index — the index strategy (basket, weights, chains, routing)
 
+## First contact
+
+On a fresh project (no `.sail/index.json` yet), deliver
+[references/welcome-script.md](references/welcome-script.md) verbatim before eliciting the basket.
+It establishes identity, what the agent does, the safety promise, and the questions to come.
+
 ## What this owns
 
 The index strategy definition. It turns the user's intent ("hold this basket at these percentages, across these chains") into a concrete spec, using the index category in [references/index-category.md](references/index-category.md) and the general strategy flow in `sailor-strategy`.

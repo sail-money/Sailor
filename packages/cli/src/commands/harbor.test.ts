@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import type { ListedRelease } from "../lib/github.js";
@@ -286,4 +288,29 @@ test("create refuses a release with no archive asset", async () => {
     ),
     /no \.tar\.gz or \.zip asset/,
   );
+});
+
+test("create scaffolds in-place when the current directory is empty", { concurrency: false }, async () => {
+  const previous = process.cwd();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-harbor-inplace-"));
+  process.chdir(dir);
+  let handedOff: { dir: string } | undefined;
+  try {
+    await harborCreate(
+      "index",
+      undefined,
+      {},
+      {
+        listReleases: async () => [release("index-v1", "index.tar.gz")],
+        downloadAsset: async () => Buffer.from("x"),
+        blueprintStart: async (_source, d) => {
+          handedOff = { dir: d };
+        },
+      },
+    );
+    assert.equal(handedOff?.dir, ".");
+  } finally {
+    process.chdir(previous);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

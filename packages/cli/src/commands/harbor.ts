@@ -8,7 +8,7 @@ import {
   isGithubNotFound,
   listReleases,
 } from "../lib/github.js";
-import { blueprintStart } from "./blueprint-start.js";
+import { blueprintStart, IN_PLACE_IGNORED } from "./blueprint-start.js";
 
 /**
  * `sailor harbor list | create` — the one-word entry point for Harbor, the library of
@@ -258,7 +258,16 @@ export async function harborCreate(
     console.log(`  downloaded ${asset.name}`);
     console.log();
 
-    await start(archivePath, dir ?? slug, {
+    // No dir given: scaffold in-place when the current directory is effectively empty
+    // (so a user pasting `harbor create <slug>` into an empty coding-agent folder ends
+    // up inside the project); otherwise create a folder named after the slug.
+    let target = dir;
+    if (!target) {
+      const empty =
+        fs.readdirSync(process.cwd()).filter((e) => !IN_PLACE_IGNORED.has(e)).length === 0;
+      target = empty ? "." : slug;
+    }
+    await start(archivePath, target, {
       chain: options.chain,
       yes: options.yes,
       agent: options.agent,

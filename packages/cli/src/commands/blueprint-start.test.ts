@@ -123,3 +123,46 @@ test("a declined import retains the scaffold and never installs", { concurrency:
     assert.equal(fs.existsSync(path.join("declined", ".sail")), true);
   });
 });
+
+test("start scaffolds in-place when dir is \".\"", { concurrency: false }, async () => {
+  const previous = process.cwd();
+  const outer = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-bs-inplace-"));
+  const artifact = path.join(outer, "portable-blueprint.tar.gz");
+  fs.writeFileSync(artifact, "fixture");
+  const project = path.join(outer, "empty-project");
+  fs.mkdirSync(project);
+  process.chdir(project);
+  try {
+    const events: string[] = [];
+    await blueprintStart(artifact, ".", { yes: true }, dependencies(events));
+    assert.deepEqual(events.slice(0, 4), [
+      "scaffold:empty-project",
+      "import:empty-project",
+      "npm:install",
+      "npm:run typecheck --if-present",
+    ]);
+  } finally {
+    process.chdir(previous);
+    fs.rmSync(outer, { recursive: true, force: true });
+  }
+});
+
+test("start refuses in-place when the directory is not empty", { concurrency: false }, async () => {
+  const previous = process.cwd();
+  const outer = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-bs-inplace-full-"));
+  const artifact = path.join(outer, "portable-blueprint.tar.gz");
+  fs.writeFileSync(artifact, "fixture");
+  const project = path.join(outer, "full-project");
+  fs.mkdirSync(project);
+  fs.writeFileSync(path.join(project, "existing.txt"), "x");
+  process.chdir(project);
+  try {
+    await assert.rejects(
+      blueprintStart(artifact, ".", { yes: true }, dependencies([])),
+      /not empty/,
+    );
+  } finally {
+    process.chdir(previous);
+    fs.rmSync(outer, { recursive: true, force: true });
+  }
+});

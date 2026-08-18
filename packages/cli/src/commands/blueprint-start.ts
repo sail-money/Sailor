@@ -4,6 +4,19 @@ import path from "node:path";
 import { blueprintImport } from "./blueprint.js";
 import { scaffoldProjectWorkspace } from "../lib/project-scaffold.js";
 
+/**
+ * Files a coding agent, git, or the OS may drop into an otherwise-empty project
+ * folder. An in-place scaffold treats a directory containing only these as empty.
+ */
+export const IN_PLACE_IGNORED = new Set([
+  ".DS_Store",
+  ".git",
+  ".claude",
+  ".cursor",
+  ".vscode",
+  ".idea",
+]);
+
 export interface BlueprintStartOptions {
   chain?: string;
   yes?: boolean;
@@ -73,16 +86,24 @@ export async function blueprintStart(
   const artifact = path.resolve(source);
   if (!fs.existsSync(artifact)) throw new Error(`No such artifact: ${source}`);
 
-  if (!dir || dir === ".") {
-    throw new Error("blueprint start requires a new project directory, not the current directory");
-  }
-  const projectRoot = path.resolve(process.cwd(), dir);
+  const inPlace = !dir || dir === ".";
   const cwd = path.resolve(process.cwd());
-  if (projectRoot === cwd || !projectRoot.startsWith(cwd + path.sep)) {
-    throw new Error("Project directory must be inside the current working directory");
-  }
-  if (fs.existsSync(projectRoot)) {
-    throw new Error(`Refusing to overwrite existing project: ${projectRoot}`);
+  const projectRoot = inPlace ? cwd : path.resolve(cwd, dir);
+  if (inPlace) {
+    // In-place: refuse if the directory holds anything the scaffold would collide with.
+    const occupied = fs.readdirSync(projectRoot).filter((e) => !IN_PLACE_IGNORED.has(e));
+    if (occupied.length > 0) {
+      throw new Error(
+        "The current directory is not empty. Run from an empty directory, or pass a new project directory name.",
+      );
+    }
+  } else {
+    if (projectRoot === cwd || !projectRoot.startsWith(cwd + path.sep)) {
+      throw new Error("Project directory must be inside the current working directory");
+    }
+    if (fs.existsSync(projectRoot)) {
+      throw new Error(`Refusing to overwrite existing project: ${projectRoot}`);
+    }
   }
 
   const scaffold = dependencies.scaffold ?? scaffoldProjectWorkspace;
