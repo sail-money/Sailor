@@ -30,6 +30,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   when no `RPC_URL` or per-chain RPC is configured, so a first run works without RPC setup.
   Explicitly configured endpoints still win, and the SSRF guard (`assertSafeRpcUrl`) applies to the
   default and configured URLs alike.
+- **Harbor**, a library of ready-to-run money agents. `sailor harbor list` searches the registry,
+  `sailor harbor create <slug>` downloads a blueprint, verifies and imports it, installs
+  dependencies, typechecks, and begins guided onboarding, and `sailor harbor publish` packages a
+  project into a blueprint and releases it to the registry (opens a review PR by default;
+  `--release` releases directly; `--local` writes a `.tar.gz`). Blueprints are published as GitHub
+  releases in the `sail-money/harbor` registry.
+- The flagship **index agent** blueprint (`blueprints/index-agent/`): deposits USDC into a weighted
+  token basket across named chains, invests every deposit, rebalances toward target weights, and
+  bridges USDC across chains via CCTP. Ships with a local read-only dashboard and a Telegram report.
+- **`sailor-risk` skill** — technical risk assessment (pool depth, manipulation, approval hygiene,
+  oracle trust, venue, MEV) surfaced before the user approves a strategy or mandate.
 
 ### Changed
 
@@ -45,6 +56,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   non-existent `run --chain`), `.env.example`, the `agent-tick.yml` workflow, the `docker-vm.md`
   reference, and the legacy `src/config.ts` helper. `CHAIN_ID` survives only as a default for
   helper scripts, not the runner.
+- **Skills reorganized to a 17-skill registry** (14 core + 3 custom), recorded in
+  `scaffold/.agents/skill-registry.json`. The seven per-template spokes (`sailor-template-swap`,
+  `-swap-no-oracle`, `-transfer`, `-withdraw`, `-deposit`, `-borrow`, `-approve-batch`) are no
+  longer skills; their procedures moved into `sailor-templates/references/`. Core skills are
+  protected and update via `sailor update`; custom skills update through the Harbor registry.
 
 ## [2.2.0] - 2026-08-11
 

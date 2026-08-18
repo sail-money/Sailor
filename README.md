@@ -1,28 +1,43 @@
 # Sailor
 
-> The open-source harness for building and operating DeFi agents on [Sail Protocol](https://github.com/sail-money/protocol).
+> The open-source harness for building and operating money agents on [Sail Protocol](https://github.com/sail-money/protocol).
 
 <p align="center">
-  <img src=".github/assets/banner.jpg" alt="Sailor — the harness for DeFi agents on Sail Protocol" width="880">
+  <img src=".github/assets/banner.jpg" alt="Sailor, the harness for money agents on Sail Protocol" width="880">
 </p>
 
 [![npm version](https://img.shields.io/npm/v/%40sail.money%2Fsailor)](https://www.npmjs.com/package/@sail.money/sailor)
 [![Discord](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Fv10%2Finvites%2F9GsxPsHzRv%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&suffix=%20members&label=discord&logo=discord&logoColor=white)](https://discord.com/invite/9GsxPsHzRv)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-**Sailor** turns any AI coding agent into a builder and operator of DeFi agents. Say **start** in an empty folder and it takes you to a running agent: DeFi strategy, onchain mandate, local automation. 
+**Sailor** turns any AI coding agent into a builder and operator of money agents. Say **start** in an empty folder and it takes you to a running agent: strategy, onchain mandate, local automation.
 
-Funds never leave your own **separately managed account (SMA)**. The agent never holds your private key and acts only through a **mandate** — deterministic onchain permissions checked on every transaction. This makes **Sailor Agents safe to run with real capital**. 
+**Harbor** is the library of ready-to-run money agents built on Sailor. Instead of starting from a blank scaffold, you can start from an agent that already works: run `sailor harbor create index` and you get a live agent that deposits USDC into a weighted token basket and keeps it rebalanced across the chains you name.
+
+Funds never leave your own **separately managed account (SMA)**. The agent never holds your private key and acts only through a **mandate**, deterministic onchain permissions checked on every transaction. This makes **Sailor Agents safe to run with real capital**.
+
+## Start from a ready-to-run agent (Harbor)
+
+Harbor is a library of ready-to-run money agents. Each one ships with its own strategy, permissions, dashboard, and onboarding, so you get a working agent from one command instead of building it from scratch.
+
+```bash
+npx @sail.money/sailor harbor list                 # see what agents are available
+npx @sail.money/sailor harbor create index         # create the index agent and begin onboarding
+```
+
+The flagship is the **index agent**: you deposit USDC, and it holds a weighted basket of tokens across the chains you choose, invests every deposit, and rebalances toward your target weights. Onboarding asks for your tokens and weights, how you fund (every deposit or on a schedule), the rebalance cadence, and whether you want Telegram reports. It ships with a local read-only dashboard.
+
+Blueprints are published to the `sail-money/harbor` registry. `harbor publish` packages a project into a blueprint and releases it there.
 
 ## What you can build
 
-Autonomous DeFi agents for any use case:
+Autonomous money agents for any use case:
 
 - **Trading**: spot, DCA, rebalancing
 - **Yield**: lending, borrowing, liquidity providing, staking, looping
 - **Payments**: transfers, scheduled moves, operational flows
 
-These are examples, not a boundary. Permissions are arbitrary Solidity, so anything in DeFi can be expressed as a permission and operated by an agent.
+These are examples, not a boundary. Permissions are arbitrary Solidity, so anything onchain can be expressed as a permission and operated by an agent.
 
 The full trust model, what the contracts enforce versus what stays off-chain, is in the [Sail Protocol repo](https://github.com/sail-money/protocol) and the [whitepaper](https://github.com/sail-money/protocol/blob/main/docs/whitepaper/Sail_Protocol_Whitepaper.pdf).
 
@@ -31,22 +46,25 @@ The full trust model, what the contracts enforce versus what stays off-chain, is
 Open the scaffold in Claude Code, Cursor, Codex, or any AI coding agent and say **start**. The agent walks the journey with you, five stations end to end:
 
 1. **Arrive** — set up your self-custodial SMA
-2. **Strategy** — define what your agent does in DeFi
+2. **Strategy** — define what your agent does
 3. **Mandate** — the onchain bounds it runs inside
 4. **Agent** — build the tick loop
-5. **Sail** — launch, operate, **run locally** 
+5. **Sail** — launch, operate, **run locally**
+
+A ready-to-run Harbor agent starts further along: the strategy, mandate, and agent code are already written, so onboarding only collects the parameters (tokens, weights, cadence) before the agent runs.
 
 ## Components
 
 | Component | What it does |
 |---|---|
 | **SDK** (`@sail.money/sailor/sdk`) | `SailorClient`, encrypted keyring, EIP-712 signing, dispatch submission, deployment + chain registries, template encoders |
-| **CLI** (`sailor`) | Everything from `sailor init` to `sailor run`: keys, SMA deployment, mandate lifecycle, agent loop, doctor, session control |
+| **CLI** (`sailor`) | Everything from `sailor init` to `sailor run`: keys, SMA deployment, mandate lifecycle, agent loop, doctor, session control, and the `harbor` library commands |
+| **Harbor** | A library of ready-to-run money agents, published as portable blueprints and created with `sailor harbor create <slug>` |
 | **Dashboard** (`sailor ui`) | Local web UI for onboarding, balances, mandate health, activity, and owner signing |
 | **Shipyard** (`sailor sandbox`) | A simulation sandbox: forks the chains locally so an agent can go through setup → deploy → mandate → run with real liquidity and fake money. Real market state, frozen at the moment the fork starts, against the real deployed contracts: the place to prove a mandate permits what you think it permits, not to backtest a strategy. Fully isolated from live state. Needs Foundry. See [docs/shipyard.md](./docs/shipyard.md) |
-| **Skills** | Set of skills under `.agents/skills/`, organized by the five stations: onboarding and diagnostics, strategy definition, mandate construction (one skill per shared permission template, plus the full custom-permission lifecycle), agent construction with a verified code skeleton and its own chain-reconciled memory, and unattended operation through exit. The skills are the harness: any coding agent reads them natively and follows the same verified path in every project. |
+| **Skills** | Set of skills under `.agents/skills/`, organized by the five stations. See "How the agent is guided" below. |
 
-**About the scaffold.** `sailor init` scaffolds your project from `scaffold/`, and the agent arrives already equipped. The skills are organized by the five stations: setting up (onboarding, project state, the local servers), defining the strategy, constructing the mandate (one skill per shared permission template, plus the full custom-permission lifecycle), building the agent (a typecheck-verified tick-loop skeleton in `sailor-agent-build`), and operating it unattended through exit (automation, monitoring/tuning/revoke/withdraw, optional notifications and dashboards). The scaffold also ships `contracts/`, a Foundry workspace for authoring your own `IPermission` — there is no separate examples directory: authoring patterns live in the `sailor-mandates` skill, and the canonical agent loop is the verified skeleton in `sailor-agent-build`. Shipped, self-contained context in every scaffold, not repo furniture.
+**About the scaffold.** `sailor init` scaffolds your project from `scaffold/`, and the agent arrives already equipped. The skills are organized by the five stations: setting up (onboarding, project state, the local servers), defining the strategy, constructing the mandate (shared templates plus the full custom-permission lifecycle), building the agent (a typecheck-verified tick-loop skeleton in `sailor-agent-build`), and operating it unattended through exit (automation, monitoring, tuning, revoke, withdraw, optional notifications and dashboards). The scaffold also ships `contracts/`, a Foundry workspace for authoring your own `IPermission`. There is no separate examples directory: authoring patterns live in the `sailor-mandates` skill, and the canonical agent loop is the verified skeleton in `sailor-agent-build`. Shipped, self-contained context in every scaffold, not repo furniture.
 
 ## Installation
 
@@ -64,23 +82,25 @@ npx @sail.money/sailor init my-agent ; cd my-agent ; npm install
 
 Requires Node.js **>= 18**. For a global CLI instead: `npm install -g @sail.money/sailor`.
 
+### Start from a ready-to-run agent
+
+```bash
+npx @sail.money/sailor harbor create index
+```
+
+Creates the index agent and begins guided onboarding in one command: downloads the blueprint, verifies and imports it, installs dependencies, typechecks the runtime, then opens the coding agent to collect the mandate parameters.
+
 ### Start from a blueprint
 
-A portable blueprint can create and begin onboarding a complete strategy-specific project in one
-command:
+A portable blueprint can create and begin onboarding a complete strategy-specific project in one command:
 
 ```bash
 npx @sail.money/sailor blueprint start ./dca-blueprint.tar.gz my-dca
 ```
 
-Sailor creates the project, verifies and imports the artifact, installs dependencies, typechecks
-the delivered runtime, then opens the selected coding agent (Codex by default) in the finished
-project. The imported agent surface gathers the blueprint's mandate parameters before starting the
-appropriate Sandbox or live setup UI. Use `--agent <executable>` to launch another coding-agent
-CLI, or `--no-agent` to stop after preparation and open the project yourself.
+Sailor creates the project, verifies and imports the artifact, installs dependencies, typechecks the delivered runtime, then opens the selected coding agent (Codex by default) in the finished project. The imported agent surface gathers the blueprint's mandate parameters before starting the appropriate Sandbox or live setup UI. Use `--agent <executable>` to launch another coding-agent CLI, or `--no-agent` to stop after preparation and open the project yourself.
 
-This verifies artifact integrity, not publisher identity. Read the import plan before approving it;
-artifact signing and registry trust are separate concerns.
+This verifies artifact integrity, not publisher identity. Read the import plan before approving it; artifact signing and registry trust are separate concerns.
 
 ### Docker (no Node.js required)
 
@@ -134,7 +154,14 @@ Longer walkthrough, including revocation: [docs/getting-started.md](./docs/getti
 
 ## How the agent is guided (skills)
 
-The scaffold follows the open [Agent Skills](https://agentskills.io) standard: the `sailor-navigator` skill, loaded first, carries the project map and hard safety invariants, while detailed procedures live in the other on-demand skills under `.agents/skills/` — onboarding, transactions, mandate authoring, shared-template configuration (one skill per template), automation, and more. Shared templates are registered and configured *through* the skills because the safe order of operations (register → configure → simulate → verify) is encoded there once, instead of re-derived by every agent. Skills are plain markdown; agents that don't scan skills read `sailor-navigator` and follow its links to the same files. `AGENTS.md` now holds the user's own project instructions. See [docs/templates-and-skills.md](./docs/templates-and-skills.md).
+The scaffold follows the open [Agent Skills](https://agentskills.io) standard. Skills are plain markdown files under `.agents/skills/`, each with a name, a one-line description, and a station tag. The agent reads the descriptions every turn and loads a skill on demand.
+
+Skills are organized by the five stations, and split into two groups recorded in `.agents/skill-registry.json`:
+
+- **Core skills (14)** — the harness, identical across every agent: onboarding and diagnostics, strategy definition, mandate construction, agent building, and unattended operation. These ship with every scaffold and are protected across `sailor update`.
+- **Custom skills (3)** — what makes *this* agent: `sailor-strategy`, `sailor-agent-build`, and `sailor-swap-quote`. A ready-to-run Harbor agent adds its own strategy-specific skills and updates them through the Harbor registry.
+
+The **`sailor-navigator`** skill is loaded first and carries the project map and the hard safety invariants; the detailed procedures live in the other on-demand skills. Shared templates are registered and configured *through* the skills because the safe order of operations (register → configure → simulate → verify) is encoded there once, instead of re-derived by every agent. Agents that don't scan skills read `sailor-navigator` and follow its links to the same files. `AGENTS.md` holds the user's own project instructions. See [docs/templates-and-skills.md](./docs/templates-and-skills.md) and [docs/skill-authoring.md](./docs/skill-authoring.md).
 
 ## Documentation
 
@@ -145,8 +172,10 @@ The scaffold follows the open [Agent Skills](https://agentskills.io) standard: t
 | [docs/sdk-usage.md](./docs/sdk-usage.md) | `SailorClient` basics and every SDK subpath export, with examples |
 | [docs/docker.md](./docs/docker.md) | Image, volumes, key handling, dashboard access, headless operation |
 | [docs/templates-and-skills.md](./docs/templates-and-skills.md) | The shared-template catalog and how skills drive configuration and use |
+| [docs/skill-authoring.md](./docs/skill-authoring.md) | How to write a skill: frontmatter, descriptions, references, the core/custom split |
 | [docs/architecture.md](./docs/architecture.md) | The Sailor ↔ Sail Protocol boundary: what's onchain vs what the harness does |
 | [docs/shipyard.md](./docs/shipyard.md) | Shipyard, the simulation sandbox: local forks of the real chains, with fake money |
+| [docs/harbor-registry/README.md](./docs/harbor-registry/README.md) | The Harbor registry: how blueprints are published, released, and consumed |
 
 ## Security model
 

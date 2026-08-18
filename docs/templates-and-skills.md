@@ -28,19 +28,26 @@ config encoders (`@sail.money/sdk/templates`), and the version-adaptive EIP-712 
 
 ## Skills: the five stations
 
-Each scaffolded project carries 23 on-demand skills under `.agents/skills/`, organized around the
+Each scaffolded project carries 17 on-demand skills under `.agents/skills/`, organized around the
 five-station journey the `sailor-navigator` skill lays out (each station names its owning skill, entry gate, and
-exit check):
+exit check). The split between core and custom is recorded in `.agents/skill-registry.json`:
+
+- **Core skills (14)** — the harness, identical across every agent. They ship in the npm package,
+  are protected from blueprint pruning, and update via `sailor update`.
+- **Custom skills (3)** — what makes *this* agent: `sailor-strategy` (the guided spec conversation),
+  `sailor-agent-build` (the tick-loop skeleton), and `sailor-swap-quote` (live quotes). A
+  ready-to-run Harbor agent swaps these for its own strategy-specific skills, updated through the
+  Harbor registry.
 
 1. **ARRIVE** — `sailor-onboarding`: project, keys, account, chain.
 2. **STRATEGY** — `sailor-strategy`: the guided conversation that writes the concrete spec — one per strategy, to `.sail/strategies/<name>.md`.
-3. **MANDATE** — `sailor-mandate-planner` routes each action of the spec to a shared template or bespoke authoring. Hub-and-spoke: `sailor-templates` is the catalog + register→configure reuse flow; one spoke per template (`sailor-template-swap`, `-swap-no-oracle`, `-transfer`, `-withdraw`, `-deposit`, `-borrow`, `-approve-batch`); `sailor-mandates` is the bespoke-`IPermission` lifecycle.
+3. **MANDATE** — `sailor-mandate-planner` routes each action of the spec to a shared template or bespoke authoring. `sailor-templates` is the catalog plus the register→configure reuse flow; each template's parameter schema and safe order of operations live in `sailor-templates/references/` (`swap.md`, `swap-no-oracle.md`, `transfer.md`, `withdraw.md`, `deposit.md`, `borrow.md`, `approve-batch.md`). `sailor-mandates` is the bespoke-`IPermission` lifecycle.
 4. **AGENT** — `sailor-agent-build`: the tick loop (dispatch mechanics in `sailor-transactions`; the agent's own append-only, chain-reconciled memory in `sailor-memory`).
 5. **SAIL** — `sailor-automation` (run unattended), `sailor-operate` (monitor, tune, pause, revoke, exit), `sailor-extend` (optional notifications/dashboards).
 
-Plus anytime utilities, not tied to a station: `sailor-project-info` (read-only state), `sailor-servers` (local dashboard + signing server), `sailor-token-resolve` (token → address/decimals/liquidity), `sailor-swap-quote` (live quote + slippage floor).
+Plus anytime utilities, not tied to a station: `sailor-project-info` (read-only state), `sailor-servers` (local dashboard + signing server), `sailor-token-resolve` (token → address/decimals/liquidity), and `sailor-risk` (technical risk assessment before the user approves anything).
 
-A template spoke encodes the safe order of operations — register → configure → simulate → verify —
+A template reference encodes the safe order of operations — register → configure → simulate → verify —
 with the exact parameter schemas and per-template footguns, so every agent follows the same vetted
 procedure instead of re-deriving it. This is why template configuration is *driven through the
 skills*: the CLI provides the primitives (`sailor mandate register` / `configure` / `simulate`), and

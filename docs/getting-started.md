@@ -2,6 +2,8 @@
 
 End-to-end path from nothing to a running, bounded agent — and how to get your money back out. Every command here is copy-pasteable. The agent-driven flow (open the scaffold in your AI coding agent and say **"start"**) walks the same journey conversationally, guided by the `sailor-navigator` skill; this page is the manual version.
 
+> **Prefer a ready-to-run agent?** `npx @sail.money/sailor harbor create index` gives you a working index agent (USDC into a weighted basket, rebalanced across your chains) with onboarding questions instead of the manual journey below.
+
 The journey is five stations, in order: **ARRIVE → STRATEGY → MANDATE → AGENT → SAIL**. The `sailor-navigator` skill is the map (each station names its owning skill, entry gate, and exit check); this page follows the same order with commands.
 
 ## Station 1 — ARRIVE: set up the project, keys, account, and chain
@@ -66,7 +68,7 @@ sailor mandate configure --address <singleton> --sma <yourSMA> \
   --template SwapPermission --args-file swap-config.json
 ```
 
-A registered-but-unconfigured singleton denies every call — always do both. To change bounds later, re-run `configure --force` (same address, no re-register); `mandate update` changes only tracked metadata (name/paths), not bounds. The [`sailor-templates`](../scaffold/.agents/skills/sailor-templates/SKILL.md) hub and the per-template spokes carry the exact parameter schema and safe order of operations. For a policy no template expresses, author an `IPermission` in `contracts/` and `sailor mandate deploy --contract <Name> --register --sma <yourSMA>` — see [`sailor-mandates`](../scaffold/.agents/skills/sailor-mandates/SKILL.md).
+A registered-but-unconfigured singleton denies every call — always do both. To change bounds later, re-run `configure --force` (same address, no re-register); `mandate update` changes only tracked metadata (name/paths), not bounds. The [`sailor-templates`](../scaffold/.agents/skills/sailor-templates/SKILL.md) hub and its per-template references carry the exact parameter schema and safe order of operations. For a policy no template expresses, author an `IPermission` in `contracts/` and `sailor mandate deploy --contract <Name> --register --sma <yourSMA>` — see [`sailor-mandates`](../scaffold/.agents/skills/sailor-mandates/SKILL.md).
 
 **Prove the bounds before authorizing** — off-chain `eth_call`, no gas, no signatures:
 
