@@ -2,7 +2,7 @@
 
 End-to-end path from nothing to a running, bounded agent — and how to get your money back out. Every command here is copy-pasteable. The agent-driven flow (open the scaffold in your AI coding agent and say **"start"**) walks the same journey conversationally, guided by the `sailor-navigator` skill; this page is the manual version.
 
-> **Prefer a ready-to-run agent?** `npx @sail.money/sailor harbor create index` gives you a working index agent (USDC into a weighted basket, rebalanced across your chains) with onboarding questions instead of the manual journey below.
+> **Prefer a ready-to-run agent?** `npx @sail.money/sailor harbor create <slug>` starts one from the catalog with onboarding questions instead of the manual journey below. See the [Harbor registry](https://github.com/sail-money/harbor).
 
 The journey is five stations, in order: **ARRIVE → STRATEGY → MANDATE → AGENT → SAIL**. The `sailor-navigator` skill is the map (each station names its owning skill, entry gate, and exit check); this page follows the same order with commands.
 
