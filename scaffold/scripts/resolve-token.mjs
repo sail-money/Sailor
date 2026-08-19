@@ -13,10 +13,10 @@
 //   node scripts/resolve-token.mjs USDC UNI MORPHO            # portfolio (rich JSON)
 //   node scripts/resolve-token.mjs UNI --all-chains --json    # scan every Sail mainnet
 //
-// Liquidity venues (chain + protocol + pool + depth) come from GeckoTerminal
-// (CoinGecko's keyless DEX index — Uniswap V3/V4, Sushiswap, PancakeSwap, Aerodrome…).
-// Swap-readiness is CONFIRMED on-chain only for Uniswap V3 (USDC→token via QuoterV2),
-// Sail's executable fast-path route; other venues are surfaced as informational.
+// Liquidity venues (chain + protocol + pool + depth) come from DexScreener (primary,
+// keyless, ~300 req/min) with GeckoTerminal as a deep-coverage fallback (keyless,
+// ~10–30 req/min). Swap-readiness is CONFIRMED on-chain only for Uniswap V3 (USDC→token
+// via QuoterV2), Sail's executable fast-path route; other venues are surfaced as informational.
 //
 // Output: JSON on stdout (machine-readable); human notes on stderr.
 
@@ -25,10 +25,14 @@ import { resolve as resolvePath } from "node:path";
 
 // ── Curated registry (verified live June 2026). Always re-verify decimals on-chain. ──
 // Per-chain Uniswap V3 infrastructure + the common tokens. Addresses are PER-CHAIN.
-// `gecko` is the GeckoTerminal network id used for the cross-DEX liquidity lookup.
+// `dex` is the DexScreener chain id (primary liquidity source, keyless, 300 req/min).
+// `gecko` is the GeckoTerminal network id (deep-coverage fallback when DexScreener
+// has nothing). `quoterV2`/`usdc`/`tokens` enable on-chain swap-readiness confirmation;
+// a chain with none of them resolves via DexScreener/GeckoTerminal only (unverified).
 const CHAINS = {
   ethereum: {
     chainId: 1,
+    dex: "ethereum",
     gecko: "eth",
     quoterV2: "0x61fFE014bA17989E743c5F6cB21bF9697530B21e",
     usdc: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
@@ -40,8 +44,46 @@ const CHAINS = {
       WBTC: { address: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599", decimals: 8 },
     },
   },
+  base: {
+    chainId: 8453,
+    dex: "base",
+    gecko: "base",
+    quoterV2: "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a",
+    usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    tokens: {
+      USDC: { address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6 },
+      WETH: { address: "0x4200000000000000000000000000000000000006", decimals: 18 },
+    },
+  },
+  arbitrum: {
+    chainId: 42161,
+    dex: "arbitrum",
+    gecko: "arbitrum",
+    quoterV2: "0x61fFE014bA17989E743c5F6cB21bF9697530B21e",
+    usdc: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    tokens: {
+      USDC: { address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", decimals: 6 },
+      USDC_E: { address: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8", decimals: 6 },
+      WETH: { address: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1", decimals: 18 },
+      ARB: { address: "0x912CE59144191C1204E64559FE8253a0e49E6548", decimals: 18 },
+      LINK: { address: "0xf97f4df75117a78c1A5a0DBb814Af92458539FB4", decimals: 18 },
+    },
+  },
+  optimism: {
+    chainId: 10,
+    dex: "optimism",
+    gecko: "optimism",
+    quoterV2: "0x61fFE014bA17989E743c5F6cB21bF9697530B21e",
+    usdc: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+    tokens: {
+      USDC: { address: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85", decimals: 6 },
+      WETH: { address: "0x4200000000000000000000000000000000000006", decimals: 18 },
+      OP: { address: "0x4200000000000000000000000000000000000042", decimals: 18 },
+    },
+  },
   unichain: {
     chainId: 130,
+    dex: "unichain",
     gecko: "unichain",
     quoterV2: "0x385a5cf5f83e99f7bb2852b6a19c3538b9fa7658",
     usdc: "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
@@ -53,28 +95,48 @@ const CHAINS = {
       MORPHO: { address: "0x6695a2692dCD2A53E7766492447B5254A56425aD", decimals: 18 },
     },
   },
-  base: {
-    chainId: 8453,
-    gecko: "base",
-    quoterV2: "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a",
-    usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  bsc: {
+    chainId: 56,
+    dex: "bsc",
+    gecko: "bsc",
+    quoterV2: "0x61fFE014bA17989E743c5F6cB21bF9697530B21e",
+    usdc: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
     tokens: {
-      USDC: { address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6 },
-      WETH: { address: "0x4200000000000000000000000000000000000006", decimals: 18 },
+      USDC: { address: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", decimals: 18 },
+      WBNB: { address: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c", decimals: 18 },
     },
   },
-  arbitrum: {
-    chainId: 42161,
-    gecko: "arbitrum",
-    quoterV2: "0x61fFE014bA17989E743c5F6cB21bF9697530B21e",
-    usdc: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-    tokens: {
-      USDC: { address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", decimals: 6 },
-      USDC_E: { address: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8", decimals: 6 },
-      WETH: { address: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1", decimals: 18 },
-      ARB: { address: "0x912CE59144191C1204E64559FE8253a0e49E6548", decimals: 18 },
-      LINK: { address: "0xf97f4df75117a78c1A5a0DBb814Af92458539FB4", decimals: 18 },
-    },
+  worldchain: {
+    chainId: 480,
+    dex: "worldchain",
+    gecko: null,
+    quoterV2: null,
+    usdc: null,
+    tokens: {},
+  },
+  hyperevm: {
+    chainId: 999,
+    dex: "hyperevm",
+    gecko: null,
+    quoterV2: null,
+    usdc: null,
+    tokens: {},
+  },
+  megaeth: {
+    chainId: 4326,
+    dex: "megaeth",
+    gecko: null,
+    quoterV2: null,
+    usdc: null,
+    tokens: {},
+  },
+  robinhood: {
+    chainId: 4663,
+    dex: "robinhood",
+    gecko: null,
+    quoterV2: null,
+    usdc: null,
+    tokens: {},
   },
 };
 
@@ -233,15 +295,65 @@ function configuredChains() {
   return out;
 }
 
-// ── GeckoTerminal (CoinGecko's keyless DEX API) — throttled + cached + retried ───
-// Free tier is rate-limited (~10–30 calls/min before 429). We serialize calls with
-// a minimum spacing, cache per-URL within a run, and back off on 429/timeout. One
-// token-pools call returns ALL venues for a token, so a portfolio stays cheap.
+// ── DexScreener (primary) + GeckoTerminal (fallback) liquidity sources ───────────
+// DexScreener: keyless, ~300 req/min, flat response, covers all 12 Sail mainnets.
+// GeckoTerminal: keyless, ~10–30 req/min, deeper token/DEX coverage for the long tail.
+// Both are throttled + cached + retried; spacing widens adaptively on a 429.
+const DEX_API = "https://api.dexscreener.com";
+const DEX_SPACING_MS = Number(process.env.DEX_MIN_SPACING_MS || 350);
+const DEX_SPACING_MAX_MS = Number(process.env.DEX_MAX_SPACING_MS || 5000);
 const GECKO_API = "https://api.geckoterminal.com/api/v2";
 const GECKO_SPACING_MS = Number(process.env.GECKO_MIN_SPACING_MS || 2500);
 const GECKO_SPACING_MAX_MS = Number(process.env.GECKO_MAX_SPACING_MS || 15000);
 const ADDR_RE = /^0x[a-fA-F0-9]{40}$/;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const dexCache = new Map();
+let dexLock = Promise.resolve();
+let lastDexTs = 0;
+let dexSpacingMs = DEX_SPACING_MS;
+
+async function dexGet(url) {
+  if (dexCache.has(url)) return dexCache.get(url);
+  const task = dexLock.then(async () => {
+    if (dexCache.has(url)) return dexCache.get(url); // filled while we queued
+    const since = Date.now() - lastDexTs;
+    if (since < dexSpacingMs) await sleep(dexSpacingMs - since);
+    let lastErr;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await fetch(url, {
+          headers: { accept: "application/json", "user-agent": "sailor-resolve-token" },
+          signal: AbortSignal.timeout(20_000),
+        });
+        if (res.status === 429) {
+          lastErr = new Error("DexScreener 429 (rate-limited)");
+          dexSpacingMs = Math.min(dexSpacingMs * 2, DEX_SPACING_MAX_MS);
+          await sleep(dexSpacingMs);
+          continue;
+        }
+        if (!res.ok) throw new Error(`DexScreener HTTP ${res.status} for ${url}`);
+        const json = await res.json();
+        dexCache.set(url, json);
+        dexSpacingMs = Math.max(dexSpacingMs * 0.9, DEX_SPACING_MS);
+        return json;
+      } catch (e) {
+        lastErr = e;
+        await sleep(1200);
+      }
+    }
+    throw lastErr || new Error("DexScreener request failed");
+  });
+  dexLock = task.then(
+    () => {
+      lastDexTs = Date.now();
+    },
+    () => {
+      lastDexTs = Date.now();
+    },
+  );
+  return task;
+}
 
 const geckoCache = new Map();
 let geckoLock = Promise.resolve();
@@ -301,20 +413,30 @@ async function geckoGet(url) {
   return task;
 }
 
-// dexId (e.g. "uniswap-v3-base", "aerodrome-base", "uniswap-v4-unichain") → a
-// canonical protocol family and whether Sail's fast-path SwapPermission can route
-// it. Sail confirms swaps on-chain via Uniswap V3 QuoterV2 everywhere, plus the
-// Uniswap V4 Universal Router on Unichain. Everything else is surfaced as an
-// informational venue (the user can still build a custom mandate for it).
-function classifyDex(dexId, chainName) {
+// dexId → a canonical protocol family + whether Sail's fast-path SwapPermission can
+// route it. Handles both source formats: GeckoTerminal's "uniswap-v3-base" and
+// DexScreener's bare "uniswap" with the version in `labels` (["v3"]). Sail confirms
+// swaps on-chain via Uniswap V3 QuoterV2 everywhere, plus the V4 Universal Router on
+// Unichain. Everything else is informational (custom mandate required).
+function classifyDex(dexId, labels, chainName) {
   const id = (dexId || "").toLowerCase();
+  const tags = new Set((labels || []).map((l) => String(l).toLowerCase()));
   let protocol = "other";
-  if (id.startsWith("uniswap-v3") || id.startsWith("uniswap_v3")) protocol = "uniswap-v3";
-  else if (id.startsWith("uniswap-v4") || id.startsWith("uniswap_v4")) protocol = "uniswap-v4";
-  else if (id.startsWith("uniswap-v2") || id === "uniswap") protocol = "uniswap-v2";
-  else if (id.includes("sushiswap")) protocol = "sushiswap";
-  else if (id.includes("pancakeswap")) protocol = "pancakeswap";
-  else if (id.includes("aerodrome")) protocol = "aerodrome";
+  if (id.startsWith("uniswap-v3") || id.startsWith("uniswap_v3") || tags.has("v3")) {
+    protocol = "uniswap-v3";
+  } else if (id.startsWith("uniswap-v4") || id.startsWith("uniswap_v4") || tags.has("v4")) {
+    protocol = "uniswap-v4";
+  } else if (id.startsWith("uniswap-v2") || id.startsWith("uniswap_v2") || id === "uniswap" || tags.has("v2")) {
+    protocol = "uniswap-v2";
+  } else if (id.includes("sushiswap")) {
+    protocol = "sushiswap";
+  } else if (id.includes("pancakeswap")) {
+    protocol = "pancakeswap";
+  } else if (id.includes("aerodrome")) {
+    protocol = "aerodrome";
+  } else if (id.includes("velodrome")) {
+    protocol = "velodrome";
+  }
   let sailRoutable = false;
   if (protocol === "uniswap-v3") sailRoutable = true;
   else if (protocol === "uniswap-v4" && chainName === "unichain") sailRoutable = true;
@@ -335,8 +457,61 @@ function addrFromGeckoId(id) {
 }
 
 // All swap venues for a token on a chain, ranked by USD liquidity, with their DEX
-// protocol. One GeckoTerminal call covers every DEX it indexes.
-async function fetchVenues(geckoNet, tokenAddrLower, chainName, ourSymbolUp) {
+// protocol. DexScreener first (keyless, 300 req/min); GeckoTerminal as deep-coverage
+// fallback when DexScreener has nothing.
+async function fetchVenues(chain, tokenAddrLower, ourSymbolUp) {
+  const venues = await fetchVenuesDex(chain, tokenAddrLower, ourSymbolUp);
+  if (venues.length > 0) return venues;
+  return fetchVenuesGecko(chain, tokenAddrLower, ourSymbolUp);
+}
+
+async function fetchVenuesDex(chain, tokenAddrLower, ourSymbolUp) {
+  const chainId = chain.dex;
+  if (!chainId) return [];
+  let json;
+  try {
+    json = await dexGet(`${DEX_API}/token-pairs/v1/${chainId}/${tokenAddrLower}`);
+  } catch {
+    return []; // DexScreener failed → fall through to GeckoTerminal
+  }
+  const pairs = Array.isArray(json) ? json : [];
+  const venues = [];
+  for (const p of pairs) {
+    const base = p.baseToken || {};
+    const quote = p.quoteToken || {};
+    const baseAddr = (base.address || "").toLowerCase();
+    const quoteAddr = (quote.address || "").toLowerCase();
+    let pairedToken = null;
+    let pairedSymbol = null;
+    if (baseAddr === tokenAddrLower) {
+      pairedToken = quoteAddr || null;
+      pairedSymbol = (quote.symbol || "").toUpperCase() || null;
+    } else if (quoteAddr === tokenAddrLower) {
+      pairedToken = baseAddr || null;
+      pairedSymbol = (base.symbol || "").toUpperCase() || null;
+    } else {
+      continue; // our token isn't actually base/quote of this pool
+    }
+    const { protocol, sailRoutable } = classifyDex(p.dexId, p.labels, chain.name);
+    venues.push({
+      protocol,
+      dexId: p.dexId || "",
+      pool: p.pairAddress || null,
+      feeTier: null, // DexScreener does not expose the pool fee; the on-chain probe fills it
+      pairedSymbol,
+      pairedToken,
+      liquidityUsd: Math.round(Number((p.liquidity && p.liquidity.usd) || 0)),
+      volume24hUsd: Math.round(Number((p.volume && p.volume.h24) || 0)),
+      sailRoutable,
+      quoteVerified: false,
+    });
+  }
+  venues.sort((a, b) => b.liquidityUsd - a.liquidityUsd);
+  return venues;
+}
+
+async function fetchVenuesGecko(chain, tokenAddrLower, ourSymbolUp) {
+  const geckoNet = chain.gecko;
   if (!geckoNet) return [];
   const url = `${GECKO_API}/networks/${geckoNet}/tokens/${tokenAddrLower}/pools?page=1`;
   const json = await geckoGet(url);
@@ -346,7 +521,7 @@ async function fetchVenues(geckoNet, tokenAddrLower, chainName, ourSymbolUp) {
     const at = p.attributes || {};
     const rel = p.relationships || {};
     const dexId = (((rel.dex || {}).data) || {}).id || "";
-    const { protocol, sailRoutable } = classifyDex(dexId, chainName);
+    const { protocol, sailRoutable } = classifyDex(dexId, undefined, chain.name);
     const name = at.name || "";
     const baseAddr = addrFromGeckoId((((rel.base_token || {}).data) || {}).id || "");
     const quoteAddr = addrFromGeckoId((((rel.quote_token || {}).data) || {}).id || "");
@@ -385,6 +560,7 @@ async function fetchVenues(geckoNet, tokenAddrLower, chainName, ourSymbolUp) {
 // symbol + decimals for a token on a chain we have no RPC for (--all-chains scan of
 // an unconfigured Sail mainnet). Clearly NOT the on-chain source of truth.
 async function fetchTokenMeta(geckoNet, tokenAddrLower) {
+  if (!geckoNet) return { symbol: null, decimals: null };
   const url = `${GECKO_API}/networks/${geckoNet}/tokens/${tokenAddrLower}`;
   const json = await geckoGet(url);
   const at = ((json.data || {}).attributes) || {};
@@ -419,6 +595,48 @@ async function resolveSymbolViaGeckoTerminal(symbolUp, geckoNet) {
   return [...byAddr.entries()].sort((a, b) => b[1] - a[1]).map((e) => e[0]);
 }
 
+// symbol → address via DexScreener search (primary fallback when not in the curated
+// registry). Ranks candidate addresses by pool liquidity; the on-chain symbol() check
+// in resolveOnChain is the final authority.
+async function resolveSymbolViaDexScreener(symbolUp, chain) {
+  const chainId = chain.dex;
+  if (!chainId) return [];
+  let json;
+  try {
+    json = await dexGet(`${DEX_API}/latest/dex/search?q=${encodeURIComponent(symbolUp)}`);
+  } catch {
+    return [];
+  }
+  const pairs = Array.isArray(json.pairs) ? json.pairs : [];
+  const byAddr = new Map(); // address -> max liquidity
+  for (const p of pairs) {
+    if ((p.chainId || "").toLowerCase() !== chainId) continue; // this chain only
+    const base = p.baseToken || {};
+    const quote = p.quoteToken || {};
+    const liq = Number((p.liquidity && p.liquidity.usd) || 0);
+    if ((base.symbol || "").toUpperCase() === symbolUp && ADDR_RE.test(base.address || "")) {
+      const a = base.address.toLowerCase();
+      const prev = byAddr.get(a);
+      if (prev === undefined || liq > prev) byAddr.set(a, liq);
+    }
+    if ((quote.symbol || "").toUpperCase() === symbolUp && ADDR_RE.test(quote.address || "")) {
+      const a = quote.address.toLowerCase();
+      const prev = byAddr.get(a);
+      if (prev === undefined || liq > prev) byAddr.set(a, liq);
+    }
+  }
+  return [...byAddr.entries()].sort((a, b) => b[1] - a[1]).map((e) => e[0]);
+}
+
+// symbol → candidate addresses: DexScreener first, GeckoTerminal as deep fallback.
+// Returns { addresses, via } so the caller can record which source found the token.
+async function resolveSymbol(symbolUp, chain) {
+  const dex = await resolveSymbolViaDexScreener(symbolUp, chain);
+  if (dex.length > 0) return { addresses: dex, via: "dexscreener" };
+  const gecko = await resolveSymbolViaGeckoTerminal(symbolUp, chain.gecko || null);
+  return { addresses: gecko, via: "geckoterminal" };
+}
+
 // ── on-chain verify: symbol() + decimals() — always the source of truth ────────
 async function verifyTokenOnChain(rpc, address) {
   const symHex = await ethCall(rpc, address, SEL.symbol);
@@ -432,7 +650,7 @@ async function verifyTokenOnChain(rpc, address) {
 function isUsdcPair(venue, chain) {
   if (!venue) return false;
   if (venue.pairedSymbol === "USDC" || venue.pairedSymbol === "USDC.E") return true;
-  return !!(venue.pairedToken && venue.pairedToken.toLowerCase() === chain.usdc.toLowerCase());
+  return !!(chain.usdc && venue.pairedToken && venue.pairedToken.toLowerCase() === chain.usdc.toLowerCase());
 }
 
 // The single venue that best represents swap-readiness FROM USDC (Sail's DCA sell
@@ -457,10 +675,10 @@ function pickBestVenue(venues, chain) {
 // ── per-chain resolution (shared by single-, multi-chain and portfolio modes) ──
 // Resolves symbolOrAddr on ONE chain. With an RPC it is the authority: on-chain
 // symbol()/decimals() + a live Uniswap V3 USDC→token QuoterV2 probe. Without an RPC
-// (an --all-chains scan of an unconfigured chain) it falls back to GeckoTerminal
-// metadata and treats a deep Sail-routable venue as swap-ready (unverified).
+// (an --all-chains scan of an unconfigured chain) it falls back to the DEX index
+// (DexScreener, then GeckoTerminal) and treats a deep Sail-routable venue as
+// swap-ready (unverified).
 async function resolveOnChain(symbolOrAddr, chain, rpc) {
-  const geckoNet = chain.gecko || null;
   const onchain = !!rpc;
   const isAddrInput = ADDR_RE.test(symbolOrAddr);
   const wantSym = isAddrInput ? null : symbolOrAddr.toUpperCase();
@@ -475,11 +693,11 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
       address = entry.address;
       source = "registry";
     } else {
-      // Fallback: resolve symbol → address via GeckoTerminal (keyless DEX API).
-      const candidates = await resolveSymbolViaGeckoTerminal(wantSym, geckoNet);
+      // Fallback: resolve symbol → address via DexScreener (then GeckoTerminal).
+      const { addresses: candidates, via } = await resolveSymbol(wantSym, chain);
       if (candidates.length === 0) {
         throw new Error(
-          `"${symbolOrAddr}" is not in the curated ${chain.name} registry and GeckoTerminal found no pool for it on ${chain.name}. ` +
+          `"${symbolOrAddr}" is not in the curated ${chain.name} registry and no DEX source found a pool for it on ${chain.name}. ` +
             `Pass its 0x address directly: node scripts/resolve-token.mjs 0x... --chain ${chain.name}`,
         );
       }
@@ -502,7 +720,7 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
         }
         if (!resolved) {
           throw new Error(
-            `GeckoTerminal returned ${candidates.length} candidate address(es) for "${symbolOrAddr}" on ${chain.name}, but none verified on-chain with symbol() == "${wantSym}" ` +
+            `The DEX search returned ${candidates.length} candidate address(es) for "${symbolOrAddr}" on ${chain.name}, but none verified on-chain with symbol() == "${wantSym}" ` +
               `(tried: ${tried.map((t) => `${t.address}→${t.symbol || "no-contract"}`).join(", ")}). ` +
               `Pass the token's 0x address directly: node scripts/resolve-token.mjs 0x... --chain ${chain.name}`,
           );
@@ -510,18 +728,18 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
         address = resolved.address;
         verifiedSymbol = resolved.symbol;
         decimals = resolved.decimals;
-        source = "geckoterminal";
+        source = via;
         decimalsSource = "onchain";
       } else {
         // No RPC: candidates are ranked by pool depth, but depth alone can't tell two
         // different contracts sharing a ticker apart (a collision). Cross-check each
-        // candidate's own GeckoTerminal token metadata — independent of the pool-name
-        // parsing used to build the candidate list — and prefer the first whose symbol
-        // actually matches, rather than blindly trusting the deepest pool.
+        // candidate's own token metadata — independent of the pool-name parsing used to
+        // build the candidate list — and prefer the first whose symbol actually matches,
+        // rather than blindly trusting the deepest pool.
         let verified = null;
         for (const cand of candidates) {
           try {
-            const m = await fetchTokenMeta(geckoNet, cand.toLowerCase());
+            const m = await fetchTokenMeta(chain.gecko || null, cand.toLowerCase());
             if (m.symbol && m.symbol.toUpperCase() === wantSym) {
               verified = cand;
               break;
@@ -531,13 +749,13 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
           }
         }
         address = verified || candidates[0];
-        source = verified ? "geckoterminal-unverified" : "geckoterminal-unverified-collision";
+        source = verified ? `${via}-unverified` : `${via}-unverified-collision`;
       }
     }
   }
 
   // Metadata: on-chain symbol()+decimals() is the source of truth when we have an RPC.
-  if (onchain && source !== "geckoterminal") {
+  if (onchain && source !== "dexscreener" && source !== "geckoterminal") {
     try {
       const v = await verifyTokenOnChain(rpc, address);
       if (v.symbol) verifiedSymbol = v.symbol;
@@ -549,31 +767,32 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
       );
     }
   } else if (!onchain && decimals === undefined) {
-    // gecko-only path: best-effort metadata from GeckoTerminal.
+    // no-RPC path: best-effort metadata from the DEX index (may be null on chains
+    // without GeckoTerminal coverage).
     try {
-      const m = await fetchTokenMeta(geckoNet, address.toLowerCase());
+      const m = await fetchTokenMeta(chain.gecko || null, address.toLowerCase());
       if (m.symbol) verifiedSymbol = m.symbol;
       decimals = m.decimals;
     } catch {
       decimals = null;
     }
-    decimalsSource = "geckoterminal-unverified";
+    decimalsSource = "unverified";
   }
   if (verifiedSymbol === undefined) verifiedSymbol = wantSym || null;
   if (decimals === undefined) decimals = null;
 
-  // Liquidity venue map across every DEX GeckoTerminal indexes.
+  // Liquidity venue map across every DEX DexScreener (then GeckoTerminal) indexes.
   let venues = [];
   let venuesError = null;
-  if (geckoNet) {
+  if (chain.dex || chain.gecko) {
     try {
-      venues = await fetchVenues(geckoNet, address.toLowerCase(), chain.name, (verifiedSymbol || wantSym || "").toUpperCase());
+      venues = await fetchVenues(chain, address.toLowerCase(), (verifiedSymbol || wantSym || "").toUpperCase());
     } catch (e) {
       venuesError = errMsg(e);
     }
   }
 
-  const isUsdc = address.toLowerCase() === chain.usdc.toLowerCase();
+  const isUsdc = !!chain.usdc && address.toLowerCase() === chain.usdc.toLowerCase();
 
   // Swap-readiness. On-chain: a live Uniswap V3 USDC→token QuoterV2 quote across fee
   // tiers (Sail's executable route). Off-chain (--all-chains scan): a deep Sail-routable
@@ -585,7 +804,7 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
 
   if (isUsdc) {
     swapReady = true; // USDC is the quote asset itself
-  } else if (onchain) {
+  } else if (onchain && chain.quoterV2 && chain.usdc) {
     const tokenIn = chain.usdc;
     for (const fee of FEE_TIERS) {
       const data = encodeQuoteCall(tokenIn, address, PROBE_AMOUNT_USDC, fee);
@@ -621,7 +840,8 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
       };
     }
   } else {
-    // gecko-only: a Sail-routable USDC-paired venue ⇒ swap-ready (unverified).
+    // no on-chain probe (no RPC, or no QuoterV2/USDC for this chain): a Sail-routable
+    // USDC-paired venue ⇒ swap-ready (unverified).
     const r = venues.find((v) => v.sailRoutable && isUsdcPair(v, chain));
     swapReady = !!r;
     if (r) best = { fee: r.feeTier, amountOut: null };
@@ -637,8 +857,8 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
     symbol: verifiedSymbol,
     address,
     decimals,
-    source, // registry | geckoterminal | geckoterminal-unverified | geckoterminal-unverified-collision | address-input
-    decimalsSource, // onchain | geckoterminal-unverified
+    source, // registry | dexscreener | geckoterminal | <provider>-unverified | <provider>-unverified-collision | address-input
+    decimalsSource, // onchain | unverified
     chain: chain.name,
     chainId: chain.chainId,
     onchainVerified: onchain,
@@ -666,9 +886,9 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
 
 function perChainRecommendation({ symbol, chain, swapReady, best, bestVenue, onchain, isUsdc, decimalsSource, source }) {
   const unverified =
-    source === "geckoterminal-unverified-collision"
-      ? ` NOTE: multiple "${symbol}" contracts were found on ${chain.name} and none of their GeckoTerminal metadata matched the symbol — this address is the deepest pool, NOT a verified match. Confirm the address before signing.`
-      : decimalsSource === "geckoterminal-unverified"
+    typeof source === "string" && source.endsWith("-unverified-collision")
+      ? ` NOTE: multiple "${symbol}" contracts were found on ${chain.name} and none matched the symbol on-chain — this address is the deepest pool, NOT a verified match. Confirm the address before signing.`
+      : decimalsSource === "unverified"
         ? ` NOTE: address/decimals are NOT on-chain verified on ${chain.name} — confirm before signing.`
         : "";
   if (isUsdc) {
@@ -767,9 +987,15 @@ async function mapPool(items, limit, fn) {
 const CHAIN_RESOLVE_CONCURRENCY = 3;
 
 // Resolve one token across a set of chains → the rich per-token wrapper.
-async function resolveToken(symbolOrAddr, chainSet, configuredNames) {
+// `deadline` (epoch ms, optional) bounds the whole token: chains that would start past
+// it are skipped with a "timed out" error entry so one stubborn token can't overshoot
+// the portfolio deadline by a full token's worth of work.
+async function resolveToken(symbolOrAddr, chainSet, configuredNames, deadline = Infinity) {
   const chains = {};
   const entries = await mapPool(chainSet, CHAIN_RESOLVE_CONCURRENCY, async (c) => {
+    if (Date.now() > deadline) {
+      return { name: c.name, value: { chain: c.name, chainId: c.chainId, error: "timed out" } };
+    }
     try {
       return { name: c.name, value: await resolveOnChain(symbolOrAddr, c, c.rpc || null) };
     } catch (e) {
@@ -822,6 +1048,85 @@ function buildSummary(tokens, configuredNames, allScanned) {
     configuredChains: configuredNames,
     allChainsScanned: allScanned,
     recommendation: parts.join(" ") || "No tokens resolved.",
+  };
+}
+
+// ── compact + basket optimization ──────────────────────────────────────────────
+// Reduce one resolved token to the minimal fields an agent actually needs to decide
+// where to build the portfolio. Drops the per-chain venue arrays, quotes, and
+// provenance — the biggest token cost when an LLM reads this script's output.
+function compactToken(t) {
+  const swapReady = Object.values(t.chains)
+    .filter((o) => o && !o.error && o.swapReady)
+    .map((o) => o.chain);
+  return {
+    query: t.query,
+    chainsWithLiquidity: t.chainsWithLiquidity,
+    swapReadyChains: swapReady,
+    deepestChain: t.crossChain.deepestChain || null,
+    action: t.crossChain.action,
+    note: t.crossChain.note,
+  };
+}
+
+// Basket-level optimizer: given a resolved portfolio, choose the MINIMUM set of Sail
+// chains that covers every token's liquidity, so the user funds/bridges as few chains
+// as possible. Ties between equal-size covers are broken by quality — chains that are
+// swap-ready (direct USDC pool) or the deepest chain for the most tokens win.
+//
+// Set cover is NP-hard in general, but Sail has ≤12 chains, so an exhaustive search
+// over 2^n subsets (≤4096) is instant and always finds a true minimum.
+function optimizeChainSet(tokens) {
+  const coverable = tokens.filter((t) => t.chainsWithLiquidity.length > 0);
+  if (coverable.length === 0) {
+    return { covered: false, note: "No token has liquidity on any scanned Sail chain." };
+  }
+  const chainNames = [...new Set(tokens.flatMap((t) => t.chainsWithLiquidity))].sort();
+  if (chainNames.length === 0) {
+    return { covered: false, note: "No token has liquidity on any scanned Sail chain." };
+  }
+
+  const swapReadyCount = {};
+  const deepestCount = {};
+  for (const t of tokens) {
+    for (const [name, o] of Object.entries(t.chains)) {
+      if (o && !o.error && o.swapReady) swapReadyCount[name] = (swapReadyCount[name] || 0) + 1;
+    }
+    if (t.crossChain.deepestChain) deepestCount[t.crossChain.deepestChain] = (deepestCount[t.crossChain.deepestChain] || 0) + 1;
+  }
+
+  const n = chainNames.length;
+  let best = null;
+  for (let mask = 1; mask < 1 << n; mask++) {
+    const chosen = new Set();
+    for (let i = 0; i < n; i++) if (mask & (1 << i)) chosen.add(chainNames[i]);
+    if (!coverable.every((t) => t.chainsWithLiquidity.some((c) => chosen.has(c)))) continue;
+    const size = chosen.size;
+    if (best && size > best.size) continue;
+    let score = 0;
+    for (const c of chosen) score += (swapReadyCount[c] || 0) * 1000 + (deepestCount[c] || 0) * 1;
+    if (!best || size < best.size || score > best.score) best = { size, score, set: chosen };
+  }
+
+  const chosenChains = [...best.set].sort();
+  // Assign each token to its best chain inside the chosen set: swap-ready first, then
+  // the deepest chain, then first available.
+  const assignments = {};
+  for (const t of coverable) {
+    const inSet = t.chainsWithLiquidity.filter((c) => best.set.has(c));
+    const ready = inSet.filter((c) => t.chains[c] && !t.chains[c].error && t.chains[c].swapReady);
+    assignments[t.query] = (ready.length ? ready : inSet)[0];
+  }
+
+  const uncovered = tokens.filter((t) => t.chainsWithLiquidity.length === 0).map((t) => t.query);
+
+  return {
+    covered: true,
+    chosenChains,
+    chainCount: chosenChains.length,
+    assignments,
+    uncovered,
+    rationale: `Minimum chain set: ${chosenChains.join(", ")} — funds/bridges ${chosenChains.length} chain(s) to cover ${coverable.length}/${tokens.length} token(s).`,
   };
 }
 
@@ -882,7 +1187,9 @@ async function main() {
         "\n" +
         "  one symbol               → configured chain(s); bare object / array (back-compat)\n" +
         "  many symbols, or --json  → rich portfolio JSON (per-token, per-chain venue map)\n" +
-        "  --all-chains             → also scan every Sail mainnet via GeckoTerminal\n",
+        "  --all-chains             → also scan every Sail mainnet via DexScreener\n" +
+        "  --compact                → minimal JSON (query → chains + action only; for agent reads)\n" +
+        "  --optimize               → append basket chain-set plan (minimum bridges/hops)\n",
     );
     process.exit(args.length === 0 ? 1 : 0);
   }
@@ -892,12 +1199,16 @@ async function main() {
   let rpcFlag = null;
   let allChains = false;
   let jsonMode = false;
+  let compactMode = false;
+  let optimizeMode = false;
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === "--chain") chainFlag = args[++i];
     else if (a === "--rpc") rpcFlag = args[++i];
     else if (a === "--all-chains") allChains = true;
     else if (a === "--json") jsonMode = true;
+    else if (a === "--compact") compactMode = true;
+    else if (a === "--optimize") optimizeMode = true;
     else if (!a.startsWith("--")) tokens.push(a);
   }
   if (tokens.length === 0) throw new Error("Pass at least one token symbol or address.");
@@ -907,7 +1218,7 @@ async function main() {
 
   // ── legacy single-token path (back-compat with sailor-swap-quote / sailor-template-swap)
   // One token, no --json/--all-chains → today's bare object or array.
-  const richMode = tokens.length >= 2 || jsonMode || allChains;
+  const richMode = tokens.length >= 2 || jsonMode || allChains || compactMode || optimizeMode;
   if (!richMode) {
     const symbolOrAddr = tokens[0];
     if (chainFlag) {
@@ -977,10 +1288,10 @@ async function main() {
     const env = readSailEnv();
     const have = new Set(chainSet.map((c) => c.name));
     for (const [name, cfg] of Object.entries(CHAINS)) {
-      if (cfg.gecko && !have.has(name)) {
+      if (cfg.dex && !have.has(name)) {
         // Only a chain-SPECIFIC RPC (named or chainId-keyed) — never the generic
         // RPC_URL, which would point this chain at the wrong network. No specific
-        // var ⇒ GeckoTerminal-only (rpc null).
+        // var ⇒ DEX-index-only (rpc null).
         const rpc = env[`${name.toUpperCase().replace("-", "_")}_RPC_URL`] ?? env[`RPC_URL_${cfg.chainId}`] ?? null;
         chainSet.push({ name, ...cfg, rpc });
       }
@@ -988,14 +1299,14 @@ async function main() {
   }
   if (chainSet.length === 0) {
     throw new Error(
-      "No chain configured. Set RPC vars in .sail/.env.local, pass --chain <name>, or use --all-chains to scan every Sail mainnet via GeckoTerminal.",
+      "No chain configured. Set RPC vars in .sail/.env.local, pass --chain <name>, or use --all-chains to scan every Sail mainnet via the DEX index.",
     );
   }
 
   const scannedNames = chainSet.map((c) => c.name);
   process.stderr.write(
     `Mapping ${tokens.length} token(s) across ${scannedNames.length} chain(s): ${scannedNames.join(", ")}` +
-      ` — GeckoTerminal calls are throttled (~${Math.round(60000 / GECKO_SPACING_MS)}/min at the minimum spacing).\n`,
+      ` — DexScreener primary (throttled, adaptive spacing), GeckoTerminal fallback.\n`,
   );
 
   // Resolve tokens one at a time (each token already maps its chains with bounded
@@ -1012,7 +1323,7 @@ async function main() {
       unresolved.push(...tokens.slice(resolved.length));
       break;
     }
-    const r = await resolveToken(t, chainSet, configuredNames);
+    const r = await resolveToken(t, chainSet, configuredNames, deadline);
     resolved.push(r);
     process.stderr.write(
       `  resolved ${t}: ${r.chainsWithLiquidity.length ? r.chainsWithLiquidity.join(", ") : "no routable liquidity"} [${r.crossChain.action}]\n`,
@@ -1031,7 +1342,11 @@ async function main() {
         `Timed out resolving "${tokens[0]}". Re-run with a targeted --chain or raise RESOLVE_TIMEOUT_MS.`,
       );
     }
-    process.stdout.write(JSON.stringify(resolved[0], null, 2) + "\n");
+    if (compactMode) {
+      process.stdout.write(JSON.stringify(compactToken(resolved[0]), null, 2) + "\n");
+    } else {
+      process.stdout.write(JSON.stringify(resolved[0], null, 2) + "\n");
+    }
     process.stderr.write(emitTokenHuman(resolved[0]) + "\n");
     return;
   }
@@ -1041,8 +1356,23 @@ async function main() {
     summary.timedOut = true;
     summary.unresolved = unresolved;
   }
-  process.stdout.write(JSON.stringify({ tokens: resolved, summary }, null, 2) + "\n");
-  process.stderr.write(resolved.map(emitTokenHuman).join("\n") + `\n\nSummary: ${summary.recommendation}\n`);
+  if (optimizeMode) {
+    summary.basket = optimizeChainSet(resolved);
+  }
+  const outTokens = compactMode ? resolved.map(compactToken) : resolved;
+  process.stdout.write(JSON.stringify({ tokens: outTokens, summary }, null, 2) + "\n");
+  if (!compactMode) {
+    process.stderr.write(resolved.map(emitTokenHuman).join("\n") + `\n\nSummary: ${summary.recommendation}\n`);
+    if (summary.basket) {
+      process.stderr.write(
+        `\nBasket plan: ${summary.basket.rationale}\n` +
+          Object.entries(summary.basket.assignments)
+            .map(([q, c]) => `  ${q} → ${c}`)
+            .join("\n") +
+          (summary.basket.uncovered.length ? `\n  (not on Sail: ${summary.basket.uncovered.join(", ")})\n` : "\n"),
+      );
+    }
+  }
 }
 
 function rpcHint(chain) {

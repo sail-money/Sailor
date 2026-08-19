@@ -31,12 +31,17 @@ node scripts/resolve-token.mjs LINK --chain unichain   # force one chain
 node scripts/resolve-token.mjs 0x4200…0006 --chain base # address input
 node scripts/resolve-token.mjs USDC UNI HYPE MORPHO    # PORTFOLIO → rich JSON
 node scripts/resolve-token.mjs UNI --all-chains --json # scan every Sail mainnet
+node scripts/resolve-token.mjs USDC UNI MORPHO --all-chains --compact          # minimal, for agent reads
+node scripts/resolve-token.mjs USDC UNI MORPHO --all-chains --optimize         # + minimum chain-set plan
 ```
 
-Flags: `--chain <ethereum|unichain|base|arbitrum>` forces one chain; `--rpc <url>` overrides
-the endpoint; `--all-chains` maps every Sail mainnet (even ones without an RPC configured —
-those use GeckoTerminal-only data) so you can recommend "put your SMA on chain Y"; `--json`
-forces the rich per-token map for a single token.
+Flags: `--chain <ethereum|unichain|base|arbitrum|…>` forces one chain; `--rpc <url>` overrides the
+endpoint; `--all-chains` maps every Sail mainnet (even ones without an RPC configured — those use
+DexScreener-only data) so you can recommend "put your SMA on chain Y"; `--json` forces the rich
+per-token map for a single token; `--compact` shrinks the output to what an agent needs (query →
+chains + action only, no venue arrays); `--optimize` appends a basket-level minimum chain-set plan
+(`summary.basket`). `--compact` + `--optimize` together is the token-cheapest read for an agent
+building a portfolio.
 
 **RPC — ask here, the first time it's genuinely needed, once.** This script reads **only**
 `.sail/.env.local` — no shell-var fallback, no public-RPC fallback (unlike `sailor doctor`,
@@ -50,13 +55,16 @@ write it to `.sail/.env.local` (`RPC_URL=…` for a single chain, or the chain-n
 multi-chain projects), then re-run. Written once, never asked again — every later RPC-dependent
 script (`sailor-swap-quote`'s `quote-swap.mjs`, `doctor`, the runner) reads the same file.
 
-> **Coverage caveat — curated tables cover 4 of the 12 supported chains.** The script ships
-> curated token tables + a Uniswap QuoterV2 address for **ethereum, unichain, base, arbitrum**
-> only (the four `--chain` values above). On the other supported chains (optimism, bsc, world
-> chain, hyperevm, megaeth, and the testnets) the script still runs, but the on-chain swap-ready
-> probe needs a QuoterV2 it doesn't have, so results there lean on **GeckoTerminal-only** liquidity
-> data — informational, not a swap-readiness guarantee. On those chains, verify the pool/tier
-> on-chain before binding a mandate.
+> **Coverage — all 10 Sail mainnets, two tiers of confidence.** The script ships curated
+> token tables + a Uniswap QuoterV2 address for the chains where Sail's fast path actually
+> routes (ethereum, base, arbitrum, optimism, unichain, bsc). On those, `swapReady` is
+> **on-chain confirmed** via a live USDC→token QuoterV2 quote. On the newer chains (world chain,
+> hyperevm, megaeth, robinhood) — and anywhere an RPC isn't configured — the script falls back to
+> **DexScreener** liquidity data (keyless, covers all 10 mainnets): that tells you *where liquidity
+> lives* but is informational, not a swap-readiness guarantee. The two Sail testnets (base sepolia,
+> eth sepolia) are not scanned — they have no real DEX liquidity. So: trust `swapReady` on the six
+> fast-path chains; treat DexScreener-only chains as "liquidity here, confirm the pool on-chain
+> before binding a mandate."
 
 ## Output shapes (pick the right consumer)
 
@@ -88,7 +96,7 @@ count) is:
 
 ```jsonc
 { "protocol": "uniswap-v3",      // uniswap-v3 | uniswap-v4 | uniswap-v2 | sushiswap | pancakeswap | aerodrome | other
-  "dexId": "uniswap-v3-base",    // raw GeckoTerminal id
+  "dexId": "uniswap",            // raw source id (DexScreener: "uniswap"/"aerodrome"…; GeckoTerminal: "uniswap-v3-base")
   "pool": "0x…", "feeTier": 500, // basis points (500 = 0.05%); null if the pool has no fee in its name
   "pairedSymbol": "USDC", "pairedToken": "0x…",
   "liquidityUsd": 8645941, "volume24hUsd": 22333927,
@@ -98,18 +106,19 @@ count) is:
 
 ## How it works
 
-1. **Symbol → address** (two layers): curated registry (instant, offline) → GeckoTerminal
-   search (keyless CoinGecko DEX index) for anything not curated. Candidates are ranked by
-   pool liquidity; the on-chain `symbol()` check is the final authority (a wrong DEX-side
-   match is rejected, not trusted).
-2. **On-chain verify** — `symbol()` + `decimals()` via eth_call on every chain that has an
-   RPC. This is the source of truth (`decimalsSource: "onchain"`). On an `--all-chains` scan
-   of a chain with no RPC, metadata falls back to GeckoTerminal (`decimalsSource:
-   "geckoterminal-unverified"`) — flag this to the user before wiring it into a mandate.
-3. **Liquidity venue map** — `GET /networks/{net}/tokens/{addr}/pools` returns every pool
-   GeckoTerminal indexes, across **all DEXes** (Uniswap V3/V4, Sushiswap, PancakeSwap,
-   Aerodrome, …), with the protocol, pool address, fee tier and USD depth. One call per token
-   per chain.
+1. **Symbol → address** (two layers): curated registry (instant, offline) → **DexScreener**
+   search (keyless, primary), then GeckoTerminal search (keyless fallback) for anything not
+   curated. Candidates are ranked by pool liquidity; the on-chain `symbol()` check is the final
+   authority (a wrong DEX-side match is rejected, not trusted).
+2. **On-chain verify** — `symbol()` + `decimals()` via eth_call on every chain that has an RPC.
+   This is the source of truth (`decimalsSource: "onchain"`). On an `--all-chains` scan of a chain
+   with no RPC, metadata falls back to the DEX index (`decimalsSource: "dexscreener-unverified"`
+   or `"geckoterminal-unverified"`) — flag this to the user before wiring it into a mandate.
+3. **Liquidity venue map** — DexScreener's keyless pair endpoints (primary, ~300 req/min, flat
+   response) return every tracked pool across **all DEXes** (Uniswap V3/V4, Sushiswap, PancakeSwap,
+   Aerodrome, …), with protocol, pool address, fee tier and USD depth. GeckoTerminal
+   (`/networks/{net}/tokens/{addr}/pools`, ~10–30 req/min) is the deep-coverage fallback when
+   DexScreener has no venues. One lookup per token per chain, cached + throttled.
 4. **Swap-readiness (on-chain confirmed)** — quotes USDC→token across fee tiers 500/3000/10000
    via Uniswap V3 QuoterV2 and marks the matching venue `quoteVerified: true`. This is the only
    *executable* signal; everything else in `venues[]` is informational.
@@ -167,7 +176,8 @@ Then, for each `route`/chosen-chain leg, hand `(address, decimals, feeTier)` to
 
 - **Decimals are critical** — 25 USDC = `25_000_000` (6 dec); 1 WETH =
   `1_000_000_000_000_000_000` (18 dec). Every cap in a mandate is base units. Trust
-  `decimalsSource: "onchain"`; treat `geckoterminal-unverified` as provisional.
+  `decimalsSource: "onchain"`; treat `dexscreener-unverified` / `geckoterminal-unverified`
+  as provisional.
 - **Addresses are per-chain** — WETH on Unichain ≠ WETH on Base ≠ WETH on Arbitrum. Resolve and
   verify separately per chain; never copy an address across chains.
 - **`getPool` is unreliable** on some forks — swap-readiness trusts a non-zero QuoterV2 quote,
@@ -184,13 +194,15 @@ Then, for each `route`/chosen-chain leg, hand `(address, decimals, feeTier)` to
   USDC-paired* pool (the one a USDC DCA would route through), so it can be smaller than the
   largest pool in `venues[]` (which may be a WETH or look-alike pair).
 - **Missing venues ≠ no liquidity.** A chain can be `swapReady: true` (from the on-chain
-  QuoterV2 probe) yet show empty `venues[]` with `venuesError` set if GeckoTerminal rate-limited
-  that call. Trust `swapReady`; to repopulate the venue map for one chain, re-run
+  QuoterV2 probe) yet show empty `venues[]` with `venuesError` set if the liquidity index
+  rate-limited that call. Trust `swapReady`; to repopulate the venue map for one chain, re-run
   `node scripts/resolve-token.mjs <SYM> --chain <name> --json`.
-- **Rate limits and the timeout** — GeckoTerminal is keyless and rate-limited; the script throttles
-  and caches calls, and widens the gap between calls adaptively when it hits a 429 (`GECKO_MIN_SPACING_MS`
-  is the floor, `GECKO_MAX_SPACING_MS` the cap). A big `--all-chains` portfolio prints a progress line
-  per token as it goes, and a hard deadline (`RESOLVE_TIMEOUT_MS`, default 180s) returns whatever mapped
-  so far with a `summary.timedOut` flag and `summary.unresolved` list rather than hanging — re-run only
-  the unresolved tokens with a targeted `--chain`. A transient GeckoTerminal failure on one chain sets
-  `venuesError` and leaves `swapReady` intact (it's from the on-chain probe) — it never aborts the whole run.
+- **Rate limits and the timeout** — DexScreener (primary) is keyless at ~300 req/min and is
+  throttled + cached; GeckoTerminal (fallback) is keyless but ~10–30 req/min. The script throttles
+  and caches both, and widens the gap between calls adaptively when it hits a 429 (`DEX_MIN_SPACING_MS`
+  / `GECKO_MIN_SPACING_MS` are the floors, the `*_MAX_SPACING_MS` values the caps). A big
+  `--all-chains` portfolio prints a progress line per token as it goes, and a hard deadline
+  (`RESOLVE_TIMEOUT_MS`, default 180s) returns whatever mapped so far with a `summary.timedOut` flag
+  and `summary.unresolved` list rather than hanging — re-run only the unresolved tokens with a
+  targeted `--chain`. A transient provider failure on one chain sets `venuesError` and leaves
+  `swapReady` intact (it's from the on-chain probe) — it never aborts the whole run.
