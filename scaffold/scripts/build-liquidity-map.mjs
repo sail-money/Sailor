@@ -15,7 +15,7 @@
 // NOT on-chain verified — resolve-token.mjs re-verifies on-chain whenever an RPC is set.
 // Run this on a schedule (offline) to refresh the map; the agent never waits on it.
 
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { resolve as resolvePath, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -111,6 +111,37 @@ async function dexGet(url) {
   return null;
 }
 
+// Mirror resolve-token.mjs classifyDex's routable decision: the shared SwapPermission's
+// `routers[]` allowlist is DEX-agnostic, so Uniswap V2/V3, SushiSwap, PancakeSwap,
+// Aerodrome and Velodrome are all routable; Uniswap V4 is Unichain-only.
+function isRoutableDex(dexId, labels, chainName) {
+  const id = (dexId || "").toLowerCase();
+  const tags = new Set((labels || []).map((l) => String(l).toLowerCase()));
+  if (id === "uniswap" || id.startsWith("uniswap-v") || id.startsWith("uniswap_v")) {
+    if (tags.has("v4") || id.includes("v4")) return chainName === "unichain";
+    return true; // V2, V3, or bare "uniswap" (V3) — all routable
+  }
+  return id.includes("sushiswap") || id.includes("pancakeswap") || id.includes("aerodrome") || id.includes("velodrome");
+}
+
+// The canonical protocol family string for a dexId (mirrors classifyDex). Used to record
+// WHICH routable DEX a token's USDC pool lives on, so the map doesn't mislabel an
+// Aerodrome pool as "uniswap-v3".
+function dexFamily(dexId, labels) {
+  const id = (dexId || "").toLowerCase();
+  const tags = new Set((labels || []).map((l) => String(l).toLowerCase()));
+  if (id === "uniswap" || id.startsWith("uniswap-v") || id.startsWith("uniswap_v")) {
+    if (tags.has("v2") || id.includes("v2")) return "uniswap-v2";
+    if (tags.has("v4") || id.includes("v4")) return "uniswap-v4";
+    return "uniswap-v3";
+  }
+  if (id.includes("sushiswap")) return "sushiswap";
+  if (id.includes("pancakeswap")) return "pancakeswap";
+  if (id.includes("aerodrome")) return "aerodrome";
+  if (id.includes("velodrome")) return "velodrome";
+  return "other";
+}
+
 // Discover the canonical address + whether a Sail-routable USDC pool exists for
 // `symbol` on one Sail chain. Returns { address, routable, liquidityUsd } or null when
 // the symbol has no pool there. Two passes:
@@ -143,31 +174,24 @@ async function resolveOneChain(symbolUp, chainName, chainId) {
   const tp = await dexGet(`${DEX_API}/token-pairs/v1/${chainId}/${bestAddr}`);
   const all = (tp && Array.isArray(tp) && tp) || [];
   let routable = false;
+  let routableDex = null;
   let bestUsdcLiq = 0;
   for (const p of all) {
     const baseSym = ((p.baseToken || {}).symbol || "").toUpperCase();
     const quoteSym = ((p.quoteToken || {}).symbol || "").toUpperCase();
     const isUsdcPair = baseSym === "USDC" || baseSym === "USDC.E" || quoteSym === "USDC" || quoteSym === "USDC.E";
     const dexId = (p.dexId || "").toLowerCase();
-    const labels = new Set((p.labels || []).map((l) => String(l).toLowerCase()));
-    // Mirror resolve-token.mjs classifyDex: bare "uniswap" with no version label is V3
-    // (V2/V4 are always explicitly labelled; V2 doesn't exist on most Sail chains).
-    let uniswapV3 = false;
-    let v4Unichain = false;
-    if (dexId === "uniswap" || dexId.startsWith("uniswap-v") || dexId.startsWith("uniswap_v")) {
-      const isV2 = labels.has("v2") || dexId.includes("v2");
-      const isV4 = labels.has("v4") || dexId.includes("v4");
-      if (isV4) v4Unichain = chainName === "unichain";
-      else if (!isV2) uniswapV3 = true;
-    }
-    if (isUsdcPair && (uniswapV3 || v4Unichain)) {
-      routable = true;
+    if (isUsdcPair && isRoutableDex(dexId, p.labels, chainName)) {
       const liq = Number((p.liquidity && p.liquidity.usd) || 0);
-      if (liq > bestUsdcLiq) bestUsdcLiq = liq;
+      if (liq > bestUsdcLiq) {
+        bestUsdcLiq = liq;
+        routable = true;
+        routableDex = dexFamily(dexId, p.labels);
+      }
     }
   }
 
-  return { address: bestAddr, routable, liquidityUsd: Math.round(bestUsdcLiq || bestLiq) };
+  return { address: bestAddr, routable, liquidityUsd: Math.round(bestUsdcLiq || bestLiq), dex: routable ? routableDex : null };
 }
 
 async function main() {
@@ -176,7 +200,17 @@ async function main() {
   let seed = SEED;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--out") outPath = resolvePath(args[++i]);
-    else if (args[i] === "--symbols") {
+    else if (args[i] === "--seed") {
+      // A JSON file of { "SYMBOL": decimals } — e.g. a top-N-by-market-cap list built
+      // offline. Overrides the built-in SEED.
+      const raw = JSON.parse(readFileSync(resolvePath(args[++i]), "utf8"));
+      seed = {};
+      const entries = Array.isArray(raw) ? raw.map((s) => [String(s), null]) : Object.entries(raw);
+      for (const [k, v] of entries) {
+        const sym = k.toUpperCase().trim();
+        if (sym) seed[sym] = typeof v === "number" ? v : (SEED[sym] ?? 18);
+      }
+    } else if (args[i] === "--symbols") {
       seed = {};
       for (const s of args[++i].split(",")) {
         const sym = s.trim().toUpperCase();
@@ -197,7 +231,7 @@ async function main() {
     for (const name of chainNames) {
       try {
         const r = await resolveOneChain(sym, name, CHAINS[name]);
-        if (r) tokens[sym][name] = { address: r.address, decimals: seed[sym], routable: r.routable, liquidityUsd: r.liquidityUsd };
+        if (r) tokens[sym][name] = { address: r.address, decimals: seed[sym], routable: r.routable, liquidityUsd: r.liquidityUsd, dex: r.dex };
       } catch {
         // symbol not on this chain — leave it absent
       }
@@ -207,9 +241,9 @@ async function main() {
   }
 
   const map = {
-    version: 1,
+    version: 2,
     generatedAt: new Date().toISOString(),
-    source: "DexScreener (keyless). Addresses/decimals are NOT on-chain verified — resolve-token.mjs re-verifies on-chain when an RPC is set.",
+    source: "DexScreener (keyless). Addresses/decimals are NOT on-chain verified — resolve-token.mjs re-verifies on-chain when an RPC is set. `dex` is the DEX family of the deepest routable USDC pool.",
     chains: chainNames,
     tokens,
   };

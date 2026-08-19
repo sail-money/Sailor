@@ -15,8 +15,10 @@
 //
 // Liquidity venues (chain + protocol + pool + depth) come from DexScreener (primary,
 // keyless, ~300 req/min) with GeckoTerminal as a deep-coverage fallback (keyless,
-// ~10–30 req/min). Swap-readiness is CONFIRMED on-chain only for Uniswap V3 (USDC→token
-// via QuoterV2), Sail's executable fast-path route; other venues are surfaced as informational.
+// ~10–30 req/min). A venue is Sail-routable if the shared SwapPermission can route it
+// (Uniswap V2/V3/V4, Aerodrome, Velodrome, PancakeSwap, SushiSwap). Swap-readiness is
+// CONFIRMED on-chain only for Uniswap V3 (USDC→token via QuoterV2) — the one tier the
+// resolver live-probes; every other routable venue is index-reported, not live-quoted.
 //
 // Output: JSON on stdout (machine-readable); human notes on stderr.
 
@@ -437,11 +439,14 @@ async function geckoGet(url) {
   return task;
 }
 
-// dexId → a canonical protocol family + whether Sail's fast-path SwapPermission can
-// route it. Handles both source formats: GeckoTerminal's "uniswap-v3-base" and
-// DexScreener's bare "uniswap" with the version in `labels` (["v3"]). Sail confirms
-// swaps on-chain via Uniswap V3 QuoterV2 everywhere, plus the V4 Universal Router on
-// Unichain. Everything else is informational (custom mandate required).
+// dexId → a canonical protocol family + whether Sail's shared SwapPermission can route
+// it. The template takes an arbitrary `routers[]` allowlist + token allowlists + a
+// slippage band against a Chainlink oracle, so it is DEX-agnostic: Uniswap V2/V3/V4,
+// Aerodrome, Velodrome, PancakeSwap and SushiSwap are all routable once their router is
+// allowlisted. `quoteVerified` stays the Uniswap V3 QuoterV2 on-chain confirmation — the
+// only tier the resolver live-probes; the rest are routable-but-not-live-confirmed.
+// Handles both source formats: GeckoTerminal's "uniswap-v3-base" and DexScreener's bare
+// "uniswap" with the version in `labels` (["v3"]).
 function classifyDex(dexId, labels, chainName) {
   const id = (dexId || "").toLowerCase();
   const tags = new Set((labels || []).map((l) => String(l).toLowerCase()));
@@ -466,9 +471,18 @@ function classifyDex(dexId, labels, chainName) {
   } else if (id.includes("velodrome")) {
     protocol = "velodrome";
   }
-  let sailRoutable = false;
-  if (protocol === "uniswap-v3") sailRoutable = true;
-  else if (protocol === "uniswap-v4" && chainName === "unichain") sailRoutable = true;
+  // Routable = the shared SwapPermission can route it (its router is allowlist-able).
+  // V4 is Unichain-only (Universal Router); the others are routable on every chain.
+  const ROUTABLE = new Set([
+    "uniswap-v2",
+    "uniswap-v3",
+    "sushiswap",
+    "pancakeswap",
+    "aerodrome",
+    "velodrome",
+  ]);
+  let sailRoutable = ROUTABLE.has(protocol);
+  if (protocol === "uniswap-v4") sailRoutable = chainName === "unichain";
   return { protocol, sailRoutable };
 }
 
@@ -848,7 +862,7 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
     if (mapped.routable) {
       venues = [
         {
-          protocol: "uniswap-v3",
+          protocol: mapped.dex || "uniswap-v3",
           dexId: "liquidity-map",
           pool: null,
           feeTier: null,
@@ -976,7 +990,7 @@ function perChainRecommendation({ symbol, chain, swapReady, best, bestVenue, onc
     return `${chain.name} has a Sail-routable ${bestVenue ? bestVenue.protocol : "Uniswap"} pool (~${fmtUsd(bestVenue ? bestVenue.liquidityUsd : 0)}), but it was not live-quoted on-chain (no RPC / verify failed). Configure an RPC or SMA on ${chain.name} to confirm.${unverified}`;
   }
   if (bestVenue) {
-    return `No Sail-routable USDC pool for ${symbol} on ${chain.name}, but liquidity exists on ${bestVenue.protocol} (~${fmtUsd(bestVenue.liquidityUsd)}). That DEX is not on Sail's fast path — use a custom mandate or hold the leg.${unverified}`;
+    return `No USDC-paired pool for ${symbol} on ${chain.name} via a Sail-routable DEX, though ${bestVenue.protocol} has ~${fmtUsd(bestVenue.liquidityUsd)} in ${bestVenue.pairedSymbol || "other"} pairs. A USDC route here needs a custom mandate or a held leg.${unverified}`;
   }
   return `No pool for ${symbol} on ${chain.name}. If liquidity is on another Sail chain, deploy/scan there; otherwise configure as a held leg.`;
 }
@@ -1033,7 +1047,7 @@ function recommendCrossChain(chains, configuredNames) {
       .join("; ");
     return {
       action: "manual-address",
-      note: `Liquidity exists but only on DEXes Sail's fast path can't route (${detail}). Build a custom mandate against that pool/router, or hold the leg.`,
+      note: `Liquidity exists but not in a USDC pair on a Sail-routable DEX (${detail}). Build a custom mandate against that pool/router, or hold the leg.`,
     };
   }
 
