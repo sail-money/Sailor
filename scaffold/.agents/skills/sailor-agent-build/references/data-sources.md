@@ -27,6 +27,16 @@ The shipped defaults cover every supported chain (`sailor doctor` validates conn
 
 An earlier entry wins. `sailor doctor` re-validates whatever resolves.
 
+## Paid data — when the useful answer is metered
+
+Some external data worth acting on is sold per-call over HTTP via
+[x402](https://x402.org) — the pattern `AgentContext.data` was designed for.
+The agent pays a few cents of USDC from the **manager key's own operational
+float** (never SMA custody; the mandate kernel does not gate these spends, so
+the wallet balance is the bound). No SDK change is needed — `signTyped` +
+`fetch` suffice. Worked example, trust model, and non-negotiables:
+[`paid-data-x402.md`](./paid-data-x402.md).
+
 ## MCP servers — if your coding agent supports them
 
 Data providers increasingly ship MCP servers; if the operator's coding agent supports MCP, that is a convenient way to pull prices/yields/news into the loop. A category pointer only — no vendor endorsement.
