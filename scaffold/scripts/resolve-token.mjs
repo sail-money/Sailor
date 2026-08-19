@@ -308,6 +308,30 @@ const GECKO_SPACING_MAX_MS = Number(process.env.GECKO_MAX_SPACING_MS || 15000);
 const ADDR_RE = /^0x[a-fA-F0-9]{40}$/;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// ── liquidity map (optional offline cache) ─────────────────────────────────────
+// scripts/liquidity-map.json is a DexScreener-derived cache of top assets → address +
+// routable + depth per chain, refreshed offline by scripts/build-liquidity-map.mjs.
+// It is STRICTLY additive: the curated registry wins, the map fills chains the registry
+// lacks, and the live index fills the rest. Map entries are never treated as on-chain
+// verified — an RPC still re-verifies symbol()/decimals() when one is configured.
+let liquidityMap = null;
+function loadLiquidityMap(mapPath) {
+  if (liquidityMap) return liquidityMap;
+  const p = mapPath || resolvePath(process.cwd(), "scripts/liquidity-map.json");
+  try {
+    const m = JSON.parse(readFileSync(p, "utf8"));
+    liquidityMap = m && m.tokens ? m : { tokens: {} };
+  } catch {
+    liquidityMap = { tokens: {} }; // no map / unreadable → behave as if absent
+  }
+  return liquidityMap;
+}
+function mapLookup(symbolUp, chainName) {
+  if (!liquidityMap) return null;
+  const t = liquidityMap.tokens[symbolUp];
+  return (t && t[chainName]) || null;
+}
+
 const dexCache = new Map();
 let dexLock = Promise.resolve();
 let lastDexTs = 0;
@@ -422,12 +446,17 @@ function classifyDex(dexId, labels, chainName) {
   const id = (dexId || "").toLowerCase();
   const tags = new Set((labels || []).map((l) => String(l).toLowerCase()));
   let protocol = "other";
-  if (id.startsWith("uniswap-v3") || id.startsWith("uniswap_v3") || tags.has("v3")) {
-    protocol = "uniswap-v3";
-  } else if (id.startsWith("uniswap-v4") || id.startsWith("uniswap_v4") || tags.has("v4")) {
-    protocol = "uniswap-v4";
-  } else if (id.startsWith("uniswap-v2") || id.startsWith("uniswap_v2") || id === "uniswap" || tags.has("v2")) {
-    protocol = "uniswap-v2";
+  if (id === "uniswap" || id.startsWith("uniswap-v") || id.startsWith("uniswap_v")) {
+    // Uniswap: DexScreener uses a bare "uniswap" dexId for V2/V3/V4 with the version in
+    // `labels`, but on Arbitrum/Optimism/Base/Unichain it omits `labels` entirely (those
+    // chains are V3-only). So a bare "uniswap" with no version label is V3 — V2 and V4 are
+    // always explicitly labelled. GeckoTerminal ids ("uniswap-v3-base") carry the version.
+    if (tags.has("v2")) protocol = "uniswap-v2";
+    else if (tags.has("v4")) protocol = "uniswap-v4";
+    else if (tags.has("v3")) protocol = "uniswap-v3";
+    else if (id.includes("v2")) protocol = "uniswap-v2";
+    else if (id.includes("v4")) protocol = "uniswap-v4";
+    else protocol = "uniswap-v3"; // bare "uniswap", no label → V3
   } else if (id.includes("sushiswap")) {
     protocol = "sushiswap";
   } else if (id.includes("pancakeswap")) {
@@ -691,65 +720,82 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
     const entry = chain.tokens[wantSym];
     if (entry) {
       address = entry.address;
+      // The registry carries verified decimals — use them instead of a rate-limited
+      // GeckoTerminal metadata call in the no-RPC path.
+      decimals = entry.decimals;
+      decimalsSource = "registry";
       source = "registry";
     } else {
-      // Fallback: resolve symbol → address via DexScreener (then GeckoTerminal).
-      const { addresses: candidates, via } = await resolveSymbol(wantSym, chain);
-      if (candidates.length === 0) {
-        throw new Error(
-          `"${symbolOrAddr}" is not in the curated ${chain.name} registry and no DEX source found a pool for it on ${chain.name}. ` +
-            `Pass its 0x address directly: node scripts/resolve-token.mjs 0x... --chain ${chain.name}`,
-        );
-      }
-      if (onchain) {
-        // Verify each candidate on-chain; keep the first whose symbol() matches the query.
-        // This is the authority — a wrong DEX-side match is rejected, not trusted.
-        const tried = [];
-        let resolved = null;
-        for (const cand of candidates) {
-          try {
-            const v = await verifyTokenOnChain(rpc, cand);
-            tried.push({ address: cand, symbol: v.symbol || "" });
-            if (v.symbol && v.symbol.toUpperCase() === wantSym) {
-              resolved = { address: cand, symbol: v.symbol, decimals: v.decimals };
-              break;
-            }
-          } catch {
-            // not a real contract on this chain — skip silently
-          }
+      // Offline liquidity map (additive): a cached address + routable flag for this
+      // chain, cheaper than a live lookup. Only fills chains the curated registry
+      // lacks; never treated as on-chain verified.
+      const mapped = mapLookup(wantSym, chain.name);
+      if (mapped && mapped.address) {
+        address = mapped.address;
+        source = "liquidity-map";
+        if (mapped.decimals != null) {
+          decimals = mapped.decimals;
+          decimalsSource = "liquidity-map";
         }
-        if (!resolved) {
+      } else {
+        // Fallback: resolve symbol → address via DexScreener (then GeckoTerminal).
+        const { addresses: candidates, via } = await resolveSymbol(wantSym, chain);
+        if (candidates.length === 0) {
           throw new Error(
-            `The DEX search returned ${candidates.length} candidate address(es) for "${symbolOrAddr}" on ${chain.name}, but none verified on-chain with symbol() == "${wantSym}" ` +
-              `(tried: ${tried.map((t) => `${t.address}→${t.symbol || "no-contract"}`).join(", ")}). ` +
-              `Pass the token's 0x address directly: node scripts/resolve-token.mjs 0x... --chain ${chain.name}`,
+            `"${symbolOrAddr}" is not in the curated ${chain.name} registry and no DEX source found a pool for it on ${chain.name}. ` +
+              `Pass its 0x address directly: node scripts/resolve-token.mjs 0x... --chain ${chain.name}`,
           );
         }
-        address = resolved.address;
-        verifiedSymbol = resolved.symbol;
-        decimals = resolved.decimals;
-        source = via;
-        decimalsSource = "onchain";
-      } else {
-        // No RPC: candidates are ranked by pool depth, but depth alone can't tell two
-        // different contracts sharing a ticker apart (a collision). Cross-check each
-        // candidate's own token metadata — independent of the pool-name parsing used to
-        // build the candidate list — and prefer the first whose symbol actually matches,
-        // rather than blindly trusting the deepest pool.
-        let verified = null;
-        for (const cand of candidates) {
-          try {
-            const m = await fetchTokenMeta(chain.gecko || null, cand.toLowerCase());
-            if (m.symbol && m.symbol.toUpperCase() === wantSym) {
-              verified = cand;
-              break;
+        if (onchain) {
+          // Verify each candidate on-chain; keep the first whose symbol() matches the query.
+          // This is the authority — a wrong DEX-side match is rejected, not trusted.
+          const tried = [];
+          let resolved = null;
+          for (const cand of candidates) {
+            try {
+              const v = await verifyTokenOnChain(rpc, cand);
+              tried.push({ address: cand, symbol: v.symbol || "" });
+              if (v.symbol && v.symbol.toUpperCase() === wantSym) {
+                resolved = { address: cand, symbol: v.symbol, decimals: v.decimals };
+                break;
+              }
+            } catch {
+              // not a real contract on this chain — skip silently
             }
-          } catch {
-            // metadata lookup failed for this candidate — try the next
           }
+          if (!resolved) {
+            throw new Error(
+              `The DEX search returned ${candidates.length} candidate address(es) for "${symbolOrAddr}" on ${chain.name}, but none verified on-chain with symbol() == "${wantSym}" ` +
+                `(tried: ${tried.map((t) => `${t.address}→${t.symbol || "no-contract"}`).join(", ")}). ` +
+                `Pass the token's 0x address directly: node scripts/resolve-token.mjs 0x... --chain ${chain.name}`,
+            );
+          }
+          address = resolved.address;
+          verifiedSymbol = resolved.symbol;
+          decimals = resolved.decimals;
+          source = via;
+          decimalsSource = "onchain";
+        } else {
+          // No RPC: candidates are ranked by pool depth, but depth alone can't tell two
+          // different contracts sharing a ticker apart (a collision). Cross-check each
+          // candidate's own token metadata — independent of the pool-name parsing used to
+          // build the candidate list — and prefer the first whose symbol actually matches,
+          // rather than blindly trusting the deepest pool.
+          let verified = null;
+          for (const cand of candidates) {
+            try {
+              const m = await fetchTokenMeta(chain.gecko || null, cand.toLowerCase());
+              if (m.symbol && m.symbol.toUpperCase() === wantSym) {
+                verified = cand;
+                break;
+              }
+            } catch {
+              // metadata lookup failed for this candidate — try the next
+            }
+          }
+          address = verified || candidates[0];
+          source = verified ? `${via}-unverified` : `${via}-unverified-collision`;
         }
-        address = verified || candidates[0];
-        source = verified ? `${via}-unverified` : `${via}-unverified-collision`;
       }
     }
   }
@@ -781,18 +827,47 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
   if (verifiedSymbol === undefined) verifiedSymbol = wantSym || null;
   if (decimals === undefined) decimals = null;
 
-  // Liquidity venue map across every DEX DexScreener (then GeckoTerminal) indexes.
+  const isUsdc = !!chain.usdc && address.toLowerCase() === chain.usdc.toLowerCase();
+
+  // Liquidity venue map. When the token came from the offline liquidity map and there's
+  // no RPC to confirm on-chain, synthesize a single Sail-routable USDC venue from the
+  // cached flag instead of a live index scan — that's the map's whole speedup. A live scan
+  // still runs whenever an RPC is present (to on-chain-confirm) or the map has no positive
+  // signal for this chain (to keep full fidelity for the long tail / negative cases).
+  // USDC itself (the quote asset) needs no venue map — its swap-readiness is definitional.
   let venues = [];
   let venuesError = null;
-  if (chain.dex || chain.gecko) {
+  const mapped = source === "liquidity-map" ? mapLookup(wantSym, chain.name) : null;
+  if (isUsdc && !onchain) {
+    venues = []; // quote asset — no venue scan needed in the no-RPC path
+  } else if (!onchain && mapped) {
+    // The map is the COMPLETE answer for its seeded assets on this chain: routable →
+    // synthesize a USDC venue; not routable → no venues (no Sail-routable USDC pool).
+    // Top assets' liquidity is stable at the day/week scale, so a regularly-refreshed
+    // map can be trusted here — the long tail and any on-chain verify still go live.
+    if (mapped.routable) {
+      venues = [
+        {
+          protocol: "uniswap-v3",
+          dexId: "liquidity-map",
+          pool: null,
+          feeTier: null,
+          pairedSymbol: "USDC",
+          pairedToken: chain.usdc || null,
+          liquidityUsd: mapped.liquidityUsd ?? 0,
+          volume24hUsd: 0,
+          sailRoutable: true,
+          quoteVerified: false,
+        },
+      ];
+    }
+  } else if (chain.dex || chain.gecko) {
     try {
       venues = await fetchVenues(chain, address.toLowerCase(), (verifiedSymbol || wantSym || "").toUpperCase());
     } catch (e) {
       venuesError = errMsg(e);
     }
   }
-
-  const isUsdc = !!chain.usdc && address.toLowerCase() === chain.usdc.toLowerCase();
 
   // Swap-readiness. On-chain: a live Uniswap V3 USDC→token QuoterV2 quote across fee
   // tiers (Sail's executable route). Off-chain (--all-chains scan): a deep Sail-routable
@@ -1189,7 +1264,8 @@ async function main() {
         "  many symbols, or --json  → rich portfolio JSON (per-token, per-chain venue map)\n" +
         "  --all-chains             → also scan every Sail mainnet via DexScreener\n" +
         "  --compact                → minimal JSON (query → chains + action only; for agent reads)\n" +
-        "  --optimize               → append basket chain-set plan (minimum bridges/hops)\n",
+        "  --optimize               → append basket chain-set plan (minimum bridges/hops)\n" +
+        "  --map <path>             → offline liquidity map (default scripts/liquidity-map.json)\n",
     );
     process.exit(args.length === 0 ? 1 : 0);
   }
@@ -1201,10 +1277,12 @@ async function main() {
   let jsonMode = false;
   let compactMode = false;
   let optimizeMode = false;
+  let mapFlag = null;
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === "--chain") chainFlag = args[++i];
     else if (a === "--rpc") rpcFlag = args[++i];
+    else if (a === "--map") mapFlag = args[++i];
     else if (a === "--all-chains") allChains = true;
     else if (a === "--json") jsonMode = true;
     else if (a === "--compact") compactMode = true;
@@ -1212,6 +1290,10 @@ async function main() {
     else if (!a.startsWith("--")) tokens.push(a);
   }
   if (tokens.length === 0) throw new Error("Pass at least one token symbol or address.");
+
+  // Load the offline liquidity map (if any) so resolveOnChain can short-circuit the
+  // top assets instead of a live index scan. Safe no-op when absent.
+  loadLiquidityMap(mapFlag);
 
   const configured = configuredChains();
   let configuredNames = configured.map((c) => c.name);

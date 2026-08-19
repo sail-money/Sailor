@@ -40,8 +40,9 @@ endpoint; `--all-chains` maps every Sail mainnet (even ones without an RPC confi
 DexScreener-only data) so you can recommend "put your SMA on chain Y"; `--json` forces the rich
 per-token map for a single token; `--compact` shrinks the output to what an agent needs (query →
 chains + action only, no venue arrays); `--optimize` appends a basket-level minimum chain-set plan
-(`summary.basket`). `--compact` + `--optimize` together is the token-cheapest read for an agent
-building a portfolio.
+(`summary.basket`); `--map <path>` points at an offline liquidity map (default
+`scripts/liquidity-map.json`). `--compact` + `--optimize` together is the token-cheapest read for
+an agent building a portfolio.
 
 **RPC — ask here, the first time it's genuinely needed, once.** This script reads **only**
 `.sail/.env.local` — no shell-var fallback, no public-RPC fallback (unlike `sailor doctor`,
@@ -65,6 +66,24 @@ script (`sailor-swap-quote`'s `quote-swap.mjs`, `doctor`, the runner) reads the 
 > eth sepolia) are not scanned — they have no real DEX liquidity. So: trust `swapReady` on the six
 > fast-path chains; treat DexScreener-only chains as "liquidity here, confirm the pool on-chain
 > before binding a mandate."
+
+## Liquidity map (offline cache — read it, don't scan live)
+
+`scripts/liquidity-map.json` is a small offline cache of the top ~30 assets: for each, the canonical
+contract address + whether a Sail-routable USDC pool exists + its depth, per chain. The resolver
+reads it **first** and skips the live index scan for anything it answers, so a portfolio of major
+assets resolves in ~1–2 seconds instead of a live 10-chain scan. It is **strictly additive**:
+curated registry → liquidity map → live DexScreener/GeckoTerminal, in that order, so the map can
+only ever fill gaps, never override a verified answer. Map-sourced entries are marked
+`source: "liquidity-map"` (not on-chain verified) and re-verified on-chain whenever an RPC is set.
+
+- **Don't load the map into context** — it's ~50KB. Have `resolve-token.mjs` query it; that's its
+  whole job. The agent never reads the file directly.
+- **Refresh offline** — `node scripts/build-liquidity-map.mjs` regenerates it from DexScreener
+  (keyless). Run it on a schedule; the map's top assets are stable at the day/week scale, but a
+  stale map quietly under-reports a token that *gained* a chain since the last refresh.
+- **It only covers its seeded tokens.** The long tail still resolves live — slower but correct.
+  Grow the seed in `build-liquidity-map.mjs` (not in `resolve-token.mjs`) to widen instant coverage.
 
 ## Output shapes (pick the right consumer)
 
@@ -176,8 +195,8 @@ Then, for each `route`/chosen-chain leg, hand `(address, decimals, feeTier)` to
 
 - **Decimals are critical** — 25 USDC = `25_000_000` (6 dec); 1 WETH =
   `1_000_000_000_000_000_000` (18 dec). Every cap in a mandate is base units. Trust
-  `decimalsSource: "onchain"`; treat `dexscreener-unverified` / `geckoterminal-unverified`
-  as provisional.
+  `decimalsSource: "onchain"` and `"registry"` (both verified); treat `"liquidity-map"`
+  and `dexscreener-unverified` / `geckoterminal-unverified` as provisional.
 - **Addresses are per-chain** — WETH on Unichain ≠ WETH on Base ≠ WETH on Arbitrum. Resolve and
   verify separately per chain; never copy an address across chains.
 - **`getPool` is unreliable** on some forks — swap-readiness trusts a non-zero QuoterV2 quote,
