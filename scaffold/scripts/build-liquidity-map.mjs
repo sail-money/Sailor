@@ -142,33 +142,54 @@ function dexFamily(dexId, labels) {
   return "other";
 }
 
+// Seed helpers. A seed entry is EITHER a bare number (legacy: the token's decimals) OR
+// a per-chain map { chain: { address, decimals } } produced by build-top-assets-seed.mjs.
+function seedAddress(seed, sym, chain) {
+  const v = seed[sym];
+  if (v && typeof v === "object" && v[chain] && v[chain].address) return v[chain].address;
+  return null;
+}
+function seedDecimals(seed, sym, chain) {
+  const v = seed[sym];
+  if (typeof v === "number") return v;
+  if (v && typeof v === "object") {
+    if (v[chain] && v[chain].decimals != null) return v[chain].decimals;
+    const any = Object.values(v).find((x) => x && x.decimals != null);
+    if (any) return any.decimals;
+  }
+  return 18;
+}
+
 // Discover the canonical address + whether a Sail-routable USDC pool exists for
-// `symbol` on one Sail chain. Returns { address, routable, liquidityUsd } or null when
-// the symbol has no pool there. Two passes:
+// `symbol` on one Sail chain. `knownAddr` (from the seed) skips the search pass. Returns
+// { address, routable, liquidityUsd, dex } or null when the symbol has no pool there.
+// Two passes when no known address:
 //   1. search → canonical address (deepest matching pool)
 //   2. token-pairs/{chain}/{addr} → reliable USDC-routable check (search caps at ~30
 //      pairs and routinely misses the USDC pool, so we can't trust it for routability).
-async function resolveOneChain(symbolUp, chainName, chainId) {
-  const search = await dexGet(`${DEX_API}/latest/dex/search?q=${encodeURIComponent(symbolUp)}`);
-  const pairs = (search && Array.isArray(search.pairs) && search.pairs) || [];
-
-  let bestAddr = null;
-  let bestLiq = -1;
-  for (const p of pairs) {
-    if ((p.chainId || "").toLowerCase() !== chainId) continue;
-    const base = p.baseToken || {};
-    const quote = p.quoteToken || {};
-    const liq = Number((p.liquidity && p.liquidity.usd) || 0);
-    if ((base.symbol || "").toUpperCase() === symbolUp && ADDR_RE.test(base.address || "") && liq > bestLiq) {
-      bestLiq = liq;
-      bestAddr = base.address.toLowerCase();
+async function resolveOneChain(symbolUp, chainName, chainId, knownAddr = null) {
+  let bestAddr = knownAddr ? knownAddr.toLowerCase() : null;
+  let bestLiq = 0;
+  if (!bestAddr) {
+    bestLiq = -1;
+    const search = await dexGet(`${DEX_API}/latest/dex/search?q=${encodeURIComponent(symbolUp)}`);
+    const pairs = (search && Array.isArray(search.pairs) && search.pairs) || [];
+    for (const p of pairs) {
+      if ((p.chainId || "").toLowerCase() !== chainId) continue;
+      const base = p.baseToken || {};
+      const quote = p.quoteToken || {};
+      const liq = Number((p.liquidity && p.liquidity.usd) || 0);
+      if ((base.symbol || "").toUpperCase() === symbolUp && ADDR_RE.test(base.address || "") && liq > bestLiq) {
+        bestLiq = liq;
+        bestAddr = base.address.toLowerCase();
+      }
+      if ((quote.symbol || "").toUpperCase() === symbolUp && ADDR_RE.test(quote.address || "") && liq > bestLiq) {
+        bestLiq = liq;
+        bestAddr = quote.address.toLowerCase();
+      }
     }
-    if ((quote.symbol || "").toUpperCase() === symbolUp && ADDR_RE.test(quote.address || "") && liq > bestLiq) {
-      bestLiq = liq;
-      bestAddr = quote.address.toLowerCase();
-    }
+    if (!bestAddr) return null;
   }
-  if (!bestAddr) return null;
 
   // Reliable venue check: full pair list for this address on this chain.
   const tp = await dexGet(`${DEX_API}/token-pairs/v1/${chainId}/${bestAddr}`);
@@ -201,14 +222,13 @@ async function main() {
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--out") outPath = resolvePath(args[++i]);
     else if (args[i] === "--seed") {
-      // A JSON file of { "SYMBOL": decimals } — e.g. a top-N-by-market-cap list built
-      // offline. Overrides the built-in SEED.
+      // A JSON file of { "SYMBOL": { "chain": { "address", "decimals" } } } from
+      // build-top-assets-seed.mjs (or legacy { "SYMBOL": decimals }). Overrides SEED.
       const raw = JSON.parse(readFileSync(resolvePath(args[++i]), "utf8"));
       seed = {};
-      const entries = Array.isArray(raw) ? raw.map((s) => [String(s), null]) : Object.entries(raw);
-      for (const [k, v] of entries) {
+      for (const [k, v] of Object.entries(raw)) {
         const sym = k.toUpperCase().trim();
-        if (sym) seed[sym] = typeof v === "number" ? v : (SEED[sym] ?? 18);
+        if (sym) seed[sym] = v;
       }
     } else if (args[i] === "--symbols") {
       seed = {};
@@ -229,9 +249,11 @@ async function main() {
   for (const sym of symbols) {
     tokens[sym] = {};
     for (const name of chainNames) {
+      const knownAddr = seedAddress(seed, sym, name);
+      const decimals = seedDecimals(seed, sym, name);
       try {
-        const r = await resolveOneChain(sym, name, CHAINS[name]);
-        if (r) tokens[sym][name] = { address: r.address, decimals: seed[sym], routable: r.routable, liquidityUsd: r.liquidityUsd, dex: r.dex };
+        const r = await resolveOneChain(sym, name, CHAINS[name], knownAddr);
+        if (r) tokens[sym][name] = { address: r.address, decimals, routable: r.routable, liquidityUsd: r.liquidityUsd, dex: r.dex };
       } catch {
         // symbol not on this chain — leave it absent
       }
@@ -241,9 +263,9 @@ async function main() {
   }
 
   const map = {
-    version: 2,
+    version: 3,
     generatedAt: new Date().toISOString(),
-    source: "DexScreener (keyless). Addresses/decimals are NOT on-chain verified — resolve-token.mjs re-verifies on-chain when an RPC is set. `dex` is the DEX family of the deepest routable USDC pool.",
+    source: "Addresses from CoinGecko platforms (offline) + DexScreener USDC-routable check (keyless). Addresses/decimals are NOT on-chain verified — resolve-token.mjs re-verifies on-chain when an RPC is set. `dex` is the DEX family of the deepest routable USDC pool.",
     chains: chainNames,
     tokens,
   };
