@@ -239,19 +239,26 @@ function configuredChains() {
 // token-pools call returns ALL venues for a token, so a portfolio stays cheap.
 const GECKO_API = "https://api.geckoterminal.com/api/v2";
 const GECKO_SPACING_MS = Number(process.env.GECKO_MIN_SPACING_MS || 2500);
+const GECKO_SPACING_MAX_MS = Number(process.env.GECKO_MAX_SPACING_MS || 15000);
 const ADDR_RE = /^0x[a-fA-F0-9]{40}$/;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const geckoCache = new Map();
 let geckoLock = Promise.resolve();
 let lastGeckoTs = 0;
+// Adaptive spacing. The free tier throttles unpredictably, so a fixed 2.5s gap can
+// slide into repeated 429s, each costing an 8s backoff that stacks into a multi-minute
+// stall. Instead we start at the minimum and, on a 429, widen the gap (up to a cap) so
+// the next call is far less likely to rate-limit; on a clean success we decay back
+// toward the minimum. This trades a little latency for never stalling the whole run.
+let geckoSpacingMs = GECKO_SPACING_MS;
 
 async function geckoGet(url) {
   if (geckoCache.has(url)) return geckoCache.get(url);
   const task = geckoLock.then(async () => {
     if (geckoCache.has(url)) return geckoCache.get(url); // filled while we queued
     const since = Date.now() - lastGeckoTs;
-    if (since < GECKO_SPACING_MS) await sleep(GECKO_SPACING_MS - since);
+    if (since < geckoSpacingMs) await sleep(geckoSpacingMs - since);
     let lastErr;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
@@ -262,12 +269,17 @@ async function geckoGet(url) {
         if (res.status === 429) {
           const ra = Number(res.headers.get("retry-after") || 0);
           lastErr = new Error("GeckoTerminal 429 (rate-limited)");
-          await sleep(ra > 0 ? ra * 1000 : 8000);
+          // Widen the gap on every 429 (honour retry-after when present) so we stop
+          // hitting the limit on the very next call.
+          geckoSpacingMs = Math.min(geckoSpacingMs * 2, GECKO_SPACING_MAX_MS);
+          await sleep(ra > 0 ? ra * 1000 : geckoSpacingMs);
           continue;
         }
         if (!res.ok) throw new Error(`GeckoTerminal HTTP ${res.status} for ${url}`);
         const json = await res.json();
         geckoCache.set(url, json);
+        // Clean success: relax back toward the minimum spacing.
+        geckoSpacingMs = Math.max(geckoSpacingMs * 0.9, GECKO_SPACING_MS);
         return json;
       } catch (e) {
         lastErr = e;
@@ -736,12 +748,30 @@ function recommendCrossChain(chains, configuredNames) {
   };
 }
 
+// Bounded-concurrency map. Per-chain resolution is independent (GeckoTerminal calls
+// are serialized by the global lock; on-chain eth_calls can overlap), so a small pool
+// cuts wall-clock time on multi-chain portfolios without breaking rate-limit safety.
+async function mapPool(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
+const CHAIN_RESOLVE_CONCURRENCY = 3;
+
 // Resolve one token across a set of chains → the rich per-token wrapper.
 async function resolveToken(symbolOrAddr, chainSet, configuredNames) {
   const chains = {};
-  for (const c of chainSet) {
+  const entries = await mapPool(chainSet, CHAIN_RESOLVE_CONCURRENCY, async (c) => {
     try {
-      chains[c.name] = await resolveOnChain(symbolOrAddr, c, c.rpc || null);
+      return { name: c.name, value: await resolveOnChain(symbolOrAddr, c, c.rpc || null) };
     } catch (e) {
       // If the on-chain path failed (flaky RPC, etc.) but the chain has a GeckoTerminal
       // network, degrade to a GeckoTerminal-only map rather than dropping the chain.
@@ -749,15 +779,15 @@ async function resolveToken(symbolOrAddr, chainSet, configuredNames) {
         try {
           const fallback = await resolveOnChain(symbolOrAddr, c, null);
           fallback.onchainError = errMsg(e);
-          chains[c.name] = fallback;
-          continue;
+          return { name: c.name, value: fallback };
         } catch {
           // gecko-only also failed — fall through to the error entry
         }
       }
-      chains[c.name] = { chain: c.name, chainId: c.chainId, error: errMsg(e) };
+      return { name: c.name, value: { chain: c.name, chainId: c.chainId, error: errMsg(e) } };
     }
-  }
+  });
+  for (const e of entries) chains[e.name] = e.value;
   const chainsWithLiquidity = Object.entries(chains)
     .filter(([, o]) => !o.error && ((o.venues && o.venues.length) || o.swapReady))
     .map(([name]) => name);
@@ -965,22 +995,52 @@ async function main() {
   const scannedNames = chainSet.map((c) => c.name);
   process.stderr.write(
     `Mapping ${tokens.length} token(s) across ${scannedNames.length} chain(s): ${scannedNames.join(", ")}` +
-      ` — GeckoTerminal calls are throttled (~${Math.round(60000 / GECKO_SPACING_MS)}/min), this may take a moment.\n`,
+      ` — GeckoTerminal calls are throttled (~${Math.round(60000 / GECKO_SPACING_MS)}/min at the minimum spacing).\n`,
   );
 
+  // Resolve tokens one at a time (each token already maps its chains with bounded
+  // concurrency), printing a progress line per token so a long portfolio never looks
+  // hung. A hard deadline returns whatever mapped so far instead of stalling forever.
+  const deadlineMs = Number(process.env.RESOLVE_TIMEOUT_MS || 180000);
+  const deadline = Date.now() + deadlineMs;
   const resolved = [];
+  const unresolved = [];
+  let timedOut = false;
   for (const t of tokens) {
-    resolved.push(await resolveToken(t, chainSet, configuredNames));
+    if (Date.now() > deadline) {
+      timedOut = true;
+      unresolved.push(...tokens.slice(resolved.length));
+      break;
+    }
+    const r = await resolveToken(t, chainSet, configuredNames);
+    resolved.push(r);
+    process.stderr.write(
+      `  resolved ${t}: ${r.chainsWithLiquidity.length ? r.chainsWithLiquidity.join(", ") : "no routable liquidity"} [${r.crossChain.action}]\n`,
+    );
+  }
+  if (timedOut) {
+    process.stderr.write(
+      `\nTimed out after ${Math.round(deadlineMs / 1000)}s — mapped ${resolved.length}/${tokens.length} token(s). Re-run the rest with a targeted --chain (or raise RESOLVE_TIMEOUT_MS): ${unresolved.join(", ")}\n`,
+    );
   }
 
   // single token + (--json/--all-chains) → the token wrapper; many tokens → portfolio.
   if (tokens.length === 1) {
+    if (resolved.length === 0) {
+      throw new Error(
+        `Timed out resolving "${tokens[0]}". Re-run with a targeted --chain or raise RESOLVE_TIMEOUT_MS.`,
+      );
+    }
     process.stdout.write(JSON.stringify(resolved[0], null, 2) + "\n");
     process.stderr.write(emitTokenHuman(resolved[0]) + "\n");
     return;
   }
 
   const summary = buildSummary(resolved, configuredNames, allChains);
+  if (timedOut) {
+    summary.timedOut = true;
+    summary.unresolved = unresolved;
+  }
   process.stdout.write(JSON.stringify({ tokens: resolved, summary }, null, 2) + "\n");
   process.stderr.write(resolved.map(emitTokenHuman).join("\n") + `\n\nSummary: ${summary.recommendation}\n`);
 }

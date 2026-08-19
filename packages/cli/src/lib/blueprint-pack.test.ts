@@ -70,6 +70,19 @@ test("packBlueprint assigns roles", async () => {
   assert.equal(byPath.get("package.json"), "config");
 });
 
+test("packBlueprint excludes archive files (no self-nesting)", async () => {
+  const root = makeProject();
+  // `publish --local` drops its own .tar.gz into the project; without an explicit
+  // exclusion it would nest into the next publish's payload.
+  fs.writeFileSync(path.join(root, "index-blueprint.tar.gz"), "stale-archive");
+  fs.writeFileSync(path.join(root, "index.zip"), "stale-zip");
+  fs.writeFileSync(path.join(root, "index.tgz"), "stale-tgz");
+  const packed = await packBlueprint(root, { slug: "dca", version: "1.0.0", kind: "crystallized" });
+  for (const p of packed.files.keys()) {
+    assert.doesNotMatch(p, /\.(tar\.gz|tgz|zip)$/);
+  }
+});
+
 test("packBlueprint redacts the operator's addresses", async () => {
   const root = makeProject();
   const packed = await packBlueprint(root, { slug: "dca", version: "1.0.0", kind: "crystallized" });

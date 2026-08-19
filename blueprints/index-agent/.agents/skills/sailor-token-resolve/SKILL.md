@@ -187,7 +187,10 @@ Then, for each `route`/chosen-chain leg, hand `(address, decimals, feeTier)` to
   QuoterV2 probe) yet show empty `venues[]` with `venuesError` set if GeckoTerminal rate-limited
   that call. Trust `swapReady`; to repopulate the venue map for one chain, re-run
   `node scripts/resolve-token.mjs <SYM> --chain <name> --json`.
-- **Rate limits** — GeckoTerminal is keyless and rate-limited; the script throttles and caches
-  calls. A big `--all-chains` portfolio takes a moment. Set `GECKO_MIN_SPACING_MS` to tune the
-  spacing. A transient GeckoTerminal failure on one chain sets `venuesError` and leaves
-  `swapReady` intact (it's from the on-chain probe) — it never aborts the whole run.
+- **Rate limits and the timeout** — GeckoTerminal is keyless and rate-limited; the script throttles
+  and caches calls, and widens the gap between calls adaptively when it hits a 429 (`GECKO_MIN_SPACING_MS`
+  is the floor, `GECKO_MAX_SPACING_MS` the cap). A big `--all-chains` portfolio prints a progress line
+  per token as it goes, and a hard deadline (`RESOLVE_TIMEOUT_MS`, default 180s) returns whatever mapped
+  so far with a `summary.timedOut` flag and `summary.unresolved` list rather than hanging — re-run only
+  the unresolved tokens with a targeted `--chain`. A transient GeckoTerminal failure on one chain sets
+  `venuesError` and leaves `swapReady` intact (it's from the on-chain probe) — it never aborts the whole run.

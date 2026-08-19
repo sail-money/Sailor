@@ -9,8 +9,11 @@ station: strategy
 ## First contact
 
 On a fresh project (no `.sail/index.json` yet), deliver
-[references/welcome-script.md](references/welcome-script.md) verbatim before eliciting the basket.
-It establishes identity, what the agent does, the safety promise, and the questions to come.
+[references/welcome-script.md](references/welcome-script.md) verbatim before doing anything else.
+It establishes identity, what the agent does, the safety promise, and the four-step journey — whose
+first step is account setup, not the basket. Do not elicit the basket until Station 1 is complete:
+`sailor doctor` green (RPC connected, SMA deployed, agent wallet created). Route account setup to
+`sailor-onboarding`; the basket questions below unlock only after it passes.
 
 ## What this owns
 

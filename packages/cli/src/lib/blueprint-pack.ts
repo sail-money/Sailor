@@ -43,6 +43,10 @@ function isBlueprintExcluded(rel: string): boolean {
   // recreated by scaffoldProjectWorkspace, so a blueprint must not ship either.
   if (p === ".sail" || p.startsWith(".sail/")) return true;
   if (p === ".env" || p.startsWith(".env.")) return true;
+  // A blueprint archive is the deliverable, not payload content. `publish --local`
+  // drops its own .tar.gz into the project, and without this it would nest into the
+  // next publish. Skip any archive file so a stray one can never self-nest.
+  if (p.endsWith(".tar.gz") || p.endsWith(".tgz") || p.endsWith(".zip")) return true;
   // Everything else is the share machinery's junk/credential/editor/Safe-tx rules.
   return isSensitivePath(rel);
 }

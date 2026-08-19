@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { chains } from "@sail/sdk";
-import { writeIfMissing } from "./template.js";
+import { packageRoot } from "./packagePaths.js";
+import { copyDirSync, writeIfMissing } from "./template.js";
 
 /**
  * Scaffolds the secret-bearing parts of a Sailor project workspace — the
@@ -150,4 +151,15 @@ ${allChainVarLines}
 `,
     "utf-8",
   );
+
+  // Ship the harness's runtime utility scripts (resolve-token.mjs, quote-swap.mjs,
+  // probe-mandate.mjs, shared-template-addr.mjs). The core skills reference them via
+  // `node scripts/...`, so a project is incomplete without them. `sailor init` gets
+  // them from the full scaffold copy, but `blueprint start` (Model C) scaffolds only
+  // `.sail/`, so it must copy them from the package here — and `clone` rebuilds a
+  // workspace the published template omitted them from.
+  const scriptsSrc = path.join(packageRoot(), "scaffold", "scripts");
+  if (fs.existsSync(scriptsSrc)) {
+    copyDirSync(scriptsSrc, path.join(dest, "scripts"));
+  }
 }

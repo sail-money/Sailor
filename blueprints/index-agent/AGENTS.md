@@ -6,10 +6,11 @@ weights.
 
 The operating guide for this agent is the **`sailor-index`** skill
 (`.agents/skills/sailor-index/SKILL.md`). Load it first; it owns the onboarding: deliver the
-welcome script (`references/welcome-script.md`) on first contact, collect the basket, weights,
-and chains, resolve them, deploy the SMA, configure the swap and bridge permissions, write
-`.sail/index.json`, and hand off to the runtime. The general five-station flow and the safety
-invariants live in **`sailor-navigator`**.
+welcome script (`references/welcome-script.md`) on first contact, set up the account first (SMA,
+agent wallet, and RPC — Station 1, via `sailor-onboarding`), then collect the basket, weights,
+and chains, resolve them, configure the swap and bridge permissions, write `.sail/index.json`,
+and hand off to the runtime. The general five-station flow and the safety invariants live in
+**`sailor-navigator`**.
 
 ## Invariants
 
