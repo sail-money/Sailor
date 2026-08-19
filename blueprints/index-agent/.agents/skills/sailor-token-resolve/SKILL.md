@@ -56,34 +56,35 @@ write it to `.sail/.env.local` (`RPC_URL=…` for a single chain, or the chain-n
 multi-chain projects), then re-run. Written once, never asked again — every later RPC-dependent
 script (`sailor-swap-quote`'s `quote-swap.mjs`, `doctor`, the runner) reads the same file.
 
-> **Coverage — all 10 Sail mainnets, two tiers of confidence.** The script ships curated
-> token tables + a Uniswap QuoterV2 address for the chains where Sail's fast path actually
-> routes (ethereum, base, arbitrum, optimism, unichain, bsc). On those, `swapReady` is
-> **on-chain confirmed** via a live USDC→token QuoterV2 quote. On the newer chains (world chain,
-> hyperevm, megaeth, robinhood) — and anywhere an RPC isn't configured — the script falls back to
-> **DexScreener** liquidity data (keyless, covers all 10 mainnets): that tells you *where liquidity
-> lives* but is informational, not a swap-readiness guarantee. The two Sail testnets (base sepolia,
-> eth sepolia) are not scanned — they have no real DEX liquidity. So: trust `swapReady` on the six
-> fast-path chains; treat DexScreener-only chains as "liquidity here, confirm the pool on-chain
-> before binding a mandate."
+> **Coverage — all 10 Sail mainnets.** The script ships curated token tables + a Uniswap QuoterV2
+> address for the six chains where it can live-confirm swaps (ethereum, base, arbitrum, optimism,
+> unichain, bsc): there, `quoteVerified` comes from a real on-chain USDC→token QuoterV2 quote. On
+> the newer chains (world chain, hyperevm, megaeth, robinhood) — and anywhere an RPC isn't
+> configured — the script falls back to **DexScreener** liquidity data (keyless, covers all 10
+> mainnets): that tells you *where a routable USDC pool lives* (Uniswap V3, Aerodrome, PancakeSwap,
+> SushiSwap, …), but it is index-reported, not on-chain confirmed. The two Sail testnets (base
+> sepolia, eth sepolia) are not scanned — they have no real DEX liquidity. So: `swapReady` answers
+> *can the template swap here*, and `quoteVerified` answers *was it confirmed on-chain* — bind with
+> confidence on the six fast-path chains, and confirm the pool on-chain before signing anywhere else.
 
 ## Liquidity map (offline cache — read it, don't scan live)
 
-`scripts/liquidity-map.json` is a small offline cache of the top ~30 assets: for each, the canonical
-contract address + whether a Sail-routable USDC pool exists + its depth, per chain. The resolver
-reads it **first** and skips the live index scan for anything it answers, so a portfolio of major
-assets resolves in ~1–2 seconds instead of a live 10-chain scan. It is **strictly additive**:
-curated registry → liquidity map → live DexScreener/GeckoTerminal, in that order, so the map can
-only ever fill gaps, never override a verified answer. Map-sourced entries are marked
-`source: "liquidity-map"` (not on-chain verified) and re-verified on-chain whenever an RPC is set.
+`scripts/liquidity-map.json` is an offline cache of the top ~500 assets by market cap: for each, the
+canonical contract address + whether a Sail-routable USDC pool exists + its depth + the DEX family
+(`dex`), per chain. The resolver reads it **first** and skips the live index scan for anything it
+answers, so a portfolio of major assets resolves in ~1–2 seconds instead of a live 10-chain scan. It
+is **strictly additive**: curated registry → liquidity map → live DexScreener/GeckoTerminal, in that
+order, so the map can only ever fill gaps, never override a verified answer. Map-sourced entries are
+marked `source: "liquidity-map"` (not on-chain verified) and re-verified on-chain whenever an RPC is set.
 
-- **Don't load the map into context** — it's ~50KB. Have `resolve-token.mjs` query it; that's its
+- **Don't load the map into context** — it's ~230KB. Have `resolve-token.mjs` query it; that's its
   whole job. The agent never reads the file directly.
-- **Refresh offline** — `node scripts/build-liquidity-map.mjs` regenerates it from DexScreener
-  (keyless). Run it on a schedule; the map's top assets are stable at the day/week scale, but a
-  stale map quietly under-reports a token that *gained* a chain since the last refresh.
+- **Refresh offline, in two steps.** `node scripts/build-top-assets-seed.mjs` pulls the top-N list
+  from CoinGecko (free, keyless, offline) and writes `top-assets-seed.json`; then
+  `node scripts/build-liquidity-map.mjs --seed top-assets-seed.json` rebuilds the map from
+  DexScreener (keyless). The runtime never calls either source — both are team-run on a schedule.
 - **It only covers its seeded tokens.** The long tail still resolves live — slower but correct.
-  Grow the seed in `build-liquidity-map.mjs` (not in `resolve-token.mjs`) to widen instant coverage.
+  Regenerate the seed (grow `--count`) to widen instant coverage.
 
 ## Output shapes (pick the right consumer)
 
@@ -142,15 +143,25 @@ count) is:
    via Uniswap V3 QuoterV2 and marks the matching venue `quoteVerified: true`. This is the only
    *executable* signal; everything else in `venues[]` is informational.
 
-## `sailRoutable` — what Sail's fast path can actually swap
+## `sailRoutable` — what the swap template can actually route
 
-Sail's `sailor-templates` (swap) fast path routes through **Uniswap V3** (everywhere) and the
-**Uniswap V4** Universal Router (on Unichain). Those venues are marked `sailRoutable: true`.
-Sushiswap, PancakeSwap, Aerodrome (and Uniswap V2) are detected and surfaced so you can see
-*where the liquidity really is*, but they're `sailRoutable: false` — Sail can't route them via
-the fast path. If the only liquidity is on a non-routable DEX, the token needs a custom mandate
-(`sailor-mandates`) or should be held. (Pools with absurd fees — >10% — are spam and are never
-marked routable.)
+Sail's shared `SwapPermission` takes an arbitrary `routers[]` allowlist plus token allowlists and a
+slippage band against a Chainlink oracle, so it is **DEX-agnostic**. A venue is `sailRoutable: true`
+when its router is one the template can be configured to call: **Uniswap V2/V3**, **SushiSwap**,
+**PancakeSwap**, **Aerodrome**, **Velodrome**, and **Uniswap V4** (Unichain only). A DEX the resolver
+doesn't classify (Curve, Balancer, bespoke routers) is surfaced but not routable — it needs a custom
+mandate. (Pools with absurd fees — >10% — are spam and are never marked routable.)
+
+One tier stays Uniswap-V3-specific: `quoteVerified` (a live on-chain QuoterV2 quote). That's the only
+venue the resolver live-probes; every other routable venue is index-reported (`quoteVerified: false`)
+until an RPC is configured. So **"routable" = can the template swap here**, while **"quoteVerified" =
+did we confirm it on-chain**. Use `swapReady` + `chainsWithLiquidity` for chain selection; use
+`bestVenue.protocol` + `quoteVerified` to know *which* DEX to route through.
+
+Two caveats for the safe (oracle) template: it needs a **Chainlink feed** for the token pair (tokens
+without one use the weaker no-oracle variant), and non-Uniswap routers use a slightly different swap
+call — so quoting/executing against Aerodrome/PancakeSwap/SushiSwap needs a per-DEX adapter in the
+agent runtime, not just a new router address.
 
 ## How to present results to the user
 
@@ -161,12 +172,12 @@ Read `crossChain.action` (per token) and the portfolio `summary`, then advise:
   rest of the basket lives). Hand the chosen chain's bare object to `sailor-swap-quote`.
 - **`suggest-sma`** — no routable pool on the configured chain(s), but a deep one on another
   Sail chain. Tell the user and **recommend deploying an SMA on that chain** for this leg
-  (e.g. "MORPHO has no Uniswap pool on Base; the deep pool is Uniswap V3 on Unichain — consider
+  (e.g. "MORPHO has no USDC pool on Base; the deep USDC pool is on Unichain — consider
   an SMA on Unichain"). Don't silently drop it.
-- **`manual-address`** — liquidity exists but only on a DEX Sail can't fast-route (e.g. only on
-  Aerodrome). Offer a custom mandate via `sailor-mandates`, or hold the leg — `sailor-strategy`'s
-  Act 3 discloses what bespoke authoring against this venue actually entails before the user
-  confirms; no need to explain it here.
+- **`manual-address`** — liquidity exists but only on a DEX the template can't route (e.g. Curve,
+  Balancer, or a non-USDC pair). Offer a custom mandate via `sailor-mandates`, or hold the leg —
+  `sailor-strategy`'s Act 3 discloses what bespoke authoring against this venue actually entails
+  before the user confirms; no need to explain it here.
 - **`hold-skip`** — no pool on any scanned Sail chain (the token may live on a chain this
   project isn't configured for). Recommend holding/dropping it from the strategy.
 
