@@ -29,7 +29,14 @@ const QUOTER_BASE = ADDR("2");
 const QUOTER_ARB = ADDR("3");
 const MSG_BASE = ADDR("4");
 const MSG_ARB = ADDR("5");
+const XMIT_BASE = ADDR("7");
+const XMIT_ARB = ADDR("8");
 const SAFE = ADDR("6");
+const USDG_RH = ADDR("9"); // Robinhood settlement currency (18 decimals)
+// The stock test runs on its own chain (4663) in isolation, so these reuse hex digits freely.
+const NVDA_RH = ADDR("a"); // a tokenized stock on Robinhood
+const ROUTER_RH = ADDR("b");
+const QUOTER_RH = ADDR("c");
 
 // ── ABI fragments for decoding calldata ───────────────────────────────────────
 
@@ -85,16 +92,33 @@ const DEPOSIT_FOR_BURN = [
   },
 ] as const;
 
+const RECEIVE_MESSAGE_ABI = [
+  {
+    name: "receiveMessage",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "message", type: "bytes" },
+      { name: "attestation", type: "bytes" },
+    ],
+    outputs: [{ name: "success", type: "bool" }],
+  },
+] as const;
+
 // ── Configs ───────────────────────────────────────────────────────────────────
 
 function twoTokenConfig() {
   return {
     chains: [8453, 42161],
-    usdc: { 8453: USDC_BASE, 42161: USDC_ARB },
+    settlement: {
+      8453: { symbol: "USDC", address: USDC_BASE, decimals: 6 },
+      42161: { symbol: "USDC", address: USDC_ARB, decimals: 6 },
+    },
     router: { 8453: ROUTER_BASE, 42161: ROUTER_ARB },
     quoter: { 8453: QUOTER_BASE, 42161: QUOTER_ARB },
     bridge: {
       messenger: { 8453: MSG_BASE, 42161: MSG_ARB },
+      transmitter: { 8453: XMIT_BASE, 42161: XMIT_ARB },
       domains: { 8453: 6, 42161: 3 },
       maxPerTxUsd: 1000,
     },
@@ -122,11 +146,15 @@ function twoTokenConfig() {
 function bridgeConfig() {
   return {
     chains: [8453, 42161],
-    usdc: { 8453: USDC_BASE, 42161: USDC_ARB },
+    settlement: {
+      8453: { symbol: "USDC", address: USDC_BASE, decimals: 6 },
+      42161: { symbol: "USDC", address: USDC_ARB, decimals: 6 },
+    },
     router: { 8453: ROUTER_BASE, 42161: ROUTER_ARB },
     quoter: { 8453: QUOTER_BASE, 42161: QUOTER_ARB },
     bridge: {
       messenger: { 8453: MSG_BASE, 42161: MSG_ARB },
+      transmitter: { 8453: XMIT_BASE, 42161: XMIT_ARB },
       domains: { 8453: 6, 42161: 3 },
       maxPerTxUsd: 1000,
     },
@@ -145,6 +173,33 @@ function bridgeConfig() {
 /** Two-token basket with a cadence DCA of $500/week. */
 function dcaConfig() {
   return { ...twoTokenConfig(), dca: { amountUsd: 500, periodSec: 604800 } };
+}
+
+/** A basket holding a tokenized stock (NVDA) on Robinhood, settled in USDG (18 decimals). */
+function stockConfig() {
+  return {
+    chains: [4663],
+    settlement: {
+      4663: { symbol: "USDG", address: USDG_RH, decimals: 18 },
+    },
+    router: { 4663: ROUTER_RH },
+    quoter: { 4663: QUOTER_RH },
+    bridge: {
+      messenger: {},
+      transmitter: {},
+      domains: {}, // Robinhood has no CCTP — funded direct, never bridged
+      maxPerTxUsd: 1000,
+    },
+    basket: [
+      {
+        symbol: "NVDA",
+        weight: 1.0,
+        chains: [{ chainId: 4663, address: NVDA_RH, decimals: 18, feeTier: 500 }],
+      },
+    ],
+    rebalanceBandBps: 500,
+    maxSlippageBps: 100,
+  };
 }
 
 // ── Mock context ──────────────────────────────────────────────────────────────
@@ -198,9 +253,10 @@ function makeCtx(
 // ── Test harness ──────────────────────────────────────────────────────────────
 
 async function run(
-  config: ReturnType<typeof twoTokenConfig>,
+  config: import("./agent.js").IndexConfig,
   ctx: ReturnType<typeof makeCtx>,
   ledger?: string,
+  activity?: string,
 ): Promise<ReturnType<typeof agent.tick> extends Promise<infer T> ? T : never> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "index-agent-test-"));
   fs.mkdirSync(path.join(dir, ".sail"), { recursive: true });
@@ -208,6 +264,9 @@ async function run(
   if (ledger !== undefined) {
     fs.mkdirSync(path.join(dir, ".sail", "memory"), { recursive: true });
     fs.writeFileSync(path.join(dir, ".sail", "memory", "ledger.jsonl"), ledger);
+  }
+  if (activity !== undefined) {
+    fs.writeFileSync(path.join(dir, ".sail", "activity.jsonl"), activity);
   }
   const prev = process.cwd();
   process.chdir(dir);
@@ -362,6 +421,75 @@ test("in-flight bridge guard → no re-bridge while mint pending", async () => {
     makeCtx({ timestamp: T0, balances: { [`8453:${USDC_BASE}`]: 1_000_000_000n } }),
     `${acted()}${bridged}\n`,
   );
+  assert.equal(dispatches.length, 0);
+});
+
+test("completes a pending burn's mint half even when the portfolio is empty", async () => {
+  const BRIDGE_TX = `0x${"ab".repeat(32)}`;
+  const bridged = JSON.stringify({
+    ts: T0 - 600,
+    kind: "bridged",
+    source: 8453,
+    dest: 42161,
+    amount: "1000000",
+    messenger: MSG_BASE,
+  });
+  const activity = `${JSON.stringify({
+    ts: "2026-08-20T00:00:00Z",
+    actor: "agent",
+    type: "dispatch_executed",
+    target: MSG_BASE,
+    chainId: 8453,
+    txHash: BRIDGE_TX,
+    safe: SAFE,
+  })}\n`;
+
+  // Stub Iris: return the signed message + attestation for the burn.
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = (async () => ({
+    ok: true,
+    json: async () => ({ messages: [{ message: "0xdeadbeef", attestation: "0xcafebabe" }] }),
+  })) as unknown as typeof fetch;
+  try {
+    // Empty portfolio (no USDC, no holdings) — the mint must still complete.
+    const dispatches = await run(bridgeConfig(), makeCtx({ timestamp: T0 }), `${bridged}\n`, activity);
+    assert.equal(dispatches.length, 1);
+    const call = dispatches[0].calls[0];
+    assert.equal(call.target.toLowerCase(), XMIT_ARB.toLowerCase());
+    const d = decodeFunctionData({ abi: RECEIVE_MESSAGE_ABI, data: call.data as `0x${string}` });
+    assert.equal(d.functionName, "receiveMessage");
+    const [message, attestation] = d.args;
+    assert.equal(message, "0xdeadbeef");
+    assert.equal(attestation, "0xcafebabe");
+  } finally {
+    globalThis.fetch = origFetch;
+  }
+});
+
+test("stock on Robinhood: buys with USDG against the stock, no bridge attempted", async () => {
+  // Fund USDG (18 decimals) on Robinhood. The mock echoes 1:1, so a $500 buy of NVDA
+  // against USDG produces a swap with tokenIn = USDG and the amount in 18-decimal units.
+  const dispatches = await run(
+    stockConfig(),
+    makeCtx({
+      timestamp: T0,
+      balances: { [`4663:${USDG_RH}`]: 500_000_000_000_000_000_000n }, // 500 USDG (18 dec)
+    }),
+  );
+  assert.equal(dispatches.length, 1);
+  const call = dispatches[0].calls[0];
+  assert.equal(call.target.toLowerCase(), ROUTER_RH.toLowerCase());
+  const args = swapArgs(call);
+  assert.equal(args.tokenIn.toLowerCase(), USDG_RH.toLowerCase());
+  assert.equal(args.tokenOut.toLowerCase(), NVDA_RH.toLowerCase());
+  // $500 → 500 * 1e18 native units for the 18-decimal settlement currency.
+  assert.equal(args.amountIn, 500_000_000_000_000_000_000n);
+});
+
+test("stock on Robinhood with no USDG → no bridge, no dispatch (funded direct)", async () => {
+  // No USDG balance on Robinhood, and Robinhood has no CCTP domain — the agent must skip,
+  // not attempt to bridge USDC there.
+  const dispatches = await run(stockConfig(), makeCtx({ timestamp: T0 }));
   assert.equal(dispatches.length, 0);
 });
 

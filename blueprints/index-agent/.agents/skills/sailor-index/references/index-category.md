@@ -1,47 +1,52 @@
 # Index — archetype, extension dimensions, routing
 
-A routing aid consulted when the intent fits the **index** category: deposit one stablecoin, hold a weighted
-token basket, and rebalance toward global target weights across the user's chosen chains. Conforms to the
-category contract in `sailor-strategy` (archetypes + structural-only defaults + extension dimensions + routing).
+A routing aid consulted when the intent fits the **index** category: hold a weighted basket of
+assets, and rebalance toward global target weights across the chains their liquidity needs.
+Conforms to the category contract in `sailor-strategy` (archetypes + structural-only defaults +
+extension dimensions + routing).
 
 ## Archetype
 
-### Index — deposit USDC, hold a weighted basket, rebalance to target
+### Index — hold a weighted basket, rebalance to target
 
 Two behaviors, one loop:
 
 1. **Invest** — deploy capital into the basket. How capital enters is the user's one funding choice:
-   - **Invest on deposit** — any idle USDC is deployed across the basket in proportion to the target weights.
-   - **Cadence DCA** — a fixed dollar amount is bought every period, split across tokens by target weight.
-2. **Rebalance** — when a token's actual weight drifts past its band, sell it down to USDC, and that USDC flows back into the underweight tokens.
+   - **Invest on deposit** — any idle funding is deployed across the basket in proportion to the target weights.
+   - **Cadence DCA** — a fixed dollar amount is bought every period, split across assets by target weight.
+2. **Rebalance** — when an asset's actual weight drifts past its band, sell it down to the settlement
+   currency, and that flows back into the underweight assets.
 
 The distinguishing properties, all user decisions, none inferred:
 
-- **Basket** — N tokens with target weights that sum to 1.0. The user names the tokens and weights.
-- **Chains** — a user-named set of chain ids (any subset of the supported chains). Chains are a parameter,
-  exactly like tokens. There is no primary chain.
-- **Global weights** — one portfolio across every named chain. The target weight of a token is the same
-  regardless of which chain physically holds it. Which chain holds a token is the agent's *routing* decision,
-  not part of the user's goal.
-- **Liquidity-aware routing** — the agent prefers to act on a single chain (cheapest to operate, no bridge cost),
-  and routes a token's buy to another named chain only when liquidity on the preferred chain is too thin for the
-  trade size (slippage would move the price past the user's bound). Per token, so different tokens can live on
-  different chains.
+- **Basket** — N assets with target weights that sum to 1.0. The user names the assets and weights.
+  An asset is a token (WETH, ARB, MORPHO) or a tokenized stock (NVDA, SPY, TSLA) — both are assets,
+  resolved and held the same way.
+- **Chains** — the set of chains the SMA is deployed on (a user decision at account setup), extended
+  to cover every chain the basket's liquidity requires. The agent guides the user to add a chain to
+  the SMA when a needed one is missing.
+- **Global weights** — one portfolio across every named chain. The target weight of an asset is the
+  same regardless of which chain physically holds it. Which chain holds an asset is the agent's
+  *routing* decision, not part of the user's goal.
+- **Liquidity-aware routing** — the agent prefers to act on a single chain (cheapest to operate, no
+  bridge cost), and routes an asset's buy to another named chain only when liquidity on the preferred
+  chain is too thin for the trade size.
 
-Defaults (structural only — never a venue, token, or address): funding mode = invest-on-deposit (the default;
-switch to cadence DCA by naming an amount + period); rebalance band = ±5 percentage points around each target
-weight; per-tx cap = `bridge.maxPerTxUsd` (and the largest rebalance leg the band implies); `maxSlippageBps` = 100.
-The user supplies: the basket + weights, the chains, the funding mode, and the rebalance band.
+Defaults (structural only — never a venue, asset, or address): funding mode = invest-on-deposit (the
+default; switch to cadence DCA by naming an amount + period); rebalance band = ±5 percentage points
+around each target weight; per-tx cap = `bridge.maxPerTxUsd` (and the largest rebalance leg the band
+implies); `maxSlippageBps` = 100. The user supplies: the basket + weights, the funding mode, and the
+rebalance band.
 
 ## Extension dimensions (append to the core gate)
 
 | Dimension | Concrete means |
 |---|---|
-| Basket | token set + target weights (sum to 1.0), each resolved via `sailor-token-resolve` |
-| Chains | user-named chain ids, each doctor-green |
-| Deposit asset | USDC (the stablecoin), resolved address + decimals per chain |
+| Basket | asset set + target weights (sum to 1.0), each resolved via `sailor-token-resolve` |
+| Chains | the SMA's deployed chain set, extended to cover every required chain, each doctor-green |
+| Deposit asset | the settlement currency per chain (USDC / USDG / USDT), resolved address + decimals per chain — see `references/funding-paths.md` |
 | Funding mode | invest-on-deposit (default) or cadence DCA (amount + period), the user's one funding choice |
-| Routing rule | per token: the preferred chain, and the liquidity threshold (slippage / depth vs trade size) that triggers a move to another chain |
+| Routing rule | per asset: the preferred chain, and the liquidity threshold (slippage / depth vs trade size) that triggers a move to another chain |
 | Rebalance band | ± percentage points around each target weight that a weight must leave before the agent trades |
 
 ## Routing (Station 3 reads this)
@@ -52,6 +57,7 @@ The user supplies: the basket + weights, the chains, the funding mode, and the r
 | Live quotes / `amountOutMinimum` sizing | `sailor-swap-quote` |
 | Liquidity + chain routing | `sailor-token-resolve` (`chainsWithLiquidity`, `deepestChain`, `crossChain.action`) |
 | Bridge USDC to another named chain | bespoke CCTP permission, authored via the `sailor-cctp-bridge` skill (cross-chain only; see that skill) |
+| Stock token buy on Robinhood (USDG) | `sailor-templates` (swap) against USDG on Uniswap; USDG is funded direct, no bridge |
 | Swap's approve coverage | per `sailor-templates` (swap) "Approve coverage" — default agent-granted bounded approve |
 
 ## Spec schema (index-specific)

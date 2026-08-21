@@ -137,7 +137,8 @@ const CHAINS = {
     dex: "robinhood",
     gecko: null,
     quoterV2: null,
-    usdc: null,
+    usdc: null, // no USDC — USDG (Paxos) is the settlement currency; resolve its address at build time
+    settleSymbol: "USDG",
     tokens: {},
   },
 };
@@ -692,7 +693,12 @@ async function verifyTokenOnChain(rpc, address) {
 
 function isUsdcPair(venue, chain) {
   if (!venue) return false;
-  if (venue.pairedSymbol === "USDC" || venue.pairedSymbol === "USDC.E") return true;
+  // The chain's settlement currency symbol: "USDC" almost everywhere, but "USDG" on
+  // Robinhood and "USDT" on BNB. A token paired against the settlement currency is the
+  // swap-readiness signal (what a USDC DCA would route through on a USDC chain).
+  const settle = chain.settleSymbol || "USDC";
+  if (venue.pairedSymbol === settle) return true;
+  if (settle === "USDC" && venue.pairedSymbol === "USDC.E") return true;
   return !!(chain.usdc && venue.pairedToken && venue.pairedToken.toLowerCase() === chain.usdc.toLowerCase());
 }
 

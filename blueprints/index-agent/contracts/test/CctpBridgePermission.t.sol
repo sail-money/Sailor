@@ -7,13 +7,15 @@ import {CctpBridgePermission} from "../mandates/CctpBridgePermission.sol";
 /// Foundry tests for the CCTP bridge permission. Runs with `forge test`, needs no
 /// external libraries (a failed require reverts = a failing test). Every call the
 /// agent must be able to make (returns true) and every bound it must not cross
-/// (returns false) is covered, per Gate 4.
+/// (returns false) is covered, per Gate 4 — burn half and mint half.
 contract CctpBridgePermissionTest {
     address internal constant MESSENGER = 0x1111111111111111111111111111111111111111;
+    address internal constant TRANSMITTER = 0x4444444444444444444444444444444444444444;
     address internal constant USDC = 0x2222222222222222222222222222222222222222;
     address internal constant OTHER_TOKEN = 0x3333333333333333333333333333333333333333;
     address internal constant ACCOUNT = 0x000000000000000000000000000000000000Acc0; // the SMA, same CREATE2 address on every chain
     bytes4 internal constant DEPOSIT_FOR_BURN = 0x6fd3504e;
+    bytes4 internal constant RECEIVE_MESSAGE = 0x57ecfd28;
     bytes4 internal constant OTHER_SELECTOR = bytes4(keccak256("transfer(address,uint256)"));
 
     uint32 internal constant DOMAIN_ALLOWED = 6; // Base
@@ -24,7 +26,7 @@ contract CctpBridgePermissionTest {
     function setUp() public {
         uint32[] memory domains = new uint32[](1);
         domains[0] = DOMAIN_ALLOWED;
-        permission = new CctpBridgePermission(MESSENGER, USDC, domains, 1000e6); // cap 1000 USDC
+        permission = new CctpBridgePermission(MESSENGER, TRANSMITTER, USDC, domains, 1000e6); // cap 1000 USDC
     }
 
     function _ctx(address target, bytes4 selector, uint256 value) internal view returns (Context memory) {
@@ -41,7 +43,7 @@ contract CctpBridgePermissionTest {
         });
     }
 
-    function _data(uint256 amount, uint32 domain, bytes32 recipient, address token)
+    function _burnData(uint256 amount, uint32 domain, bytes32 recipient, address token)
         internal
         pure
         returns (bytes memory)
@@ -53,13 +55,15 @@ contract CctpBridgePermissionTest {
         return bytes32(uint256(uint160(ACCOUNT)));
     }
 
+    // ── Burn half ──────────────────────────────────────────────────────────────
+
     function test_AllowsInBoundsBurn() public view {
-        bytes memory data = _data(500e6, DOMAIN_ALLOWED, _selfRecipient(), USDC);
+        bytes memory data = _burnData(500e6, DOMAIN_ALLOWED, _selfRecipient(), USDC);
         require(permission.evaluate(data, _ctx(MESSENGER, DEPOSIT_FOR_BURN, 0)), "must allow in-bounds burn");
     }
 
     function test_RejectsWrongTarget() public view {
-        bytes memory data = _data(500e6, DOMAIN_ALLOWED, _selfRecipient(), USDC);
+        bytes memory data = _burnData(500e6, DOMAIN_ALLOWED, _selfRecipient(), USDC);
         require(
             !permission.evaluate(data, _ctx(address(0x9999), DEPOSIT_FOR_BURN, 0)),
             "must reject a target other than the messenger"
@@ -67,7 +71,7 @@ contract CctpBridgePermissionTest {
     }
 
     function test_RejectsWrongSelector() public view {
-        bytes memory data = _data(500e6, DOMAIN_ALLOWED, _selfRecipient(), USDC);
+        bytes memory data = _burnData(500e6, DOMAIN_ALLOWED, _selfRecipient(), USDC);
         require(
             !permission.evaluate(data, _ctx(MESSENGER, OTHER_SELECTOR, 0)),
             "must reject a selector other than depositForBurn"
@@ -75,7 +79,7 @@ contract CctpBridgePermissionTest {
     }
 
     function test_RejectsNonUsdcToken() public view {
-        bytes memory data = _data(500e6, DOMAIN_ALLOWED, _selfRecipient(), OTHER_TOKEN);
+        bytes memory data = _burnData(500e6, DOMAIN_ALLOWED, _selfRecipient(), OTHER_TOKEN);
         require(
             !permission.evaluate(data, _ctx(MESSENGER, DEPOSIT_FOR_BURN, 0)),
             "must reject a burnToken other than USDC"
@@ -83,7 +87,7 @@ contract CctpBridgePermissionTest {
     }
 
     function test_RejectsOverCapAmount() public view {
-        bytes memory data = _data(1001e6, DOMAIN_ALLOWED, _selfRecipient(), USDC);
+        bytes memory data = _burnData(1001e6, DOMAIN_ALLOWED, _selfRecipient(), USDC);
         require(
             !permission.evaluate(data, _ctx(MESSENGER, DEPOSIT_FOR_BURN, 0)),
             "must reject an amount above the per-tx cap"
@@ -91,7 +95,7 @@ contract CctpBridgePermissionTest {
     }
 
     function test_RejectsOffAllowlistDomain() public view {
-        bytes memory data = _data(500e6, DOMAIN_OTHER, _selfRecipient(), USDC);
+        bytes memory data = _burnData(500e6, DOMAIN_OTHER, _selfRecipient(), USDC);
         require(
             !permission.evaluate(data, _ctx(MESSENGER, DEPOSIT_FOR_BURN, 0)),
             "must reject a destination domain outside the allowlist"
@@ -100,18 +104,56 @@ contract CctpBridgePermissionTest {
 
     function test_RejectsWrongRecipient() public view {
         bytes32 attacker = bytes32(uint256(uint160(address(0xBEEF))));
-        bytes memory data = _data(500e6, DOMAIN_ALLOWED, attacker, USDC);
+        bytes memory data = _burnData(500e6, DOMAIN_ALLOWED, attacker, USDC);
         require(
             !permission.evaluate(data, _ctx(MESSENGER, DEPOSIT_FOR_BURN, 0)),
             "must reject mintRecipient != account"
         );
     }
 
-    function test_RejectsNativeValue() public view {
-        bytes memory data = _data(500e6, DOMAIN_ALLOWED, _selfRecipient(), USDC);
+    function test_RejectsBurnNativeValue() public view {
+        bytes memory data = _burnData(500e6, DOMAIN_ALLOWED, _selfRecipient(), USDC);
         require(
             !permission.evaluate(data, _ctx(MESSENGER, DEPOSIT_FOR_BURN, 1)),
-            "must reject non-zero native value"
+            "must reject non-zero native value on burn"
+        );
+    }
+
+    // ── Mint half ──────────────────────────────────────────────────────────────
+
+    function test_AllowsReceiveMessage() public view {
+        bytes memory data = abi.encodeWithSelector(
+            RECEIVE_MESSAGE,
+            hex"0000000000000000000000000000000000000000000000000000000000000000",
+            hex"0000000000000000000000000000000000000000000000000000000000000000"
+        );
+        require(
+            permission.evaluate(data, _ctx(TRANSMITTER, RECEIVE_MESSAGE, 0)),
+            "must allow receiveMessage on the transmitter"
+        );
+    }
+
+    function test_RejectsReceiveMessageOnWrongTarget() public view {
+        bytes memory data = abi.encodeWithSelector(RECEIVE_MESSAGE, hex"", hex"");
+        require(
+            !permission.evaluate(data, _ctx(MESSENGER, RECEIVE_MESSAGE, 0)),
+            "must reject receiveMessage on a target other than the transmitter"
+        );
+    }
+
+    function test_RejectsMintNativeValue() public view {
+        bytes memory data = abi.encodeWithSelector(RECEIVE_MESSAGE, hex"", hex"");
+        require(
+            !permission.evaluate(data, _ctx(TRANSMITTER, RECEIVE_MESSAGE, 1)),
+            "must reject non-zero native value on mint"
+        );
+    }
+
+    function test_RejectsMintSelectorOnBurnTarget() public view {
+        bytes memory data = abi.encodeWithSelector(RECEIVE_MESSAGE, hex"", hex"");
+        require(
+            !permission.evaluate(data, _ctx(TRANSMITTER, DEPOSIT_FOR_BURN, 0)),
+            "must reject depositForBurn sent to the transmitter"
         );
     }
 }

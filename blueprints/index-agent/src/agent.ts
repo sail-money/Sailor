@@ -38,14 +38,19 @@ export type BasketToken = {
   chains: ChainToken[]; // ordered deepest-liquidity-first: the routing preference
 };
 
+/** The chain's settlement currency: what value is denominated in and what deposits arrive as. */
+export type SettlementCurrency = { symbol: string; address: Address; decimals: number };
+
 export type IndexConfig = {
   chains: number[];
-  usdc: Record<string, Address>; // chainId -> USDC
+  /** chainId -> the settlement currency (USDC on most chains, USDG on Robinhood, USDT on BNB). */
+  settlement: Record<string, SettlementCurrency>;
   router: Record<string, Address>; // chainId -> Uniswap V3 SwapRouter02
   quoter: Record<string, Address>; // chainId -> Uniswap V3 QuoterV2
   bridge: {
     messenger: Record<string, Address>; // source chain -> CCTP TokenMessenger
-    domains: Record<string, number>; // chain -> CCTP domain id
+    transmitter: Record<string, Address>; // chain -> CCTP MessageTransmitter (completes the mint half)
+    domains: Record<string, number>; // chain -> CCTP domain id (present ONLY on USDC chains)
     maxPerTxUsd: number;
   };
   basket: BasketToken[];
@@ -154,6 +159,22 @@ const DEPOSIT_FOR_BURN_ABI = [
   },
 ] as const;
 
+const RECEIVE_MESSAGE_ABI = [
+  {
+    name: "receiveMessage",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "message", type: "bytes" },
+      { name: "attestation", type: "bytes" },
+    ],
+    outputs: [{ name: "success", type: "bool" }],
+  },
+] as const;
+
+/** Circle's free, keyless attestation service. `getMessages` returns the signed message + attestation. */
+const IRIS_BASE = "https://iris-api.circle.com";
+
 // ── Memory ledger (.sail/memory/ledger.jsonl) ────────────────────────────────
 // Append-only, chain-reconciled record. The cadence and in-flight-bridge guards
 // read here, not ctx.data, because ctx.data resets on every fresh process. Full
@@ -163,6 +184,24 @@ const DEPOSIT_FOR_BURN_ABI = [
 /** Ledger file path, resolved at call time so tests can chdir into a fresh project. */
 function ledgerPath(): string {
   return path.join(process.cwd(), ".sail", "memory", "ledger.jsonl");
+}
+
+/** Activity log path — the runner writes `dispatch_executed` (with txHash) here on every successful dispatch. */
+function activityPath(): string {
+  return path.join(process.cwd(), ".sail", "activity.jsonl");
+}
+
+/** Parse the runner's activity log into objects, newest last, silently skipping malformed lines. */
+function readActivity(): Record<string, unknown>[] {
+  return readLines(activityPath())
+    .map((l) => {
+      try {
+        return JSON.parse(l) as Record<string, unknown>;
+      } catch {
+        return null;
+      }
+    })
+    .filter((e): e is Record<string, unknown> => e !== null);
 }
 
 function readLines(file: string): string[] {
@@ -259,9 +298,34 @@ function cumulativeCost(): { invested: bigint; sold: bigint } {
 // ── Pricing and dispatch ─────────────────────────────────────────────────────
 
 const USDC_DECIMALS = 6;
-const USDC_ONE = 10n ** BigInt(USDC_DECIMALS); // 1 USDC in base units
+const USDC_ONE = 10n ** BigInt(USDC_DECIMALS); // 1 USDC in base units (the value-accounting base)
 const BRIDGE_PENDING_SEC = 1800; // don't re-bridge a chain while its mint is in flight
 const DUST_USD = 10n * USDC_ONE; // skip investments below 10 USDC to avoid gas-wasteful dust
+
+/** The settlement currency for a chain (throws on a misconfigured chain — fail closed). */
+function settlementOf(cfg: IndexConfig, chainId: number): SettlementCurrency {
+  const s = cfg.settlement[String(chainId)];
+  if (!s) throw new Error(`no settlement currency configured for chain ${chainId}`);
+  return s;
+}
+
+/**
+ * Normalize a raw amount in the chain's settlement currency to the value-accounting base
+ * (USDC 6-decimal units). USDG and USDT are 18-decimal; USDC is 6-decimal. All value math —
+ * weights, shortfalls, the dust threshold, the buy cap — is done in this 6-decimal base.
+ */
+function toBase(raw: bigint, settlement: SettlementCurrency): bigint {
+  return settlement.decimals === 6
+    ? raw
+    : (raw * 10n ** BigInt(6)) / 10n ** BigInt(settlement.decimals);
+}
+
+/** Convert a value-accounting (6-decimal) amount back into the chain's settlement native units. */
+function fromBase(base: bigint, settlement: SettlementCurrency): bigint {
+  return settlement.decimals === 6
+    ? base
+    : (base * 10n ** BigInt(settlement.decimals)) / 10n ** BigInt(6);
+}
 
 /** Quote a swap on a chain; returns amountOut, or null on revert or zero (fail closed). */
 async function quoteSwap(
@@ -320,7 +384,7 @@ async function swap(
     .dispatch({ calls: [{ target: cfg.router[String(chainId)], value: 0n, data }] });
 }
 
-/** USDC-denominated value of the SMA's holding of a token on one chain. */
+/** Settlement-currency-denominated value of the SMA's holding of a token on one chain (base units). */
 export async function usdcValueOf(
   ctx: AgentContext,
   cfg: IndexConfig,
@@ -328,21 +392,23 @@ export async function usdcValueOf(
 ): Promise<bigint> {
   const balance = await ctx.chain(spec.chainId).read.balance(spec.address);
   if (balance === 0n) return 0n;
+  const settlement = settlementOf(cfg, spec.chainId);
   const oneUnit = 10n ** BigInt(spec.decimals);
-  const usdcPerToken = await quoteSwap(
+  const perToken = await quoteSwap(
     ctx,
     spec.chainId,
     cfg,
     spec.address,
-    cfg.usdc[String(spec.chainId)],
+    settlement.address,
     oneUnit,
     spec.feeTier,
   );
-  if (usdcPerToken === null) return 0n; // unpriceable holding: fail closed, value 0
-  return (balance * usdcPerToken) / oneUnit;
+  if (perToken === null) return 0n; // unpriceable holding: fail closed, value 0
+  // `perToken` is in the chain's settlement native units; normalize to the 6-decimal base.
+  return (balance * toBase(perToken, settlement)) / oneUnit;
 }
 
-/** First chain (in liquidity order) where the token is routable and the SMA holds enough USDC. */
+/** First chain (in liquidity order) where the token is routable and the SMA holds enough settlement currency. */
 async function pickBuyChain(
   ctx: AgentContext,
   cfg: IndexConfig,
@@ -350,8 +416,9 @@ async function pickBuyChain(
   buyUsd: bigint,
 ): Promise<number | null> {
   for (const spec of token.chains) {
-    const usdcBalance = await ctx.chain(spec.chainId).read.balance(cfg.usdc[String(spec.chainId)]);
-    if (usdcBalance >= buyUsd) return spec.chainId;
+    const settlement = settlementOf(cfg, spec.chainId);
+    const raw = await ctx.chain(spec.chainId).read.balance(settlement.address);
+    if (toBase(raw, settlement) >= buyUsd) return spec.chainId;
   }
   return null;
 }
@@ -377,13 +444,17 @@ async function pickSourceChain(
   amount: bigint,
 ): Promise<number | null> {
   let best: number | null = null;
-  let bestUsdc = 0n;
+  let bestBase = 0n;
   for (const chainId of cfg.chains) {
     if (chainId === destChain) continue;
-    const usdcBalance = await ctx.chain(chainId).read.balance(cfg.usdc[String(chainId)]);
-    if (usdcBalance >= amount && usdcBalance > bestUsdc) {
+    // Only USDC chains can be a bridge source (a chain with a CCTP messenger).
+    if (!cfg.bridge.messenger[String(chainId)]) continue;
+    const settlement = settlementOf(cfg, chainId);
+    const raw = await ctx.chain(chainId).read.balance(settlement.address);
+    const base = toBase(raw, settlement);
+    if (base >= amount && base > bestBase) {
       best = chainId;
-      bestUsdc = usdcBalance;
+      bestBase = base;
     }
   }
   return best;
@@ -395,17 +466,19 @@ async function bridgeUsdc(
   cfg: IndexConfig,
   sourceChain: number,
   destChain: number,
-  amount: bigint,
+  amount: bigint, // in the value-accounting base (6-decimal)
 ): Promise<Dispatch | null> {
   const ch = ctx.chain(sourceChain);
-  const usdc = cfg.usdc[String(sourceChain)];
+  const settlement = settlementOf(cfg, sourceChain); // USDC on every bridged chain
+  const usdc = settlement.address;
   const messenger = cfg.bridge.messenger[String(sourceChain)];
+  const amountNative = fromBase(amount, settlement); // base → the chain's native units
   const allowance = await ch.read.allowance(usdc, ctx.safe, messenger);
-  if (allowance < amount) {
+  if (allowance < amountNative) {
     const data = encodeFunctionData({
       abi: ERC20_APPROVE_ABI,
       functionName: "approve",
-      args: [messenger, amount],
+      args: [messenger, amountNative],
     });
     return ch.dispatch({ calls: [{ target: usdc, value: 0n, data }] });
   }
@@ -416,9 +489,109 @@ async function bridgeUsdc(
   const data = encodeFunctionData({
     abi: DEPOSIT_FOR_BURN_ABI,
     functionName: "depositForBurn",
-    args: [amount, domain, mintRecipient, usdc],
+    args: [amountNative, domain, mintRecipient, usdc],
   });
   return ch.dispatch({ calls: [{ target: messenger, value: 0n, data }] });
+}
+
+/**
+ * Complete any CCTP burn whose mint half has not landed yet.
+ *
+ * The burn half (approve + depositForBurn) only destroys USDC on the source chain; CCTP v1
+ * does not auto-relay, so the destination MessageTransmitter must be called with the message
+ * and Circle's attestation for the USDC to be minted on the other side. The runner records the
+ * burn's tx hash in .sail/activity.jsonl as `dispatch_executed`; this reads it back, fetches the
+ * signed message + attestation from Circle's Iris API (free, keyless), and emits a `receiveMessage`
+ * dispatch on the destination chain. Replay and forgery are both impossible: a valid attestation
+ * exists only for a burn that happened, and that burn's mintRecipient was already forced to the
+ * account, so the mint always lands back at the SMA. The MessageTransmitter rejects a repeated
+ * message on-chain, so re-emitting after a crash is harmless.
+ */
+async function completePendingMints(ctx: AgentContext, cfg: IndexConfig): Promise<Dispatch[]> {
+  const out: Dispatch[] = [];
+
+  const ledger = readLines(ledgerPath());
+  const mintedTx = new Set<string>();
+  const pending: { dest: number; source: number; messenger: string; ts: number }[] = [];
+  for (const line of ledger) {
+    try {
+      const e = JSON.parse(line) as { kind?: string; txHash?: string; dest?: number; source?: number; messenger?: string; ts?: number };
+      if (e.kind === "minted" && e.txHash) mintedTx.add(String(e.txHash).toLowerCase());
+      else if (e.kind === "bridged") {
+        pending.push({
+          dest: e.dest ?? 0,
+          source: e.source ?? 0,
+          messenger: String(e.messenger ?? cfg.bridge.messenger[String(e.source)] ?? "").toLowerCase(),
+          ts: e.ts ?? 0,
+        });
+      }
+    } catch {
+      // skip malformed line
+    }
+  }
+  if (pending.length === 0) return out;
+
+  const activity = readActivity();
+  // Burn tx hashes already claimed this tick, so two pending burns never resolve to the same hash.
+  const claimed = new Set<string>();
+
+  for (const b of pending) {
+    if (!b.messenger) continue;
+    const sourceDomain = cfg.bridge.domains[String(b.source)];
+    if (sourceDomain === undefined) continue;
+    const transmitter = cfg.bridge.transmitter[String(b.dest)];
+    if (!transmitter) continue;
+
+    // The runner's dispatch_executed for this burn: same messenger, same chain, at/after the
+    // ledger timestamp, not already minted and not already claimed by an earlier pending burn.
+    const hit = activity.find((a) => {
+      const target = String(a.target ?? "").toLowerCase();
+      const txHash = String(a.txHash ?? "").toLowerCase();
+      return (
+        a.type === "dispatch_executed" &&
+        Number(a.chainId) === b.source &&
+        target === b.messenger &&
+        txHash !== "" &&
+        !mintedTx.has(txHash) &&
+        !claimed.has(txHash)
+      );
+    });
+    if (!hit) continue; // burn not yet executed (or already completed) — try next tick
+    const txHash = String(hit.txHash).toLowerCase();
+    claimed.add(txHash);
+
+    // Fetch the signed message + attestation. Attestation can lag the burn by a minute, so a
+    // missing message is not an error: just retry on the next tick.
+    let message: string;
+    let attestation: string;
+    try {
+      const res = await fetch(`${IRIS_BASE}/v1/messages/${sourceDomain}/${txHash}`);
+      if (!res.ok) {
+        ctx.log(`iris ${res.status} for ${txHash.slice(0, 10)}… — will retry`);
+        continue;
+      }
+      const json = (await res.json()) as { messages?: { message?: string; attestation?: string }[] };
+      const m = json.messages?.[0];
+      if (!m?.message || !m?.attestation) continue; // attestation not ready yet
+      message = m.message;
+      attestation = m.attestation;
+    } catch (err) {
+      ctx.log(`iris fetch failed for ${txHash.slice(0, 10)}…: ${(err as Error).message}`);
+      continue;
+    }
+
+    const data = encodeFunctionData({
+      abi: RECEIVE_MESSAGE_ABI,
+      functionName: "receiveMessage",
+      args: [message as `0x${string}`, attestation as `0x${string}`],
+    });
+    out.push(
+      ctx.chain(b.dest).dispatch({ calls: [{ target: transmitter as Address, value: 0n, data }] }),
+    );
+    appendLedger({ ts: ctx.timestamp, kind: "minted", dest: b.dest, txHash });
+  }
+
+  return out;
 }
 
 // ── The agent ────────────────────────────────────────────────────────────────
@@ -434,10 +607,19 @@ export const agent: Agent = {
     const cfg = loadConfig();
     ctx.log(`tick — block ${ctx.blockNumber}, chains ${cfg.chains.join(",")}`);
 
-    // 1. Value the portfolio in USDC across every named chain.
+    const dispatches: Dispatch[] = [];
+
+    // 0. Complete any CCTP burn whose mint half hasn't landed yet. This runs BEFORE the
+    //    empty-portfolio guard: a burned-but-unminted bridge leaves the portfolio "empty" on
+    //    both chains, so completing the mint is exactly what un-sticks it.
+    dispatches.push(...(await completePendingMints(ctx, cfg)));
+
+    // 1. Value the portfolio in settlement currency (normalized to the 6-decimal base) across every named chain.
     let usdcTotal = 0n;
     for (const chainId of cfg.chains) {
-      usdcTotal += await ctx.chain(chainId).read.balance(cfg.usdc[String(chainId)]);
+      const settlement = settlementOf(cfg, chainId);
+      const raw = await ctx.chain(chainId).read.balance(settlement.address);
+      usdcTotal += toBase(raw, settlement);
     }
 
     const entries: { token: BasketToken; value: bigint; weightBps: bigint; targetBps: bigint }[] =
@@ -465,7 +647,7 @@ export const agent: Agent = {
         kind: "skipped",
         reason: "portfolio empty",
       });
-      return [];
+      return dispatches; // may still carry a completed bridge mint
     }
     // Weights are measured against the invested portfolio in DCA mode (idle USDC is a
     // war chest, not dilution) and against the full portfolio in invest mode (idle USDC
@@ -476,7 +658,6 @@ export const agent: Agent = {
       e.weightBps = valueBase === 0n ? 0n : (e.value * BPS) / valueBase;
     }
 
-    const dispatches: Dispatch[] = [];
     const bandBps = BigInt(cfg.rebalanceBandBps);
     const cap = BigInt(Math.round(cfg.bridge.maxPerTxUsd * 1e6));
 
@@ -497,6 +678,7 @@ export const agent: Agent = {
         }
         const spec = specFor(e.token, chainId);
         if (!spec) continue;
+        const settlement = settlementOf(cfg, chainId);
         const balance = await ctx.chain(chainId).read.balance(spec.address);
         const amountIn = (balance * excessBps) / e.weightBps; // excess fraction of the holding
         if (amountIn === 0n) continue;
@@ -505,7 +687,7 @@ export const agent: Agent = {
           chainId,
           cfg,
           spec.address,
-          cfg.usdc[String(chainId)],
+          settlement.address,
           amountIn,
           spec.feeTier,
         );
@@ -515,14 +697,15 @@ export const agent: Agent = {
           chainId,
           cfg,
           spec.address,
-          cfg.usdc[String(chainId)],
+          settlement.address,
           amountIn,
           spec.feeTier,
         );
         if (d) {
           dispatches.push(d);
           sold = true;
-          appendLedger({ ts: ctx.timestamp, kind: "sold", amount: proceeds.toString() });
+          // `proceeds` is in the chain's settlement native units; store the normalized base.
+          appendLedger({ ts: ctx.timestamp, kind: "sold", amount: toBase(proceeds, settlement).toString() });
         }
       }
       if (sold) appendLedger({ ts: ctx.timestamp, kind: "rebalanced" });
@@ -557,13 +740,14 @@ export const agent: Agent = {
       if (chainId !== null) {
         const spec = specFor(e.token, chainId);
         if (!spec) continue;
+        const settlement = settlementOf(cfg, chainId);
         const d = await swap(
           ctx,
           chainId,
           cfg,
-          cfg.usdc[String(chainId)],
+          settlement.address,
           spec.address,
-          buyUsd,
+          fromBase(buyUsd, settlement), // base → settlement native units for the swap
           spec.feeTier,
         );
         if (d) {
@@ -573,8 +757,13 @@ export const agent: Agent = {
         continue;
       }
 
-      // No chain holds USDC where this token is routable: bridge USDC to the preferred chain.
+      // No chain holds enough settlement currency where this token is routable. Only USDC
+      // chains are bridged (USDG on Robinhood and USDT on BNB are funded direct, never bridged).
       const dest = e.token.chains[0].chainId;
+      if (cfg.bridge.domains[String(dest)] === undefined) {
+        ctx.log(`chain ${dest} is funded direct (no bridge) — deposit its settlement currency to the SMA`);
+        continue;
+      }
       if (ctx.timestamp - lastBridgeTs(dest) < BRIDGE_PENDING_SEC) {
         ctx.log(`bridge to chain ${dest} in flight — waiting for mint`);
         continue;
@@ -593,6 +782,7 @@ export const agent: Agent = {
           source,
           dest,
           amount: buyUsd.toString(),
+          messenger: cfg.bridge.messenger[String(source)],
         });
       }
     }

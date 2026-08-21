@@ -1,0 +1,86 @@
+{
+  "_comment": "Circle CCTP burn-and-mint registry for the Sail chains Circle CCTP covers. Two generations share the same safety model (burn on source, mint on destination via Circle's attestation), but different contract sets and selectors. CCTP v1 (TokenMessenger/MessageTransmitter, depositForBurn 0x6fd3504e / receiveMessage 0x57ecfd28) covers Ethereum, Optimism, Arbitrum, Base, Unichain. CCTP v2 (TokenMessengerV2/MessageTransmitterV2, depositForBurnWithCaller / receiveMessage via a different selector) adds World Chain (domain 14) and HyperEVM (domain 19) and others. The index runtime currently burns via the v1 path; v2 is documented here for when the resolver flags a World Chain / HyperEVM leg — those chains are USDC-fundable, and the same 'funded direct or bridged' logic applies. BNB Smart Chain (56) has NO USDC via CCTP (Circle's BNB support is a T-bill token), and Robinhood (4663), MegaETH (4326) have no CCTP at all — those are funded direct.",
+  "version": "v1+v2",
+  "iris": {
+    "base": "https://iris-api.circle.com",
+    "getMessages": "/v1/messages/{sourceDomain}/{txHash}",
+    "getAttestation": "/v1/attestations/{messageHash}",
+    "_comment": "Iris is Circle's free, keyless attestation service. getMessages returns { messages: [{ message, attestation, eventNonce }] } given the source domain id and the burn transaction hash."
+  },
+  "chains": {
+    "1": {
+      "name": "Ethereum",
+      "domain": 0,
+      "generation": "v1",
+      "usdc": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "tokenMessenger": "0xBd3fa81B58Ba92a82136038B25aDec7066af3155",
+      "messageTransmitter": "0x0a992d191DEeC32aFe36203Ad87D7d289a738F81"
+    },
+    "10": {
+      "name": "Optimism",
+      "domain": 2,
+      "generation": "v1",
+      "usdc": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+      "tokenMessenger": "0x2B4069517957735bE00ceE0fadAE88a26365528f",
+      "messageTransmitter": "0x4D41f22c5a0e5c74090899E5a8Fb597a8842b3e8"
+    },
+    "42161": {
+      "name": "Arbitrum",
+      "domain": 3,
+      "generation": "v1",
+      "usdc": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+      "tokenMessenger": "0x19330d10D9Cc8751218eaf51E8885D058642E08A",
+      "messageTransmitter": "0xC30362313FBBA5cf9163F0bb16a0e01f01A896ca"
+    },
+    "8453": {
+      "name": "Base",
+      "domain": 6,
+      "generation": "v1",
+      "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "tokenMessenger": "0x1682Ae6375C4E4A97e4B583BC394c861A46D8962",
+      "messageTransmitter": "0xAD09780d193884d503182aD4588450C416D6F9D4"
+    },
+    "130": {
+      "name": "Unichain",
+      "domain": 10,
+      "generation": "v1",
+      "usdc": "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+      "tokenMessenger": "0x4e744b28E787c3aD0e810eD65A24461D4ac5a762",
+      "messageTransmitter": "0x353bE9E2E38AB1D19104534e4edC21c643Df86f4"
+    },
+    "480": {
+      "name": "World Chain",
+      "domain": 14,
+      "generation": "v2",
+      "usdc": "0x_VERIFY_AT_BUILD",
+      "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitterV2": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+      "_note": "CCTP v2. tokenMessengerV2 and messageTransmitterV2 are CREATE2-identical across all v2 chains; the USDC address is chain-specific and must be resolved at build time."
+    },
+    "999": {
+      "name": "HyperEVM",
+      "domain": 19,
+      "generation": "v2",
+      "usdc": "0x_VERIFY_AT_BUILD",
+      "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "messageTransmitterV2": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+      "_note": "CCTP v2. Native HyperEVM liquidity for assets like HYPE is a CLOB (Hyperliquid order book), not an AMM — see the token-resolution layer. USDC bridge works via CCTP v2 regardless."
+    }
+  },
+  "selectors": {
+    "v1": {
+      "depositForBurn": "0x6fd3504e",
+      "receiveMessage": "0x57ecfd28",
+      "usedNonces": "0xfeb61724"
+    },
+    "v2": {
+      "_note": "CCTP v2 uses depositForBurnWithCaller and a different receiveMessage selector; verify with cast sig before wiring a v2 leg."
+    }
+  },
+  "unbridged": {
+    "_comment": "Sail chains with NO CCTP USDC path — funded direct, never bridged.",
+    "56": { "name": "BNB Smart Chain", "settlement": "USDT", "reason": "Circle's BNB CCTP support is a T-bill token (USYC), not USDC" },
+    "4663": { "name": "Robinhood", "settlement": "USDG", "reason": "no CCTP; USDG (Paxos) is the native settlement asset" },
+    "4326": { "name": "MegaETH", "settlement": "unverified", "reason": "no CCTP" }
+  }
+}
