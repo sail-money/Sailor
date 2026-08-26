@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   project into a blueprint and releases it to the registry (opens a review PR by default;
   `--release` releases directly; `--local` writes a `.tar.gz`). Blueprints are published as GitHub
   releases in the `sail-money/harbor` registry.
-- The first **ready-to-run blueprint** (`blueprints/index-agent/`): an index agent that deposits USDC
+- The first **ready-to-run blueprint** (`blueprints/portfolio-agent/`): a portfolio agent that deposits USDC
   into a weighted token basket across named chains, invests every deposit, rebalances toward target
   weights, and bridges USDC across chains via CCTP. Ships with a local read-only dashboard and a
   Telegram report.

@@ -507,7 +507,7 @@ class DispatchNamespace extends KernelNamespace implements IDispatchNamespace {
   /**
    * Poll `managerNonces` until it reaches at least `expected`. A load-balanced
    * RPC may briefly serve a stale (lower) value from a node that hasn't yet
-   * indexed the prior dispatch; retrying guarantees the next dispatch is signed
+   * recorded the prior dispatch; retrying guarantees the next dispatch is signed
    * against — and validated with — the correct nonce.
    */
   private async waitForManagerNonce(

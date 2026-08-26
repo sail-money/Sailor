@@ -297,11 +297,11 @@ test("create scaffolds in-place when the current directory is empty", { concurre
   let handedOff: { dir: string } | undefined;
   try {
     await harborCreate(
-      "index",
+      "portfolio",
       undefined,
       {},
       {
-        listReleases: async () => [release("index-v1", "index.tar.gz")],
+        listReleases: async () => [release("portfolio-v1", "portfolio.tar.gz")],
         downloadAsset: async () => Buffer.from("x"),
         blueprintStart: async (_source, d) => {
           handedOff = { dir: d };

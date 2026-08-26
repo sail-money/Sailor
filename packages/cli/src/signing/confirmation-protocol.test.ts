@@ -258,7 +258,7 @@ describe("A3 — outcome doctrine for daemon-confirmed kinds (create-sma)", () =
 describe("A3b — confirmOutcome pass-through (caller-reported paths: configure/revoke/deploy-clone)", () => {
   const outcomes: { outcome: string; extra: Record<string, unknown> }[] = [
     { outcome: "confirmed", extra: { txHash: TX } },
-    { outcome: "confirmed", extra: { txHash: TX, note: "indexing may lag; verify with sailor mandate list" } },
+    { outcome: "confirmed", extra: { txHash: TX, note: "state may lag; verify with sailor mandate list" } },
     { outcome: "reverted", extra: { txHash: TX, error: "reverted on-chain" } },
     { outcome: "failed", extra: { error: "sendTransaction threw" } },
     { outcome: "unverified", extra: { txHash: TX, error: "mined but isConfigured still false" } },

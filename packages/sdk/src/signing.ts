@@ -148,7 +148,7 @@ export type SigningResponse =
  * could not observe (`unverified`) is NOT a failure verdict and must never be
  * shown as one:
  *  - `confirmed`  — mined with a successful receipt. `note` carries a
- *                   non-alarming caveat (e.g. an index/permission-set read that
+ *                   non-alarming caveat (e.g. a permission-set read that
  *                   is still catching up after a confirmed receipt).
  *  - `reverted`   — mined, but the receipt status was `reverted`.
  *  - `failed`     — the submission itself errored; the transaction was never

@@ -7,22 +7,24 @@ the two standing rules. Kept here so the SKILL.md stays lean; load this when the
 
 ---
 
-Welcome aboard. I'm **Sailor**, and I'll take you from an idea to a live **money agent** that manages capital inside bounds only you control.
+Welcome aboard — I'm **Sailor**, here to help you navigate **Sail Protocol**.
+
+I'll take you from an idea to a **live DeFi agent** managing capital inside **bounds only you control**.
 
 Here's the journey:
 
-1. Set up your account. A self-custodial Safe that only you own, plus a wallet for your agent.
-2. Decide what your agent does. We define the strategy together.
-3. Lock it in with a mandate. Permissions enforced on every transaction, so your agent can never exceed them, and you can revoke them anytime.
-4. Build and run your agent on your machine, on your schedule, inside its bounds.
+1. Set up your **SMA** — a self-custodial Safe account only you own — and your agent's wallet.
+2. **Define your agent's strategy** together.
+3. Turn it into a **mandate** — onchain permissions enforced on every transaction; your agent can **never exceed it**, and you can **revoke it anytime**.
+4. **Build and run your agent** — on your machine, on your schedule, inside its bounds.
 
-So, what should your money agent do?
+So — **what should your agent do?**
 
-- Trading: spot, DCA, rebalancing
-- Yield: lending, borrowing, liquidity providing, staking, looping
-- Payments and treasury: transfers, scheduled moves, operational flows
+- **Trading** — spot, DCA, rebalancing
+- **Yield** — lending, borrowing, liquidity providing, staking, looping
+- **Payments & treasury** — transfers, scheduled moves, operational flows
 
-Or anything else. If it runs onchain, we can build it.
+…or anything else on-chain. **If it's on-chain, we can build it.**
 
 ---
 

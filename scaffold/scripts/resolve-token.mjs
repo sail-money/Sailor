@@ -18,7 +18,7 @@
 // ~10–30 req/min). A venue is Sail-routable if the shared SwapPermission can route it
 // (Uniswap V2/V3/V4, Aerodrome, Velodrome, PancakeSwap, SushiSwap). Swap-readiness is
 // CONFIRMED on-chain only for Uniswap V3 (USDC→token via QuoterV2) — the one tier the
-// resolver live-probes; every other routable venue is index-reported, not live-quoted.
+// resolver live-probes; every other routable venue is feed-reported, not live-quoted.
 //
 // Output: JSON on stdout (machine-readable); human notes on stderr.
 
@@ -46,6 +46,11 @@ const CHAINS = {
       WBTC: { address: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599", decimals: 8 },
     },
   },
+  // Base also carries Coinbase tokenized stocks (B20 standard, Aug 2026). These are
+  // B20 native precompiles — no per-address bytecode on Basescan — but standard ERC-20
+  // symbol()/decimals() resolve on-chain. Addresses and 8 decimals verified against
+  // docs.base.org/base-chain/asset-issuance/tokenized-stocks-on-base and live eth_call.
+  // Curated here so they resolve offline without DexScreener.
   base: {
     chainId: 8453,
     dex: "base",
@@ -55,6 +60,20 @@ const CHAINS = {
     tokens: {
       USDC: { address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6 },
       WETH: { address: "0x4200000000000000000000000000000000000006", decimals: 18 },
+      // Coinbase tokenized stocks (B20, 8 decimals, settled in USDC, trade on Aerodrome).
+      NVDAc: { address: "0xb20000000000000000000078ee7ce2fE4908108C", decimals: 8 },
+      AAPLc: { address: "0xb200000000000000000000C2e324d24d7eEcd1fb", decimals: 8 },
+      METAc: { address: "0xb2000000000000000000008bC8786B856E61707C", decimals: 8 },
+      GOOGLc: { address: "0xb2000000000000000000002D0BA3164cc74f58B7", decimals: 8 },
+      AMZNc: { address: "0xb200000000000000000000d9192b6B456483C2E8", decimals: 8 },
+      COINc: { address: "0xb200000000000000000000c85a31389D71F3ecfb", decimals: 8 },
+      CRCLc: { address: "0xB20000000000000000000019f6E7C675b73C2e4D", decimals: 8 },
+      INTCc: { address: "0xB2000000000000000000004AFF16039bA04bdFBc", decimals: 8 },
+      MSFTc: { address: "0xB200000000000000000000Ab99cFa739E253872B", decimals: 8 },
+      MSTRc: { address: "0xb2000000000000000000004884b426556b92883d", decimals: 8 },
+      SNDKc: { address: "0xb200000000000000000000397293Cb8cda9a10c5", decimals: 8 },
+      SPCXc: { address: "0xb2000000000000000000007b9fcbd005511aCBd5", decimals: 8 },
+      TSLAc: { address: "0xb2000000000000000000001e800a7f5189430cD0", decimals: 8 },
     },
   },
   arbitrum: {
@@ -138,6 +157,7 @@ const CHAINS = {
     gecko: null,
     quoterV2: null,
     usdc: null, // no USDC — USDG (Paxos) is the settlement currency; resolve its address at build time
+    // Optional alternative for tokenized stocks — Base (USDC) is the default stock home now.
     settleSymbol: "USDG",
     tokens: {},
   },
@@ -315,7 +335,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // scripts/liquidity-map.json is a DexScreener-derived cache of top assets → address +
 // routable + depth per chain, refreshed offline by scripts/build-liquidity-map.mjs.
 // It is STRICTLY additive: the curated registry wins, the map fills chains the registry
-// lacks, and the live index fills the rest. Map entries are never treated as on-chain
+// lacks, and the live feed fills the rest. Map entries are never treated as on-chain
 // verified — an RPC still re-verifies symbol()/decimals() when one is configured.
 let liquidityMap = null;
 function loadLiquidityMap(mapPath) {
@@ -724,7 +744,7 @@ function pickBestVenue(venues, chain) {
 // ── per-chain resolution (shared by single-, multi-chain and portfolio modes) ──
 // Resolves symbolOrAddr on ONE chain. With an RPC it is the authority: on-chain
 // symbol()/decimals() + a live Uniswap V3 USDC→token QuoterV2 probe. Without an RPC
-// (an --all-chains scan of an unconfigured chain) it falls back to the DEX index
+// (an --all-chains scan of an unconfigured chain) it falls back to the DEX feed
 // (DexScreener, then GeckoTerminal) and treats a deep Sail-routable venue as
 // swap-ready (unverified).
 async function resolveOnChain(symbolOrAddr, chain, rpc) {
@@ -833,7 +853,7 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
       );
     }
   } else if (!onchain && decimals === undefined) {
-    // no-RPC path: best-effort metadata from the DEX index (may be null on chains
+    // no-RPC path: best-effort metadata from the DEX feed (may be null on chains
     // without GeckoTerminal coverage).
     try {
       const m = await fetchTokenMeta(chain.gecko || null, address.toLowerCase());
@@ -851,7 +871,7 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
 
   // Liquidity venue map. When the token came from the offline liquidity map and there's
   // no RPC to confirm on-chain, synthesize a single Sail-routable USDC venue from the
-  // cached flag instead of a live index scan — that's the map's whole speedup. A live scan
+  // cached flag instead of a live feed scan — that's the map's whole speedup. A live scan
   // still runs whenever an RPC is present (to on-chain-confirm) or the map has no positive
   // signal for this chain (to keep full fidelity for the long tail / negative cases).
   // USDC itself (the quote asset) needs no venue map — its swap-readiness is definitional.
@@ -1236,7 +1256,7 @@ function emitSingle(out) {
           .join(", ")
       : out.venuesError
         ? `unavailable (${out.venuesError.includes("429") ? "rate-limited" : "error"} — re-run --chain ${out.chain})`
-        : "none indexed";
+        : "none listed";
   process.stderr.write(
     `\n${out.symbol} on ${out.chain} (${out.chainId}):\n` +
       `  address:    ${out.address}  (source: ${out.source})\n` +
@@ -1312,7 +1332,7 @@ async function main() {
   if (tokens.length === 0) throw new Error("Pass at least one token symbol or address.");
 
   // Load the offline liquidity map (if any) so resolveOnChain can short-circuit the
-  // top assets instead of a live index scan. Safe no-op when absent.
+  // top assets instead of a live feed scan. Safe no-op when absent.
   loadLiquidityMap(mapFlag);
 
   const configured = configuredChains();
@@ -1393,7 +1413,7 @@ async function main() {
       if (cfg.dex && !have.has(name)) {
         // Only a chain-SPECIFIC RPC (named or chainId-keyed) — never the generic
         // RPC_URL, which would point this chain at the wrong network. No specific
-        // var ⇒ DEX-index-only (rpc null).
+        // var ⇒ DEX-feed-only (rpc null).
         const rpc = env[`${name.toUpperCase().replace("-", "_")}_RPC_URL`] ?? env[`RPC_URL_${cfg.chainId}`] ?? null;
         chainSet.push({ name, ...cfg, rpc });
       }
@@ -1401,7 +1421,7 @@ async function main() {
   }
   if (chainSet.length === 0) {
     throw new Error(
-      "No chain configured. Set RPC vars in .sail/.env.local, pass --chain <name>, or use --all-chains to scan every Sail mainnet via the DEX index.",
+      "No chain configured. Set RPC vars in .sail/.env.local, pass --chain <name>, or use --all-chains to scan every Sail mainnet via the DEX feed.",
     );
   }
 
