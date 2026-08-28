@@ -1,0 +1,130 @@
+{
+  "version": 1,
+  "note": "Token identity + disambiguation catalog. Identity (what a symbol IS) is stable; liquidity (where/how deep) is dynamic and resolved live. An entry with one candidate is unambiguous and auto-resolves to that ticker. An entry with multiple candidates needs a one-line confirmation before resolution.",
+  "tokens": {
+    "HYPE": {
+      "name": "Hyperliquid",
+      "kind": "crypto",
+      "candidates": [
+        { "ticker": "HYPE", "chain": "unichain", "what": "Hyperliquid's token (bridged; the native HYPE is a CLOB on Hyperliquid, not an AMM pool on Sail's chains)" }
+      ]
+    },
+    "UNI": { "name": "Uniswap", "kind": "crypto", "candidates": [{ "ticker": "UNI", "what": "Uniswap governance token" }] },
+    "AAVE": { "name": "Aave", "kind": "crypto", "candidates": [{ "ticker": "AAVE", "what": "Aave governance token" }] },
+    "MORPHO": { "name": "Morpho", "kind": "crypto", "candidates": [{ "ticker": "MORPHO", "what": "Morpho lending protocol token" }] },
+    "ZAMA": { "name": "Zama", "kind": "crypto", "candidates": [{ "ticker": "ZAMA", "what": "Zama, the FHE (fully homomorphic encryption) protocol" }] },
+    "ENA": { "name": "Ethena", "kind": "crypto", "candidates": [{ "ticker": "ENA", "what": "Ethena governance token" }] },
+    "LINK": { "name": "Chainlink", "kind": "crypto", "candidates": [{ "ticker": "LINK", "what": "Chainlink oracle token" }] },
+    "ARB": { "name": "Arbitrum", "kind": "crypto", "candidates": [{ "ticker": "ARB", "what": "Arbitrum governance token" }] },
+    "OP": { "name": "Optimism", "kind": "crypto", "candidates": [{ "ticker": "OP", "what": "Optimism governance token" }] },
+    "WETH": { "name": "Wrapped Ether", "kind": "crypto", "candidates": [{ "ticker": "WETH", "what": "Wrapped ETH (the gas token on most chains)" }] },
+    "WBNB": { "name": "Wrapped BNB", "kind": "crypto", "candidates": [{ "ticker": "WBNB", "what": "Wrapped BNB (BNB chain gas token)" }] },
+    "USDC": { "name": "USD Coin", "kind": "stable", "candidates": [{ "ticker": "USDC", "what": "Circle's USDC stablecoin" }] },
+    "USDT": { "name": "Tether", "kind": "stable", "candidates": [{ "ticker": "USDT", "what": "Tether USDT stablecoin" }] },
+
+    "COIN": {
+      "name": "Coinbase (tokenized stock)",
+      "kind": "stock",
+      "candidates": [
+        { "ticker": "COINc", "chain": "base", "what": "Coinbase's own B20 stock token on Base (settled in USDC)", "default": true },
+        { "ticker": "bCOIN", "chain": "bsc", "what": "Backed Finance tracker certificate (buys via WBNB, a two-step route)" },
+        { "ticker": "COINB", "chain": "bsc", "what": "BTech bStocks tracker (thin liquidity)" }
+      ]
+    },
+    "CRCL": {
+      "name": "Circle (tokenized stock)",
+      "kind": "stock",
+      "candidates": [
+        { "ticker": "CRCLc", "chain": "base", "what": "Circle stock as a Base B20 token (settled in USDC)", "default": true },
+        { "ticker": "bCRCL", "chain": "bsc", "what": "Backed Finance tracker certificate (~$244K real BSC liquidity)" }
+      ]
+    },
+    "NVDA": {
+      "name": "Nvidia (tokenized stock)",
+      "kind": "stock",
+      "candidates": [
+        { "ticker": "NVDAc", "chain": "base", "what": "Nvidia stock as a Base B20 token", "default": true },
+        { "ticker": "bNVDA", "what": "Backed Finance tracker certificate" }
+      ]
+    },
+    "AAPL": {
+      "name": "Apple (tokenized stock)",
+      "kind": "stock",
+      "candidates": [
+        { "ticker": "AAPLc", "chain": "base", "what": "Apple stock as a Base B20 token", "default": true },
+        { "ticker": "bAAPL", "what": "Backed Finance tracker certificate" }
+      ]
+    },
+    "META": {
+      "name": "Meta (tokenized stock)",
+      "kind": "stock",
+      "candidates": [
+        { "ticker": "METAc", "chain": "base", "what": "Meta stock as a Base B20 token", "default": true },
+        { "ticker": "bMETA", "what": "Backed Finance tracker certificate" }
+      ]
+    },
+    "GOOGL": {
+      "name": "Alphabet (tokenized stock)",
+      "kind": "stock",
+      "candidates": [
+        { "ticker": "GOOGLc", "chain": "base", "what": "Alphabet stock as a Base B20 token", "default": true },
+        { "ticker": "bGOOGL", "what": "Backed Finance tracker certificate" }
+      ]
+    },
+    "AMZN": {
+      "name": "Amazon (tokenized stock)",
+      "kind": "stock",
+      "candidates": [
+        { "ticker": "AMZNc", "chain": "base", "what": "Amazon stock as a Base B20 token", "default": true },
+        { "ticker": "bAMZN", "what": "Backed Finance tracker certificate" }
+      ]
+    },
+    "TSLA": {
+      "name": "Tesla (tokenized stock)",
+      "kind": "stock",
+      "candidates": [
+        { "ticker": "TSLAc", "chain": "base", "what": "Tesla stock as a Base B20 token", "default": true },
+        { "ticker": "bTSLA", "what": "Backed Finance tracker certificate" }
+      ]
+    },
+    "MSFT": {
+      "name": "Microsoft (tokenized stock)",
+      "kind": "stock",
+      "candidates": [
+        { "ticker": "MSFTc", "chain": "base", "what": "Microsoft stock as a Base B20 token", "default": true },
+        { "ticker": "bMSFT", "what": "Backed Finance tracker certificate" }
+      ]
+    },
+    "INTC": {
+      "name": "Intel (tokenized stock)",
+      "kind": "stock",
+      "candidates": [
+        { "ticker": "INTCc", "chain": "base", "what": "Intel stock as a Base B20 token", "default": true },
+        { "ticker": "bINTC", "what": "Backed Finance tracker certificate" }
+      ]
+    },
+    "MSTR": {
+      "name": "MicroStrategy (tokenized stock)",
+      "kind": "stock",
+      "candidates": [
+        { "ticker": "MSTRc", "chain": "base", "what": "MicroStrategy stock as a Base B20 token", "default": true },
+        { "ticker": "bMSTR", "what": "Backed Finance tracker certificate" }
+      ]
+    },
+    "SNDK": {
+      "name": "SanDisk (tokenized stock)",
+      "kind": "stock",
+      "candidates": [
+        { "ticker": "SNDKc", "chain": "base", "what": "SanDisk stock as a Base B20 token", "default": true }
+      ]
+    },
+    "SPCX": {
+      "name": "SpaceX (tokenized stock)",
+      "kind": "stock",
+      "candidates": [
+        { "ticker": "SPCXc", "chain": "base", "what": "SpaceX stock as a Base B20 token", "default": true },
+        { "ticker": "SPCXB", "chain": "robinhood", "what": "BTech bStocks SpaceX tracker (thin/zero-volume liquidity)" }
+      ]
+    }
+  }
+}

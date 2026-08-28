@@ -411,6 +411,59 @@ function mapLookup(symbolUp, chainName) {
   return (t && t[chainName]) || null;
 }
 
+// ── token identity (disambiguation) ────────────────────────────────────────────
+// scripts/token-identities.json is a curated catalog of what a symbol IS (stable):
+// kind, name, and candidate tickers/meanings. Identity is the ONLY thing safe to
+// cache permanently; liquidity is dynamic and resolved live. `identify` prints a
+// disambiguation plan so the agent asks one cheap confirmation before searching.
+let identities = null;
+function loadIdentities(idPath) {
+  if (identities) return identities;
+  const p = idPath || resolvePath(process.cwd(), "scripts/token-identities.json");
+  try {
+    const m = JSON.parse(readFileSync(p, "utf8"));
+    identities = m && m.tokens ? m.tokens : {};
+  } catch {
+    identities = {}; // no catalog / unreadable → behave as if absent
+  }
+  return identities;
+}
+
+/**
+ * Build a disambiguation plan for a list of user-typed symbols. Returns
+ * { identified, ambiguous, unknown }:
+ *   - identified: single-candidate symbols (auto-proceed, with their canonical ticker)
+ *   - ambiguous: multi-candidate symbols (ask one confirmation each)
+ *   - unknown: not in the catalog (resolve live; the on-chain symbol() check is the authority)
+ */
+function identifySymbols(symbols, idPath) {
+  const catalog = loadIdentities(idPath);
+  const identified = [];
+  const ambiguous = [];
+  const unknown = [];
+  for (const raw of symbols) {
+    const isAddr = ADDR_RE.test(raw);
+    const up = raw.toUpperCase();
+    const entry = catalog[up];
+    if (isAddr) {
+      identified.push({ query: raw, ticker: null, note: "address input — resolved directly" });
+    } else if (entry && entry.candidates.length === 1) {
+      identified.push({ query: raw, ticker: entry.candidates[0].ticker, name: entry.name, kind: entry.kind });
+    } else if (entry && entry.candidates.length > 1) {
+      ambiguous.push({
+        query: raw,
+        name: entry.name,
+        kind: entry.kind,
+        question: `${raw} = ${entry.name}? Which one:`,
+        candidates: entry.candidates.map((c) => ({ ticker: c.ticker, chain: c.chain || null, what: c.what, default: !!c.default })),
+      });
+    } else {
+      unknown.push({ query: raw, note: "not in the identity catalog — resolve live" });
+    }
+  }
+  return { identified, ambiguous, unknown };
+}
+
 const dexCache = new Map();
 let dexLock = Promise.resolve();
 let lastDexTs = 0;
@@ -798,7 +851,10 @@ function isHubPair(venue, chain) {
 function pickBestVenue(venues, chain) {
   const routableUsdc = venues.filter((v) => v.sailRoutable && isUsdcPair(v, chain));
   const routable = venues.filter((v) => v.sailRoutable);
-  const top = routableUsdc[0] || routable[0] || venues[0] || null; // venues are pre-sorted by depth
+  // Prefer a venue that actually fits the trade size and has real volume; fall back
+  // to the deepest routable venue (still reported, but flagged by the caller).
+  const good = (v) => v.fitsSize !== false && !v.suspectVolume;
+  const top = (routableUsdc.find(good) || routableUsdc[0]) || (routable.find(good) || routable[0]) || venues[0] || null;
   if (!top) return null;
   return {
     protocol: top.protocol,
@@ -807,7 +863,39 @@ function pickBestVenue(venues, chain) {
     pool: top.pool,
     pairedSymbol: top.pairedSymbol,
     sailRoutable: top.sailRoutable,
+    volume24hUsd: top.volume24hUsd ?? 0,
+    estImpactPct: top.estImpactPct ?? null,
+    fitsSize: top.fitsSize ?? null,
+    suspectVolume: top.suspectVolume ?? false,
   };
+}
+
+// ── size-aware liquidity screening ──────────────────────────────────────────────
+// Whether a pool can absorb a swap of `sizeUsd` without excessive price impact.
+// Defaults to a $1K retail leg; pass --size to evaluate a different amount. Impact is
+// estimated as 2·size/TVL (constant-product), which is an UPPER bound for concentrated
+// V3 pools — the live on-chain quote is always the authority for the real number.
+const DEFAULT_SIZE_USD = 1000;
+const MAX_IMPACT_PCT = 3; // retail cap: reject as "too thin" above this
+const SUSPECT_VOLUME_TVL = 100_000; // a pool this big with zero 24h volume is seeded/look-alike
+
+function estimateImpactPct(sizeUsd, liquidityUsd) {
+  if (!liquidityUsd || liquidityUsd <= 0) return null;
+  return (2 * sizeUsd / liquidityUsd) * 100;
+}
+
+function isSuspectVolume(venue) {
+  return (venue.liquidityUsd ?? 0) > SUSPECT_VOLUME_TVL && (venue.volume24hUsd ?? 0) === 0;
+}
+
+/** Annotate every venue with size-aware + volume signals, in place. */
+function annotateVenues(venues, sizeUsd) {
+  for (const v of venues) {
+    const impact = estimateImpactPct(sizeUsd, v.liquidityUsd);
+    v.estImpactPct = impact == null ? null : Math.round(impact * 100) / 100;
+    v.fitsSize = impact != null && impact <= MAX_IMPACT_PCT;
+    v.suspectVolume = isSuspectVolume(v);
+  }
 }
 
 // ── per-chain resolution (shared by single-, multi-chain and portfolio modes) ──
@@ -816,7 +904,7 @@ function pickBestVenue(venues, chain) {
 // (an --all-chains scan of an unconfigured chain) it falls back to the DEX feed
 // (DexScreener, then GeckoTerminal) and treats a deep Sail-routable venue as
 // swap-ready (unverified).
-async function resolveOnChain(symbolOrAddr, chain, rpc) {
+async function resolveOnChain(symbolOrAddr, chain, rpc, sizeUsd = DEFAULT_SIZE_USD) {
   const onchain = !!rpc;
   const isAddrInput = ADDR_RE.test(symbolOrAddr);
   const wantSym = isAddrInput ? null : symbolOrAddr.toUpperCase();
@@ -1003,6 +1091,9 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
     }
   }
 
+  // Size-aware + volume flags on every venue (used by pickBestVenue + the report).
+  annotateVenues(venues, sizeUsd);
+
   // Swap-readiness. On-chain: a live Uniswap V3 USDC→token QuoterV2 quote across fee
   // tiers (Sail's executable route). Off-chain (--all-chains scan): a deep Sail-routable
   // venue exists, but is NOT live-quoted (quoteVerified stays false).
@@ -1089,6 +1180,7 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
     venuesTotal,
     venuesError,
     bestVenue,
+    sizeUsd,
     recommendation: perChainRecommendation({
       symbol: verifiedSymbol,
       chain,
@@ -1102,11 +1194,12 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
       isUsdc,
       decimalsSource,
       source,
+      sizeUsd,
     }),
   };
 }
 
-function perChainRecommendation({ symbol, chain, swapReady, twoHop, twoHopVia, twoHopVenue, best, bestVenue, onchain, isUsdc, decimalsSource, source }) {
+function perChainRecommendation({ symbol, chain, swapReady, twoHop, twoHopVia, twoHopVenue, best, bestVenue, onchain, isUsdc, decimalsSource, source, sizeUsd }) {
   const unverified =
     typeof source === "string" && source.endsWith("-unverified-collision")
       ? ` NOTE: multiple "${symbol}" contracts were found on ${chain.name} and none matched the symbol on-chain — this address is the deepest pool, NOT a verified match. Confirm the address before signing.`
@@ -1120,7 +1213,10 @@ function perChainRecommendation({ symbol, chain, swapReady, twoHop, twoHopVia, t
     return `Swap-ready on ${chain.name} (live Uniswap V3 USDC quote${best ? `, fee ${best.fee}` : ""}). Hand to quote-swap.mjs for an exact quote + amountOutMinimum.${unverified}`;
   }
   if (swapReady && !onchain) {
-    return `${chain.name} has a Sail-routable ${bestVenue ? bestVenue.protocol : "Uniswap"} pool (~${fmtUsd(bestVenue ? bestVenue.liquidityUsd : 0)}), but it was not live-quoted on-chain (no RPC / verify failed). Configure an RPC or SMA on ${chain.name} to confirm.${unverified}`;
+    const thin = bestVenue && bestVenue.fitsSize === false
+      ? ` — note: ~${fmtUsd(bestVenue.liquidityUsd)} is thin for a ${fmtUsd(sizeUsd)} trade (est. impact ${bestVenue.estImpactPct}%), re-check at execution`
+      : "";
+    return `${chain.name} has a Sail-routable ${bestVenue ? bestVenue.protocol : "Uniswap"} pool (~${fmtUsd(bestVenue ? bestVenue.liquidityUsd : 0)}), but it was not live-quoted on-chain (no RPC / verify failed). Configure an RPC or SMA on ${chain.name} to confirm.${thin}${unverified}`;
   }
   if (twoHop) {
     // Not a problem: the token trades against the hub asset, so it is reachable in two
@@ -1223,20 +1319,20 @@ const CHAIN_RESOLVE_CONCURRENCY = 3;
 // `deadline` (epoch ms, optional) bounds the whole token: chains that would start past
 // it are skipped with a "timed out" error entry so one stubborn token can't overshoot
 // the portfolio deadline by a full token's worth of work.
-async function resolveToken(symbolOrAddr, chainSet, configuredNames, deadline = Infinity) {
+async function resolveToken(symbolOrAddr, chainSet, configuredNames, deadline = Infinity, sizeUsd = DEFAULT_SIZE_USD) {
   const chains = {};
   const entries = await mapPool(chainSet, CHAIN_RESOLVE_CONCURRENCY, async (c) => {
     if (Date.now() > deadline) {
       return { name: c.name, value: { chain: c.name, chainId: c.chainId, error: "timed out" } };
     }
     try {
-      return { name: c.name, value: await resolveOnChain(symbolOrAddr, c, c.rpc || null) };
+      return { name: c.name, value: await resolveOnChain(symbolOrAddr, c, c.rpc || null, sizeUsd) };
     } catch (e) {
       // If the on-chain path failed (flaky RPC, etc.) but the chain has a GeckoTerminal
       // network, degrade to a GeckoTerminal-only map rather than dropping the chain.
       if (c.rpc && c.gecko) {
         try {
-          const fallback = await resolveOnChain(symbolOrAddr, c, null);
+          const fallback = await resolveOnChain(symbolOrAddr, c, null, sizeUsd);
           fallback.onchainError = errMsg(e);
           return { name: c.name, value: fallback };
         } catch {
@@ -1427,6 +1523,10 @@ async function main() {
         "  --all-chains             → also scan every Sail mainnet via DexScreener\n" +
         "  --compact                → minimal JSON (query → chains + action only; for agent reads)\n" +
         "  --optimize               → append basket chain-set plan (minimum bridges/hops)\n" +
+        "  --identify               → disambiguation plan only (no network): which symbols need a\n" +
+        "                             \"did you mean X?\" confirmation before resolving\n" +
+        "  --size <usd>             → trade size to screen liquidity against (default 1000)\n" +
+        "  --identities <path>       → identity catalog (default scripts/token-identities.json)\n" +
         "  --map <path>             → offline liquidity map (default scripts/liquidity-map.json)\n",
     );
     process.exit(args.length === 0 ? 1 : 0);
@@ -1439,19 +1539,44 @@ async function main() {
   let jsonMode = false;
   let compactMode = false;
   let optimizeMode = false;
+  let identifyMode = false;
+  let sizeUsd = DEFAULT_SIZE_USD;
   let mapFlag = null;
+  let identitiesFlag = null;
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === "--chain") chainFlag = args[++i];
     else if (a === "--rpc") rpcFlag = args[++i];
     else if (a === "--map") mapFlag = args[++i];
+    else if (a === "--identities") identitiesFlag = args[++i];
+    else if (a === "--size") sizeUsd = Number(args[++i]) || DEFAULT_SIZE_USD;
     else if (a === "--all-chains") allChains = true;
     else if (a === "--json") jsonMode = true;
     else if (a === "--compact") compactMode = true;
     else if (a === "--optimize") optimizeMode = true;
+    else if (a === "--identify") identifyMode = true;
     else if (!a.startsWith("--")) tokens.push(a);
   }
   if (tokens.length === 0) throw new Error("Pass at least one token symbol or address.");
+
+  // ── --identify: disambiguation plan only, no network. ─────────────────────────
+  if (identifyMode) {
+    const plan = identifySymbols(tokens, identitiesFlag || undefined);
+    const human = [
+      plan.identified.length
+        ? `Confident (${plan.identified.length}): ${plan.identified.map((t) => `${t.query} → ${t.ticker || t.note}`).join(", ")}`
+        : "Confident: none",
+      plan.ambiguous.length
+        ? `Need confirmation (${plan.ambiguous.length}): ${plan.ambiguous.map((t) => `${t.question} [${t.candidates.map((c) => `${c.ticker}${c.default ? " (default)" : ""}`).join(" | ")}]`).join("; ")}`
+        : "Need confirmation: none",
+      plan.unknown.length
+        ? `Unknown (${plan.unknown.length}): ${plan.unknown.map((t) => t.query).join(", ")}`
+        : "Unknown: none",
+    ];
+    process.stdout.write(JSON.stringify(plan, null, 2) + "\n");
+    process.stderr.write(`\n${human.join("\n")}\n`);
+    return;
+  }
 
   // Load the offline liquidity map (if any) so resolveOnChain can short-circuit the
   // top assets instead of a live feed scan. Safe no-op when absent.
@@ -1567,7 +1692,7 @@ async function main() {
       unresolved.push(...tokens.slice(resolved.length));
       break;
     }
-    const r = await resolveToken(t, chainSet, configuredNames, deadline);
+    const r = await resolveToken(t, chainSet, configuredNames, deadline, sizeUsd);
     resolved.push(r);
     process.stderr.write(
       `  resolved ${t}: ${r.chainsWithLiquidity.length ? r.chainsWithLiquidity.join(", ") : "no routable liquidity"} [${r.crossChain.action}]\n`,

@@ -40,9 +40,37 @@ endpoint; `--all-chains` maps every Sail mainnet (even ones without an RPC confi
 DexScreener-only data) so you can recommend "put your SMA on chain Y"; `--json` forces the rich
 per-token map for a single token; `--compact` shrinks the output to what an agent needs (query →
 chains + action only, no venue arrays); `--optimize` appends a basket-level minimum chain-set plan
-(`summary.basket`); `--map <path>` points at an offline liquidity map (default
-`scripts/liquidity-map.json`). `--compact` + `--optimize` together is the token-cheapest read for
-an agent building a portfolio.
+(`summary.basket`); `--identify` prints a **disambiguation plan only** (offline, instant) — see
+below; `--size <usd>` screens liquidity against a trade size (default $1K); `--map <path>` points
+at an offline liquidity map (default `scripts/liquidity-map.json`). `--compact` + `--optimize`
+together is the token-cheapest read for an agent building a portfolio.
+
+## Confirm identity FIRST, before any search
+
+**The #1 failure mode is searching the wrong ticker.** "COIN" could be Coinbase's own Base stock
+(`COINc`), the Backed tracker (`bCOIN` on BSC), or a dead crypto token. Resolving before you know
+*what the user means* wastes searches and can return a wrong address. The flow is:
+
+1. **Disambiguate offline, in one instant call:**
+   ```bash
+   node scripts/resolve-token.mjs COIN CRCL HYPE ZAMA ENA --identify
+   ```
+   This reads `scripts/token-identities.json` and prints three buckets:
+   - **Confident** (single canonical meaning) — auto-proceed.
+   - **Need confirmation** (multiple candidates, e.g. `COINc` vs `bCOIN` vs `COINB`) — ask ONE
+     quick check: "Just confirming — COIN = Coinbase stock (COINc on Base)? Or the Backed tracker
+     bCOIN on BSC?" Default to the candidate marked `default: true`.
+   - **Unknown** (not in the catalog) — resolve live; the on-chain `symbol()` check is the authority.
+
+2. **Ask once, in one message, covering every ambiguous token together** — never a token-by-token
+   interrogation. Example: "Quick check before I resolve: COIN = Coinbase stock (COINc)? CRCL =
+   Circle (CRCLc)? Everything else (HYPE, ZAMA, ENA) I'm confident on. Sound right?" Then resolve.
+
+3. **Resolve the confirmed tickers**, not the raw user input — e.g. pass `COINc` not `COIN` once
+   confirmed.
+
+The catalog is the ONLY thing safe to cache permanently: it stores *identity* (what a token IS).
+It deliberately does NOT store where liquidity lives — that is dynamic and resolved live below.
 
 ## Resolve on the funding chain first (the speed rule)
 
@@ -53,7 +81,7 @@ taking so long"). The correct order:
 1. **Start with the user's funding chain.** When the user says "1K USDC on Base" (or names any
    one chain), resolve on THAT chain first with a targeted `--chain <name>` — one chain, seconds:
    ```bash
-   node scripts/resolve-token.mjs HYPE UNI AAVE MORPHO CRCL COIN ZAMA ENA --chain base --compact
+   node scripts/resolve-token.mjs HYPE UNI AAVE MORPHO CRCL COIN ZAMA ENA --chain base --compact --size 1000
    ```
 2. **Broaden only for the tokens that came back with no liquidity there.** Re-run just those with
    `--all-chains` (or `--chain` on a specific likely home) to find where they DO live. This is a
@@ -63,6 +91,24 @@ taking so long"). The correct order:
 
 The offline liquidity map already answers most top-500 assets instantly, so step 1 is near-instant
 and step 2 is small. A full `--all-chains` basket is the fallback, not the first move.
+
+## Liquidity is size-relative and dynamic (screen with `--size`)
+
+A pool that's fine for a $1K buy can be useless for a $100K buy — and pools appear and disappear.
+So **always pass `--size`** (the user's per-leg amount) and treat depth as a *screening* signal,
+not a final answer:
+
+- Each venue is annotated with `estImpactPct` (rough price impact `2·size/depth`), `fitsSize`
+  (impact ≤ 3%), and `suspectVolume` (a big pool with zero 24h volume — seeded/look-alike, not
+  real depth; Robinhood's bStocks pools show $100M+ with zero volume and must NOT be trusted).
+- The resolver already prefers a venue that fits the size and has real volume, and the
+  recommendation flags "~$X is thin for a $Y trade" when it doesn't.
+- **The live on-chain quote is the only authority for the real number.** Depth figures are stale
+  and concentration-blind; `quote-swap.mjs` (or the QuoterV2 probe) gives the actual
+  `amountOut` at the real trade size. A V3 pool's TVL can understate its executable depth 5–500×.
+- Rule of thumb from `docs/references/dex-liquidity-adequacy-model.md`: a constant-product pool
+  needs ≥ 100× the trade size; a V3 pool needs ≥ 20× (screen only, always live-quote). Retail
+  max-slippage caps: 3% ($1K–$10K), 5% ($10K–$50K), 8% ($50K–$100K).
 
 ## Tokenized stocks (Coinbase B20)
 

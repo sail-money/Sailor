@@ -80,11 +80,15 @@ Elicit in the user's financial words. All decisions the user makes, none inferre
 
 1. **Basket** — the assets and target weights (sum to 1.0). Assets may be tokens (WETH, ARB,
    MORPHO) or tokenized stocks (COIN, CRCL, NVDA on Base; Robinhood stock tokens) — anything available
-   on our chains. Resolve every asset with `sailor-token-resolve`, **on the funding chain first**
-   (see that skill's speed rule: never open with `--all-chains`); carry each asset's address,
-   decimals, liquidity map, and **funding path** into the spec (see `references/funding-paths.md`).
-   The user names stock tickers by their plain form ("COIN", "CRCL", "NVDA"); the resolver maps them
-   to the on-chain `COINc`/`CRCLc`/`NVDAc` automatically.
+   on our chains. **First disambiguate the tickers with `sailor-token-resolve --identify`** (offline,
+   instant) — ask ONE combined confirmation for any ambiguous symbol ("COIN = Coinbase stock? CRCL =
+   Circle?") before searching, then resolve the *confirmed* tickers. Resolve every asset with
+   `sailor-token-resolve`, **on the funding chain first** (see that skill's speed rule: never open
+   with `--all-chains`), passing `--size` = the user's per-leg amount so the resolver screens depth
+   against the actual trade; carry each asset's address, decimals, liquidity map, and **funding path**
+   into the spec (see `references/funding-paths.md`). The user names stock tickers by their plain
+   form ("COIN", "CRCL", "NVDA"); the resolver maps them to the on-chain `COINc`/`CRCLc`/`NVDAc`
+   automatically, and flags the Backed (`bCOIN`/`bCRCL`) alternatives when they exist.
 2. **Funding mode** — ask: "Do you want your deposits invested every time they arrive, or a set
    amount bought automatically on a schedule?" Two answers:
    - **Invest on deposit** (default) — every deposit is invested across the basket on the next run.
