@@ -41,7 +41,7 @@ export interface ServiceConfig {
   logPath: string;
   /** Loop interval seconds → SAILOR_INTERVAL in the unit env (run reads it). */
   interval?: number;
-  /** Chain id → `run --chain`. */
+  /** Chain id → `run --chains`. */
   chain?: number;
   /** Seconds to wait before restarting after a crash. */
   restartSec?: number;
@@ -71,7 +71,9 @@ export function windowsTaskName(projectName: string): string {
 /** `run` arguments derived from the config (chain as a flag; interval via env). */
 function runArgs(cfg: ServiceConfig): string[] {
   const args = ["run"];
-  if (cfg.chain != null) args.push("--chain", String(cfg.chain));
+  // `run` accepts `--chains` (plural), not `--chain`. Emitting the singular
+  // form generated a unit that failed on every start (issue #225).
+  if (cfg.chain != null) args.push("--chains", String(cfg.chain));
   return args;
 }
 
