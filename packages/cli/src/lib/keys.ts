@@ -88,13 +88,14 @@ export function keyExists(role: Role, safe?: string): boolean {
 /**
  * Loads and decrypts a role key.
  *
- * Honors `SAIL_PASSPHRASE` (injected from .sail/.env.local by the caller) so that
- * every key-loading command — not just `sailor run` — works non-interactively in
- * CI and automation. Only falls back to an interactive prompt when the env var is
- * absent AND stdin is a TTY; on a non-TTY without the env var it fails with the
- * real cause instead of a misleading "Invalid password" from an unanswerable
- * prompt. (F6: previously this always prompted, so `sailor session resume`
- * ignored SAIL_PASSPHRASE.)
+ * Honors `SAIL_PASSPHRASE`, injecting it from `.sail/.env.local` when the caller
+ * hasn't set it in the process environment, so every key-loading command — not
+ * just `sailor run` — works non-interactively in CI and automation. Only falls
+ * back to an interactive prompt when the env var is absent AND stdin is a TTY;
+ * on a non-TTY without the env var it fails with the real cause instead of a
+ * misleading "Invalid password" from an unanswerable prompt. (F6: previously
+ * `sailor session resume` ignored SAIL_PASSPHRASE; #226: `sailor keys show`
+ * bypassed the injection that the runner and daemon already did.)
  */
 export async function loadKeyring(role: Role, safe?: string): Promise<LocalKeyring> {
   const keystore = readJsonFile<EncryptedKeystore>(resolveKeyPath(role, safe));
@@ -102,6 +103,14 @@ export async function loadKeyring(role: Role, safe?: string): Promise<LocalKeyri
     throw new Error(
       `No ${roleLabel(role)} found.\nRun "sailor keys generate" and choose "${roleLabel(role)}" first.`,
     );
+  }
+  if (!process.env.SAIL_PASSPHRASE) {
+    try {
+      const env = parseEnvFile(sailPath(".env.local"));
+      if (env.SAIL_PASSPHRASE) process.env.SAIL_PASSPHRASE = env.SAIL_PASSPHRASE;
+    } catch {
+      // .env.local absent or unreadable — fall through to prompt / TTY guard
+    }
   }
   const passphrase = process.env.SAIL_PASSPHRASE;
   if (passphrase) {
