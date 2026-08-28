@@ -79,9 +79,12 @@ to the matching category instead of forcing the portfolio shape.
 Elicit in the user's financial words. All decisions the user makes, none inferred:
 
 1. **Basket** — the assets and target weights (sum to 1.0). Assets may be tokens (WETH, ARB,
-   MORPHO) or tokenized stocks (NVDAc, AAPLc on Base; Robinhood stock tokens) — anything available
-   on our chains. Resolve every asset with `sailor-token-resolve`; carry its address, decimals,
-   liquidity map, and **funding path** into the spec (see `references/funding-paths.md`).
+   MORPHO) or tokenized stocks (COIN, CRCL, NVDA on Base; Robinhood stock tokens) — anything available
+   on our chains. Resolve every asset with `sailor-token-resolve`, **on the funding chain first**
+   (see that skill's speed rule: never open with `--all-chains`); carry each asset's address,
+   decimals, liquidity map, and **funding path** into the spec (see `references/funding-paths.md`).
+   The user names stock tickers by their plain form ("COIN", "CRCL", "NVDA"); the resolver maps them
+   to the on-chain `COINc`/`CRCLc`/`NVDAc` automatically.
 2. **Funding mode** — ask: "Do you want your deposits invested every time they arrive, or a set
    amount bought automatically on a schedule?" Two answers:
    - **Invest on deposit** (default) — every deposit is invested across the basket on the next run.
@@ -98,15 +101,19 @@ The agent then derives the rest (this is the "I guide you" part, never a questio
 
 #### 2a. Derive the required chains from the basket
 
-Resolve each asset and read its liquidity home. The basket *requires* every chain where an asset
-is routable that the user wants to hold it on. Chains are the agent's routing surface, not a menu
-the user is asked to choose from.
+Resolve each asset (funding chain first, then `--all-chains` only for the assets that came back
+empty) and read its liquidity home. The basket *requires* every chain where an asset is routable
+that the user wants to hold it on. A token with only a WETH-paired pool is **still routable** — it
+is a two-swap route (USDC → WETH → token), surfaced by the resolver as `twoHop`; treat it as a
+normal route, note the extra leg, never call it "no pool" or "needs a custom mandate". Chains are
+the agent's routing surface, not a menu the user is asked to choose from.
 
-#### 2b. Chain gap → tell the user to deploy the SMA there
+#### 2b. Chain gap → instruct the user to deploy the SMA there
 
 Compare the required chains against the SMA's current chain set. If the basket needs a chain the
-SMA is not deployed on, **say so plainly and route to `sailor-onboarding`** to deploy the SMA on
-that chain before proceeding. This is the one place the agent directs the user to act on chains:
+SMA is not deployed on, **instruct the user to deploy the SMA on that chain** — plainly, as a
+required step — and route to `sailor-onboarding`. This is the one place the agent directs the user
+to act on chains:
 
 > Your portfolio holds a stock that only trades on Robinhood Chain. Deploy your SMA on Robinhood and I'll
 > take it from there.

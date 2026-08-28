@@ -39,6 +39,19 @@ const CHAINS = {
   robinhood: "robinhood",
 };
 
+// Two-hop swap hub per chain: the native gas token. A token with no direct USDC pool
+// but a Sail-routable pool against this asset is still swappable in TWO swaps
+// (USDC → hub → token). Matches resolve-token.mjs HUB_SYMBOLS.
+const HUB_SYMBOLS = {
+  ethereum: "WETH",
+  base: "WETH",
+  arbitrum: "WETH",
+  optimism: "WETH",
+  unichain: "WETH",
+  bsc: "WBNB",
+  worldchain: "WETH",
+};
+
 // Seed: top assets by circulating market cap that actually trade on Sail's chains, with
 // their well-known decimals (stable public knowledge; NOT on-chain verified here). The
 // map stores these so the no-RPC path has a usable decimals fallback; resolve-token.mjs
@@ -197,10 +210,17 @@ async function resolveOneChain(symbolUp, chainName, chainId, knownAddr = null) {
   let routable = false;
   let routableDex = null;
   let bestUsdcLiq = 0;
+  // Two-hop: a Sail-routable pool paired with the hub asset (WETH/WBNB), used when
+  // there is no direct USDC pool. Recorded so resolve-token.mjs can surface it as a
+  // two-swap route instead of "no pool".
+  const hub = HUB_SYMBOLS[chainName];
+  let hubDex = null;
+  let bestHubLiq = 0;
   for (const p of all) {
     const baseSym = ((p.baseToken || {}).symbol || "").toUpperCase();
     const quoteSym = ((p.quoteToken || {}).symbol || "").toUpperCase();
     const isUsdcPair = baseSym === "USDC" || baseSym === "USDC.E" || quoteSym === "USDC" || quoteSym === "USDC.E";
+    const isHubPair = !!hub && (baseSym === hub || quoteSym === hub);
     const dexId = (p.dexId || "").toLowerCase();
     if (isUsdcPair && isRoutableDex(dexId, p.labels, chainName)) {
       const liq = Number((p.liquidity && p.liquidity.usd) || 0);
@@ -209,10 +229,23 @@ async function resolveOneChain(symbolUp, chainName, chainId, knownAddr = null) {
         routable = true;
         routableDex = dexFamily(dexId, p.labels);
       }
+    } else if (!routable && isHubPair && isRoutableDex(dexId, p.labels, chainName)) {
+      const liq = Number((p.liquidity && p.liquidity.usd) || 0);
+      if (liq > bestHubLiq) {
+        bestHubLiq = liq;
+        hubDex = dexFamily(dexId, p.labels);
+      }
     }
   }
 
-  return { address: bestAddr, routable, liquidityUsd: Math.round(bestUsdcLiq || bestLiq), dex: routable ? routableDex : null };
+  return {
+    address: bestAddr,
+    routable,
+    liquidityUsd: Math.round(bestUsdcLiq || bestLiq),
+    dex: routable ? routableDex : null,
+    hubDex: routable ? null : hubDex,
+    hubLiquidityUsd: routable ? null : Math.round(bestHubLiq),
+  };
 }
 
 async function main() {
@@ -253,7 +286,16 @@ async function main() {
       const decimals = seedDecimals(seed, sym, name);
       try {
         const r = await resolveOneChain(sym, name, CHAINS[name], knownAddr);
-        if (r) tokens[sym][name] = { address: r.address, decimals, routable: r.routable, liquidityUsd: r.liquidityUsd, dex: r.dex };
+        if (r) {
+          tokens[sym][name] = {
+            address: r.address,
+            decimals,
+            routable: r.routable,
+            liquidityUsd: r.liquidityUsd,
+            dex: r.dex,
+            ...(r.hubDex ? { hubDex: r.hubDex, hubLiquidityUsd: r.hubLiquidityUsd } : {}),
+          };
+        }
       } catch {
         // symbol not on this chain — leave it absent
       }
@@ -263,9 +305,9 @@ async function main() {
   }
 
   const map = {
-    version: 3,
+    version: 4,
     generatedAt: new Date().toISOString(),
-    source: "Addresses from CoinGecko platforms (offline) + DexScreener USDC-routable check (keyless). Addresses/decimals are NOT on-chain verified — resolve-token.mjs re-verifies on-chain when an RPC is set. `dex` is the DEX family of the deepest routable USDC pool.",
+    source: "Addresses from CoinGecko platforms (offline) + DexScreener USDC-routable check (keyless). Addresses/decimals are NOT on-chain verified — resolve-token.mjs re-verifies on-chain when an RPC is set. `dex` is the DEX family of the deepest routable USDC pool; `hubDex`/`hubLiquidityUsd` record the deepest Sail-routable pool against the chain's hub asset (WETH/WBNB) when there is no USDC pool (a two-swap route).",
     chains: chainNames,
     tokens,
   };

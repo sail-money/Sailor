@@ -163,6 +163,56 @@ const CHAINS = {
   },
 };
 
+// Coinbase tokenized stocks (B20) carry a lowercase "c" suffix in their on-chain
+// symbol (COINc, CRCLc, NVDAc, …). Users name the plain ticker ("COIN", "NVDA") or
+// the suffixed form ("COINc"); both must resolve to the curated registry key. The
+// alias only fires when the suffixed key actually exists on this chain, so a real
+// crypto token that shares a plain ticker is never shadowed.
+const STOCK_SUFFIX_ALIASES = {
+  NVDA: "NVDAc",
+  AAPL: "AAPLc",
+  META: "METAc",
+  GOOGL: "GOOGLc",
+  AMZN: "AMZNc",
+  COIN: "COINc",
+  CRCL: "CRCLc",
+  INTC: "INTCc",
+  MSFT: "MSFTc",
+  MSTR: "MSTRc",
+  SNDK: "SNDKc",
+  SPCX: "SPCXc",
+  TSLA: "TSLAc",
+};
+
+/** Canonical curated-registry key for a user-typed symbol, or null when not curated. */
+function curatedKey(chain, wantSym) {
+  const tokens = chain.tokens;
+  if (tokens[wantSym]) return wantSym;
+  // Plain ticker ("COIN") → "COINc". Or suffixed form ("COINc") which uppercase'd to
+  // "COINC" — strip the trailing "C" to recover the ticker, then alias it.
+  const alias =
+    STOCK_SUFFIX_ALIASES[wantSym] ??
+    (wantSym.endsWith("C") ? STOCK_SUFFIX_ALIASES[wantSym.slice(0, -1)] : null);
+  if (alias && tokens[alias]) return alias;
+  return null;
+}
+
+// Two-hop swap hub: the native gas token each USDC/USDT chain routes through. A token
+// with no direct settlement-currency pool but a Sail-routable pool against the hub is
+// still swappable in TWO swaps (settlement → hub → token). The hub always has a deep
+// settlement pool on its chain (it is the base pair), so this is a real route, not a
+// custom-mandate special case. Chains without a hub here (robinhood, hyperevm, megaeth)
+// have no such base asset and are not two-hop candidates.
+const HUB_SYMBOLS = {
+  ethereum: "WETH",
+  base: "WETH",
+  arbitrum: "WETH",
+  optimism: "WETH",
+  unichain: "WETH",
+  bsc: "WBNB",
+  worldchain: "WETH",
+};
+
 const FEE_TIERS = [500, 3000, 10000];
 const PROBE_AMOUNT_USDC = 25n * 10n ** 6n; // 25 USDC — a representative DCA size
 const ADDR_ZERO = "0x" + "0".repeat(40);
@@ -722,6 +772,17 @@ function isUsdcPair(venue, chain) {
   return !!(chain.usdc && venue.pairedToken && venue.pairedToken.toLowerCase() === chain.usdc.toLowerCase());
 }
 
+// A Sail-routable pool paired with the chain's hub asset (WETH/WBNB). Not a DIRECT
+// settlement-currency pool, but a real two-swap route: settlement → hub → token. This
+// needs no custom mandate — the same swap template can do both hops — so it is a
+// normal route, just with one extra leg. Returns the venue, or null.
+function isHubPair(venue, chain) {
+  if (!venue || !venue.sailRoutable) return null;
+  const hub = HUB_SYMBOLS[chain.name];
+  if (!hub || venue.pairedSymbol !== hub) return null;
+  return venue;
+}
+
 // The single venue that best represents swap-readiness FROM USDC (Sail's DCA sell
 // leg): deepest Sail-routable USDC pool, else deepest routable pool, else deepest
 // pool overall. Drives the cross-chain depth ranking, so it must be USDC-relevant —
@@ -757,7 +818,8 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
     address = symbolOrAddr;
     source = "address-input";
   } else {
-    const entry = chain.tokens[wantSym];
+    const regKey = curatedKey(chain, wantSym);
+    const entry = regKey ? chain.tokens[regKey] : null;
     if (entry) {
       address = entry.address;
       // The registry carries verified decimals — use them instead of a rate-limited
@@ -765,6 +827,9 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
       decimals = entry.decimals;
       decimalsSource = "registry";
       source = "registry";
+      // Resolve to the on-chain symbol (e.g. "COINc"), not the plain ticker the user
+      // typed ("COIN"), so the address/decimals are unambiguously the stock token.
+      verifiedSymbol = regKey;
     } else {
       // Offline liquidity map (additive): a cached address + routable flag for this
       // chain, cheaper than a live lookup. Only fills chains the curated registry
@@ -880,11 +945,12 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
   const mapped = source === "liquidity-map" ? mapLookup(wantSym, chain.name) : null;
   if (isUsdc && !onchain) {
     venues = []; // quote asset — no venue scan needed in the no-RPC path
-  } else if (!onchain && mapped) {
-    // The map is the COMPLETE answer for its seeded assets on this chain: routable →
-    // synthesize a USDC venue; not routable → no venues (no Sail-routable USDC pool).
-    // Top assets' liquidity is stable at the day/week scale, so a regularly-refreshed
-    // map can be trusted here — the long tail and any on-chain verify still go live.
+  } else if (!onchain && mapped && (mapped.routable || mapped.hubDex)) {
+    // The map is a POSITIVE cache: routable → synthesize a USDC venue; hub-paired →
+    // synthesize a two-hop (WETH) venue. A negative entry (routable:false, no hubDex)
+    // is NOT trusted as a complete answer — a stale map predating two-hop recording
+    // would otherwise hide real WETH/other-pair liquidity, so those fall through to
+    // the live scan below.
     if (mapped.routable) {
       venues = [
         {
@@ -895,6 +961,26 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
           pairedSymbol: "USDC",
           pairedToken: chain.usdc || null,
           liquidityUsd: mapped.liquidityUsd ?? 0,
+          volume24hUsd: 0,
+          sailRoutable: true,
+          quoteVerified: false,
+        },
+      ];
+    } else if (mapped.hubDex) {
+      // Two-hop: the map found no direct USDC pool but did find a Sail-routable pool
+      // against the chain's hub asset (WETH/WBNB). Synthesize that as a two-hop venue
+      // so the token surfaces as swappable (settlement → hub → token) instead of "no
+      // pool". isHubPair() picks this up for the twoHop flag below.
+      const hub = HUB_SYMBOLS[chain.name];
+      venues = [
+        {
+          protocol: mapped.hubDex,
+          dexId: "liquidity-map",
+          pool: null,
+          feeTier: null,
+          pairedSymbol: hub || "WETH",
+          pairedToken: null,
+          liquidityUsd: mapped.hubLiquidityUsd ?? mapped.liquidityUsd ?? 0,
           volume24hUsd: 0,
           sailRoutable: true,
           quoteVerified: false,
@@ -968,6 +1054,14 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
   const venuesTotal = venues.length;
   const topVenues = venues.slice(0, MAX_VENUES);
 
+  // Two-hop swap: no DIRECT settlement-currency pool, but a Sail-routable pool against
+  // the chain's hub asset (WETH/WBNB). That is a real route — settlement → hub → token,
+  // two swaps — not a custom-mandate special case, so we surface it as swappable and
+  // note the extra leg rather than calling it "no pool". Only meaningful when the token
+  // is not already swap-ready and is not itself the quote asset.
+  const twoHopVenue = !isUsdc && !swapReady ? venues.find((v) => isHubPair(v, chain)) || null : null;
+  const twoHop = !!twoHopVenue;
+
   return {
     symbol: verifiedSymbol,
     address,
@@ -978,6 +1072,8 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
     chainId: chain.chainId,
     onchainVerified: onchain,
     swapReady,
+    twoHop,
+    twoHopVia: twoHopVenue ? twoHopVenue.pairedSymbol : null,
     feeTier: best ? best.fee : null,
     quote,
     probedTiers: tried,
@@ -989,6 +1085,9 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
       symbol: verifiedSymbol,
       chain,
       swapReady,
+      twoHop,
+      twoHopVia: twoHopVenue ? twoHopVenue.pairedSymbol : null,
+      twoHopVenue,
       best,
       bestVenue,
       onchain,
@@ -999,7 +1098,7 @@ async function resolveOnChain(symbolOrAddr, chain, rpc) {
   };
 }
 
-function perChainRecommendation({ symbol, chain, swapReady, best, bestVenue, onchain, isUsdc, decimalsSource, source }) {
+function perChainRecommendation({ symbol, chain, swapReady, twoHop, twoHopVia, twoHopVenue, best, bestVenue, onchain, isUsdc, decimalsSource, source }) {
   const unverified =
     typeof source === "string" && source.endsWith("-unverified-collision")
       ? ` NOTE: multiple "${symbol}" contracts were found on ${chain.name} and none matched the symbol on-chain — this address is the deepest pool, NOT a verified match. Confirm the address before signing.`
@@ -1015,6 +1114,12 @@ function perChainRecommendation({ symbol, chain, swapReady, best, bestVenue, onc
   if (swapReady && !onchain) {
     return `${chain.name} has a Sail-routable ${bestVenue ? bestVenue.protocol : "Uniswap"} pool (~${fmtUsd(bestVenue ? bestVenue.liquidityUsd : 0)}), but it was not live-quoted on-chain (no RPC / verify failed). Configure an RPC or SMA on ${chain.name} to confirm.${unverified}`;
   }
+  if (twoHop) {
+    // Not a problem: the token trades against the hub asset, so it is reachable in two
+    // swaps (settlement → hub → token). Surface it as a normal route with the extra leg
+    // noted, never as "custom mandate or held leg".
+    return `No direct USDC pool for ${symbol} on ${chain.name}, but it trades against ${twoHopVia} (~${fmtUsd(twoHopVenue ? twoHopVenue.liquidityUsd : 0)} via ${twoHopVenue ? twoHopVenue.protocol : "a routable DEX"}) — swappable in two steps (USDC → ${twoHopVia} → ${symbol}).${unverified}`;
+  }
   if (bestVenue) {
     return `No USDC-paired pool for ${symbol} on ${chain.name} via a Sail-routable DEX, though ${bestVenue.protocol} has ~${fmtUsd(bestVenue.liquidityUsd)} in ${bestVenue.pairedSymbol || "other"} pairs. A USDC route here needs a custom mandate or a held leg.${unverified}`;
   }
@@ -1028,15 +1133,20 @@ function fmtUsd(n) {
 
 function recommendCrossChain(chains, configuredNames) {
   const entries = Object.entries(chains).filter(([, o]) => !o.error);
+  // Routable = swap-ready (direct USDC pool) OR two-hop (pool against the hub asset).
+  // Both are executable by the swap template, so both drive route/suggest-sma.
   const routable = entries
-    .filter(([, o]) => o.swapReady)
+    .filter(([, o]) => o.swapReady || o.twoHop)
     .map(([name, o]) => ({
       name,
       depth: o.bestVenue && o.bestVenue.sailRoutable ? o.bestVenue.liquidityUsd : 0,
+      twoHop: !!o.twoHop && !o.swapReady,
       configured: configuredNames.includes(name),
       o,
     }));
   const liqChains = entries.filter(([, o]) => o.venues && o.venues.length).map(([name]) => name);
+
+  const hopLabel = (c) => (c.twoHop ? "two-step (USDC → WETH → token)" : "swap-ready");
 
   const configuredRoutable = routable.filter((c) => c.configured).sort((a, b) => b.depth - a.depth);
   if (configuredRoutable.length) {
@@ -1046,7 +1156,7 @@ function recommendCrossChain(chains, configuredNames) {
       deepestChain: t.name,
       routableChains: configuredRoutable.map((c) => c.name),
       note:
-        `Swap-ready on your configured chain(s): ${configuredRoutable.map((c) => c.name).join(", ")}. ` +
+        `Routable on your configured chain(s): ${configuredRoutable.map((c) => `${c.name} (${hopLabel(c)})`).join(", ")}. ` +
         `Deepest: ${t.name}${t.o.bestVenue ? ` (${t.o.bestVenue.protocol}, ${fmtUsd(t.o.bestVenue.liquidityUsd)})` : ""}.` +
         (configuredRoutable.length > 1 ? " Liquidity on more than one configured chain — pick by depth or by where the rest of the portfolio lives." : ""),
     };
@@ -1060,9 +1170,9 @@ function recommendCrossChain(chains, configuredNames) {
       deepestChain: t.name,
       routableChains: anyRoutable.map((c) => c.name),
       note:
-        `No Sail-routable pool on your configured chain(s). Deepest routable liquidity is on ${t.name}` +
-        `${t.o.bestVenue ? ` (${t.o.bestVenue.protocol}, ${fmtUsd(t.o.bestVenue.liquidityUsd)})` : ""} — ` +
-        `consider deploying an SMA on ${t.name} for this leg.`,
+        `No routable pool on your configured chain(s). Deepest liquidity is on ${t.name}` +
+        `${t.o.bestVenue ? ` (${t.o.bestVenue.protocol}, ${fmtUsd(t.o.bestVenue.liquidityUsd)})` : ""} ` +
+        `${hopLabel(t)} — deploy an SMA on ${t.name} to trade this leg.`,
     };
   }
 
@@ -1174,10 +1284,14 @@ function compactToken(t) {
   const swapReady = Object.values(t.chains)
     .filter((o) => o && !o.error && o.swapReady)
     .map((o) => o.chain);
+  const twoHop = Object.values(t.chains)
+    .filter((o) => o && !o.error && !o.swapReady && o.twoHop)
+    .map((o) => o.chain);
   return {
     query: t.query,
     chainsWithLiquidity: t.chainsWithLiquidity,
     swapReadyChains: swapReady,
+    twoHopChains: twoHop,
     deepestChain: t.crossChain.deepestChain || null,
     action: t.crossChain.action,
     note: t.crossChain.note,

@@ -44,6 +44,46 @@ chains + action only, no venue arrays); `--optimize` appends a basket-level mini
 `scripts/liquidity-map.json`). `--compact` + `--optimize` together is the token-cheapest read for
 an agent building a portfolio.
 
+## Resolve on the funding chain first (the speed rule)
+
+**Never open with `--all-chains`.** It scans 10 chains serially and a couple of live
+lookups can run the whole call past the timeout (this is the #1 source of "why is this
+taking so long"). The correct order:
+
+1. **Start with the user's funding chain.** When the user says "1K USDC on Base" (or names any
+   one chain), resolve on THAT chain first with a targeted `--chain <name>` — one chain, seconds:
+   ```bash
+   node scripts/resolve-token.mjs HYPE UNI AAVE MORPHO CRCL COIN ZAMA ENA --chain base --compact
+   ```
+2. **Broaden only for the tokens that came back with no liquidity there.** Re-run just those with
+   `--all-chains` (or `--chain` on a specific likely home) to find where they DO live. This is a
+   small, fast call because it is a handful of symbols, and the offline map answers the majors.
+3. **For any token whose only liquidity is on another chain, instruct the user to deploy the SMA
+   on that chain** (`crossChain.action: "suggest-sma"`) — see "How to present results" below.
+
+The offline liquidity map already answers most top-500 assets instantly, so step 1 is near-instant
+and step 2 is small. A full `--all-chains` basket is the fallback, not the first move.
+
+## Tokenized stocks (Coinbase B20)
+
+Users name the plain stock ticker — "COIN", "CRCL", "NVDA", "AAPL" — but the on-chain symbol
+carries a lowercase `c` suffix: `COINc`, `CRCLc`, `NVDAc`. The resolver maps both forms to the
+same curated entry automatically (8 decimals, settled in USDC, traded on Base), so pass the symbol
+exactly as the user said it; do not correct it. `COIN` and `COINc` resolve to the same address and
+decimals. These resolve offline from the curated registry — no live lookup, no timeout.
+
+## Two-hop swaps are normal routes, not a problem
+
+A token with no *direct* USDC pool can still be bought if it has a Sail-routable pool against the
+chain's hub asset (WETH on most chains, WBNB on BNB). That is a **two-swap route** — USDC → WETH →
+token — which the same swap template can execute in two legs. It needs **no custom mandate**.
+
+The resolver surfaces this as `twoHop: true` / `twoHopVia: "WETH"` (and in `--compact` output as
+`twoHopChains`), and the recommendation says "swappable in two steps" — a normal route with an
+extra leg. **Never tell the user a two-hop token "needs a custom mandate", "is not tradeable", or
+"has no pool"** — just note the extra leg when you present the funding plan. The user's WETH-paired
+liquidity is fully usable.
+
 **RPC — ask here, the first time it's genuinely needed, once.** This script reads **only**
 `.sail/.env.local` — no shell-var fallback, no public-RPC fallback (unlike `sailor doctor`,
 which tolerates a public fallback and can go green with none configured). If nothing is
@@ -171,9 +211,10 @@ Read `crossChain.action` (per token) and the portfolio `summary`, then advise:
   configured chain, surface both with their depths and ask which to use (or pick by where the
   rest of the basket lives). Hand the chosen chain's bare object to `sailor-swap-quote`.
 - **`suggest-sma`** — no routable pool on the configured chain(s), but a deep one on another
-  Sail chain. Tell the user and **recommend deploying an SMA on that chain** for this leg
-  (e.g. "MORPHO has no USDC pool on Base; the deep USDC pool is on Unichain — consider
-  an SMA on Unichain"). Don't silently drop it.
+  Sail chain. **Instruct the user to deploy the SMA on that chain to trade this leg** (this is a
+  required step, not a suggestion to weigh): "MORPHO has no USDC pool on Base; the deep USDC pool
+  is on Unichain — deploy your SMA on Unichain and I'll trade this leg there." Don't silently drop
+  it and don't frame it as optional.
 - **`manual-address`** — liquidity exists but only on a DEX the template can't route (e.g. Curve,
   Balancer, or a non-USDC pair). Offer a custom mandate via `sailor-mandates`, or hold the leg —
   `sailor-strategy`'s Act 3 discloses what bespoke authoring against this venue actually entails
