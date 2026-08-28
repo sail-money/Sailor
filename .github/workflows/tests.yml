@@ -36,6 +36,10 @@ jobs:
       # isConfigured retry, arbitrary-tx contract), and UI (station state machine).
       - name: Unit tests
         run: pnpm test
+      # Resolver pure-function tests (stock aliases, two-hop floor, size/suspect
+      # screening) — pure, no network, guard the money-critical routing rules.
+      - name: Resolver script tests
+        run: pnpm run test:scripts
       - name: Docs check
         run: pnpm run docs:check
       - name: Init smoke test

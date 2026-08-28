@@ -24,6 +24,7 @@
 
 import { readFileSync, existsSync } from "node:fs";
 import { resolve as resolvePath } from "node:path";
+import { pathToFileURL } from "node:url";
 
 // ── Curated registry (verified live June 2026). Always re-verify decimals on-chain. ──
 // Per-chain Uniswap V3 infrastructure + the common tokens. Addresses are PER-CHAIN.
@@ -409,6 +410,17 @@ function mapLookup(symbolUp, chainName) {
   if (!liquidityMap) return null;
   const t = liquidityMap.tokens[symbolUp];
   return (t && t[chainName]) || null;
+}
+
+// The map's depth figures age; identity/addresses are re-verified on-chain and a
+// stale map is a positive cache only (it can miss fresh liquidity, never return
+// wrong data). After this many days the resolver nudges a refresh so depth
+// screening isn't silently stale. Pure helper so it is unit-testable.
+const MAP_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+function isMapStale(generatedAt, nowMs = Date.now()) {
+  if (!generatedAt) return false;
+  const t = Date.parse(generatedAt);
+  return !Number.isNaN(t) && nowMs - t > MAP_MAX_AGE_MS;
 }
 
 // ── token identity (disambiguation) ────────────────────────────────────────────
@@ -1206,6 +1218,13 @@ function perChainRecommendation({ symbol, chain, swapReady, twoHop, twoHopVia, t
       : decimalsSource === "unverified"
         ? ` NOTE: address/decimals are NOT on-chain verified on ${chain.name} — confirm before signing.`
         : "";
+  // A venue with huge TVL but zero 24h volume is the seeded/look-alike trap (e.g.
+  // Robinhood's multi-billion bStocks pools). Surface it in the prose, not just the
+  // JSON flag — the agent reads this note to decide where to route real money.
+  const suspect = (venue) =>
+    venue && venue.suspectVolume
+      ? ` WARNING: this pool reports ~${fmtUsd(venue.liquidityUsd)} TVL but ZERO 24h volume — likely seeded/look-alike liquidity, not a real market. Treat its depth as unverified.`
+      : "";
   if (isUsdc) {
     return `${symbol} is the USDC quote asset on ${chain.name} — no swap needed to source it.`;
   }
@@ -1216,16 +1235,16 @@ function perChainRecommendation({ symbol, chain, swapReady, twoHop, twoHopVia, t
     const thin = bestVenue && bestVenue.fitsSize === false
       ? ` — note: ~${fmtUsd(bestVenue.liquidityUsd)} is thin for a ${fmtUsd(sizeUsd)} trade (est. impact ${bestVenue.estImpactPct}%), re-check at execution`
       : "";
-    return `${chain.name} has a Sail-routable ${bestVenue ? bestVenue.protocol : "Uniswap"} pool (~${fmtUsd(bestVenue ? bestVenue.liquidityUsd : 0)}), but it was not live-quoted on-chain (no RPC / verify failed). Configure an RPC or SMA on ${chain.name} to confirm.${thin}${unverified}`;
+    return `${chain.name} has a Sail-routable ${bestVenue ? bestVenue.protocol : "Uniswap"} pool (~${fmtUsd(bestVenue ? bestVenue.liquidityUsd : 0)}), but it was not live-quoted on-chain (no RPC / verify failed). Configure an RPC or SMA on ${chain.name} to confirm.${suspect(bestVenue)}${thin}${unverified}`;
   }
   if (twoHop) {
     // Not a problem: the token trades against the hub asset, so it is reachable in two
     // swaps (settlement → hub → token). Surface it as a normal route with the extra leg
     // noted, never as "custom mandate or held leg".
-    return `No direct USDC pool for ${symbol} on ${chain.name}, but it trades against ${twoHopVia} (~${fmtUsd(twoHopVenue ? twoHopVenue.liquidityUsd : 0)} via ${twoHopVenue ? twoHopVenue.protocol : "a routable DEX"}) — swappable in two steps (USDC → ${twoHopVia} → ${symbol}).${unverified}`;
+    return `No direct USDC pool for ${symbol} on ${chain.name}, but it trades against ${twoHopVia} (~${fmtUsd(twoHopVenue ? twoHopVenue.liquidityUsd : 0)} via ${twoHopVenue ? twoHopVenue.protocol : "a routable DEX"}) — swappable in two steps (USDC → ${twoHopVia} → ${symbol}).${suspect(twoHopVenue)}${unverified}`;
   }
   if (bestVenue) {
-    return `No USDC-paired pool for ${symbol} on ${chain.name} via a Sail-routable DEX, though ${bestVenue.protocol} has ~${fmtUsd(bestVenue.liquidityUsd)} in ${bestVenue.pairedSymbol || "other"} pairs. A USDC route here needs a custom mandate or a held leg.${unverified}`;
+    return `No USDC-paired pool for ${symbol} on ${chain.name} via a Sail-routable DEX, though ${bestVenue.protocol} has ~${fmtUsd(bestVenue.liquidityUsd)} in ${bestVenue.pairedSymbol || "other"} pairs. A USDC route here needs a custom mandate or a held leg.${suspect(bestVenue)}${unverified}`;
   }
   return `No pool for ${symbol} on ${chain.name}. If liquidity is on another Sail chain, deploy/scan there; otherwise configure as a held leg.`;
 }
@@ -1580,7 +1599,12 @@ async function main() {
 
   // Load the offline liquidity map (if any) so resolveOnChain can short-circuit the
   // top assets instead of a live feed scan. Safe no-op when absent.
-  loadLiquidityMap(mapFlag);
+  const map = loadLiquidityMap(mapFlag);
+  if (map.generatedAt && isMapStale(map.generatedAt)) {
+    process.stderr.write(
+      `Note: scripts/liquidity-map.json is over 30 days old (generated ${map.generatedAt}). Its depth figures may be stale; addresses/decimals are still re-verified on-chain. Refresh with: node scripts/build-liquidity-map.mjs\n`,
+    );
+  }
 
   const configured = configuredChains();
   let configuredNames = configured.map((c) => c.name);
@@ -1752,7 +1776,53 @@ function errMsg(e) {
   return e && typeof e.message === "string" ? e.message : String(e);
 }
 
-main().catch((err) => {
-  process.stderr.write(`\nresolve-token failed: ${errMsg(err)}\n`);
-  process.exit(1);
-});
+// ── exported surface (unit-testable pure functions + constants) ────────────────
+// Exporting makes the resolver importable by resolve-token.test.mjs without running
+// main(). Only pure, deterministic helpers are exported — no network/file IO happens
+// at import time.
+export {
+  CHAINS,
+  STOCK_SUFFIX_ALIASES,
+  HUB_SYMBOLS,
+  MIN_TWO_HOP_LIQUIDITY_USD,
+  MAX_IMPACT_PCT,
+  SUSPECT_VOLUME_TVL,
+  DEFAULT_SIZE_USD,
+  MAP_MAX_AGE_MS,
+  ADDR_RE,
+  curatedKey,
+  identifySymbols,
+  classifyDex,
+  parseFeeBps,
+  addrFromGeckoId,
+  isUsdcPair,
+  isHubPair,
+  estimateImpactPct,
+  isSuspectVolume,
+  annotateVenues,
+  pickBestVenue,
+  perChainRecommendation,
+  recommendCrossChain,
+  buildSummary,
+  compactToken,
+  optimizeChainSet,
+  isMapStale,
+  pad32,
+  uintToHex,
+  encodeQuoteCall,
+  decodeUint256Return,
+  decodeStringReturn,
+  resolveChain,
+  resolveRpc,
+};
+
+// Only run the CLI when invoked directly (`node resolve-token.mjs …`), not when
+// imported by a test or another script.
+const isMainModule =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMainModule) {
+  main().catch((err) => {
+    process.stderr.write(`\nresolve-token failed: ${errMsg(err)}\n`);
+    process.exit(1);
+  });
+}

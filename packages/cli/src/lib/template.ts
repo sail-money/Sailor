@@ -11,10 +11,20 @@ export const TEMPLATE_COPY_EXCLUDES = new Set([
   ".DS_Store",
 ]);
 
+/**
+ * Unit tests (.test.mjs / .test.ts / .spec.*) are developer-only artifacts, never
+ * part of a shipped project or blueprint. They must not nest into scaffolded
+ * projects (or a second publish), so the copy helpers skip them by suffix.
+ */
+function isTestArtifact(name: string): boolean {
+  return /\.(test|spec)\.(mjs|js|cjs|ts|tsx|mts|cts)$/.test(name);
+}
+
 export function copyDirSync(src: string, dest: string): void {
   fs.mkdirSync(dest, { recursive: true });
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
     if (TEMPLATE_COPY_EXCLUDES.has(entry.name)) continue;
+    if (isTestArtifact(entry.name)) continue;
     const srcPath = path.join(src, entry.name);
     // Underscore-prefixed → dot-prefixed: npm strips dot-files (.gitignore,
     // .env.local) from package tarballs even inside `files`-listed directories.
@@ -37,6 +47,7 @@ export function copyDirSyncIfMissing(src: string, dest: string, added: string[] 
   fs.mkdirSync(dest, { recursive: true });
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
     if (TEMPLATE_COPY_EXCLUDES.has(entry.name)) continue;
+    if (isTestArtifact(entry.name)) continue;
     const srcPath = path.join(src, entry.name);
     const destName = entry.name.startsWith("_") ? `.${entry.name.slice(1)}` : entry.name;
     const destPath = path.join(dest, destName);
