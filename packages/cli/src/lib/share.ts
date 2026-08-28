@@ -104,9 +104,6 @@ export function isSensitivePath(rel: string): boolean {
   if (seg.some((s) => s === ".claude" || s === ".vscode" || s === ".idea")) return true;
   // OS / editor junk.
   if (base === ".DS_Store" || base === "Thumbs.db" || base.endsWith(".swp")) return true;
-  // Developer-only test artifacts — never strategy, never shipped in a blueprint or
-  // share (e.g. scaffold/scripts/resolve-token.test.mjs).
-  if (/\.(test|spec)\.(mjs|js|cjs|ts|tsx|mts|cts)$/.test(base)) return true;
   // Credential / key files anywhere — these are pure secrets, never strategy.
   // Always-strip: registry creds + key-material extensions + ssh keys.
   if (

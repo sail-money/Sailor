@@ -82,13 +82,6 @@ test("isSensitivePath whitelists .sail/, strips backups/logs/variants, keeps .en
   assert.equal(isSensitivePath("src/agent.ts"), false);
 });
 
-test("isSensitivePath strips developer test artifacts from blueprints/shares", () => {
-  assert.equal(isSensitivePath("scripts/resolve-token.test.mjs"), true);
-  assert.equal(isSensitivePath("src/agent.test.ts"), true);
-  assert.equal(isSensitivePath("lib/foo.spec.ts"), true);
-  assert.equal(isSensitivePath("scripts/resolve-token.mjs"), false); // the real script ships
-});
-
 test("buildCleanCopy strips Safe-tx JSON by shape, even with an innocent name", () => {
   const root = makeProject();
   // an operational tx batch named so it dodges the filename patterns
