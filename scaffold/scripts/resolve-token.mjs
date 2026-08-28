@@ -213,6 +213,12 @@ const HUB_SYMBOLS = {
   worldchain: "WETH",
 };
 
+// A two-hop pool below this USD depth is dust — not a real route for a retail DCA.
+// Below it, the token is treated as having no two-hop route (so the resolver keeps
+// looking for a direct USDC pool or a deeper home), rather than surfacing a $41 pool
+// as "swappable in two steps" and masking where the real liquidity lives.
+const MIN_TWO_HOP_LIQUIDITY_USD = 10_000;
+
 const FEE_TIERS = [500, 3000, 10000];
 const PROBE_AMOUNT_USDC = 25n * 10n ** 6n; // 25 USDC — a representative DCA size
 const ADDR_ZERO = "0x" + "0".repeat(40);
@@ -775,11 +781,13 @@ function isUsdcPair(venue, chain) {
 // A Sail-routable pool paired with the chain's hub asset (WETH/WBNB). Not a DIRECT
 // settlement-currency pool, but a real two-swap route: settlement → hub → token. This
 // needs no custom mandate — the same swap template can do both hops — so it is a
-// normal route, just with one extra leg. Returns the venue, or null.
+// normal route, just with one extra leg. Returns the venue, or null when the pool is
+// dust (below MIN_TWO_HOP_LIQUIDITY_USD) or not actually hub-paired.
 function isHubPair(venue, chain) {
   if (!venue || !venue.sailRoutable) return null;
   const hub = HUB_SYMBOLS[chain.name];
   if (!hub || venue.pairedSymbol !== hub) return null;
+  if ((venue.liquidityUsd ?? 0) < MIN_TWO_HOP_LIQUIDITY_USD) return null;
   return venue;
 }
 

@@ -52,6 +52,10 @@ const HUB_SYMBOLS = {
   worldchain: "WETH",
 };
 
+// Below this USD depth a two-hop (hub-paired) pool is dust and is not recorded as a
+// route — matches resolve-token.mjs MIN_TWO_HOP_LIQUIDITY_USD.
+const MIN_TWO_HOP_LIQUIDITY_USD = 10_000;
+
 // Seed: top assets by circulating market cap that actually trade on Sail's chains, with
 // their well-known decimals (stable public knowledge; NOT on-chain verified here). The
 // map stores these so the no-RPC path has a usable decimals fallback; resolve-token.mjs
@@ -231,7 +235,7 @@ async function resolveOneChain(symbolUp, chainName, chainId, knownAddr = null) {
       }
     } else if (!routable && isHubPair && isRoutableDex(dexId, p.labels, chainName)) {
       const liq = Number((p.liquidity && p.liquidity.usd) || 0);
-      if (liq > bestHubLiq) {
+      if (liq > bestHubLiq && liq >= MIN_TWO_HOP_LIQUIDITY_USD) {
         bestHubLiq = liq;
         hubDex = dexFamily(dexId, p.labels);
       }
