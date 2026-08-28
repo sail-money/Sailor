@@ -242,6 +242,41 @@ export interface CreatedRelease {
 }
 
 /**
+ * Upload a binary asset to a release. GitHub serves release assets from
+ * `uploads.github.com` (the `upload_url` returned by the create-release call),
+ * NOT from `api.github.com` — POSTing to the API host returns 404 even though
+ * the release already exists. The upload is retried a few times on transient
+ * 404/5xx, since a freshly created release is occasionally not indexed for a
+ * beat after creation.
+ */
+async function uploadReleaseAsset(
+  token: string,
+  uploadUrl: string,
+  assetName: string,
+  assetBytes: Uint8Array,
+): Promise<void> {
+  // upload_url looks like `…/assets{?name,label}`; append the name query param.
+  const url = `${uploadUrl.replace(/\{\?name,label\}$/, "")}?name=${encodeURIComponent(assetName)}`;
+
+  let last: Response | undefined;
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    const up = await fetch(url, {
+      method: "POST",
+      headers: { ...ghHeaders(token), "Content-Type": "application/octet-stream" },
+      body: assetBytes as unknown as BodyInit,
+    });
+    if (up.status === 201) return;
+    last = up;
+    // 404 = not indexed yet; 502/503 = upload backend not ready. Anything else is a
+    // hard failure we surface immediately.
+    if (up.status !== 404 && up.status !== 502 && up.status !== 503) break;
+    await sleep(attempt * 1000);
+  }
+  if (last) throw await ghError(last, `uploading asset "${assetName}"`);
+  throw new Error(`uploading asset "${assetName}" failed`);
+}
+
+/**
  * Create a release (and optionally attach a binary asset) on a repo. Requires a token
  * with `contents: write` on the repo — this is the write path `sailor harbor publish`
  * uses to release a blueprint into the registry.
@@ -263,19 +298,13 @@ export async function createRelease(
     }),
   });
   if (res.status !== 201) throw await ghError(res, `creating release "${input.tag}" on ${repo}`);
-  const rel = (await res.json()) as { id: number; html_url: string };
+  const rel = (await res.json()) as { id: number; html_url: string; upload_url?: string };
 
   if (input.assetName && input.assetBytes) {
-    const up = await fetch(
-      `${GH_API}/repos/${repo}/releases/${rel.id}/assets?name=${encodeURIComponent(input.assetName)}`,
-      {
-        method: "POST",
-        headers: { ...ghHeaders(token), "Content-Type": "application/octet-stream" },
-        body: input.assetBytes as unknown as BodyInit,
-      },
-    );
-    if (up.status !== 201)
-      throw await ghError(up, `uploading asset "${input.assetName}" to ${input.tag}`);
+    const uploadUrl =
+      rel.upload_url ??
+      `https://uploads.github.com/repos/${repo}/releases/${rel.id}/assets{?name,label}`;
+    await uploadReleaseAsset(token, uploadUrl, input.assetName, input.assetBytes);
   }
 
   return { tag: input.tag, htmlUrl: rel.html_url };
