@@ -122,7 +122,8 @@ export function checkSelectorRoutes(calldata: Hex, bytecode: Hex): SelectorCheck
     return {
       selector,
       routes: null,
-      reason: "selector not found in a short bytecode — likely a proxy delegating to an implementation",
+      reason:
+        "selector not found in a short bytecode — likely a proxy delegating to an implementation",
     };
   }
 
