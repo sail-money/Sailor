@@ -15,6 +15,16 @@
 
 import type { Address, Hex, PublicClient } from "viem";
 
+/**
+ * Bytecode shorter than this (in hex chars, "0x" included) is treated as a
+ * likely proxy when the selector is missing from it. Real implementation
+ * contracts — with a full dispatch table — are almost always well above 2 KB;
+ * proxies (minimal, UUPS, transparent, and custom vault proxies) are routinely
+ * a few hundred bytes to ~2 KB. Threshold is deliberately conservative: only
+ * the combination of a MISSING selector AND a short body downgrades the result.
+ */
+const PROXY_BYTECODE_HEX_THRESHOLD = 4096;
+
 export type ContractCheck = {
   address: Address;
   /** True when the address has non-empty bytecode on the queried chain. */
@@ -32,7 +42,8 @@ export type SelectorCheck = {
    * True  — selector found in the contract's dispatch table.
    * False — selector NOT found; call would likely revert with "unknown selector".
    * null  — could not determine: proxy pattern detected (EIP-1167, EIP-1967
-   *         implementation, or EIP-1967 beacon), or calldata shorter than 4 bytes.
+   *         implementation, EIP-1967 beacon, or a short bytecode with no matching
+   *         selector), or calldata shorter than 4 bytes.
    */
   routes: boolean | null;
   /** Human-readable reason when routes is null. */
@@ -99,6 +110,20 @@ export function checkSelectorRoutes(calldata: Hex, bytecode: Hex): SelectorCheck
   // EIP-1967 beacon slot: first 8 bytes of keccak256("eip1967.proxy.beacon") - 1.
   if (body.includes("a3f0ad74e5423aeb")) {
     return { selector, routes: null, reason: "EIP-1967 beacon proxy detected — routing is in the beacon implementation" };
+  }
+
+  // A short bytecode that does NOT contain the selector is itself a strong proxy
+  // signal: real implementation contracts carry a dispatch table and are far
+  // larger, while many modern vaults (and their proxies) stay under a few KB and
+  // delegate to an implementation the bytecode scan cannot see. Downgrade a
+  // missing-selector hit to "not determinable" rather than a false "would revert"
+  // (issue #227).
+  if (!body.includes(selector) && body.length < PROXY_BYTECODE_HEX_THRESHOLD) {
+    return {
+      selector,
+      routes: null,
+      reason: "selector not found in a short bytecode — likely a proxy delegating to an implementation",
+    };
   }
 
   return { selector, routes: body.includes(selector) };
