@@ -29,6 +29,7 @@ import {
   parseFeeBps,
   addrFromGeckoId,
   rankCandidateAddresses,
+  shouldTrustMapEntry,
   isUsdcPair,
   isHubPair,
   estimateImpactPct,
@@ -315,6 +316,34 @@ test("CHAIN_GAS_TIER marks only ethereum as the expensive L1", () => {
 });
 
 // ── size-aware screening: estimateImpactPct / isSuspectVolume / annotateVenues ─
+
+test("shouldTrustMapEntry accepts a routable, trading entry", () => {
+  const real = { address: "0x5607", routable: true, volume24hUsd: 381_000, liquidityUsd: 2_570_000 };
+  assert.equal(shouldTrustMapEntry(real), true);
+});
+
+test("shouldTrustMapEntry rejects a planted look-alike even with a hubDex signal", () => {
+  // The SKY bug: the map recorded the planted $1.1B zero-volume copy as canonical with
+  // a hubDex (two-hop) signal. Zero volume must reject it regardless of depth or signal.
+  const fake = { address: "0x1615", routable: false, hubDex: "uniswap-v3", hubLiquidityUsd: 1_146_410, liquidityUsd: 880_000_000, volume24hUsd: 0 };
+  assert.equal(shouldTrustMapEntry(fake), false);
+});
+
+test("shouldTrustMapEntry rejects a pre-v5 entry with no volume field", () => {
+  // A legacy map entry (no volume24hUsd) cannot prove it trades, so it is never trusted.
+  const legacy = { address: "0xabc", routable: true, liquidityUsd: 5_000_000 };
+  assert.equal(shouldTrustMapEntry(legacy), false);
+});
+
+test("shouldTrustMapEntry accepts a two-hop entry that actually trades", () => {
+  const real = { address: "0x5607", routable: false, hubDex: "uniswap-v3", hubLiquidityUsd: 1_168_740, volume24hUsd: 137_492 };
+  assert.equal(shouldTrustMapEntry(real), true);
+});
+
+test("shouldTrustMapEntry rejects null / empty entries", () => {
+  assert.equal(shouldTrustMapEntry(null), false);
+  assert.equal(shouldTrustMapEntry({ address: "0xabc", routable: false }), false);
+});
 
 test("estimateImpactPct uses the constant-product upper bound (2·size/TVL)", () => {
   assert.equal(estimateImpactPct(1000, 100_000), 2);

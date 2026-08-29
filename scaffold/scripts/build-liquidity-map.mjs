@@ -1,19 +1,24 @@
 #!/usr/bin/env node
 // build-liquidity-map.mjs — offline generator for scripts/liquidity-map.json.
 //
-// Resolve a curated seed of token symbols to their canonical contract address on each
-// of Sail's 10 live chains, plus whether a Sail-routable USDC pool exists and how deep
-// it is. Writes the result as a compact map that resolve-token.mjs reads FIRST (instant
-// answers for the top assets) before falling back to a live DexScreener/GeckoTerminal
-// lookup for the long tail.
+// Builds a map of canonical token addresses (from CoinGecko's official per-chain
+// `platforms` listing) plus, for each, whether a Sail-routable USDC pool exists, how
+// deep it is, and whether it actually trades. Writes the result as a compact map that
+// resolve-token.mjs reads FIRST (instant answers for the top assets) before falling
+// back to a live, volume-ranked DexScreener/GeckoTerminal lookup for the long tail.
 //
-//   node scripts/build-liquidity-map.mjs                 # rebuild the whole seed
-//   node scripts/build-liquidity-map.mjs --out path.json # custom output path
-//   node scripts/build-liquidity-map.mjs --symbols USDC,UNI,LINK  # override the seed
+//   node scripts/build-top-assets-seed.mjs                 # FIRST: CoinGecko → top-assets-seed.json
+//   node scripts/build-liquidity-map.mjs --seed top-assets-seed.json
+//   node scripts/build-liquidity-map.mjs --seed top-assets-seed.json --out path.json
 //
-// Free + keyless: DexScreener only (no API keys). Addresses are DexScreener-derived and
-// NOT on-chain verified — resolve-token.mjs re-verifies on-chain whenever an RPC is set.
-// Run this on a schedule (offline) to refresh the map; the agent never waits on it.
+// Identity is NEVER derived from a DexScreener search. `--seed` must supply a trusted
+// per-chain address for every symbol (from build-top-assets-seed.mjs); a symbol with no
+// trusted address on a chain is simply left out. This is what keeps a planted look-alike
+// (a copied ticker with fake liquidity) out of the map.
+//
+// Free + keyless: CoinGecko (offline, once) + DexScreener (keyless). Addresses are
+// CoinGecko-sourced and NOT on-chain verified — resolve-token.mjs re-verifies on-chain
+// whenever an RPC is set. Run on a schedule (offline); the agent never waits on it.
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve as resolvePath, dirname } from "node:path";
@@ -55,45 +60,6 @@ const HUB_SYMBOLS = {
 // Below this USD depth a two-hop (hub-paired) pool is dust and is not recorded as a
 // route — matches resolve-token.mjs MIN_TWO_HOP_LIQUIDITY_USD.
 const MIN_TWO_HOP_LIQUIDITY_USD = 10_000;
-
-// Seed: top assets by circulating market cap that actually trade on Sail's chains, with
-// their well-known decimals (stable public knowledge; NOT on-chain verified here). The
-// map stores these so the no-RPC path has a usable decimals fallback; resolve-token.mjs
-// overrides with on-chain decimals() whenever an RPC is present.
-const SEED = {
-  USDC: 6,
-  USDT: 6,
-  DAI: 18,
-  WBTC: 8,
-  cbBTC: 8,
-  WETH: 18,
-  SOL: 9,
-  WBNB: 18,
-  UNI: 18,
-  LINK: 18,
-  AAVE: 18,
-  ARB: 18,
-  OP: 18,
-  MKR: 18,
-  LDO: 18,
-  CRV: 18,
-  SNX: 18,
-  COMP: 18,
-  GRT: 18,
-  AERO: 18,
-  MORPHO: 18,
-  ENA: 18,
-  ONDO: 18,
-  EIGEN: 18,
-  LAYER: 18,
-  JUP: 6,
-  TIA: 6,
-  SEI: 6,
-  INJ: 18,
-  PEPE: 18,
-  SHIB: 18,
-  WIF: 6,
-};
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const cache = new Map();
@@ -180,62 +146,30 @@ function seedDecimals(seed, sym, chain) {
 // Discover the canonical address + whether a Sail-routable USDC pool exists for
 // `symbol` on one Sail chain. `knownAddr` (from the seed) skips the search pass. Returns
 // { address, routable, liquidityUsd, dex } or null when the symbol has no pool there.
-// Two passes when no known address:
-//   1. search → canonical address (deepest matching pool)
-//   2. token-pairs/{chain}/{addr} → reliable USDC-routable check (search caps at ~30
-//      pairs and routinely misses the USDC pool, so we can't trust it for routability).
+// Discover, for a KNOWN address, whether a Sail-routable USDC pool exists on one Sail
+// chain, how deep it is, and whether it actually trades. Returns
+// { address, routable, liquidityUsd, dex, hubDex, hubLiquidityUsd, volume24hUsd } or null.
+//
+// Identity is NEVER guessed here. `knownAddr` (the canonical contract from CoinGecko's
+// official per-chain `platforms` listing, via build-top-assets-seed.mjs) is REQUIRED.
+// Asking DexScreener "what is the deepest pool called X?" is how a planted look-alike
+// (a copied ticker with fake liquidity and zero volume) becomes the canonical address —
+// the ZAMA/SKY bug class, which poisoned 378 committed entries. With no trusted address,
+// the chain is left OUT of the map and the resolver falls back to a live, volume-ranked
+// search instead.
 async function resolveOneChain(symbolUp, chainName, chainId, knownAddr = null) {
-  let bestAddr = knownAddr ? knownAddr.toLowerCase() : null;
-  let bestLiq = 0;
-  if (!bestAddr) {
-    bestLiq = -1;
-    const search = await dexGet(`${DEX_API}/latest/dex/search?q=${encodeURIComponent(symbolUp)}`);
-    const pairs = (search && Array.isArray(search.pairs) && search.pairs) || [];
-    // Prefer the candidate that ACTUALLY trades. A planted look-alike shares the
-    // symbol but carries a huge zero-volume pool; picking the deepest pool makes it
-    // the canonical address (the ZAMA bug). Rank real 24h volume first, then depth.
-    const byAddr = new Map(); // address -> { liq, vol }
-    const bump = (a, liq, vol) => {
-      const prev = byAddr.get(a);
-      if (prev) {
-        if (liq > prev.liq) prev.liq = liq;
-        if (vol > prev.vol) prev.vol = vol;
-      } else {
-        byAddr.set(a, { liq, vol });
-      }
-    };
-    for (const p of pairs) {
-      if ((p.chainId || "").toLowerCase() !== chainId) continue;
-      const base = p.baseToken || {};
-      const quote = p.quoteToken || {};
-      const liq = Number((p.liquidity && p.liquidity.usd) || 0);
-      const vol = Number((p.volume && p.volume.h24) || 0);
-      if ((base.symbol || "").toUpperCase() === symbolUp && ADDR_RE.test(base.address || "")) {
-        bump(base.address.toLowerCase(), liq, vol);
-      }
-      if ((quote.symbol || "").toUpperCase() === symbolUp && ADDR_RE.test(quote.address || "")) {
-        bump(quote.address.toLowerCase(), liq, vol);
-      }
-    }
-    const cands = [...byAddr.entries()].map(([address, v]) => ({ address, liq: v.liq, vol: v.vol }));
-    cands.sort((a, b) => {
-      const aReal = a.vol > 0;
-      const bReal = b.vol > 0;
-      if (aReal !== bReal) return aReal ? -1 : 1;
-      if (aReal) return b.vol - a.vol;
-      return b.liq - a.liq;
-    });
-    if (cands.length === 0) return null;
-    bestAddr = cands[0].address;
-    bestLiq = cands[0].liq;
-  }
+  if (!knownAddr) return null;
+  const bestAddr = knownAddr.toLowerCase();
 
-  // Reliable venue check: full pair list for this address on this chain.
+  // Reliable venue check: full pair list for this KNOWN address on this chain.
   const tp = await dexGet(`${DEX_API}/token-pairs/v1/${chainId}/${bestAddr}`);
   const all = (tp && Array.isArray(tp) && tp) || [];
   let routable = false;
   let routableDex = null;
   let bestUsdcLiq = 0;
+  // Max 24h volume across this token's pairs — the "it actually trades" signal the
+  // resolver uses to trust the entry. A planted look-alike trades nothing.
+  let bestVolume = 0;
   // Two-hop: a Sail-routable pool paired with the hub asset (WETH/WBNB), used when
   // there is no direct USDC pool. Recorded so resolve-token.mjs can surface it as a
   // two-swap route instead of "no pool".
@@ -248,6 +182,8 @@ async function resolveOneChain(symbolUp, chainName, chainId, knownAddr = null) {
     const isUsdcPair = baseSym === "USDC" || baseSym === "USDC.E" || quoteSym === "USDC" || quoteSym === "USDC.E";
     const isHubPair = !!hub && (baseSym === hub || quoteSym === hub);
     const dexId = (p.dexId || "").toLowerCase();
+    const vol = Number((p.volume && p.volume.h24) || 0);
+    if (vol > bestVolume) bestVolume = vol;
     if (isUsdcPair && isRoutableDex(dexId, p.labels, chainName)) {
       const liq = Number((p.liquidity && p.liquidity.usd) || 0);
       if (liq > bestUsdcLiq) {
@@ -267,35 +203,52 @@ async function resolveOneChain(symbolUp, chainName, chainId, knownAddr = null) {
   return {
     address: bestAddr,
     routable,
-    liquidityUsd: Math.round(bestUsdcLiq || bestLiq),
+    liquidityUsd: Math.round(bestUsdcLiq),
     dex: routable ? routableDex : null,
     hubDex: routable ? null : hubDex,
     hubLiquidityUsd: routable ? null : Math.round(bestHubLiq),
+    volume24hUsd: Math.round(bestVolume),
   };
 }
 
 async function main() {
   const args = process.argv.slice(2);
   let outPath = resolvePath(SCRIPT_DIR, "liquidity-map.json");
-  let seed = SEED;
+  let seed = null;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--out") outPath = resolvePath(args[++i]);
     else if (args[i] === "--seed") {
       // A JSON file of { "SYMBOL": { "chain": { "address", "decimals" } } } from
-      // build-top-assets-seed.mjs (or legacy { "SYMBOL": decimals }). Overrides SEED.
+      // build-top-assets-seed.mjs — the ONLY accepted form. The legacy bare-number
+      // { "SYMBOL": decimals } form is rejected: without a trusted address the builder
+      // cannot resolve identity (and must not guess it from a search).
       const raw = JSON.parse(readFileSync(resolvePath(args[++i]), "utf8"));
       seed = {};
       for (const [k, v] of Object.entries(raw)) {
         const sym = k.toUpperCase().trim();
         if (sym) seed[sym] = v;
       }
-    } else if (args[i] === "--symbols") {
-      seed = {};
-      for (const s of args[++i].split(",")) {
-        const sym = s.trim().toUpperCase();
-        if (sym) seed[sym] = SEED[sym] ?? 18; // unknown → assume 18 (most ERC20s)
-      }
     }
+  }
+
+  // Every symbol must carry a trusted per-chain address from the seed. A bare-number
+  // entry (legacy) has no address and cannot be mapped.
+  if (!seed) {
+    process.stderr.write(
+      "build-liquidity-map requires --seed <file> with per-chain addresses. Generate it first:\n" +
+        "  node scripts/build-top-assets-seed.mjs            # CoinGecko platforms → top-assets-seed.json\n" +
+        "  node scripts/build-liquidity-map.mjs --seed top-assets-seed.json\n",
+    );
+    process.exit(1);
+  }
+  const noAddr = Object.values(seed).filter((v) => typeof v === "number").length;
+  if (noAddr > 0) {
+    process.stderr.write(
+      `Refusing to build: ${noAddr} seed entr${noAddr === 1 ? "y" : "ies"} are bare decimals with no address. ` +
+        "Re-generate the seed with `node scripts/build-top-assets-seed.mjs` (per-chain addresses from CoinGecko). " +
+        "The map must never record a guessed address.\n",
+    );
+    process.exit(1);
   }
 
   const symbols = Object.keys(seed);
@@ -319,6 +272,7 @@ async function main() {
             routable: r.routable,
             liquidityUsd: r.liquidityUsd,
             dex: r.dex,
+            volume24hUsd: r.volume24hUsd,
             ...(r.hubDex ? { hubDex: r.hubDex, hubLiquidityUsd: r.hubLiquidityUsd } : {}),
           };
         }
@@ -331,9 +285,9 @@ async function main() {
   }
 
   const map = {
-    version: 4,
+    version: 5,
     generatedAt: new Date().toISOString(),
-    source: "Addresses from CoinGecko platforms (offline) + DexScreener USDC-routable check (keyless). Addresses/decimals are NOT on-chain verified — resolve-token.mjs re-verifies on-chain when an RPC is set. `dex` is the DEX family of the deepest routable USDC pool; `hubDex`/`hubLiquidityUsd` record the deepest Sail-routable pool against the chain's hub asset (WETH/WBNB) when there is no USDC pool (a two-swap route).",
+    source: "Addresses from CoinGecko platforms (trusted, offline) + DexScreener routable/volume check (keyless). Identity is NEVER derived from a DexScreener search — only CoinGecko's official per-chain contract is recorded, so a planted look-alike cannot enter the map. `volume24hUsd` is the token's max 24h volume on the chain; the resolver trusts an entry only when it actually trades. `dex` is the DEX family of the deepest routable USDC pool; `hubDex`/`hubLiquidityUsd` record the deepest Sail-routable pool against the chain's hub asset (WETH/WBNB) when there is no USDC pool (a two-swap route).",
     chains: chainNames,
     tokens,
   };

@@ -412,6 +412,22 @@ function mapLookup(symbolUp, chainName) {
   return (t && t[chainName]) || null;
 }
 
+// Whether a liquidity-map entry's address may be trusted as the token's identity.
+// Trusted ONLY when it has a positive routing signal (routable, or a two-hop hub pool)
+// AND actually trades (volume24hUsd > 0). A planted look-alike carries fake liquidity
+// and zero volume, so even a positive hubDex signal is rejected and the resolver falls
+// through to the live volume-ranked search — this is the SKY bug (the committed map
+// recorded the planted $1.1B zero-volume copy as canonical). A pre-v5 map entry (no
+// volume field) is not trusted either, so an old map can never pin a wrong address.
+function shouldTrustMapEntry(mapped) {
+  return !!(
+    mapped &&
+    mapped.address &&
+    (mapped.routable || mapped.hubDex) &&
+    (mapped.volume24hUsd ?? 0) > 0
+  );
+}
+
 // The map's depth figures age; identity/addresses are re-verified on-chain and a
 // stale map is a positive cache only (it can miss fresh liquidity, never return
 // wrong data). After this many days the resolver nudges a refresh so depth
@@ -1008,13 +1024,13 @@ async function resolveOnChain(symbolOrAddr, chain, rpc, sizeUsd = DEFAULT_SIZE_U
       // Offline liquidity map (additive): a cached address + routable flag for this
       // chain, cheaper than a live lookup. Only fills chains the curated registry
       // lacks; never treated as on-chain verified. The address is trusted ONLY when
-      // the map has a POSITIVE signal (routable, or a two-hop hub pool). A
-      // "routable:false with no hubDex" entry means the builder found no real pool
-      // and recorded the deepest pool it saw — which is exactly how a planted
-      // look-alike (huge TVL, zero volume) becomes the canonical address. Those fall
-      // through to a live volume-ranked search below.
+      // the entry has a positive signal (routable, or a two-hop hub pool) AND actually
+      // trades (volume24hUsd > 0). A look-alike carries fake liquidity and zero volume,
+      // so even a positive hubDex signal is rejected and the resolver falls through to
+      // the live volume-ranked search — the SKY bug (the map recorded the planted
+      // $1.1B zero-volume copy as canonical).
       const mapped = mapLookup(wantSym, chain.name);
-      if (mapped && mapped.address && (mapped.routable || mapped.hubDex)) {
+      if (shouldTrustMapEntry(mapped)) {
         address = mapped.address;
         source = "liquidity-map";
         if (mapped.decimals != null) {
@@ -1958,6 +1974,7 @@ export {
   parseFeeBps,
   addrFromGeckoId,
   rankCandidateAddresses,
+  shouldTrustMapEntry,
   isUsdcPair,
   isHubPair,
   estimateImpactPct,
