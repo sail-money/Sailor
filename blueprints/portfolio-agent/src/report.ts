@@ -31,6 +31,10 @@ export type PortfolioSnapshot = {
   costBasis: bigint | null; // null until cost-basis tracking lands
   asOf?: number; // block timestamp the snapshot was taken
   holdings: Holding[];
+  /** Remaining owner-set router allowance across all chains (USDC base units). */
+  allowanceRemaining?: bigint;
+  /** The owner-set allowance ceiling, sized to a year of trading (USDC base units). */
+  allowanceCeiling?: bigint;
 };
 
 /** Classify a holding against its target band: sell if above, buy if below, else in band. */
@@ -70,6 +74,8 @@ export function buildSnapshot(opts: {
   bandBps: number;
   costBasis?: bigint | null;
   asOf?: number;
+  allowanceRemaining?: bigint;
+  allowanceCeiling?: bigint;
 }): PortfolioSnapshot {
   const investedValue = opts.holdings.reduce((a, h) => a + h.value, 0n);
   const band = BigInt(opts.bandBps);
@@ -90,6 +96,8 @@ export function buildSnapshot(opts: {
     costBasis: opts.costBasis ?? null,
     asOf: opts.asOf,
     holdings,
+    allowanceRemaining: opts.allowanceRemaining,
+    allowanceCeiling: opts.allowanceCeiling,
   };
 }
 
@@ -110,6 +118,8 @@ type SnapshotJson = {
   costBasis: string | null;
   asOf?: number;
   holdings: HoldingJson[];
+  allowanceRemaining?: string;
+  allowanceCeiling?: string;
 };
 
 function toJson(s: PortfolioSnapshot): SnapshotJson {
@@ -126,6 +136,8 @@ function toJson(s: PortfolioSnapshot): SnapshotJson {
       targetBps: h.targetBps.toString(),
       status: h.status,
     })),
+    allowanceRemaining: s.allowanceRemaining === undefined ? undefined : s.allowanceRemaining.toString(),
+    allowanceCeiling: s.allowanceCeiling === undefined ? undefined : s.allowanceCeiling.toString(),
   };
 }
 
@@ -156,6 +168,16 @@ export function composeReport(
   lines.push(`Portfolio value   ${formatUsd(s.totalValue)}`);
   lines.push(`Holdings value    ${formatUsd(s.investedValue)}`);
   lines.push(`Idle USDC         ${formatUsd(s.idleUsdc)}`);
+  if (s.allowanceCeiling !== undefined && s.allowanceRemaining !== undefined) {
+    lines.push(
+      `Trading allowance ${formatUsd(s.allowanceRemaining)} of ${formatUsd(s.allowanceCeiling)} left`,
+    );
+    if (s.allowanceRemaining < s.allowanceCeiling / 4n) {
+      lines.push(
+        "Low on trading allowance. Sign one approval on your Safe to top it up, or the agent will stop buying.",
+      );
+    }
+  }
   if (s.costBasis !== null) {
     const pnl = s.investedValue - s.costBasis;
     const sign = pnl < 0n ? "" : "+";

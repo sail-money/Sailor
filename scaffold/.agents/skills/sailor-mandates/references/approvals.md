@@ -50,13 +50,40 @@ Every other action Model B brackets (deposit, borrow, transfer-style consuming c
 
 **So for swaps, the default is single-dispatch** through `SwapPermission` / `SwapPermissionNoOracle` — the model that actually evaluates the price floor on every call. That leaves one separate question: **who grants the router's allowance, and how** — a different axis from the price-floor question above, not a fallback from it.
 
-**The agent grants its own allowance (featured — the default for autonomous operation).** This is Model A, applied to the swap's approve exactly like every other action above: deploy a small bespoke `IPermission` that bounds a standalone ERC-20 `approve()` — target == the token, selector == `approve`, `spender` ∈ the router allowlist, `value == 0`, and, the user's choice, either no amount ceiling or a per-call cap. Register it alongside `SwapPermission`/`SwapPermissionNoOracle` in the same signing session (Gate 7 of `sailor-mandates`). At runtime the agent reads `allowance(SMA, router)` before the swap and, when it's insufficient, emits its own `approve()` dispatch first — a normal Model A single-call dispatch, gated by the permission it already registered, needing no one else's signature. A full worked example (`BoundedErc20Approve`) is in [authoring-patterns.md](authoring-patterns.md) — one of the simplest bespoke permissions to write, and the natural companion to any swap mandate.
+**Owner-set, sized to a year (featured — the default).** The owner signs one `approve` on the Safe at
+setup, sized to a year of trading (for the portfolio agent, twice the expected 12-month inflow, rounded
+up — see the sizing rule in `sailor-portfolio`), and the agent trades inside it. It is not per-trade (a
+signature before every buy is the genuinely bad UX) and not infinite (a ceiling caps what a compromised
+agent could move even when the mandate cannot name every token). The runtime records the ceiling and the
+report warns before the allowance runs low, so the top-up is one signature at a moment the user chose,
+not a stall. No bespoke approve permission needs authoring: this is an owner-signed transaction
+independent of the kernel/mandate system, revocable in one transaction at any time.
 
-**Why unlimited is safe, not reckless — and why size no longer decides who's in the loop.** Neither `SwapPermission` nor `SwapPermissionNoOracle`'s `evaluate()` reads the ERC-20 allowance at all — the router allowlist, the per-tx cap (`amountIn ≤ maxAmountPerTx`), the recipient pin, and the min-out/price floor are all decoded purely from the dispatched call's own arguments and the account's configured bounds. Allowance size cannot widen what any single swap is allowed to do; it only gates whether the router *can* pull tokens at all. That means the size choice — **standing** (`type(uint256).max`, approved once, rarely revisited) or **bounded-per-trade** (just enough for the next few trades, re-approved once it runs low) — is not a safety question, and, now that the approve is agent-emitted under a registered permission, it is not an availability question either: the agent re-approves itself, on its own tick, whenever the allowance it's watching runs low. **The agent never stalls waiting for a top-up, at any size.** A bounded-per-trade cap is a strictly tighter allowance with the same on-chain floor, at the cost of one extra self-issued dispatch now and then — not a worse default traded for availability, since availability was never at stake once the agent (not the owner) does the re-approving.
+**Why the ceiling is a real backstop, and why the size is a year, not a trade.** Neither
+`SwapPermission` nor `SwapPermissionNoOracle`'s `evaluate()` reads the ERC-20 allowance at all — the
+router allowlist, the per-tx cap (`amountIn ≤ maxAmountPerTx`), the recipient pin, and the min-out/price
+floor are all decoded purely from the dispatched call's own arguments and the account's configured bounds.
+So allowance size cannot widen what any single swap is allowed to do; it only gates whether the router
+*can* pull tokens at all. What the allowance DOES cap is the *cumulative* pull: a year-sized approve
+bounds how much the router can drain over the year — the one limit the owner holds directly that the
+mandate itself cannot express. Per-trade is needlessly tight (the bad UX); infinite removes that last cap.
 
-**Owner-set standing approval (kept — a legitimate, simpler alternative, not the default).** A user who would rather skip authoring a bespoke permission at all can still have the owner sign a one-time `approve(router, type(uint256).max)` directly on the Safe — an owner-signed transaction independent of the kernel/mandate system, no permission evaluated for the approve itself (Sailor has no CLI/UI command for this; the owner does it through their own Safe interface). Revocable in one transaction at any time. It remains a real, valid choice for an owner who doesn't mind the one manual step — it is simply no longer *the* way an autonomous swap mandate gets its allowance, and the golden path never requires it.
+**Agent-managed bounded approve (kept — the alternative, not the default).** A user who wants zero
+standing allowance can instead deploy a small bespoke `IPermission` that bounds a standalone ERC-20
+`approve()` — target == the token, selector == `approve`, `spender` ∈ the router allowlist, `value == 0` —
+register it alongside `SwapPermission`/`SwapPermissionNoOracle`, and let the agent emit its own bounded
+approve when the allowance runs low (Model A, applied to the approve exactly like every other action
+above). It is a strictly tighter allowance with the same on-chain floor, at the cost of one extra
+bespoke permission to author and register. A full worked example (`BoundedErc20Approve`) is in
+[authoring-patterns.md](authoring-patterns.md).
 
-**Correcting the stall argument.** A bounded allowance only stalls a swap agent when *the owner* is the one who has to top it up — that cost is real, but it belongs to the owner-set model above, not to bounded allowances in general. When the approve is agent-emitted under a registered permission (the featured case above), the agent tops itself up on the same loop that would otherwise stall, and nobody is waiting on anybody. Don't read "bounded ⇒ stalls" as a blanket argument against bounded swap allowances — it only holds when the owner is the one expected to do the re-approving.
+**Correcting the stall argument (both directions).** A bounded allowance stalls a swap agent only when
+*the owner* is the one who must top it up per-trade. Sized to a year with a low-allowance warning, the
+owner-set top-up is one signature at a planned moment, not a stall. The agent-managed model never stalls
+at all, because the agent tops itself up on its own tick. Neither model stalls when its size is set
+honestly — the difference is whether the owner holds the remaining cap directly (owner-set) or delegates
+even that to a permission (agent-managed). Don't read "bounded ⇒ stalls" as a blanket argument against
+bounded allowances; it only holds when the owner is expected to re-approve per-trade.
 
 The atomic batch remains correct and available for swaps when the user deliberately wants zero standing allowance more than an on-chain-checked price floor — say so to the user in exactly those terms, never as "the batch also protects your price," because it does not.
 

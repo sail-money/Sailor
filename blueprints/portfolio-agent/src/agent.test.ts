@@ -648,6 +648,34 @@ test("records cost basis in the snapshot on a buy", async () => {
   }
 });
 
+test("records the owner-set allowance ceiling and remaining in the snapshot", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "portfolio-allowance-test-"));
+  fs.mkdirSync(path.join(dir, ".sail"), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, ".sail", "portfolio.json"),
+    JSON.stringify({ ...twoTokenConfig(), approval: { ceilingUsd: 12_000 } }),
+  );
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    await agent.tick(
+      makeCtx({
+        timestamp: T0,
+        balances: { [`8453:${USDC_BASE}`]: 1_000_000_000n },
+        // $5,000 of the $12,000 ceiling still approved to the router on Base (6-decimal USDC).
+        allowances: { [`8453:${USDC_BASE}:${ROUTER_BASE}`]: 5_000_000_000n },
+      }),
+    );
+    const raw = fs.readFileSync(path.join(dir, ".sail", "state", "snapshot.json"), "utf-8");
+    const snap = JSON.parse(raw);
+    assert.equal(snap.allowanceCeiling, "12000000000");
+    assert.equal(snap.allowanceRemaining, "5000000000");
+  } finally {
+    process.chdir(prev);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("two-hop asset buys through the hub (USDC → WETH → token)", async () => {
   const dispatches = await run(
     twoHopConfig(),

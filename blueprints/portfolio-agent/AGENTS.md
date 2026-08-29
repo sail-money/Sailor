@@ -42,9 +42,15 @@ The general five-station flow and the safety invariants live in **`sailor-naviga
 When `sailor-mandate-planner` (Station 3) surfaces the approve model and the exit plan, offer the
 safe default as a **single confirmation**, not two open questions:
 
-> I'll use the safe defaults: the agent can trade without you re-signing (agent-managed approvals),
-> and you unwind manually whenever you choose. Confirm, or tell me to change either.
+> I'll use the safe defaults: you sign one approval at setup for about a year of trading (I'll
+> compute the amount and tell you what to sign), and you unwind manually whenever you choose.
+> Confirm, or tell me to change either.
 
 Only expand into a menu if the user asks to change a default. The point of the product is that the
 user gives a portfolio and the agent handles the plumbing; the user should never be bounced back a
 low-level decision that has a sane default.
+
+The approve default is **owner-set, sized to a year of trading** — never per-trade, never infinite.
+At setup the agent computes the amount (see `sailor-portfolio` → approve sizing) and the user signs
+one approval on the Safe; the agent trades inside it for a year, and the report warns before it runs
+low so the user tops up with one signature, at a moment they chose, rather than the agent stalling.

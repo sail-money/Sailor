@@ -164,6 +164,17 @@ only when it applies: the bespoke bridge permission, approve coverage, that trad
 the agent's code rather than enforced on-chain, and any risk that crosses a bound the user set
 (report via `sailor-risk`, never recommend).
 
+**Approve model (the default, not a menu).** Default to owner-set, sized to a year. Compute the amount
+with the sizing rule in `references/portfolio-category.md` → "Approve model" (twice the expected 12-month
+inflow, rounded up), state the exact number, and write `approval.ceilingUsd` into `portfolio.json`. Present
+it as one confirmation, never an open question:
+
+> I'll have you sign one approval for $X — about a year of trading — at the same time you approve the
+> permissions. I'll warn you before it runs low so you top it up with one signature. Confirm, or tell me
+> to change the amount or switch to agent-managed approvals.
+
+Only offer the agent-managed alternative if the user asks for it.
+
 ## Completeness gate
 
 Every dimension concrete before confirming:
@@ -177,6 +188,7 @@ Every dimension concrete before confirming:
 | Rebalance band | ± percentage points, stated |
 | Rebalance cadence | every run (default) or a period in seconds, stated |
 | Reports | on or off; if on, cadence + channel stated |
+| Approve model | owner-set (default), sized to a year; the amount stated and `approval.ceilingUsd` written |
 | Routing policy | preferred chain + liquidity threshold, stated |
 | Feasibility | every basket asset has a routable pool on at least one named chain (from `sailor-token-resolve`) |
 

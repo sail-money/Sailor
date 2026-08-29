@@ -56,6 +56,7 @@ never edit it in place.
   "rebalanceBandBps": 500,
   "rebalancePeriodSec": 604800,
   "maxSlippageBps": 100,
+  "approval": { "ceilingUsd": 12000 },
   "report": { "cadenceSec": 604800, "channel": "telegram" }
 }
 ```
@@ -132,6 +133,12 @@ stock tokens need no special case: they settle in USDC, so they buy like any oth
 - `rebalancePeriodSec` — optional. How often (seconds) the agent trims overweight holdings.
 - `report` — optional. When present, the agent sends a Telegram report every `cadenceSec`. Secrets
   (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) read from `.sail/.env.local`, never written here.
+- `approval` — optional. The owner-set approve model's ceiling: `{ "ceilingUsd": <whole USDC> }`, the
+  year-sized amount the owner approved on the router (see the sizing rule in
+  `references/portfolio-category.md` → "Approve model"). When present, the runtime reads the on-chain
+  `allowance(settlement, SMA, router)` each tick and the report warns before the remaining allowance
+  drops below a quarter of the ceiling. Absent means the approve model is not owner-set (agent-managed)
+  and no ceiling is tracked.
 - `basket[].weight` — sums to 1.0 across the basket, global (not per chain).
 - `basket[].chains` — the routing preference, ordered **gas-aware** (the resolver's ranked order: a
   cheaper chain wins within ~2× of a pricier one's depth; Ethereum only ranks first when it is
