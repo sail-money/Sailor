@@ -113,20 +113,26 @@ no live lookup, no timeout.
 
 ## Two-hop swaps are normal routes, not a problem
 
-A token with no *direct* USDC pool can still be bought if it has a Sail-routable pool against the
-chain's hub asset (WETH on most chains, WBNB on BNB). That is a **two-swap route** — USDC → WETH →
+A token with no *direct* USDC pool can still be bought if it has a Sail-routable pool against a
+**curated intermediate** — the chain's wrapped native gas token (WETH on most chains, WBNB on BNB)
+or another deep settlement asset (USDT, WBTC, DAI). That is a **two-swap route** — USDC → via →
 token — which the same swap template can execute in two legs. It needs **no custom mandate**. The
-resolver surfaces it as `twoHop: true` / `twoHopVia: "WETH"`, and the recommendation says "swappable
+resolver surfaces it as `twoHop: true` / `twoHopVia: "<via>"`, and the recommendation says "swappable
 in two steps". **Never tell the user a two-hop token "needs a custom mandate", "is not tradeable", or
 "has no pool"** — just note the extra leg.
 
 The resolver also emits the **executable route** in `twoHopRoute` — `{ viaAddress, viaSymbol,
 viaFeeTier, feeTier, probedOnChain }` — so a two-hop token can actually be bought, not just
-described. `viaAddress` is the hub (WETH/WBNB), `viaFeeTier` the settlement→hub leg, `feeTier` the
-hub→token leg. When `probedOnChain` is true the fee tiers came from a live QuoterV2 probe; when
+described. `viaAddress` is the intermediate, `viaFeeTier` the settlement→via leg, `feeTier` the
+via→token leg. When `probedOnChain` is true the fee tiers came from a live QuoterV2 probe; when
 false, re-resolve with an RPC before wiring the route into a config.
 
-A **zero-volume hub pool is not a two-hop route.** A planted look-alike can share a token's symbol
+The set of valid intermediates is **closed and curated** (`VIA_SYMBOLS` per chain): WETH/WBNB, USDT,
+WBTC, DAI — each with a verified address in the registry. A pool against any other asset is not a
+two-hop route, and a via whose reported address differs from the registry is rejected, so a planted
+"USDT"/"WETH" look-alike cannot become the intermediate.
+
+A **zero-volume via pool is not a two-hop route.** A planted look-alike can share a token's symbol
 and carry a huge WETH pool with no real trading (the ZAMA trap: five copies of "ZAMA", each with a
 $60M–$277M WETH pool and $0 volume). The resolver rejects those as `suspectVolume` and won't surface
 them as a route — and when resolving a symbol it prefers the contract that *actually trades*, so you

@@ -45,6 +45,8 @@ const CHAINS = {
       UNI: { address: "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984", decimals: 18 },
       LINK: { address: "0x514910771AF9Ca656af840dff83E8264EcF986CA", decimals: 18 },
       WBTC: { address: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599", decimals: 8 },
+      USDT: { address: "0xdAC17F958D2ee523a2206206994597C13D831ec7", decimals: 6 },
+      DAI: { address: "0x6B175474E89094C44Da98b954EedeAC495271d0F", decimals: 18 },
     },
   },
   // Base also carries Coinbase tokenized stocks (B20 standard, Aug 2026). These are
@@ -61,6 +63,7 @@ const CHAINS = {
     tokens: {
       USDC: { address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6 },
       WETH: { address: "0x4200000000000000000000000000000000000006", decimals: 18 },
+      DAI: { address: "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb", decimals: 18 },
       // Coinbase tokenized stocks (B20, 8 decimals, settled in USDC, trade on Aerodrome).
       NVDAc: { address: "0xb20000000000000000000078ee7ce2fE4908108C", decimals: 8 },
       AAPLc: { address: "0xb200000000000000000000C2e324d24d7eEcd1fb", decimals: 8 },
@@ -89,6 +92,8 @@ const CHAINS = {
       WETH: { address: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1", decimals: 18 },
       ARB: { address: "0x912CE59144191C1204E64559FE8253a0e49E6548", decimals: 18 },
       LINK: { address: "0xf97f4df75117a78c1A5a0DBb814Af92458539FB4", decimals: 18 },
+      WBTC: { address: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f", decimals: 8 },
+      DAI: { address: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1", decimals: 18 },
     },
   },
   optimism: {
@@ -101,6 +106,9 @@ const CHAINS = {
       USDC: { address: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85", decimals: 6 },
       WETH: { address: "0x4200000000000000000000000000000000000006", decimals: 18 },
       OP: { address: "0x4200000000000000000000000000000000000042", decimals: 18 },
+      USDT: { address: "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58", decimals: 6 },
+      WBTC: { address: "0x68f180fcCe6836688e9084f035309E29Bf0A2095", decimals: 8 },
+      DAI: { address: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1", decimals: 18 },
     },
   },
   unichain: {
@@ -115,6 +123,9 @@ const CHAINS = {
       UNI: { address: "0x8f187aA05619a017077f5308904739877ce9eA21", decimals: 18 },
       LINK: { address: "0x5a53B6D19D8EDCb7923F0D840EeBB3f09BBeEfB7", decimals: 18 },
       MORPHO: { address: "0x6695a2692dCD2A53E7766492447B5254A56425aD", decimals: 18 },
+      USDT: { address: "0x588CE4F028D8e7B53B687865d6A67b3A54C75518", decimals: 6 },
+      WBTC: { address: "0x927B51f251480a681271180DA4de28D44EC4AfB8", decimals: 8 },
+      DAI: { address: "0x20CAb320A855b39F724131C69424240519573f81", decimals: 18 },
     },
   },
   bsc: {
@@ -126,6 +137,8 @@ const CHAINS = {
     tokens: {
       USDC: { address: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", decimals: 18 },
       WBNB: { address: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c", decimals: 18 },
+      USDT: { address: "0x55d398326f99059fF775485246999027B3197955", decimals: 18 },
+      DAI: { address: "0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3", decimals: 18 },
     },
   },
   worldchain: {
@@ -134,7 +147,10 @@ const CHAINS = {
     gecko: null,
     quoterV2: null,
     usdc: null,
-    tokens: {},
+    tokens: {
+      WETH: { address: "0x4200000000000000000000000000000000000006", decimals: 18 },
+      WBTC: { address: "0x03C7054BCB39f7b2e5B2c7AcB37583e32D70Cfa3", decimals: 8 },
+    },
   },
   hyperevm: {
     chainId: 999,
@@ -198,20 +214,22 @@ function curatedKey(chain, wantSym) {
   return null;
 }
 
-// Two-hop swap hub: the native gas token each USDC/USDT chain routes through. A token
-// with no direct settlement-currency pool but a Sail-routable pool against the hub is
-// still swappable in TWO swaps (settlement → hub → token). The hub always has a deep
-// settlement pool on its chain (it is the base pair), so this is a real route, not a
-// custom-mandate special case. Chains without a hub here (robinhood, hyperevm, megaeth)
-// have no such base asset and are not two-hop candidates.
-const HUB_SYMBOLS = {
-  ethereum: "WETH",
-  base: "WETH",
-  arbitrum: "WETH",
-  optimism: "WETH",
-  unichain: "WETH",
-  bsc: "WBNB",
-  worldchain: "WETH",
+// Two-hop intermediates per chain: liquid, settlement-routable assets that a token can
+// pair against when it has no direct settlement pool. Each is a real two-swap route
+// (settlement → via → token), not a custom-mandate case, so long as the via itself has a
+// deep settlement pool. The set is CLOSED and curated: every symbol MUST have a verified
+// address in CHAINS[chain].tokens (identity is never guessed), and isViaPair additionally
+// rejects a symbol match whose address differs from the registry — a planted "USDT"/"WETH"
+// look-alike must never become the intermediate. Chains absent here (robinhood, hyperevm,
+// megaeth) have no verified via and are not two-hop candidates.
+const VIA_SYMBOLS = {
+  ethereum: ["WETH", "USDT", "WBTC", "DAI"],
+  base: ["WETH", "DAI"],
+  arbitrum: ["WETH", "WBTC", "DAI"],
+  optimism: ["WETH", "USDT", "WBTC", "DAI"],
+  unichain: ["WETH", "USDT", "WBTC", "DAI"],
+  bsc: ["WBNB", "USDT", "DAI"],
+  worldchain: ["WETH", "WBTC"],
 };
 
 // A two-hop pool below this USD depth is dust — not a real route for a retail DCA.
@@ -923,16 +941,22 @@ function isUsdcPair(venue, chain) {
   return !!(chain.usdc && venue.pairedToken && venue.pairedToken.toLowerCase() === chain.usdc.toLowerCase());
 }
 
-// A Sail-routable pool paired with the chain's hub asset (WETH/WBNB). Not a DIRECT
-// settlement-currency pool, but a real two-swap route: settlement → hub → token. This
-// needs no custom mandate — the same swap template can do both hops — so it is a
-// normal route, just with one extra leg. Returns the venue, or null when the pool is
-// dust (below MIN_TWO_HOP_LIQUIDITY_USD), not actually hub-paired, or a suspect
-// look-alike (huge TVL with zero 24h volume — a planted pool, not a real route).
-function isHubPair(venue, chain) {
+// A Sail-routable pool paired with a curated two-hop intermediate (WETH/WBNB/USDT/WBTC/
+// DAI). Not a DIRECT settlement-currency pool, but a real two-swap route: settlement →
+// via → token. This needs no custom mandate — the same swap template can do both hops —
+// so it is a normal route, just with one extra leg. Returns the venue, or null when the
+// pool is dust (below MIN_TWO_HOP_LIQUIDITY_USD), not paired with a curated via, a suspect
+// look-alike (huge TVL with zero 24h volume — a planted pool, not a real route), or a
+// symbol whose address differs from the verified registry (a planted "USDT"/"WETH"
+// look-alike must not become the intermediate).
+function isViaPair(venue, chain) {
   if (!venue || !venue.sailRoutable) return null;
-  const hub = HUB_SYMBOLS[chain.name];
-  if (!hub || venue.pairedSymbol !== hub) return null;
+  const vias = VIA_SYMBOLS[chain.name];
+  if (!vias || !vias.includes(venue.pairedSymbol)) return null;
+  const reg = chain.tokens && chain.tokens[venue.pairedSymbol];
+  if (reg && venue.pairedToken && venue.pairedToken.toLowerCase() !== reg.address.toLowerCase()) {
+    return null; // symbol matches but the address is a look-alike — reject
+  }
   if ((venue.liquidityUsd ?? 0) < MIN_TWO_HOP_LIQUIDITY_USD) return null;
   if (isSuspectVolume(venue)) return null;
   return venue;
@@ -1161,20 +1185,20 @@ async function resolveOnChain(symbolOrAddr, chain, rpc, sizeUsd = DEFAULT_SIZE_U
           quoteVerified: false,
         },
       ];
-    } else if (mapped.hubDex) {
+    } else if (mapped.hubDex && mapped.hubSymbol) {
       // Two-hop: the map found no direct USDC pool but did find a Sail-routable pool
-      // against the chain's hub asset (WETH/WBNB). Synthesize that as a two-hop venue
-      // so the token surfaces as swappable (settlement → hub → token) instead of "no
-      // pool". isHubPair() picks this up for the twoHop flag below.
-      const hub = HUB_SYMBOLS[chain.name];
+      // against a curated via asset (WETH/USDT/WBTC/DAI…). Synthesize that as a two-hop
+      // venue so the token surfaces as swappable (settlement → via → token) instead of
+      // "no pool". isViaPair() picks this up for the twoHop flag below.
+      const viaSym = mapped.hubSymbol;
       venues = [
         {
           protocol: mapped.hubDex,
           dexId: "liquidity-map",
           pool: null,
           feeTier: null,
-          pairedSymbol: hub || "WETH",
-          pairedToken: null,
+          pairedSymbol: viaSym,
+          pairedToken: (chain.tokens[viaSym] && chain.tokens[viaSym].address) || null,
           liquidityUsd: mapped.hubLiquidityUsd ?? mapped.liquidityUsd ?? 0,
           volume24hUsd: 0,
           sailRoutable: true,
@@ -1253,29 +1277,29 @@ async function resolveOnChain(symbolOrAddr, chain, rpc, sizeUsd = DEFAULT_SIZE_U
   const topVenues = venues.slice(0, MAX_VENUES);
 
   // Two-hop swap: no DIRECT settlement-currency pool, but a Sail-routable pool against
-  // the chain's hub asset (WETH/WBNB). That is a real route — settlement → hub → token,
-  // two swaps — not a custom-mandate special case, so we surface it as swappable and
-  // note the extra leg rather than calling it "no pool". Only meaningful when the token
-  // is not already swap-ready and is not itself the quote asset.
-  const twoHopVenue = !isUsdc && !swapReady ? venues.find((v) => isHubPair(v, chain)) || null : null;
+  // a curated via asset (WETH/WBNB/USDT/WBTC/DAI). That is a real route — settlement →
+  // via → token, two swaps — not a custom-mandate special case, so we surface it as
+  // swappable and note the extra leg rather than calling it "no pool". Only meaningful
+  // when the token is not already swap-ready and is not itself the quote asset.
+  const twoHopVenue = !isUsdc && !swapReady ? venues.find((v) => isViaPair(v, chain)) || null : null;
   const twoHop = !!twoHopVenue;
 
   // Executable two-hop parameters. `twoHopRoute` carries everything the runtime needs to
-  // actually build the two-swap path (settlement → hub → token): the hub's address and the
-  // fee tier of EACH leg. When an RPC is present, both fee tiers are live-probed on-chain
-  // (USDC→hub and hub→token) so the route is executable, not just "described"; without an
-  // RPC the fee tiers fall back to the feed-reported hub-pool fee (or null, which the
-  // caller treats as "re-resolve before executing").
+  // actually build the two-swap path (settlement → via → token): the via's address and
+  // the fee tier of EACH leg. When an RPC is present, both fee tiers are live-probed
+  // on-chain (settlement→via and via→token) so the route is executable, not just
+  // "described"; without an RPC the fee tiers fall back to the feed-reported pool fee
+  // (or null, which the caller treats as "re-resolve before executing").
   let twoHopRoute = null;
   if (twoHop) {
-    const hubSym = HUB_SYMBOLS[chain.name];
-    const viaAddress = (chain.tokens[hubSym] && chain.tokens[hubSym].address) || twoHopVenue.pairedToken || null;
-    let viaFeeTier = twoHopVenue.feeTier ?? null; // feed-reported hub→token fee as a fallback
+    const viaSym = twoHopVenue.pairedSymbol;
+    const viaAddress = (chain.tokens[viaSym] && chain.tokens[viaSym].address) || twoHopVenue.pairedToken || null;
+    let viaFeeTier = twoHopVenue.feeTier ?? null; // feed-reported via→token fee as a fallback
     let tokenFeeTier = twoHopVenue.feeTier ?? null;
     let leg1 = null;
     let leg2 = null;
     if (onchain && chain.quoterV2 && chain.usdc && viaAddress) {
-      // Leg 1: settlement (USDC) → hub (WETH/WBNB). Leg 2: hub → token.
+      // Leg 1: settlement (USDC) → via. Leg 2: via → token.
       leg1 = await probeBestFee(rpc, chain.quoterV2, chain.usdc, viaAddress, PROBE_AMOUNT_USDC);
       leg2 = await probeBestFee(rpc, chain.quoterV2, viaAddress, address, PROBE_AMOUNT_USDC);
       viaFeeTier = leg1 ? leg1.fee : viaFeeTier;
@@ -1283,7 +1307,7 @@ async function resolveOnChain(symbolOrAddr, chain, rpc, sizeUsd = DEFAULT_SIZE_U
     }
     twoHopRoute = {
       viaAddress,
-      viaSymbol: hubSym || null,
+      viaSymbol: viaSym || null,
       viaFeeTier,
       feeTier: tokenFeeTier,
       probedOnChain: !!(leg1 && leg2),
@@ -1437,7 +1461,7 @@ function recommendCrossChain(chains, configuredNames) {
     }));
   const liqChains = entries.filter(([, o]) => o.venues && o.venues.length).map(([name]) => name);
 
-  const hopLabel = (c) => (c.twoHop ? "two-step (USDC → WETH → token)" : "swap-ready");
+  const hopLabel = (c) => (c.twoHop ? `two-step (USDC → ${c.o && c.o.twoHopVia ? c.o.twoHopVia : "WETH"} → token)` : "swap-ready");
   // Gas-aware: rank by effective depth, tie-break toward the cheaper chain.
   const byRank = (a, b) => {
     const da = gasAdjustedDepth(a.depth, a.name);
@@ -1961,7 +1985,7 @@ function errMsg(e) {
 export {
   CHAINS,
   STOCK_SUFFIX_ALIASES,
-  HUB_SYMBOLS,
+  VIA_SYMBOLS,
   MIN_TWO_HOP_LIQUIDITY_USD,
   MAX_IMPACT_PCT,
   SUSPECT_VOLUME_TVL,
@@ -1976,7 +2000,7 @@ export {
   rankCandidateAddresses,
   shouldTrustMapEntry,
   isUsdcPair,
-  isHubPair,
+  isViaPair,
   estimateImpactPct,
   isSuspectVolume,
   annotateVenues,

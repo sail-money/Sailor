@@ -6,7 +6,7 @@
 //
 // The resolver is a single .mjs with no dependencies. We import it directly and
 // exercise the exported pure helpers (curatedKey, identifySymbols, classifyDex,
-// isUsdcPair, isHubPair, the size/suspect screening, and the ABI codecs). The
+// isUsdcPair, isViaPair, the size/suspect screening, and the ABI codecs). The
 // async network paths (DexScreener/GeckoTerminal/eth_call) are deliberately NOT
 // tested here — they need live feeds and belong to a live smoke test, not a unit.
 
@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 import {
   CHAINS,
   STOCK_SUFFIX_ALIASES,
-  HUB_SYMBOLS,
+  VIA_SYMBOLS,
   MIN_TWO_HOP_LIQUIDITY_USD,
   MAX_IMPACT_PCT,
   SUSPECT_VOLUME_TVL,
@@ -31,7 +31,7 @@ import {
   rankCandidateAddresses,
   shouldTrustMapEntry,
   isUsdcPair,
-  isHubPair,
+  isViaPair,
   estimateImpactPct,
   isSuspectVolume,
   annotateVenues,
@@ -182,49 +182,75 @@ test("isUsdcPair uses USDG as the settlement currency on Robinhood", () => {
   assert.equal(isUsdcPair({ pairedSymbol: "USDC" }, CHAINS.robinhood), false);
 });
 
-// ── isHubPair: two-hop route with the $10k dust floor ─────────────────────────
+// ── isViaPair: two-hop route via a curated intermediate, with the $10k dust floor ──
 // The resolver's constructed chain objects carry a `name` (the CHAINS key); the raw
-// CHAINS.<key> config does not. isHubPair looks up HUB_SYMBOLS[chain.name], so tests
+// CHAINS.<key> config does not. isViaPair looks up VIA_SYMBOLS[chain.name], so tests
 // pass a named chain, exactly as resolveOnChain does.
 const named = (key) => ({ ...CHAINS[key], name: key });
 
-const hubVenue = (chain, liquidityUsd, sailRoutable = true) => ({
-  sailRoutable,
-  pairedSymbol: HUB_SYMBOLS[chain.name],
+const viaVenue = (chain, pairedSymbol, liquidityUsd, extra = {}) => ({
+  sailRoutable: true,
+  pairedSymbol,
   liquidityUsd,
+  ...extra,
 });
 
-test("isHubPair accepts a deep hub-paired pool as a two-hop route", () => {
+test("isViaPair accepts a deep via-paired pool as a two-hop route", () => {
   const base = named("base");
-  const v = hubVenue(base, 50_000);
-  assert.equal(isHubPair(v, base), v);
+  const v = viaVenue(base, "WETH", 50_000);
+  assert.equal(isViaPair(v, base), v);
   // exactly at the floor counts (>=)
-  assert.equal(isHubPair(hubVenue(base, MIN_TWO_HOP_LIQUIDITY_USD), base) !== null, true);
+  assert.equal(isViaPair(viaVenue(base, "WETH", MIN_TWO_HOP_LIQUIDITY_USD), base) !== null, true);
 });
 
-test("isHubPair rejects dust pools below the $10k floor", () => {
+test("isViaPair accepts a USDT-paired pool (not just WETH)", () => {
+  // ZAMA: a token whose liquid pool is against USDT, not the native gas token.
+  const eth = named("ethereum");
+  const v = viaVenue(eth, "USDT", 1_000_000, { volume24hUsd: 250_000 });
+  assert.equal(isViaPair(v, eth), v);
+});
+
+test("isViaPair rejects a via that is not on that chain's curated set", () => {
+  // Base's via set is WETH + DAI only — USDT is not a verified Base intermediate.
   const base = named("base");
-  assert.equal(isHubPair(hubVenue(base, 41), base), null); // the HYPE $41 trap
-  assert.equal(isHubPair(hubVenue(base, MIN_TWO_HOP_LIQUIDITY_USD - 1), base), null);
+  assert.equal(isViaPair(viaVenue(base, "USDT", 1_000_000), base), null);
 });
 
-test("isHubPair rejects non-hub pairs and non-routable venues", () => {
+test("isViaPair rejects dust pools below the $10k floor", () => {
   const base = named("base");
-  assert.equal(isHubPair({ sailRoutable: true, pairedSymbol: "USDC", liquidityUsd: 1_000_000 }, base), null);
-  assert.equal(isHubPair(hubVenue(base, 50_000, false), base), null);
-  // Robinhood has no hub asset → never two-hop
-  assert.equal(isHubPair({ sailRoutable: true, pairedSymbol: "WETH", liquidityUsd: 1_000_000 }, named("robinhood")), null);
+  assert.equal(isViaPair(viaVenue(base, "WETH", 41), base), null); // the HYPE $41 trap
+  assert.equal(isViaPair(viaVenue(base, "WETH", MIN_TWO_HOP_LIQUIDITY_USD - 1), base), null);
 });
 
-test("isHubPair rejects a suspect (planted, zero-volume) hub pool", () => {
+test("isViaPair rejects non-via pairs and non-routable venues", () => {
+  const base = named("base");
+  assert.equal(isViaPair({ sailRoutable: true, pairedSymbol: "USDC", liquidityUsd: 1_000_000 }, base), null);
+  assert.equal(isViaPair(viaVenue(base, "WETH", 50_000, { sailRoutable: false }), base), null);
+  // Robinhood has no via set → never two-hop
+  assert.equal(isViaPair(viaVenue(named("robinhood"), "WETH", 1_000_000), named("robinhood")), null);
+});
+
+test("isViaPair rejects a via whose reported address differs from the verified registry", () => {
+  // A planted "WETH" look-alike as the intermediate: symbol matches, address does not.
+  // (50_000 liquidity keeps it below the $100k suspect-volume floor, so this test
+  // isolates the address check from the zero-volume look-alike check.)
+  const base = named("base");
+  const fake = viaVenue(base, "WETH", 50_000, { pairedToken: "0x" + "f".repeat(40) });
+  assert.equal(isViaPair(fake, base), null);
+  // The REAL WETH address is accepted.
+  const real = viaVenue(base, "WETH", 50_000, { pairedToken: CHAINS.base.tokens.WETH.address });
+  assert.equal(isViaPair(real, base), real);
+});
+
+test("isViaPair rejects a suspect (planted, zero-volume) via pool", () => {
   const base = named("base");
   // The ZAMA trap: a look-alike with a huge WETH pool and zero real volume is not a
   // real two-hop route, no matter how deep it is.
-  const planted = { sailRoutable: true, pairedSymbol: "WETH", liquidityUsd: 150_000_000, volume24hUsd: 0 };
-  assert.equal(isHubPair(planted, base), null);
+  const planted = viaVenue(base, "WETH", 150_000_000, { volume24hUsd: 0 });
+  assert.equal(isViaPair(planted, base), null);
   // Same depth WITH real volume is a legitimate route.
-  const real = { sailRoutable: true, pairedSymbol: "WETH", liquidityUsd: 150_000_000, volume24hUsd: 2_000_000 };
-  assert.equal(isHubPair(real, base), real);
+  const real = viaVenue(base, "WETH", 150_000_000, { volume24hUsd: 2_000_000 });
+  assert.equal(isViaPair(real, base), real);
 });
 
 // ── rankCandidateAddresses: the real token wins over a planted look-alike ───────

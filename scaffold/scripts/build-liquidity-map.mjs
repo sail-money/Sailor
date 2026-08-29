@@ -44,17 +44,19 @@ const CHAINS = {
   robinhood: "robinhood",
 };
 
-// Two-hop swap hub per chain: the native gas token. A token with no direct USDC pool
-// but a Sail-routable pool against this asset is still swappable in TWO swaps
-// (USDC → hub → token). Matches resolve-token.mjs HUB_SYMBOLS.
-const HUB_SYMBOLS = {
-  ethereum: "WETH",
-  base: "WETH",
-  arbitrum: "WETH",
-  optimism: "WETH",
-  unichain: "WETH",
-  bsc: "WBNB",
-  worldchain: "WETH",
+// Two-hop intermediates per chain: liquid, settlement-routable assets (WETH/WBNB/USDT/
+// WBTC/DAI). A token with no direct USDC pool but a Sail-routable pool against any of
+// these is still swappable in TWO swaps (USDC → via → token). Matches resolve-token.mjs
+// VIA_SYMBOLS. The map records WHICH via matched (hubSymbol), so the resolver can
+// reconstruct the exact intermediate instead of assuming WETH.
+const VIA_SYMBOLS = {
+  ethereum: ["WETH", "USDT", "WBTC", "DAI"],
+  base: ["WETH", "DAI"],
+  arbitrum: ["WETH", "WBTC", "DAI"],
+  optimism: ["WETH", "USDT", "WBTC", "DAI"],
+  unichain: ["WETH", "USDT", "WBTC", "DAI"],
+  bsc: ["WBNB", "USDT", "DAI"],
+  worldchain: ["WETH", "WBTC"],
 };
 
 // Below this USD depth a two-hop (hub-paired) pool is dust and is not recorded as a
@@ -170,17 +172,21 @@ async function resolveOneChain(symbolUp, chainName, chainId, knownAddr = null) {
   // Max 24h volume across this token's pairs — the "it actually trades" signal the
   // resolver uses to trust the entry. A planted look-alike trades nothing.
   let bestVolume = 0;
-  // Two-hop: a Sail-routable pool paired with the hub asset (WETH/WBNB), used when
-  // there is no direct USDC pool. Recorded so resolve-token.mjs can surface it as a
-  // two-swap route instead of "no pool".
-  const hub = HUB_SYMBOLS[chainName];
+  // Two-hop: a Sail-routable pool paired with a curated via asset (WETH/WBNB/USDT/WBTC/
+  // DAI), used when there is no direct USDC pool. Recorded (with WHICH via matched) so
+  // resolve-token.mjs can surface it as a two-swap route instead of "no pool".
+  const vias = VIA_SYMBOLS[chainName] || [];
   let hubDex = null;
   let bestHubLiq = 0;
+  let hubSymbol = null;
   for (const p of all) {
     const baseSym = ((p.baseToken || {}).symbol || "").toUpperCase();
     const quoteSym = ((p.quoteToken || {}).symbol || "").toUpperCase();
     const isUsdcPair = baseSym === "USDC" || baseSym === "USDC.E" || quoteSym === "USDC" || quoteSym === "USDC.E";
-    const isHubPair = !!hub && (baseSym === hub || quoteSym === hub);
+    const viaBase = vias.includes(baseSym);
+    const viaQuote = vias.includes(quoteSym);
+    const viaSym = viaBase ? baseSym : viaQuote ? quoteSym : null;
+    const isViaPair = !!viaSym;
     const dexId = (p.dexId || "").toLowerCase();
     const vol = Number((p.volume && p.volume.h24) || 0);
     if (vol > bestVolume) bestVolume = vol;
@@ -191,11 +197,12 @@ async function resolveOneChain(symbolUp, chainName, chainId, knownAddr = null) {
         routable = true;
         routableDex = dexFamily(dexId, p.labels);
       }
-    } else if (!routable && isHubPair && isRoutableDex(dexId, p.labels, chainName)) {
+    } else if (!routable && isViaPair && isRoutableDex(dexId, p.labels, chainName)) {
       const liq = Number((p.liquidity && p.liquidity.usd) || 0);
       if (liq > bestHubLiq && liq >= MIN_TWO_HOP_LIQUIDITY_USD) {
         bestHubLiq = liq;
         hubDex = dexFamily(dexId, p.labels);
+        hubSymbol = viaSym;
       }
     }
   }
@@ -206,6 +213,7 @@ async function resolveOneChain(symbolUp, chainName, chainId, knownAddr = null) {
     liquidityUsd: Math.round(bestUsdcLiq),
     dex: routable ? routableDex : null,
     hubDex: routable ? null : hubDex,
+    hubSymbol: routable ? null : hubSymbol,
     hubLiquidityUsd: routable ? null : Math.round(bestHubLiq),
     volume24hUsd: Math.round(bestVolume),
   };
@@ -273,7 +281,9 @@ async function main() {
             liquidityUsd: r.liquidityUsd,
             dex: r.dex,
             volume24hUsd: r.volume24hUsd,
-            ...(r.hubDex ? { hubDex: r.hubDex, hubLiquidityUsd: r.hubLiquidityUsd } : {}),
+            ...(r.hubDex
+              ? { hubDex: r.hubDex, hubSymbol: r.hubSymbol, hubLiquidityUsd: r.hubLiquidityUsd }
+              : {}),
           };
         }
       } catch {
@@ -285,9 +295,9 @@ async function main() {
   }
 
   const map = {
-    version: 5,
+    version: 6,
     generatedAt: new Date().toISOString(),
-    source: "Addresses from the Uniswap default token list (curated, offline) + DexScreener routable/volume check (keyless). Identity is NEVER derived from a DexScreener search — only a curated-list contract is recorded, so a planted look-alike cannot enter the map. `volume24hUsd` is the token's max 24h volume on the chain; the resolver trusts an entry only when it actually trades. `dex` is the DEX family of the deepest routable USDC pool; `hubDex`/`hubLiquidityUsd` record the deepest Sail-routable pool against the chain's hub asset (WETH/WBNB) when there is no USDC pool (a two-swap route).",
+    source: "Addresses from the Uniswap default token list (curated, offline) + DexScreener routable/volume check (keyless). Identity is NEVER derived from a DexScreener search — only a curated-list contract is recorded, so a planted look-alike cannot enter the map. `volume24hUsd` is the token's max 24h volume on the chain; the resolver trusts an entry only when it actually trades. `dex` is the DEX family of the deepest routable USDC pool; `hubDex`/`hubSymbol`/`hubLiquidityUsd` record the deepest Sail-routable pool against a curated two-hop via asset (WETH/WBNB/USDT/WBTC/DAI) when there is no USDC pool (a two-swap route).",
     chains: chainNames,
     tokens,
   };

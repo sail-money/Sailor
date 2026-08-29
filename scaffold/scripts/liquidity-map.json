@@ -1,7 +1,7 @@
 {
-  "version": 5,
-  "generatedAt": "2026-08-29T12:54:46.889Z",
-  "source": "Addresses from the Uniswap default token list (curated, offline) + DexScreener routable/volume check (keyless). Identity is NEVER derived from a DexScreener search — only a curated-list contract is recorded, so a planted look-alike cannot enter the map. `volume24hUsd` is the token's max 24h volume on the chain; the resolver trusts an entry only when it actually trades. `dex` is the DEX family of the deepest routable USDC pool; `hubDex`/`hubLiquidityUsd` record the deepest Sail-routable pool against the chain's hub asset (WETH/WBNB) when there is no USDC pool (a two-swap route).",
+  "version": 6,
+  "generatedAt": "2026-08-29T13:32:34.244Z",
+  "source": "Addresses from the Uniswap default token list (curated, offline) + DexScreener routable/volume check (keyless). Identity is NEVER derived from a DexScreener search — only a curated-list contract is recorded, so a planted look-alike cannot enter the map. `volume24hUsd` is the token's max 24h volume on the chain; the resolver trusts an entry only when it actually trades. `dex` is the DEX family of the deepest routable USDC pool; `hubDex`/`hubSymbol`/`hubLiquidityUsd` record the deepest Sail-routable pool against a curated two-hop via asset (WETH/WBNB/USDT/WBTC/DAI) when there is no USDC pool (a two-swap route).",
   "chains": [
     "ethereum",
     "base",
@@ -62,7 +62,7 @@
         "routable": true,
         "liquidityUsd": 49,
         "dex": "uniswap-v3",
-        "volume24hUsd": 4909
+        "volume24hUsd": 4934
       }
     },
     "A8": {
@@ -88,25 +88,25 @@
         "address": "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 208593,
+        "liquidityUsd": 208688,
         "dex": "uniswap-v3",
-        "volume24hUsd": 468515
+        "volume24hUsd": 463449
       },
       "base": {
         "address": "0x63706e401c06ac8513145b7687a14804d17f814b",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 21154,
+        "liquidityUsd": 21158,
         "dex": "uniswap-v3",
-        "volume24hUsd": 144981
+        "volume24hUsd": 140539
       },
       "arbitrum": {
         "address": "0xba5ddd1f9d7f570dc94a51479a000e3bce967196",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 156443,
+        "liquidityUsd": 156546,
         "dex": "uniswap-v3",
-        "volume24hUsd": 97023
+        "volume24hUsd": 94575
       },
       "optimism": {
         "address": "0x76fb31fb4af56892a25e32cfc43de717950c9278",
@@ -114,7 +114,7 @@
         "routable": true,
         "liquidityUsd": 31,
         "dex": "uniswap-v3",
-        "volume24hUsd": 7366
+        "volume24hUsd": 7451
       },
       "unichain": {
         "address": "0x02a24c380da560e4032dc6671d8164cfbeeaae1e",
@@ -130,9 +130,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 63600,
+        "volume24hUsd": 61750,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 118809
+        "hubSymbol": "WBNB",
+        "hubLiquidityUsd": 118838
       }
     },
     "ABT": {
@@ -144,6 +145,7 @@
         "dex": null,
         "volume24hUsd": 3146,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 133402
       },
       "base": {
@@ -172,6 +174,7 @@
         "dex": null,
         "volume24hUsd": 346,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 52350
       },
       "unichain": {
@@ -188,7 +191,7 @@
         "routable": true,
         "liquidityUsd": 3,
         "dex": "pancakeswap",
-        "volume24hUsd": 1145
+        "volume24hUsd": 1246
       }
     },
     "ACX": {
@@ -230,9 +233,9 @@
         "address": "0x8b1484d57abbe239bb280661377363b03c89caea",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 2765023,
+        "liquidityUsd": 2765040,
         "dex": "uniswap-v3",
-        "volume24hUsd": 395151
+        "volume24hUsd": 394194
       }
     },
     "ADX": {
@@ -242,8 +245,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 611,
+        "volume24hUsd": 579,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 75505
       },
       "base": {
@@ -268,7 +272,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 409
+        "volume24hUsd": 409,
+        "hubDex": "pancakeswap",
+        "hubSymbol": "USDT",
+        "hubLiquidityUsd": 31457
       }
     },
     "AERGO": {
@@ -294,9 +301,9 @@
         "address": "0xb528edbef013aff855ac3c50b381f253af13b997",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 552505,
+        "liquidityUsd": 553184,
         "dex": "uniswap-v3",
-        "volume24hUsd": 47407
+        "volume24hUsd": 47904
       },
       "arbitrum": {
         "address": "0x377c1fc73d4d0f5600cd943776ced07c2b9783cd",
@@ -346,7 +353,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 87
+        "volume24hUsd": 80
       }
     },
     "AGLD": {
@@ -380,9 +387,9 @@
         "address": "0x4d7078ddd6ccfed2f85db5b7d3ff16828d378d48",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 252863,
+        "liquidityUsd": 253359,
         "dex": "uniswap-v3",
-        "volume24hUsd": 17063
+        "volume24hUsd": 17400
       }
     },
     "AIOZ": {
@@ -392,8 +399,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 15339,
+        "volume24hUsd": 15701,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 1340996
       },
       "arbitrum": {
@@ -420,6 +428,7 @@
         "dex": null,
         "volume24hUsd": 1760,
         "hubDex": "pancakeswap",
+        "hubSymbol": "WBNB",
         "hubLiquidityUsd": 937352
       }
     },
@@ -430,9 +439,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 7056,
+        "volume24hUsd": 6499,
         "hubDex": "sushiswap",
-        "hubLiquidityUsd": 658861
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 657721
       },
       "unichain": {
         "address": "0xbf194c82a5bb9180f9280c1832f886a65aebdcd6",
@@ -474,9 +484,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 3024,
+        "volume24hUsd": 2838,
         "hubDex": "pancakeswap",
-        "hubLiquidityUsd": 61756
+        "hubSymbol": "WBNB",
+        "hubLiquidityUsd": 61595
       }
     },
     "ALI": {
@@ -536,9 +547,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 2000,
+        "volume24hUsd": 1990,
         "hubDex": "pancakeswap",
-        "hubLiquidityUsd": 51982
+        "hubSymbol": "WBNB",
+        "hubLiquidityUsd": 51950
       }
     },
     "ALLO": {
@@ -558,8 +570,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 866,
+        "volume24hUsd": 828,
         "hubDex": "sushiswap",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 12228
       },
       "arbitrum": {
@@ -594,7 +607,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1849
+        "volume24hUsd": 1849,
+        "hubDex": "uniswap-v2",
+        "hubSymbol": "USDT",
+        "hubLiquidityUsd": 85892
       },
       "unichain": {
         "address": "0x6d5de04f1a3e0e554b9a15059d03e20cb3589153",
@@ -612,9 +628,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 59789,
+        "volume24hUsd": 60965,
         "hubDex": "sushiswap",
-        "hubLiquidityUsd": 67710
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 67441
       },
       "unichain": {
         "address": "0x4d6b8ecb576df9bb4bf6e6764a469a762bbc967f",
@@ -684,8 +701,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 33461,
+        "volume24hUsd": 33893,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 98347
       },
       "arbitrum": {
@@ -712,9 +730,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 2816,
+        "volume24hUsd": 3809,
         "hubDex": "uniswap-v2",
-        "hubLiquidityUsd": 109010
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 109029
       },
       "arbitrum": {
         "address": "0xf01db12f50d0cdf5fe360ae005b9c52f92ca7811",
@@ -740,7 +759,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 90
+        "volume24hUsd": 17
       }
     },
     "APU": {
@@ -750,9 +769,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 24379,
+        "volume24hUsd": 24296,
         "hubDex": "uniswap-v2",
-        "hubLiquidityUsd": 1087118
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 1086438
       },
       "unichain": {
         "address": "0xcdfce5eb357e8976a80be84e94a03ba963b9e379",
@@ -770,7 +790,7 @@
         "routable": true,
         "liquidityUsd": 3003127,
         "dex": "pancakeswap",
-        "volume24hUsd": 1343811
+        "volume24hUsd": 1259619
       },
       "base": {
         "address": "0xd993935e13851dd7517af10687ec7e5022127228",
@@ -788,9 +808,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 680,
+        "volume24hUsd": 667,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 22562
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 22574
       },
       "arbitrum": {
         "address": "0x912ce59144191c1204e64559fe8253a0e49e6548",
@@ -798,7 +819,7 @@
         "routable": true,
         "liquidityUsd": 578277,
         "dex": "uniswap-v3",
-        "volume24hUsd": 1346829
+        "volume24hUsd": 1329856
       },
       "unichain": {
         "address": "0x5cc70a9df8e293affb14dfca1e7f851418a4b40d",
@@ -868,6 +889,7 @@
         "dex": null,
         "volume24hUsd": 577,
         "hubDex": "pancakeswap",
+        "hubSymbol": "WBNB",
         "hubLiquidityUsd": 11182
       }
     },
@@ -880,6 +902,7 @@
         "dex": null,
         "volume24hUsd": 14,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 42384
       },
       "unichain": {
@@ -968,8 +991,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 2412,
+        "volume24hUsd": 2378,
         "hubDex": "pancakeswap",
+        "hubSymbol": "WBNB",
         "hubLiquidityUsd": 23031
       }
     },
@@ -980,9 +1004,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 46967,
+        "volume24hUsd": 47092,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 309675
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 309967
       },
       "arbitrum": {
         "address": "0xc7def82ba77baf30bbbc9b6162dc075b49092fb4",
@@ -1044,9 +1069,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 8899,
+        "volume24hUsd": 28093,
         "hubDex": "uniswap-v2",
-        "hubLiquidityUsd": 463567
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 473840
       },
       "unichain": {
         "address": "0x48b8441de79cee3604b805093b41028d3c81684b",
@@ -1064,7 +1090,7 @@
         "routable": true,
         "liquidityUsd": 34062723,
         "dex": "uniswap-v3",
-        "volume24hUsd": 13756745
+        "volume24hUsd": 12936418
       },
       "base": {
         "address": "0x00000000efe302beaa2b3e6e1b18d08d69a9012a",
@@ -1098,9 +1124,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 2427,
+        "volume24hUsd": 2959,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 144683
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 145569
       },
       "bsc": {
         "address": "0xd9483ea7214fcfd89b4fb8f513b544920e315a52",
@@ -1108,7 +1135,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 4044
+        "volume24hUsd": 4387,
+        "hubDex": "pancakeswap",
+        "hubSymbol": "USDT",
+        "hubLiquidityUsd": 102445
       }
     },
     "AVT": {
@@ -1172,6 +1202,7 @@
         "dex": null,
         "volume24hUsd": 60,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 95729
       },
       "arbitrum": {
@@ -1196,8 +1227,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 675,
+        "volume24hUsd": 663,
         "hubDex": "pancakeswap",
+        "hubSymbol": "WBNB",
         "hubLiquidityUsd": 26765
       }
     },
@@ -1208,7 +1240,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 141035
+        "volume24hUsd": 141702
       }
     },
     "BADGER": {
@@ -1218,7 +1250,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 57063
+        "volume24hUsd": 57063,
+        "hubDex": "uniswap-v3",
+        "hubSymbol": "WBTC",
+        "hubLiquidityUsd": 4589057
       },
       "arbitrum": {
         "address": "0xbfa641051ba0a0ad1b0acf549a89536a0d76472e",
@@ -1278,9 +1313,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1995,
+        "volume24hUsd": 2068,
         "hubDex": "sushiswap",
-        "hubLiquidityUsd": 72470
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 72651
       },
       "unichain": {
         "address": "0xa264f2b88c630f260abdcab577eab7266a8857d5",
@@ -1318,8 +1354,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 4974,
+        "volume24hUsd": 4612,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 146341
       },
       "arbitrum": {
@@ -1346,9 +1383,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 371538,
+        "volume24hUsd": 366915,
         "hubDex": "uniswap-v2",
-        "hubLiquidityUsd": 3063985
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 3063818
       },
       "unichain": {
         "address": "0xe5ecb192f1ae5839ed49886f36dfa670f9500824",
@@ -1366,9 +1404,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 4927,
+        "volume24hUsd": 4960,
         "hubDex": "sushiswap",
-        "hubLiquidityUsd": 34138
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 33947
       },
       "base": {
         "address": "0xf5dbaa3dfc5e81405c7306039fb037a3dcd57ce2",
@@ -1410,7 +1449,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 183
+        "volume24hUsd": 189,
+        "hubDex": "uniswap-v3",
+        "hubSymbol": "USDT",
+        "hubLiquidityUsd": 33307
       },
       "unichain": {
         "address": "0x17f3afe72caa6b9090801b60607918b6d2fa7cdc",
@@ -1448,7 +1490,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 867
+        "volume24hUsd": 809
       },
       "arbitrum": {
         "address": "0x406c8db506653d882295875f633bec0beb921c2a",
@@ -1474,7 +1516,7 @@
         "routable": true,
         "liquidityUsd": 14000,
         "dex": "uniswap-v3",
-        "volume24hUsd": 99582
+        "volume24hUsd": 97813
       },
       "base": {
         "address": "0x2a06a17cbc6d0032cac2c6696da90f29d39a1a29",
@@ -1482,7 +1524,7 @@
         "routable": true,
         "liquidityUsd": 16141,
         "dex": "uniswap-v3",
-        "volume24hUsd": 719
+        "volume24hUsd": 677
       },
       "arbitrum": {
         "address": "0xf7e17ba61973bcdb61f471efb989e47d13bd565d",
@@ -1544,7 +1586,7 @@
         "routable": true,
         "liquidityUsd": 179530,
         "dex": "uniswap-v2",
-        "volume24hUsd": 14066
+        "volume24hUsd": 13749
       },
       "unichain": {
         "address": "0xe7b3ca9d9db06e1867781fd1c5f02e6c8ef471ee",
@@ -1560,7 +1602,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 5
+        "volume24hUsd": 4
       }
     },
     "BNT": {
@@ -1596,8 +1638,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 3156,
+        "volume24hUsd": 3134,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 70541
       },
       "base": {
@@ -1642,7 +1685,7 @@
         "routable": true,
         "liquidityUsd": 32043,
         "dex": "uniswap-v2",
-        "volume24hUsd": 586
+        "volume24hUsd": 348
       },
       "arbitrum": {
         "address": "0x0d81e50bc677fa67341c44d7eaa9228dee64a4e1",
@@ -1752,7 +1795,7 @@
         "routable": true,
         "liquidityUsd": 88571,
         "dex": "pancakeswap",
-        "volume24hUsd": 177727
+        "volume24hUsd": 175359
       }
     },
     "C98": {
@@ -1778,9 +1821,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 20589,
+        "volume24hUsd": 21207,
         "hubDex": "pancakeswap",
-        "hubLiquidityUsd": 277162
+        "hubSymbol": "WBNB",
+        "hubLiquidityUsd": 278616
       }
     },
     "CAKE": {
@@ -1824,9 +1868,9 @@
         "address": "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf",
         "decimals": 8,
         "routable": true,
-        "liquidityUsd": 8052054,
+        "liquidityUsd": 8056926,
         "dex": "uniswap-v3",
-        "volume24hUsd": 43056690
+        "volume24hUsd": 42874102
       },
       "arbitrum": {
         "address": "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf",
@@ -1834,7 +1878,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 444716
+        "volume24hUsd": 454408,
+        "hubDex": "uniswap-v3",
+        "hubSymbol": "WBTC",
+        "hubLiquidityUsd": 668078
       },
       "unichain": {
         "address": "0xb6a3e8e5715fd4c99ecedaaae121bde4ab6a1ef1",
@@ -1854,15 +1901,16 @@
         "dex": null,
         "volume24hUsd": 163557,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 305701
       },
       "base": {
         "address": "0x2ae3f1ec7f1f5012cfeab0185bfc7aa3cf0dec22",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 2569,
+        "liquidityUsd": 2570,
         "dex": "uniswap-v3",
-        "volume24hUsd": 1086385
+        "volume24hUsd": 1112448
       },
       "arbitrum": {
         "address": "0x1debd73e752beaf79865fd6446b0c970eae7732f",
@@ -1878,7 +1926,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 11
+        "volume24hUsd": 0
       },
       "unichain": {
         "address": "0xeb64b50fef2a363940369285f86ae9a68211db59",
@@ -1896,7 +1944,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 0
+        "volume24hUsd": 2
       },
       "arbitrum": {
         "address": "0x4e51ac49bc5e2d87e0ef713e9e5ab2d71ef4f336",
@@ -1956,7 +2004,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 34332
+        "volume24hUsd": 34944
       }
     },
     "CHECK": {
@@ -1974,7 +2022,7 @@
         "routable": true,
         "liquidityUsd": 34686,
         "dex": "aerodrome",
-        "volume24hUsd": 64882
+        "volume24hUsd": 62964
       }
     },
     "CHR": {
@@ -2000,7 +2048,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 2621
+        "volume24hUsd": 2683
       }
     },
     "CHZ": {
@@ -2054,8 +2102,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 26923,
+        "volume24hUsd": 23936,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 1153497
       },
       "base": {
@@ -2064,7 +2113,7 @@
         "routable": true,
         "liquidityUsd": 79,
         "dex": "uniswap-v3",
-        "volume24hUsd": 4182
+        "volume24hUsd": 2961
       },
       "arbitrum": {
         "address": "0x354a6da3fcde098f8389cad84b0182725c6c91de",
@@ -2088,7 +2137,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 2922
+        "volume24hUsd": 2551
       }
     },
     "COOK": {
@@ -2118,9 +2167,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 101231,
+        "volume24hUsd": 101803,
         "hubDex": "uniswap-v2",
-        "hubLiquidityUsd": 173163
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 172022
       },
       "arbitrum": {
         "address": "0x6fe14d3cc2f7bddffba5cdb3bbe7467dd81ea101",
@@ -2172,8 +2222,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 46613,
+        "volume24hUsd": 43809,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 385797
       },
       "arbitrum": {
@@ -2182,8 +2233,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 3505,
+        "volume24hUsd": 3036,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 74483
       },
       "unichain": {
@@ -2200,9 +2252,9 @@
         "address": "0x66761fa41377003622aee3c7675fc7b5c1c2fac5",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 61075,
+        "liquidityUsd": 61201,
         "dex": "uniswap-v3",
-        "volume24hUsd": 20033
+        "volume24hUsd": 20250
       },
       "unichain": {
         "address": "0xf8e7b485ce10d3c7ac30b8444b98a0cc423dfb57",
@@ -2248,7 +2300,8 @@
         "dex": null,
         "volume24hUsd": 555251,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 166138
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 166158
       },
       "arbitrum": {
         "address": "0x8ea3156f834a0dfc78f1a5304fac2cda676f354c",
@@ -2292,7 +2345,7 @@
         "routable": true,
         "liquidityUsd": 398172,
         "dex": "uniswap-v3",
-        "volume24hUsd": 316450
+        "volume24hUsd": 308468
       },
       "arbitrum": {
         "address": "0x11cdb42b0eb46d95f990bedd4695a6e3fa034978",
@@ -2300,7 +2353,7 @@
         "routable": true,
         "liquidityUsd": 34048,
         "dex": "uniswap-v3",
-        "volume24hUsd": 89418
+        "volume24hUsd": 84449
       },
       "optimism": {
         "address": "0x0994206dfe8de6ec6920ff4d779b0d950605fb53",
@@ -2308,7 +2361,7 @@
         "routable": true,
         "liquidityUsd": 565,
         "dex": "uniswap-v3",
-        "volume24hUsd": 5807
+        "volume24hUsd": 5684
       },
       "unichain": {
         "address": "0xac73671a1762fe835208fb93b7ae7490d1c2ccb3",
@@ -2378,9 +2431,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1,
+        "volume24hUsd": 55,
         "hubDex": "sushiswap",
-        "hubLiquidityUsd": 13829
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 13946
       },
       "arbitrum": {
         "address": "0x84f5c2cfba754e76dd5ae4fb369cfc920425e12b",
@@ -2408,6 +2462,7 @@
         "dex": null,
         "volume24hUsd": 51,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 91683
       },
       "unichain": {
@@ -2452,9 +2507,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 314176,
+        "volume24hUsd": 305522,
         "hubDex": "sushiswap",
-        "hubLiquidityUsd": 300263
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 299472
       },
       "arbitrum": {
         "address": "0xaafcfd42c9954c6689ef1901e03db742520829c5",
@@ -2480,9 +2536,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 6939,
+        "volume24hUsd": 7003,
         "hubDex": "uniswap-v2",
-        "hubLiquidityUsd": 55227
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 54983
       },
       "unichain": {
         "address": "0x8e29e12b46fee20e034fe1e812bc12eff14e5a09",
@@ -2508,7 +2565,7 @@
         "routable": true,
         "liquidityUsd": 17433,
         "dex": "uniswap-v3",
-        "volume24hUsd": 5466
+        "volume24hUsd": 5463
       },
       "arbitrum": {
         "address": "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1",
@@ -2516,7 +2573,7 @@
         "routable": true,
         "liquidityUsd": 107234,
         "dex": "uniswap-v3",
-        "volume24hUsd": 217641
+        "volume24hUsd": 193495
       },
       "optimism": {
         "address": "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1",
@@ -2524,7 +2581,7 @@
         "routable": true,
         "liquidityUsd": 63413,
         "dex": "uniswap-v3",
-        "volume24hUsd": 18750
+        "volume24hUsd": 18751
       },
       "unichain": {
         "address": "0x20cab320a855b39f724131c69424240519573f81",
@@ -2540,7 +2597,7 @@
         "routable": true,
         "liquidityUsd": 45925,
         "dex": "uniswap-v3",
-        "volume24hUsd": 68376
+        "volume24hUsd": 81041
       }
     },
     "DAR": {
@@ -2568,6 +2625,7 @@
         "dex": null,
         "volume24hUsd": 6,
         "hubDex": "pancakeswap",
+        "hubSymbol": "WBNB",
         "hubLiquidityUsd": 229144
       }
     },
@@ -2616,6 +2674,7 @@
         "dex": null,
         "volume24hUsd": 70491,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 270977
       },
       "arbitrum": {
@@ -2640,9 +2699,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 2064,
+        "volume24hUsd": 2089,
         "hubDex": "pancakeswap",
-        "hubLiquidityUsd": 346690
+        "hubSymbol": "WBNB",
+        "hubLiquidityUsd": 346363
       }
     },
     "DIA": {
@@ -2650,9 +2710,9 @@
         "address": "0x84ca8bc7997272c7cfb4d0cd3d55cd942b3c9419",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 55830,
+        "liquidityUsd": 55902,
         "dex": "sushiswap",
-        "volume24hUsd": 2848
+        "volume24hUsd": 2883
       },
       "arbitrum": {
         "address": "0xca642467c6ebe58c13cb4a7091317f34e17ac05e",
@@ -2710,9 +2770,9 @@
         "address": "0x0f81001ef0a83ecce5ccebf63eb302c70a39a654",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 183520,
+        "liquidityUsd": 182541,
         "dex": "uniswap-v3",
-        "volume24hUsd": 38366
+        "volume24hUsd": 43885
       }
     },
     "DOS": {
@@ -2722,7 +2782,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 18326
+        "volume24hUsd": 16589,
+        "hubDex": "uniswap-v3",
+        "hubSymbol": "USDT",
+        "hubLiquidityUsd": 19142
       },
       "bsc": {
         "address": "0xb0f09ea9ae0515c3551080d4a745c8115aa30e37",
@@ -2730,7 +2793,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 10343089
+        "volume24hUsd": 10360708,
+        "hubDex": "pancakeswap",
+        "hubSymbol": "USDT",
+        "hubLiquidityUsd": 922428
       }
     },
     "DOVU": {
@@ -2760,6 +2826,7 @@
         "dex": null,
         "volume24hUsd": 2843,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 771020
       },
       "arbitrum": {
@@ -2812,15 +2879,15 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 27869
+        "volume24hUsd": 27458
       },
       "base": {
         "address": "0x9d0e8f5b25384c7310cb8c6ae32c8fbeb645d083",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 21100,
+        "liquidityUsd": 21134,
         "dex": "uniswap-v3",
-        "volume24hUsd": 347488
+        "volume24hUsd": 325480
       },
       "arbitrum": {
         "address": "0x77b7787a09818502305c95d68a2571f090abb135",
@@ -2856,7 +2923,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 260
+        "volume24hUsd": 454
       },
       "arbitrum": {
         "address": "0x51863cb90ce5d6da9663106f292fa27c8cc90c5a",
@@ -2946,6 +3013,7 @@
         "dex": null,
         "volume24hUsd": 19,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 91007
       },
       "unichain": {
@@ -2964,7 +3032,7 @@
         "routable": true,
         "liquidityUsd": 1705796,
         "dex": "uniswap-v3",
-        "volume24hUsd": 18931
+        "volume24hUsd": 18910
       },
       "arbitrum": {
         "address": "0x3e4cff6e50f37f731284a92d44ae943e17077fd4",
@@ -2998,7 +3066,7 @@
         "routable": true,
         "liquidityUsd": 33,
         "dex": "uniswap-v3",
-        "volume24hUsd": 721054
+        "volume24hUsd": 672280
       },
       "arbitrum": {
         "address": "0xdf8f0c63d9335a0abd89f9f752d293a98ea977d8",
@@ -3026,6 +3094,7 @@
         "dex": null,
         "volume24hUsd": 834,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 62309
       },
       "arbitrum": {
@@ -3052,9 +3121,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 9567,
+        "volume24hUsd": 9798,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 644333
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 645530
       },
       "arbitrum": {
         "address": "0xfea31d704deb0975da8e77bf13e04239e70d7c28",
@@ -3088,7 +3158,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 556
+        "volume24hUsd": 569
       }
     },
     "ERN": {
@@ -3100,6 +3170,7 @@
         "dex": null,
         "volume24hUsd": 0,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 28812
       },
       "arbitrum": {
@@ -3142,9 +3213,9 @@
         "address": "0x3b8db18e69d6686ad9371a423afe3dd1065c94f1",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 539914,
+        "liquidityUsd": 539991,
         "dex": "uniswap-v3",
-        "volume24hUsd": 489763
+        "volume24hUsd": 483041
       }
     },
     "ETHFI": {
@@ -3154,7 +3225,7 @@
         "routable": true,
         "liquidityUsd": 241,
         "dex": "uniswap-v3",
-        "volume24hUsd": 424323
+        "volume24hUsd": 423321
       },
       "arbitrum": {
         "address": "0x07d65c18cecba423298c0aeb5d2beded4dfd5736",
@@ -3182,6 +3253,7 @@
         "dex": null,
         "volume24hUsd": 31979,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 17933
       },
       "unichain": {
@@ -3200,15 +3272,15 @@
         "routable": true,
         "liquidityUsd": 3516771,
         "dex": "uniswap-v3",
-        "volume24hUsd": 1253626
+        "volume24hUsd": 1129681
       },
       "base": {
         "address": "0x60a3e35cc302bfa44cb288bc5a4f316fdb1adb42",
         "decimals": 6,
         "routable": true,
-        "liquidityUsd": 1919819,
+        "liquidityUsd": 1921026,
         "dex": "aerodrome",
-        "volume24hUsd": 4765892
+        "volume24hUsd": 4542013
       },
       "arbitrum": {
         "address": "0x863708032b5c328e11abcbc0df9d79c71fc52a48",
@@ -3234,7 +3306,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 36219
+        "volume24hUsd": 29214
       }
     },
     "EURQ": {
@@ -3244,7 +3316,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1268
+        "volume24hUsd": 1285,
+        "hubDex": "uniswap-v3",
+        "hubSymbol": "USDT",
+        "hubLiquidityUsd": 62544
       },
       "unichain": {
         "address": "0xec42461d9bbdf4efb6481099253bbb7324d7d72d",
@@ -3262,7 +3337,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 174
+        "volume24hUsd": 149
       },
       "unichain": {
         "address": "0x7a1ef7fd6e0d708295d8fd0c30fd437d9c36fb5f",
@@ -3280,8 +3355,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 23114,
+        "volume24hUsd": 22496,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 308434
       },
       "arbitrum": {
@@ -3300,7 +3376,7 @@
         "routable": true,
         "liquidityUsd": 13905,
         "dex": "uniswap-v2",
-        "volume24hUsd": 5477
+        "volume24hUsd": 5624
       },
       "arbitrum": {
         "address": "0x8553d254cb6934b16f87d2e486b64bbd24c83c70",
@@ -3334,7 +3410,7 @@
         "routable": true,
         "liquidityUsd": 5282,
         "dex": "uniswap-v3",
-        "volume24hUsd": 82442
+        "volume24hUsd": 81881
       },
       "arbitrum": {
         "address": "0x4be87c766a7ce11d5cc864b6c3abb7457dcc4cc9",
@@ -3358,7 +3434,7 @@
         "routable": true,
         "liquidityUsd": 6,
         "dex": "pancakeswap",
-        "volume24hUsd": 40917
+        "volume24hUsd": 40364
       }
     },
     "FIDD": {
@@ -3368,7 +3444,7 @@
         "routable": true,
         "liquidityUsd": 3565349,
         "dex": "uniswap-v3",
-        "volume24hUsd": 7343
+        "volume24hUsd": 6214
       },
       "arbitrum": {
         "address": "0x2d0012e68c4778e29b1e2f5e8f0453f8c36b666a",
@@ -3420,9 +3496,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 49025,
+        "volume24hUsd": 49114,
         "hubDex": "uniswap-v2",
-        "hubLiquidityUsd": 7424061
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 7415633
       },
       "arbitrum": {
         "address": "0xa8c25fdc09763a176353cc6a76882e05b4905fae",
@@ -3446,7 +3523,7 @@
         "routable": true,
         "liquidityUsd": 10,
         "dex": "pancakeswap",
-        "volume24hUsd": 111833
+        "volume24hUsd": 114261
       }
     },
     "FLUX": {
@@ -3462,9 +3539,9 @@
         "address": "0xb008bdcf9cdff9da684a190941dc3dca8c2cdd44",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 51775,
+        "liquidityUsd": 51810,
         "dex": "uniswap-v3",
-        "volume24hUsd": 6068
+        "volume24hUsd": 6085
       },
       "arbitrum": {
         "address": "0x63806c056fa458c548fb416b15e358a9d685710a",
@@ -3482,7 +3559,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1933379
+        "volume24hUsd": 1795569
       }
     },
     "FORT": {
@@ -3528,6 +3605,7 @@
         "dex": null,
         "volume24hUsd": 2393,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 119273
       },
       "base": {
@@ -3556,6 +3634,7 @@
         "dex": null,
         "volume24hUsd": 10869,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 1299891
       },
       "base": {
@@ -3574,6 +3653,7 @@
         "dex": null,
         "volume24hUsd": 18,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 10160
       },
       "optimism": {
@@ -3600,7 +3680,7 @@
         "routable": true,
         "liquidityUsd": 1557124,
         "dex": "uniswap-v3",
-        "volume24hUsd": 46795
+        "volume24hUsd": 46739
       },
       "arbitrum": {
         "address": "0x7468a5d8e02245b00e8c0217fce021c70bc51305",
@@ -3614,9 +3694,9 @@
         "address": "0x2e3d870790dc77a83dd1d18184acc7439a53f475",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 3709,
+        "liquidityUsd": 3711,
         "dex": "velodrome",
-        "volume24hUsd": 2361
+        "volume24hUsd": 2370
       },
       "unichain": {
         "address": "0x8c7879bf25d678d9949f305857bd4437d74132b9",
@@ -3642,8 +3722,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 233,
+        "volume24hUsd": 231,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 82280
       },
       "arbitrum": {
@@ -3736,9 +3817,9 @@
         "address": "0x9c7beba8f6ef6643abd725e45a4e8387ef260649",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 999858,
+        "liquidityUsd": 999831,
         "dex": "uniswap-v3",
-        "volume24hUsd": 9208
+        "volume24hUsd": 9222
       },
       "unichain": {
         "address": "0x481cb2c560fc3351833b582b92b965626fd8803c",
@@ -3756,7 +3837,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 0
+        "volume24hUsd": 23
       },
       "arbitrum": {
         "address": "0xc27e7325a6bea1fcc06de7941473f5279bfd1182",
@@ -3780,9 +3861,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 51,
+        "volume24hUsd": 10,
         "hubDex": "pancakeswap",
-        "hubLiquidityUsd": 13276
+        "hubSymbol": "WBNB",
+        "hubLiquidityUsd": 13223
       }
     },
     "GALA": {
@@ -3794,6 +3876,7 @@
         "dex": null,
         "volume24hUsd": 2248,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 41913
       },
       "arbitrum": {
@@ -3846,7 +3929,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 21502
+        "volume24hUsd": 21649
       },
       "unichain": {
         "address": "0x4ae5712a153fdfde81c305ff7f2e4e59840ad24b",
@@ -3866,6 +3949,7 @@
         "dex": null,
         "volume24hUsd": 2329,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 130835
       },
       "unichain": {
@@ -3886,6 +3970,7 @@
         "dex": null,
         "volume24hUsd": 7573,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 94886
       },
       "arbitrum": {
@@ -3912,7 +3997,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1280
+        "volume24hUsd": 1276
       },
       "unichain": {
         "address": "0x6e74ea6546e1f21abf581b59114f2bf5d3683f48",
@@ -3930,7 +4015,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 3047
+        "volume24hUsd": 3082
       }
     },
     "GRT": {
@@ -3940,7 +4025,7 @@
         "routable": true,
         "liquidityUsd": 5988,
         "dex": "uniswap-v3",
-        "volume24hUsd": 9291
+        "volume24hUsd": 9228
       },
       "arbitrum": {
         "address": "0x9623063377ad1b27544c965ccd7342f7ea7e88c7",
@@ -3948,9 +4033,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 11207,
+        "volume24hUsd": 11099,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 52959
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 52877
       },
       "unichain": {
         "address": "0xbb2272ffc0ef8f439373adffd45c3591b3204d71",
@@ -3978,9 +4064,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1753,
+        "volume24hUsd": 1853,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 134031
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 134482
       },
       "arbitrum": {
         "address": "0x7f9a7db853ca816b9a138aee3380ef34c437dee0",
@@ -3988,9 +4075,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 9,
+        "volume24hUsd": 92,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 20032
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 19868
       },
       "optimism": {
         "address": "0x1eba7a6a72c894026cd654ac5cdcf83a46445b08",
@@ -4000,6 +4088,7 @@
         "dex": null,
         "volume24hUsd": 15,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 24030
       },
       "unichain": {
@@ -4018,7 +4107,7 @@
         "routable": true,
         "liquidityUsd": 18646,
         "dex": "uniswap-v3",
-        "volume24hUsd": 777
+        "volume24hUsd": 782
       },
       "unichain": {
         "address": "0xeba12ec786cdc21b4bd5ba601b595b6a5c0920a9",
@@ -4036,7 +4125,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 227
+        "volume24hUsd": 228
       },
       "bsc": {
         "address": "0x30117e4bc17d7b044194b76a38365c53b72f7d49",
@@ -4044,7 +4133,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 17911
+        "volume24hUsd": 17597,
+        "hubDex": "uniswap-v3",
+        "hubSymbol": "USDT",
+        "hubLiquidityUsd": 21656
       }
     },
     "GYEN": {
@@ -4104,7 +4196,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 394
+        "volume24hUsd": 390
       }
     },
     "HIGH": {
@@ -4114,9 +4206,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 98661,
+        "volume24hUsd": 100339,
         "hubDex": "uniswap-v2",
-        "hubLiquidityUsd": 79756
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 78290
       },
       "arbitrum": {
         "address": "0xd12eeb0142d4efe7af82e4f29e5af382615bceea",
@@ -4140,7 +4233,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 18546
+        "volume24hUsd": 19015
       }
     },
     "HOPR": {
@@ -4150,7 +4243,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 541
+        "volume24hUsd": 541,
+        "hubDex": "uniswap-v3",
+        "hubSymbol": "DAI",
+        "hubLiquidityUsd": 110807
       },
       "arbitrum": {
         "address": "0x177f394a3ed18faa85c1462ae626438a70294ef7",
@@ -4194,9 +4290,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 43211,
+        "volume24hUsd": 46170,
         "hubDex": "sushiswap",
-        "hubLiquidityUsd": 1878433
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 1884198
       },
       "arbitrum": {
         "address": "0x61ca9d186f6b9a793bc08f6c79fd35f205488673",
@@ -4234,6 +4331,7 @@
         "dex": null,
         "volume24hUsd": 1586,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 81466
       },
       "arbitrum": {
@@ -4278,9 +4376,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 48703,
+        "volume24hUsd": 46835,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 58635
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 58673
       },
       "arbitrum": {
         "address": "0x2a2053cb633cad465b4a8975ed3d7f09df608f80",
@@ -4302,9 +4401,9 @@
         "address": "0xa2b726b1145a4773f68593cf171187d8ebe4d495",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 763,
+        "liquidityUsd": 760,
         "dex": "pancakeswap",
-        "volume24hUsd": 28365
+        "volume24hUsd": 28158
       }
     },
     "INV": {
@@ -4314,8 +4413,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 3085,
+        "volume24hUsd": 3125,
         "hubDex": "sushiswap",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 11032
       },
       "unichain": {
@@ -4334,7 +4434,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 111546
+        "volume24hUsd": 109618
       }
     },
     "IOTX": {
@@ -4346,6 +4446,7 @@
         "dex": null,
         "volume24hUsd": 136,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 28945
       },
       "unichain": {
@@ -4392,8 +4493,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 11323,
+        "volume24hUsd": 10928,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 33247
       },
       "arbitrum": {
@@ -4420,9 +4522,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 716,
+        "volume24hUsd": 743,
         "hubDex": "uniswap-v2",
-        "hubLiquidityUsd": 80121
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 80180
       },
       "unichain": {
         "address": "0x781cc305fcbfe7cde376c9ef5469d5a7e5cab8b2",
@@ -4486,6 +4589,7 @@
         "dex": null,
         "volume24hUsd": 7438,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 27234
       },
       "unichain": {
@@ -4504,7 +4608,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 173
+        "volume24hUsd": 173,
+        "hubDex": "uniswap-v3",
+        "hubSymbol": "USDT",
+        "hubLiquidityUsd": 11344
       }
     },
     "KEY": {
@@ -4548,7 +4655,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 21776
+        "volume24hUsd": 12769
       }
     },
     "KITE": {
@@ -4570,6 +4677,7 @@
         "dex": null,
         "volume24hUsd": 555251,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 13009
       },
       "unichain": {
@@ -4590,6 +4698,7 @@
         "dex": null,
         "volume24hUsd": 51,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 155180
       },
       "unichain": {
@@ -4608,9 +4717,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 205,
+        "volume24hUsd": 632,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 137821
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 140478
       },
       "arbitrum": {
         "address": "0xf75ee6d319741057a82a88eeff1dbafab7307b69",
@@ -4686,7 +4796,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1530
+        "volume24hUsd": 1545
       },
       "arbitrum": {
         "address": "0xf03a553fbcb2f52daae15170347830e5d3d16096",
@@ -4722,9 +4832,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1502,
+        "volume24hUsd": 1600,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 41845
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 41703
       },
       "unichain": {
         "address": "0xb34b3de63d22ffc90419c1a439de6c7d46687782",
@@ -4742,7 +4853,7 @@
         "routable": true,
         "liquidityUsd": 55801,
         "dex": "uniswap-v3",
-        "volume24hUsd": 696747
+        "volume24hUsd": 652566
       },
       "arbitrum": {
         "address": "0x13ad51ed4f1b7e9dc168d8a00cb3f4ddd85efa60",
@@ -4750,7 +4861,7 @@
         "routable": true,
         "liquidityUsd": 14085,
         "dex": "uniswap-v3",
-        "volume24hUsd": 6517
+        "volume24hUsd": 5885
       },
       "optimism": {
         "address": "0xfdb794692724153d1488ccdbe0c56c252596735f",
@@ -4778,6 +4889,7 @@
         "dex": null,
         "volume24hUsd": 366,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 34881
       }
     },
@@ -4788,7 +4900,7 @@
         "routable": true,
         "liquidityUsd": 844088,
         "dex": "uniswap-v3",
-        "volume24hUsd": 3156385
+        "volume24hUsd": 2952281
       },
       "arbitrum": {
         "address": "0xf97f4df75117a78c1a5a0dbb814af92458539fb4",
@@ -4796,7 +4908,7 @@
         "routable": true,
         "liquidityUsd": 38300,
         "dex": "uniswap-v3",
-        "volume24hUsd": 263572
+        "volume24hUsd": 258106
       },
       "optimism": {
         "address": "0x350a791bfc2c21f9ed5d10980dad2e2638ffa7f6",
@@ -4804,7 +4916,7 @@
         "routable": true,
         "liquidityUsd": 3466,
         "dex": "uniswap-v3",
-        "volume24hUsd": 4524
+        "volume24hUsd": 4271
       },
       "unichain": {
         "address": "0x5a53b6d19d8edcb7923f0d840eebb3f09bbeefb7",
@@ -4820,7 +4932,7 @@
         "routable": true,
         "liquidityUsd": 659,
         "dex": "uniswap-v3",
-        "volume24hUsd": 166422
+        "volume24hUsd": 161262
       }
     },
     "LIT": {
@@ -4892,8 +5004,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 235,
+        "volume24hUsd": 232,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 31588
       },
       "arbitrum": {
@@ -4902,9 +5015,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 31608,
+        "volume24hUsd": 30553,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 212463
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 212792
       },
       "unichain": {
         "address": "0x11c6b34cadc550b65a9666497d7fcb39f35b73e3",
@@ -4922,9 +5036,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 54002,
+        "volume24hUsd": 54399,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 551979
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 553079
       },
       "arbitrum": {
         "address": "0xfb9e5d956d889d91a82737b9bfcdac1dce3e1449",
@@ -4950,9 +5065,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 804,
+        "volume24hUsd": 958,
         "hubDex": "uniswap-v2",
-        "hubLiquidityUsd": 15503
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 15446
       },
       "arbitrum": {
         "address": "0x46d0ce7de6247b0a95f67b43b589b4041bae7fbe",
@@ -5006,6 +5122,7 @@
         "dex": null,
         "volume24hUsd": 153345,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 7683050
       }
     },
@@ -5016,7 +5133,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 60279
+        "volume24hUsd": 61008
       }
     },
     "LUSD": {
@@ -5042,7 +5159,7 @@
         "routable": true,
         "liquidityUsd": 26428,
         "dex": "velodrome",
-        "volume24hUsd": 498
+        "volume24hUsd": 495
       },
       "unichain": {
         "address": "0xf81b7485b4cb59645f74528d702c7f8cd72577fb",
@@ -5062,6 +5179,7 @@
         "dex": null,
         "volume24hUsd": 1724,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 70539
       },
       "arbitrum": {
@@ -5088,7 +5206,7 @@
         "routable": true,
         "liquidityUsd": 552028,
         "dex": "uniswap-v2",
-        "volume24hUsd": 81824
+        "volume24hUsd": 81077
       },
       "arbitrum": {
         "address": "0x533a7b414cd1236815a5e09f1e97fc7d5c313739",
@@ -5120,7 +5238,7 @@
         "routable": true,
         "liquidityUsd": 14,
         "dex": "pancakeswap",
-        "volume24hUsd": 691
+        "volume24hUsd": 1098
       }
     },
     "MATH": {
@@ -5132,6 +5250,7 @@
         "dex": null,
         "volume24hUsd": 889,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 26388
       },
       "arbitrum": {
@@ -5158,7 +5277,8 @@
         "dex": null,
         "volume24hUsd": 1501,
         "hubDex": "pancakeswap",
-        "hubLiquidityUsd": 19179
+        "hubSymbol": "USDT",
+        "hubLiquidityUsd": 96384
       }
     },
     "MATIC": {
@@ -5168,7 +5288,7 @@
         "routable": true,
         "liquidityUsd": 157,
         "dex": "sushiswap",
-        "volume24hUsd": 22967
+        "volume24hUsd": 24786
       },
       "arbitrum": {
         "address": "0x561877b6b3dd7651313794e5f2894b2f18be0766",
@@ -5192,7 +5312,7 @@
         "routable": true,
         "liquidityUsd": 61,
         "dex": "sushiswap",
-        "volume24hUsd": 119
+        "volume24hUsd": 87
       }
     },
     "MC": {
@@ -5246,7 +5366,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 53654
+        "volume24hUsd": 51951
       },
       "unichain": {
         "address": "0xb29fddc20d5e4bace9f54c1d9237953331bfeff4",
@@ -5264,8 +5384,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 3666,
+        "volume24hUsd": 3543,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 248573
       },
       "unichain": {
@@ -5284,9 +5405,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 22036,
+        "volume24hUsd": 21764,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 597399
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 597327
       },
       "arbitrum": {
         "address": "0x7f728f3595db17b0b359f4fc47ae80fad2e33769",
@@ -5328,7 +5450,7 @@
         "routable": true,
         "liquidityUsd": 25,
         "dex": "pancakeswap",
-        "volume24hUsd": 22056
+        "volume24hUsd": 22335
       },
       "bsc": {
         "address": "0x8e4cbbcc33db6c0a18561fde1f6ba35906d4848b",
@@ -5406,7 +5528,7 @@
         "routable": true,
         "liquidityUsd": 38,
         "dex": "uniswap-v2",
-        "volume24hUsd": 15874
+        "volume24hUsd": 14960
       },
       "arbitrum": {
         "address": "0x2e9a6df78e42a30712c10a9dc4b1c8656f8f2879",
@@ -5434,6 +5556,7 @@
         "dex": null,
         "volume24hUsd": 6808,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 84807
       },
       "base": {
@@ -5468,7 +5591,7 @@
         "routable": true,
         "liquidityUsd": 370,
         "dex": "uniswap-v3",
-        "volume24hUsd": 335355
+        "volume24hUsd": 333662
       },
       "arbitrum": {
         "address": "0x9c1a1c7ba9c2602123fd7ef3eb41a769edf6c53a",
@@ -5486,9 +5609,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 104707,
+        "volume24hUsd": 103819,
         "hubDex": "uniswap-v2",
-        "hubLiquidityUsd": 5474185
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 5472709
       },
       "base": {
         "address": "0x2da56acb9ea78330f947bd57c54119debda7af71",
@@ -5496,7 +5620,7 @@
         "routable": true,
         "liquidityUsd": 57,
         "dex": "uniswap-v3",
-        "volume24hUsd": 782
+        "volume24hUsd": 703
       },
       "arbitrum": {
         "address": "0x96c42662820f6ea32f0a61a06a38a72b206aabac",
@@ -5522,8 +5646,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1406,
+        "volume24hUsd": 1384,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 52752
       },
       "unichain": {
@@ -5542,9 +5667,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 33141,
+        "volume24hUsd": 32695,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 177458
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 177194
       },
       "base": {
         "address": "0xbaa5cc21fd487b8fcc2f632f3f4e8d37262a0842",
@@ -5552,7 +5678,7 @@
         "routable": true,
         "liquidityUsd": 340378,
         "dex": "uniswap-v3",
-        "volume24hUsd": 961169
+        "volume24hUsd": 975686
       },
       "arbitrum": {
         "address": "0xe390c0b46bd723995be02640e6f1e1c802f620ac",
@@ -5634,6 +5760,7 @@
         "dex": null,
         "volume24hUsd": 145,
         "hubDex": "sushiswap",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 65167
       },
       "arbitrum": {
@@ -5660,6 +5787,7 @@
         "dex": null,
         "volume24hUsd": 87,
         "hubDex": "pancakeswap",
+        "hubSymbol": "WBNB",
         "hubLiquidityUsd": 39131
       }
     },
@@ -5690,6 +5818,7 @@
         "dex": null,
         "volume24hUsd": 30,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 41968
       },
       "unichain": {
@@ -5770,7 +5899,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 3595
+        "volume24hUsd": 3385
       },
       "base": {
         "address": "0xe6baa3fedb5dc88b2c59ba4812388bb0906d19db",
@@ -5804,8 +5933,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 216520,
+        "volume24hUsd": 215691,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 3485825
       },
       "unichain": {
@@ -5842,7 +5972,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 35787
+        "volume24hUsd": 35553
       }
     },
     "NEX": {
@@ -5860,9 +5990,9 @@
         "address": "0x5cf04716ba20127f1e2297addcf4b5035000c9eb",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 1016,
+        "liquidityUsd": 950,
         "dex": "uniswap-v3",
-        "volume24hUsd": 1647
+        "volume24hUsd": 2189
       },
       "arbitrum": {
         "address": "0xbe06ca305a5cb49abf6b1840da7c42690406177b",
@@ -5888,9 +6018,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 3704,
+        "volume24hUsd": 3775,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 21077
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 21089
       },
       "arbitrum": {
         "address": "0x597701b32553b9fa473e21362d480b3a6b569711",
@@ -5928,6 +6059,7 @@
         "dex": null,
         "volume24hUsd": 259,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 30488
       },
       "unichain": {
@@ -5944,7 +6076,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 4848
+        "volume24hUsd": 3293
       }
     },
     "OCEAN": {
@@ -5954,8 +6086,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 30740,
+        "volume24hUsd": 30668,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 1221488
       },
       "arbitrum": {
@@ -5990,7 +6123,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 134150
+        "volume24hUsd": 133398
       },
       "base": {
         "address": "0x7002458b1df59eccb57387bc79ffc7c29e22e6f7",
@@ -5998,7 +6131,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 4192
+        "volume24hUsd": 3991
       },
       "arbitrum": {
         "address": "0x6feb262feb0f775b5312d2e009923f7f58ae423e",
@@ -6024,7 +6157,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1193
+        "volume24hUsd": 1322,
+        "hubDex": "uniswap-v3",
+        "hubSymbol": "USDT",
+        "hubLiquidityUsd": 49754
       },
       "arbitrum": {
         "address": "0xe7bef5cc7750820516162f5f5b520e9aa510a466",
@@ -6086,9 +6222,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 951612,
+        "volume24hUsd": 948703,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 775992
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 776140
       },
       "arbitrum": {
         "address": "0xa2d52a05b8bead5d824df54dd1aa63188b37a5e7",
@@ -6134,6 +6271,7 @@
         "dex": null,
         "volume24hUsd": 105,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 61388
       },
       "arbitrum": {
@@ -6160,7 +6298,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 695
+        "volume24hUsd": 516
       },
       "unichain": {
         "address": "0x9775c2b4f245248de5596252ac69311152b98042",
@@ -6194,9 +6332,9 @@
         "address": "0x45804880de22913dafe09f4980848ece6ecbaf78",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 2296582,
+        "liquidityUsd": 2297449,
         "dex": "uniswap-v3",
-        "volume24hUsd": 3285616
+        "volume24hUsd": 3260823
       }
     },
     "PDA": {
@@ -6208,6 +6346,7 @@
         "dex": null,
         "volume24hUsd": 248,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 12095
       },
       "unichain": {
@@ -6226,7 +6365,7 @@
         "routable": true,
         "liquidityUsd": 1664,
         "dex": "uniswap-v3",
-        "volume24hUsd": 48636
+        "volume24hUsd": 45104
       },
       "arbitrum": {
         "address": "0x0c880f6761f1af8d9aa9c466984b80dab9a8c9e8",
@@ -6234,7 +6373,7 @@
         "routable": true,
         "liquidityUsd": 265062,
         "dex": "uniswap-v3",
-        "volume24hUsd": 293761
+        "volume24hUsd": 290222
       },
       "optimism": {
         "address": "0xbc7b1ff1c6989f006a1185318ed4e7b5796e66e1",
@@ -6252,7 +6391,7 @@
         "routable": true,
         "liquidityUsd": 8057,
         "dex": "uniswap-v3",
-        "volume24hUsd": 651082
+        "volume24hUsd": 644888
       },
       "arbitrum": {
         "address": "0x35e6a59f786d9266c7961ea28c7b768b33959cbb",
@@ -6286,9 +6425,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 497620,
+        "volume24hUsd": 458205,
         "hubDex": "uniswap-v2",
-        "hubLiquidityUsd": 2329737
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 2330046
       },
       "arbitrum": {
         "address": "0x6d78bc9ebc2431861b2928bb2af52bdd10baddd7",
@@ -6348,7 +6488,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1067
+        "volume24hUsd": 1005
       },
       "arbitrum": {
         "address": "0xac7ce9f2794e01c0d27b096c52f592e343d77cbf",
@@ -6390,7 +6530,7 @@
         "address": "0x4c1746a800d224393fe2470c70a35717ed4ea5f1",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 19026,
+        "liquidityUsd": 18982,
         "dex": "uniswap-v3",
         "volume24hUsd": 12114
       },
@@ -6410,7 +6550,7 @@
         "routable": true,
         "liquidityUsd": 194,
         "dex": "uniswap-v3",
-        "volume24hUsd": 9057
+        "volume24hUsd": 9847
       },
       "arbitrum": {
         "address": "0x044d8e7f3a17751d521efea8ccf9282268fe08cc",
@@ -6436,9 +6576,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 4846,
+        "volume24hUsd": 12087,
         "hubDex": "uniswap-v2",
-        "hubLiquidityUsd": 140481
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 141242
       },
       "arbitrum": {
         "address": "0xeeeb5eac2db7a7fc28134aa3248580d48b016b64",
@@ -6464,7 +6605,8 @@
         "dex": null,
         "volume24hUsd": 161,
         "hubDex": "pancakeswap",
-        "hubLiquidityUsd": 23807
+        "hubSymbol": "USDT",
+        "hubLiquidityUsd": 80356
       }
     },
     "POLY": {
@@ -6498,9 +6640,9 @@
         "address": "0x57b946008913b82e4df85f501cbaed910e58d26c",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 114312,
+        "liquidityUsd": 114699,
         "dex": "uniswap-v2",
-        "volume24hUsd": 5944
+        "volume24hUsd": 6138
       },
       "arbitrum": {
         "address": "0xda0a57b710768ae17941a9fa33f8b720c8bd9ddd",
@@ -6526,7 +6668,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 211
+        "volume24hUsd": 285
       },
       "arbitrum": {
         "address": "0x6380f3d0c1412a80eb00f49064da30749db991de",
@@ -6552,9 +6694,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 12956,
+        "volume24hUsd": 13429,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 469498
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 469875
       },
       "arbitrum": {
         "address": "0x4e91f2af1ee0f84b529478f19794f5afd423e4a6",
@@ -6582,6 +6725,7 @@
         "dex": null,
         "volume24hUsd": 310,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 27667
       },
       "arbitrum": {
@@ -6608,9 +6752,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 4149,
+        "volume24hUsd": 5228,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 313835
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 315904
       },
       "arbitrum": {
         "address": "0x631a64e240180d4b604f736cb6e19c1a7ec77254",
@@ -6716,8 +6861,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 16397,
+        "volume24hUsd": 16392,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 101038
       },
       "unichain": {
@@ -6736,7 +6882,7 @@
         "routable": true,
         "liquidityUsd": 199776,
         "dex": "uniswap-v3",
-        "volume24hUsd": 51629845
+        "volume24hUsd": 51497993
       },
       "arbitrum": {
         "address": "0x327006c8712fe0abdbbd55b7999db39b0967342e",
@@ -6762,9 +6908,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 46961,
+        "volume24hUsd": 44937,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 436976
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 436399
       },
       "arbitrum": {
         "address": "0xc7557c73e0eca2e1bf7348bb6874aee63c7eff85",
@@ -6842,9 +6989,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 6174,
+        "volume24hUsd": 6665,
         "hubDex": "aerodrome",
-        "hubLiquidityUsd": 24302
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 24153
       }
     },
     "QUICK": {
@@ -6870,9 +7018,9 @@
         "address": "0x31c8eacbffdd875c74b94b077895bd78cf1e64a3",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 1932491,
+        "liquidityUsd": 1937646,
         "dex": "uniswap-v2",
-        "volume24hUsd": 21531
+        "volume24hUsd": 24109
       },
       "arbitrum": {
         "address": "0x3c45038f4807c5bb72f6bc72c2a2b9c012155e49",
@@ -6932,9 +7080,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 29875,
+        "volume24hUsd": 29874,
         "hubDex": "sushiswap",
-        "hubLiquidityUsd": 23319
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 23341
       },
       "unichain": {
         "address": "0xe8a0078aa52ac7e93ae43818ddd64591e025bb6f",
@@ -6954,6 +7103,7 @@
         "dex": null,
         "volume24hUsd": 389,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 21548
       },
       "arbitrum": {
@@ -7008,6 +7158,7 @@
         "dex": null,
         "volume24hUsd": 2,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 59199
       },
       "unichain": {
@@ -7024,9 +7175,9 @@
         "address": "0x526526528f35ac738177003b8773b402b8df8143",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 6829,
+        "liquidityUsd": 6812,
         "dex": "uniswap-v3",
-        "volume24hUsd": 1712
+        "volume24hUsd": 1754
       }
     },
     "RED": {
@@ -7036,7 +7187,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 142066
+        "volume24hUsd": 143596
       }
     },
     "REN": {
@@ -7048,6 +7199,7 @@
         "dex": null,
         "volume24hUsd": 638,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 11643
       },
       "arbitrum": {
@@ -7094,6 +7246,7 @@
         "dex": null,
         "volume24hUsd": 2599,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 33348
       },
       "unichain": {
@@ -7122,9 +7275,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 2469,
-        "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 102034
+        "volume24hUsd": 2691,
+        "hubDex": "uniswap-v2",
+        "hubSymbol": "DAI",
+        "hubLiquidityUsd": 133669
       },
       "arbitrum": {
         "address": "0x1cb5bbc64e148c5b889e3c667b49edf78bb92171",
@@ -7230,6 +7384,7 @@
         "dex": null,
         "volume24hUsd": 515,
         "hubDex": "sushiswap",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 11357
       },
       "arbitrum": {
@@ -7256,7 +7411,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 5057
+        "volume24hUsd": 5063
       }
     },
     "RLUSD": {
@@ -7266,7 +7421,7 @@
         "routable": true,
         "liquidityUsd": 2929868,
         "dex": "uniswap-v3",
-        "volume24hUsd": 220123945
+        "volume24hUsd": 222289618
       }
     },
     "RLY": {
@@ -7278,6 +7433,7 @@
         "dex": null,
         "volume24hUsd": 87,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 26241
       },
       "unichain": {
@@ -7296,7 +7452,7 @@
         "routable": true,
         "liquidityUsd": 26,
         "dex": "sushiswap",
-        "volume24hUsd": 39051
+        "volume24hUsd": 36867
       },
       "arbitrum": {
         "address": "0xc8a4eea31e9b6b61c406df013dd4fec76f21e279",
@@ -7322,7 +7478,7 @@
         "routable": true,
         "liquidityUsd": 528170,
         "dex": "uniswap-v3",
-        "volume24hUsd": 51955
+        "volume24hUsd": 48254
       }
     },
     "ROOK": {
@@ -7352,7 +7508,8 @@
         "dex": null,
         "volume24hUsd": 3968,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 322826
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 323524
       },
       "base": {
         "address": "0x1f73eaf55d696bffa9b0ea16fa987b93b0f4d302",
@@ -7386,8 +7543,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 42352,
+        "volume24hUsd": 41890,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 142103
       },
       "base": {
@@ -7422,9 +7580,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 2591,
+        "volume24hUsd": 1880,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 198705
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 198938
       },
       "unichain": {
         "address": "0x47b72717e48da346c3f1ed1311c8dcde10efd888",
@@ -7442,9 +7601,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 10513,
+        "volume24hUsd": 11190,
         "hubDex": "uniswap-v2",
-        "hubLiquidityUsd": 336515
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 334896
       },
       "arbitrum": {
         "address": "0xd1318eb19dbf2647743c720ed35174efd64e3dac",
@@ -7468,9 +7628,9 @@
         "address": "0x30d20208d987713f46dfd34ef128bb16c404d10f",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 14620,
+        "liquidityUsd": 15035,
         "dex": "uniswap-v3",
-        "volume24hUsd": 4205
+        "volume24hUsd": 4489
       },
       "arbitrum": {
         "address": "0x1629c4112952a7a377cb9b8d7d8c903092f34b63",
@@ -7494,7 +7654,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1527
+        "volume24hUsd": 1881
       }
     },
     "SENT": {
@@ -7514,7 +7674,7 @@
         "routable": true,
         "liquidityUsd": 3483,
         "dex": "uniswap-v3",
-        "volume24hUsd": 54143
+        "volume24hUsd": 50034
       },
       "arbitrum": {
         "address": "0x5033833c9fe8b9d3e09eed2f73d2aaf7e3872fd1",
@@ -7566,9 +7726,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 5827,
+        "volume24hUsd": 6063,
         "hubDex": "aerodrome",
-        "hubLiquidityUsd": 62237
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 62833
       },
       "bsc": {
         "address": "0x868fced65edbf0056c4163515dd840e9f287a4c3",
@@ -7576,9 +7737,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 37200,
+        "volume24hUsd": 38401,
         "hubDex": "pancakeswap",
-        "hubLiquidityUsd": 194982
+        "hubSymbol": "WBNB",
+        "hubLiquidityUsd": 196628
       }
     },
     "SKL": {
@@ -7588,8 +7750,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 63,
+        "volume24hUsd": 75,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 38883
       },
       "arbitrum": {
@@ -7616,9 +7779,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 424844,
+        "volume24hUsd": 407872,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 1169567
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 1170657
       },
       "arbitrum": {
         "address": "0xd43f10ce4bc089782ff8635c17f015edbc16d71b",
@@ -7644,9 +7808,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 220,
+        "volume24hUsd": 242,
         "hubDex": "sushiswap",
-        "hubLiquidityUsd": 10228
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 10270
       },
       "unichain": {
         "address": "0xbd2dd310fecbfb1111fc3262f3a97ba696cb03b3",
@@ -7664,9 +7829,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 23316,
+        "volume24hUsd": 23510,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 397279
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 399802
       },
       "base": {
         "address": "0x662015ec830df08c0fc45896fab726542e8ac09e",
@@ -7708,9 +7874,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 8240,
+        "volume24hUsd": 8307,
         "hubDex": "uniswap-v2",
-        "hubLiquidityUsd": 98946
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 99011
       },
       "base": {
         "address": "0x22e6966b799c4d5b13be962e1d117b56327fda66",
@@ -7734,7 +7901,7 @@
         "routable": true,
         "liquidityUsd": 19970,
         "dex": "velodrome",
-        "volume24hUsd": 13102
+        "volume24hUsd": 13103
       },
       "unichain": {
         "address": "0x022d952abcc6c8271f26e59e37a65dc359e6bc88",
@@ -7778,9 +7945,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 212856,
+        "volume24hUsd": 202786,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 861124
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 860373
       },
       "arbitrum": {
         "address": "0xb74da9fe2f96b9e0a5f4a3cf0b92dd2bec617124",
@@ -7814,6 +7982,7 @@
         "dex": null,
         "volume24hUsd": 5864,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WBNB",
         "hubLiquidityUsd": 48781
       }
     },
@@ -7824,9 +7993,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 5169,
+        "volume24hUsd": 5287,
         "hubDex": "sushiswap",
-        "hubLiquidityUsd": 178894
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 179130
       },
       "arbitrum": {
         "address": "0x3e6648c5a70a150a88bce65f4ad4d506fe15d2af",
@@ -7836,6 +8006,7 @@
         "dex": null,
         "volume24hUsd": 671,
         "hubDex": "sushiswap",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 110653
       },
       "unichain": {
@@ -7854,7 +8025,7 @@
         "routable": true,
         "liquidityUsd": 55,
         "dex": "uniswap-v3",
-        "volume24hUsd": 200764
+        "volume24hUsd": 186960
       }
     },
     "SPX": {
@@ -7862,17 +8033,17 @@
         "address": "0xe0f63a424a4439cbe457d80e4f4b51ad25b2c56c",
         "decimals": 8,
         "routable": true,
-        "liquidityUsd": 5117,
+        "liquidityUsd": 5098,
         "dex": "uniswap-v3",
-        "volume24hUsd": 2001725
+        "volume24hUsd": 1999221
       },
       "base": {
         "address": "0x50da645f148798f68ef2d7db7c1cb22a6819bb2c",
         "decimals": 8,
         "routable": true,
-        "liquidityUsd": 84682,
+        "liquidityUsd": 86279,
         "dex": "uniswap-v3",
-        "volume24hUsd": 45455
+        "volume24hUsd": 43364
       },
       "arbitrum": {
         "address": "0x53e70cc1d527b524a1c46eaa892e4cb35d2ba901",
@@ -7922,7 +8093,7 @@
         "routable": true,
         "liquidityUsd": 1414,
         "dex": "pancakeswap",
-        "volume24hUsd": 217
+        "volume24hUsd": 218
       }
     },
     "STORJ": {
@@ -7932,9 +8103,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 6641,
+        "volume24hUsd": 6727,
         "hubDex": "uniswap-v2",
-        "hubLiquidityUsd": 83495
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 83418
       },
       "arbitrum": {
         "address": "0xe6320ebf209971b4f4696f7f0954b8457aa2fcc2",
@@ -7960,8 +8132,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 6788,
+        "volume24hUsd": 6867,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 20347
       },
       "unichain": {
@@ -8024,9 +8197,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 89565,
+        "volume24hUsd": 89678,
         "hubDex": "uniswap-v2",
-        "hubLiquidityUsd": 2609932
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 2605251
       },
       "arbitrum": {
         "address": "0x7f9cf5a2630a0d58567122217df7609c26498956",
@@ -8094,7 +8268,7 @@
         "routable": true,
         "liquidityUsd": 929,
         "dex": "sushiswap",
-        "volume24hUsd": 21936
+        "volume24hUsd": 22224
       },
       "arbitrum": {
         "address": "0xd4d42f0b6def4ce0383636770ef773390d85c61a",
@@ -8126,7 +8300,7 @@
         "routable": true,
         "liquidityUsd": 51,
         "dex": "sushiswap",
-        "volume24hUsd": 1584
+        "volume24hUsd": 1609
       }
     },
     "SWELL": {
@@ -8178,7 +8352,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 7206
+        "volume24hUsd": 7206,
+        "hubDex": "pancakeswap",
+        "hubSymbol": "USDT",
+        "hubLiquidityUsd": 81236
       }
     },
     "SXP": {
@@ -8204,9 +8381,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 24,
+        "volume24hUsd": 37,
         "hubDex": "pancakeswap",
-        "hubLiquidityUsd": 19827
+        "hubSymbol": "WBNB",
+        "hubLiquidityUsd": 19799
       }
     },
     "SXT": {
@@ -8216,7 +8394,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1172
+        "volume24hUsd": 1191
       }
     },
     "SYLO": {
@@ -8244,8 +8422,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 10151,
+        "volume24hUsd": 7824,
         "hubDex": "sushiswap",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 117691
       },
       "arbitrum": {
@@ -8286,9 +8465,9 @@
         "address": "0x11dc28d01984079b7efe7763b533e6ed9e3722b9",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 1092,
+        "liquidityUsd": 1070,
         "dex": "aerodrome",
-        "volume24hUsd": 2568
+        "volume24hUsd": 3642
       }
     },
     "SYRUP": {
@@ -8298,8 +8477,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 46480,
+        "volume24hUsd": 22793,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 796100
       },
       "unichain": {
@@ -8318,7 +8498,7 @@
         "routable": true,
         "liquidityUsd": 558,
         "dex": "uniswap-v3",
-        "volume24hUsd": 21533
+        "volume24hUsd": 24356
       },
       "arbitrum": {
         "address": "0x0945cae3ae47cb384b2d47bc448dc6a9dec21f55",
@@ -8352,9 +8532,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1879187,
+        "volume24hUsd": 1762258,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 277238
+        "hubSymbol": "WBTC",
+        "hubLiquidityUsd": 3524430
       },
       "arbitrum": {
         "address": "0x7e2a1edee171c5b19e6c54d73752396c0a572594",
@@ -8380,9 +8561,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 77250,
+        "volume24hUsd": 76639,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 191023
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 190763
       },
       "base": {
         "address": "0x09be1692ca16e06f536f0038ff11d1da8524adb1",
@@ -8390,7 +8572,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 9245
+        "volume24hUsd": 9633
       },
       "arbitrum": {
         "address": "0x0419e8bfbbb2623728c3a6129090da4ff4e48113",
@@ -8418,7 +8600,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 4990
+        "volume24hUsd": 5090
       }
     },
     "TIME": {
@@ -8470,8 +8652,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 931,
+        "volume24hUsd": 840,
         "hubDex": "pancakeswap",
+        "hubSymbol": "WBNB",
         "hubLiquidityUsd": 34090
       }
     },
@@ -8482,7 +8665,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 158
+        "volume24hUsd": 150
       },
       "bsc": {
         "address": "0x3c2f61f2e27c865981d2e7aaf6b2cdf823030039",
@@ -8490,7 +8673,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 98786
+        "volume24hUsd": 97232,
+        "hubDex": "uniswap-v3",
+        "hubSymbol": "USDT",
+        "hubLiquidityUsd": 29584
       }
     },
     "TOKE": {
@@ -8500,9 +8686,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 325,
+        "volume24hUsd": 612,
         "hubDex": "sushiswap",
-        "hubLiquidityUsd": 416852
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 416894
       },
       "unichain": {
         "address": "0x5ed5da180bb125f229ab7b825e34d2b936213e0b",
@@ -8520,9 +8707,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 38092,
+        "volume24hUsd": 39190,
         "hubDex": "uniswap-v2",
-        "hubLiquidityUsd": 1104261
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 1106054
       }
     },
     "TONE": {
@@ -8550,8 +8738,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 105279,
+        "volume24hUsd": 105058,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 403417
       },
       "unichain": {
@@ -8614,7 +8803,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 11967
+        "volume24hUsd": 10935,
+        "hubDex": "uniswap-v3",
+        "hubSymbol": "USDT",
+        "hubLiquidityUsd": 52121
       }
     },
     "TRIBE": {
@@ -8624,8 +8816,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 6183,
+        "volume24hUsd": 6021,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 42622
       },
       "arbitrum": {
@@ -8654,6 +8847,7 @@
         "dex": null,
         "volume24hUsd": 1684,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 16762
       },
       "unichain": {
@@ -8672,9 +8866,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 13015,
+        "volume24hUsd": 14219,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 90234
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 90630
       },
       "arbitrum": {
         "address": "0x5c816d4582c857dcadb1bb1f62ad6c9dede4576a",
@@ -8720,7 +8915,8 @@
         "dex": null,
         "volume24hUsd": 1241,
         "hubDex": "sushiswap",
-        "hubLiquidityUsd": 68908
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 69064
       },
       "arbitrum": {
         "address": "0xd693ec944a85eeca4247ec1c3b130dca9b0c3b22",
@@ -8780,7 +8976,7 @@
         "routable": true,
         "liquidityUsd": 445705,
         "dex": "uniswap-v3",
-        "volume24hUsd": 1903127
+        "volume24hUsd": 1834148
       },
       "base": {
         "address": "0xc3de830ea07524a0761646a6a4e4be0e114a3c83",
@@ -8796,7 +8992,7 @@
         "routable": true,
         "liquidityUsd": 45914,
         "dex": "uniswap-v3",
-        "volume24hUsd": 49129
+        "volume24hUsd": 47826
       },
       "optimism": {
         "address": "0x6fd9d7ad17242c41f7131d257212c54a0e816691",
@@ -8804,7 +9000,7 @@
         "routable": true,
         "liquidityUsd": 386,
         "dex": "uniswap-v3",
-        "volume24hUsd": 2051
+        "volume24hUsd": 1940
       },
       "unichain": {
         "address": "0x8f187aa05619a017077f5308904739877ce9ea21",
@@ -8812,7 +9008,7 @@
         "routable": true,
         "liquidityUsd": 46573,
         "dex": "uniswap-v4",
-        "volume24hUsd": 14454
+        "volume24hUsd": 14065
       },
       "bsc": {
         "address": "0xbf5140a22578168fd562dccf235e5d43a02ce9b1",
@@ -8820,7 +9016,7 @@
         "routable": true,
         "liquidityUsd": 131129,
         "dex": "pancakeswap",
-        "volume24hUsd": 191595
+        "volume24hUsd": 187208
       }
     },
     "UPI": {
@@ -8856,7 +9052,7 @@
         "routable": true,
         "liquidityUsd": 29150,
         "dex": "uniswap-v3",
-        "volume24hUsd": 50856
+        "volume24hUsd": 52876
       },
       "arbitrum": {
         "address": "0x7550de0a4b9fb8caba8c32e72ee356afdd217a33",
@@ -8872,49 +9068,49 @@
         "address": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
         "decimals": 6,
         "routable": true,
-        "liquidityUsd": 34529058,
+        "liquidityUsd": 34529056,
         "dex": "uniswap-v3",
-        "volume24hUsd": 60428563
+        "volume24hUsd": 61455299
       },
       "base": {
         "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
         "decimals": 6,
         "routable": true,
-        "liquidityUsd": 28828131,
+        "liquidityUsd": 28749139,
         "dex": "aerodrome",
-        "volume24hUsd": 9985503
+        "volume24hUsd": 9689041
       },
       "arbitrum": {
         "address": "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
         "decimals": 6,
         "routable": true,
-        "liquidityUsd": 36543434,
+        "liquidityUsd": 36532450,
         "dex": "uniswap-v3",
-        "volume24hUsd": 50203231
+        "volume24hUsd": 49644504
       },
       "optimism": {
         "address": "0x0b2c639c533813f4aa9d7837caf62653d097ff85",
         "decimals": 6,
         "routable": true,
-        "liquidityUsd": 4750241,
+        "liquidityUsd": 4752025,
         "dex": "uniswap-v3",
-        "volume24hUsd": 3278086
+        "volume24hUsd": 3194473
       },
       "unichain": {
         "address": "0x078d782b760474a361dda0af3839290b0ef57ad6",
         "decimals": 6,
         "routable": true,
-        "liquidityUsd": 19540723,
+        "liquidityUsd": 19538230,
         "dex": "uniswap-v4",
-        "volume24hUsd": 8396064
+        "volume24hUsd": 8177296
       },
       "bsc": {
         "address": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 19261070,
+        "liquidityUsd": 19279112,
         "dex": "pancakeswap",
-        "volume24hUsd": 5452830
+        "volume24hUsd": 5445444
       }
     },
     "USDG": {
@@ -8924,7 +9120,7 @@
         "routable": true,
         "liquidityUsd": 29024,
         "dex": "uniswap-v3",
-        "volume24hUsd": 4627832
+        "volume24hUsd": 5023135
       },
       "unichain": {
         "address": "0x2a22868610610199d43fe93a16661473a9f86f1e",
@@ -8942,7 +9138,7 @@
         "routable": true,
         "liquidityUsd": 2812,
         "dex": "uniswap-v3",
-        "volume24hUsd": 8006
+        "volume24hUsd": 7951
       },
       "arbitrum": {
         "address": "0x78df3a6044ce3cb1905500345b967788b699df8f",
@@ -8968,7 +9164,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1650917
+        "volume24hUsd": 1650917,
+        "hubDex": "uniswap-v3",
+        "hubSymbol": "USDT",
+        "hubLiquidityUsd": 45823
       },
       "unichain": {
         "address": "0xf37748d2cc6e6d5d05945ce130c03c147b2f3a5f",
@@ -9004,7 +9203,7 @@
         "routable": true,
         "liquidityUsd": 18044,
         "dex": "uniswap-v3",
-        "volume24hUsd": 220277142
+        "volume24hUsd": 222106285
       },
       "arbitrum": {
         "address": "0x6491c05a82219b8d1479057361ff1654749b876b",
@@ -9056,15 +9255,18 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 123485663
+        "volume24hUsd": 128091619,
+        "hubDex": "uniswap-v3",
+        "hubSymbol": "USDT",
+        "hubLiquidityUsd": 5511334
       },
       "optimism": {
         "address": "0x94b008aa00579c1307b0ef2c499ad98a8ce58e58",
         "decimals": 6,
         "routable": true,
-        "liquidityUsd": 214149,
+        "liquidityUsd": 214150,
         "dex": "velodrome",
-        "volume24hUsd": 2529453
+        "volume24hUsd": 2518881
       },
       "unichain": {
         "address": "0x588ce4f028d8e7b53b687865d6a67b3a54c75518",
@@ -9078,9 +9280,9 @@
         "address": "0x55d398326f99059ff775485246999027b3197955",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 41431664,
+        "liquidityUsd": 41428114,
         "dex": "pancakeswap",
-        "volume24hUsd": 9420035
+        "volume24hUsd": 9441845
       }
     },
     "USUAL": {
@@ -9090,7 +9292,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 29962
+        "volume24hUsd": 30301
       },
       "arbitrum": {
         "address": "0x7639ab8599f1b417cbe4ced492fb30162140abbb",
@@ -9116,7 +9318,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 537
+        "volume24hUsd": 611
       },
       "unichain": {
         "address": "0x286b5ecea3749c7c7047104aa3c5749901564a0b",
@@ -9152,17 +9354,18 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 16536,
+        "volume24hUsd": 15655,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 257444
       },
       "base": {
         "address": "0x0b3e328455c4059eeb9e3f84b5543f74e24e7e1b",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 761496,
+        "liquidityUsd": 761510,
         "dex": "uniswap-v3",
-        "volume24hUsd": 1430663
+        "volume24hUsd": 1411143
       },
       "arbitrum": {
         "address": "0x022cd1aed3f5cbfd7cf4481ac32847d62da746e6",
@@ -9180,9 +9383,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 986,
+        "volume24hUsd": 996,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 135121
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 271449
       },
       "arbitrum": {
         "address": "0x1c8ec4de3c2bfd3050695d89853ec6d78ae650bb",
@@ -9228,15 +9432,15 @@
         "routable": true,
         "liquidityUsd": 21589792,
         "dex": "uniswap-v3",
-        "volume24hUsd": 19549354
+        "volume24hUsd": 19309482
       },
       "arbitrum": {
         "address": "0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f",
         "decimals": 8,
         "routable": true,
-        "liquidityUsd": 57874,
+        "liquidityUsd": 57895,
         "dex": "uniswap-v3",
-        "volume24hUsd": 25584404
+        "volume24hUsd": 25260287
       },
       "optimism": {
         "address": "0x68f180fcce6836688e9084f035309e29bf0a2095",
@@ -9244,7 +9448,7 @@
         "routable": true,
         "liquidityUsd": 313197,
         "dex": "uniswap-v3",
-        "volume24hUsd": 1081131
+        "volume24hUsd": 1048397
       },
       "unichain": {
         "address": "0x927b51f251480a681271180da4de28d44ec4afb8",
@@ -9252,15 +9456,15 @@
         "routable": true,
         "liquidityUsd": 1214962,
         "dex": "uniswap-v4",
-        "volume24hUsd": 3895
+        "volume24hUsd": 4008
       },
       "worldchain": {
         "address": "0x03c7054bcb39f7b2e5b2c7acb37583e32d70cfa3",
         "decimals": 8,
         "routable": true,
-        "liquidityUsd": 101818,
+        "liquidityUsd": 101770,
         "dex": "uniswap-v3",
-        "volume24hUsd": 9150
+        "volume24hUsd": 9254
       }
     },
     "WCFG": {
@@ -9270,7 +9474,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 96
+        "volume24hUsd": 95
       },
       "unichain": {
         "address": "0xae87b8eb5e313ac72b306cba7c1e3f23d72e82c4",
@@ -9290,6 +9494,7 @@
         "dex": null,
         "volume24hUsd": 704,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 51801
       },
       "base": {
@@ -9298,7 +9503,7 @@
         "routable": true,
         "liquidityUsd": 1716,
         "dex": "aerodrome",
-        "volume24hUsd": 2527
+        "volume24hUsd": 2483
       },
       "optimism": {
         "address": "0xef4461891dfb3ac8572ccf7c794664a8dd927945",
@@ -9306,9 +9511,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1067,
+        "volume24hUsd": 1070,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 80853
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 80809
       }
     },
     "WETH": {
@@ -9316,25 +9522,25 @@
         "address": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 106377788,
+        "liquidityUsd": 106391251,
         "dex": "uniswap-v3",
-        "volume24hUsd": 65410596
+        "volume24hUsd": 65288046
       },
       "base": {
         "address": "0x4200000000000000000000000000000000000006",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 115740689,
+        "liquidityUsd": 115803458,
         "dex": "uniswap-v3",
-        "volume24hUsd": 83117861
+        "volume24hUsd": 83013346
       },
       "arbitrum": {
         "address": "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 1103349,
+        "liquidityUsd": 1102962,
         "dex": "uniswap-v3",
-        "volume24hUsd": 5091451
+        "volume24hUsd": 5028021
       },
       "optimism": {
         "address": "0x4200000000000000000000000000000000000006",
@@ -9342,31 +9548,31 @@
         "routable": true,
         "liquidityUsd": 157355,
         "dex": "uniswap-v3",
-        "volume24hUsd": 209673
+        "volume24hUsd": 207005
       },
       "unichain": {
         "address": "0x4200000000000000000000000000000000000006",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 355262,
+        "liquidityUsd": 355382,
         "dex": "uniswap-v3",
-        "volume24hUsd": 290515
+        "volume24hUsd": 359946
       },
       "bsc": {
         "address": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 278548,
+        "liquidityUsd": 278457,
         "dex": "pancakeswap",
-        "volume24hUsd": 8846802
+        "volume24hUsd": 8766017
       },
       "worldchain": {
         "address": "0x4200000000000000000000000000000000000006",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 110976,
+        "liquidityUsd": 110964,
         "dex": "uniswap-v3",
-        "volume24hUsd": 52660
+        "volume24hUsd": 52563
       }
     },
     "WFB": {
@@ -9386,7 +9592,7 @@
         "routable": true,
         "liquidityUsd": 1175057,
         "dex": "uniswap-v3",
-        "volume24hUsd": 97847
+        "volume24hUsd": 94103
       },
       "arbitrum": {
         "address": "0x4d1d7134b87490ae5eebdb22a5820d7d0e1980bf",
@@ -9404,7 +9610,7 @@
         "routable": true,
         "liquidityUsd": 1285,
         "dex": "sushiswap",
-        "volume24hUsd": 5593
+        "volume24hUsd": 6173
       },
       "arbitrum": {
         "address": "0xcafcd85d8ca7ad1e1c6f82f651fa15e33aefd07b",
@@ -9436,9 +9642,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 726,
+        "volume24hUsd": 739,
         "hubDex": "pancakeswap",
-        "hubLiquidityUsd": 13008
+        "hubSymbol": "WBNB",
+        "hubLiquidityUsd": 13016
       }
     },
     "WRON": {
@@ -9458,7 +9665,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 29750
+        "volume24hUsd": 30064
       },
       "arbitrum": {
         "address": "0xd7ef1cb315d4a3291a779bc0cd1c8f6b87e66104",
@@ -9476,7 +9683,7 @@
         "routable": true,
         "liquidityUsd": 275196,
         "dex": "uniswap-v3",
-        "volume24hUsd": 3285616
+        "volume24hUsd": 3260823
       },
       "arbitrum": {
         "address": "0x9b86f3c7d145979ec6b2f42ed7f92d06cfc6c9d3",
@@ -9494,7 +9701,7 @@
         "routable": true,
         "liquidityUsd": 0,
         "dex": "uniswap-v2",
-        "volume24hUsd": 59303
+        "volume24hUsd": 59245
       },
       "arbitrum": {
         "address": "0x58bbc087e36db40a84b22c1b93a042294deeafed",
@@ -9518,7 +9725,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1096
+        "volume24hUsd": 1095,
+        "hubDex": "pancakeswap",
+        "hubSymbol": "USDT",
+        "hubLiquidityUsd": 21378
       }
     },
     "XSGD": {
@@ -9554,9 +9764,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 97137,
+        "volume24hUsd": 98764,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 34103
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 34227
       },
       "base": {
         "address": "0xd7b99ffb8b2afc6fe013a17207cbe50f223adc94",
@@ -9590,8 +9801,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 255525,
+        "volume24hUsd": 256439,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 28062
       }
     },
@@ -9602,8 +9814,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 3597,
+        "volume24hUsd": 2190,
         "hubDex": "uniswap-v2",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 156334
       },
       "base": {
@@ -9612,7 +9825,7 @@
         "routable": true,
         "liquidityUsd": 72,
         "dex": "aerodrome",
-        "volume24hUsd": 11669
+        "volume24hUsd": 8142
       },
       "arbitrum": {
         "address": "0x82e3a8f066a6989666b031d916c43672085b1582",
@@ -9646,9 +9859,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 182,
+        "volume24hUsd": 431,
         "hubDex": "uniswap-v2",
-        "hubLiquidityUsd": 15890
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 16212
       },
       "unichain": {
         "address": "0x62ffd4229bb9a327412d1be518a1dbae6c18a07e",
@@ -9676,6 +9890,7 @@
         "dex": null,
         "volume24hUsd": 3,
         "hubDex": "aerodrome",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 53264
       },
       "unichain": {
@@ -9694,7 +9909,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 408487
+        "volume24hUsd": 380546,
+        "hubDex": "uniswap-v3",
+        "hubSymbol": "USDT",
+        "hubLiquidityUsd": 529313
       }
     },
     "ZETA": {
@@ -9704,7 +9922,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 3337
+        "volume24hUsd": 3345
       },
       "arbitrum": {
         "address": "0x6ddbbce7858d276678fc2b36123fd60547b88954",
@@ -9766,9 +9984,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 7214,
+        "volume24hUsd": 7279,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 80714
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 80264
       },
       "base": {
         "address": "0x6985884c4392d348587b19cb9eaaf157f13271cd",
@@ -9776,7 +9995,7 @@
         "routable": true,
         "liquidityUsd": 16240,
         "dex": "uniswap-v3",
-        "volume24hUsd": 387359
+        "volume24hUsd": 390374
       },
       "arbitrum": {
         "address": "0x6985884c4392d348587b19cb9eaaf157f13271cd",
@@ -9784,7 +10003,7 @@
         "routable": true,
         "liquidityUsd": 7745,
         "dex": "uniswap-v3",
-        "volume24hUsd": 26642
+        "volume24hUsd": 26689
       },
       "optimism": {
         "address": "0x6985884c4392d348587b19cb9eaaf157f13271cd",
@@ -9792,7 +10011,7 @@
         "routable": true,
         "liquidityUsd": 2086,
         "dex": "uniswap-v3",
-        "volume24hUsd": 37235
+        "volume24hUsd": 37507
       },
       "unichain": {
         "address": "0x00ad3704d1e101df76f87738befe67737ed29cfb",
@@ -9808,7 +10027,7 @@
         "routable": true,
         "liquidityUsd": 4,
         "dex": "pancakeswap",
-        "volume24hUsd": 2070
+        "volume24hUsd": 2050
       }
     },
     "ZRX": {
@@ -9818,8 +10037,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1206,
+        "volume24hUsd": 1000,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 232017
       },
       "base": {
@@ -9870,9 +10090,9 @@
         "address": "0x4200000000000000000000000000000000000042",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 63749,
+        "liquidityUsd": 63811,
         "dex": "uniswap-v3",
-        "volume24hUsd": 355440
+        "volume24hUsd": 352727
       }
     },
     "USDC.E": {
@@ -9880,17 +10100,17 @@
         "address": "0xff970a61a04b1ca14834a43f5de4533ebddb5cc8",
         "decimals": 6,
         "routable": true,
-        "liquidityUsd": 1103349,
+        "liquidityUsd": 1102962,
         "dex": "uniswap-v3",
-        "volume24hUsd": 1540528
+        "volume24hUsd": 1660986
       },
       "optimism": {
         "address": "0x7f5c764cbc14f9669b88837ca1490cca17c31607",
         "decimals": 6,
         "routable": true,
-        "liquidityUsd": 248581,
+        "liquidityUsd": 249191,
         "dex": "velodrome",
-        "volume24hUsd": 26066
+        "volume24hUsd": 26248
       },
       "worldchain": {
         "address": "0x79a02482a880bce3f13e09da970dc34db4cd24d1",
@@ -9898,7 +10118,7 @@
         "routable": true,
         "liquidityUsd": 1000002644,
         "dex": "uniswap-v3",
-        "volume24hUsd": 106953
+        "volume24hUsd": 106961
       }
     },
     "USDT0": {
@@ -9908,23 +10128,23 @@
         "routable": true,
         "liquidityUsd": 34357,
         "dex": "uniswap-v3",
-        "volume24hUsd": 369578
+        "volume24hUsd": 382095
       },
       "optimism": {
         "address": "0x01bff41798a0bcf287b996046ca68b395dbc1071",
         "decimals": 6,
         "routable": true,
-        "liquidityUsd": 449193,
+        "liquidityUsd": 449508,
         "dex": "velodrome",
-        "volume24hUsd": 981941
+        "volume24hUsd": 982358
       },
       "unichain": {
         "address": "0x9151434b16b9763660705744891fa906f660ecc5",
         "decimals": 6,
         "routable": true,
-        "liquidityUsd": 607921,
+        "liquidityUsd": 607913,
         "dex": "uniswap-v4",
-        "volume24hUsd": 239254
+        "volume24hUsd": 239693
       }
     },
     "VELO": {
@@ -9932,17 +10152,17 @@
         "address": "0x9560e827af36c94d2ac33a39bce1fe78631088db",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 118218,
+        "liquidityUsd": 772322,
         "dex": "velodrome",
-        "volume24hUsd": 314125
+        "volume24hUsd": 302295
       },
       "bsc": {
         "address": "0xf486ad071f3bee968384d2e39e2d8af0fcf6fd46",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 602397,
+        "liquidityUsd": 602258,
         "dex": "pancakeswap",
-        "volume24hUsd": 176413
+        "volume24hUsd": 171264
       }
     },
     "WLD": {
@@ -9952,7 +10172,7 @@
         "routable": true,
         "liquidityUsd": 47395,
         "dex": "uniswap-v3",
-        "volume24hUsd": 11351
+        "volume24hUsd": 11218
       }
     },
     "$SUP": {
@@ -9962,7 +10182,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 6862
+        "volume24hUsd": 6618,
+        "hubDex": "pancakeswap",
+        "hubSymbol": "USDT",
+        "hubLiquidityUsd": 365403
       }
     },
     "ASTER": {
@@ -9970,9 +10193,9 @@
         "address": "0x000ae314e2a2172a039b26378814c252734f556a",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 12491,
+        "liquidityUsd": 12500,
         "dex": "pancakeswap",
-        "volume24hUsd": 1636330
+        "volume24hUsd": 1622080
       }
     },
     "DGAI": {
@@ -9982,7 +10205,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 52245
+        "volume24hUsd": 51000
       },
       "bsc": {
         "address": "0x10d4183389e99233db3cc981c43443ebd28ebd5e",
@@ -9990,7 +10213,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 8787492
+        "volume24hUsd": 8702609,
+        "hubDex": "pancakeswap",
+        "hubSymbol": "USDT",
+        "hubLiquidityUsd": 2584678
       }
     },
     "FHE": {
@@ -10000,9 +10226,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 39979,
+        "volume24hUsd": 39933,
         "hubDex": "pancakeswap",
-        "hubLiquidityUsd": 914922
+        "hubSymbol": "WBNB",
+        "hubLiquidityUsd": 916975
       }
     },
     "GENIUS": {
@@ -10012,7 +10239,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 482
+        "volume24hUsd": 491,
+        "hubDex": "uniswap-v3",
+        "hubSymbol": "USDT",
+        "hubLiquidityUsd": 52941
       }
     },
     "OPN": {
@@ -10040,9 +10270,9 @@
         "address": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 1938315,
+        "liquidityUsd": 1938659,
         "dex": "pancakeswap",
-        "volume24hUsd": 95937004
+        "volume24hUsd": 95877210
       }
     },
     "XAUT0": {
@@ -10060,7 +10290,7 @@
         "routable": true,
         "liquidityUsd": 52,
         "dex": "pancakeswap",
-        "volume24hUsd": 2947713
+        "volume24hUsd": 2912289
       }
     },
     "BONK": {
@@ -10088,9 +10318,9 @@
         "address": "0x15d0e0c55a3e7ee67152ad7e89acf164253ff68d",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 5865476,
+        "liquidityUsd": 5911474,
         "dex": "uniswap-v3",
-        "volume24hUsd": 8396064
+        "volume24hUsd": 8177296
       }
     },
     "TAO": {
@@ -10134,9 +10364,9 @@
         "address": "0x139451953ef1865c096f89c5e522c081dc3b5f11",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 40130,
+        "liquidityUsd": 40118,
         "dex": "uniswap-v4",
-        "volume24hUsd": 1016
+        "volume24hUsd": 1021
       }
     },
     "XRP": {
@@ -10146,7 +10376,7 @@
         "routable": true,
         "liquidityUsd": 68737,
         "dex": "uniswap-v4",
-        "volume24hUsd": 13986
+        "volume24hUsd": 13956
       }
     },
     "ZEC": {
@@ -10154,9 +10384,9 @@
         "address": "0x83f31af747189c2fa9e5deb253200c505eff6ed2",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 189668,
+        "liquidityUsd": 189701,
         "dex": "uniswap-v4",
-        "volume24hUsd": 7069
+        "volume24hUsd": 7165
       }
     },
     "AAOI": {
@@ -10176,7 +10406,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 733001
+        "volume24hUsd": 719459
       }
     },
     "ABCL": {
@@ -10266,7 +10496,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 826382
+        "volume24hUsd": 805156
       }
     },
     "AMKR": {
@@ -10286,7 +10516,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1128021
+        "volume24hUsd": 1057002
       }
     },
     "ANET": {
@@ -10426,7 +10656,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 961423
+        "volume24hUsd": 966819
       }
     },
     "BE": {
@@ -10466,7 +10696,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 18728399
+        "volume24hUsd": 19095808
       }
     },
     "CBRS": {
@@ -10566,7 +10796,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1423408
+        "volume24hUsd": 1432813
       }
     },
     "COST": {
@@ -10576,7 +10806,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 843474
+        "volume24hUsd": 913814
       }
     },
     "CRCL": {
@@ -10586,7 +10816,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 61078
+        "volume24hUsd": 59740
       }
     },
     "CRDO": {
@@ -10676,7 +10906,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 151585
+        "volume24hUsd": 151608
       }
     },
     "DJT": {
@@ -10686,7 +10916,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 4064567
+        "volume24hUsd": 4071743
       }
     },
     "DOCN": {
@@ -10856,7 +11086,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 5325154
+        "volume24hUsd": 5349095
       }
     },
     "GLW": {
@@ -10886,7 +11116,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1557253
+        "volume24hUsd": 1596825
       }
     },
     "GOOGL": {
@@ -10896,7 +11126,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 597627
+        "volume24hUsd": 727287
       }
     },
     "HII": {
@@ -10916,7 +11146,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 4126646
+        "volume24hUsd": 4119471
       }
     },
     "HPE": {
@@ -10996,7 +11226,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 769088
+        "volume24hUsd": 747658
       }
     },
     "INTU": {
@@ -11176,7 +11406,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 332032
+        "volume24hUsd": 320459
       }
     },
     "MOD": {
@@ -11206,7 +11436,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 102306
+        "volume24hUsd": 100228
       }
     },
     "MRVL": {
@@ -11226,7 +11456,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1603934
+        "volume24hUsd": 1583782
       }
     },
     "MSTR": {
@@ -11236,7 +11466,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 4855860
+        "volume24hUsd": 4967303
       }
     },
     "MTSI": {
@@ -11256,7 +11486,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1061765
+        "volume24hUsd": 1061103
       }
     },
     "MXL": {
@@ -11306,7 +11536,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 19394
+        "volume24hUsd": 20277
       }
     },
     "NFLX": {
@@ -11316,7 +11546,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 186427
+        "volume24hUsd": 183295
       }
     },
     "NNE": {
@@ -11356,7 +11586,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 33449000
+        "volume24hUsd": 31501298
       }
     },
     "NVTS": {
@@ -11406,7 +11636,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 360
+        "volume24hUsd": 329
       }
     },
     "OUST": {
@@ -11456,7 +11686,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 5048
+        "volume24hUsd": 5145
       }
     },
     "PFE": {
@@ -11486,7 +11716,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 567609
+        "volume24hUsd": 522881
       }
     },
     "POET": {
@@ -11556,7 +11786,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 224307
+        "volume24hUsd": 218177
       }
     },
     "QUBT": {
@@ -11566,7 +11796,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 5805
+        "volume24hUsd": 5721
       }
     },
     "RBLX": {
@@ -11576,7 +11806,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 159172
+        "volume24hUsd": 158993
       }
     },
     "RCAT": {
@@ -11586,7 +11816,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 403
+        "volume24hUsd": 393
       }
     },
     "RDDT": {
@@ -11596,7 +11826,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1722360
+        "volume24hUsd": 1706742
       }
     },
     "RDW": {
@@ -11686,7 +11916,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1617
+        "volume24hUsd": 1615
       }
     },
     "SHOP": {
@@ -11736,7 +11966,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 848256
+        "volume24hUsd": 887784
       }
     },
     "SMCI": {
@@ -11786,7 +12016,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 440899
+        "volume24hUsd": 441035
       }
     },
     "SNOW": {
@@ -11806,7 +12036,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 11748
+        "volume24hUsd": 11807
       }
     },
     "SOUN": {
@@ -11836,7 +12066,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 7615366
+        "volume24hUsd": 7402314
       }
     },
     "SPMO": {
@@ -11856,7 +12086,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 3496395
+        "volume24hUsd": 3455474
       }
     },
     "TE": {
@@ -11916,7 +12146,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 468683
+        "volume24hUsd": 449907
       }
     },
     "TSM": {
@@ -11926,7 +12156,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 2761341
+        "volume24hUsd": 2698784
       }
     },
     "TTD": {
@@ -11946,7 +12176,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 295702
+        "volume24hUsd": 278779
       }
     },
     "UMC": {
@@ -11986,7 +12216,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 50173
+        "volume24hUsd": 49182
       }
     },
     "USO": {
@@ -11996,7 +12226,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 352018
+        "volume24hUsd": 341761
       }
     },
     "VICR": {
@@ -12144,9 +12374,9 @@
         "address": "0x940181a94a35a4569e4529a3cdfb74e38fd98631",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 28796471,
+        "liquidityUsd": 28749139,
         "dex": "aerodrome",
-        "volume24hUsd": 2947849
+        "volume24hUsd": 2881317
       }
     },
     "AIXBT": {
@@ -12154,9 +12384,9 @@
         "address": "0x4f9fd6be4a90f2620860d680c0d4d5fb53d1a825",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 307194,
+        "liquidityUsd": 306939,
         "dex": "uniswap-v3",
-        "volume24hUsd": 14273
+        "volume24hUsd": 14028
       }
     },
     "AVNT": {
@@ -12164,9 +12394,9 @@
         "address": "0x696f9436b67233384889472cd7cd58a6fb5df4f1",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 625248,
+        "liquidityUsd": 628364,
         "dex": "aerodrome",
-        "volume24hUsd": 282462
+        "volume24hUsd": 282761
       }
     },
     "AWE": {
@@ -12176,7 +12406,7 @@
         "routable": true,
         "liquidityUsd": 390479,
         "dex": "aerodrome",
-        "volume24hUsd": 16651
+        "volume24hUsd": 16229
       }
     },
     "B3": {
@@ -12186,7 +12416,7 @@
         "routable": true,
         "liquidityUsd": 8,
         "dex": "aerodrome",
-        "volume24hUsd": 196934
+        "volume24hUsd": 196125
       }
     },
     "BASECAT": {
@@ -12194,9 +12424,9 @@
         "address": "0xb2000000000000000000004c27f6523082f41d01",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 56592,
+        "liquidityUsd": 53742,
         "dex": "uniswap-v3",
-        "volume24hUsd": 1451255
+        "volume24hUsd": 1511727
       }
     },
     "BNKR": {
@@ -12206,7 +12436,7 @@
         "routable": true,
         "liquidityUsd": 66,
         "dex": "aerodrome",
-        "volume24hUsd": 359820
+        "volume24hUsd": 365631
       }
     },
     "CBADA": {
@@ -12216,7 +12446,7 @@
         "routable": true,
         "liquidityUsd": 3900,
         "dex": "pancakeswap",
-        "volume24hUsd": 492273
+        "volume24hUsd": 492234
       }
     },
     "CBDOGE": {
@@ -12226,7 +12456,7 @@
         "routable": true,
         "liquidityUsd": 52,
         "dex": "pancakeswap",
-        "volume24hUsd": 13787
+        "volume24hUsd": 13952
       }
     },
     "CBLTC": {
@@ -12236,8 +12466,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 44169,
+        "volume24hUsd": 43939,
         "hubDex": "aerodrome",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 94231
       }
     },
@@ -12246,9 +12477,9 @@
         "address": "0xcb111e6a2a3bde90856d299d61341ac302167d23",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 25089,
+        "liquidityUsd": 17725,
         "dex": "aerodrome",
-        "volume24hUsd": 129400
+        "volume24hUsd": 129358
       }
     },
     "CBXRP": {
@@ -12258,7 +12489,7 @@
         "routable": true,
         "liquidityUsd": 34099,
         "dex": "uniswap-v3",
-        "volume24hUsd": 1920919
+        "volume24hUsd": 1879847
       }
     },
     "CHIP": {
@@ -12266,9 +12497,9 @@
         "address": "0x0c1c1c109fe34733fca54b82d7b46b75cfb71f6e",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 99158,
+        "liquidityUsd": 113479,
         "dex": "aerodrome",
-        "volume24hUsd": 269653
+        "volume24hUsd": 265484
       }
     },
     "CLANKER": {
@@ -12278,9 +12509,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 79414,
+        "volume24hUsd": 81219,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 1412110
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 1412393
       }
     },
     "COOKIE": {
@@ -12290,7 +12522,7 @@
         "routable": true,
         "liquidityUsd": 0,
         "dex": "aerodrome",
-        "volume24hUsd": 68379
+        "volume24hUsd": 68589
       }
     },
     "CP": {
@@ -12308,9 +12540,9 @@
         "address": "0x11030f79109269d796fd0fb956d6244e502757f7",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 500282,
+        "liquidityUsd": 499177,
         "dex": "aerodrome",
-        "volume24hUsd": 828661
+        "volume24hUsd": 794755
       }
     },
     "DEGEN": {
@@ -12320,7 +12552,7 @@
         "routable": true,
         "liquidityUsd": 2307,
         "dex": "aerodrome",
-        "volume24hUsd": 22404
+        "volume24hUsd": 22470
       }
     },
     "DIEM": {
@@ -12328,9 +12560,9 @@
         "address": "0xf4d97f2da56e8c3098f3a8d538db630a2606a024",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 123991,
+        "liquidityUsd": 123132,
         "dex": "aerodrome",
-        "volume24hUsd": 212912
+        "volume24hUsd": 218269
       }
     },
     "DOGINME": {
@@ -12340,7 +12572,7 @@
         "routable": true,
         "liquidityUsd": 46,
         "dex": "aerodrome",
-        "volume24hUsd": 49231
+        "volume24hUsd": 53967
       }
     },
     "DRB": {
@@ -12348,9 +12580,9 @@
         "address": "0x3ec2156d4c0a9cbdab4a016633b7bcf6a8d68ea2",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 112,
+        "liquidityUsd": 111,
         "dex": "aerodrome",
-        "volume24hUsd": 683652
+        "volume24hUsd": 678706
       }
     },
     "EDGE": {
@@ -12358,9 +12590,9 @@
         "address": "0xed6e000def95780fb89734c07ee2ce9f6dcaf110",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 19127,
+        "liquidityUsd": 19077,
         "dex": "uniswap-v3",
-        "volume24hUsd": 29297
+        "volume24hUsd": 29175
       }
     },
     "ELSA": {
@@ -12368,9 +12600,9 @@
         "address": "0x29cc30f9d113b356ce408667aa6433589cecbdca",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 330662,
+        "liquidityUsd": 329418,
         "dex": "pancakeswap",
-        "volume24hUsd": 163112
+        "volume24hUsd": 162438
       }
     },
     "FAI": {
@@ -12382,6 +12614,7 @@
         "dex": null,
         "volume24hUsd": 43222,
         "hubDex": "aerodrome",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 2616571
       }
     },
@@ -12390,9 +12623,9 @@
         "address": "0x5ab3d4c385b400f3abb49e80de2faf6a88a7b691",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 173543,
+        "liquidityUsd": 171129,
         "dex": "aerodrome",
-        "volume24hUsd": 169161
+        "volume24hUsd": 170015
       }
     },
     "FLUID": {
@@ -12404,6 +12637,7 @@
         "dex": null,
         "volume24hUsd": 1992,
         "hubDex": "uniswap-v3",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 214392
       }
     },
@@ -12412,9 +12646,9 @@
         "address": "0x16ee7ecac70d1028e7712751e2ee6ba808a7dd92",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 361170,
+        "liquidityUsd": 362208,
         "dex": "aerodrome",
-        "volume24hUsd": 148837
+        "volume24hUsd": 150292
       }
     },
     "HOME": {
@@ -12424,9 +12658,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 187487,
+        "volume24hUsd": 185815,
         "hubDex": "aerodrome",
-        "hubLiquidityUsd": 29342
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 36419
       }
     },
     "HYPER": {
@@ -12436,7 +12671,7 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 70
+        "volume24hUsd": 91
       }
     },
     "ICNT": {
@@ -12446,7 +12681,7 @@
         "routable": true,
         "liquidityUsd": 41477,
         "dex": "pancakeswap",
-        "volume24hUsd": 230
+        "volume24hUsd": 168
       }
     },
     "JITOSOL": {
@@ -12456,7 +12691,7 @@
         "routable": true,
         "liquidityUsd": 0,
         "dex": "pancakeswap",
-        "volume24hUsd": 1667091
+        "volume24hUsd": 1621404
       }
     },
     "KAITO": {
@@ -12464,9 +12699,9 @@
         "address": "0x98d0baa52b2d063e780de12f615f963fe8537553",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 4035,
+        "liquidityUsd": 4034,
         "dex": "pancakeswap",
-        "volume24hUsd": 69631
+        "volume24hUsd": 68307
       }
     },
     "KAT": {
@@ -12486,7 +12721,7 @@
         "routable": true,
         "liquidityUsd": 973,
         "dex": "uniswap-v3",
-        "volume24hUsd": 196283
+        "volume24hUsd": 197788
       }
     },
     "KTA": {
@@ -12496,7 +12731,7 @@
         "routable": true,
         "liquidityUsd": 616,
         "dex": "uniswap-v3",
-        "volume24hUsd": 320026
+        "volume24hUsd": 314923
       }
     },
     "LMTS": {
@@ -12506,7 +12741,7 @@
         "routable": true,
         "liquidityUsd": 628922,
         "dex": "aerodrome",
-        "volume24hUsd": 312946
+        "volume24hUsd": 306588
       }
     },
     "MAMO": {
@@ -12514,9 +12749,9 @@
         "address": "0x7300b37dfdfab110d83290a29dfb31b1740219fe",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 314759,
+        "liquidityUsd": 306517,
         "dex": "aerodrome",
-        "volume24hUsd": 84199
+        "volume24hUsd": 90357
       }
     },
     "NOICE": {
@@ -12526,9 +12761,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 10750,
+        "volume24hUsd": 10855,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 221132
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 220854
       }
     },
     "O": {
@@ -12536,9 +12772,9 @@
         "address": "0x182fa643e5f29d5eca75e7b9cf9336a3fe4620b2",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 1828814,
+        "liquidityUsd": 1811365,
         "dex": "aerodrome",
-        "volume24hUsd": 1912710
+        "volume24hUsd": 1943262
       }
     },
     "ODOS": {
@@ -12546,9 +12782,9 @@
         "address": "0xca73ed1815e5915489570014e024b7ebe65de679",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 15717,
+        "liquidityUsd": 15907,
         "dex": "aerodrome",
-        "volume24hUsd": 1888
+        "volume24hUsd": 1876
       }
     },
     "OPG": {
@@ -12556,9 +12792,9 @@
         "address": "0xfbc2051ae2265686a469421b2c5a2d5462fbf5eb",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 9710,
+        "liquidityUsd": 17634,
         "dex": "aerodrome",
-        "volume24hUsd": 108113
+        "volume24hUsd": 109068
       }
     },
     "POD": {
@@ -12566,7 +12802,7 @@
         "address": "0xed664536023d8e4b1640c394777d34abaff1df8f",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 271147,
+        "liquidityUsd": 288539,
         "dex": "aerodrome",
         "volume24hUsd": 53810
       }
@@ -12576,9 +12812,9 @@
         "address": "0x30c7235866872213f68cb1f08c37cb9eccb93452",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 120668,
+        "liquidityUsd": 121519,
         "dex": "uniswap-v3",
-        "volume24hUsd": 434309
+        "volume24hUsd": 433826
       }
     },
     "PROS": {
@@ -12586,9 +12822,9 @@
         "address": "0x8b7dde054be9d180c1be7fae0874697374a49832",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 715177,
+        "liquidityUsd": 718206,
         "dex": "aerodrome",
-        "volume24hUsd": 662528
+        "volume24hUsd": 667433
       }
     },
     "QUID": {
@@ -12596,9 +12832,9 @@
         "address": "0x1a44233fae8d50f1aeb3a5d58dd426ff4814cb53",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 856388,
+        "liquidityUsd": 854785,
         "dex": "pancakeswap",
-        "volume24hUsd": 581037
+        "volume24hUsd": 576578
       }
     },
     "RAVE": {
@@ -12606,9 +12842,9 @@
         "address": "0x1aa8fd5bcce2231c6100d55bf8b377cff33acfc3",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 186396,
+        "liquidityUsd": 183374,
         "dex": "aerodrome",
-        "volume24hUsd": 160292
+        "volume24hUsd": 161624
       }
     },
     "RECALL": {
@@ -12616,9 +12852,9 @@
         "address": "0x1f16e03c1a5908818f47f6ee7bb16690b40d0671",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 553543,
+        "liquidityUsd": 513980,
         "dex": "aerodrome",
-        "volume24hUsd": 213955
+        "volume24hUsd": 225619
       }
     },
     "REPPO": {
@@ -12626,9 +12862,9 @@
         "address": "0xff8104251e7761163fac3211ef5583fb3f8583d6",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 177690,
+        "liquidityUsd": 176377,
         "dex": "uniswap-v3",
-        "volume24hUsd": 27068
+        "volume24hUsd": 29958
       }
     },
     "RNBW": {
@@ -12636,7 +12872,7 @@
         "address": "0xa53887f7e7c1bf5010b8627f1c1ba94fe7a5d6e0",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 5885,
+        "liquidityUsd": 5876,
         "dex": "aerodrome",
         "volume24hUsd": 5330
       }
@@ -12648,9 +12884,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 21565,
+        "volume24hUsd": 22278,
         "hubDex": "aerodrome",
-        "hubLiquidityUsd": 81106
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 81112
       }
     },
     "SAPIEN": {
@@ -12660,7 +12897,7 @@
         "routable": true,
         "liquidityUsd": 716330,
         "dex": "aerodrome",
-        "volume24hUsd": 94122
+        "volume24hUsd": 91887
       }
     },
     "SCOR": {
@@ -12668,9 +12905,9 @@
         "address": "0xd67ec255100ef200a439d09ff865fbaa2ad9c730",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 14676,
+        "liquidityUsd": 14672,
         "dex": "aerodrome",
-        "volume24hUsd": 40
+        "volume24hUsd": 42
       }
     },
     "SEAM": {
@@ -12688,9 +12925,9 @@
         "address": "0xa69f80524381275a7ffdb3ae01c54150644c8792",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 48006,
+        "liquidityUsd": 48323,
         "dex": "uniswap-v3",
-        "volume24hUsd": 5982
+        "volume24hUsd": 7526
       }
     },
     "TOSHI": {
@@ -12700,7 +12937,7 @@
         "routable": true,
         "liquidityUsd": 36733,
         "dex": "uniswap-v3",
-        "volume24hUsd": 77748
+        "volume24hUsd": 76959
       }
     },
     "TOWNS": {
@@ -12708,9 +12945,9 @@
         "address": "0x00000000a22c618fd6b4d7e9a335c4b96b189a38",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 808,
+        "liquidityUsd": 812,
         "dex": "aerodrome",
-        "volume24hUsd": 247180
+        "volume24hUsd": 251962
       }
     },
     "TRUST": {
@@ -12718,9 +12955,9 @@
         "address": "0x6cd905df2ed214b22e0d48ff17cd4200c1c6d8a3",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 255240,
+        "liquidityUsd": 255900,
         "dex": "aerodrome",
-        "volume24hUsd": 25385
+        "volume24hUsd": 26784
       }
     },
     "UP": {
@@ -12728,7 +12965,7 @@
         "address": "0x5b2193fdc451c1f847be09ca9d13a4bf60f8c86b",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 20543,
+        "liquidityUsd": 20547,
         "dex": "aerodrome",
         "volume24hUsd": 14438
       }
@@ -12740,9 +12977,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 187863,
+        "volume24hUsd": 185822,
         "hubDex": "aerodrome",
-        "hubLiquidityUsd": 220878
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 220882
       }
     },
     "VVV": {
@@ -12750,9 +12988,9 @@
         "address": "0xacfe6019ed1a7dc6f7b508c02d1b04ec88cc21bf",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 241876,
+        "liquidityUsd": 241349,
         "dex": "uniswap-v3",
-        "volume24hUsd": 2185260
+        "volume24hUsd": 2273623
       }
     },
     "WELL": {
@@ -12762,7 +13000,7 @@
         "routable": true,
         "liquidityUsd": 25,
         "dex": "aerodrome",
-        "volume24hUsd": 26915
+        "volume24hUsd": 25927
       }
     },
     "WMTX": {
@@ -12772,8 +13010,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 2286,
+        "volume24hUsd": 2379,
         "hubDex": "aerodrome",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 25827
       }
     },
@@ -12784,7 +13023,7 @@
         "routable": true,
         "liquidityUsd": 6985,
         "dex": "uniswap-v3",
-        "volume24hUsd": 991206
+        "volume24hUsd": 993450
       }
     },
     "ZORA": {
@@ -12792,9 +13031,9 @@
         "address": "0x1111111111166b7fe7bd91427724b487980afc69",
         "decimals": 18,
         "routable": true,
-        "liquidityUsd": 73026,
+        "liquidityUsd": 68900,
         "dex": "uniswap-v3",
-        "volume24hUsd": 197607
+        "volume24hUsd": 194274
       }
     },
     "GMX": {
@@ -12804,7 +13043,7 @@
         "routable": true,
         "liquidityUsd": 231776,
         "dex": "uniswap-v3",
-        "volume24hUsd": 73311
+        "volume24hUsd": 75533
       }
     },
     "IDOS": {
@@ -12824,9 +13063,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 8200,
+        "volume24hUsd": 8236,
         "hubDex": "sushiswap",
-        "hubLiquidityUsd": 175460
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 175520
       }
     },
     "RAIN": {
@@ -12836,9 +13076,10 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 1391390,
+        "volume24hUsd": 1375827,
         "hubDex": "uniswap-v3",
-        "hubLiquidityUsd": 1767552
+        "hubSymbol": "WETH",
+        "hubLiquidityUsd": 1766325
       }
     },
     "SQD": {
@@ -12848,8 +13089,9 @@
         "routable": false,
         "liquidityUsd": 0,
         "dex": null,
-        "volume24hUsd": 13734,
+        "volume24hUsd": 12880,
         "hubDex": "pancakeswap",
+        "hubSymbol": "WETH",
         "hubLiquidityUsd": 339479
       }
     }
