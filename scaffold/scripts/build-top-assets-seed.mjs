@@ -1,116 +1,104 @@
 #!/usr/bin/env node
-// build-top-assets-seed.mjs — offline helper: pull the top-N coins by market cap from
-// CoinGecko's free ranking endpoint, then fetch each coin's per-chain contract addresses +
-// decimals, and write a seed file for build-liquidity-map.mjs.
+// build-top-assets-seed.mjs — offline helper: build the trusted per-chain address seed
+// that build-liquidity-map.mjs consumes.
 //
-//   node scripts/build-top-assets-seed.mjs                  # top 500 → scripts/top-assets-seed.json
-//   node scripts/build-top-assets-seed.mjs --count 1000
+//   node scripts/build-top-assets-seed.mjs                  # → scripts/top-assets-seed.json
 //   node scripts/build-top-assets-seed.mjs --out path.json
+//   node scripts/build-top-assets-seed.mjs --list-url <url>
 //
-// CoinGecko is used ONLY here, offline, to build the seed list — never at resolve time.
-// The shipped liquidity map is a static JSON; the runtime stays keyless. Re-run this on a
-// schedule to refresh the seed, then re-run build-liquidity-map.mjs --seed <file>.
+// Identity comes from the Uniswap default token list (https://tokens.uniswap.org): a
+// curated, human-reviewed catalog of real contracts that Uniswap's own frontend trusts.
+// A planted look-alike (a copied ticker with fake liquidity) cannot enter a curated list
+// — that is exactly how the SKY bug happened when identity was instead guessed from a
+// DexScreener "deepest pool" search. Identity must NEVER be a search result.
+//
+// Keyless + free: one static fetch, no API key, no rate limit. The list is read only at
+// seed-build time (offline); the shipped JSON is what resolve-token.mjs reads, so the
+// runtime never touches Uniswap or any external endpoint for identity.
 
 import { writeFileSync } from "node:fs";
 import { resolve as resolvePath, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SCRIPT_DIR = resolvePath(dirname(fileURLToPath(import.meta.url)));
-const CG = "https://api.coingecko.com/api/v3";
+const DEFAULT_LIST_URL = "https://tokens.uniswap.org";
 
-// CoinGecko platform key → Sail chain name. Only these chains land in the seed; the rest
-// are discovered by build-liquidity-map.mjs via DexScreener search as a fallback.
-const CG_TO_SAIL = {
-  ethereum: "ethereum",
-  base: "base",
-  "arbitrum-one": "arbitrum",
-  "optimistic-ethereum": "optimism",
-  "binance-smart-chain": "bsc",
-  unichain: "unichain",
-  "world-chain": "worldchain",
-  hyperliquid: "hyperevm",
-  megaeth: "megaeth",
-  robinhood: "robinhood",
+// Uniswap chainId → Sail chain name. Only Sail mainnets present in the list are mapped;
+// hyperevm (999) and megaeth (4326) are absent and resolve live. Testnets are omitted.
+const CHAIN_BY_ID = {
+  1: "ethereum",
+  10: "optimism",
+  56: "bsc",
+  130: "unichain",
+  480: "worldchain",
+  8453: "base",
+  42161: "arbitrum",
+  4663: "robinhood",
 };
 
-const DEFAULT_DECIMALS = 18;
+const ADDR_RE = /^0x[a-fA-F0-9]{40}$/;
 
-// Optional free CoinGecko demo key (https://www.coingecko.com/en/api/pricing). Without it
-// the public tier rate-limits /coins/{id} to ~5-10 req/min, so a 500-token seed takes ~2h
-// and skips coins on 429s. With a free key (~30 req/min) the same build takes ~20 min.
-// This key is OFFLINE-ONLY, held by the team; the runtime never touches CoinGecko.
-const CG_KEY = process.env.CG_KEY || "";
-
-async function cgGet(path) {
-  const sep = path.includes("?") ? "&" : "?";
-  const url = `${CG}${path}${CG_KEY ? `${sep}x_cg_demo_api_key=${CG_KEY}` : ""}`;
-  const headers = { accept: "application/json", "user-agent": "sailor-top-assets-seed" };
-  if (CG_KEY) headers["x-cg-demo-api-key"] = CG_KEY;
+async function fetchList(url) {
   const res = await fetch(url, {
-    headers,
+    headers: { accept: "application/json", "user-agent": "sailor-top-assets-seed" },
     signal: AbortSignal.timeout(30_000),
   });
-  if (res.status === 429) throw new Error("CoinGecko 429 (rate-limited) — set CG_KEY for a faster build");
-  if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status} for ${path}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
   return res.json();
 }
 
-async function fetchTopCoins(count) {
-  const perPage = 250;
-  const pages = Math.ceil(count / perPage);
-  const coins = [];
-  for (let p = 1; p <= pages; p++) {
-    const batch = await cgGet(`/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${perPage}&page=${p}`);
-    coins.push(...batch);
-    await new Promise((r) => setTimeout(r, 1500));
-  }
-  return coins.slice(0, count);
-}
-
-async function main() {
+function main() {
   const args = process.argv.slice(2);
-  let count = 500;
   let outPath = resolvePath(SCRIPT_DIR, "top-assets-seed.json");
+  let listUrl = DEFAULT_LIST_URL;
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--count") count = Number(args[++i]);
-    else if (args[i] === "--out") outPath = resolvePath(args[++i]);
+    if (args[i] === "--out") outPath = resolvePath(args[++i]);
+    else if (args[i] === "--list-url") listUrl = args[++i];
   }
 
-  const coins = await fetchTopCoins(count);
-  const seed = {};
+  return fetchList(listUrl)
+    .then((list) => {
+      const tokens = Array.isArray(list.tokens) ? list.tokens : [];
+      if (tokens.length === 0) throw new Error("token list returned no tokens");
 
-  for (let i = 0; i < coins.length; i++) {
-    const c = coins[i];
-    const sym = (c.symbol || "").toUpperCase();
-    let detail;
-    try {
-      detail = await cgGet(`/coins/${c.id}`);
-    } catch {
-      // rate-limited or missing — skip this coin, the resolver falls back to live discovery
-      await new Promise((r) => setTimeout(r, 4000));
-      continue;
-    }
-    const platforms = detail.platforms || {};
-    const detailPlatforms = detail.detail_platforms || {};
-    const entry = {};
-    for (const [cgKey, addr] of Object.entries(platforms)) {
-      const sail = CG_TO_SAIL[cgKey];
-      if (!sail || typeof addr !== "string" || !/^0x[a-fA-F0-9]{40}$/.test(addr)) continue;
-      const dec = detailPlatforms[cgKey]?.decimal_place ?? DEFAULT_DECIMALS;
-      entry[sail] = { address: addr.toLowerCase(), decimals: dec };
-    }
-    if (Object.keys(entry).length > 0) {
-      seed[sym] = entry;
-    }
-    process.stderr.write(`  ${sym}: ${Object.keys(entry).length} Sail chain(s)\n`);
-    await new Promise((r) => setTimeout(r, 1600)); // respect the free tier (~30 req/min)
-  }
+      const seed = {};
+      // Track (chainName, symbol) → address so a second token with the same symbol on the
+      // SAME chain is dropped rather than guessed (collisions are rare but real — e.g.
+      // LIT on ethereum, JUP/SOL on unichain).
+      const seen = new Set();
+      let skippedCollisions = 0;
 
-  writeFileSync(outPath, JSON.stringify(seed, null, 2) + "\n");
-  process.stderr.write(`Wrote ${Object.keys(seed).length} contract symbol(s) with per-chain addresses → ${outPath}\n`);
+      for (const t of tokens) {
+        const chainName = CHAIN_BY_ID[t.chainId];
+        const addr = typeof t.address === "string" ? t.address.toLowerCase() : "";
+        const sym = typeof t.symbol === "string" ? t.symbol.toUpperCase().trim() : "";
+        if (!chainName || !sym || !ADDR_RE.test(addr)) continue;
+
+        const key = `${chainName}:${sym}`;
+        if (seen.has(key)) {
+          skippedCollisions++;
+          continue; // duplicate symbol on this chain — drop, never guess
+        }
+        seen.add(key);
+
+        const decimals = Number.isInteger(t.decimals) ? t.decimals : 18;
+        if (!seed[sym]) seed[sym] = {};
+        seed[sym][chainName] = { address: addr, decimals };
+      }
+
+      const symbols = Object.keys(seed);
+      writeFileSync(outPath, JSON.stringify(seed, null, 2) + "\n");
+      process.stderr.write(
+        `Wrote ${symbols.length} symbol(s) from the Uniswap default token list` +
+          ` (${skippedCollisions} same-chain collision(s) dropped) → ${outPath}\n`,
+      );
+    })
+    .catch((err) => {
+      process.stderr.write(
+        `\nbuild-top-assets-seed failed: ${err && err.message ? err.message : err}\n`,
+      );
+      process.exit(1);
+    });
 }
 
-main().catch((err) => {
-  process.stderr.write(`\nbuild-top-assets-seed failed: ${err && err.message ? err.message : err}\n`);
-  process.exit(1);
-});
+main();

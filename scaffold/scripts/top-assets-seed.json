@@ -1,497 +1,6938 @@
 {
-  "WBTC": 8,
-  "cbBTC": 8,
-  "BTCB": 8,
-  "WETH": 18,
-  "USDT": 6,
-  "WBNB": 18,
-  "USDC": 6,
-  "XRP": 18,
-  "SOL": 18,
-  "TRX": 18,
-  "FIGR_HELOC": 18,
-  "HYPE": 18,
-  "DOGE": 18,
-  "USDS": 18,
-  "RAIN": 18,
-  "ZEC": 18,
-  "LEO": 18,
-  "XMR": 18,
-  "LINK": 18,
-  "WBT": 18,
-  "ADA": 18,
-  "XLM": 18,
-  "DAI": 18,
-  "BCH": 18,
-  "USDE": 18,
-  "USD1": 18,
-  "CC": 18,
-  "GRAM": 18,
-  "LTC": 18,
-  "USDG": 18,
-  "HBAR": 18,
-  "USYC": 18,
-  "AVAX": 18,
-  "M": 18,
-  "SUI": 18,
-  "PYUSD": 6,
-  "BUIDL": 18,
-  "XAUT": 18,
-  "SHIB": 18,
-  "CRO": 18,
-  "NEAR": 18,
-  "UNI": 18,
-  "USDY": 18,
-  "OKB": 18,
-  "PAXG": 18,
-  "WLFI": 18,
-  "TAO": 18,
-  "RLUSD": 18,
-  "ONDO": 18,
-  "ASTER": 18,
-  "HTX": 18,
-  "USDD": 6,
-  "MNT": 18,
-  "AAVE": 18,
-  "SKY": 18,
-  "MORPHO": 18,
-  "USDF": 18,
-  "BFUSD": 18,
-  "DOT": 18,
-  "U": 18,
-  "ICP": 18,
-  "WLD": 18,
-  "PUMP": 18,
-  "BGB": 18,
-  "USDGO": 18,
-  "EURSAFO": 18,
-  "PEPE": 18,
-  "BTW": 18,
-  "ETC": 18,
-  "PI": 18,
-  "BCAP": 18,
-  "EUTBL": 18,
-  "KCS": 18,
-  "USTB": 18,
-  "JTRSY": 18,
-  "ENA": 18,
-  "POL": 18,
-  "JST": 18,
-  "QNT": 18,
-  "ATOM": 18,
-  "NEXO": 18,
-  "STABLE": 18,
-  "ALGO": 18,
-  "GT": 18,
-  "KAS": 18,
-  "JAAA": 18,
-  "GHO": 18,
-  "RENDER": 18,
-  "YLDS": 18,
-  "VVV": 18,
-  "BDX": 18,
-  "LIT": 18,
-  "JUP": 18,
-  "USD0": 18,
-  "XDC": 18,
-  "FLR": 18,
-  "FIL": 18,
-  "ARB": 18,
-  "ETHFI": 18,
-  "USX": 18,
-  "CAKE": 18,
-  "TUSD": 18,
-  "HASH": 18,
-  "APT": 18,
-  "EURC": 18,
-  "A7A5": 18,
-  "INJ": 18,
-  "币安人生": 18,
-  "AERO": 18,
-  "VET": 18,
-  "PENGU": 18,
-  "CRV": 18,
-  "DASH": 18,
-  "VIRTUAL": 18,
-  "OUSG": 18,
-  "TRUMP": 18,
-  "USDTB": 18,
-  "FDUSD": 6,
-  "KAU": 18,
-  "SUN": 18,
-  "SPX": 18,
-  "PYTH": 18,
-  "APXUSD": 18,
-  "SOFID": 18,
-  "NIGHT": 18,
-  "GNO": 18,
-  "UB": 18,
-  "ZRO": 18,
-  "TIA": 18,
-  "BSV": 18,
-  "JTO": 18,
-  "FET": 18,
-  "NFT": 18,
-  "OHM": 18,
-  "VELVET": 18,
-  "ONYC": 18,
-  "LUNC": 18,
-  "LDO": 18,
-  "REAL": 18,
-  "SEI": 18,
-  "BTT": 18,
-  "MON": 18,
-  "PIEVERSE": 18,
-  "KAG": 18,
-  "TIBBIR": 18,
-  "STX": 18,
-  "PENDLE": 18,
-  "KITE": 18,
-  "XTZ": 18,
-  "CFX": 18,
-  "FRAX": 18,
-  "XPL": 18,
-  "CRVUSD": 18,
-  "AUSD": 18,
-  "BONK": 18,
-  "PC0000031": 18,
-  "FLOKI": 18,
-  "DCR": 18,
-  "REUSD": 18,
-  "QFI": 18,
-  "FF": 18,
-  "GRASS": 18,
-  "APEPE": 18,
-  "AKE": 18,
-  "OP": 18,
-  "ULTIMA": 18,
-  "VBILL": 18,
-  "SYRUP": 18,
-  "USAT": 18,
-  "APYUSD": 18,
-  "H": 18,
-  "COMP": 18,
-  "USDAI": 18,
-  "JASMY": 18,
-  "KOGE": 18,
-  "2Z": 18,
-  "EURCV": 18,
-  "ZBCN": 18,
-  "RAY": 18,
-  "ENS": 18,
-  "USTBL": 18,
-  "TWT": 18,
-  "STRK": 18,
-  "PC0000033": 18,
-  "COCO": 18,
-  "IOTA": 18,
-  "EIGEN": 18,
-  "TEL": 18,
-  "STRCX": 18,
-  "AXS": 18,
-  "B": 18,
-  "KAIA": 18,
-  "MX": 18,
-  "FARTCOIN": 18,
-  "GUSD": 2,
-  "GRT": 18,
-  "CVX": 18,
-  "SAFO": 18,
-  "AKT": 18,
-  "THETA": 18,
-  "RUNE": 18,
-  "BORG": 18,
-  "WIF": 18,
-  "BTSE": 18,
-  "SHFL": 18,
-  "VSN": 18,
-  "PC0000097": 18,
-  "CHZ": 18,
-  "ZANO": 18,
-  "XEC": 18,
-  "AVUSD": 18,
-  "MANA": 18,
-  "JPYSC": 18,
-  "OZO": 18,
-  "SFP": 18,
-  "APE": 18,
-  "GRX": 18,
-  "NEO": 18,
-  "RLB": 18,
-  "1INCH": 18,
-  "TRAC": 18,
-  "CASH": 18,
-  "AR": 18,
-  "THBILL": 18,
-  "SAND": 18,
-  "XCN": 18,
-  "AWE": 18,
-  "GOMINING": 18,
-  "SNX": 18,
-  "PC0000023": 18,
-  "ALFW": 18,
-  "FRXUSD": 18,
-  "GENIUS": 18,
-  "META": 18,
-  "SOSO": 18,
-  "CAP": 18,
-  "CRCLON": 18,
-  "PC0000015": 18,
-  "CASHCAT": 18,
-  "A": 18,
-  "EDGE": 18,
-  "ANSEM": 18,
-  "TAG": 18,
-  "STAC": 18,
-  "KMNO": 18,
-  "ZAMA": 18,
-  "CHEEMS": 18,
-  "PC0000085": 18,
-  "PC0000077": 18,
-  "UUSD": 18,
-  "FLUID": 18,
-  "SHORT": 18,
-  "BP": 18,
-  "MET": 18,
-  "GEOD": 18,
-  "WEMIX": 18,
-  "ACRED": 18,
-  "DRV": 18,
-  "AB": 18,
-  "USDA": 18,
-  "DBR": 18,
-  "USDAT": 18,
-  "NXM": 18,
-  "BAT": 18,
-  "RAIL": 18,
-  "BABYCLAW": 18,
-  "CUSD": 18,
-  "CYS": 18,
-  "S": 18,
-  "NEX": 18,
-  "Q": 18,
-  "SN64": 18,
-  "DYDX": 18,
-  "GLM": 18,
-  "GGBR": 18,
-  "BANANAS31": 18,
-  "YZY": 18,
-  "IMX": 18,
-  "SMILEK": 18,
-  "BSPX": 18,
-  "SENT": 18,
-  "EGLD": 18,
-  "KAITO": 18,
-  "PLUME": 18,
-  "FORM": 18,
-  "ZK": 18,
-  "ANVL": 18,
-  "WM": 18,
-  "ATH": 18,
-  "ANTFUN": 18,
-  "RE": 18,
-  "PC0000101": 18,
-  "O": 18,
-  "RSR": 18,
-  "CGUSD": 18,
-  "PC0000019": 18,
-  "MAG7.SSI": 18,
-  "RIF": 18,
-  "XPR": 18,
-  "LISUSD": 18,
-  "FEUSD": 18,
-  "ZEN": 18,
-  "CARDS": 18,
-  "RAVE": 18,
-  "QTUM": 18,
-  "SAFE": 18,
-  "USDSUI": 18,
-  "ORDI": 18,
-  "MELANIA": 18,
-  "XAUM": 18,
-  "DGB": 18,
-  "YFI": 18,
-  "CRCLB": 18,
-  "USDON": 18,
-  "GPS": 18,
-  "BRLV": 18,
-  "ALLO": 18,
-  "LBT": 18,
-  "MF-ONE": 18,
-  "BAN": 18,
-  "ARC": 18,
-  "NOPAL": 18,
-  "PRL": 18,
-  "WOULD": 18,
-  "SPCXB": 18,
-  "IVVON": 18,
-  "STAU": 18,
-  "DEXE": 18,
-  "GMX": 18,
-  "BEAM": 18,
-  "MGLOBAL": 18,
-  "SOON": 18,
-  "SN51": 18,
-  "GALA": 18,
-  "BGBTC": 18,
-  "MTBILL": 18,
-  "TSLAX": 18,
-  "NILA": 18,
-  "EXOD": 18,
-  "ORCA": 18,
-  "BAS": 18,
-  "BR": 18,
-  "SKYAI": 18,
-  "ZRX": 18,
-  "PC0000049": 18,
-  "FXUSD": 18,
-  "QRL": 18,
-  "SWOP": 18,
-  "TEMPLE": 18,
-  "UAI": 18,
-  "TRUSD": 18,
-  "ADI": 18,
-  "CYDX": 18,
-  "GAS": 18,
-  "DATA": 18,
-  "WKC": 18,
-  "DOG": 18,
-  "ELG": 18,
-  "BASEDHYPE": 18,
-  "NXPC": 18,
-  "QUBIC": 18,
-  "VELO": 18,
-  "DOGO": 18,
-  "FXSAVE": 18,
-  "ARKM": 18,
-  "COW": 18,
-  "REUR": 18,
-  "GCOIN": 18,
-  "BABYDOGE": 18,
-  "CRCLX": 18,
-  "LAB": 18,
-  "AIOZ": 18,
-  "DUSD": 18,
-  "MHORSE": 18,
-  "LPT": 18,
-  "BOME": 18,
-  "SN4": 18,
-  "BIO": 18,
-  "HOT": 18,
-  "HDX": 18,
-  "CHFAU": 18,
-  "BRZ": 18,
-  "COAI": 18,
-  "SHX": 18,
-  "FDIT": 18,
-  "DIEM": 18,
-  "PC0000081": 18,
-  "SUPER": 18,
-  "APR": 18,
-  "NMR": 18,
-  "METAL": 18,
-  "CHIP": 18,
-  "PMUSD": 18,
-  "TFUEL": 18,
-  "BEAT": 18,
-  "JPYC": 18,
-  "XUSD": 18,
-  "KSM": 18,
-  "FUN": 18,
-  "TURBO": 18,
-  "MUB": 18,
-  "WAL": 18,
-  "JELLYJELLY": 18,
-  "PROS": 18,
-  "MINA": 18,
-  "DOS": 18,
-  "APES": 18,
-  "FT": 18,
-  "ESP": 18,
-  "NUSD": 18,
-  "W": 18,
-  "ZIG": 18,
-  "SQD": 18,
-  "DOLA": 18,
-  "LINEA": 18,
-  "USDU": 18,
-  "ACRDX": 18,
-  "CROSS": 18,
-  "CFG": 18,
-  "RIVER": 18,
-  "AIX": 18,
-  "PC0016245": 18,
-  "IUSD": 18,
-  "US": 18,
-  "BRSRV": 18,
-  "AUSDT": 18,
-  "USDKG": 18,
-  "OMI": 18,
-  "SPYX": 18,
-  "FONQ": 18,
-  "SKR": 18,
-  "ELF": 18,
-  "JUPUSD": 18,
-  "ENJ": 18,
-  "BERA": 18,
-  "RED": 18,
-  "FIDD": 18,
-  "PURR": 18,
-  "XNO": 18,
-  "MSTRX": 18,
-  "FIUSD": 18,
-  "FOLD": 18,
-  "MEME": 18,
-  "PRIZE": 18,
-  "FLOW": 18,
-  "ACU": 18,
-  "XP": 18,
-  "BILL": 18,
-  "SUSHI": 18,
-  "XVS": 18,
-  "PC0000027": 18,
-  "ZIL": 18,
-  "IO": 18,
-  "UP": 18,
-  "RVN": 18,
-  "BABY": 18,
-  "SPYON": 18,
-  "REKT": 18,
-  "AXL": 18,
-  "BCE": 18,
-  "FILQ-A": 18,
-  "OZA": 18,
-  "IBITON": 18,
-  "ZETA": 18,
-  "KAVA": 18,
-  "PNUT": 18,
-  "TROLL": 18,
-  "NPC": 18,
-  "XPIN": 18,
-  "ARX": 18,
-  "TOSHI": 18,
-  "HOLO": 18,
-  "MUON": 18,
-  "ZEREBRO": 18,
-  "SNDKB": 18,
-  "SN44": 18,
-  "PEAQ": 18,
-  "ROSE": 18,
-  "SPK": 18,
-  "ZCHF": 18,
-  "GWEI": 18,
-  "CCD": 18,
-  "SENTIS": 18,
-  "PC": 18,
-  "SN120": 18,
-  "XYO": 18,
-  "STEAKCUSDC": 18,
-  "CSPR": 18,
-  "CKB": 18,
-  "ALT": 18,
-  "POPCAT": 18,
-  "REQ": 18,
-  "UNT": 18,
-  "KTA": 18,
-  "NVDAON": 18
+  "1INCH": {
+    "ethereum": {
+      "address": "0x111111111117dc0aa78b770fa6a738034120c302",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0xad42d013ac31486b73b6b059e748172994736426",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x111111111117dc0aa78b770fa6a738034120c302",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xbe41cde1c5e75a7b6c2c70466629878aa9acd06e",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0xc5fecc3a29fb57b5024eec8a2239d4621e111cbe",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x6314c31a7a1652ce482cffe247e9cb7c3f4bb9af",
+      "decimals": 18
+    }
+  },
+  "A8": {
+    "ethereum": {
+      "address": "0x3e5a19c91266ad8ce2477b91585d1856b84062df",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x44d618c366d7bc85945bfc922acad5b1fef7759a",
+      "decimals": 18
+    }
+  },
+  "AAVE": {
+    "ethereum": {
+      "address": "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x76fb31fb4af56892a25e32cfc43de717950c9278",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xfb6115445bff7b52feb98650c87f44907e58f802",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x02a24c380da560e4032dc6671d8164cfbeeaae1e",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x63706e401c06ac8513145b7687a14804d17f814b",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xba5ddd1f9d7f570dc94a51479a000e3bce967196",
+      "decimals": 18
+    }
+  },
+  "ABT": {
+    "ethereum": {
+      "address": "0xb98d4c97425d9908e66e53a6fdf673acca0be986",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xddce42b89215548becaa160048460747fe5675bc",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0xe2a8ccb00e328a0ec2204cb0c736309d7c1fa556",
+      "decimals": 18
+    }
+  },
+  "ACH": {
+    "ethereum": {
+      "address": "0xed04915c23f00a313a544955524eb7dbd823143d",
+      "decimals": 8
+    },
+    "bsc": {
+      "address": "0xbc7d6b50616989655afd682fb42743507003056d",
+      "decimals": 8
+    },
+    "unichain": {
+      "address": "0xb8a8e137a2daa25ef1b3577b6598fe8be66ecf77",
+      "decimals": 8
+    }
+  },
+  "ACX": {
+    "ethereum": {
+      "address": "0x44108f0223a3c3028f5fe7aec7f9bb2e66bef82f",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0xff733b2a3557a7ed6697007ab5d11b79fdd1b76b",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x34424b3352af905e41078a4029b61ede62bbb32c",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x53691596d1bce8cea565b84d4915e69e03d9c99d",
+      "decimals": 18
+    }
+  },
+  "ADI": {
+    "ethereum": {
+      "address": "0x8b1484d57abbe239bb280661377363b03c89caea",
+      "decimals": 18
+    }
+  },
+  "ADX": {
+    "ethereum": {
+      "address": "0xade00c28244d5ce17d72e40330b1c318cd12b7c3",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x6bff4fb161347ad7de4a625ae5aa3a1ca7077819",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x3e1c572d8b069fc2f14ac4f8bdce6e8ea299a500",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x3c87e7af3cdbae5bb56b4936325ea95ca3e0efd9",
+      "decimals": 18
+    }
+  },
+  "AERGO": {
+    "ethereum": {
+      "address": "0x91af0fbb28aba7e31403cb457106ce79397fd4e6",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xfd38ac2316f6d3631a86065adb3292f6f15873b5",
+      "decimals": 18
+    }
+  },
+  "AEVO": {
+    "ethereum": {
+      "address": "0xb528edbef013aff855ac3c50b381f253af13b997",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x54fa9210ccb765639b7fd532f25bcb1060d60f8b",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x377c1fc73d4d0f5600cd943776ced07c2b9783cd",
+      "decimals": 18
+    }
+  },
+  "AGEUR": {
+    "ethereum": {
+      "address": "0x1a7e4e63778b4f12a199c062f3efdd288afcbce8",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x12f31b73d812c6bb0d735a218c086d44d5fe5f89",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xa4eef95995f40ad0b3d63a474293fc7cc681a118",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xfa5ed56a203466cbbc2430a43c66b9d8723528e7",
+      "decimals": 18
+    }
+  },
+  "AGLD": {
+    "ethereum": {
+      "address": "0x32353a6c91143bfd6c7d363b546e62a9a2489a20",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x14421614587a2a3e9c3aa3131fc396af412721cf",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xb7910e8b16e63efd51d5d1a093d56280012a3b9c",
+      "decimals": 18
+    }
+  },
+  "AI": {
+    "ethereum": {
+      "address": "0x4d7078ddd6ccfed2f85db5b7d3ff16828d378d48",
+      "decimals": 18
+    }
+  },
+  "AIOZ": {
+    "ethereum": {
+      "address": "0x626e8036deb333b408be468f951bdb42433cbf18",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x33d08d8c7a168333a85285a68c0042b39fc3741d",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x5f891e74947b0fc400128e5e85333d7a6cf99b1a",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xec76e8fe6e2242e6c2117caa244b9e2de1569923",
+      "decimals": 18
+    }
+  },
+  "ALCX": {
+    "ethereum": {
+      "address": "0xdbdb4d16eda451d0503b854cf79d55697f90c8df",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xbf194c82a5bb9180f9280c1832f886a65aebdcd6",
+      "decimals": 18
+    }
+  },
+  "ALEPH": {
+    "ethereum": {
+      "address": "0x27702a26126e0b3702af63ee09ac4d1a084ef628",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x82d2f8e02afb160dd5a480a617692e62de9038c4",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xa3e646211a456e08829c33fce21cc3dc4c15bb5c",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xe7dcd50836d0a28c959c72d72122fedb8e245a6c",
+      "decimals": 18
+    }
+  },
+  "ALI": {
+    "ethereum": {
+      "address": "0x6b0b3a982b4634ac68dd83a4dbf02311ce324181",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x2a87dd1e1f849ed88c18565afda98e2eeec73780",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x97c806e7665d3afd84a8fe1837921403d59f3dcc",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xef6124368c0b56556667e0de77ea008dfc0a71d1",
+      "decimals": 18
+    }
+  },
+  "ALICE": {
+    "ethereum": {
+      "address": "0xac51066d7bec65dc4589368da368b212745d63e8",
+      "decimals": 6
+    },
+    "bsc": {
+      "address": "0xac51066d7bec65dc4589368da368b212745d63e8",
+      "decimals": 6
+    },
+    "unichain": {
+      "address": "0xbb72b8031f590748d8910aad7e25f8b18860960a",
+      "decimals": 6
+    }
+  },
+  "ALLO": {
+    "ethereum": {
+      "address": "0x8408d45b61f5823298f19a09b53b7339c0280489",
+      "decimals": 18
+    }
+  },
+  "ALPHA": {
+    "ethereum": {
+      "address": "0xa1faa113cbe53436df28ff0aee54275c13b40975",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xa1faa113cbe53436df28ff0aee54275c13b40975",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x44c3e7c49c4bb6f4f5ecd87e035176dfcebd78d3",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xc9cbf102c73fb77ec14f8b4c8bd88e050a6b2646",
+      "decimals": 18
+    }
+  },
+  "ALT": {
+    "ethereum": {
+      "address": "0x8457ca5040ad67fdebbcc8edce889a335bc0fbfb",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x6d5de04f1a3e0e554b9a15059d03e20cb3589153",
+      "decimals": 18
+    }
+  },
+  "AMP": {
+    "ethereum": {
+      "address": "0xff20817765cb7f73d4bde2e66e067e58d11095c2",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x4d6b8ecb576df9bb4bf6e6764a469a762bbc967f",
+      "decimals": 18
+    }
+  },
+  "ANKR": {
+    "ethereum": {
+      "address": "0x8290333cef9e6d528dd5618fb97a76f268f3edd4",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xf307910a4c7bbc79691fd374889b36d8531b08e3",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xf081fc8e0878d7ebe6ec381e5d7279d6eff97622",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x1bfc5d35bf0f7b9e15dc24c78b8c02dbc1e95447",
+      "decimals": 18
+    }
+  },
+  "ANT": {
+    "ethereum": {
+      "address": "0xa117000000f279d81a1d3cc75430faa017fa5a2e",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x865d184885200b8e86eb2a3da8b3b4a7d4a31308",
+      "decimals": 18
+    }
+  },
+  "APE": {
+    "ethereum": {
+      "address": "0x4d224452801aced8b2f0aebe155379bb5d594381",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xd1b8423fde5f37464fade603f80903cb314046cf",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x74885b4d524d497261259b38900f54e6dbad2210",
+      "decimals": 18
+    }
+  },
+  "API3": {
+    "ethereum": {
+      "address": "0x0b38210ea11411557c13457d4da7dc6ea731b88a",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xa63122b27308eed0c1d83dd355addaa7f678961b",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xf01db12f50d0cdf5fe360ae005b9c52f92ca7811",
+      "decimals": 18
+    }
+  },
+  "APR": {
+    "ethereum": {
+      "address": "0x5a9610919f5e81183823a2be4bd1beb2b4da2a20",
+      "decimals": 18
+    }
+  },
+  "APU": {
+    "ethereum": {
+      "address": "0x594daad7d77592a2b97b725a7ad59d7e188b5bfa",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xcdfce5eb357e8976a80be84e94a03ba963b9e379",
+      "decimals": 18
+    }
+  },
+  "APXUSD": {
+    "ethereum": {
+      "address": "0x98a878b1cd98131b271883b390f68d2c90674665",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0xd993935e13851dd7517af10687ec7e5022127228",
+      "decimals": 18
+    }
+  },
+  "ARB": {
+    "ethereum": {
+      "address": "0xb50721bcf8d664c30412cfbc6cf7a15145234ad1",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x5cc70a9df8e293affb14dfca1e7f851418a4b40d",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x912ce59144191c1204e64559fe8253a0e49e6548",
+      "decimals": 18
+    }
+  },
+  "ARKM": {
+    "ethereum": {
+      "address": "0x6e2a43be0b1d33b726f0ca3b8de60b3482b8b050",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x59f16baa7a22f49c32680661e0041a53442ef089",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xdac5094b7d59647626444a4f905060fcda4e656e",
+      "decimals": 18
+    }
+  },
+  "ARPA": {
+    "ethereum": {
+      "address": "0xba50933c268f567bdc86e1ac131be072c6b0b71a",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x334cc734866e97d8452ae6261d68fd9bc9bfa31e",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x6f769e65c14ebd1f68817f5f1dcdb61cfa2d6f7e",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xe911a809f87490406ab34fad701aabca88e30b45",
+      "decimals": 18
+    }
+  },
+  "ASH": {
+    "ethereum": {
+      "address": "0x64d91f12ece7362f91a6f8e7940cd55f05060b92",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x4b355de6ea44711f0353ed89545705395a30d7fb",
+      "decimals": 18
+    }
+  },
+  "ASM": {
+    "ethereum": {
+      "address": "0x2565ae0385659badcada1031db704442e1b69982",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x1e196d83e2c562de0b1f270eb72220335ba0ada7",
+      "decimals": 18
+    }
+  },
+  "ASSET": {
+    "ethereum": {
+      "address": "0x99e980265bf36516c442be982df1772a6ccb3233",
+      "decimals": 18
+    }
+  },
+  "AST": {
+    "ethereum": {
+      "address": "0x27054b13b1b798b345b591a4d22e6562d47ea75a",
+      "decimals": 4
+    },
+    "unichain": {
+      "address": "0x7f3f14a49fe5d5009e4e0a09e76cb8468c09ae56",
+      "decimals": 4
+    }
+  },
+  "ATA": {
+    "ethereum": {
+      "address": "0xa2120b9e674d3fc3875f415a7df52e382f141225",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xa2120b9e674d3fc3875f415a7df52e382f141225",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xbaaa314d2f5af29b00867a612f24f816d890c4b2",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xac9ac2c17cdfed4abc80a53c5553388575714d03",
+      "decimals": 18
+    }
+  },
+  "ATH": {
+    "ethereum": {
+      "address": "0xbe0ed4138121ecfc5c0e56b40517da27e6c5226b",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xa249732271cba6e06be4ac8b20f0d465fee183ab",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xc7def82ba77baf30bbbc9b6162dc075b49092fb4",
+      "decimals": 18
+    }
+  },
+  "AUCTION": {
+    "ethereum": {
+      "address": "0xa9b1eb5908cfc3cdf91f9b8b3a74108598009096",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x82f90996a4f67eb388116b3c6f35b6ea91bef68e",
+      "decimals": 18
+    }
+  },
+  "AUDD": {
+    "ethereum": {
+      "address": "0x4cce605ed955295432958d8951d0b176c10720d5",
+      "decimals": 6
+    },
+    "base": {
+      "address": "0x449b3317a6d1efb1bc3ba0700c9eaa4ffff4ae65",
+      "decimals": 6
+    }
+  },
+  "AUDIO": {
+    "ethereum": {
+      "address": "0x18aaa7115705e8be94bffebde57af9bfc265b998",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x48b8441de79cee3604b805093b41028d3c81684b",
+      "decimals": 18
+    }
+  },
+  "AUSD": {
+    "ethereum": {
+      "address": "0x00000000efe302beaa2b3e6e1b18d08d69a9012a",
+      "decimals": 6
+    },
+    "bsc": {
+      "address": "0x00000000efe302beaa2b3e6e1b18d08d69a9012a",
+      "decimals": 6
+    },
+    "base": {
+      "address": "0x00000000efe302beaa2b3e6e1b18d08d69a9012a",
+      "decimals": 6
+    },
+    "arbitrum": {
+      "address": "0x00000000efe302beaa2b3e6e1b18d08d69a9012a",
+      "decimals": 6
+    }
+  },
+  "AVA": {
+    "ethereum": {
+      "address": "0xa6c0c097741d55ecd9a3a7def3a8253fd022ceb9",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xd9483ea7214fcfd89b4fb8f513b544920e315a52",
+      "decimals": 18
+    }
+  },
+  "AVT": {
+    "ethereum": {
+      "address": "0x845576c64f9754cf09d87e45b720e82f3eef522c",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x38dbf47e2a012a4b83823f15e3f3352a00939999",
+      "decimals": 18
+    }
+  },
+  "AXL": {
+    "ethereum": {
+      "address": "0x467719ad09025fcc6cf6f8311755809d45a5e5f3",
+      "decimals": 6
+    },
+    "bsc": {
+      "address": "0x8b1f4432f943c465a973fedc6d7aa50fc96f1f65",
+      "decimals": 6
+    },
+    "unichain": {
+      "address": "0xbf678793522638f7439afe3b94d2d2a3a4cbf2c9",
+      "decimals": 6
+    },
+    "arbitrum": {
+      "address": "0x23ee2343b892b1bb63503a4fabc840e0e2c6810f",
+      "decimals": 6
+    }
+  },
+  "AXS": {
+    "ethereum": {
+      "address": "0xbb0e17ef65f82ab018d8edd776e8dd940327b28b",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x715d400f88c167884bbcc41c5fea407ed4d2f8a0",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xda63ada216d2079b54f2047b2fdc2576d188f927",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xe88998fb579266628af6a03e3821d5983e5d0089",
+      "decimals": 18
+    }
+  },
+  "AZTEC": {
+    "ethereum": {
+      "address": "0xa27ec0006e59f245217ff08cd52a7e8b169e62d2",
+      "decimals": 18
+    }
+  },
+  "BADGER": {
+    "ethereum": {
+      "address": "0x3472a5a71965499acd81997a54bba8d852c6e53d",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xc2a564b44b441d03f09f5b6b2b358b4a17388406",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xbfa641051ba0a0ad1b0acf549a89536a0d76472e",
+      "decimals": 18
+    }
+  },
+  "BAL": {
+    "ethereum": {
+      "address": "0xba100000625a3754423978a60c9317c58a424e3d",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0xfe8b128ba8c78aabc59d4c64cee7ff28e9379921",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x01625e26274ed828ac1d47694c97221b34a8addf",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x040d1edc9569d4bab2d15287dc5a4f10f56a56b8",
+      "decimals": 18
+    }
+  },
+  "BAND": {
+    "ethereum": {
+      "address": "0xba11d00c5f74255f56a5e366f4f77f5a186d7f55",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xa264f2b88c630f260abdcab577eab7266a8857d5",
+      "decimals": 18
+    }
+  },
+  "BARD": {
+    "ethereum": {
+      "address": "0xf0db65d17e30a966c2ae6a21f6bba71cea6e9754",
+      "decimals": 18
+    }
+  },
+  "BASED1": {
+    "ethereum": {
+      "address": "0x4f2b33840227ddd0e28da8d4185d6fa07adfed87",
+      "decimals": 18
+    }
+  },
+  "BAT": {
+    "ethereum": {
+      "address": "0x0d8775f648430679a709e98d2b0cb6250d2887ef",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x4e373c99199773f9d92d32b8c8bc0c81508ea589",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x3450687ef141dcd6110b77c2dc44b008616aee75",
+      "decimals": 18
+    }
+  },
+  "BEAM": {
+    "ethereum": {
+      "address": "0x62d0a8458ed7719fdaf978fe5929c6d342b0bfce",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xe5ecb192f1ae5839ed49886f36dfa670f9500824",
+      "decimals": 18
+    }
+  },
+  "BICO": {
+    "ethereum": {
+      "address": "0xf17e65822b568b3903685a7c9f496cf7656cc6c2",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0xd6909e9e702024eb93312b989ee46794c0fb1c9d",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x604ff88adc02325efb7f93db3e442dc81d0588e7",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0xf5dbaa3dfc5e81405c7306039fb037a3dcd57ce2",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xa68ec98d7ca870cf1dd0b00ebbb7c4bf60a8e74d",
+      "decimals": 18
+    }
+  },
+  "BIGTIME": {
+    "ethereum": {
+      "address": "0x64bc2ca1be492be7185faa2c8835d9b824c8a194",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x17f3afe72caa6b9090801b60607918b6d2fa7cdc",
+      "decimals": 18
+    }
+  },
+  "BILL": {
+    "ethereum": {
+      "address": "0xb1110919016846972056ab995054d65560d5f05e",
+      "decimals": 18
+    }
+  },
+  "BIO": {
+    "ethereum": {
+      "address": "0xcb1592591996765ec0efc1f92599a19767ee5ffa",
+      "decimals": 18
+    }
+  },
+  "BIT": {
+    "ethereum": {
+      "address": "0x1a4b46696b2bb4794eb3d4c26f1c55f9170fa4c5",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xa4cb2aaf7503641b441e80fc353e6748fb523a5c",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x406c8db506653d882295875f633bec0beb921c2a",
+      "decimals": 18
+    }
+  },
+  "BITCOIN": {
+    "ethereum": {
+      "address": "0x72e4f9f808c49a2a61de9c5896298920dc4eeea9",
+      "decimals": 8
+    },
+    "unichain": {
+      "address": "0x41f6e69166e81a9583dbc96604b01d2e9b3d706f",
+      "decimals": 8
+    },
+    "base": {
+      "address": "0x2a06a17cbc6d0032cac2c6696da90f29d39a1a29",
+      "decimals": 8
+    },
+    "arbitrum": {
+      "address": "0xf7e17ba61973bcdb61f471efb989e47d13bd565d",
+      "decimals": 8
+    }
+  },
+  "BLEND": {
+    "ethereum": {
+      "address": "0xd8a271974e8edae9d7b58e3370dc1669427503f4",
+      "decimals": 18
+    }
+  },
+  "BLUR": {
+    "ethereum": {
+      "address": "0x5283d291dbcf85356a21ba090e6db59121208b44",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x942fc6b61686e06fb411cb1bcf5d16dc2b9255ea",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xef171a5ba71348eff16616fd692855c2fe606eb2",
+      "decimals": 18
+    }
+  },
+  "BLZ": {
+    "ethereum": {
+      "address": "0x5732046a883704404f284ce41ffadd5b007fd668",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x935a544bf5816e3a7c13db2efe3009ffda0acda2",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xe7b3ca9d9db06e1867781fd1c5f02e6c8ef471ee",
+      "decimals": 18
+    }
+  },
+  "BNT": {
+    "ethereum": {
+      "address": "0x1f573d6fb3f13d689ff844b4ce37794d79a7ff1c",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xf2cc2d274da528ab64da86be3f8416e5472c5a62",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x7a24159672b83ed1b89467c9d6a99556ba06d073",
+      "decimals": 18
+    }
+  },
+  "BOBA": {
+    "ethereum": {
+      "address": "0x42bbfa2e77757c645eeaad1655e0911a7553efbc",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x07ad578ff86b135be19a12759064b802cb88854d",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xbe8e46422fb7f9ca9d639b3109492d64bbb41b05",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x1f9bd96ddb4bd07d6061f8933e9ba9ede9967550",
+      "decimals": 18
+    }
+  },
+  "BOBBOB": {
+    "ethereum": {
+      "address": "0xc9746f73cc33a36c2cd55b8aefd732586946cedd",
+      "decimals": 18
+    }
+  },
+  "BOND": {
+    "ethereum": {
+      "address": "0x0391d2021f89dc339f60fff84546ea23e337750f",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x3e7ef8f50246f725885102e8238cbba33f276747",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x4d5b7e9cce3ab81298da7e1f52b48c9a61df8972",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x0d81e50bc677fa67341c44d7eaa9228dee64a4e1",
+      "decimals": 18
+    }
+  },
+  "BREV": {
+    "ethereum": {
+      "address": "0x086f405146ce90135750bbec9a063a8b20a8bffb",
+      "decimals": 18
+    }
+  },
+  "BTRST": {
+    "ethereum": {
+      "address": "0x799ebfabe77a6e34311eeee9825190b9ece32824",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0xed50ace88bd42b45cb0f49be15395021e141254e",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x6a4a359c7453f5892392fcb8eab7a9a100986b71",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0xa7d68d155d17cb30e311367c2ef1e82ab6022b67",
+      "decimals": 18
+    }
+  },
+  "BUSD": {
+    "ethereum": {
+      "address": "0x4fabb145d64652a948d72533023f6e7a623c7c53",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x9c9e5fd8bbc25984b178fdce6117defa39d2db39",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xe9e7cea3dedca5984780bafc599bd69add087d56",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xa4da5c92f44422dfa3e2e309b53d93bbbda9f9c6",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x31190254504622cefdfa55a7d3d272e6462629a2",
+      "decimals": 18
+    }
+  },
+  "C98": {
+    "ethereum": {
+      "address": "0xae12c5930881c53715b369cec7606b70d8eb229f",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xaec945e04baf28b135fa7c640f624f8d90f1c3a6",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x29129fa2e0f35594ca7b362ffa8c80f5f8e4f8e1",
+      "decimals": 18
+    }
+  },
+  "CAKE": {
+    "ethereum": {
+      "address": "0x152649ea73beab28c5b49b26eb48f7ead6d4c898",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xcdc343ebf71e38f003ed6c80171f5b8d7cf58860",
+      "decimals": 18
+    }
+  },
+  "CAP": {
+    "ethereum": {
+      "address": "0x99991c6aabba5a096f24f250b73580f5179b9999",
+      "decimals": 18
+    }
+  },
+  "CBBTC": {
+    "ethereum": {
+      "address": "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf",
+      "decimals": 8
+    },
+    "unichain": {
+      "address": "0xb6a3e8e5715fd4c99ecedaaae121bde4ab6a1ef1",
+      "decimals": 8
+    },
+    "base": {
+      "address": "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf",
+      "decimals": 8
+    },
+    "arbitrum": {
+      "address": "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf",
+      "decimals": 8
+    }
+  },
+  "CBETH": {
+    "ethereum": {
+      "address": "0xbe9895146f7af43049ca1c1ae358b0541ea49704",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0xaddb6a0412de1ba0f936dcaeb8aaa24578dcf3b2",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xeb64b50fef2a363940369285f86ae9a68211db59",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x2ae3f1ec7f1f5012cfeab0185bfc7aa3cf0dec22",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x1debd73e752beaf79865fd6446b0c970eae7732f",
+      "decimals": 18
+    }
+  },
+  "CELO": {
+    "ethereum": {
+      "address": "0x3294395e62f4eb6af3f1fcf89f5602d90fb3ef69",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x9b88d293b7a791e40d36a39765ffd5a1b9b5c349",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x6008f5bad83742fdbff5aac55e3c51b65a8a8d9c",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x4e51ac49bc5e2d87e0ef713e9e5ab2d71ef4f336",
+      "decimals": 18
+    }
+  },
+  "CELR": {
+    "ethereum": {
+      "address": "0x4f9254c83eb525f9fcf346490bbb3ed28a81c667",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x5ad5d6b1ae6761aab12066b51d21729248035703",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x3a8b787f78d775aecfeea15706d4221b40f345ab",
+      "decimals": 18
+    }
+  },
+  "CFG": {
+    "ethereum": {
+      "address": "0xcccccccccc33d538dbc2ee4feab0a7a1ff4e8a94",
+      "decimals": 18
+    }
+  },
+  "CHECK": {
+    "ethereum": {
+      "address": "0x9126236476efba9ad8ab77855c60eb5bf37586eb",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x9126236476efba9ad8ab77855c60eb5bf37586eb",
+      "decimals": 18
+    }
+  },
+  "CHR": {
+    "ethereum": {
+      "address": "0x8a2279d4a90b6fe1c4b30fa660cc9f926797baa2",
+      "decimals": 6
+    },
+    "bsc": {
+      "address": "0xf9cec8d50f6c8ad3fb6dccec577e05aa32b224fe",
+      "decimals": 6
+    },
+    "unichain": {
+      "address": "0xac930be88cfac775a937e9291c4234bf210a4e5b",
+      "decimals": 6
+    }
+  },
+  "CHZ": {
+    "ethereum": {
+      "address": "0x3506424f91fd33084466f402d5d97f05f8e3b4af",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xb0c69e24450e29afa8008962052007e08b2396b0",
+      "decimals": 18
+    }
+  },
+  "CLV": {
+    "ethereum": {
+      "address": "0x80c62fe4487e1351b47ba49809ebd60ed085bf52",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x09e889bb4d5b474f561db0491c38702f367a4e4d",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xd7212097f6d6b195a9bc350b8dce28a7fa41404c",
+      "decimals": 18
+    }
+  },
+  "COMP": {
+    "ethereum": {
+      "address": "0xc00e94cb662c3520282e6f5717214004a7f26888",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x52ce071bd9b1c4b00a0b92d298c512478cad67e8",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xdf78e4f0a8279942ca68046476919a90f2288656",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x9e1028f5f1d5ede59748ffcee5532509976840e0",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x354a6da3fcde098f8389cad84b0182725c6c91de",
+      "decimals": 18
+    }
+  },
+  "COOK": {
+    "ethereum": {
+      "address": "0x9f0c013016e8656bc256f948cd4b79ab25c7b94d",
+      "decimals": 18
+    }
+  },
+  "CORN": {
+    "ethereum": {
+      "address": "0x44f49ff0da2498bcb1d3dc7c0f999578f67fd8c6",
+      "decimals": 18
+    }
+  },
+  "COTI": {
+    "ethereum": {
+      "address": "0xddb3422497e61e13543bea06989c0789117555c5",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xc63612b3e697aeec61c3ce9baec0f9db32f499c3",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x6fe14d3cc2f7bddffba5cdb3bbe7467dd81ea101",
+      "decimals": 18
+    }
+  },
+  "COVAL": {
+    "ethereum": {
+      "address": "0x3d658390460295fb963f54dc0899cfb1c30776df",
+      "decimals": 8
+    },
+    "bsc": {
+      "address": "0xd15cee1deafbad6c0b3fd7489677cc102b141464",
+      "decimals": 8
+    },
+    "unichain": {
+      "address": "0x2562dc34c21371613cef236b321ee63fcc295bec",
+      "decimals": 8
+    }
+  },
+  "COW": {
+    "ethereum": {
+      "address": "0xdef1ca1fb7fbcdc777520aa7f396b4e015f497ab",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xc3a97c76aa194711e05ff1d181534090b26d3996",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xcb8b5cd20bdcaea9a010ac1f8d835824f5c87a04",
+      "decimals": 18
+    }
+  },
+  "CPOOL": {
+    "ethereum": {
+      "address": "0x66761fa41377003622aee3c7675fc7b5c1c2fac5",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xf8e7b485ce10d3c7ac30b8444b98a0cc423dfb57",
+      "decimals": 18
+    }
+  },
+  "CQT": {
+    "ethereum": {
+      "address": "0xd417144312dbf50465b1c641d016962017ef6240",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x6c28eeb9e018011d3841f42c5b458713621f90c1",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x69b937db799a9becc9e8a6f0a5d36ea3657273bf",
+      "decimals": 18
+    }
+  },
+  "CRO": {
+    "ethereum": {
+      "address": "0xa0b73e1ff0b80914ab6fe0444e65848c4c34450b",
+      "decimals": 8
+    },
+    "unichain": {
+      "address": "0x73c63a80ec77bfe31eec6663828c4beaa30de818",
+      "decimals": 8
+    },
+    "arbitrum": {
+      "address": "0x8ea3156f834a0dfc78f1a5304fac2cda676f354c",
+      "decimals": 8
+    }
+  },
+  "CRPT": {
+    "ethereum": {
+      "address": "0x08389495d7456e1951ddf7c3a1314a4bfb646d8b",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x7e7784f13029c7c4bf4746112b1a503818b0d066",
+      "decimals": 18
+    }
+  },
+  "CRV": {
+    "ethereum": {
+      "address": "0xd533a949740bb3306d119cc777fa900ba034cd52",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x0994206dfe8de6ec6920ff4d779b0d950605fb53",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xac73671a1762fe835208fb93b7ae7490d1c2ccb3",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x11cdb42b0eb46d95f990bedd4695a6e3fa034978",
+      "decimals": 18
+    }
+  },
+  "CTC": {
+    "ethereum": {
+      "address": "0xa3ee21c306a700e682abcdfe9baa6a08f3820419",
+      "decimals": 18
+    }
+  },
+  "CTSI": {
+    "ethereum": {
+      "address": "0x491604c0fdf08347dd1fa4ee062a822a5dd06b5d",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0xec6adef5e1006bb305bb1975333e8fc4071295bf",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x8da443f84fea710266c8eb6bc34b71702d033ef2",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xa7073f530856cd32c2037150dd9763b9baaed2c5",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x319f865b287fcc10b30d8ce6144e8b6d1b476999",
+      "decimals": 18
+    }
+  },
+  "CTX": {
+    "ethereum": {
+      "address": "0x321c2fe4446c7c963dc41dd58879af648838f98d",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x36fa435f6def83cbb7a0706d035c9ea062fcb619",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x84f5c2cfba754e76dd5ae4fb369cfc920425e12b",
+      "decimals": 18
+    }
+  },
+  "CUBE": {
+    "ethereum": {
+      "address": "0xdf801468a808a32656d2ed2d2d80b72a129739f4",
+      "decimals": 8
+    },
+    "unichain": {
+      "address": "0xe60e9b2e68297d5df6b383fee787b7fb92c2f8af",
+      "decimals": 8
+    }
+  },
+  "CVC": {
+    "ethereum": {
+      "address": "0x41e5560054824ea6b0732e656e3ad64e20e94e45",
+      "decimals": 8
+    },
+    "unichain": {
+      "address": "0x35c458ad1e3e68d2717c8349b985384be85a01ed",
+      "decimals": 8
+    },
+    "arbitrum": {
+      "address": "0x9dffb23cad3322440bccff7ab1c58e781ddbf144",
+      "decimals": 8
+    }
+  },
+  "CVX": {
+    "ethereum": {
+      "address": "0x4e3fbd56cd56c3e72c1403e103b45db9da5b9d2b",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x1c6789f30e7e335c2eca2c75ec193adbf0087ea5",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xaafcfd42c9954c6689ef1901e03db742520829c5",
+      "decimals": 18
+    }
+  },
+  "CXT": {
+    "ethereum": {
+      "address": "0x7abc8a5768e6be61a6c693a6e4eacb5b60602c4d",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x8e29e12b46fee20e034fe1e812bc12eff14e5a09",
+      "decimals": 18
+    }
+  },
+  "DAI": {
+    "ethereum": {
+      "address": "0x6b175474e89094c44da98b954eedeac495271d0f",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x20cab320a855b39f724131c69424240519573f81",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x50c5725949a6f0c72e6c4a641f24049a917db0cb",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1",
+      "decimals": 18
+    }
+  },
+  "DAR": {
+    "ethereum": {
+      "address": "0x081131434f93063751813c619ecca9c4dc7862a3",
+      "decimals": 6
+    },
+    "bsc": {
+      "address": "0x23ce9e926048273ef83be0a3a8ba9cb6d45cd978",
+      "decimals": 6
+    },
+    "unichain": {
+      "address": "0x2ef0775a19d1bc2258653fc5529f8f8490288086",
+      "decimals": 6
+    }
+  },
+  "DDX": {
+    "ethereum": {
+      "address": "0x3a880652f47bfaa771908c07dd8673a787daed3a",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x91ed4bb192e3461e45575730508525083a270265",
+      "decimals": 18
+    }
+  },
+  "DENT": {
+    "ethereum": {
+      "address": "0x3597bfd533a99c9aa083587b074434e61eb0a258",
+      "decimals": 8
+    },
+    "unichain": {
+      "address": "0x45a4f750d806498a4c7f7b5267815aac328e874c",
+      "decimals": 8
+    }
+  },
+  "DEXT": {
+    "ethereum": {
+      "address": "0xfb7b4564402e5500db5bb6d63ae671302777c75a",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xe91a8d2c584ca93c7405f15c22cdfe53c29896e3",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x17c38207334011a131b0acf200e35cd81723cddd",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x3be7cb2e9413ef8f42b4a202a0114eb59b64e227",
+      "decimals": 18
+    }
+  },
+  "DIA": {
+    "ethereum": {
+      "address": "0x84ca8bc7997272c7cfb4d0cd3d55cd942b3c9419",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x99956d38059cf7beda96ec91aa7bb2477e0901dd",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x4bdc8553cf14eebcd489cd1d75b7ff463f9543c2",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xca642467c6ebe58c13cb4a7091317f34e17ac05e",
+      "decimals": 18
+    }
+  },
+  "DNT": {
+    "ethereum": {
+      "address": "0x0abdace70d3790235af448c88547603b945604ea",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x0eb07ce7a28ff84df132fb5ee5f56aabc1b9e545",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xe3696a02b2c9557639e29d829e9c45efa49ad47a",
+      "decimals": 18
+    }
+  },
+  "DOLO": {
+    "ethereum": {
+      "address": "0x0f81001ef0a83ecce5ccebf63eb302c70a39a654",
+      "decimals": 18
+    }
+  },
+  "DOS": {
+    "ethereum": {
+      "address": "0x951f086a127e280724fd93ccc543f65065afeb5e",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xb0f09ea9ae0515c3551080d4a745c8115aa30e37",
+      "decimals": 18
+    }
+  },
+  "DOVU": {
+    "ethereum": {
+      "address": "0x2aeabde1ab736c59e9a19bed67681869eef39526",
+      "decimals": 8
+    },
+    "base": {
+      "address": "0xb38266e0e9d9681b77aeb0a280e98131b953f865",
+      "decimals": 8
+    }
+  },
+  "DPI": {
+    "ethereum": {
+      "address": "0x1494ca1f11d487c2bbe4543e90080aeba4ba3c2b",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xe274f564c37ae15fd2570d544102ed4acd2f84f1",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x4667cf53c4edf659e402b733bea42b18b68dd74c",
+      "decimals": 18
+    }
+  },
+  "DREP": {
+    "ethereum": {
+      "address": "0x3ab6ed69ef663bd986ee59205ccad8a20f98b4c2",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xec583f25a049cc145da9a256cdbe9b6201a705ff",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x56af109d597eb0a0f79ebcd0786dd88c38ea9ee7",
+      "decimals": 18
+    }
+  },
+  "DRV": {
+    "ethereum": {
+      "address": "0xb1d1eae60eea9525032a6dcb4c1ce336a1de71be",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x33800de7e817a70a694f31476313a7c572bba100",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x9d0e8f5b25384c7310cb8c6ae32c8fbeb645d083",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x77b7787a09818502305c95d68a2571f090abb135",
+      "decimals": 18
+    }
+  },
+  "DUAL": {
+    "ethereum": {
+      "address": "0x6af487beb661ccecd1d045e9561a0dac9aa5c7db",
+      "decimals": 18
+    }
+  },
+  "DYDX": {
+    "ethereum": {
+      "address": "0x92d6c1e31e14520e676a687f0a93788b716beff5",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x601b11907eaa8d3785c0b10b41c3a7315faeb82c",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x51863cb90ce5d6da9663106f292fa27c8cc90c5a",
+      "decimals": 18
+    }
+  },
+  "DYP": {
+    "ethereum": {
+      "address": "0x961c8c0b1aad0c0b10a51fef6a867e3091bcef17",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x961c8c0b1aad0c0b10a51fef6a867e3091bcef17",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xbdad8e37a9600f0a35976fe61608a4c89d598610",
+      "decimals": 18
+    }
+  },
+  "EDGEX": {
+    "ethereum": {
+      "address": "0xb0076de78dc50581770bba1d211ddc0ad4f2a241",
+      "decimals": 18
+    }
+  },
+  "EIGEN": {
+    "ethereum": {
+      "address": "0xec53bf9167f50cdeb3ae105f56099aaab9061f83",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xc89ab9b82610bb9b748f6757b8f3ac59d016c47d",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x606c3e5075e5555e79aa15f1e9facb776f96c248",
+      "decimals": 18
+    }
+  },
+  "ELA": {
+    "ethereum": {
+      "address": "0xe6fd75ff38adca4b97fbcd938c86b98772431867",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x24abc32215354ba3ed224bfa6312e31dd8e8c1ab",
+      "decimals": 18
+    }
+  },
+  "ELON": {
+    "ethereum": {
+      "address": "0x761d38e5ddf6ccf6cf7c55759d5210750b5d60f3",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x7bd6fabd64813c48545c9c0e312a0099d9be2540",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x91441fe1415b00bea8930a4354fe00c426c1de05",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x3e4cff6e50f37f731284a92d44ae943e17077fd4",
+      "decimals": 18
+    }
+  },
+  "ENA": {
+    "ethereum": {
+      "address": "0x57e114b691db790c35207b2e685d4a43181e6061",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x9116e70d613860d349495d9ef8e2ae1ca6cbd2dd",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xdf8f0c63d9335a0abd89f9f752d293a98ea977d8",
+      "decimals": 18
+    }
+  },
+  "ENJ": {
+    "ethereum": {
+      "address": "0xf629cbd94d3791c9250152bd8dfbdf380e2a3b9c",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x9a0d1b7594caaf0a9e4687cac9ff4e0b84a6d0a6",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x7fa9549791efc9030e1ed3f25d18014163806758",
+      "decimals": 18
+    }
+  },
+  "ENS": {
+    "ethereum": {
+      "address": "0xc18360217d8f7ab5e7c516566761ea12ce7f9d72",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x65559aa14915a70190438ef90104769e5e890a00",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x80756faf1e7fec5678bf505670ef176ab5f0383a",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xfea31d704deb0975da8e77bf13e04239e70d7c28",
+      "decimals": 18
+    }
+  },
+  "ERA": {
+    "ethereum": {
+      "address": "0xe2ad0bf751834f2fbdc62a41014f84d67ca1de2a",
+      "decimals": 18
+    }
+  },
+  "ERN": {
+    "ethereum": {
+      "address": "0xbbc2ae13b23d715c30720f079fcd9b4a74093505",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x5e5903c236e6873eb8400c3d1979271fa93cdb03",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x2354c8e9ea898c751f1a15addeb048714d667f96",
+      "decimals": 18
+    }
+  },
+  "ES": {
+    "ethereum": {
+      "address": "0x6055dc6ff1077eebe5e6d2ba1a1f53d7ef8430de",
+      "decimals": 6
+    }
+  },
+  "ESP": {
+    "ethereum": {
+      "address": "0x031de51f3e8016514bd0963d0b2ab825a591db9a",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x3b8db18e69d6686ad9371a423afe3dd1065c94f1",
+      "decimals": 18
+    }
+  },
+  "ETHFI": {
+    "ethereum": {
+      "address": "0xfe0c30065b384f05761f15d0cc899d4f9f9cc0eb",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xf8740269f121327d03ff77bed03a9a3258880821",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x07d65c18cecba423298c0aeb5d2beded4dfd5736",
+      "decimals": 18
+    }
+  },
+  "EUL": {
+    "ethereum": {
+      "address": "0xd9fcd98c322942075a5c3860693e9f4f03aae07b",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x6319f47719b6713b1624c1b3a8e2dbf15b5d03fe",
+      "decimals": 18
+    }
+  },
+  "EURC": {
+    "ethereum": {
+      "address": "0x1abaea1f7c830bd89acc67ec4af516284b1bc33c",
+      "decimals": 6
+    },
+    "unichain": {
+      "address": "0x72f34bc403a005a9be390762eaa46ed42813b0a8",
+      "decimals": 6
+    },
+    "base": {
+      "address": "0x60a3e35cc302bfa44cb288bc5a4f316fdb1adb42",
+      "decimals": 6
+    },
+    "arbitrum": {
+      "address": "0x863708032b5c328e11abcbc0df9d79c71fc52a48",
+      "decimals": 6
+    }
+  },
+  "EUROP": {
+    "ethereum": {
+      "address": "0x888883b5f5d21fb10dfeb70e8f9722b9fb0e5e51",
+      "decimals": 6
+    }
+  },
+  "EURQ": {
+    "ethereum": {
+      "address": "0x8df723295214ea6f21026eeeb4382d475f146f9f",
+      "decimals": 6
+    },
+    "unichain": {
+      "address": "0xec42461d9bbdf4efb6481099253bbb7324d7d72d",
+      "decimals": 6
+    }
+  },
+  "EURR": {
+    "ethereum": {
+      "address": "0x50753cfaf86c094925bf976f218d043f8791e408",
+      "decimals": 6
+    },
+    "unichain": {
+      "address": "0x7a1ef7fd6e0d708295d8fd0c30fd437d9c36fb5f",
+      "decimals": 6
+    }
+  },
+  "EV": {
+    "ethereum": {
+      "address": "0xe7e7e741c23a4767831a56a8c99f522c5ac1e7e7",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x37058c4b45fdfc8953fb453da4d6d83670ecdf9d",
+      "decimals": 18
+    }
+  },
+  "FARM": {
+    "ethereum": {
+      "address": "0xa0246c9032bc3a600820415ae600c6388619a14d",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x4b5c23cac08a567ecf0c1ffca8372a45a5d33743",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x472e8be16cc9823b9f6a73a34ea55c0c31ee825f",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x8553d254cb6934b16f87d2e486b64bbd24c83c70",
+      "decimals": 18
+    }
+  },
+  "FET": {
+    "ethereum": {
+      "address": "0xaea46a60368a7bd060eec7df8cba43b7ef41ad85",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x031b41e504677879370e9dbcf937283a8691fa7f",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x45343279defdad803d81c06fbcf87936ddd7dfe7",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x4be87c766a7ce11d5cc864b6c3abb7457dcc4cc9",
+      "decimals": 18
+    }
+  },
+  "FIDD": {
+    "ethereum": {
+      "address": "0x7c135549504245b5eae64fc0e99fa5ebabb8e35d",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x2d0012e68c4778e29b1e2f5e8f0453f8c36b666a",
+      "decimals": 18
+    }
+  },
+  "FIS": {
+    "ethereum": {
+      "address": "0xef3a930e1ffffacd2fc13434ac81bd278b0ecc8d",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0xd8737ca46aa6285de7b8777a8e3db232911bad41",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xec9be303f204864145ccc193aeb21b5fa10764a6",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x849b40ab2469309117ed1038c5a99894767c7282",
+      "decimals": 18
+    }
+  },
+  "FLOKI": {
+    "ethereum": {
+      "address": "0xcf0c122c6b73ff809c693db761e7baebe62b6a2e",
+      "decimals": 9
+    },
+    "bsc": {
+      "address": "0xfb5b838b6cfeedc2873ab27866079ac55363d37e",
+      "decimals": 9
+    },
+    "unichain": {
+      "address": "0x1b3ec249dc44a64bf5cb8afdd70e30c26c51fa81",
+      "decimals": 9
+    },
+    "arbitrum": {
+      "address": "0xa8c25fdc09763a176353cc6a76882e05b4905fae",
+      "decimals": 9
+    }
+  },
+  "FLUX": {
+    "ethereum": {
+      "address": "0x720cd16b011b987da3518fbf38c3071d4f0d1495",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0xb008bdcf9cdff9da684a190941dc3dca8c2cdd44",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x63806c056fa458c548fb416b15e358a9d685710a",
+      "decimals": 18
+    }
+  },
+  "FOLD": {
+    "ethereum": {
+      "address": "0xe172e9b6cfbeeb5593bdce3f077356fdb33af904",
+      "decimals": 18
+    }
+  },
+  "FORT": {
+    "ethereum": {
+      "address": "0x41545f8b9472d758bb669ed8eaeeecd7a9c4ec29",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xb20fd6fd28e1430f98a8c1e9a83c88e5d87d94e5",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x7588310a7abf34dc608ac98a1c4432f85e194df5",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x3a1429d50e0cbbc45c997af600541fe1cc3d2923",
+      "decimals": 18
+    }
+  },
+  "FORTH": {
+    "ethereum": {
+      "address": "0x77fba179c79de5b7653f68b5039af940ada60ce0",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xfa004fa2ad8ef993c2b0412bab776b182220f12e",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x968b2323d4b005c7d39c67d31774fe83c9943a60",
+      "decimals": 18
+    }
+  },
+  "FOX": {
+    "ethereum": {
+      "address": "0xc770eefad204b5180df6a14ee197d99d808ee52d",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0xf1a0da3367bc7aa04f8d94ba57b862ff37ced174",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xe0bb1924c17b39b71758f49a00d7c0363b7a318e",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x2dbe0d779c7a04f7a5de83326973effe23356930",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xf929de51d91c77e42f5090069e0ad7a09e513c73",
+      "decimals": 18
+    }
+  },
+  "FRAX": {
+    "ethereum": {
+      "address": "0x853d955acef822db058eb8505911ed77f175b99e",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x2e3d870790dc77a83dd1d18184acc7439a53f475",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x90c97f71e18723b0cf0dfa30ee176ab653e89f40",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x8c7879bf25d678d9949f305857bd4437d74132b9",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x7468a5d8e02245b00e8c0217fce021c70bc51305",
+      "decimals": 18
+    }
+  },
+  "FTM": {
+    "ethereum": {
+      "address": "0x4e15361fd6b4bb609fa63c81a2be19d873717870",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xad29abb318791d579433d831ed122afeaf29dcfe",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xe99235a02958637a5e01575297fbba3790dc7f0e",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xd42785d323e608b9e99fa542bd8b1000d4c2df37",
+      "decimals": 18
+    }
+  },
+  "FX": {
+    "ethereum": {
+      "address": "0x8c15ef5b4b21951d50e53e4fbda8298ffad25057",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x6f32725f82bbb06ffdc04974db437fec1d7af1af",
+      "decimals": 18
+    }
+  },
+  "FXS": {
+    "ethereum": {
+      "address": "0x3432b6a60d23ca0dfca7761b7ab56459d9c964d0",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x67ccea5bb16181e7b4109c9c2143c24a1c2205be",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xe48a3d7d0bc88d552f730b62c006bc925eadb9ee",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x79301df2117c7f56859fd01b28bbaa61062021d6",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xd9f9d2ee2d3efe420699079f16d9e924afffdea4",
+      "decimals": 18
+    }
+  },
+  "G": {
+    "ethereum": {
+      "address": "0x9c7beba8f6ef6643abd725e45a4e8387ef260649",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x481cb2c560fc3351833b582b92b965626fd8803c",
+      "decimals": 18
+    }
+  },
+  "GAL": {
+    "ethereum": {
+      "address": "0x5faa989af96af85384b8a938c2ede4a7378d9875",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xe4cc45bb5dbda06db6183e8bf016569f40497aa5",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x70b2b785061d4c91c76cf87692f85b5c443d8675",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xc27e7325a6bea1fcc06de7941473f5279bfd1182",
+      "decimals": 18
+    }
+  },
+  "GALA": {
+    "ethereum": {
+      "address": "0xd1d2eb1b1e90b638588728b4130137d262c87cae",
+      "decimals": 8
+    },
+    "unichain": {
+      "address": "0x31a71801291774d267615f74b3a44fceb560fac9",
+      "decimals": 8
+    },
+    "arbitrum": {
+      "address": "0x2a676eead159c4c8e8593471c6d666f02827ff8c",
+      "decimals": 8
+    }
+  },
+  "GFI": {
+    "ethereum": {
+      "address": "0xdab396ccf3d84cf2d07c4454e10c8a6f5b008d2b",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x0328a0255866706547b79072dee54976b157d3d0",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0xb78e7d4c5d47af92942321ed40419dab0e573810",
+      "decimals": 18
+    }
+  },
+  "GHST": {
+    "ethereum": {
+      "address": "0x3f382dbd960e3a9bbceae22651e88158d2791550",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x4ae5712a153fdfde81c305ff7f2e4e59840ad24b",
+      "decimals": 18
+    }
+  },
+  "GLM": {
+    "ethereum": {
+      "address": "0x7dd9c5cba05e151c895fde1cf355c9a1d5da6429",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x04b747f478ae09ac797d026c8402f409e2c9f2b9",
+      "decimals": 18
+    }
+  },
+  "GNO": {
+    "ethereum": {
+      "address": "0x6810e776880c02933d47db1b9fc05908e5386b96",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xc4c6c3a3043ad5ece5c91290630a7735e125a938",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xa0b862f60edef4452f25b4160f177db44deb6cf1",
+      "decimals": 18
+    }
+  },
+  "GODS": {
+    "ethereum": {
+      "address": "0xccc8cb5229b0ac8069c51fd58367fd1e622afd97",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x6e74ea6546e1f21abf581b59114f2bf5d3683f48",
+      "decimals": 18
+    }
+  },
+  "GROVE": {
+    "ethereum": {
+      "address": "0xb30fe1cf884b48a22a50d22a9282004f2c5e9406",
+      "decimals": 18
+    }
+  },
+  "GRT": {
+    "ethereum": {
+      "address": "0xc944e90c64b2c07662a292be6244bdf05cda44a7",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xbb2272ffc0ef8f439373adffd45c3591b3204d71",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x9623063377ad1b27544c965ccd7342f7ea7e88c7",
+      "decimals": 18
+    }
+  },
+  "GRVT": {
+    "ethereum": {
+      "address": "0xad29f2723fcdbcf665f210f25e06f97477e417cf",
+      "decimals": 18
+    }
+  },
+  "GTC": {
+    "ethereum": {
+      "address": "0xde30da39c46104798bb5aa3fe8b9e0e1f348163f",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x1eba7a6a72c894026cd654ac5cdcf83a46445b08",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x592620d454a10c47274dbfe3bd922b9a8fe5cf48",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x7f9a7db853ca816b9a138aee3380ef34c437dee0",
+      "decimals": 18
+    }
+  },
+  "GUSD": {
+    "ethereum": {
+      "address": "0x056fd409e1d7a124bd7017459dfea2f387b6d5cd",
+      "decimals": 2
+    },
+    "unichain": {
+      "address": "0xeba12ec786cdc21b4bd5ba601b595b6a5c0920a9",
+      "decimals": 2
+    }
+  },
+  "GWEI": {
+    "ethereum": {
+      "address": "0x2798b1cc5a993085e8a9d46e80499f1b63f42204",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x30117e4bc17d7b044194b76a38365c53b72f7d49",
+      "decimals": 18
+    }
+  },
+  "GYEN": {
+    "ethereum": {
+      "address": "0xc08512927d12348f6620a698105e1baac6ecd911",
+      "decimals": 6
+    },
+    "optimism": {
+      "address": "0x589d35656641d6ab57a545f08cf473ecd9b6d5f7",
+      "decimals": 6
+    },
+    "unichain": {
+      "address": "0xad173f5b5fe39dd1183a0d3c49c57629a574c36f",
+      "decimals": 6
+    },
+    "arbitrum": {
+      "address": "0x589d35656641d6ab57a545f08cf473ecd9b6d5f7",
+      "decimals": 6
+    }
+  },
+  "HFT": {
+    "ethereum": {
+      "address": "0xb3999f658c0391d94a37f7ff328f3fec942bcadc",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x44ec807ce2f4a6f2737a92e985f318d035883e47",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x656104f2028bbfd7144c8f71fa15daaa8c34a28b",
+      "decimals": 18
+    }
+  },
+  "HIGH": {
+    "ethereum": {
+      "address": "0x71ab77b7dbb4fa7e017bc15090b2163221420282",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x5f4bde007dc06b867f86ebfe4802e34a1ffeed63",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x99f64c3db98a4870eff637315d5c86dcb1374879",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xd12eeb0142d4efe7af82e4f29e5af382615bceea",
+      "decimals": 18
+    }
+  },
+  "HOPR": {
+    "ethereum": {
+      "address": "0xf5581dfefd8fb0e4aec526be659cfab1f8c781da",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xc32c0c5a52f36d244c552e45c485cbceaf385b36",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x177f394a3ed18faa85c1462ae626438a70294ef7",
+      "decimals": 18
+    }
+  },
+  "IDEX": {
+    "ethereum": {
+      "address": "0xb705268213d593b8fd88d3fdeff93aff5cbdcfae",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x4ea052bcaee7d7ef2e3d61d601e878a560eabe8e",
+      "decimals": 18
+    }
+  },
+  "ILV": {
+    "ethereum": {
+      "address": "0x767fe9edc9e0df98e07454847909b5e959d7ca0e",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xa76195fa77304bba4cd8946198f5a90e42f3e51f",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x61ca9d186f6b9a793bc08f6c79fd35f205488673",
+      "decimals": 18
+    }
+  },
+  "IMU": {
+    "ethereum": {
+      "address": "0xb48c6b24f36307c7a1f2a9281e978a9ef2902ba5",
+      "decimals": 18
+    }
+  },
+  "IMX": {
+    "ethereum": {
+      "address": "0xf57e7e7c23978c3caec3c3548e3d615c346e79ff",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xc4fc8cf76883094404ddb875d2af15d1f5aa8053",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x3cfd99593a7f035f717142095a3898e3fca7783e",
+      "decimals": 18
+    }
+  },
+  "INDEX": {
+    "ethereum": {
+      "address": "0x0954906da0bf32d5479e25f46056d22f08464cab",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xa5afe7646f07d2c41aa82bb6ae09e99e121e39b7",
+      "decimals": 18
+    }
+  },
+  "INJ": {
+    "ethereum": {
+      "address": "0xe28b3b32b6c345a34ff64674606124dd5aceca30",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xa2b726b1145a4773f68593cf171187d8ebe4d495",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x9361ca28625e12c7f088523b274a25059a89f9f8",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x2a2053cb633cad465b4a8975ed3d7f09df608f80",
+      "decimals": 18
+    }
+  },
+  "INV": {
+    "ethereum": {
+      "address": "0x41d5d79431a913c4ae7d69a668ecdfe5ff9dfb68",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xd326acab8799fb44c3a5b7f7efbaab5f9f7b54fb",
+      "decimals": 18
+    }
+  },
+  "INX": {
+    "ethereum": {
+      "address": "0xdef1b2d939edc0e4d35806c59b3166f790175afe",
+      "decimals": 18
+    }
+  },
+  "IOTX": {
+    "ethereum": {
+      "address": "0x6fb3e0a217407efff7ca062d46c26e5d60a14d69",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xd749094bc62615f0c8645467e241b71ae2b6843f",
+      "decimals": 18
+    }
+  },
+  "IRYS": {
+    "ethereum": {
+      "address": "0x50f41f589afaca2ef41fdf590fe7b90cd26dee64",
+      "decimals": 18
+    }
+  },
+  "JAM": {
+    "ethereum": {
+      "address": "0x23894dc9da6c94ecb439911caf7d337746575a72",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x428c2b7fa7a7821891fb529bae4d80a71d5c61a8",
+      "decimals": 18
+    }
+  },
+  "JASMY": {
+    "ethereum": {
+      "address": "0x7420b4b9a0110cdc71fb720908340c03f9bc03ec",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x8ef0686f380dd07f3e2121831839371922720708",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x25f05699548d3a0820b99f93c10c8bb573e27083",
+      "decimals": 18
+    }
+  },
+  "JUP": {
+    "ethereum": {
+      "address": "0x4b1e80cac91e2216eeb63e29b957eb91ae9c2be8",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x0231f91e02debd20345ae8ab7d71a41f8e140ce7",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x781cc305fcbfe7cde376c9ef5469d5a7e5cab8b2",
+      "decimals": 18
+    }
+  },
+  "K": {
+    "ethereum": {
+      "address": "0xfb072b42907da2bf7a8e8cb5dcaa790d45fd81a8",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x0a73d885cdd66adf69c6d64c0609e55c527db2be",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x010700ab046dd8e92b0e3587842080df36364ed3",
+      "decimals": 18
+    }
+  },
+  "KAIO": {
+    "ethereum": {
+      "address": "0x00bac91fd8f5b4a0dc03c8021139b76f6549ee7e",
+      "decimals": 18
+    }
+  },
+  "KEEP": {
+    "ethereum": {
+      "address": "0x85eee30c52b0b379b046fb0f85f4f3dc3009afec",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x05dbd720fc26f732c8d42ea89bd7f442ea6afe80",
+      "decimals": 18
+    }
+  },
+  "KERNEL": {
+    "ethereum": {
+      "address": "0x3f80b1c54ae920be41a77f8b902259d48cf24ccf",
+      "decimals": 18
+    }
+  },
+  "KEY": {
+    "ethereum": {
+      "address": "0x4cc19356f2d37338b9802aa8e8fc58b0373296e7",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x68cea24f675e4f25584607f6c9fefb353f1bbfdc",
+      "decimals": 18
+    }
+  },
+  "KII": {
+    "ethereum": {
+      "address": "0xeec6574eabba52bac3f0277f2cd5ac7e67197886",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xeec6574eabba52bac3f0277f2cd5ac7e67197886",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x3eba6644819546c44eb3e7c3a92f034f921dca80",
+      "decimals": 18
+    }
+  },
+  "KITE": {
+    "ethereum": {
+      "address": "0x904567252d8f48555b7447c67dca23f0372e16be",
+      "decimals": 18
+    }
+  },
+  "KNC": {
+    "ethereum": {
+      "address": "0xdd974d5c2e2928dea5f71b9825b8b646686bd200",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xb0e4ad2dfe3754e4a2443a7a828eda5bb7cd2284",
+      "decimals": 18
+    }
+  },
+  "KP3R": {
+    "ethereum": {
+      "address": "0x1ceb5cb57c4d4e2b2433641b95dd330a33185a44",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x9c41547e404942c173e28bb2b6abe4cf5fad6a74",
+      "decimals": 18
+    }
+  },
+  "KRL": {
+    "ethereum": {
+      "address": "0x464ebe77c293e473b48cfe96ddcf88fcf7bfdac0",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x2ed6222cb75e353b8789bec7bb443b7ec9022021",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x14cffad448aeb0876c56b7aa28999c9a4f002943",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xf75ee6d319741057a82a88eeff1dbafab7307b69",
+      "decimals": 18
+    }
+  },
+  "KUJI": {
+    "ethereum": {
+      "address": "0x96543ef8d2c75c26387c1a319ae69c0bee6f3fe7",
+      "decimals": 6
+    },
+    "optimism": {
+      "address": "0x3a18dcc9745edcd1ef33ecb93b0b6eba5671e7ca",
+      "decimals": 6
+    },
+    "bsc": {
+      "address": "0x073690e6ce25be816e68f32dca3e11067c9fb5cc",
+      "decimals": 6
+    },
+    "unichain": {
+      "address": "0x2206cdcc9b94ff7db7a9eabec77b5ce430258681",
+      "decimals": 6
+    },
+    "arbitrum": {
+      "address": "0x3a18dcc9745edcd1ef33ecb93b0b6eba5671e7ca",
+      "decimals": 6
+    }
+  },
+  "L3": {
+    "ethereum": {
+      "address": "0x88909d489678dd17aa6d9609f89b0419bf78fd9a",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x1201209f55634bddb67034efe4e8aa4d1b7b482c",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xf03a553fbcb2f52daae15170347830e5d3d16096",
+      "decimals": 18
+    }
+  },
+  "LA": {
+    "ethereum": {
+      "address": "0x0fc2a55d5bd13033f1ee0cdd11f60f7efe66f467",
+      "decimals": 18
+    }
+  },
+  "LCX": {
+    "ethereum": {
+      "address": "0x037a54aab062628c9bbae1fdb1583c195585fe41",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xb34b3de63d22ffc90419c1a439de6c7d46687782",
+      "decimals": 18
+    }
+  },
+  "LDO": {
+    "ethereum": {
+      "address": "0x5a98fcbea516cf06857215779fd812ca3bef1b32",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0xfdb794692724153d1488ccdbe0c56c252596735f",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x68a6dbc7214a0f2b0d875963663f1613814e8829",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x13ad51ed4f1b7e9dc168d8a00cb3f4ddd85efa60",
+      "decimals": 18
+    }
+  },
+  "LINEA": {
+    "ethereum": {
+      "address": "0x1789e0043623282d5dcc7f213d703c6d8bafbb04",
+      "decimals": 18
+    }
+  },
+  "LINK": {
+    "ethereum": {
+      "address": "0x514910771af9ca656af840dff83e8264ecf986ca",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x350a791bfc2c21f9ed5d10980dad2e2638ffa7f6",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xf8a0bf9cf54bb92f17374d9e9a321e6a111a51bd",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x5a53b6d19d8edcb7923f0d840eebb3f09bbeefb7",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xf97f4df75117a78c1a5a0dbb814af92458539fb4",
+      "decimals": 18
+    }
+  },
+  "LIT": {
+    "ethereum": {
+      "address": "0xb59490ab09a0f526cc7305822ac65f2ab12f9723",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x68648f52b85407806bc1d349b745d13c91be0fdf",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x349fc93da004a63f3b1343361465981330a40b25",
+      "decimals": 18
+    }
+  },
+  "LOKA": {
+    "ethereum": {
+      "address": "0x61e90a50137e1f645c9ef4a0d3a4f01477738406",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x1d1bfcfc6ae6fe045f151c7e589fb241aac89733",
+      "decimals": 18
+    }
+  },
+  "LOOM": {
+    "ethereum": {
+      "address": "0xa4e8c3ec456107ea67d3075bf9e3df3a75823db0",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xc68992e0514968bfba3dad201fef91f6009f523c",
+      "decimals": 18
+    }
+  },
+  "LPT": {
+    "ethereum": {
+      "address": "0x58b6a8a3302369daec383334672404ee733ab239",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x11c6b34cadc550b65a9666497d7fcb39f35b73e3",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x289ba1701c2f088cf0faf8b3705246331cb8a839",
+      "decimals": 18
+    }
+  },
+  "LQTY": {
+    "ethereum": {
+      "address": "0x6dea81c8171d0ba574754ef6f8b412f2ed88c54d",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x0176b38b7767451b1b682236ece2fae853c71a60",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xfb9e5d956d889d91a82737b9bfcdac1dce3e1449",
+      "decimals": 18
+    }
+  },
+  "LRC": {
+    "ethereum": {
+      "address": "0xbbbbca6a901c926f240b89eacb641d8aec7aeafd",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0xfeaa9194f9f8c1b65429e31341a103071464907e",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xa2af802b95d7e20167e5aeac7fe8fdf4a8ab158a",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x46d0ce7de6247b0a95f67b43b589b4041bae7fbe",
+      "decimals": 18
+    }
+  },
+  "LRDS": {
+    "ethereum": {
+      "address": "0xd0a6053f087e87a25dc60701ba6e663b1a548e85",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xd7eb7348ba44c5a2f9f1d1d3534623230c7bee3f",
+      "decimals": 18
+    }
+  },
+  "LSETH": {
+    "ethereum": {
+      "address": "0x8c1bed5b9a0928467c9b1341da1d7bd5e10b6549",
+      "decimals": 18
+    }
+  },
+  "LSK": {
+    "ethereum": {
+      "address": "0x6033f7f88332b8db6ad452b7c6d5bb643990ae3f",
+      "decimals": 18
+    }
+  },
+  "LUSD": {
+    "ethereum": {
+      "address": "0x5f98805a4e8be255a32880fdec7f6728c6568ba0",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0xc40f949f8a4e094d1b49a23ea9241d289b7b2819",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xf81b7485b4cb59645f74528d702c7f8cd72577fb",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x93b346b6bc2548da6a1e7d98e9a421b42541425b",
+      "decimals": 18
+    }
+  },
+  "MANA": {
+    "ethereum": {
+      "address": "0x0f5d2fb29fb7d3cfee444a200298f468908cc942",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x276361c863903751771e9daba6ddfaaf00fe358b",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x442d24578a564ef628a65e6a7e3e7be2a165e231",
+      "decimals": 18
+    }
+  },
+  "MASK": {
+    "ethereum": {
+      "address": "0x69af81e73a73b40adf4f3d4223cd9b1ece623074",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x3390108e913824b8ead638444cc52b9abdf63798",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x2ed9a5c8c13b93955103b9a7c167b67ef4d568a3",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xc42b642f5010a2a3bd3ca2396fe6f2e21b9512c4",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x533a7b414cd1236815a5e09f1e97fc7d5c313739",
+      "decimals": 18
+    }
+  },
+  "MATH": {
+    "ethereum": {
+      "address": "0x08d967bb0134f2d07f7cfb6e246680c53927dd30",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xf218184af829cf2b0019f8e6f0b2423498a36983",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xb999b66186d7a48bf0eb5d22f4e7053a99ed2c97",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x99f40b01ba9c469193b360f72740e416b17ac332",
+      "decimals": 18
+    }
+  },
+  "MATIC": {
+    "ethereum": {
+      "address": "0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xcc42724c6683b7e57334c4e856f4c9965ed682bd",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xf6ac97b05b3bc92f829c7584b25839906507176b",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x561877b6b3dd7651313794e5f2894b2f18be0766",
+      "decimals": 18
+    }
+  },
+  "MC": {
+    "ethereum": {
+      "address": "0x949d48eca67b17269629c7194f4b727d4ef9e5d6",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x949d48eca67b17269629c7194f4b727d4ef9e5d6",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x460ec1c67e1614bf1feab84b98795bae2d657399",
+      "decimals": 18
+    }
+  },
+  "MCO2": {
+    "ethereum": {
+      "address": "0xfc98e825a2264d890f9a1e68ed50e1526abccacd",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x68619bc0c709fb63555fe988ed14e78f7e6acc40",
+      "decimals": 18
+    }
+  },
+  "MDT": {
+    "ethereum": {
+      "address": "0x814e0908b12a99fecf5bc101bb5d0b8b5cdf7d26",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xb29fddc20d5e4bace9f54c1d9237953331bfeff4",
+      "decimals": 18
+    }
+  },
+  "MEME": {
+    "ethereum": {
+      "address": "0xb131f4a55907b10d1f0a50d8ab8fa09ec342cd74",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x397e34aff8bfc8ec14aa78f378074f6d8e3e7d06",
+      "decimals": 18
+    }
+  },
+  "METIS": {
+    "ethereum": {
+      "address": "0x9e32b13ce7f2e80a01932b42553652e053d6ed8e",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xe552fb52a4f19e44ef5a967632dbc320b0820639",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xbfba2a8745e5c85544db7c8824c6962ab3a8f102",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x7f728f3595db17b0b359f4fc47ae80fad2e33769",
+      "decimals": 18
+    }
+  },
+  "MEZO": {
+    "ethereum": {
+      "address": "0x8e4cbbcc33db6c0a18561fde1f6ba35906d4848b",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x8e4cbbcc33db6c0a18561fde1f6ba35906d4848b",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x8e4cbbcc33db6c0a18561fde1f6ba35906d4848b",
+      "decimals": 18
+    }
+  },
+  "MIM": {
+    "ethereum": {
+      "address": "0x99d8a9c45b2eca8864373a26d1459e3dff1e17f3",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xfe19f0b51438fd612f6fd59c1dbb3ea319f433ba",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x397c1f55feff63c8947624b0d457a2ca3e3602ab",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xb20a02dffb172c474bc4bda3fd6f4ee70c04daf2",
+      "decimals": 18
+    }
+  },
+  "MIR": {
+    "ethereum": {
+      "address": "0x09a3ecafa817268f77be1283176b946c4ff2e608",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x5b6dcf557e2abe2323c48445e8cc948910d8c2c9",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x5fe989eab3021d7e742099d05a7937ba4a72d717",
+      "decimals": 18
+    }
+  },
+  "MKR": {
+    "ethereum": {
+      "address": "0x9f8f72aa9304c8b593d555f12ef6589cc3a579a2",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0xab7badef82e9fe11f6f33f87bc9bc2aa27f2fcb5",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x2e9a6df78e42a30712c10a9dc4b1c8656f8f2879",
+      "decimals": 18
+    }
+  },
+  "MLN": {
+    "ethereum": {
+      "address": "0xec67005c4e498ec7f55e092bd1d35cbc47c91892",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xf7a581f6e26eea790225d76af8821ea34dc3c117",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x7c298664bd6582f6f264c2cb5a4b9cc09b6e3889",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x8f5c1a99b1df736ad685006cb6adca7b7ae4b514",
+      "decimals": 18
+    }
+  },
+  "MNT": {
+    "ethereum": {
+      "address": "0x3c3a81e81dc49a522a592e7622a7e711c06bf354",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x9c1a1c7ba9c2602123fd7ef3eb41a769edf6c53a",
+      "decimals": 18
+    }
+  },
+  "MOG": {
+    "ethereum": {
+      "address": "0xaaee1a9723aadb7afa2810263653a34ba2c21c7a",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x58d68e179864605fea06eaadf1185c6e78921ebd",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x2da56acb9ea78330f947bd57c54119debda7af71",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x96c42662820f6ea32f0a61a06a38a72b206aabac",
+      "decimals": 18
+    }
+  },
+  "MONA": {
+    "ethereum": {
+      "address": "0x275f5ad03be0fa221b4c6649b8aee09a42d9412a",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xae6065fb0244a68036c82dec9a8de5501c7a1087",
+      "decimals": 18
+    }
+  },
+  "MORPHO": {
+    "ethereum": {
+      "address": "0x58d97b57bb95320f9a05dc918aef65434969c2b2",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0xbaa5cc21fd487b8fcc2f632f3f4e8d37262a0842",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xe390c0b46bd723995be02640e6f1e1c802f620ac",
+      "decimals": 18
+    }
+  },
+  "MOVE": {
+    "ethereum": {
+      "address": "0x3073f7aaa4db83f95e9fff17424f71d4751a3073",
+      "decimals": 8
+    },
+    "unichain": {
+      "address": "0xaa2109f14bb155766cba9e7fa8b8d4bf0ff19949",
+      "decimals": 8
+    }
+  },
+  "MPL": {
+    "ethereum": {
+      "address": "0x33349b282065b0284d756f0577fb39c158f935e6",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x587e0e022b074015f4e81eca489c0c41d752a219",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x29024832ec3babf5074d4f46102aa988097f0ca0",
+      "decimals": 18
+    }
+  },
+  "MTL": {
+    "ethereum": {
+      "address": "0xf433089366899d83a9f26a773d59ec7ecf30355e",
+      "decimals": 8
+    },
+    "unichain": {
+      "address": "0x71d69d07914d087f1c3536f7a5006a256cfad9ea",
+      "decimals": 8
+    }
+  },
+  "MULTI": {
+    "ethereum": {
+      "address": "0x65ef703f5594d2573eb71aaf55bc0cb548492df4",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x9fb9a33956351cf4fa040f65a13b835a3c8764e3",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x1c3a8fb65ab82d73e26b6403bf505b99d82b4701",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x7b9b94aebe5e2039531af8e31045f377ecd9a39a",
+      "decimals": 18
+    }
+  },
+  "MUSD": {
+    "ethereum": {
+      "address": "0xe2f2a5c287993345a840db3b0845fbc70f5935a5",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x10f109379e231d5c294ee6a5f9abb2f8b40a8dd1",
+      "decimals": 18
+    }
+  },
+  "MUSE": {
+    "ethereum": {
+      "address": "0xb6ca7399b4f9ca56fc27cbff44f4d2e4eef1fc81",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xe3d92fb06a4eebac5879d3c1073e0eab81d5f345",
+      "decimals": 18
+    }
+  },
+  "MV": {
+    "ethereum": {
+      "address": "0xae788f80f2756a86aa2f410c651f2af83639b95b",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xd6ec6a24d5365a1811b05099f8d353c0ff182974",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x5445972e76c5e4cedd12b6e2bcef69133e15992f",
+      "decimals": 18
+    }
+  },
+  "MXC": {
+    "ethereum": {
+      "address": "0x5ca381bbfb58f0092df149bd3d243b08b9a8386e",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xcf7c45ccc1327ac1e9cb9e098898c59402727794",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x91b468fe3dce581d7a6cfe34189f1314b6862ed6",
+      "decimals": 18
+    }
+  },
+  "NATG": {
+    "ethereum": {
+      "address": "0x59c323346f4f62ae18289f346501389392cf5939",
+      "decimals": 18
+    }
+  },
+  "NCT": {
+    "ethereum": {
+      "address": "0x9e46a38f5daabe8683e10793b06749eef7d733d1",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x328ed7736871f863c8216ca6cbb6f29b795032df",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0xe6baa3fedb5dc88b2c59ba4812388bb0906d19db",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x53236015a675fcb937485f1ae58040e4fb920d5b",
+      "decimals": 18
+    }
+  },
+  "NEIRO": {
+    "ethereum": {
+      "address": "0x812ba41e071c7b7fa4ebcfb62df5f45f6fa853ee",
+      "decimals": 9
+    },
+    "unichain": {
+      "address": "0xc1c06527e810c4a198d8c5d35e1ddbc987696276",
+      "decimals": 9
+    }
+  },
+  "NES": {
+    "ethereum": {
+      "address": "0x230f1e241c621d5af670dad83ebcdd18971e2995",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x3131f6b80c26936ab03f7d9d29eb4ddf36ac3fb5",
+      "decimals": 18
+    }
+  },
+  "NEWT": {
+    "ethereum": {
+      "address": "0xd0ec028a3d21533fdd200838f39c85b03679285d",
+      "decimals": 18
+    }
+  },
+  "NEX": {
+    "ethereum": {
+      "address": "0xf57d49646621f563b0b905afc8336923ac569ec5",
+      "decimals": 18
+    }
+  },
+  "NKN": {
+    "ethereum": {
+      "address": "0x5cf04716ba20127f1e2297addcf4b5035000c9eb",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x75b93ced9627cd172912304fb79cd3e7336baf62",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xbe06ca305a5cb49abf6b1840da7c42690406177b",
+      "decimals": 18
+    }
+  },
+  "NMR": {
+    "ethereum": {
+      "address": "0x1776e1f26f98b1a5df9cd347953a26dd3cb46671",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x931e587542b8603ea3c6420dd8d3b22edbda20fc",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x597701b32553b9fa473e21362d480b3a6b569711",
+      "decimals": 18
+    }
+  },
+  "NOM": {
+    "ethereum": {
+      "address": "0x6e6f6d696e61decd6605bd4a57836c5db6923340",
+      "decimals": 18
+    }
+  },
+  "NU": {
+    "ethereum": {
+      "address": "0x4fe83213d56308330ec302a8bd641f1d0113a4cc",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x2aeb5256de25eced47797b82d2f5c404aacea6b9",
+      "decimals": 18
+    },
+    "robinhood": {
+      "address": "0x408c14038a04f7bd235329e26d2bf569ee20e250",
+      "decimals": 18
+    }
+  },
+  "OCEAN": {
+    "ethereum": {
+      "address": "0x967da4048cd07ab37855c090aaf366e4ce1b9f48",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x2561aa2bb1d2eb6629edd7b0938d7679b8b49f9e",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x652293f4e9b0ef61c52a78d6615d9f5f3cd79208",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x933d31561e470478079feb9a6dd2691fad8234df",
+      "decimals": 18
+    }
+  },
+  "OGN": {
+    "ethereum": {
+      "address": "0x8207c1ffc5b6804f6024322ccf34f29c3541ae26",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xa60ce8f7ec6a091535b4708569b39df5ee18c880",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x7002458b1df59eccb57387bc79ffc7c29e22e6f7",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x6feb262feb0f775b5312d2e009923f7f58ae423e",
+      "decimals": 18
+    }
+  },
+  "OKB": {
+    "ethereum": {
+      "address": "0x75231f58b43240c9718dd58b4967c5114342a86c",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xe7bef5cc7750820516162f5f5b520e9aa510a466",
+      "decimals": 18
+    }
+  },
+  "OMG": {
+    "ethereum": {
+      "address": "0xd26114cd6ee289accf82350c8d8487fedb8a0c07",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x5949b9200df1e77878db3d061e43cf878ee37383",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xd962c1895c46ac0378c502c207748b7061421e8e",
+      "decimals": 18
+    }
+  },
+  "OMNI": {
+    "ethereum": {
+      "address": "0x36e66fbbce51e4cd5bd3c62b637eb411b18949d4",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xf5614d20c13d5bf2f9e640f00b7b2b76959eb0e3",
+      "decimals": 18
+    }
+  },
+  "ONDO": {
+    "ethereum": {
+      "address": "0xfaba6f8e4a5e8ab82f62fe7c39859fa577269be3",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xad0bae21db0b471dffc6f8f9eeacfe9a85321557",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xa2d52a05b8bead5d824df54dd1aa63188b37a5e7",
+      "decimals": 18
+    }
+  },
+  "ORCA": {
+    "ethereum": {
+      "address": "0x6f59e0461ae5e2799f1fb3847f05a63b16d0dbf8",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xcf2050ebc80b74370c1c2b71bdb635d11be3e8c0",
+      "decimals": 18
+    }
+  },
+  "ORN": {
+    "ethereum": {
+      "address": "0x0258f474786ddfd37abce6df6bbb1dd5dfc4434a",
+      "decimals": 8
+    },
+    "unichain": {
+      "address": "0x3c5319013fd75976f0f13b0bc0852537b6eaf396",
+      "decimals": 8
+    },
+    "arbitrum": {
+      "address": "0x1bdcc2075d5370293e248cab0173ec3e551e6218",
+      "decimals": 8
+    }
+  },
+  "OXT": {
+    "ethereum": {
+      "address": "0x4575f41308ec1483f3d399aa9a2826d74da13deb",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x9775c2b4f245248de5596252ac69311152b98042",
+      "decimals": 18
+    }
+  },
+  "PAX": {
+    "ethereum": {
+      "address": "0xc1d204d77861def49b6e769347a883b15ec397ff",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x3614c8d98bf905abe075bfa289231bbc0d292327",
+      "decimals": 18
+    }
+  },
+  "PAXG": {
+    "ethereum": {
+      "address": "0x45804880de22913dafe09f4980848ece6ecbaf78",
+      "decimals": 18
+    }
+  },
+  "PDA": {
+    "ethereum": {
+      "address": "0x0d3cbed3f69ee050668adf3d9ea57241cba33a2b",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xec37cdfc9a692b3ccd5c85696d14aaa31e75d6ac",
+      "decimals": 18
+    }
+  },
+  "PENDLE": {
+    "ethereum": {
+      "address": "0x808507121b80c02388fad14726482e061b8da827",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0xbc7b1ff1c6989f006a1185318ed4e7b5796e66e1",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x0c880f6761f1af8d9aa9c466984b80dab9a8c9e8",
+      "decimals": 18
+    }
+  },
+  "PEPE": {
+    "ethereum": {
+      "address": "0x6982508145454ce325ddbe47a25d4ec3d2311933",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0xc1c167cc44f7923cd0062c4370df962f9ddb16f5",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xd9b5da95b3d97c3e9872102fdb47d4c09074952b",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x35e6a59f786d9266c7961ea28c7b768b33959cbb",
+      "decimals": 18
+    }
+  },
+  "PEPECOIN": {
+    "ethereum": {
+      "address": "0xa9e8acf069c58aec8825542845fd754e41a9489a",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x6d78bc9ebc2431861b2928bb2af52bdd10baddd7",
+      "decimals": 18
+    }
+  },
+  "PERP": {
+    "ethereum": {
+      "address": "0xbc396689893d065f41bc2c6ecbee5e0085233447",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x9e1028f5f1d5ede59748ffcee5532509976840e0",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x4e7f408be2d4e9d60f49a64b89bb619c84c7c6f5",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x5944d2728d5fea7d1f4aa4958e3aebb3ccfec7d5",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x753d224bcf9aafacd81558c32341416df61d3dac",
+      "decimals": 18
+    }
+  },
+  "PIRATE": {
+    "ethereum": {
+      "address": "0x7613c48e0cd50e42dd9bf0f6c235063145f6f8dc",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xd0f77df9a8f0e855f910361f5f59958118d064c6",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xac7ce9f2794e01c0d27b096c52f592e343d77cbf",
+      "decimals": 18
+    }
+  },
+  "PLU": {
+    "ethereum": {
+      "address": "0xd8912c10681d8b21fd3742244f44658dba12264e",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x5441619a9754aee0665c939743cf7611abb6f6c7",
+      "decimals": 18
+    }
+  },
+  "PLUME": {
+    "ethereum": {
+      "address": "0x4c1746a800d224393fe2470c70a35717ed4ea5f1",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x73efdc761596328461b68e5fc58c3284cb15ba13",
+      "decimals": 18
+    }
+  },
+  "POL": {
+    "ethereum": {
+      "address": "0x455e53cbb86018ac2b8092fdcd39d8444affc3f6",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xf6a49aedbd7861ded0da2be1f21c6954e5682e95",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x044d8e7f3a17751d521efea8ccf9282268fe08cc",
+      "decimals": 18
+    }
+  },
+  "POLS": {
+    "ethereum": {
+      "address": "0x83e6f1e41cdd28eaceb20cb649155049fac3d5aa",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x7e624fa0e1c4abfd309cc15719b7e2580887f570",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x82a98121eaf30b0e135b08d4208c837cdc306503",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xeeeb5eac2db7a7fc28134aa3248580d48b016b64",
+      "decimals": 18
+    }
+  },
+  "POLY": {
+    "ethereum": {
+      "address": "0x9992ec3cf6a55b00978cddf2b27bc6882d88d1ec",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x2f5cfdc89fb96f2cf6c0fb1ca6e3501dd538d863",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xe12f29704f635f4a6e7ae154838d21f9b33809e9",
+      "decimals": 18
+    }
+  },
+  "POND": {
+    "ethereum": {
+      "address": "0x57b946008913b82e4df85f501cbaed910e58d26c",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xa2a36541c5a54bd2815985418105091b4d4782d5",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xda0a57b710768ae17941a9fa33f8b720c8bd9ddd",
+      "decimals": 18
+    }
+  },
+  "PORTAL": {
+    "ethereum": {
+      "address": "0x1bbe973bef3a977fc51cbed703e8ffdefe001fed",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x562e588471ca0e710b2b1217867ffb2e0f2a5642",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x6380f3d0c1412a80eb00f49064da30749db991de",
+      "decimals": 18
+    }
+  },
+  "POWR": {
+    "ethereum": {
+      "address": "0x595832f8fc6bf59c85c527fec3740a1b7a361269",
+      "decimals": 6
+    },
+    "unichain": {
+      "address": "0xf265af514762286a63d015fee382b90edffa6bff",
+      "decimals": 6
+    },
+    "arbitrum": {
+      "address": "0x4e91f2af1ee0f84b529478f19794f5afd423e4a6",
+      "decimals": 6
+    }
+  },
+  "PRIME": {
+    "ethereum": {
+      "address": "0xb23d80f5fefcddaa212212f028021b41ded428cf",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xd17d5f0da4200bbfd3d6626ac6aea2eccbf9fee0",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x8d8e1b6ffc6832e8d2ef0de8a3d957cae7ac5067",
+      "decimals": 18
+    }
+  },
+  "PRO": {
+    "ethereum": {
+      "address": "0x226bb599a12c826476e3a771454697ea52e9e220",
+      "decimals": 8
+    },
+    "unichain": {
+      "address": "0xc6fbf362a12804feca22000f37db5efc1f41a7c9",
+      "decimals": 8
+    },
+    "arbitrum": {
+      "address": "0x631a64e240180d4b604f736cb6e19c1a7ec77254",
+      "decimals": 8
+    }
+  },
+  "PROVE": {
+    "ethereum": {
+      "address": "0x6bef15d938d4e72056ac92ea4bdd0d76b1c4ad29",
+      "decimals": 18
+    }
+  },
+  "PRQ": {
+    "ethereum": {
+      "address": "0x362bc847a3a9637d3af6624eec853618a43ed7d2",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xd21d29b38374528675c34936bf7d5dd693d2a577",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xc7b7dcf3c6cacaac13f92c9173f9a0060abf3def",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x82164a8b646401a8776f9dc5c8cba35dcaf60cd2",
+      "decimals": 18
+    }
+  },
+  "PSTAKE": {
+    "ethereum": {
+      "address": "0xfb5c6815ca3ac72ce9f5006869ae67f18bf77006",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x4c882ec256823ee773b25b414d36f92ef58a7c0c",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x13fe2c4504f3aa18708561250e2f20e4e7d7caa2",
+      "decimals": 18
+    }
+  },
+  "PTB": {
+    "ethereum": {
+      "address": "0x30a25cc9c9eade4d4d9e9349be6e68c3411367d3",
+      "decimals": 18
+    }
+  },
+  "PUFFER": {
+    "ethereum": {
+      "address": "0x4d1c297d39c5c1277964d0e3f8aa901493664530",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xadf70dc4aaefbc6d1e7a6cf0b02b0f2138b560d2",
+      "decimals": 18
+    }
+  },
+  "PYUSD": {
+    "ethereum": {
+      "address": "0x6c3ea9036406852006290770bedfcaba0e23a0e8",
+      "decimals": 6
+    },
+    "unichain": {
+      "address": "0x0d2f98904d88909072ea6e61105cbbf78e6207c5",
+      "decimals": 6
+    },
+    "arbitrum": {
+      "address": "0x327006c8712fe0abdbbd55b7999db39b0967342e",
+      "decimals": 6
+    }
+  },
+  "QNT": {
+    "ethereum": {
+      "address": "0x4a220e6096b25eadb88358cb44068a3248254675",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x3a8723f2929f370c61eac583d6652e5c98c360d4",
+      "decimals": 18
+    },
+    "robinhood": {
+      "address": "0xb7edfe2f33c1ac06830a971dfb559bde8a2a3d76",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xc7557c73e0eca2e1bf7348bb6874aee63c7eff85",
+      "decimals": 18
+    }
+  },
+  "QRDO": {
+    "ethereum": {
+      "address": "0x4123a133ae3c521fd134d7b13a2dec35b56c2463",
+      "decimals": 8
+    },
+    "unichain": {
+      "address": "0x006254c4664c678e64c3265da28304cc8c1068b8",
+      "decimals": 8
+    }
+  },
+  "QSP": {
+    "ethereum": {
+      "address": "0x99ea4db9ee77acd40b119bd1dc4e33e1c070b80d",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xb019a038eadcb2f96321d236f6633c8d6bb5eabb",
+      "decimals": 18
+    }
+  },
+  "QUAI": {
+    "ethereum": {
+      "address": "0x70b7f7044d2ca8e2f1e999b90ef16d7cb7a0cda1",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x5c97d726bf5130ae15408ce32bc764e458320d2f",
+      "decimals": 18
+    }
+  },
+  "QUICK": {
+    "ethereum": {
+      "address": "0x6c28aef8977c9b773996d0e8376d2ee379446f2f",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xd815958f92e6abe63437bce166e97027f8e6cac2",
+      "decimals": 18
+    }
+  },
+  "RAD": {
+    "ethereum": {
+      "address": "0x31c8eacbffdd875c74b94b077895bd78cf1e64a3",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x3f9a30c86dc7f0c657ea17d52efe09eff08a1a45",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x3c45038f4807c5bb72f6bc72c2a2b9c012155e49",
+      "decimals": 18
+    }
+  },
+  "RAI": {
+    "ethereum": {
+      "address": "0x03ab458634910aad20ef5f1c8ee96f1d6ac54919",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x7fb688ccf682d58f86d7e38e03f9d22e7705448b",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x6164a78f7b2ac49cf9b76c49e5b6909e89f34a66",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xaef5bbcbfa438519a5ea80b4c7181b4e78d419f2",
+      "decimals": 18
+    }
+  },
+  "RARE": {
+    "ethereum": {
+      "address": "0xba5bde662c17e2adff1075610382b9b691296350",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xe8a0078aa52ac7e93ae43818ddd64591e025bb6f",
+      "decimals": 18
+    }
+  },
+  "RARI": {
+    "ethereum": {
+      "address": "0xfca59cd816ab1ead66534d82bc21e7515ce441cf",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x16f01392ed7fc6f3c345cf544cf1172103c8561c",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xcf78572a8fe97b2b9a4b9709f6a7d9a863c1b8e0",
+      "decimals": 18
+    }
+  },
+  "RBC": {
+    "ethereum": {
+      "address": "0xa4eed63db85311e22df4473f87ccfc3dadcfa3e3",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x29ea5682024c8c62cd8bdf691c4f0c5d66b403e3",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x2e9ae8f178d5ea81970c7799a377b3985cbc335f",
+      "decimals": 18
+    }
+  },
+  "RBN": {
+    "ethereum": {
+      "address": "0x6123b0049f904d730db3c36a31167d9d4121fa6b",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x75b2dbb2a7c70073133e42f64366a986c841cd3e",
+      "decimals": 18
+    }
+  },
+  "RE": {
+    "ethereum": {
+      "address": "0x526526528f35ac738177003b8773b402b8df8143",
+      "decimals": 18
+    }
+  },
+  "RED": {
+    "ethereum": {
+      "address": "0xc43c6bfeda065fe2c4c11765bf838789bd0bb5de",
+      "decimals": 18
+    }
+  },
+  "REN": {
+    "ethereum": {
+      "address": "0x408e41876cccdc0f92210600ef50372656052a38",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x560603e0bfc941063d1375ec4e3f9fe38261617e",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x9fa891e1db0a6d1eeac4b929b5aae1011c79a204",
+      "decimals": 18
+    }
+  },
+  "REP": {
+    "ethereum": {
+      "address": "0x1985365e9f78359a9b6ad760e32412f4a445e862",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x097ca3fc389697080c84148c455ca839b2816fc4",
+      "decimals": 18
+    }
+  },
+  "REPV2": {
+    "ethereum": {
+      "address": "0x221657776846890989a759ba2973e427dff5c9bb",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xe86b1e5613a5761d005a2d00d8a1b4ad1e72a8c4",
+      "decimals": 18
+    }
+  },
+  "REPV2_YES_1": {
+    "ethereum": {
+      "address": "0xcf6a0a7826fa124b7705d6f3c675ead76f1e540d",
+      "decimals": 18
+    }
+  },
+  "REQ": {
+    "ethereum": {
+      "address": "0x8f8221afbb33998d8584a2b05749ba73c37a938a",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x9fcc3133779f2039c29908c915b6efae9d8663cd",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x1cb5bbc64e148c5b889e3c667b49edf78bb92171",
+      "decimals": 18
+    }
+  },
+  "REVV": {
+    "ethereum": {
+      "address": "0x557b933a7c2c45672b610f8954a3deb39a51a8ca",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x833f307ac507d47309fd8cdd1f835bef8d702a93",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xc14a68015fa6396ef97b57839da544910f9ca657",
+      "decimals": 18
+    }
+  },
+  "REZ": {
+    "ethereum": {
+      "address": "0x3b50805453023a91a8bf641e279401a0b23fa6f9",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x2178f07c1d585c39272caf69a72bef08aad6c9ab",
+      "decimals": 18
+    }
+  },
+  "RGT": {
+    "ethereum": {
+      "address": "0xd291e7a03283640fdc51b121ac401383a46cc623",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0xb548f63d4405466b36c0c0ac3318a22fdcec711a",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x8c9606001cf1787ceb80e03def3f9baf946cf284",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xef888bca6ab6b1d26dbec977c455388ecd794794",
+      "decimals": 18
+    }
+  },
+  "RLC": {
+    "ethereum": {
+      "address": "0x607f4c5bb672230e8672085532f7e901544a7375",
+      "decimals": 9
+    },
+    "unichain": {
+      "address": "0x538fb2719135740b8877607217dc391fb3347acb",
+      "decimals": 9
+    },
+    "arbitrum": {
+      "address": "0xe575586566b02a16338c199c23ca6d295d794e66",
+      "decimals": 9
+    }
+  },
+  "RLS": {
+    "ethereum": {
+      "address": "0xb5f7b021a78f470d31d762c1dda05ea549904fbd",
+      "decimals": 18
+    }
+  },
+  "RLUSD": {
+    "ethereum": {
+      "address": "0x8292bb45bf1ee4d140127049757c2e0ff06317ed",
+      "decimals": 18
+    }
+  },
+  "RLY": {
+    "ethereum": {
+      "address": "0xf1f955016ecbcd7321c7266bccfb96c68ea5e49b",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x7ad899b7c793743fde692d982f190f443f88c889",
+      "decimals": 18
+    }
+  },
+  "RNDR": {
+    "ethereum": {
+      "address": "0x6de037ef9ad2725eb40118bb1702ebb27e4aeb24",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x965c6debfa700f53a38d42dbaed922c58d649868",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xc8a4eea31e9b6b61c406df013dd4fec76f21e279",
+      "decimals": 18
+    }
+  },
+  "ROBO": {
+    "ethereum": {
+      "address": "0x32b4d049fe4c888d2b92eecaf729f44df6b1f36e",
+      "decimals": 18
+    }
+  },
+  "ROOK": {
+    "ethereum": {
+      "address": "0xfa5047c9c78b8877af97bdcb85db743fd7313d4a",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x682b2f07e61022a80ac2753448f7d95e9de41d99",
+      "decimals": 18
+    }
+  },
+  "RPL": {
+    "ethereum": {
+      "address": "0xd33526068d116ce69f19a9ee46f0bd304f21a51f",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0xc81d1f0eb955b0c020e5d5b264e1ff72c14d1401",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x1f73eaf55d696bffa9b0ea16fa987b93b0f4d302",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xb766039cc6db368759c1e56b79affe831d0cc507",
+      "decimals": 18
+    }
+  },
+  "RSR": {
+    "ethereum": {
+      "address": "0x320623b8e4ff03373931769a31fc52a4e78b5d70",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x993a565a1e6219951323ca3c34cee0a3b1889066",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0xab36452dbac151be02b16ca17d8919826072f64a",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xca5ca9083702c56b481d1eec86f1776fdbd2e594",
+      "decimals": 18
+    }
+  },
+  "SAFE": {
+    "ethereum": {
+      "address": "0x5afe3855358e112b5647b952709e6165e1c1eeee",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x47b72717e48da346c3f1ed1311c8dcde10efd888",
+      "decimals": 18
+    }
+  },
+  "SAND": {
+    "ethereum": {
+      "address": "0x3845badade8e6dff049820680d1f14bd3903a5d0",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x6a654a2ec95fb988ea37746dbcca10772caf25ca",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xd1318eb19dbf2647743c720ed35174efd64e3dac",
+      "decimals": 18
+    }
+  },
+  "SD": {
+    "ethereum": {
+      "address": "0x30d20208d987713f46dfd34ef128bb16c404d10f",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x3bc5ac0dfdc871b365d159f728dd1b9a0b5481e8",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x7ccc67c7b232aa6417d9422e90d91ec4b32d72e5",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x1629c4112952a7a377cb9b8d7d8c903092f34b63",
+      "decimals": 18
+    }
+  },
+  "SENT": {
+    "ethereum": {
+      "address": "0x56a3ba04e95d34268a19b2a4474dc979babdaf76",
+      "decimals": 18
+    }
+  },
+  "SHIB": {
+    "ethereum": {
+      "address": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xaa571d01057cdf477d73433d36d86fcb5664158e",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x5033833c9fe8b9d3e09eed2f73d2aaf7e3872fd1",
+      "decimals": 18
+    }
+  },
+  "SHPING": {
+    "ethereum": {
+      "address": "0x7c84e62859d0715eb77d1b1c4154ecd6abb21bec",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x45bda7ba10dac525a86dbeab3135701a66024f2f",
+      "decimals": 18
+    }
+  },
+  "SIGN": {
+    "ethereum": {
+      "address": "0x868fced65edbf0056c4163515dd840e9f287a4c3",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x868fced65edbf0056c4163515dd840e9f287a4c3",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x868fced65edbf0056c4163515dd840e9f287a4c3",
+      "decimals": 18
+    }
+  },
+  "SKL": {
+    "ethereum": {
+      "address": "0x00c83aecc790e8a4453e5dd3b0b4b3680501a7a7",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x486bbb6f250343adb4782f50dd09766f8ad20c01",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x4f9b7dedd8865871df65c5d26b1c2dd537267878",
+      "decimals": 18
+    }
+  },
+  "SKY": {
+    "ethereum": {
+      "address": "0x56072c95faa701256059aa122697b133aded9279",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x5a6058002d0d336e5e8860652e7054a6d07074e4",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xd43f10ce4bc089782ff8635c17f015edbc16d71b",
+      "decimals": 18
+    }
+  },
+  "SLP": {
+    "ethereum": {
+      "address": "0xcc8fa225d80b9c7d42f96e9570156c65d6caaa25",
+      "decimals": 0
+    },
+    "unichain": {
+      "address": "0xbd2dd310fecbfb1111fc3262f3a97ba696cb03b3",
+      "decimals": 0
+    }
+  },
+  "SNT": {
+    "ethereum": {
+      "address": "0x744d70fdbe2ba4cf95131626614a1763df805b9e",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x650af3c15af43dcb218406d30784416d64cfb6b2",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x914f7ce2b080b2186159c2213b1e193e265abf5f",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x662015ec830df08c0fc45896fab726542e8ac09e",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x707f635951193ddafbb40971a0fcaab8a6415160",
+      "decimals": 18
+    }
+  },
+  "SNX": {
+    "ethereum": {
+      "address": "0xc011a73ee8576fb46f5e1c5751ca3b9fe0af2a6f",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x8700daec35af8ff88c16bdf0418774cb3d7599b4",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x022d952abcc6c8271f26e59e37a65dc359e6bc88",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x22e6966b799c4d5b13be962e1d117b56327fda66",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xcba56cd8216fcbbf3fa6df6137f3147cbca37d60",
+      "decimals": 18
+    }
+  },
+  "SOCKS": {
+    "ethereum": {
+      "address": "0x23b608675a2b2fb1890d3abbd85c5775c51691d5",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x5e03c123d829505f4dea87cf679f77c9dc4627ab",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xb2be52744a804cc732d606817c2572c5a3b264e7",
+      "decimals": 18
+    }
+  },
+  "SOL": {
+    "ethereum": {
+      "address": "0xd31a59c85ae9d8edefec411d448f90841571b89c",
+      "decimals": 9
+    },
+    "optimism": {
+      "address": "0xba1cf949c382a32a09a17b2adf3587fc7fa664f1",
+      "decimals": 9
+    },
+    "bsc": {
+      "address": "0xfa54ff1a158b5189ebba6ae130ced6bbd3aea76e",
+      "decimals": 9
+    },
+    "unichain": {
+      "address": "0x4ff3e944d5cb54f6f4a1dd035782be59c3d054fe",
+      "decimals": 9
+    },
+    "arbitrum": {
+      "address": "0xb74da9fe2f96b9e0a5f4a3cf0b92dd2bec617124",
+      "decimals": 9
+    }
+  },
+  "SPELL": {
+    "ethereum": {
+      "address": "0x090185f2135308bad17527004364ebcc2d37e5f6",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x739316c7bc4a39eb39dcfa1b181b64abc17fef7f",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x3e6648c5a70a150a88bce65f4ad4d506fe15d2af",
+      "decimals": 18
+    }
+  },
+  "SPK": {
+    "ethereum": {
+      "address": "0xc20059e0317de91738d13af027dfc4a50781b066",
+      "decimals": 18
+    }
+  },
+  "SPX": {
+    "ethereum": {
+      "address": "0xe0f63a424a4439cbe457d80e4f4b51ad25b2c56c",
+      "decimals": 8
+    },
+    "unichain": {
+      "address": "0x51a7b9a11f10d04c16306d90dc4ec22b036dd629",
+      "decimals": 8
+    },
+    "base": {
+      "address": "0x50da645f148798f68ef2d7db7c1cb22a6819bb2c",
+      "decimals": 8
+    },
+    "arbitrum": {
+      "address": "0x53e70cc1d527b524a1c46eaa892e4cb35d2ba901",
+      "decimals": 8
+    }
+  },
+  "STG": {
+    "ethereum": {
+      "address": "0xaf5191b0de278c7286d6c7cc6ab6bb8a73ba2cd6",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xb0d502e938ed5f4df2e681fe6e419ff29631d62b",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x77c8a8e1dd3b5270d3ab589543e9a83319373135",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xe018c7a3d175fb0fe15d70da2c874d3ca16313ec",
+      "decimals": 18
+    }
+  },
+  "STORJ": {
+    "ethereum": {
+      "address": "0xb64ef51c888972c908cfacf59b47c1afbc0ab8ac",
+      "decimals": 8
+    },
+    "unichain": {
+      "address": "0xf13b5b21555092882e69b22282daf891c9951835",
+      "decimals": 8
+    },
+    "arbitrum": {
+      "address": "0xe6320ebf209971b4f4696f7f0954b8457aa2fcc2",
+      "decimals": 8
+    }
+  },
+  "STRK": {
+    "ethereum": {
+      "address": "0xca14007eff0db1f8135f4c25b34de49ab0d42766",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x09f705405677970e509d606348d4635d2332c72e",
+      "decimals": 18
+    }
+  },
+  "STX": {
+    "ethereum": {
+      "address": "0x006bea43baa3f7a6f765f14f10a1a1b08334ef45",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xef86e70e534e02aadeae95b843973d4acaccea22",
+      "decimals": 18
+    }
+  },
+  "SUKU": {
+    "ethereum": {
+      "address": "0x0763fdccf1ae541a5961815c0872a8c5bc6de4d7",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0xef6301da234fc7b0545c6e877d3359fe0b9e50a4",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xc05b416738ddebd14d5a9b790a6e1ce782176525",
+      "decimals": 18
+    }
+  },
+  "SUPER": {
+    "ethereum": {
+      "address": "0xe53ec727dbdeb9e2d5456c3be40cff031ab40a55",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x51ba0b044d96c3abfca52b64d733603ccc4f0d4d",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x0c288302629fc22504d59ddf8fbf8aa92bd86d3d",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x7f9cf5a2630a0d58567122217df7609c26498956",
+      "decimals": 18
+    }
+  },
+  "SUSD": {
+    "ethereum": {
+      "address": "0x57ab1ec28d129707052df4df418d58a2d46d5f51",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x8c6f28f2f1a3c87f0f938b96d27520d9751ec8d9",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x7251d204c2e867b31096d5c7091298239b3a6a0f",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xa970af1a584579b618be4d69ad6f73459d112f95",
+      "decimals": 18
+    }
+  },
+  "SUSHI": {
+    "ethereum": {
+      "address": "0x6b3595068778dd592e39a122f4f5a5cf09c90fe2",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x3eaeb77b03dbc0f6321ae1b72b2e9adb0f60112b",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x947950bcc74888a40ffa2593c5798f11fc9124c4",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x2982be2d0c6ae4a7d5bc1c8fe7b630e3bdfb3ce5",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xd4d42f0b6def4ce0383636770ef773390d85c61a",
+      "decimals": 18
+    }
+  },
+  "SWELL": {
+    "ethereum": {
+      "address": "0x0a6e7ba5042b38349e437ec6db6214aec7b35676",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xa8015cbc9f7c58788ba00854c330f027028a5870",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x2c96be2612bec20fe2975c3acfcbbe61a58f2571",
+      "decimals": 18
+    }
+  },
+  "SWFTC": {
+    "ethereum": {
+      "address": "0x0bb217e40f8a5cb79adf04e1aab60e5abd0dfc1e",
+      "decimals": 8
+    },
+    "bsc": {
+      "address": "0xe64e30276c2f826febd3784958d6da7b55dfbad3",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x0610cdf9856b8825213672981056cd4945af1616",
+      "decimals": 8
+    }
+  },
+  "SXP": {
+    "ethereum": {
+      "address": "0x8ce9137d39326ad0cd6491fb5cc0cba0e089b6a9",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x47bead2563dcbf3bf2c9407fea4dc236faba485a",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xdca295e850666753c6332d6b0e0445b09785c2e1",
+      "decimals": 18
+    }
+  },
+  "SXT": {
+    "ethereum": {
+      "address": "0xe6bfd33f52d82ccb5b37e16d3dd81f9ffdabb195",
+      "decimals": 18
+    }
+  },
+  "SYLO": {
+    "ethereum": {
+      "address": "0xf293d23bf2cdc05411ca0eddd588eb1977e8dcd4",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x1baac1979527a38f367c6f89be081abfcffcf85e",
+      "decimals": 18
+    }
+  },
+  "SYN": {
+    "ethereum": {
+      "address": "0x0f2d719407fdbeff09d87557abb7232601fd9f29",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xa4080f1778e69467e905b8d6f72f6e441f9e9484",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xceb1f5671c47cee096c3b40353863b6781888a48",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x1bcfc0b4ee1471674cd6a9f6b363a034375ead84",
+      "decimals": 18
+    }
+  },
+  "SYND": {
+    "ethereum": {
+      "address": "0x1bab804803159ad84b8854581aa53ac72455614e",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x11dc28d01984079b7efe7763b533e6ed9e3722b9",
+      "decimals": 18
+    }
+  },
+  "SYRUP": {
+    "ethereum": {
+      "address": "0x643c4e15d7d62ad0abec4a9bd4b001aa3ef52d66",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x8f7f997ba304f426e3138999919c23f68cd6fa96",
+      "decimals": 18
+    }
+  },
+  "T": {
+    "ethereum": {
+      "address": "0xcdf7028ceab81fa0c6971208e83fa7872994bee5",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x747e42eb0591547a0ab429b3627816208c734ea7",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x8f43ab8648f1a3baeea3782ba5f562a148f2ad54",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x0945cae3ae47cb384b2d47bc448dc6a9dec21f55",
+      "decimals": 18
+    }
+  },
+  "TBTC": {
+    "ethereum": {
+      "address": "0x18084fba666a33d37592fa2633fd49a74dd93a88",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xad497996dc33dc8e8e552824ccee199420bc7814",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x7e2a1edee171c5b19e6c54d73752396c0a572594",
+      "decimals": 18
+    }
+  },
+  "TEL": {
+    "ethereum": {
+      "address": "0x467bccd9d29f223bce8043b84e8c8b282827790f",
+      "decimals": 2
+    },
+    "base": {
+      "address": "0x09be1692ca16e06f536f0038ff11d1da8524adb1",
+      "decimals": 2
+    },
+    "arbitrum": {
+      "address": "0x0419e8bfbbb2623728c3a6129090da4ff4e48113",
+      "decimals": 2
+    }
+  },
+  "TERM": {
+    "ethereum": {
+      "address": "0xc3d21f79c3120a4ffda7a535f8005a7c297799bf",
+      "decimals": 18
+    }
+  },
+  "THQ": {
+    "ethereum": {
+      "address": "0xaffbe9a60f1f45e057fd9b6dc70004bb0ccc8b99",
+      "decimals": 18
+    }
+  },
+  "TIME": {
+    "ethereum": {
+      "address": "0x485d17a6f1b8780392d53d64751824253011a260",
+      "decimals": 8
+    },
+    "bsc": {
+      "address": "0x3b198e26e473b8fab2085b37978e36c9de5d7f68",
+      "decimals": 8
+    },
+    "unichain": {
+      "address": "0xd9cbd701bbea8e9aaee7d82aa60748451eda749c",
+      "decimals": 8
+    }
+  },
+  "TLM": {
+    "ethereum": {
+      "address": "0x888888848b652b3e3a0f34c96e00eec0f3a23f72",
+      "decimals": 4
+    },
+    "bsc": {
+      "address": "0x2222227e22102fe3322098e4cbfe18cfebd57c95",
+      "decimals": 4
+    },
+    "unichain": {
+      "address": "0xd649b9ad2104418b5b032a5899fbcd54a9a46c68",
+      "decimals": 4
+    }
+  },
+  "TMX": {
+    "ethereum": {
+      "address": "0x3c2f61f2e27c865981d2e7aaf6b2cdf823030039",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x3c2f61f2e27c865981d2e7aaf6b2cdf823030039",
+      "decimals": 18
+    }
+  },
+  "TOKE": {
+    "ethereum": {
+      "address": "0x2e9d63788249371f1dfc918a52f8d799f4a38c94",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x5ed5da180bb125f229ab7b825e34d2b936213e0b",
+      "decimals": 18
+    }
+  },
+  "TOKEN": {
+    "ethereum": {
+      "address": "0x4507cef57c46789ef8d1a19ea45f4216bae2b528",
+      "decimals": 9
+    }
+  },
+  "TONE": {
+    "ethereum": {
+      "address": "0x2ab6bb8408ca3199b8fa6c92d5b455f820af03c4",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x502865ecdd2a2929aa9418297be7d3c4a7bd5ac6",
+      "decimals": 18
+    }
+  },
+  "TRAC": {
+    "ethereum": {
+      "address": "0xaa7a9ca87d3694b5755f213b5d04094b8d0f0a6f",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x1ac70c9e29bc19640e64d938dd8d6a46dbae6f2e",
+      "decimals": 18
+    }
+  },
+  "TRB": {
+    "ethereum": {
+      "address": "0x88df592f8eb5d7bd38bfef7deb0fbc02cf3778a0",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0xaf8ca653fa2772d58f4368b0a71980e9e3ceb888",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x8e902fdea73e5cf9621d2bee82cd79196d8ec63b",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xd58d345fd9c82262e087d2d0607624b410d88242",
+      "decimals": 18
+    }
+  },
+  "TREE": {
+    "ethereum": {
+      "address": "0x77146784315ba81904d654466968e3a7c196d1f3",
+      "decimals": 18
+    }
+  },
+  "TRIA": {
+    "ethereum": {
+      "address": "0x228bec415ade4b61d7caf0adf8c91eac587ba369",
+      "decimals": 18
+    }
+  },
+  "TRIBE": {
+    "ethereum": {
+      "address": "0xc7283b66eb1eb5fb86327f08e1b5816b0720212b",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x437dd6360bd17fb353c67376371133cd33dacdbd",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xbfae6fecd8124ba33cbb2180aab0fe4c03914a5a",
+      "decimals": 18
+    }
+  },
+  "TRU": {
+    "ethereum": {
+      "address": "0x4c19596f5aaff459fa38b0f7ed92f11ae6543784",
+      "decimals": 8
+    },
+    "unichain": {
+      "address": "0x55c65102c26b173696e935b1325e5aaef30cfe0e",
+      "decimals": 8
+    }
+  },
+  "TURBO": {
+    "ethereum": {
+      "address": "0xa35923162c49cf95e6bf26623385eb431ad920d3",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x1e4339318ece1d6d9d2fb129b31c06b9f2d202a1",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x5c816d4582c857dcadb1bb1f62ad6c9dede4576a",
+      "decimals": 18
+    }
+  },
+  "TVK": {
+    "ethereum": {
+      "address": "0xd084b83c305dafd76ae3e1b4e1f1fe2ecccb3988",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x756fb781389dcaf9d3bc5468927f06a913bd9d5d",
+      "decimals": 18
+    }
+  },
+  "UMA": {
+    "ethereum": {
+      "address": "0x04fa0d235c4abf4bcf4787af4cf447de572ef828",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0xe7798f023fc62146e8aa1b36da45fb70855a77ea",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x478923278640a10a60951e379affb60772435f8c",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xd693ec944a85eeca4247ec1c3b130dca9b0c3b22",
+      "decimals": 18
+    }
+  },
+  "UNFI": {
+    "ethereum": {
+      "address": "0x441761326490cacf7af299725b6292597ee822c2",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x728c5bac3c3e370e372fc4671f9ef6916b814d8b",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xe9225a870b54f8fba42c8188d211271f0408a30b",
+      "decimals": 18
+    }
+  },
+  "UNI": {
+    "ethereum": {
+      "address": "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x6fd9d7ad17242c41f7131d257212c54a0e816691",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xbf5140a22578168fd562dccf235e5d43a02ce9b1",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x8f187aa05619a017077f5308904739877ce9ea21",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0xc3de830ea07524a0761646a6a4e4be0e114a3c83",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xfa7f8980b0f1e64a2062791cc3b0871572f1f7f0",
+      "decimals": 18
+    }
+  },
+  "UPI": {
+    "ethereum": {
+      "address": "0x70d2b7c19352bb76e4409858ff5746e500f2b67c",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x0d35a2b85c5a63188d566d104bebf7c694334ee4",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x5eaff8fa6f3831bb86feeb701e6f98293e264d36",
+      "decimals": 18
+    }
+  },
+  "USD1": {
+    "ethereum": {
+      "address": "0x8d0d000ee44948fc98c9b98a4fa4921476f08b0d",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x7550de0a4b9fb8caba8c32e72ee356afdd217a33",
+      "decimals": 18
+    }
+  },
+  "USDC": {
+    "ethereum": {
+      "address": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "decimals": 6
+    },
+    "optimism": {
+      "address": "0x0b2c639c533813f4aa9d7837caf62653d097ff85",
+      "decimals": 6
+    },
+    "bsc": {
+      "address": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x078d782b760474a361dda0af3839290b0ef57ad6",
+      "decimals": 6
+    },
+    "base": {
+      "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "decimals": 6
+    },
+    "arbitrum": {
+      "address": "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
+      "decimals": 6
+    }
+  },
+  "USDG": {
+    "ethereum": {
+      "address": "0xe343167631d89b6ffc58b88d6b7fb0228795491d",
+      "decimals": 6
+    },
+    "unichain": {
+      "address": "0x2a22868610610199d43fe93a16661473a9f86f1e",
+      "decimals": 6
+    }
+  },
+  "USDP": {
+    "ethereum": {
+      "address": "0x8e870d67f660d95d5be530380d0ec0bd388289e1",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xf7e6430137ef8087e0d472343f358e986de0feff",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x78df3a6044ce3cb1905500345b967788b699df8f",
+      "decimals": 18
+    }
+  },
+  "USDQ": {
+    "ethereum": {
+      "address": "0xc83e27f270cce0a3a3a29521173a83f402c1768b",
+      "decimals": 6
+    },
+    "unichain": {
+      "address": "0xf37748d2cc6e6d5d05945ce130c03c147b2f3a5f",
+      "decimals": 6
+    }
+  },
+  "USDR": {
+    "ethereum": {
+      "address": "0x7b43e3875440b44613dc3bc08e7763e6da63c8f8",
+      "decimals": 6
+    },
+    "unichain": {
+      "address": "0xac025d055a6b633992de1f796b97b97f004c06a7",
+      "decimals": 6
+    }
+  },
+  "USDS": {
+    "ethereum": {
+      "address": "0xdc035d45d973e3ec169d2276ddab16f1e407384f",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x116ee4d63847fb295dd919ae57b768ea3b2f7bb4",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x6491c05a82219b8d1479057361ff1654749b876b",
+      "decimals": 18
+    }
+  },
+  "USDSM": {
+    "ethereum": {
+      "address": "0x399b29975cbe313c56269cd5097f5ae097fa2741",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x26c358f7c5fedb20a6ddef108cd91efb6b8da0cb",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x26c358f7c5fedb20a6ddef108cd91efb6b8da0cb",
+      "decimals": 18
+    }
+  },
+  "USDT": {
+    "ethereum": {
+      "address": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "decimals": 6
+    },
+    "optimism": {
+      "address": "0x94b008aa00579c1307b0ef2c499ad98a8ce58e58",
+      "decimals": 6
+    },
+    "bsc": {
+      "address": "0x55d398326f99059ff775485246999027b3197955",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x588ce4f028d8e7b53b687865d6a67b3a54c75518",
+      "decimals": 6
+    }
+  },
+  "USUAL": {
+    "ethereum": {
+      "address": "0xc4441c2be5d8fa8126822b9929ca0b81ea0de38e",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xc7ba59c95ba747a7c374dc7208a0513798bc5950",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x7639ab8599f1b417cbe4ced492fb30162140abbb",
+      "decimals": 18
+    }
+  },
+  "VANRY": {
+    "ethereum": {
+      "address": "0x8de5b80a0c1b02fe4976851d030b36122dbb8624",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x286b5ecea3749c7c7047104aa3c5749901564a0b",
+      "decimals": 18
+    }
+  },
+  "VGX": {
+    "ethereum": {
+      "address": "0x3c4b6e6e1ea3d4863700d7f76b36b7f3d3f13e3d",
+      "decimals": 8
+    },
+    "unichain": {
+      "address": "0x4afd08ac2416450d9c8b84d287dbffb68ffe537f",
+      "decimals": 8
+    }
+  },
+  "VIRTUAL": {
+    "ethereum": {
+      "address": "0x44ff8620b8ca30902395a7bd3f2407e1a091bf73",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x0b3e328455c4059eeb9e3f84b5543f74e24e7e1b",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x022cd1aed3f5cbfd7cf4481ac32847d62da746e6",
+      "decimals": 18
+    }
+  },
+  "WAMPL": {
+    "ethereum": {
+      "address": "0xedb171c18ce90b633db442f2a6f72874093b49ef",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xb86a08ec917eef9f835ac2b26c3a506c06364a49",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x1c8ec4de3c2bfd3050695d89853ec6d78ae650bb",
+      "decimals": 18
+    }
+  },
+  "WANLOG": {
+    "ethereum": {
+      "address": "0xf983da3ca66964c02628189ea8ca99fa9e24f66c",
+      "decimals": 12
+    }
+  },
+  "WBT": {
+    "ethereum": {
+      "address": "0x925206b8a707096ed26ae47c84747fe0bb734f59",
+      "decimals": 8
+    }
+  },
+  "WBTC": {
+    "ethereum": {
+      "address": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+      "decimals": 8
+    },
+    "optimism": {
+      "address": "0x68f180fcce6836688e9084f035309e29bf0a2095",
+      "decimals": 8
+    },
+    "unichain": {
+      "address": "0x927b51f251480a681271180da4de28d44ec4afb8",
+      "decimals": 8
+    },
+    "worldchain": {
+      "address": "0x03c7054bcb39f7b2e5b2c7acb37583e32d70cfa3",
+      "decimals": 8
+    },
+    "arbitrum": {
+      "address": "0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f",
+      "decimals": 8
+    }
+  },
+  "WCFG": {
+    "ethereum": {
+      "address": "0xc221b7e65ffc80de234bbb6667abdd46593d34f0",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xae87b8eb5e313ac72b306cba7c1e3f23d72e82c4",
+      "decimals": 18
+    }
+  },
+  "WCT": {
+    "ethereum": {
+      "address": "0xef4461891dfb3ac8572ccf7c794664a8dd927945",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0xef4461891dfb3ac8572ccf7c794664a8dd927945",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0xef4461891dfb3ac8572ccf7c794664a8dd927945",
+      "decimals": 18
+    }
+  },
+  "WETH": {
+    "ethereum": {
+      "address": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x4200000000000000000000000000000000000006",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x4200000000000000000000000000000000000006",
+      "decimals": 18
+    },
+    "worldchain": {
+      "address": "0x4200000000000000000000000000000000000006",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x4200000000000000000000000000000000000006",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
+      "decimals": 18
+    }
+  },
+  "WFB": {
+    "ethereum": {
+      "address": "0x6c28f8cab28121ed757edb36201511aa18cdd187",
+      "decimals": 8
+    }
+  },
+  "WLFI": {
+    "ethereum": {
+      "address": "0xda5e1988097297dcdc1f90d4dfe7909e847cbef6",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x4d1d7134b87490ae5eebdb22a5820d7d0e1980bf",
+      "decimals": 18
+    }
+  },
+  "WOO": {
+    "ethereum": {
+      "address": "0x4691937a7508860f876c9c0a2a617e7d9e945d4b",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x871f2f2ff935fd1ed867842ff2a7bfd051a5e527",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x4691937a7508860f876c9c0a2a617e7d9e945d4b",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xef22b9df2ddf4246a827575c4aa46bdaefd89e62",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xcafcd85d8ca7ad1e1c6f82f651fa15e33aefd07b",
+      "decimals": 18
+    }
+  },
+  "WRON": {
+    "ethereum": {
+      "address": "0x09b6a9e1dd102bd95b3dd5025bca3540ebf77982",
+      "decimals": 18
+    }
+  },
+  "XAN": {
+    "ethereum": {
+      "address": "0xcedbea37c8872c4171259cdfd5255cb8923cf8e7",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xd7ef1cb315d4a3291a779bc0cd1c8f6b87e66104",
+      "decimals": 18
+    }
+  },
+  "XAUT": {
+    "ethereum": {
+      "address": "0x68749665ff8d2d112fa859aa293f07a622782f38",
+      "decimals": 6
+    },
+    "arbitrum": {
+      "address": "0x9b86f3c7d145979ec6b2f42ed7f92d06cfc6c9d3",
+      "decimals": 6
+    }
+  },
+  "XCN": {
+    "ethereum": {
+      "address": "0xa2cd3d43c775978a96bdbf12d733d5a1ed94fb18",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x7324c7c0d95cebc73eea7e85cbaac0dbdf88a05b",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x15261eeb999ed3c3ae3c5319e0035940dc06a12f",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x58bbc087e36db40a84b22c1b93a042294deeafed",
+      "decimals": 18
+    }
+  },
+  "XSGD": {
+    "ethereum": {
+      "address": "0x70e8de73ce538da2beed35d14187f6959a8eca96",
+      "decimals": 6
+    },
+    "unichain": {
+      "address": "0xb1a9385b500fe81b58c4d0e3aacc39d8021265c3",
+      "decimals": 6
+    },
+    "arbitrum": {
+      "address": "0xa05245ade25cc1063ee50cf7c083b4524c1c4302",
+      "decimals": 6
+    }
+  },
+  "XYO": {
+    "ethereum": {
+      "address": "0x55296f69f40ea6d20e478533c15a6b08b654e758",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x9db118d43069b73b8a252bf0be49d50edbd81fc8",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x43d5ea0f30bce3907aad6783e61d56592aebe4ea",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0xd7b99ffb8b2afc6fe013a17207cbe50f223adc94",
+      "decimals": 18
+    }
+  },
+  "YB": {
+    "ethereum": {
+      "address": "0x01791f726b4103694969820be083196cc7c045ff",
+      "decimals": 18
+    }
+  },
+  "YFI": {
+    "ethereum": {
+      "address": "0x0bc529c00c6401aef6d220be8c6ea1667f6ad93e",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x9046d36440290ffde54fe0dd84db8b1cfee9107b",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x52bf54eb4210f588320f3e4c151bca81f84a3201",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x9eaf8c1e34f05a589eda6bafdf391cf6ad3cb239",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x82e3a8f066a6989666b031d916c43672085b1582",
+      "decimals": 18
+    }
+  },
+  "YFII": {
+    "ethereum": {
+      "address": "0xa1d0e215a23d7030842fc67ce582a6afa3ccab83",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x62ffd4229bb9a327412d1be518a1dbae6c18a07e",
+      "decimals": 18
+    }
+  },
+  "YGG": {
+    "ethereum": {
+      "address": "0x25f8087ead173b73d6e8b84329989a8eea16cf73",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0xea20c2cf22acbbf3d8311d15bc73fd7076e36f4b",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0xaac78d1219c08aecc8e37e03858fe885f5ef1799",
+      "decimals": 18
+    }
+  },
+  "ZAMA": {
+    "ethereum": {
+      "address": "0xa12cc123ba206d4031d1c7f6223d1c2ec249f4f3",
+      "decimals": 18
+    }
+  },
+  "ZETA": {
+    "ethereum": {
+      "address": "0xf091867ec603a6628ed83d274e835539d82e9cc8",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x757dcf360f2fe999faeebcc6e80f5eceb3cb3ca4",
+      "decimals": 18
+    },
+    "robinhood": {
+      "address": "0xe674c5c071821f48bb2d12cadb83617eff438f9e",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x6ddbbce7858d276678fc2b36123fd60547b88954",
+      "decimals": 18
+    }
+  },
+  "ZKC": {
+    "ethereum": {
+      "address": "0x000006c2a22ff4a44ff1f5d0f2ed65f781f55555",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0xaa61bb7777bd01b684347961918f1e07fbbce7cf",
+      "decimals": 18
+    }
+  },
+  "ZKP": {
+    "ethereum": {
+      "address": "0xe1be424f442d0687129128c6c38aace44f8c8dbc",
+      "decimals": 18
+    }
+  },
+  "ZRO": {
+    "ethereum": {
+      "address": "0x6985884c4392d348587b19cb9eaaf157f13271cd",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0x6985884c4392d348587b19cb9eaaf157f13271cd",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0x6985884c4392d348587b19cb9eaaf157f13271cd",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x00ad3704d1e101df76f87738befe67737ed29cfb",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x6985884c4392d348587b19cb9eaaf157f13271cd",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x6985884c4392d348587b19cb9eaaf157f13271cd",
+      "decimals": 18
+    }
+  },
+  "ZRX": {
+    "ethereum": {
+      "address": "0xe41d2489571d322189246dafa5ebde1f4699f498",
+      "decimals": 18
+    },
+    "optimism": {
+      "address": "0xd1917629b3e6a72e6772aab5dbe58eb7fa3c2f33",
+      "decimals": 18
+    },
+    "unichain": {
+      "address": "0x7e7e8e5f0edd7ca2ed3d9609cea1ff37a6e7edf5",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0x3bb4445d30ac020a84c1b5a8a2c6248ebc9779d0",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0xbd591bd4ddb64b77b5f76eab8f03d02519235ae2",
+      "decimals": 18
+    }
+  },
+  "CYBER": {
+    "optimism": {
+      "address": "0x14778860e937f509e651192a90589de711fb88a9",
+      "decimals": 18
+    }
+  },
+  "OP": {
+    "optimism": {
+      "address": "0x4200000000000000000000000000000000000042",
+      "decimals": 18
+    }
+  },
+  "USDC.E": {
+    "optimism": {
+      "address": "0x7f5c764cbc14f9669b88837ca1490cca17c31607",
+      "decimals": 6
+    },
+    "worldchain": {
+      "address": "0x79a02482a880bce3f13e09da970dc34db4cd24d1",
+      "decimals": 6
+    },
+    "arbitrum": {
+      "address": "0xff970a61a04b1ca14834a43f5de4533ebddb5cc8",
+      "decimals": 6
+    }
+  },
+  "USDT0": {
+    "optimism": {
+      "address": "0x01bff41798a0bcf287b996046ca68b395dbc1071",
+      "decimals": 6
+    },
+    "unichain": {
+      "address": "0x9151434b16b9763660705744891fa906f660ecc5",
+      "decimals": 6
+    },
+    "arbitrum": {
+      "address": "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9",
+      "decimals": 6
+    }
+  },
+  "VELO": {
+    "optimism": {
+      "address": "0x9560e827af36c94d2ac33a39bce1fe78631088db",
+      "decimals": 18
+    },
+    "bsc": {
+      "address": "0xf486ad071f3bee968384d2e39e2d8af0fcf6fd46",
+      "decimals": 18
+    }
+  },
+  "WLD": {
+    "optimism": {
+      "address": "0xdc6ff44d5d932cbd77b52e5612ba0529dc6226f1",
+      "decimals": 18
+    }
+  },
+  "$SUP": {
+    "bsc": {
+      "address": "0x19ed254efa5e061d28d84650891a3db2a9940c16",
+      "decimals": 18
+    }
+  },
+  "ASTER": {
+    "bsc": {
+      "address": "0x000ae314e2a2172a039b26378814c252734f556a",
+      "decimals": 18
+    }
+  },
+  "DGAI": {
+    "bsc": {
+      "address": "0x10d4183389e99233db3cc981c43443ebd28ebd5e",
+      "decimals": 18
+    },
+    "arbitrum": {
+      "address": "0x12c2de43878fb1a06c1ead481f11e0c693a719c7",
+      "decimals": 18
+    }
+  },
+  "FHE": {
+    "bsc": {
+      "address": "0xd55c9fb62e176a8eb6968f32958fefdd0962727e",
+      "decimals": 18
+    }
+  },
+  "GENIUS": {
+    "bsc": {
+      "address": "0x1f12b85aac097e43aa1555b2881e98a51090e9a6",
+      "decimals": 18
+    }
+  },
+  "OPN": {
+    "bsc": {
+      "address": "0x7977bf3e7e0c954d12cdca3e013adaf57e0b06e0",
+      "decimals": 18
+    }
+  },
+  "PWT": {
+    "bsc": {
+      "address": "0x458cb0959b8fdc71ebbd92911777f8c9e814c29c",
+      "decimals": 18
+    }
+  },
+  "WBNB": {
+    "bsc": {
+      "address": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+      "decimals": 18
+    }
+  },
+  "XAUT0": {
+    "bsc": {
+      "address": "0x21caef8a43163eea865baee23b9c2e327696a3bf",
+      "decimals": 6
+    },
+    "arbitrum": {
+      "address": "0x40461291347e1ecbb09499f3371d3f17f10d7159",
+      "decimals": 6
+    }
+  },
+  "BONK": {
+    "unichain": {
+      "address": "0xbbe97f3522101e5b6976cbf77376047097ba837f",
+      "decimals": 5
+    }
+  },
+  "DOGE": {
+    "unichain": {
+      "address": "0x12e96c2bfea6e835cf8dd38a5834fa61cf723736",
+      "decimals": 18
+    }
+  },
+  "HYPE": {
+    "unichain": {
+      "address": "0x15d0e0c55a3e7ee67152ad7e89acf164253ff68d",
+      "decimals": 18
+    }
+  },
+  "TAO": {
+    "unichain": {
+      "address": "0xfdca15bd55f350a36e63c47661914d80411d2c22",
+      "decimals": 18
+    },
+    "worldchain": {
+      "address": "0xfdca15bd55f350a36e63c47661914d80411d2c22",
+      "decimals": 18
+    },
+    "base": {
+      "address": "0xfdca15bd55f350a36e63c47661914d80411d2c22",
+      "decimals": 18
+    }
+  },
+  "WIF": {
+    "unichain": {
+      "address": "0x97fadb3d000b953360fd011e173f12cddb5d70fa",
+      "decimals": 6
+    }
+  },
+  "XPL": {
+    "unichain": {
+      "address": "0x139451953ef1865c096f89c5e522c081dc3b5f11",
+      "decimals": 18
+    }
+  },
+  "XRP": {
+    "unichain": {
+      "address": "0x2615a94df961278dcbc41fb0a54fec5f10a693ae",
+      "decimals": 18
+    }
+  },
+  "ZEC": {
+    "unichain": {
+      "address": "0x83f31af747189c2fa9e5deb253200c505eff6ed2",
+      "decimals": 18
+    }
+  },
+  "AAOI": {
+    "robinhood": {
+      "address": "0x521cf887e6531c6f667b5bc4d896e5d9bfe8eb2e",
+      "decimals": 18
+    }
+  },
+  "AAPL": {
+    "robinhood": {
+      "address": "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+      "decimals": 18
+    }
+  },
+  "ABCL": {
+    "robinhood": {
+      "address": "0x3139d77ace0cbaa5bdfd38bd1f1911a794af0b0e",
+      "decimals": 18
+    }
+  },
+  "ADBE": {
+    "robinhood": {
+      "address": "0x232b8ed6377be97813853b0ac104c4cda8378d1b",
+      "decimals": 18
+    }
+  },
+  "AEHR": {
+    "robinhood": {
+      "address": "0x5f604fba1162193a4388a5dfa56f556f3e133cc2",
+      "decimals": 18
+    }
+  },
+  "AEIS": {
+    "robinhood": {
+      "address": "0xfaf9cb261b5fcc1f404bb10cd39c5c6c1974e612",
+      "decimals": 18
+    }
+  },
+  "ALAB": {
+    "robinhood": {
+      "address": "0x748c32c3ca24edf31ea597db1f3d330a7a6da3dc",
+      "decimals": 18
+    }
+  },
+  "AMAT": {
+    "robinhood": {
+      "address": "0x36046893810a7e7fce501229d57dc3fc8c8716d0",
+      "decimals": 18
+    }
+  },
+  "AMBA": {
+    "robinhood": {
+      "address": "0x99d9d8663545151603863c5acbd6fc3218899009",
+      "decimals": 18
+    }
+  },
+  "AMC": {
+    "robinhood": {
+      "address": "0x05a3d1cd21d0c88145e82600e62e7e496e0f222b",
+      "decimals": 18
+    }
+  },
+  "AMD": {
+    "robinhood": {
+      "address": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+      "decimals": 18
+    }
+  },
+  "AMKR": {
+    "robinhood": {
+      "address": "0xdd356aa38f40a7b7076755ac854b6fbb1f0d305b",
+      "decimals": 18
+    }
+  },
+  "AMZN": {
+    "robinhood": {
+      "address": "0x12f190a9f9d7d37a250758b26824b97ce941bf54",
+      "decimals": 18
+    }
+  },
+  "ANET": {
+    "robinhood": {
+      "address": "0x28babd556b60e53663b8615036479a29c2cdd1bf",
+      "decimals": 18
+    }
+  },
+  "APLD": {
+    "robinhood": {
+      "address": "0xb8dbf92f9741c9ac1c32115e78581f23509916fd",
+      "decimals": 18
+    }
+  },
+  "APP": {
+    "robinhood": {
+      "address": "0xa249baf1063af884807c1e1400aef7784836917e",
+      "decimals": 18
+    }
+  },
+  "ARM": {
+    "robinhood": {
+      "address": "0x666716999e75d2652398ff830bbc2e485946e140",
+      "decimals": 18
+    }
+  },
+  "ASML": {
+    "robinhood": {
+      "address": "0x47f93d52cbec7c6d2cfc080e154002370a60daea",
+      "decimals": 18
+    }
+  },
+  "ASTS": {
+    "robinhood": {
+      "address": "0x1af6446f07eb1d97c546afc8c9544cbdf3ad5137",
+      "decimals": 18
+    }
+  },
+  "AUR": {
+    "robinhood": {
+      "address": "0x373c06c4f7bde527d7dae4ba169e42b55e393ced",
+      "decimals": 18
+    }
+  },
+  "AVAV": {
+    "robinhood": {
+      "address": "0xf6290b5e7c26502e2da514c31509849718ea76a5",
+      "decimals": 18
+    }
+  },
+  "AVGO": {
+    "robinhood": {
+      "address": "0x156e175dd063a8ce274c50654ef40e0032b3fbcf",
+      "decimals": 18
+    }
+  },
+  "AXON": {
+    "robinhood": {
+      "address": "0xc27dbd474af5181c5a8777903690d8d262d12648",
+      "decimals": 18
+    }
+  },
+  "AXTI": {
+    "robinhood": {
+      "address": "0x141eea040c2250eec0314e336975e81f85f6585e",
+      "decimals": 18
+    }
+  },
+  "BA": {
+    "robinhood": {
+      "address": "0x4d21483a44bf67a86b77e3da301411880797d452",
+      "decimals": 18
+    }
+  },
+  "BABA": {
+    "robinhood": {
+      "address": "0xad25ac6c84d497db898fa1e8387bf6af3532a1c4",
+      "decimals": 18
+    }
+  },
+  "BB": {
+    "robinhood": {
+      "address": "0x48e39e56acdba37b09020c0b734a613c9a2f100a",
+      "decimals": 18
+    }
+  },
+  "BE": {
+    "robinhood": {
+      "address": "0x822cc93ffd030293e9842c30bbd678f530701867",
+      "decimals": 18
+    }
+  },
+  "BND": {
+    "robinhood": {
+      "address": "0x2f62fc9fabb470c690f141c28340ed832bb27020",
+      "decimals": 18
+    }
+  },
+  "BULL": {
+    "robinhood": {
+      "address": "0xcef9027c7d6985b85f0ba431125073529a947a68",
+      "decimals": 18
+    }
+  },
+  "CASHCAT": {
+    "robinhood": {
+      "address": "0x020bfc650a365f8bb26819deaabf3e21291018b4",
+      "decimals": 18
+    }
+  },
+  "CBRS": {
+    "robinhood": {
+      "address": "0x5c90450bbb4273d7b2f17cf6917aeb237a569679",
+      "decimals": 18
+    }
+  },
+  "CCL": {
+    "robinhood": {
+      "address": "0x9651342cea770ae9a2969ba2a52611523146aef9",
+      "decimals": 18
+    }
+  },
+  "CEG": {
+    "robinhood": {
+      "address": "0xae517a2903e68bd929dfd15be875f8369d53e94a",
+      "decimals": 18
+    }
+  },
+  "CELH": {
+    "robinhood": {
+      "address": "0x8cf07c5a878945185d327aaa6e33faa95f95e7bf",
+      "decimals": 18
+    }
+  },
+  "CIEN": {
+    "robinhood": {
+      "address": "0x44f6d488021f8233b9416294d1fe9b1fee28382d",
+      "decimals": 18
+    }
+  },
+  "CLOV": {
+    "robinhood": {
+      "address": "0x62200915e7deab1ec7f79fb246dadbb80eacddd0",
+      "decimals": 18
+    }
+  },
+  "CLS": {
+    "robinhood": {
+      "address": "0xbf449977089c718c004a66c554b26b94ef3ad4de",
+      "decimals": 18
+    }
+  },
+  "CLSK": {
+    "robinhood": {
+      "address": "0xcbb95bbf36099d34da091dc6fa6f49efa257cee3",
+      "decimals": 18
+    }
+  },
+  "COHR": {
+    "robinhood": {
+      "address": "0x92f9f459f1a9a5ad266b182be7bffd1c6c666894",
+      "decimals": 18
+    }
+  },
+  "COIN": {
+    "robinhood": {
+      "address": "0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+      "decimals": 18
+    }
+  },
+  "COST": {
+    "robinhood": {
+      "address": "0x4ea005168d7f09a7a0ba9d1def21a479950e44c2",
+      "decimals": 18
+    }
+  },
+  "CRCL": {
+    "robinhood": {
+      "address": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+      "decimals": 18
+    }
+  },
+  "CRDO": {
+    "robinhood": {
+      "address": "0x4d67253bc223e6b0e104f1084c1fb2b669ddc41b",
+      "decimals": 18
+    }
+  },
+  "CRM": {
+    "robinhood": {
+      "address": "0xd95b44124e475743a7589e68f3d74008a5536d44",
+      "decimals": 18
+    }
+  },
+  "CRWD": {
+    "robinhood": {
+      "address": "0xea72ecca2d0f6bfa1394dbbcff85b52cd4233931",
+      "decimals": 18
+    }
+  },
+  "CRWV": {
+    "robinhood": {
+      "address": "0x5f10a1c971b69e47e059e1dc91901b59b3fb49c3",
+      "decimals": 18
+    }
+  },
+  "CSCO": {
+    "robinhood": {
+      "address": "0xf543967eebb6f1917992ef0e68de63ab07a5a0da",
+      "decimals": 18
+    }
+  },
+  "CTSH": {
+    "robinhood": {
+      "address": "0x63d5a3b6939a33f1e75d8bcd85759858239600db",
+      "decimals": 18
+    }
+  },
+  "CVNA": {
+    "robinhood": {
+      "address": "0xa4f319104089fe321dc8093c6e707d4fe190a988",
+      "decimals": 18
+    }
+  },
+  "DDOG": {
+    "robinhood": {
+      "address": "0x27c99fbde9d0d2aa4f4bfb4943f237843ddf6958",
+      "decimals": 18
+    }
+  },
+  "DELL": {
+    "robinhood": {
+      "address": "0x941ae714ec6d8130c7b75d67160ca08f1e7d11dd",
+      "decimals": 18
+    }
+  },
+  "DJT": {
+    "robinhood": {
+      "address": "0x1d11f0496982706c5e14a514d4e79f2e6bde4516",
+      "decimals": 18
+    }
+  },
+  "DOCN": {
+    "robinhood": {
+      "address": "0xc02f12b9fe9e707079ec0d546f3050d3f6c1f8bd",
+      "decimals": 18
+    }
+  },
+  "DRAM": {
+    "robinhood": {
+      "address": "0x33c18e2cc8ae9ae486e785090d86b2ce632ff994",
+      "decimals": 18
+    }
+  },
+  "ELF": {
+    "robinhood": {
+      "address": "0x39ec44bee4f6a116c6f9b8de566848a985c53c60",
+      "decimals": 18
+    }
+  },
+  "EWT": {
+    "robinhood": {
+      "address": "0x1c690498150252222c275a5ced69d3a6b1f52d5e",
+      "decimals": 18
+    }
+  },
+  "EWY": {
+    "robinhood": {
+      "address": "0x7f0abef0c07280f82c6a08ead09ded6bae2c13fc",
+      "decimals": 18
+    }
+  },
+  "F": {
+    "robinhood": {
+      "address": "0x25c288e6d899b9bc30160965ad9644c67e73be0c",
+      "decimals": 18
+    }
+  },
+  "FICO": {
+    "robinhood": {
+      "address": "0xa48f22a46c0f1c46ca7d111cb6c137c271987180",
+      "decimals": 18
+    }
+  },
+  "FIG": {
+    "robinhood": {
+      "address": "0x41f4267525a8aff329540ef24fd83d9044758b33",
+      "decimals": 18
+    }
+  },
+  "FISV": {
+    "robinhood": {
+      "address": "0x9ece29a4a2397c0a35fb5fa8ee2b9509130a98cc",
+      "decimals": 18
+    }
+  },
+  "FIX": {
+    "robinhood": {
+      "address": "0x93dbb1d2dc5d63f4abacff30485273f538df68ac",
+      "decimals": 18
+    }
+  },
+  "FLNC": {
+    "robinhood": {
+      "address": "0x282e87451e10fa6679bc7d76c69be44cd3fc777c",
+      "decimals": 18
+    }
+  },
+  "FLY": {
+    "robinhood": {
+      "address": "0x03bc731ffb162cdd7b98d3c6542bfc291126075d",
+      "decimals": 18
+    }
+  },
+  "FTNT": {
+    "robinhood": {
+      "address": "0x3fb8976980d486084b2eb4a404bd12e72823958f",
+      "decimals": 18
+    }
+  },
+  "FUTU": {
+    "robinhood": {
+      "address": "0xeb30663bdff0622ef4e4e5cbb4e975f19f33f51d",
+      "decimals": 18
+    }
+  },
+  "GE": {
+    "robinhood": {
+      "address": "0x63b814ddbd6bf339f25fed8c36158a008d5b373e",
+      "decimals": 18
+    }
+  },
+  "GEV": {
+    "robinhood": {
+      "address": "0x94b8aae43a1ccc08aa64b7d1f29b4d920af4a0c9",
+      "decimals": 18
+    }
+  },
+  "GLD": {
+    "robinhood": {
+      "address": "0xc9a981fee1f9dec688bb123ccdecc63d0debfc4e",
+      "decimals": 18
+    }
+  },
+  "GLW": {
+    "robinhood": {
+      "address": "0x7c04e6a3368f2a1de3874f0e80d2e0a1a9915da6",
+      "decimals": 18
+    }
+  },
+  "GLXY": {
+    "robinhood": {
+      "address": "0x2d427692e928fa156ec22acfabafa0447c5805b7",
+      "decimals": 18
+    }
+  },
+  "GME": {
+    "robinhood": {
+      "address": "0x1b0e319c6a659f002271b69db8a7df2f911c153e",
+      "decimals": 18
+    }
+  },
+  "GOOGL": {
+    "robinhood": {
+      "address": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "decimals": 18
+    }
+  },
+  "HII": {
+    "robinhood": {
+      "address": "0xeb61c0ed490a367d4e3631ccf8a74b3bfc7e775d",
+      "decimals": 18
+    }
+  },
+  "HIMS": {
+    "robinhood": {
+      "address": "0xccee82fe024c36fa15e1005ede3e9e4787e23d09",
+      "decimals": 18
+    }
+  },
+  "HPE": {
+    "robinhood": {
+      "address": "0x59dd09d4900c2e4b5f75b7c0d4e6796fcc234cb1",
+      "decimals": 18
+    }
+  },
+  "HWM": {
+    "robinhood": {
+      "address": "0xaea445c5f3db1a462998ccc422a875a361ee5d99",
+      "decimals": 18
+    }
+  },
+  "IBM": {
+    "robinhood": {
+      "address": "0x980dcf6766fa79f5cf0c4aadb3ab477ff15a9619",
+      "decimals": 18
+    }
+  },
+  "IBRX": {
+    "robinhood": {
+      "address": "0x7c148f74ac7445d1f28366b7fcdc6792a9fcd0cf",
+      "decimals": 18
+    }
+  },
+  "INDA": {
+    "robinhood": {
+      "address": "0xacef2e09adb47ad6abebad9ff06689e60615c2b6",
+      "decimals": 18
+    }
+  },
+  "INFQ": {
+    "robinhood": {
+      "address": "0xb853bc83a753342a4f8320ea680b4b1e84118d21",
+      "decimals": 18
+    }
+  },
+  "INOD": {
+    "robinhood": {
+      "address": "0xf1953dab6fad537488d5a022361ffaa8b4c95ec6",
+      "decimals": 18
+    }
+  },
+  "INTC": {
+    "robinhood": {
+      "address": "0xc72b96e0e48ecd4dc75e1e45396e26300bc39681",
+      "decimals": 18
+    }
+  },
+  "INTU": {
+    "robinhood": {
+      "address": "0x56d23bee5f41a7120170b0c603dae30128e460e9",
+      "decimals": 18
+    }
+  },
+  "IONQ": {
+    "robinhood": {
+      "address": "0x558378e000d634a36593e338ebacdd6207640efe",
+      "decimals": 18
+    }
+  },
+  "IREN": {
+    "robinhood": {
+      "address": "0xf0ab0c93be6f41369d302e55db1a96b3c430212d",
+      "decimals": 18
+    }
+  },
+  "JBL": {
+    "robinhood": {
+      "address": "0xeaf2512dfc1beac608f8794b3793cd4e02894aa6",
+      "decimals": 18
+    }
+  },
+  "JNJ": {
+    "robinhood": {
+      "address": "0x03dfbbe0ac4e7bcdafd08ed41a400326b77d8c80",
+      "decimals": 18
+    }
+  },
+  "JOBY": {
+    "robinhood": {
+      "address": "0xb334c5ce741b80b5b671f47f5c269cb193fe8e24",
+      "decimals": 18
+    }
+  },
+  "KLAC": {
+    "robinhood": {
+      "address": "0x96b933c74ecb4a0926b9210cef7b743ef46be2e9",
+      "decimals": 18
+    }
+  },
+  "KSS": {
+    "robinhood": {
+      "address": "0x12e3c047bf9aecaf9ddc98c05c31bfd1dd043993",
+      "decimals": 18
+    }
+  },
+  "KTOS": {
+    "robinhood": {
+      "address": "0x7fd06a4d81ccfa3f351394e144d5191874c31313",
+      "decimals": 18
+    }
+  },
+  "LHX": {
+    "robinhood": {
+      "address": "0x48d60243c66437c6ac3c2495be94747aed5dfe25",
+      "decimals": 18
+    }
+  },
+  "LITE": {
+    "robinhood": {
+      "address": "0x8ef20885f94e3d9bc7eb3080279188bd5ed7c08c",
+      "decimals": 18
+    }
+  },
+  "LLY": {
+    "robinhood": {
+      "address": "0x8005d266423c7ea827372c9c864491e5786600ea",
+      "decimals": 18
+    }
+  },
+  "LMT": {
+    "robinhood": {
+      "address": "0x329fcaceb9ad6f9580dd5f643fed0646900d043c",
+      "decimals": 18
+    }
+  },
+  "LRCX": {
+    "robinhood": {
+      "address": "0x57b0030166db0c31690d1a5aa167e2e26e2c29a4",
+      "decimals": 18
+    }
+  },
+  "LULU": {
+    "robinhood": {
+      "address": "0x4e62068525ab11fe768e29dfd00ef909b9803016",
+      "decimals": 18
+    }
+  },
+  "LUNR": {
+    "robinhood": {
+      "address": "0xa5d4968421ba94814be3b136b15cf422101ac1a3",
+      "decimals": 18
+    }
+  },
+  "MDB": {
+    "robinhood": {
+      "address": "0xddf2266b79abf0b48898959b0ed6e6adf512be74",
+      "decimals": 18
+    }
+  },
+  "META": {
+    "robinhood": {
+      "address": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "decimals": 18
+    }
+  },
+  "MOD": {
+    "robinhood": {
+      "address": "0xc6cbad1016b38b797610c25e1dc7d95988b1f362",
+      "decimals": 18
+    }
+  },
+  "MPWR": {
+    "robinhood": {
+      "address": "0x52d50d0280ad1054b43f052bd70a49a212a1b128",
+      "decimals": 18
+    }
+  },
+  "MRNA": {
+    "robinhood": {
+      "address": "0x43b07d15ce533bec5476d70c22a78a1b2b662155",
+      "decimals": 18
+    }
+  },
+  "MRVL": {
+    "robinhood": {
+      "address": "0x62fd0668e10d8b72339be2dcf7643001688ff13b",
+      "decimals": 18
+    }
+  },
+  "MSFT": {
+    "robinhood": {
+      "address": "0xe93237c50d904957cf27e7b1133b510c669c2e74",
+      "decimals": 18
+    }
+  },
+  "MSTR": {
+    "robinhood": {
+      "address": "0xec262a75e413fafd0df80480274532c79d42da09",
+      "decimals": 18
+    }
+  },
+  "MTSI": {
+    "robinhood": {
+      "address": "0xc93f4d80e268ab922e871bd169156c3cc41894e6",
+      "decimals": 18
+    }
+  },
+  "MU": {
+    "robinhood": {
+      "address": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "decimals": 18
+    }
+  },
+  "MXL": {
+    "robinhood": {
+      "address": "0x48961813349333209994750ffa89b3c5c22ec969",
+      "decimals": 18
+    }
+  },
+  "NASA": {
+    "robinhood": {
+      "address": "0x6ddb95405db6179012bff2fff7e0f8d49cf00137",
+      "decimals": 18
+    }
+  },
+  "NAVN": {
+    "robinhood": {
+      "address": "0xf7181b63fdb858558a74ba96bc42732684cd7965",
+      "decimals": 18
+    }
+  },
+  "NBIS": {
+    "robinhood": {
+      "address": "0x9d9c6684f596f66a64c030b93a886d51fd4d7931",
+      "decimals": 18
+    }
+  },
+  "NET": {
+    "robinhood": {
+      "address": "0x116f00968269b7bfbad4109ce591d6e74c0601d4",
+      "decimals": 18
+    }
+  },
+  "NFLX": {
+    "robinhood": {
+      "address": "0xe0444ef8bf4ed74f74fd73686e2ddf4c1c5591e8",
+      "decimals": 18
+    }
+  },
+  "NNE": {
+    "robinhood": {
+      "address": "0xbef75684c43c4ea7bd18dd532a2244674ee8b926",
+      "decimals": 18
+    }
+  },
+  "NOK": {
+    "robinhood": {
+      "address": "0x25ee805ac369b6e3f8bf5764c682d34a37cb7175",
+      "decimals": 18
+    }
+  },
+  "NOW": {
+    "robinhood": {
+      "address": "0x0c3260af4b8f13a69c4c2dfb84fd667890cdfa14",
+      "decimals": 18
+    }
+  },
+  "NVDA": {
+    "robinhood": {
+      "address": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "decimals": 18
+    }
+  },
+  "NVTS": {
+    "robinhood": {
+      "address": "0xbe6702d7b70315376dc48a3293f24f0982f86386",
+      "decimals": 18
+    }
+  },
+  "OKLO": {
+    "robinhood": {
+      "address": "0x8b2f88497f15a18e9d4ffa1a8ffb8538399ae774",
+      "decimals": 18
+    }
+  },
+  "ON": {
+    "robinhood": {
+      "address": "0xbbd09f72b025360fee5c928053dca6248d35be54",
+      "decimals": 18
+    }
+  },
+  "ONTO": {
+    "robinhood": {
+      "address": "0x8ff63eaeee3fe54ba450c4f5538064ec5a893aef",
+      "decimals": 18
+    }
+  },
+  "ORCL": {
+    "robinhood": {
+      "address": "0xb0992820e760d836549ba69bc7598b4af75dee03",
+      "decimals": 18
+    }
+  },
+  "OUST": {
+    "robinhood": {
+      "address": "0x40e7a279850e443f582059ae5dc1c3b6563e6395",
+      "decimals": 18
+    }
+  },
+  "P": {
+    "robinhood": {
+      "address": "0x1cdad396db64bda184d5182a97dd9b3c62100b7d",
+      "decimals": 18
+    }
+  },
+  "PANW": {
+    "robinhood": {
+      "address": "0xb039597ed45cba7b6e2fb9e8be51802969cee5be",
+      "decimals": 18
+    }
+  },
+  "PATH": {
+    "robinhood": {
+      "address": "0xfb2664f07b6aadd29ea7a59d8859b1aeb8645cda",
+      "decimals": 18
+    }
+  },
+  "PENG": {
+    "robinhood": {
+      "address": "0x9b23573b156b52565012f5ce02cdf60afbaa70be",
+      "decimals": 18
+    }
+  },
+  "PFE": {
+    "robinhood": {
+      "address": "0x7066a64c24e4206cd62e83bf198c1e7eb361f51e",
+      "decimals": 18
+    }
+  },
+  "PL": {
+    "robinhood": {
+      "address": "0xaa4d64474c172010ab57719cb9951e6142a100d3",
+      "decimals": 18
+    }
+  },
+  "PLTR": {
+    "robinhood": {
+      "address": "0x894e1ec2d74ffe5aef8dc8a9e84686accb964f2a",
+      "decimals": 18
+    }
+  },
+  "POET": {
+    "robinhood": {
+      "address": "0xcf6b2d875361be807eafa57458c80f28521f9333",
+      "decimals": 18
+    }
+  },
+  "POWL": {
+    "robinhood": {
+      "address": "0x237c16d66590f67b886d978acd362eaead8b18c7",
+      "decimals": 18
+    }
+  },
+  "PR": {
+    "robinhood": {
+      "address": "0x4189f0c66ebbb0bfef1c31f763131361ef32f77c",
+      "decimals": 18
+    }
+  },
+  "PWR": {
+    "robinhood": {
+      "address": "0x9ab02ead789b6903c3c44d0ed32f9c707cdf12fd",
+      "decimals": 18
+    }
+  },
+  "QBTS": {
+    "robinhood": {
+      "address": "0xc583c60aef9dc401da72cec1b404743a93cea1cc",
+      "decimals": 18
+    }
+  },
+  "QCOM": {
+    "robinhood": {
+      "address": "0x0f17206447090e464c277571124dd2688e48aea9",
+      "decimals": 18
+    }
+  },
+  "QQQ": {
+    "robinhood": {
+      "address": "0xd5f3879160bc7c32ebb4dc785f8a4f505888de68",
+      "decimals": 18
+    }
+  },
+  "QUBT": {
+    "robinhood": {
+      "address": "0x59818904ab4ce163b3ce4ffb64f2d6ca02c434b4",
+      "decimals": 18
+    }
+  },
+  "RBLX": {
+    "robinhood": {
+      "address": "0xf0c4bf4c582cb3836e98394b1d4e7b7281101be8",
+      "decimals": 18
+    }
+  },
+  "RCAT": {
+    "robinhood": {
+      "address": "0xfde6b5d9bb419b10c23268c74e369abff39c0460",
+      "decimals": 18
+    }
+  },
+  "RDDT": {
+    "robinhood": {
+      "address": "0x05b37fb53a299a1b874a619e1c4c404d52c36f4c",
+      "decimals": 18
+    }
+  },
+  "RDW": {
+    "robinhood": {
+      "address": "0x92ef19e82bd8ff36661de838d5eae7e5cef0effe",
+      "decimals": 18
+    }
+  },
+  "RGTI": {
+    "robinhood": {
+      "address": "0x284358abc07f9359f19f4b5b4ac91901be2597ba",
+      "decimals": 18
+    }
+  },
+  "RIVN": {
+    "robinhood": {
+      "address": "0xb1bf26c1d20ff267a4f93550d1e0d06ac40a114b",
+      "decimals": 18
+    }
+  },
+  "RKLB": {
+    "robinhood": {
+      "address": "0x3b14c39e89d60d627b42a1a4ca45b5bb45fc12e2",
+      "decimals": 18
+    }
+  },
+  "RUN": {
+    "robinhood": {
+      "address": "0x756bc80af765c82da966a788858d65adf14f3793",
+      "decimals": 18
+    }
+  },
+  "RVI": {
+    "robinhood": {
+      "address": "0xb02e3e1b7f68559427c2d9100566e4f3cc5b7611",
+      "decimals": 18
+    }
+  },
+  "SATS": {
+    "robinhood": {
+      "address": "0x95052ddcd5dc25641657424a8cf04834997e1730",
+      "decimals": 18
+    }
+  },
+  "SCHD": {
+    "robinhood": {
+      "address": "0xd63abb2c13d7a8421a8017a712802053568e3c1d",
+      "decimals": 18
+    }
+  },
+  "SGOV": {
+    "robinhood": {
+      "address": "0x92fd66527192e3e61d4ddd13322aa222de86f9b5",
+      "decimals": 18
+    }
+  },
+  "SHOP": {
+    "robinhood": {
+      "address": "0xf53f66751b1eff985311b693531e3290f600c410",
+      "decimals": 18
+    }
+  },
+  "SHY": {
+    "robinhood": {
+      "address": "0xbe274710bf3d9567e1b290ef6a5f9f90ca016fd8",
+      "decimals": 18
+    }
+  },
+  "SIMO": {
+    "robinhood": {
+      "address": "0x77e655e37f4d913fb9540e0d541d824171a60e81",
+      "decimals": 18
+    }
+  },
+  "SLS": {
+    "robinhood": {
+      "address": "0x285b231728c7e4333799183df1094d775246a535",
+      "decimals": 18
+    }
+  },
+  "SLV": {
+    "robinhood": {
+      "address": "0x411efb0e7f985935daec3d4c3ebaea0d0ad7d89f",
+      "decimals": 18
+    }
+  },
+  "SMCI": {
+    "robinhood": {
+      "address": "0xc01aa1fecec0605b13bc84874ff7256c0f5f562a",
+      "decimals": 18
+    }
+  },
+  "SMH": {
+    "robinhood": {
+      "address": "0x072f979c2cac8e1391b0162a87fee094bf8744a0",
+      "decimals": 18
+    }
+  },
+  "SMR": {
+    "robinhood": {
+      "address": "0x1eebee7f74517e0279dfb09d25b0407beec3fdd6",
+      "decimals": 18
+    }
+  },
+  "SNAP": {
+    "robinhood": {
+      "address": "0xf6589f11bc40b669e584073f428b05562f568733",
+      "decimals": 18
+    }
+  },
+  "SNDK": {
+    "robinhood": {
+      "address": "0xb90a19ff0af67f7779aff50a882a9cff42446400",
+      "decimals": 18
+    }
+  },
+  "SNOW": {
+    "robinhood": {
+      "address": "0xba0cab75495255d0cb58e22b648bfed4ecd1f47e",
+      "decimals": 18
+    }
+  },
+  "SOFI": {
+    "robinhood": {
+      "address": "0x98e75885157c80992a8d41b696d8c9c6fb30a926",
+      "decimals": 18
+    }
+  },
+  "SOUN": {
+    "robinhood": {
+      "address": "0x6e3dfd9f7e1649baa14d25cac18c94d62db10a54",
+      "decimals": 18
+    }
+  },
+  "SOXX": {
+    "robinhood": {
+      "address": "0x75742c18bc1f1c5c5f448f4c9d9c6f66dafaaa38",
+      "decimals": 18
+    }
+  },
+  "SPCX": {
+    "robinhood": {
+      "address": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+      "decimals": 18
+    }
+  },
+  "SPMO": {
+    "robinhood": {
+      "address": "0xad622320e520de39e72d41ef07438c3fd3354875",
+      "decimals": 18
+    }
+  },
+  "SPY": {
+    "robinhood": {
+      "address": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "decimals": 18
+    }
+  },
+  "TE": {
+    "robinhood": {
+      "address": "0xb1969f6604ca1ae7a2cd3f1827876e914594ca2d",
+      "decimals": 18
+    }
+  },
+  "TEAM": {
+    "robinhood": {
+      "address": "0x5b97476b922f3305131b8f0b9d333172e87f4aae",
+      "decimals": 18
+    }
+  },
+  "TEM": {
+    "robinhood": {
+      "address": "0xb1cc0ec7db69cf43539119814df40071b9d61793",
+      "decimals": 18
+    }
+  },
+  "TER": {
+    "robinhood": {
+      "address": "0x2778c5024d5ca2cdb0f8ead671ffc69963adcd9c",
+      "decimals": 18
+    }
+  },
+  "TSEM": {
+    "robinhood": {
+      "address": "0x89776d4cd68193597a2fc132cfac1fde36ccea8a",
+      "decimals": 18
+    }
+  },
+  "TSLA": {
+    "robinhood": {
+      "address": "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+      "decimals": 18
+    }
+  },
+  "TSM": {
+    "robinhood": {
+      "address": "0x58ffe4a942d3885baa22d7520691f611ef09e7aa",
+      "decimals": 18
+    }
+  },
+  "TTD": {
+    "robinhood": {
+      "address": "0x0b5fb4031cae9163db10b169ee72685f0edc8545",
+      "decimals": 18
+    }
+  },
+  "TTWO": {
+    "robinhood": {
+      "address": "0x5e81213613b6b86eab4c6c50d718d34359459786",
+      "decimals": 18
+    }
+  },
+  "UMC": {
+    "robinhood": {
+      "address": "0x0e6e67ba88e7b5d9b67636a215c76779b948de79",
+      "decimals": 18
+    }
+  },
+  "UNH": {
+    "robinhood": {
+      "address": "0xcf364ea52787e289de6f32077834056e3e70d6a8",
+      "decimals": 18
+    }
+  },
+  "UPS": {
+    "robinhood": {
+      "address": "0xf23250dac154d05bb671cb0d0ebef3c635c79ce2",
+      "decimals": 18
+    }
+  },
+  "USAR": {
+    "robinhood": {
+      "address": "0xd917b029c761d264c6a312bbbcda868658ef86a6",
+      "decimals": 18
+    }
+  },
+  "USO": {
+    "robinhood": {
+      "address": "0xa30fa36db767ad9ed3f7a60fc79526fb4d56d344",
+      "decimals": 18
+    }
+  },
+  "VICR": {
+    "robinhood": {
+      "address": "0x6006ed4b2f94110851ff7509d97d034f0eed9226",
+      "decimals": 18
+    }
+  },
+  "VRT": {
+    "robinhood": {
+      "address": "0xfa78c12e6488814a0262e4e802749a4a737d5fb7",
+      "decimals": 18
+    }
+  },
+  "VSAT": {
+    "robinhood": {
+      "address": "0x26dcbfb34fc83cabd6990f449674efdc6097ff85",
+      "decimals": 18
+    }
+  },
+  "VST": {
+    "robinhood": {
+      "address": "0x561e2a49212b7ccf47f2744ccb83e200722fadbc",
+      "decimals": 18
+    }
+  },
+  "VTI": {
+    "robinhood": {
+      "address": "0x0594134df3f171a354d9c85ebd65b7a6148f6d09",
+      "decimals": 18
+    }
+  },
+  "WDAY": {
+    "robinhood": {
+      "address": "0x82da4646242e1d962e96e932269dc644c94a9caa",
+      "decimals": 18
+    }
+  },
+  "WDC": {
+    "robinhood": {
+      "address": "0xf52597345a8edf418bc4071b4a35112472277d3e",
+      "decimals": 18
+    }
+  },
+  "WULF": {
+    "robinhood": {
+      "address": "0x348be1a8663f15edde5cdf8a96bb69078f7ab6fd",
+      "decimals": 18
+    }
+  },
+  "WYFI": {
+    "robinhood": {
+      "address": "0x9e7abd3c9139d14e4c86dce0e455aab7a0c2fb3e",
+      "decimals": 18
+    }
+  },
+  "XLK": {
+    "robinhood": {
+      "address": "0x15cd20759ce7f3285c29a319de2d1a2e098c6f43",
+      "decimals": 18
+    }
+  },
+  "XNDU": {
+    "robinhood": {
+      "address": "0xa8eb3bccbf2017ee7cbfb652eb51cf2e1b153289",
+      "decimals": 18
+    }
+  },
+  "XOM": {
+    "robinhood": {
+      "address": "0xf9b46d3d1b22199d4d1025a9cedb540a33f1a2d5",
+      "decimals": 18
+    }
+  },
+  "ZM": {
+    "robinhood": {
+      "address": "0x44c4f142009036cf477ed2d09932051843137cf1",
+      "decimals": 18
+    }
+  },
+  "ZS": {
+    "robinhood": {
+      "address": "0x7dc013eb55e436f30d7ed1afe4e36d6e45e3c3f7",
+      "decimals": 18
+    }
+  },
+  "AERO": {
+    "base": {
+      "address": "0x940181a94a35a4569e4529a3cdfb74e38fd98631",
+      "decimals": 18
+    }
+  },
+  "AIXBT": {
+    "base": {
+      "address": "0x4f9fd6be4a90f2620860d680c0d4d5fb53d1a825",
+      "decimals": 18
+    }
+  },
+  "AVNT": {
+    "base": {
+      "address": "0x696f9436b67233384889472cd7cd58a6fb5df4f1",
+      "decimals": 18
+    }
+  },
+  "AWE": {
+    "base": {
+      "address": "0x1b4617734c43f6159f3a70b7e06d883647512778",
+      "decimals": 18
+    }
+  },
+  "B3": {
+    "base": {
+      "address": "0xb3b32f9f8827d4634fe7d973fa1034ec9fddb3b3",
+      "decimals": 18
+    }
+  },
+  "BASECAT": {
+    "base": {
+      "address": "0xb2000000000000000000004c27f6523082f41d01",
+      "decimals": 18
+    }
+  },
+  "BNKR": {
+    "base": {
+      "address": "0x22af33fe49fd1fa80c7149773dde5890d3c76f3b",
+      "decimals": 18
+    }
+  },
+  "CBADA": {
+    "base": {
+      "address": "0xcbada732173e39521cdbe8bf59a6dc85a9fc7b8c",
+      "decimals": 6
+    }
+  },
+  "CBDOGE": {
+    "base": {
+      "address": "0xcbd06e5a2b0c65597161de254aa074e489deb510",
+      "decimals": 8
+    }
+  },
+  "CBLTC": {
+    "base": {
+      "address": "0xcb17c9db87b595717c857a08468793f5bab6445f",
+      "decimals": 8
+    }
+  },
+  "CBMEGA": {
+    "base": {
+      "address": "0xcb111e6a2a3bde90856d299d61341ac302167d23",
+      "decimals": 18
+    }
+  },
+  "CBXRP": {
+    "base": {
+      "address": "0xcb585250f852c6c6bf90434ab21a00f02833a4af",
+      "decimals": 6
+    }
+  },
+  "CHIP": {
+    "base": {
+      "address": "0x0c1c1c109fe34733fca54b82d7b46b75cfb71f6e",
+      "decimals": 18
+    }
+  },
+  "CLANKER": {
+    "base": {
+      "address": "0x1bc0c42215582d5a085795f4badbac3ff36d1bcb",
+      "decimals": 18
+    }
+  },
+  "COOKIE": {
+    "base": {
+      "address": "0xc0041ef357b183448b235a8ea73ce4e4ec8c265f",
+      "decimals": 18
+    }
+  },
+  "CP": {
+    "base": {
+      "address": "0x001aad84c21a5cd4d696c56d44866e9703c43f77",
+      "decimals": 18
+    }
+  },
+  "CTR": {
+    "base": {
+      "address": "0x11030f79109269d796fd0fb956d6244e502757f7",
+      "decimals": 18
+    }
+  },
+  "DEGEN": {
+    "base": {
+      "address": "0x4ed4e862860bed51a9570b96d89af5e1b0efefed",
+      "decimals": 18
+    }
+  },
+  "DIEM": {
+    "base": {
+      "address": "0xf4d97f2da56e8c3098f3a8d538db630a2606a024",
+      "decimals": 18
+    }
+  },
+  "DOGINME": {
+    "base": {
+      "address": "0x6921b130d297cc43754afba22e5eac0fbf8db75b",
+      "decimals": 18
+    }
+  },
+  "DRB": {
+    "base": {
+      "address": "0x3ec2156d4c0a9cbdab4a016633b7bcf6a8d68ea2",
+      "decimals": 18
+    }
+  },
+  "EDGE": {
+    "base": {
+      "address": "0xed6e000def95780fb89734c07ee2ce9f6dcaf110",
+      "decimals": 18
+    }
+  },
+  "ELSA": {
+    "base": {
+      "address": "0x29cc30f9d113b356ce408667aa6433589cecbdca",
+      "decimals": 18
+    }
+  },
+  "FAI": {
+    "base": {
+      "address": "0xb33ff54b9f7242ef1593d2c9bcd8f9df46c77935",
+      "decimals": 18
+    }
+  },
+  "FLOCK": {
+    "base": {
+      "address": "0x5ab3d4c385b400f3abb49e80de2faf6a88a7b691",
+      "decimals": 18
+    }
+  },
+  "FLUID": {
+    "base": {
+      "address": "0x61e030a56d33e8260fdd81f03b162a79fe3449cd",
+      "decimals": 18
+    }
+  },
+  "FUN1": {
+    "base": {
+      "address": "0x16ee7ecac70d1028e7712751e2ee6ba808a7dd92",
+      "decimals": 18
+    }
+  },
+  "HOME": {
+    "base": {
+      "address": "0x4bfaa776991e85e5f8b1255461cbbd216cfc714f",
+      "decimals": 18
+    }
+  },
+  "HYPER": {
+    "base": {
+      "address": "0xc9d23ed2adb0f551369946bd377f8644ce1ca5c4",
+      "decimals": 18
+    }
+  },
+  "ICNT": {
+    "base": {
+      "address": "0xe0cd4cacddcbf4f36e845407ce53e87717b6601d",
+      "decimals": 18
+    }
+  },
+  "JITOSOL": {
+    "base": {
+      "address": "0x97be14dd8f994a5364573bc035d85309e7cb34de",
+      "decimals": 9
+    }
+  },
+  "KAITO": {
+    "base": {
+      "address": "0x98d0baa52b2d063e780de12f615f963fe8537553",
+      "decimals": 18
+    }
+  },
+  "KAT": {
+    "base": {
+      "address": "0xd5390300c5db71f80d46f0fa9983fc72d4d1e3da",
+      "decimals": 18
+    }
+  },
+  "KEYCAT": {
+    "base": {
+      "address": "0x9a26f5433671751c3276a065f57e5a02d2817973",
+      "decimals": 18
+    }
+  },
+  "KTA": {
+    "base": {
+      "address": "0xc0634090f2fe6c6d75e61be2b949464abb498973",
+      "decimals": 18
+    }
+  },
+  "LMTS": {
+    "base": {
+      "address": "0x9eadbe35f3ee3bf3e28180070c429298a1b02f93",
+      "decimals": 18
+    }
+  },
+  "MAMO": {
+    "base": {
+      "address": "0x7300b37dfdfab110d83290a29dfb31b1740219fe",
+      "decimals": 18
+    }
+  },
+  "NOICE": {
+    "base": {
+      "address": "0x9cb41fd9dc6891bae8187029461bfaadf6cc0c69",
+      "decimals": 18
+    }
+  },
+  "O": {
+    "base": {
+      "address": "0x182fa643e5f29d5eca75e7b9cf9336a3fe4620b2",
+      "decimals": 18
+    }
+  },
+  "ODOS": {
+    "base": {
+      "address": "0xca73ed1815e5915489570014e024b7ebe65de679",
+      "decimals": 18
+    }
+  },
+  "OPG": {
+    "base": {
+      "address": "0xfbc2051ae2265686a469421b2c5a2d5462fbf5eb",
+      "decimals": 18
+    }
+  },
+  "POD": {
+    "base": {
+      "address": "0xed664536023d8e4b1640c394777d34abaff1df8f",
+      "decimals": 18
+    }
+  },
+  "PROMPT": {
+    "base": {
+      "address": "0x30c7235866872213f68cb1f08c37cb9eccb93452",
+      "decimals": 18
+    }
+  },
+  "PROS": {
+    "base": {
+      "address": "0x8b7dde054be9d180c1be7fae0874697374a49832",
+      "decimals": 18
+    }
+  },
+  "QUID": {
+    "base": {
+      "address": "0x1a44233fae8d50f1aeb3a5d58dd426ff4814cb53",
+      "decimals": 18
+    }
+  },
+  "RAVE": {
+    "base": {
+      "address": "0x1aa8fd5bcce2231c6100d55bf8b377cff33acfc3",
+      "decimals": 18
+    }
+  },
+  "RECALL": {
+    "base": {
+      "address": "0x1f16e03c1a5908818f47f6ee7bb16690b40d0671",
+      "decimals": 18
+    }
+  },
+  "REPPO": {
+    "base": {
+      "address": "0xff8104251e7761163fac3211ef5583fb3f8583d6",
+      "decimals": 18
+    }
+  },
+  "RNBW": {
+    "base": {
+      "address": "0xa53887f7e7c1bf5010b8627f1c1ba94fe7a5d6e0",
+      "decimals": 18
+    }
+  },
+  "RSC": {
+    "base": {
+      "address": "0xfbb75a59193a3525a8825bebe7d4b56899e2f7e1",
+      "decimals": 18
+    }
+  },
+  "SAPIEN": {
+    "base": {
+      "address": "0xc729777d0470f30612b1564fd96e8dd26f5814e3",
+      "decimals": 18
+    }
+  },
+  "SCOR": {
+    "base": {
+      "address": "0xd67ec255100ef200a439d09ff865fbaa2ad9c730",
+      "decimals": 18
+    }
+  },
+  "SEAM": {
+    "base": {
+      "address": "0x1c7a460413dd4e964f96d8dfc56e7223ce88cd85",
+      "decimals": 18
+    }
+  },
+  "SUP": {
+    "base": {
+      "address": "0xa69f80524381275a7ffdb3ae01c54150644c8792",
+      "decimals": 18
+    }
+  },
+  "TOSHI": {
+    "base": {
+      "address": "0xac1bd2486aaf3b5c0fc3fd868558b082a531b2b4",
+      "decimals": 18
+    }
+  },
+  "TOWNS": {
+    "base": {
+      "address": "0x00000000a22c618fd6b4d7e9a335c4b96b189a38",
+      "decimals": 18
+    }
+  },
+  "TRUST": {
+    "base": {
+      "address": "0x6cd905df2ed214b22e0d48ff17cd4200c1c6d8a3",
+      "decimals": 18
+    }
+  },
+  "UP": {
+    "base": {
+      "address": "0x5b2193fdc451c1f847be09ca9d13a4bf60f8c86b",
+      "decimals": 18
+    }
+  },
+  "USDBC": {
+    "base": {
+      "address": "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca",
+      "decimals": 6
+    }
+  },
+  "VVV": {
+    "base": {
+      "address": "0xacfe6019ed1a7dc6f7b508c02d1b04ec88cc21bf",
+      "decimals": 18
+    }
+  },
+  "WELL": {
+    "base": {
+      "address": "0xa88594d404727625a9437c3f886c7643872296ae",
+      "decimals": 18
+    }
+  },
+  "WMTX": {
+    "base": {
+      "address": "0x3e31966d4f81c72d2a55310a6365a56a4393e98d",
+      "decimals": 18
+    }
+  },
+  "ZEN": {
+    "base": {
+      "address": "0xf43eb8de897fbc7f2502483b2bef7bb9ea179229",
+      "decimals": 18
+    }
+  },
+  "ZORA": {
+    "base": {
+      "address": "0x1111111111166b7fe7bd91427724b487980afc69",
+      "decimals": 18
+    }
+  },
+  "GMX": {
+    "arbitrum": {
+      "address": "0xfc5a1a6eb076a2c7ad06ed22c90d7e710e35ad0a",
+      "decimals": 18
+    }
+  },
+  "IDOS": {
+    "arbitrum": {
+      "address": "0x68731d6f14b827bbcffbebb62b19daa18de1d79c",
+      "decimals": 18
+    }
+  },
+  "MAGIC": {
+    "arbitrum": {
+      "address": "0x539bde0d7dbd336b79148aa742883198bbf60342",
+      "decimals": 18
+    }
+  },
+  "RAIN": {
+    "arbitrum": {
+      "address": "0x25118290e6a5f4139381d072181157035864099d",
+      "decimals": 18
+    }
+  },
+  "SQD": {
+    "arbitrum": {
+      "address": "0x1337420ded5adb9980cfc35f8f2b054ea86f8ab1",
+      "decimals": 18
+    }
+  }
 }

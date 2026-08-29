@@ -84,29 +84,31 @@ agent runtime, not just a new router address.
 
 ## Liquidity map (offline cache — read it, don't scan live)
 
-`scripts/liquidity-map.json` is an offline cache of the top assets by market cap: for each, the
-**CoinGecko-sourced** canonical contract address + whether a Sail-routable USDC pool exists + its
+`scripts/liquidity-map.json` is an offline cache of the top assets: for each, the
+**Uniswap-list-sourced** canonical contract address + whether a Sail-routable USDC pool exists + its
 depth + `volume24hUsd` + the DEX family (`dex`), per chain. The resolver reads it **first** and
 skips the live feed scan for anything it answers, so a portfolio of major assets resolves in ~1–2
 seconds instead of a live 10-chain scan.
 
-**Identity is never guessed.** The map's address comes from CoinGecko's official per-chain
-`platforms` listing (via `build-top-assets-seed.mjs`), never from a DexScreener search — asking
-DexScreener "what is the deepest pool called X?" is how a planted look-alike (copied ticker, fake
-liquidity, zero volume) becomes the canonical address. The resolver additionally trusts a map entry
-only when it **actually trades** (`volume24hUsd > 0`); a zero-volume entry is rejected and falls
-through to the live volume-ranked search. So the map can only ever fill a gap with a verified,
-trading address — never override or invent one.
+**Identity is never guessed.** The map's address comes from the **Uniswap default token list**
+(`https://tokens.uniswap.org`, a curated catalog of real contracts — via `build-top-assets-seed.mjs`),
+never from a DexScreener search — asking DexScreener "what is the deepest pool called X?" is how a
+planted look-alike (copied ticker, fake liquidity, zero volume) becomes the canonical address. The
+resolver additionally trusts a map entry only when it **actually trades** (`volume24hUsd > 0`); a
+zero-volume entry is rejected and falls through to the live volume-ranked search. So the map can
+only ever fill a gap with a verified, trading address — never override or invent one.
 
 - **Don't load the map into context** — it's ~230KB. Have `resolve-token.mjs` query it; that's its
   whole job. The agent never reads the file directly.
-- **Refresh offline, in two steps.** `node scripts/build-top-assets-seed.mjs` pulls the top-N list
-  from CoinGecko (free, keyless, offline) and writes per-chain addresses to `top-assets-seed.json`;
-  then `node scripts/build-liquidity-map.mjs --seed top-assets-seed.json` rebuilds the map from that
-  trusted seed + a DexScreener routable/volume check (keyless). The runtime never calls either
-  source — both are team-run on a schedule. A map over 30 days old prints a refresh note.
-- **It only covers its seeded tokens.** The long tail still resolves live — slower but correct.
-  Regenerate the seed (grow `--count`) to widen instant coverage.
+- **Refresh offline, in two steps.** `node scripts/build-top-assets-seed.mjs` reads the Uniswap
+  token list (keyless, one static fetch, no API key) and writes per-chain addresses to
+  `top-assets-seed.json`; then `node scripts/build-liquidity-map.mjs --seed top-assets-seed.json`
+  rebuilds the map from that trusted seed + a DexScreener routable/volume check (keyless). The
+  runtime never calls either source — both are team-run on a schedule. A map over 30 days old
+  prints a refresh note.
+- **It only covers its listed tokens.** The long tail still resolves live — slower but correct.
+  The list carries ~690 symbols across 8 of the 10 Sail mainnets (hyperevm and megaeth resolve
+  live). Re-run the seed to pick up newly listed tokens.
 
 ## Worked example — "create a DCA strategy of USDC, UNI, HYPE and MORPHO"
 

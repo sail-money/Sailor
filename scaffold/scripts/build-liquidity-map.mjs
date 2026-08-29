@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // build-liquidity-map.mjs — offline generator for scripts/liquidity-map.json.
 //
-// Builds a map of canonical token addresses (from CoinGecko's official per-chain
-// `platforms` listing) plus, for each, whether a Sail-routable USDC pool exists, how
-// deep it is, and whether it actually trades. Writes the result as a compact map that
-// resolve-token.mjs reads FIRST (instant answers for the top assets) before falling
-// back to a live, volume-ranked DexScreener/GeckoTerminal lookup for the long tail.
+// Builds a map of canonical token addresses (from the Uniswap default token list, a
+// curated catalog of real contracts) plus, for each, whether a Sail-routable USDC pool
+// exists, how deep it is, and whether it actually trades. Writes the result as a compact
+// map that resolve-token.mjs reads FIRST (instant answers for the top assets) before
+// falling back to a live, volume-ranked DexScreener/GeckoTerminal lookup for the long tail.
 //
-//   node scripts/build-top-assets-seed.mjs                 # FIRST: CoinGecko → top-assets-seed.json
+//   node scripts/build-top-assets-seed.mjs                 # FIRST: token list → top-assets-seed.json
 //   node scripts/build-liquidity-map.mjs --seed top-assets-seed.json
 //   node scripts/build-liquidity-map.mjs --seed top-assets-seed.json --out path.json
 //
@@ -16,9 +16,9 @@
 // trusted address on a chain is simply left out. This is what keeps a planted look-alike
 // (a copied ticker with fake liquidity) out of the map.
 //
-// Free + keyless: CoinGecko (offline, once) + DexScreener (keyless). Addresses are
-// CoinGecko-sourced and NOT on-chain verified — resolve-token.mjs re-verifies on-chain
-// whenever an RPC is set. Run on a schedule (offline); the agent never waits on it.
+// Free + keyless: the Uniswap token list (offline, once) + DexScreener (keyless).
+// Addresses are list-sourced and NOT on-chain verified — resolve-token.mjs re-verifies
+// on-chain whenever an RPC is set. Run on a schedule (offline); the agent never waits.
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve as resolvePath, dirname } from "node:path";
@@ -150,8 +150,8 @@ function seedDecimals(seed, sym, chain) {
 // chain, how deep it is, and whether it actually trades. Returns
 // { address, routable, liquidityUsd, dex, hubDex, hubLiquidityUsd, volume24hUsd } or null.
 //
-// Identity is NEVER guessed here. `knownAddr` (the canonical contract from CoinGecko's
-// official per-chain `platforms` listing, via build-top-assets-seed.mjs) is REQUIRED.
+// Identity is NEVER guessed here. `knownAddr` (the canonical contract from the Uniswap
+// default token list, via build-top-assets-seed.mjs) is REQUIRED.
 // Asking DexScreener "what is the deepest pool called X?" is how a planted look-alike
 // (a copied ticker with fake liquidity and zero volume) becomes the canonical address —
 // the ZAMA/SKY bug class, which poisoned 378 committed entries. With no trusted address,
@@ -236,7 +236,7 @@ async function main() {
   if (!seed) {
     process.stderr.write(
       "build-liquidity-map requires --seed <file> with per-chain addresses. Generate it first:\n" +
-        "  node scripts/build-top-assets-seed.mjs            # CoinGecko platforms → top-assets-seed.json\n" +
+        "  node scripts/build-top-assets-seed.mjs            # token list → top-assets-seed.json\n" +
         "  node scripts/build-liquidity-map.mjs --seed top-assets-seed.json\n",
     );
     process.exit(1);
@@ -245,7 +245,7 @@ async function main() {
   if (noAddr > 0) {
     process.stderr.write(
       `Refusing to build: ${noAddr} seed entr${noAddr === 1 ? "y" : "ies"} are bare decimals with no address. ` +
-        "Re-generate the seed with `node scripts/build-top-assets-seed.mjs` (per-chain addresses from CoinGecko). " +
+        "Re-generate the seed with `node scripts/build-top-assets-seed.mjs` (per-chain addresses from the Uniswap token list). " +
         "The map must never record a guessed address.\n",
     );
     process.exit(1);
@@ -287,7 +287,7 @@ async function main() {
   const map = {
     version: 5,
     generatedAt: new Date().toISOString(),
-    source: "Addresses from CoinGecko platforms (trusted, offline) + DexScreener routable/volume check (keyless). Identity is NEVER derived from a DexScreener search — only CoinGecko's official per-chain contract is recorded, so a planted look-alike cannot enter the map. `volume24hUsd` is the token's max 24h volume on the chain; the resolver trusts an entry only when it actually trades. `dex` is the DEX family of the deepest routable USDC pool; `hubDex`/`hubLiquidityUsd` record the deepest Sail-routable pool against the chain's hub asset (WETH/WBNB) when there is no USDC pool (a two-swap route).",
+    source: "Addresses from the Uniswap default token list (curated, offline) + DexScreener routable/volume check (keyless). Identity is NEVER derived from a DexScreener search — only a curated-list contract is recorded, so a planted look-alike cannot enter the map. `volume24hUsd` is the token's max 24h volume on the chain; the resolver trusts an entry only when it actually trades. `dex` is the DEX family of the deepest routable USDC pool; `hubDex`/`hubLiquidityUsd` record the deepest Sail-routable pool against the chain's hub asset (WETH/WBNB) when there is no USDC pool (a two-swap route).",
     chains: chainNames,
     tokens,
   };
