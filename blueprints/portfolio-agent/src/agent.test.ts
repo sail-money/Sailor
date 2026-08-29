@@ -38,12 +38,13 @@ const NVDA_RH = ADDR("a"); // a tokenized stock on Robinhood
 const ROUTER_RH = ADDR("b");
 const QUOTER_RH = ADDR("c");
 const NVDA_BASE = ADDR("9"); // a Coinbase tokenized stock (NVDAc) on Base, settled in USDC
+const ZAMA_BASE = ADDR("0"); // a two-hop token (USDC → WETH → ZAMA) on Base
 
 // ── ABI fragments for decoding calldata ───────────────────────────────────────
 
-const EXACT_INPUT_SINGLE = [
+const EXACT_INPUT = [
   {
-    name: "exactInputSingle",
+    name: "exactInput",
     type: "function",
     stateMutability: "payable",
     inputs: [
@@ -51,13 +52,11 @@ const EXACT_INPUT_SINGLE = [
         name: "params",
         type: "tuple",
         components: [
-          { name: "tokenIn", type: "address" },
-          { name: "tokenOut", type: "address" },
-          { name: "fee", type: "uint24" },
+          { name: "path", type: "bytes" },
           { name: "recipient", type: "address" },
+          { name: "deadline", type: "uint256" },
           { name: "amountIn", type: "uint256" },
           { name: "amountOutMinimum", type: "uint256" },
-          { name: "sqrtPriceLimitX96", type: "uint160" },
         ],
       },
     ],
@@ -230,6 +229,61 @@ function baseStockConfig() {
   };
 }
 
+/** A single two-hop token (USDC → WETH → ZAMA) on Base. */
+function twoHopConfig() {
+  return {
+    chains: [8453],
+    settlement: { 8453: { symbol: "USDC", address: USDC_BASE, decimals: 6 } },
+    router: { 8453: ROUTER_BASE },
+    quoter: { 8453: QUOTER_BASE },
+    bridge: { messenger: {}, transmitter: {}, domains: {}, maxPerTxUsd: 1000 },
+    basket: [
+      {
+        symbol: "ZAMA",
+        weight: 1.0,
+        chains: [
+          {
+            chainId: 8453,
+            address: ZAMA_BASE,
+            decimals: 18,
+            feeTier: 3000, // hub → token leg
+            via: { address: WETH_BASE, feeTier: 500 }, // settlement → hub leg
+          },
+        ],
+      },
+    ],
+    rebalanceBandBps: 500,
+    maxSlippageBps: 100,
+  };
+}
+
+/** Two-token basket where ZAMA is two-hop and can be driven overweight to force a sell. */
+function twoHopSellConfig() {
+  return {
+    chains: [8453],
+    settlement: { 8453: { symbol: "USDC", address: USDC_BASE, decimals: 6 } },
+    router: { 8453: ROUTER_BASE },
+    quoter: { 8453: QUOTER_BASE },
+    bridge: { messenger: {}, transmitter: {}, domains: {}, maxPerTxUsd: 1000 },
+    basket: [
+      {
+        symbol: "ZAMA",
+        weight: 0.5,
+        chains: [
+          { chainId: 8453, address: ZAMA_BASE, decimals: 18, feeTier: 3000, via: { address: WETH_BASE, feeTier: 500 } },
+        ],
+      },
+      {
+        symbol: "WETH",
+        weight: 0.5,
+        chains: [{ chainId: 8453, address: WETH_BASE, decimals: 18, feeTier: 3000 }],
+      },
+    ],
+    rebalanceBandBps: 500,
+    maxSlippageBps: 100,
+  };
+}
+
 // ── Mock context ──────────────────────────────────────────────────────────────
 
 type Balances = Record<string, bigint>; // key `${chainId}:${token.toLowerCase()}`
@@ -255,9 +309,10 @@ function makeCtx(
     chain: (chainId: number) => ({
       chainId,
       publicClient: {
-        // 1:1 price: echo the input amount back as the output amount.
-        simulateContract: async ({ args }: { args: { amountIn: bigint }[] }) => ({
-          result: [args[0].amountIn, 0n, 0, 0n],
+        // 1:1 price: echo the input amount back as the output amount. Multi-hop quote
+        // args are [path, amountIn], so the amount is args[1].
+        simulateContract: async ({ args }: { args: unknown[] }) => ({
+          result: [args[1], 0n, 0, 0n],
         }),
       },
       read: {
@@ -306,14 +361,27 @@ async function run(
   }
 }
 
+/** Parse a Uniswap V3 path (tokenIn|fee|via?|fee|tokenOut) back into its tokens. */
+function parsePath(path: string): { tokenIn: string; tokenOut: string; via?: string } {
+  const hex = path.slice(2).toLowerCase();
+  const tokenIn = `0x${hex.slice(0, 40)}`;
+  const afterIn = hex.slice(46); // tokenIn(40) + fee(6)
+  if (afterIn.length === 40) return { tokenIn, tokenOut: `0x${afterIn}` }; // single hop
+  const via = `0x${afterIn.slice(0, 40)}`;
+  const afterVia = afterIn.slice(46); // via(40) + fee(6)
+  return { tokenIn, via, tokenOut: `0x${afterVia}` };
+}
+
 function swapArgs(call: { data: string }) {
-  const d = decodeFunctionData({ abi: EXACT_INPUT_SINGLE, data: call.data as `0x${string}` });
-  return d.args[0] as unknown as {
-    tokenIn: string;
-    tokenOut: string;
-    amountIn: bigint;
+  const d = decodeFunctionData({ abi: EXACT_INPUT, data: call.data as `0x${string}` });
+  const params = d.args[0] as unknown as {
+    path: string;
     recipient: string;
+    deadline: bigint;
+    amountIn: bigint;
   };
+  const { tokenIn, tokenOut, via } = parsePath(params.path);
+  return { ...params, tokenIn, tokenOut, via };
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -578,4 +646,47 @@ test("records cost basis in the snapshot on a buy", async () => {
     process.chdir(prev);
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("two-hop asset buys through the hub (USDC → WETH → token)", async () => {
+  const dispatches = await run(
+    twoHopConfig(),
+    makeCtx({ timestamp: T0, balances: { [`8453:${USDC_BASE}`]: 1_000_000_000n } }),
+  );
+  assert.equal(dispatches.length, 1);
+  const a = swapArgs(dispatches[0].calls[0]);
+  assert.equal(a.tokenIn.toLowerCase(), USDC_BASE.toLowerCase());
+  assert.equal(a.via!.toLowerCase(), WETH_BASE.toLowerCase());
+  assert.equal(a.tokenOut.toLowerCase(), ZAMA_BASE.toLowerCase());
+});
+
+test("two-hop asset values and sells back through the hub (token → WETH → USDC)", async () => {
+  // ZAMA at 100% (overweight vs 50% target) forces a trim; the reverse path must route
+  // through WETH back to USDC, proving the two-hop valuation + sell both work.
+  const dispatches = await run(
+    twoHopSellConfig(),
+    makeCtx({ timestamp: T0, balances: { [`8453:${ZAMA_BASE}`]: 100_000_000n } }),
+  );
+  assert.equal(dispatches.length, 1);
+  const a = swapArgs(dispatches[0].calls[0]);
+  assert.equal(a.tokenIn.toLowerCase(), ZAMA_BASE.toLowerCase());
+  assert.equal(a.via!.toLowerCase(), WETH_BASE.toLowerCase());
+  assert.equal(a.tokenOut.toLowerCase(), USDC_BASE.toLowerCase());
+});
+
+test("two-hop asset without via degrades to a direct swap, never a guessed hop", async () => {
+  // If a two-hop token's `via` is missing from the config, the runtime treats it as a
+  // direct single-hop swap (no hop is ever invented). A genuinely broken leg (e.g. a
+  // feeTier 0 placeholder) reverts at quote time and is skipped with a log, not guessed.
+  const cfg = twoHopConfig();
+  delete (cfg.basket[0].chains[0] as { via?: unknown }).via;
+  const dispatches = await run(
+    cfg,
+    makeCtx({ timestamp: T0, balances: { [`8453:${USDC_BASE}`]: 1_000_000_000n } }),
+  );
+  assert.equal(dispatches.length, 1);
+  const a = swapArgs(dispatches[0].calls[0]);
+  assert.equal(a.tokenIn.toLowerCase(), USDC_BASE.toLowerCase());
+  assert.equal(a.via, undefined); // no invented middle hop
+  assert.equal(a.tokenOut.toLowerCase(), ZAMA_BASE.toLowerCase());
 });

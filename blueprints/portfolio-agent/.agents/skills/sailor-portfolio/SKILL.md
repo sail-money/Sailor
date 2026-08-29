@@ -112,6 +112,13 @@ is a two-swap route (USDC → WETH → token), surfaced by the resolver as `twoH
 normal route, note the extra leg, never call it "no pool" or "needs a custom mandate". Chains are
 the agent's routing surface, not a menu the user is asked to choose from.
 
+**A two-hop asset is executable, not just described.** Carry the resolver's `twoHopRoute`
+(`viaAddress`, `viaFeeTier`, `feeTier`) into the config's `basket[].chains[].via` field exactly as
+resolved (see `references/portfolio-config.md` → "Two-hop assets"). Never write `feeTier: 0` as a
+placeholder for a two-hop leg — if `twoHopRoute.probedOnChain` is false, re-resolve with an RPC
+first so the route carries real fee tiers. The runtime buys, values, and rebalances a two-hop asset
+through the same path as a direct one once `via` is set.
+
 #### 2b. Chain gap → instruct the user to deploy the SMA there
 
 Compare the required chains against the SMA's current chain set. If the basket needs a chain the

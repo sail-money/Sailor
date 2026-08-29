@@ -37,6 +37,19 @@ never edit it in place.
       "chains": [
         { "chainId": 8453, "address": "0x…", "decimals": 18, "feeTier": 500 }
       ]
+    },
+    {
+      "symbol": "SKY",
+      "weight": 0.2,
+      "chains": [
+        {
+          "chainId": 1,
+          "address": "0x…",
+          "decimals": 18,
+          "feeTier": 3000,
+          "via": { "address": "0x…WETH…", "feeTier": 500 }
+        }
+      ]
     }
   ],
   "dca": { "amountUsd": 500, "periodSec": 604800 },
@@ -51,6 +64,25 @@ A Coinbase tokenized stock (NVDAc) is just a Base asset that settles in USDC. Wh
 uses a Robinhood stock token, the Robinhood chain (4663) is added to `chains`, `settlement`,
 `router` and `quoter` with `{ "symbol": "USDG", "decimals": 18 }` — the one place a second currency
 enters the config. (See `references/funding-paths.md`.)
+
+### Two-hop assets (no direct USDC pool)
+
+An asset with no direct USDC pool but a routable pool against the chain's hub asset (WETH/WBNB) is
+**swappable in two steps** — settlement → hub → token. It is fully executable, not a special case;
+the config just carries one extra field so the runtime can build the two-leg path:
+
+- `basket[].chains[].via` — `{ "address": "<hub 0x>", "feeTier": <settlement→hub fee> }`. Its
+  presence is the "two-hop" marker. The token's own `feeTier` is the **hub→token** leg.
+- `via.address` is the chain's hub (WETH on Ethereum/Base/Arbitrum/Optimism/Unichain/World Chain,
+  WBNB on BNB). `via.feeTier` is the settlement→hub leg; `feeTier` is the hub→token leg. The
+  resolver emits both in `twoHopRoute` (`viaAddress`, `viaFeeTier`, `feeTier`), on-chain probed
+  when an RPC is set — write them verbatim. If `twoHopRoute` came back **not** probed
+  (`probedOnChain: false`), re-resolve with an RPC before writing a `via`; never write a `via` with
+  a null fee tier.
+
+The runtime values and buys a two-hop asset through the same path (reverse for the sell/valuation
+leg), so a two-hop token is priced and rebalanced exactly like a direct one. A token whose `via` is
+absent is treated as a direct single-hop swap — the runtime never invents a hop.
 
 ## How the loop uses this
 
@@ -101,6 +133,13 @@ stock tokens need no special case: they settle in USDC, so they buy like any oth
 - `report` — optional. When present, the agent sends a Telegram report every `cadenceSec`. Secrets
   (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) read from `.sail/.env.local`, never written here.
 - `basket[].weight` — sums to 1.0 across the basket, global (not per chain).
-- `basket[].chains` — ordered deepest-liquidity-first. That order IS the routing preference: the
-  runtime buys on the first chain that holds enough settlement currency, and (USDC chains only)
-  bridges to the first chain when none does.
+- `basket[].chains` — the routing preference, ordered **gas-aware** (the resolver's ranked order: a
+  cheaper chain wins within ~2× of a pricier one's depth; Ethereum only ranks first when it is
+  meaningfully deeper). The runtime buys on the first chain that holds enough settlement currency,
+  and (USDC chains only) bridges to the first chain when none does. Write the chain objects in the
+  resolver's `crossChain.routableChains` order — never re-sort by raw depth, which would silently
+  prefer an expensive L1 over a cheaper chain.
+- `basket[].chains[].feeTier` — the token-side leg fee (basis points). For a direct asset it is the
+  settlement→token fee; for a two-hop asset (`via` present) it is the hub→token leg.
+- `basket[].chains[].via` — optional; `{ address, feeTier }` for a two-hop asset (see "Two-hop
+  assets" above). `via.feeTier` is the settlement→hub leg. Absent = direct single-hop.

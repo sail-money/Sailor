@@ -33,7 +33,20 @@ import {
 
 // ── Config (.sail/portfolio.json) ────────────────────────────────────────────────
 
-export type ChainToken = { chainId: number; address: Address; decimals: number; feeTier: number };
+export type ChainToken = {
+  chainId: number;
+  address: Address;
+  decimals: number;
+  /** The token-side leg fee. For a direct swap it is settlement→token; for a two-hop
+   *  asset it is the hub→token leg. Basis points (3000 = 0.3%). */
+  feeTier: number;
+  /**
+   * Optional two-hop route: buy/sell through this hub asset (WETH/WBNB). When present,
+   * the swap is settlement → via → token (buy) or token → via → settlement (sell/valuation).
+   * `via.feeTier` is the settlement→via leg. Absent means a direct single-hop swap.
+   */
+  via?: { address: Address; feeTier: number };
+};
 
 export type BasketToken = {
   symbol: string;
@@ -85,21 +98,12 @@ function specFor(token: BasketToken, chainId: number): ChainToken | undefined {
 
 const QUOTER_ABI = [
   {
-    name: "quoteExactInputSingle",
+    name: "quoteExactInput",
     type: "function",
     stateMutability: "nonpayable",
     inputs: [
-      {
-        name: "params",
-        type: "tuple",
-        components: [
-          { name: "tokenIn", type: "address" },
-          { name: "tokenOut", type: "address" },
-          { name: "amountIn", type: "uint256" },
-          { name: "fee", type: "uint24" },
-          { name: "sqrtPriceLimitX96", type: "uint160" },
-        ],
-      },
+      { name: "path", type: "bytes" },
+      { name: "amountIn", type: "uint256" },
     ],
     outputs: [
       { name: "amountOut", type: "uint256" },
@@ -112,7 +116,7 @@ const QUOTER_ABI = [
 
 const ROUTER_ABI = [
   {
-    name: "exactInputSingle",
+    name: "exactInput",
     type: "function",
     stateMutability: "payable",
     inputs: [
@@ -120,13 +124,11 @@ const ROUTER_ABI = [
         name: "params",
         type: "tuple",
         components: [
-          { name: "tokenIn", type: "address" },
-          { name: "tokenOut", type: "address" },
-          { name: "fee", type: "uint24" },
+          { name: "path", type: "bytes" },
           { name: "recipient", type: "address" },
+          { name: "deadline", type: "uint256" },
           { name: "amountIn", type: "uint256" },
           { name: "amountOutMinimum", type: "uint256" },
-          { name: "sqrtPriceLimitX96", type: "uint160" },
         ],
       },
     ],
@@ -330,22 +332,67 @@ function fromBase(base: bigint, settlement: SettlementCurrency): bigint {
     : (base * 10n ** BigInt(settlement.decimals)) / 10n ** BigInt(6);
 }
 
+/** Encode a uint24 fee tier as 3 bytes (6 hex chars). */
+function feeToHex(fee: number): string {
+  return fee.toString(16).padStart(6, "0");
+}
+
+/** A Uniswap V3 path: tokenIn (20B) || fee (3B) || tokenOut (20B), all lowercase hex. */
+function encodeV3PathSingle(tokenIn: Address, fee: number, tokenOut: Address): `0x${string}` {
+  return `0x${tokenIn.slice(2).toLowerCase()}${feeToHex(fee)}${tokenOut.slice(2).toLowerCase()}` as `0x${string}`;
+}
+
+/** A two-hop Uniswap V3 path: tokenIn || fee1 || via || fee2 || tokenOut. */
+function encodeV3PathMulti(
+  tokenIn: Address,
+  feeIn: number,
+  via: Address,
+  feeOut: number,
+  tokenOut: Address,
+): `0x${string}` {
+  return `0x${tokenIn.slice(2).toLowerCase()}${feeToHex(feeIn)}${via.slice(2).toLowerCase()}${feeToHex(feeOut)}${tokenOut.slice(2).toLowerCase()}` as `0x${string}`;
+}
+
+/**
+ * Build the Uniswap V3 swap path for a settlement↔token swap. Direction is inferred
+ * from tokenIn/tokenOut. A two-hop spec routes through `spec.via`; a direct spec uses
+ * a single leg. Returns null when a two-hop spec lacks a `via` (fail closed — the caller
+ * must not guess a hop).
+ */
+function v3Path(
+  spec: ChainToken,
+  settlement: Address,
+  tokenIn: Address,
+  tokenOut: Address,
+): `0x${string}` | null {
+  const buy = tokenIn.toLowerCase() === settlement.toLowerCase();
+  if (!spec.via) return encodeV3PathSingle(tokenIn, spec.feeTier, tokenOut);
+  if (buy) {
+    // settlement → via → token
+    return encodeV3PathMulti(tokenIn, spec.via.feeTier, spec.via.address, spec.feeTier, tokenOut);
+  }
+  // token → via → settlement (reverse of the buy path)
+  return encodeV3PathMulti(tokenIn, spec.feeTier, spec.via.address, spec.via.feeTier, tokenOut);
+}
+
 /** Quote a swap on a chain; returns amountOut, or null on revert or zero (fail closed). */
 async function quoteSwap(
   ctx: AgentContext,
   chainId: number,
   cfg: PortfolioConfig,
+  spec: ChainToken,
   tokenIn: Address,
   tokenOut: Address,
   amountIn: bigint,
-  feeTier: number,
 ): Promise<bigint | null> {
+  const path = v3Path(spec, settlementOf(cfg, chainId).address, tokenIn, tokenOut);
+  if (path === null) return null;
   try {
     const q = await ctx.chain(chainId).publicClient.simulateContract({
       address: cfg.quoter[String(chainId)],
       abi: QUOTER_ABI,
-      functionName: "quoteExactInputSingle",
-      args: [{ tokenIn, tokenOut, amountIn, fee: feeTier, sqrtPriceLimitX96: 0n }],
+      functionName: "quoteExactInput",
+      args: [path, amountIn],
     });
     const amountOut = (q.result as readonly [bigint, bigint, number, bigint])[0];
     return amountOut === 0n ? null : amountOut;
@@ -359,26 +406,27 @@ async function swap(
   ctx: AgentContext,
   chainId: number,
   cfg: PortfolioConfig,
+  spec: ChainToken,
   tokenIn: Address,
   tokenOut: Address,
   amountIn: bigint,
-  feeTier: number,
 ): Promise<Dispatch | null> {
-  const expectedOut = await quoteSwap(ctx, chainId, cfg, tokenIn, tokenOut, amountIn, feeTier);
+  const path = v3Path(spec, settlementOf(cfg, chainId).address, tokenIn, tokenOut);
+  if (path === null) return null;
+  const expectedOut = await quoteSwap(ctx, chainId, cfg, spec, tokenIn, tokenOut, amountIn);
   if (expectedOut === null) return null;
   const minOut = (expectedOut * BigInt(10_000 - cfg.maxSlippageBps)) / 10_000n;
+  const deadline = BigInt(Math.floor(ctx.timestamp)) + 3600n;
   const data = encodeFunctionData({
     abi: ROUTER_ABI,
-    functionName: "exactInputSingle",
+    functionName: "exactInput",
     args: [
       {
-        tokenIn,
-        tokenOut,
-        fee: feeTier,
+        path,
         recipient: ctx.safe,
+        deadline,
         amountIn,
         amountOutMinimum: minOut,
-        sqrtPriceLimitX96: 0n,
       },
     ],
   });
@@ -401,10 +449,10 @@ export async function usdcValueOf(
     ctx,
     spec.chainId,
     cfg,
+    spec,
     spec.address,
     settlement.address,
     oneUnit,
-    spec.feeTier,
   );
   if (perToken === null) return 0n; // unpriceable holding: fail closed, value 0
   // `perToken` is in the chain's settlement native units; normalize to the 6-decimal base.
@@ -689,20 +737,23 @@ export const agent: Agent = {
           ctx,
           chainId,
           cfg,
+          spec,
           spec.address,
           settlement.address,
           amountIn,
-          spec.feeTier,
         );
-        if (proceeds === null) continue;
+        if (proceeds === null) {
+          ctx.log(`rebalance: could not quote ${e.token.symbol} on chain ${chainId} — skipping this sell`);
+          continue;
+        }
         const d = await swap(
           ctx,
           chainId,
           cfg,
+          spec,
           spec.address,
           settlement.address,
           amountIn,
-          spec.feeTier,
         );
         if (d) {
           dispatches.push(d);
@@ -748,14 +799,18 @@ export const agent: Agent = {
           ctx,
           chainId,
           cfg,
+          spec,
           settlement.address,
           spec.address,
           fromBase(buyUsd, settlement), // base → settlement native units for the swap
-          spec.feeTier,
         );
         if (d) {
           dispatches.push(d);
           appendLedger({ ts: ctx.timestamp, kind: "bought", amount: buyUsd.toString() });
+        } else {
+          ctx.log(
+            `could not quote ${e.token.symbol} on chain ${chainId} — liquidity too thin, a missing fee tier, or a misconfigured two-hop route; skipping this leg`,
+          );
         }
         continue;
       }

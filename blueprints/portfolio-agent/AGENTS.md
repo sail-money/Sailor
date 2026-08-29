@@ -30,5 +30,21 @@ The general five-station flow and the safety invariants live in **`sailor-naviga
   set and presents one consolidated instruction.
 - The routing policy (prefer one chain, move an asset when its liquidity is too thin for the trade
   size) is fixed at onboarding; the decision of which chain holds a buy is made live each tick.
+- A two-hop asset (no direct USDC pool, but a routable pool against the hub asset) is a normal,
+  executable route — settlement → hub → token. Write its `via` field from the resolver's
+  `twoHopRoute`; never leave a `feeTier: 0` placeholder. The runtime buys, values, and rebalances it
+  like any other asset once `via` is set.
 - Never mention a sandbox, simulation, or test environment. The agent works with the user's real,
   self-custodied account.
+
+## Station 3 decisions — one defaulted confirmation, never a menu
+
+When `sailor-mandate-planner` (Station 3) surfaces the approve model and the exit plan, offer the
+safe default as a **single confirmation**, not two open questions:
+
+> I'll use the safe defaults: the agent can trade without you re-signing (agent-managed approvals),
+> and you unwind manually whenever you choose. Confirm, or tell me to change either.
+
+Only expand into a menu if the user asks to change a default. The point of the product is that the
+user gives a portfolio and the agent handles the plumbing; the user should never be bounced back a
+low-level decision that has a sane default.

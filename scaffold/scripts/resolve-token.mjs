@@ -876,6 +876,26 @@ async function verifyTokenOnChain(rpc, address) {
   };
 }
 
+// Probe a tokenIn→tokenOut swap across the standard fee tiers and return the best
+// (highest amountOut) live quote, or null when no tier has a pool. Generalised from
+// the direct USDC→token probe so two-hop legs (USDC→hub, hub→token) reuse it too.
+async function probeBestFee(rpc, quoter, tokenIn, tokenOut, amountIn) {
+  let best = null;
+  for (const fee of FEE_TIERS) {
+    const data = encodeQuoteCall(tokenIn, tokenOut, amountIn, fee);
+    try {
+      const ret = await ethCall(rpc, quoter, data);
+      const amountOut = decodeUint256Return(ret);
+      if (amountOut > 0n && (!best || amountOut > best.amountOut)) {
+        best = { fee, amountOut };
+      }
+    } catch {
+      // revert = no pool at this tier
+    }
+  }
+  return best;
+}
+
 function isUsdcPair(venue, chain) {
   if (!venue) return false;
   // The chain's settlement currency symbol: "USDC" almost everywhere, but "USDG" on
@@ -1224,6 +1244,36 @@ async function resolveOnChain(symbolOrAddr, chain, rpc, sizeUsd = DEFAULT_SIZE_U
   const twoHopVenue = !isUsdc && !swapReady ? venues.find((v) => isHubPair(v, chain)) || null : null;
   const twoHop = !!twoHopVenue;
 
+  // Executable two-hop parameters. `twoHopRoute` carries everything the runtime needs to
+  // actually build the two-swap path (settlement → hub → token): the hub's address and the
+  // fee tier of EACH leg. When an RPC is present, both fee tiers are live-probed on-chain
+  // (USDC→hub and hub→token) so the route is executable, not just "described"; without an
+  // RPC the fee tiers fall back to the feed-reported hub-pool fee (or null, which the
+  // caller treats as "re-resolve before executing").
+  let twoHopRoute = null;
+  if (twoHop) {
+    const hubSym = HUB_SYMBOLS[chain.name];
+    const viaAddress = (chain.tokens[hubSym] && chain.tokens[hubSym].address) || twoHopVenue.pairedToken || null;
+    let viaFeeTier = twoHopVenue.feeTier ?? null; // feed-reported hub→token fee as a fallback
+    let tokenFeeTier = twoHopVenue.feeTier ?? null;
+    let leg1 = null;
+    let leg2 = null;
+    if (onchain && chain.quoterV2 && chain.usdc && viaAddress) {
+      // Leg 1: settlement (USDC) → hub (WETH/WBNB). Leg 2: hub → token.
+      leg1 = await probeBestFee(rpc, chain.quoterV2, chain.usdc, viaAddress, PROBE_AMOUNT_USDC);
+      leg2 = await probeBestFee(rpc, chain.quoterV2, viaAddress, address, PROBE_AMOUNT_USDC);
+      viaFeeTier = leg1 ? leg1.fee : viaFeeTier;
+      tokenFeeTier = leg2 ? leg2.fee : tokenFeeTier;
+    }
+    twoHopRoute = {
+      viaAddress,
+      viaSymbol: hubSym || null,
+      viaFeeTier,
+      feeTier: tokenFeeTier,
+      probedOnChain: !!(leg1 && leg2),
+    };
+  }
+
   return {
     symbol: verifiedSymbol,
     address,
@@ -1236,6 +1286,7 @@ async function resolveOnChain(symbolOrAddr, chain, rpc, sizeUsd = DEFAULT_SIZE_U
     swapReady,
     twoHop,
     twoHopVia: twoHopVenue ? twoHopVenue.pairedSymbol : null,
+    twoHopRoute,
     feeTier: best ? best.fee : null,
     quote,
     probedTiers: tried,
@@ -1251,6 +1302,7 @@ async function resolveOnChain(symbolOrAddr, chain, rpc, sizeUsd = DEFAULT_SIZE_U
       twoHop,
       twoHopVia: twoHopVenue ? twoHopVenue.pairedSymbol : null,
       twoHopVenue,
+      twoHopRoute,
       best,
       bestVenue,
       onchain,
@@ -1262,7 +1314,7 @@ async function resolveOnChain(symbolOrAddr, chain, rpc, sizeUsd = DEFAULT_SIZE_U
   };
 }
 
-function perChainRecommendation({ symbol, chain, swapReady, twoHop, twoHopVia, twoHopVenue, best, bestVenue, onchain, isUsdc, decimalsSource, source, sizeUsd }) {
+function perChainRecommendation({ symbol, chain, swapReady, twoHop, twoHopVia, twoHopVenue, twoHopRoute, best, bestVenue, onchain, isUsdc, decimalsSource, source, sizeUsd }) {
   const unverified =
     typeof source === "string" && source.endsWith("-unverified-collision")
       ? ` NOTE: multiple "${symbol}" contracts were found on ${chain.name} and none matched the symbol on-chain — this address is the deepest pool, NOT a verified match. Confirm the address before signing.`
@@ -1291,8 +1343,14 @@ function perChainRecommendation({ symbol, chain, swapReady, twoHop, twoHopVia, t
   if (twoHop) {
     // Not a problem: the token trades against the hub asset, so it is reachable in two
     // swaps (settlement → hub → token). Surface it as a normal route with the extra leg
-    // noted, never as "custom mandate or held leg".
-    return `No direct USDC pool for ${symbol} on ${chain.name}, but it trades against ${twoHopVia} (~${fmtUsd(twoHopVenue ? twoHopVenue.liquidityUsd : 0)} via ${twoHopVenue ? twoHopVenue.protocol : "a routable DEX"}) — swappable in two steps (USDC → ${twoHopVia} → ${symbol}).${suspect(twoHopVenue)}${unverified}`;
+    // noted, never as "custom mandate or held leg". When the fee tiers were probed
+    // on-chain the route is executable end to end; otherwise note it needs a re-resolve
+    // with an RPC before executing.
+    const executable =
+      twoHopRoute && twoHopRoute.probedOnChain
+        ? ` Executable two-step route: USDC → ${twoHopVia} (fee ${twoHopRoute.viaFeeTier}) → ${symbol} (fee ${twoHopRoute.feeTier}).`
+        : ` The two fee tiers were not on-chain confirmed — re-resolve with an RPC before executing.`;
+    return `No direct USDC pool for ${symbol} on ${chain.name}, but it trades against ${twoHopVia} (~${fmtUsd(twoHopVenue ? twoHopVenue.liquidityUsd : 0)} via ${twoHopVenue ? twoHopVenue.protocol : "a routable DEX"}) — swappable in two steps (USDC → ${twoHopVia} → ${symbol}).${executable}${suspect(twoHopVenue)}${unverified}`;
   }
   if (bestVenue) {
     return `No USDC-paired pool for ${symbol} on ${chain.name} via a Sail-routable DEX, though ${bestVenue.protocol} has ~${fmtUsd(bestVenue.liquidityUsd)} in ${bestVenue.pairedSymbol || "other"} pairs. A USDC route here needs a custom mandate or a held leg.${suspect(bestVenue)}${unverified}`;

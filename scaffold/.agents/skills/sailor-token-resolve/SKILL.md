@@ -120,6 +120,12 @@ resolver surfaces it as `twoHop: true` / `twoHopVia: "WETH"`, and the recommenda
 in two steps". **Never tell the user a two-hop token "needs a custom mandate", "is not tradeable", or
 "has no pool"** — just note the extra leg.
 
+The resolver also emits the **executable route** in `twoHopRoute` — `{ viaAddress, viaSymbol,
+viaFeeTier, feeTier, probedOnChain }` — so a two-hop token can actually be bought, not just
+described. `viaAddress` is the hub (WETH/WBNB), `viaFeeTier` the settlement→hub leg, `feeTier` the
+hub→token leg. When `probedOnChain` is true the fee tiers came from a live QuoterV2 probe; when
+false, re-resolve with an RPC before wiring the route into a config.
+
 A **zero-volume hub pool is not a two-hop route.** A planted look-alike can share a token's symbol
 and carry a huge WETH pool with no real trading (the ZAMA trap: five copies of "ZAMA", each with a
 $60M–$277M WETH pool and $0 volume). The resolver rejects those as `suspectVolume` and won't surface
