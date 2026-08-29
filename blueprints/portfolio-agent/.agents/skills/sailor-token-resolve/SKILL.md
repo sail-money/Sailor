@@ -120,6 +120,12 @@ resolver surfaces it as `twoHop: true` / `twoHopVia: "WETH"`, and the recommenda
 in two steps". **Never tell the user a two-hop token "needs a custom mandate", "is not tradeable", or
 "has no pool"** — just note the extra leg.
 
+A **zero-volume hub pool is not a two-hop route.** A planted look-alike can share a token's symbol
+and carry a huge WETH pool with no real trading (the ZAMA trap: five copies of "ZAMA", each with a
+$60M–$277M WETH pool and $0 volume). The resolver rejects those as `suspectVolume` and won't surface
+them as a route — and when resolving a symbol it prefers the contract that *actually trades*, so you
+get the real token, never the deepest look-alike.
+
 **RPC — ask here, the first time it's genuinely needed, once.** This script reads **only**
 `.sail/.env.local` (no shell-var or public-RPC fallback). If nothing is written there, it fails with
 `No RPC for <chain>` — that failure is the FIRST point in the journey where the user's own RPC is
@@ -132,10 +138,13 @@ same file.
 Read `crossChain.action` (per token) and the portfolio `summary`, then advise:
 
 - **`route`** — swap-ready on a configured chain. If it's routable on **more than one**
-  configured chain, surface both with their depths and ask which to use (or pick by where the
-  rest of the basket lives). Hand the chosen chain's bare object to `sailor-swap-quote`.
+  configured chain, the resolver already ranks by depth AND gas cost: a cheaper chain (Base,
+  Arbitrum, BSC, …) wins over Ethereum when its liquidity is within ~2x, and Ethereum only wins
+  when it is meaningfully deeper (the note says so). Surface both with their depths when the user
+  should choose. Hand the chosen chain's bare object to `sailor-swap-quote`.
 - **`suggest-sma`** — no routable pool on the configured chain(s), but a deep one on another
-  Sail chain. **Instruct the user to deploy the SMA on that chain to trade this leg** (a required
+  Sail chain (ranked by depth and gas cost). **Instruct the user to deploy the SMA on that chain
+  to trade this leg** (a required
   step, not a suggestion): "MORPHO has no USDC pool on Base; the deep USDC pool is on Unichain —
   deploy your SMA on Unichain and I'll trade this leg there." Don't silently drop it or frame it
   as optional.

@@ -752,15 +752,46 @@ async function fetchTokenMeta(geckoNet, tokenAddrLower) {
   return { symbol: at.symbol || null, decimals: at.decimals != null ? Number(at.decimals) : null };
 }
 
+// Rank symbol→address candidates so the REAL token wins. A contract that actually
+// trades (real 24h volume) is the canonical token; a contract whose only pools are
+// deep-but-silent (planted liquidity, zero volume) is a look-alike and must NOT be
+// selected over one that trades. Falls back to deepest liquidity when nothing trades
+// (a genuinely quiet but real token). This is what keeps the resolver from resolving
+// "ZAMA" to a planted $150M zero-volume copy instead of the real token.
+function rankCandidateAddresses(candidates) {
+  const scored = candidates.map((c) => ({
+    address: c.address,
+    liquidityUsd: Number(c.liquidityUsd) || 0,
+    volume24hUsd: Number(c.volume24hUsd) || 0,
+  }));
+  scored.sort((a, b) => {
+    const aReal = a.volume24hUsd > 0;
+    const bReal = b.volume24hUsd > 0;
+    if (aReal !== bReal) return aReal ? -1 : 1; // real volume first
+    if (aReal) return b.volume24hUsd - a.volume24hUsd; // then by volume
+    return b.liquidityUsd - a.liquidityUsd; // both silent → deepest first
+  });
+  return scored.map((c) => c.address);
+}
+
 // symbol → address via GeckoTerminal search (fallback when not in the curated
-// registry). Ranks candidate addresses by pool reserve (deepest = most canonical);
-// the on-chain symbol() check in resolveOnChain is the final authority.
+// registry). Ranks candidate addresses by real volume first (deepest otherwise); the
+// on-chain symbol() check in resolveOnChain is the final authority.
 async function resolveSymbolViaGeckoTerminal(symbolUp, geckoNet) {
   if (!geckoNet) return [];
   const url = `${GECKO_API}/search/pools?query=${encodeURIComponent(symbolUp)}&network=${encodeURIComponent(geckoNet)}`;
   const json = await geckoGet(url);
   const pools = Array.isArray(json.data) ? json.data : [];
-  const byAddr = new Map(); // address -> max reserve_in_usd
+  const byAddr = new Map(); // address -> { liq, vol }
+  const bump = (a, liq, vol) => {
+    const prev = byAddr.get(a);
+    if (prev) {
+      if (liq > prev.liq) prev.liq = liq;
+      if (vol > prev.vol) prev.vol = vol;
+    } else {
+      byAddr.set(a, { liq, vol });
+    }
+  };
   for (const p of pools) {
     const name = (p.attributes && p.attributes.name) || "";
     const parts = name.split("/").map((s) => s.trim().split(/\s+/)[0].toUpperCase());
@@ -768,21 +799,22 @@ async function resolveSymbolViaGeckoTerminal(symbolUp, geckoNet) {
     const baseAddr = addrFromGeckoId((((rel.base_token || {}).data) || {}).id || "");
     const quoteAddr = addrFromGeckoId((((rel.quote_token || {}).data) || {}).id || "");
     const liq = Number((p.attributes && p.attributes.reserve_in_usd) || 0);
-    if (parts[0] === symbolUp && ADDR_RE.test(baseAddr)) {
-      const prev = byAddr.get(baseAddr);
-      if (prev === undefined || liq > prev) byAddr.set(baseAddr, liq);
-    }
-    if (parts[1] === symbolUp && ADDR_RE.test(quoteAddr)) {
-      const prev = byAddr.get(quoteAddr);
-      if (prev === undefined || liq > prev) byAddr.set(quoteAddr, liq);
-    }
+    const vol = Number(((p.attributes && p.attributes.volume_usd) || {}).h24 || 0);
+    if (parts[0] === symbolUp && ADDR_RE.test(baseAddr)) bump(baseAddr, liq, vol);
+    if (parts[1] === symbolUp && ADDR_RE.test(quoteAddr)) bump(quoteAddr, liq, vol);
   }
-  return [...byAddr.entries()].sort((a, b) => b[1] - a[1]).map((e) => e[0]);
+  return rankCandidateAddresses(
+    [...byAddr.entries()].map(([address, v]) => ({
+      address,
+      liquidityUsd: v.liq,
+      volume24hUsd: v.vol,
+    })),
+  );
 }
 
 // symbol → address via DexScreener search (primary fallback when not in the curated
-// registry). Ranks candidate addresses by pool liquidity; the on-chain symbol() check
-// in resolveOnChain is the final authority.
+// registry). Ranks candidate addresses by real volume first (deepest otherwise); the
+// on-chain symbol() check in resolveOnChain is the final authority.
 async function resolveSymbolViaDexScreener(symbolUp, chain) {
   const chainId = chain.dex;
   if (!chainId) return [];
@@ -793,24 +825,36 @@ async function resolveSymbolViaDexScreener(symbolUp, chain) {
     return [];
   }
   const pairs = Array.isArray(json.pairs) ? json.pairs : [];
-  const byAddr = new Map(); // address -> max liquidity
+  const byAddr = new Map(); // address -> { liq, vol }
+  const bump = (a, liq, vol) => {
+    const prev = byAddr.get(a);
+    if (prev) {
+      if (liq > prev.liq) prev.liq = liq;
+      if (vol > prev.vol) prev.vol = vol;
+    } else {
+      byAddr.set(a, { liq, vol });
+    }
+  };
   for (const p of pairs) {
     if ((p.chainId || "").toLowerCase() !== chainId) continue; // this chain only
     const base = p.baseToken || {};
     const quote = p.quoteToken || {};
     const liq = Number((p.liquidity && p.liquidity.usd) || 0);
+    const vol = Number((p.volume && p.volume.h24) || 0);
     if ((base.symbol || "").toUpperCase() === symbolUp && ADDR_RE.test(base.address || "")) {
-      const a = base.address.toLowerCase();
-      const prev = byAddr.get(a);
-      if (prev === undefined || liq > prev) byAddr.set(a, liq);
+      bump(base.address.toLowerCase(), liq, vol);
     }
     if ((quote.symbol || "").toUpperCase() === symbolUp && ADDR_RE.test(quote.address || "")) {
-      const a = quote.address.toLowerCase();
-      const prev = byAddr.get(a);
-      if (prev === undefined || liq > prev) byAddr.set(a, liq);
+      bump(quote.address.toLowerCase(), liq, vol);
     }
   }
-  return [...byAddr.entries()].sort((a, b) => b[1] - a[1]).map((e) => e[0]);
+  return rankCandidateAddresses(
+    [...byAddr.entries()].map(([address, v]) => ({
+      address,
+      liquidityUsd: v.liq,
+      volume24hUsd: v.vol,
+    })),
+  );
 }
 
 // symbol → candidate addresses: DexScreener first, GeckoTerminal as deep fallback.
@@ -847,12 +891,14 @@ function isUsdcPair(venue, chain) {
 // settlement-currency pool, but a real two-swap route: settlement → hub → token. This
 // needs no custom mandate — the same swap template can do both hops — so it is a
 // normal route, just with one extra leg. Returns the venue, or null when the pool is
-// dust (below MIN_TWO_HOP_LIQUIDITY_USD) or not actually hub-paired.
+// dust (below MIN_TWO_HOP_LIQUIDITY_USD), not actually hub-paired, or a suspect
+// look-alike (huge TVL with zero 24h volume — a planted pool, not a real route).
 function isHubPair(venue, chain) {
   if (!venue || !venue.sailRoutable) return null;
   const hub = HUB_SYMBOLS[chain.name];
   if (!hub || venue.pairedSymbol !== hub) return null;
   if ((venue.liquidityUsd ?? 0) < MIN_TWO_HOP_LIQUIDITY_USD) return null;
+  if (isSuspectVolume(venue)) return null;
   return venue;
 }
 
@@ -941,9 +987,14 @@ async function resolveOnChain(symbolOrAddr, chain, rpc, sizeUsd = DEFAULT_SIZE_U
     } else {
       // Offline liquidity map (additive): a cached address + routable flag for this
       // chain, cheaper than a live lookup. Only fills chains the curated registry
-      // lacks; never treated as on-chain verified.
+      // lacks; never treated as on-chain verified. The address is trusted ONLY when
+      // the map has a POSITIVE signal (routable, or a two-hop hub pool). A
+      // "routable:false with no hubDex" entry means the builder found no real pool
+      // and recorded the deepest pool it saw — which is exactly how a planted
+      // look-alike (huge TVL, zero volume) becomes the canonical address. Those fall
+      // through to a live volume-ranked search below.
       const mapped = mapLookup(wantSym, chain.name);
-      if (mapped && mapped.address) {
+      if (mapped && mapped.address && (mapped.routable || mapped.hubDex)) {
         address = mapped.address;
         source = "liquidity-map";
         if (mapped.decimals != null) {
@@ -1254,6 +1305,44 @@ function fmtUsd(n) {
   return "$" + (Math.round(Number(n) || 0)).toLocaleString("en-US");
 }
 
+// Relative swap cost per chain, used to break near-ties in the cross-chain ranking.
+// Only Ethereum mainnet is materially more expensive among Sail's chains (L1 gas);
+// every L2 and BSC settles swaps for cents. 2 = expensive L1, 1 = cheap.
+const CHAIN_GAS_TIER = {
+  ethereum: 2,
+  base: 1,
+  arbitrum: 1,
+  optimism: 1,
+  unichain: 1,
+  bsc: 1,
+  worldchain: 1,
+  hyperevm: 1,
+  megaeth: 1,
+  robinhood: 1,
+};
+
+// Effective depth for ranking: an expensive chain's liquidity counts for half, so a
+// cheaper chain with >= half the depth ranks equal-or-better. A screen, not a price
+// oracle — the live quote at execution is the real number.
+function gasAdjustedDepth(depthUsd, chainName) {
+  const tier = CHAIN_GAS_TIER[chainName] ?? 1;
+  return tier === 1 ? depthUsd : depthUsd / 2;
+}
+
+// A one-line explanation for when an expensive chain beat a cheaper one on depth, so
+// the user understands the choice rather than assuming a cost mistake. Fires only
+// when the winner is pricier than an available alternative (the sort only lets an
+// expensive chain win when it is meaningfully deeper than the cheaper option).
+function chainChoiceNote(sortedChains) {
+  const best = sortedChains[0];
+  if (!best) return "";
+  const cheaper = sortedChains.find(
+    (c) => c !== best && (CHAIN_GAS_TIER[c.name] ?? 1) < (CHAIN_GAS_TIER[best.name] ?? 1),
+  );
+  if (!cheaper) return ""; // best is already the cheapest available — nothing to explain
+  return ` ${best.name} costs more per swap than ${cheaper.name}, but its liquidity is much deeper, so it still ranks first.`;
+}
+
 function recommendCrossChain(chains, configuredNames) {
   const entries = Object.entries(chains).filter(([, o]) => !o.error);
   // Routable = swap-ready (direct USDC pool) OR two-hop (pool against the hub asset).
@@ -1262,7 +1351,12 @@ function recommendCrossChain(chains, configuredNames) {
     .filter(([, o]) => o.swapReady || o.twoHop)
     .map(([name, o]) => ({
       name,
-      depth: o.bestVenue && o.bestVenue.sailRoutable ? o.bestVenue.liquidityUsd : 0,
+      // A suspect (planted, zero-volume) best venue must not drive the ranking —
+      // treat its depth as 0 so a real pool elsewhere wins.
+      depth:
+        o.bestVenue && o.bestVenue.sailRoutable && !o.bestVenue.suspectVolume
+          ? o.bestVenue.liquidityUsd
+          : 0,
       twoHop: !!o.twoHop && !o.swapReady,
       configured: configuredNames.includes(name),
       o,
@@ -1270,8 +1364,15 @@ function recommendCrossChain(chains, configuredNames) {
   const liqChains = entries.filter(([, o]) => o.venues && o.venues.length).map(([name]) => name);
 
   const hopLabel = (c) => (c.twoHop ? "two-step (USDC → WETH → token)" : "swap-ready");
+  // Gas-aware: rank by effective depth, tie-break toward the cheaper chain.
+  const byRank = (a, b) => {
+    const da = gasAdjustedDepth(a.depth, a.name);
+    const db = gasAdjustedDepth(b.depth, b.name);
+    if (db !== da) return db - da;
+    return (CHAIN_GAS_TIER[a.name] ?? 1) - (CHAIN_GAS_TIER[b.name] ?? 1);
+  };
 
-  const configuredRoutable = routable.filter((c) => c.configured).sort((a, b) => b.depth - a.depth);
+  const configuredRoutable = routable.filter((c) => c.configured).sort(byRank);
   if (configuredRoutable.length) {
     const t = configuredRoutable[0];
     return {
@@ -1280,12 +1381,15 @@ function recommendCrossChain(chains, configuredNames) {
       routableChains: configuredRoutable.map((c) => c.name),
       note:
         `Routable on your configured chain(s): ${configuredRoutable.map((c) => `${c.name} (${hopLabel(c)})`).join(", ")}. ` +
-        `Deepest: ${t.name}${t.o.bestVenue ? ` (${t.o.bestVenue.protocol}, ${fmtUsd(t.o.bestVenue.liquidityUsd)})` : ""}.` +
-        (configuredRoutable.length > 1 ? " Liquidity on more than one configured chain — pick by depth or by where the rest of the portfolio lives." : ""),
+        `Best: ${t.name}${t.o.bestVenue ? ` (${t.o.bestVenue.protocol}, ${fmtUsd(t.o.bestVenue.liquidityUsd)})` : ""}.` +
+        chainChoiceNote(configuredRoutable) +
+        (configuredRoutable.length > 1
+          ? " Liquidity on more than one configured chain — I ranked by depth and gas cost; say so if you'd rather use a specific chain."
+          : ""),
     };
   }
 
-  const anyRoutable = routable.slice().sort((a, b) => b.depth - a.depth);
+  const anyRoutable = routable.slice().sort(byRank);
   if (anyRoutable.length) {
     const t = anyRoutable[0];
     return {
@@ -1293,9 +1397,9 @@ function recommendCrossChain(chains, configuredNames) {
       deepestChain: t.name,
       routableChains: anyRoutable.map((c) => c.name),
       note:
-        `No routable pool on your configured chain(s). Deepest liquidity is on ${t.name}` +
+        `No routable pool on your configured chain(s). Best liquidity is on ${t.name}` +
         `${t.o.bestVenue ? ` (${t.o.bestVenue.protocol}, ${fmtUsd(t.o.bestVenue.liquidityUsd)})` : ""} ` +
-        `${hopLabel(t)} — deploy an SMA on ${t.name} to trade this leg.`,
+        `${hopLabel(t)}${chainChoiceNote(anyRoutable)} — deploy an SMA on ${t.name} to trade this leg.`,
     };
   }
 
@@ -1795,6 +1899,7 @@ export {
   classifyDex,
   parseFeeBps,
   addrFromGeckoId,
+  rankCandidateAddresses,
   isUsdcPair,
   isHubPair,
   estimateImpactPct,
@@ -1802,6 +1907,9 @@ export {
   annotateVenues,
   pickBestVenue,
   perChainRecommendation,
+  CHAIN_GAS_TIER,
+  gasAdjustedDepth,
+  chainChoiceNote,
   recommendCrossChain,
   buildSummary,
   compactToken,

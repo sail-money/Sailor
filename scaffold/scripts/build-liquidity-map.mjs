@@ -191,21 +191,43 @@ async function resolveOneChain(symbolUp, chainName, chainId, knownAddr = null) {
     bestLiq = -1;
     const search = await dexGet(`${DEX_API}/latest/dex/search?q=${encodeURIComponent(symbolUp)}`);
     const pairs = (search && Array.isArray(search.pairs) && search.pairs) || [];
+    // Prefer the candidate that ACTUALLY trades. A planted look-alike shares the
+    // symbol but carries a huge zero-volume pool; picking the deepest pool makes it
+    // the canonical address (the ZAMA bug). Rank real 24h volume first, then depth.
+    const byAddr = new Map(); // address -> { liq, vol }
+    const bump = (a, liq, vol) => {
+      const prev = byAddr.get(a);
+      if (prev) {
+        if (liq > prev.liq) prev.liq = liq;
+        if (vol > prev.vol) prev.vol = vol;
+      } else {
+        byAddr.set(a, { liq, vol });
+      }
+    };
     for (const p of pairs) {
       if ((p.chainId || "").toLowerCase() !== chainId) continue;
       const base = p.baseToken || {};
       const quote = p.quoteToken || {};
       const liq = Number((p.liquidity && p.liquidity.usd) || 0);
-      if ((base.symbol || "").toUpperCase() === symbolUp && ADDR_RE.test(base.address || "") && liq > bestLiq) {
-        bestLiq = liq;
-        bestAddr = base.address.toLowerCase();
+      const vol = Number((p.volume && p.volume.h24) || 0);
+      if ((base.symbol || "").toUpperCase() === symbolUp && ADDR_RE.test(base.address || "")) {
+        bump(base.address.toLowerCase(), liq, vol);
       }
-      if ((quote.symbol || "").toUpperCase() === symbolUp && ADDR_RE.test(quote.address || "") && liq > bestLiq) {
-        bestLiq = liq;
-        bestAddr = quote.address.toLowerCase();
+      if ((quote.symbol || "").toUpperCase() === symbolUp && ADDR_RE.test(quote.address || "")) {
+        bump(quote.address.toLowerCase(), liq, vol);
       }
     }
-    if (!bestAddr) return null;
+    const cands = [...byAddr.entries()].map(([address, v]) => ({ address, liq: v.liq, vol: v.vol }));
+    cands.sort((a, b) => {
+      const aReal = a.vol > 0;
+      const bReal = b.vol > 0;
+      if (aReal !== bReal) return aReal ? -1 : 1;
+      if (aReal) return b.vol - a.vol;
+      return b.liq - a.liq;
+    });
+    if (cands.length === 0) return null;
+    bestAddr = cands[0].address;
+    bestLiq = cands[0].liq;
   }
 
   // Reliable venue check: full pair list for this address on this chain.

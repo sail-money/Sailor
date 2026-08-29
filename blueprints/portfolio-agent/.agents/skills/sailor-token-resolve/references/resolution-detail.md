@@ -45,8 +45,10 @@ count) is:
 
 1. **Symbol → address** (two layers): curated registry (instant, offline) → **DexScreener**
    search (keyless, primary), then GeckoTerminal search (keyless fallback) for anything not
-   curated. Candidates are ranked by pool liquidity; the on-chain `symbol()` check is the final
-   authority (a wrong DEX-side match is rejected, not trusted).
+   curated. Candidates are ranked by **real 24h volume first, then liquidity** — a planted
+   look-alike that shares the symbol but trades nothing never wins over the real token (the
+   ZAMA fix). The on-chain `symbol()` check is the final authority (a wrong DEX-side match is
+   rejected, not trusted).
 2. **On-chain verify** — `symbol()` + `decimals()` via eth_call on every chain that has an RPC.
    This is the source of truth (`decimalsSource: "onchain"`). On an `--all-chains` scan of a chain
    with no RPC, metadata falls back to the DEX feed (`decimalsSource: "dexscreener-unverified"`

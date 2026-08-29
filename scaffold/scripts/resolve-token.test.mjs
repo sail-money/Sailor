@@ -28,6 +28,7 @@ import {
   classifyDex,
   parseFeeBps,
   addrFromGeckoId,
+  rankCandidateAddresses,
   isUsdcPair,
   isHubPair,
   estimateImpactPct,
@@ -35,6 +36,10 @@ import {
   annotateVenues,
   pickBestVenue,
   perChainRecommendation,
+  CHAIN_GAS_TIER,
+  gasAdjustedDepth,
+  chainChoiceNote,
+  recommendCrossChain,
   optimizeChainSet,
   isMapStale,
   pad32,
@@ -208,6 +213,105 @@ test("isHubPair rejects non-hub pairs and non-routable venues", () => {
   assert.equal(isHubPair(hubVenue(base, 50_000, false), base), null);
   // Robinhood has no hub asset → never two-hop
   assert.equal(isHubPair({ sailRoutable: true, pairedSymbol: "WETH", liquidityUsd: 1_000_000 }, named("robinhood")), null);
+});
+
+test("isHubPair rejects a suspect (planted, zero-volume) hub pool", () => {
+  const base = named("base");
+  // The ZAMA trap: a look-alike with a huge WETH pool and zero real volume is not a
+  // real two-hop route, no matter how deep it is.
+  const planted = { sailRoutable: true, pairedSymbol: "WETH", liquidityUsd: 150_000_000, volume24hUsd: 0 };
+  assert.equal(isHubPair(planted, base), null);
+  // Same depth WITH real volume is a legitimate route.
+  const real = { sailRoutable: true, pairedSymbol: "WETH", liquidityUsd: 150_000_000, volume24hUsd: 2_000_000 };
+  assert.equal(isHubPair(real, base), real);
+});
+
+// ── rankCandidateAddresses: the real token wins over a planted look-alike ───────
+
+test("rankCandidateAddresses prefers a real-volume candidate over a planted look-alike", () => {
+  const planted = { address: "0x" + "f".repeat(40), liquidityUsd: 150_000_000, volume24hUsd: 0 };
+  const real = { address: "0x" + "a".repeat(40), liquidityUsd: 531_000, volume24hUsd: 406_000 };
+  // The planted fake is 300x deeper but silent; the real token trades. Real wins.
+  assert.deepEqual(rankCandidateAddresses([planted, real]), [real.address, planted.address]);
+});
+
+test("rankCandidateAddresses ranks by volume when several candidates trade", () => {
+  const lo = { address: "0x" + "1".repeat(40), liquidityUsd: 10_000_000, volume24hUsd: 50_000 };
+  const hi = { address: "0x" + "2".repeat(40), liquidityUsd: 1_000_000, volume24hUsd: 400_000 };
+  assert.deepEqual(rankCandidateAddresses([lo, hi]), [hi.address, lo.address]);
+});
+
+test("rankCandidateAddresses falls back to deepest liquidity when nothing trades", () => {
+  const shallow = { address: "0x" + "3".repeat(40), liquidityUsd: 50_000, volume24hUsd: 0 };
+  const deep = { address: "0x" + "4".repeat(40), liquidityUsd: 1_000_000, volume24hUsd: 0 };
+  assert.deepEqual(rankCandidateAddresses([shallow, deep]), [deep.address, shallow.address]);
+});
+
+// ── gas-aware cross-chain ranking ───────────────────────────────────────────────
+
+test("gasAdjustedDepth halves expensive L1 liquidity", () => {
+  assert.equal(gasAdjustedDepth(1_000_000, "ethereum"), 500_000);
+  assert.equal(gasAdjustedDepth(1_000_000, "base"), 1_000_000);
+  assert.equal(gasAdjustedDepth(1_000_000, "bsc"), 1_000_000);
+  assert.equal(gasAdjustedDepth(1_000_000, "unknown"), 1_000_000);
+});
+
+const routableChain = (name, chainId, depth, suspect = false) => ({
+  chain: name,
+  chainId,
+  error: null,
+  swapReady: true,
+  twoHop: false,
+  bestVenue: {
+    sailRoutable: true,
+    liquidityUsd: depth,
+    protocol: "uniswap-v3",
+    suspectVolume: suspect,
+  },
+  venues: [{ sailRoutable: true, liquidityUsd: depth, suspectVolume: suspect }],
+});
+
+test("recommendCrossChain prefers a cheaper chain with comparable liquidity", () => {
+  // Ethereum $1M vs Base $600K: gas-adjusted, Base (600K) beats Ethereum (500K).
+  const chains = {
+    ethereum: routableChain("ethereum", 1, 1_000_000),
+    base: routableChain("base", 8453, 600_000),
+  };
+  const r = recommendCrossChain(chains, ["ethereum", "base"]);
+  assert.equal(r.action, "route");
+  assert.equal(r.deepestChain, "base");
+});
+
+test("recommendCrossChain keeps a much deeper L1 over a cheaper chain", () => {
+  // Ethereum $3M vs Base $600K: gas-adjusted Ethereum (1.5M) still beats Base.
+  const chains = {
+    ethereum: routableChain("ethereum", 1, 3_000_000),
+    base: routableChain("base", 8453, 600_000),
+  };
+  const r = recommendCrossChain(chains, ["ethereum", "base"]);
+  assert.equal(r.deepestChain, "ethereum");
+  assert.ok(r.note.includes("costs more per swap than base"), r.note);
+});
+
+test("recommendCrossChain zeroes out a suspect (fake) best-venue depth", () => {
+  // A planted look-alike on Ethereum (swapReady true but bestVenue suspect) must not
+  // rank above a real pool on Base.
+  const fakeEth = routableChain("ethereum", 1, 150_000_000, true);
+  const realBase = routableChain("base", 8453, 600_000, false);
+  const r = recommendCrossChain({ ethereum: fakeEth, base: realBase }, ["ethereum", "base"]);
+  assert.equal(r.deepestChain, "base");
+});
+
+test("chainChoiceNote stays silent when the winner is already the cheapest", () => {
+  assert.equal(chainChoiceNote([routableChain("base", 8453, 1_000_000)]), "");
+});
+
+test("CHAIN_GAS_TIER marks only ethereum as the expensive L1", () => {
+  assert.equal(CHAIN_GAS_TIER.ethereum, 2);
+  for (const [name, tier] of Object.entries(CHAIN_GAS_TIER)) {
+    if (name === "ethereum") continue;
+    assert.equal(tier, 1, name);
+  }
 });
 
 // ── size-aware screening: estimateImpactPct / isSuspectVolume / annotateVenues ─
