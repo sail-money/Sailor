@@ -60,6 +60,11 @@ const CHAINS = {
     gecko: "base",
     quoterV2: "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a",
     usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    // Aerodrome Slipstream (V3 fork) router + quoter. cbHYPE and other assets trade on
+    // Aerodrome, not Uniswap V3; a swap there uses tickSpacing (not a fee) in the path.
+    // Verified against aerodrome.finance/security (SwapRouter 0xBE6D…, Quoter 0x254c…).
+    aerodromeRouter: "0xBE6D8f0d05cC4be24d5167a3eF062215bE6D18a5",
+    aerodromeQuoter: "0x254cF9E1E6e233aa1AC962CB9B05b2cfeAaE15b0",
     tokens: {
       USDC: { address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6 },
       WETH: { address: "0x4200000000000000000000000000000000000006", decimals: 18 },
@@ -250,6 +255,8 @@ const SEL = {
   symbol: "0x95d89b41", // symbol()
   decimals: "0x313ce567", // decimals()
   quoteExactInputSingle: "0xc6a5026a", // quoteExactInputSingle((address,address,uint256,uint24,uint160))
+  aeroQuoteExactInputSingle: "0x9e7defe6", // quoteExactInputSingle((address,address,uint256,int24,uint160)) — tickSpacing
+  tickSpacing: "0xd0c93a7c", // tickSpacing() (Aerodrome Slipstream pool)
 };
 
 function pad32(hexOrAddr) {
@@ -275,6 +282,20 @@ function encodeQuoteCall(tokenIn, tokenOut, amountIn, fee) {
     pad32(tokenOut) +
     uintToHex(amountIn) +
     uintToHex(BigInt(fee)) +
+    uintToHex(0n) // sqrtPriceLimitX96 = 0
+  );
+}
+
+function encodeAeroQuoteCall(tokenIn, tokenOut, amountIn, tickSpacing) {
+  // Aerodrome Slipstream quoteExactInputSingle((address tokenIn, address tokenOut,
+  // uint256 amountIn, int24 tickSpacing, uint160 sqrtPriceLimitX96)) — same 5-word
+  // layout as Uniswap V3, but the 4th field is tickSpacing and the selector differs.
+  return (
+    SEL.aeroQuoteExactInputSingle +
+    pad32(tokenIn) +
+    pad32(tokenOut) +
+    uintToHex(amountIn) +
+    uintToHex(BigInt(tickSpacing)) +
     uintToHex(0n) // sqrtPriceLimitX96 = 0
   );
 }
@@ -1220,7 +1241,7 @@ async function resolveOnChain(symbolOrAddr, chain, rpc, sizeUsd = DEFAULT_SIZE_U
   // Swap-readiness. On-chain: a live Uniswap V3 USDC→token QuoterV2 quote across fee
   // tiers (Sail's executable route). Off-chain (--all-chains scan): a deep Sail-routable
   // venue exists, but is NOT live-quoted (quoteVerified stays false).
-  let best = null; // { fee, amountOut }
+  let best = null; // { dex, fee, tickSpacing, amountOut }
   const tried = [];
   let swapReady;
   let quote = null;
@@ -1229,6 +1250,7 @@ async function resolveOnChain(symbolOrAddr, chain, rpc, sizeUsd = DEFAULT_SIZE_U
     swapReady = true; // USDC is the quote asset itself
   } else if (onchain && chain.quoterV2 && chain.usdc) {
     const tokenIn = chain.usdc;
+    // Uniswap V3: probe across the standard fee tiers.
     for (const fee of FEE_TIERS) {
       const data = encodeQuoteCall(tokenIn, address, PROBE_AMOUNT_USDC, fee);
       let amountOut = 0n;
@@ -1239,27 +1261,60 @@ async function resolveOnChain(symbolOrAddr, chain, rpc, sizeUsd = DEFAULT_SIZE_U
       } catch {
         ok = false; // revert = no pool at this tier
       }
-      tried.push({ fee, amountOut: amountOut.toString(), ok });
+      tried.push({ dex: "uniswap-v3", fee, amountOut: amountOut.toString(), ok });
       if (ok && amountOut > 0n && (!best || amountOut > best.amountOut)) {
-        best = { fee, amountOut };
+        best = { dex: "uniswap-v3", fee, tickSpacing: null, amountOut };
+      }
+    }
+    // Aerodrome Slipstream: probe each USDC-paired aerodrome pool by its tickSpacing.
+    if (chain.aerodromeQuoter) {
+      for (const v of venues) {
+        if (v.protocol !== "aerodrome" || !isUsdcPair(v, chain) || !v.pool) continue;
+        let ts;
+        try {
+          ts = Number(decodeUint256Return(await ethCall(rpc, v.pool, SEL.tickSpacing)));
+        } catch {
+          continue; // not a Slipstream pool (no tickSpacing) — skip
+        }
+        if (!ts) continue;
+        const data = encodeAeroQuoteCall(tokenIn, address, PROBE_AMOUNT_USDC, ts);
+        let amountOut = 0n;
+        let ok = true;
+        try {
+          const ret = await ethCall(rpc, chain.aerodromeQuoter, data);
+          amountOut = decodeUint256Return(ret);
+        } catch {
+          ok = false;
+        }
+        tried.push({ dex: "aerodrome", tickSpacing: ts, amountOut: amountOut.toString(), ok });
+        if (ok && amountOut > 0n && (!best || amountOut > best.amountOut)) {
+          best = { dex: "aerodrome", fee: null, tickSpacing: ts, amountOut };
+        }
       }
     }
     swapReady = best !== null;
     if (best) {
       // Flag the matching venue in the map as live-quoted.
       const m = venues.find(
-        (v) => v.protocol === "uniswap-v3" && v.feeTier === best.fee && isUsdcPair(v, chain),
+        best.dex === "aerodrome"
+          ? (v) => v.protocol === "aerodrome" && v.pool && isUsdcPair(v, chain)
+          : (v) => v.protocol === "uniswap-v3" && v.feeTier === best.fee && isUsdcPair(v, chain),
       );
       if (m) m.quoteVerified = true;
+      const hopNote =
+        best.dex === "aerodrome"
+          ? `tickSpacing ${best.tickSpacing}`
+          : `fee ${best.fee}`;
       quote = {
         tokenIn: "USDC",
         tokenInAddress: tokenIn,
         amountIn: PROBE_AMOUNT_USDC.toString(),
         amountOut: best.amountOut.toString(),
+        dex: best.dex,
         note:
-          "feeTier was chosen using this small probe amount. A thin low-fee pool that wins " +
+          `${hopNote} was chosen using this small probe amount. A thin low-fee pool that wins ` +
           "at this size can be the worst tier for a much larger trade — for large amounts, " +
-          "re-quote across fee tiers at the actual trade size via quote-swap.mjs before dispatch.",
+          "re-quote at the actual trade size via quote-swap.mjs before dispatch.",
       };
     }
   } else {
@@ -1267,7 +1322,14 @@ async function resolveOnChain(symbolOrAddr, chain, rpc, sizeUsd = DEFAULT_SIZE_U
     // USDC-paired venue ⇒ swap-ready (unverified).
     const r = venues.find((v) => v.sailRoutable && isUsdcPair(v, chain));
     swapReady = !!r;
-    if (r) best = { fee: r.feeTier, amountOut: null };
+    if (r) {
+      best = {
+        dex: r.protocol === "aerodrome" ? "aerodrome" : "uniswap-v3",
+        fee: r.protocol === "aerodrome" ? null : r.feeTier,
+        tickSpacing: null,
+        amountOut: null,
+      };
+    }
   }
 
   // Best venue (USDC-relevant) computed from the FULL list, then cap the exposed
@@ -1328,6 +1390,8 @@ async function resolveOnChain(symbolOrAddr, chain, rpc, sizeUsd = DEFAULT_SIZE_U
     twoHopVia: twoHopVenue ? twoHopVenue.pairedSymbol : null,
     twoHopRoute,
     feeTier: best ? best.fee : null,
+    dex: best ? best.dex : null,
+    tickSpacing: best ? best.tickSpacing : null,
     quote,
     probedTiers: tried,
     venues: topVenues,
@@ -1372,7 +1436,8 @@ function perChainRecommendation({ symbol, chain, swapReady, twoHop, twoHopVia, t
     return `${symbol} is the USDC quote asset on ${chain.name} — no swap needed to source it.`;
   }
   if (swapReady && onchain) {
-    return `Swap-ready on ${chain.name} (live Uniswap V3 USDC quote${best ? `, fee ${best.fee}` : ""}). Hand to quote-swap.mjs for an exact quote + amountOutMinimum.${unverified}`;
+    const hop = best && best.dex === "aerodrome" ? `tickSpacing ${best.tickSpacing}` : best ? `fee ${best.fee}` : "";
+    return `Swap-ready on ${chain.name} (live ${best && best.dex === "aerodrome" ? "Aerodrome" : "Uniswap V3"} USDC quote${best ? `, ${hop}` : ""}). Hand to quote-swap.mjs for an exact quote + amountOutMinimum.${unverified}`;
   }
   if (swapReady && !onchain) {
     const thin = bestVenue && bestVenue.fitsSize === false
@@ -2017,6 +2082,7 @@ export {
   pad32,
   uintToHex,
   encodeQuoteCall,
+  encodeAeroQuoteCall,
   decodeUint256Return,
   decodeStringReturn,
   resolveChain,

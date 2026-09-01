@@ -37,13 +37,20 @@ export type ChainToken = {
   chainId: number;
   address: Address;
   decimals: number;
+  /** The DEX family that executes this token's swap. Defaults to "uniswap-v3" when absent. */
+  dex?: "uniswap-v3" | "aerodrome";
   /** The token-side leg fee. For a direct swap it is settlement→token; for a two-hop
-   *  asset it is the hub→token leg. Basis points (3000 = 0.3%). */
+   *  asset it is the hub→token leg. Basis points (3000 = 0.3%). Used only when
+   *  `dex` is uniswap-v3 (or absent). */
   feeTier: number;
+  /** Aerodrome Slipstream pool tick spacing (int24). Replaces `feeTier` as the path's
+   *  24-bit hop discriminator when `dex` is "aerodrome". */
+  tickSpacing?: number;
   /**
    * Optional two-hop route: buy/sell through this hub asset (WETH/WBNB). When present,
    * the swap is settlement → via → token (buy) or token → via → settlement (sell/valuation).
    * `via.feeTier` is the settlement→via leg. Absent means a direct single-hop swap.
+   * (Uniswap V3 only — an Aerodrome two-hop is not yet supported and fails closed.)
    */
   via?: { address: Address; feeTier: number };
 };
@@ -63,6 +70,9 @@ export type PortfolioConfig = {
   settlement: Record<string, SettlementCurrency>;
   router: Record<string, Address>; // chainId -> Uniswap V3 SwapRouter02
   quoter: Record<string, Address>; // chainId -> Uniswap V3 QuoterV2
+  /** Optional. Aerodrome Slipstream router + quoter per chain (Base). Present only when
+   *  a basket token resolves to an Aerodrome pool. */
+  aerodrome?: { router: Record<string, Address>; quoter: Record<string, Address> };
   bridge: {
     messenger: Record<string, Address>; // source chain -> CCTP TokenMessenger
     transmitter: Record<string, Address>; // chain -> CCTP MessageTransmitter (completes the mint half)
@@ -140,6 +150,30 @@ const ROUTER_ABI = [
       },
     ],
     outputs: [{ name: "amountOut", type: "uint256" }],
+  },
+] as const;
+
+/**
+ * Aerodrome Slipstream QuoterV2. `exactInput`/`quoteExactInput` share the same selector
+ * and path layout as Uniswap V3, but the path's 24-bit hop field is `tickSpacing`, and
+ * `quoteExactInput(bytes,uint256)` returns ARRAYS (sqrtPriceX96AfterList /
+ * initializedTicksCrossedList), unlike Uniswap V3's scalars — so it needs its own ABI.
+ */
+const AERODROME_QUOTER_ABI = [
+  {
+    name: "quoteExactInput",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "path", type: "bytes" },
+      { name: "amountIn", type: "uint256" },
+    ],
+    outputs: [
+      { name: "amountOut", type: "uint256" },
+      { name: "sqrtPriceX96AfterList", type: "uint160[]" },
+      { name: "initializedTicksCrossedList", type: "uint32[]" },
+      { name: "gasEstimate", type: "uint256" },
+    ],
   },
 ] as const;
 
@@ -360,11 +394,23 @@ function encodeV3PathMulti(
   return `0x${tokenIn.slice(2).toLowerCase()}${feeToHex(feeIn)}${via.slice(2).toLowerCase()}${feeToHex(feeOut)}${tokenOut.slice(2).toLowerCase()}` as `0x${string}`;
 }
 
+/** The 24-bit hop discriminator for a token's leg: fee (Uniswap V3) or tickSpacing (Aerodrome). */
+function hopOf(spec: ChainToken): number {
+  return spec.dex === "aerodrome" ? (spec.tickSpacing ?? 0) : spec.feeTier;
+}
+
+/** True when a token routes through Aerodrome Slipstream (tickSpacing, its own router/quoter). */
+function isAero(spec: ChainToken): boolean {
+  return spec.dex === "aerodrome";
+}
+
 /**
- * Build the Uniswap V3 swap path for a settlement↔token swap. Direction is inferred
- * from tokenIn/tokenOut. A two-hop spec routes through `spec.via`; a direct spec uses
- * a single leg. Returns null when a two-hop spec lacks a `via` (fail closed — the caller
- * must not guess a hop).
+ * Build the swap path for a settlement↔token swap. Direction is inferred from
+ * tokenIn/tokenOut. The path's 24-bit hop field is a fee for Uniswap V3 and a
+ * tickSpacing for Aerodrome Slipstream (identical encoding, different semantics).
+ * A two-hop spec routes through `spec.via`; a direct spec uses a single leg.
+ * Returns null when a two-hop spec lacks a `via`, or when an Aerodrome token asks
+ * for a two-hop (unsupported) — fail closed, the caller must not guess a hop.
  */
 function v3Path(
   spec: ChainToken,
@@ -373,13 +419,26 @@ function v3Path(
   tokenOut: Address,
 ): `0x${string}` | null {
   const buy = tokenIn.toLowerCase() === settlement.toLowerCase();
-  if (!spec.via) return encodeV3PathSingle(tokenIn, spec.feeTier, tokenOut);
+  if (isAero(spec) && spec.via) return null; // Aerodrome two-hop not supported yet
+  if (!spec.via) return encodeV3PathSingle(tokenIn, hopOf(spec), tokenOut);
   if (buy) {
     // settlement → via → token
     return encodeV3PathMulti(tokenIn, spec.via.feeTier, spec.via.address, spec.feeTier, tokenOut);
   }
   // token → via → settlement (reverse of the buy path)
   return encodeV3PathMulti(tokenIn, spec.feeTier, spec.via.address, spec.via.feeTier, tokenOut);
+}
+
+/** The quoter address for a token's DEX, or null when none is configured. */
+function quoterFor(cfg: PortfolioConfig, chainId: number, spec: ChainToken): Address | null {
+  if (isAero(spec)) return cfg.aerodrome?.quoter?.[String(chainId)] ?? null;
+  return cfg.quoter[String(chainId)] ?? null;
+}
+
+/** The swap router address for a token's DEX, or null when none is configured. */
+function routerFor(cfg: PortfolioConfig, chainId: number, spec: ChainToken): Address | null {
+  if (isAero(spec)) return cfg.aerodrome?.router?.[String(chainId)] ?? null;
+  return cfg.router[String(chainId)] ?? null;
 }
 
 /** Quote a swap on a chain; returns amountOut, or null on revert or zero (fail closed). */
@@ -394,14 +453,16 @@ async function quoteSwap(
 ): Promise<bigint | null> {
   const path = v3Path(spec, settlementOf(cfg, chainId).address, tokenIn, tokenOut);
   if (path === null) return null;
+  const quoter = quoterFor(cfg, chainId, spec);
+  if (!quoter) return null;
   try {
     const q = await ctx.chain(chainId).publicClient.simulateContract({
-      address: cfg.quoter[String(chainId)],
-      abi: QUOTER_ABI,
+      address: quoter,
+      abi: isAero(spec) ? AERODROME_QUOTER_ABI : QUOTER_ABI,
       functionName: "quoteExactInput",
       args: [path, amountIn],
     });
-    const amountOut = (q.result as readonly [bigint, bigint, number, bigint])[0];
+    const amountOut = (q.result as readonly unknown[])[0] as bigint;
     return amountOut === 0n ? null : amountOut;
   } catch {
     return null;
@@ -422,6 +483,8 @@ async function swap(
   if (path === null) return null;
   const expectedOut = await quoteSwap(ctx, chainId, cfg, spec, tokenIn, tokenOut, amountIn);
   if (expectedOut === null) return null;
+  const router = routerFor(cfg, chainId, spec);
+  if (!router) return null;
   const minOut = (expectedOut * BigInt(10_000 - cfg.maxSlippageBps)) / 10_000n;
   const deadline = BigInt(Math.floor(ctx.timestamp)) + 3600n;
   const data = encodeFunctionData({
@@ -437,9 +500,7 @@ async function swap(
       },
     ],
   });
-  return ctx
-    .chain(chainId)
-    .dispatch({ calls: [{ target: cfg.router[String(chainId)], value: 0n, data }] });
+  return ctx.chain(chainId).dispatch({ calls: [{ target: router, value: 0n, data }] });
 }
 
 /** Settlement-currency-denominated value of the SMA's holding of a token on one chain (base units). */

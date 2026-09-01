@@ -39,6 +39,10 @@ const ROUTER_RH = ADDR("b");
 const QUOTER_RH = ADDR("c");
 const NVDA_BASE = ADDR("9"); // a Coinbase tokenized stock (NVDAc) on Base, settled in USDC
 const ZAMA_BASE = ADDR("0"); // a two-hop token (USDC → WETH → ZAMA) on Base
+// Aerodrome Slipstream (uppercase hex, distinct from the lowercase single-char set).
+const CBHYPE_BASE = ADDR("C"); // cbHYPE on Base — real USDC pool is on Aerodrome (tickSpacing 200)
+const AERO_ROUTER = ADDR("A"); // Aerodrome Slipstream SwapRouter (Base)
+const AERO_QUOTER = ADDR("B"); // Aerodrome Slipstream QuoterV2 (Base)
 
 // ── ABI fragments for decoding calldata ───────────────────────────────────────
 
@@ -277,6 +281,29 @@ function twoHopSellConfig() {
         symbol: "WETH",
         weight: 0.5,
         chains: [{ chainId: 8453, address: WETH_BASE, decimals: 18, feeTier: 3000 }],
+      },
+    ],
+    rebalanceBandBps: 500,
+    maxSlippageBps: 100,
+  };
+}
+
+/** cbHYPE on Base, whose only real USDC pool is on Aerodrome Slipstream (tickSpacing 200). */
+function aeroConfig() {
+  return {
+    chains: [8453],
+    settlement: { 8453: { symbol: "USDC", address: USDC_BASE, decimals: 6 } },
+    router: { 8453: ROUTER_BASE },
+    quoter: { 8453: QUOTER_BASE },
+    aerodrome: { router: { 8453: AERO_ROUTER }, quoter: { 8453: AERO_QUOTER } },
+    bridge: { messenger: {}, transmitter: {}, domains: {}, maxPerTxUsd: 1000 },
+    basket: [
+      {
+        symbol: "cbHYPE",
+        weight: 1.0,
+        chains: [
+          { chainId: 8453, address: CBHYPE_BASE, decimals: 18, dex: "aerodrome" as const, tickSpacing: 200, feeTier: 0 },
+        ],
       },
     ],
     rebalanceBandBps: 500,
@@ -717,4 +744,22 @@ test("two-hop asset without via degrades to a direct swap, never a guessed hop",
   assert.equal(a.tokenIn.toLowerCase(), USDC_BASE.toLowerCase());
   assert.equal(a.via, undefined); // no invented middle hop
   assert.equal(a.tokenOut.toLowerCase(), ZAMA_BASE.toLowerCase());
+});
+
+test("aerodrome asset routes through the Aerodrome router with a tickSpacing path", async () => {
+  const dispatches = await run(
+    aeroConfig(),
+    makeCtx({ timestamp: T0, balances: { [`8453:${USDC_BASE}`]: 1_000_000_000n } }),
+  );
+  assert.equal(dispatches.length, 1);
+  const call = dispatches[0].calls[0];
+  // The dispatch must target the Aerodrome Slipstream router, not Uniswap V3.
+  assert.equal(call.target.toLowerCase(), AERO_ROUTER.toLowerCase());
+  const a = swapArgs(call);
+  // Direct single hop: USDC → cbHYPE, no invented intermediate.
+  assert.equal(a.tokenIn.toLowerCase(), USDC_BASE.toLowerCase());
+  assert.equal(a.tokenOut.toLowerCase(), CBHYPE_BASE.toLowerCase());
+  assert.equal(a.via, undefined);
+  // The path's 24-bit hop field is the tickSpacing (200 = 0x0000c8), not a fee.
+  assert.match(a.path.toLowerCase(), /0000c8/);
 });

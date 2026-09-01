@@ -147,6 +147,33 @@ stock tokens need no special case: they settle in USDC, so they buy like any oth
   resolver's `crossChain.routableChains` order — never re-sort by raw depth, which would silently
   prefer an expensive L1 over a cheaper chain.
 - `basket[].chains[].feeTier` — the token-side leg fee (basis points). For a direct asset it is the
-  settlement→token fee; for a two-hop asset (`via` present) it is the hub→token leg.
+  settlement→token fee; for a two-hop asset (`via` present) it is the hub→token leg. Used only when
+  `dex` is `uniswap-v3` (or absent).
+- `basket[].chains[].dex` — the DEX family that executes this token's swap: `"uniswap-v3"` (default,
+  omit it) or `"aerodrome"` (Aerodrome Slipstream on Base). Write it from the resolver's per-chain
+  `dex` field.
+- `basket[].chains[].tickSpacing` — Aerodrome Slipstream pool tick spacing (int24). **Replaces**
+  `feeTier` as the path's hop value when `dex` is `"aerodrome"`; write it from the resolver's
+  `tickSpacing` field. Aerodrome pools do not have fee tiers — never write a `feeTier` for an
+  Aerodrome token.
 - `basket[].chains[].via` — optional; `{ address, feeTier }` for a two-hop asset (see "Two-hop
-  assets" above). `via.feeTier` is the settlement→hub leg. Absent = direct single-hop.
+  assets" above). `via.feeTier` is the settlement→hub leg. Absent = direct single-hop. (Uniswap V3
+  only — Aerodrome two-hop is not yet supported.)
+
+### Aerodrome assets (Base)
+
+An asset whose only real USDC pool is on **Aerodrome Slipstream** (e.g. cbHYPE) is executable, not a
+"hold" — the runtime routes it through Aerodrome's SwapRouter with a `tickSpacing` path. Two config
+additions make that work:
+
+- The token's chain object carries `"dex": "aerodrome"` and `"tickSpacing": <int24>` (from the
+  resolver), instead of a `feeTier`.
+- The top-level config adds an `aerodrome` block with the per-chain router + quoter (Base):
+  ```json
+  "aerodrome": {
+    "router": { "8453": "0xBE6D8f0d05cC4be24d5167a3eF062215bE6D18a5" },
+    "quoter": { "8453": "0x254cF9E1E6e233aa1AC962CB9B05b2cfeAaE15b0" }
+  }
+  ```
+  (Addresses verified against aerodrome.finance/security.) The mandate is already DEX-agnostic, so no
+  new permission is needed — the same swap permission authorizes the Aerodrome router.
