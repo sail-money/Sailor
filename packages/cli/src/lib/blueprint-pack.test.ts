@@ -91,6 +91,28 @@ test("packBlueprint redacts the operator's addresses", async () => {
   assert.match(agentTs, /0x0{40}/);
 });
 
+test("packBlueprint never redacts token addresses in the public liquidity map", async () => {
+  const root = makeProject();
+  // A canonical token address that ALSO appears in `.sail/` (a test basket). The sweep
+  // would otherwise treat it as the sharer's identity and zero it out of the shipped
+  // liquidity map — the HYPE/UNI/AAVE/SKY/ZAMA zero-address bug. The map is a public
+  // token catalog, so its addresses must survive redaction.
+  const token = `0x${"cd".repeat(20)}`;
+  fs.mkdirSync(path.join(root, "scripts"), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, "scripts", "liquidity-map.json"),
+    JSON.stringify({ tokens: { HYPE: { unichain: { address: token, routable: true } } } }),
+  );
+  fs.writeFileSync(
+    path.join(root, ".sail", "portfolio.json"),
+    JSON.stringify({ basket: [{ symbol: "HYPE", address: token }] }),
+  );
+  const packed = await packBlueprint(root, { slug: "dca", version: "1.0.0", kind: "crystallized" });
+  const map = new TextDecoder().decode(packed.files.get("scripts/liquidity-map.json"));
+  assert.match(map, new RegExp(token, "i")); // the canonical address survives
+  assert.doesNotMatch(map, /0x0{40}/); // and is not zeroed
+});
+
 test("packBlueprint refuses a residual secret", async () => {
   const root = makeProject();
   // Bare (no 0x) 64-hex key on a key-ish name: autoRedact only neutralizes 0x-prefixed

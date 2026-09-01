@@ -83,14 +83,48 @@ function projectPublicAddresses(projectRoot: string): string[] {
 }
 
 /**
+ * Public data catalogs that ship with the harness: the liquidity map and the token
+ * identity catalog. Their addresses are canonical token/protocol addresses — the
+ * same for every user — never the sharer's identity. A token address that ALSO
+ * appears in `.sail/` (e.g. a test basket in `.sail/portfolio.json`) must still
+ * survive redaction, or the shipped map is corrupted (the HYPE/UNI/AAVE/SKY/ZAMA
+ * zero-address bug). Regex the whole file so the JSON shape never matters, and read
+ * both the scaffolded-project path (`scripts/`) and the monorepo path (`scaffold/scripts/`).
+ */
+const PUBLIC_DATA_FILES = [
+  "scripts/liquidity-map.json",
+  "scripts/token-identities.json",
+  "scaffold/scripts/liquidity-map.json",
+  "scaffold/scripts/token-identities.json",
+];
+
+function publicDataAddresses(projectRoot: string): string[] {
+  const out: string[] = [];
+  for (const rel of PUBLIC_DATA_FILES) {
+    let raw: string;
+    try {
+      raw = fs.readFileSync(path.join(projectRoot, rel), "utf-8");
+    } catch {
+      continue; // file absent — nothing to keep from it
+    }
+    for (const m of raw.match(/0x[0-9a-fA-F]{40}/g) ?? []) out.push(m.toLowerCase());
+  }
+  return out;
+}
+
+/**
  * The full set of addresses to preserve during share redaction, lowercased:
- * SDK protocol constants + common tokens + the sharer's own keep-list. Anything
+ * SDK protocol constants + common tokens + the sharer's own keep-list + the
+ * harness's public data catalogs (liquidity map, token identity). Anything
  * NOT in this set that looks like the sharer's identity is zeroed.
  */
 export function publicConstantAddresses(projectRoot: string): Set<string> {
   return new Set(
-    [...sdkPublicAddresses(), ...COMMON_TOKEN_ADDRESSES, ...projectPublicAddresses(projectRoot)].map(
-      (a) => a.toLowerCase(),
-    ),
+    [
+      ...sdkPublicAddresses(),
+      ...COMMON_TOKEN_ADDRESSES,
+      ...projectPublicAddresses(projectRoot),
+      ...publicDataAddresses(projectRoot),
+    ].map((a) => a.toLowerCase()),
   );
 }
