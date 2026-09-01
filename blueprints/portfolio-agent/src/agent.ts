@@ -395,9 +395,19 @@ function encodeV3PathMulti(
 }
 
 /** The 24-bit hop discriminator for a token's leg: fee (Uniswap V3) or tickSpacing (Aerodrome). */
-function hopOf(spec: ChainToken): number {
-  return spec.dex === "aerodrome" ? (spec.tickSpacing ?? 0) : spec.feeTier;
+function hopOf(spec: ChainToken, tagged = false): number {
+  if (spec.dex === "aerodrome") {
+    const ts = spec.tickSpacing ?? 0;
+    // Aerodrome Slipstream's MixedQuoterV3 tags the tickSpacing with the CL factory:
+    // 0x80000 | tickSpacing = the newest ("Gauges V3") factory. The SwapRouter is
+    // single-factory and uses the RAW tickSpacing, so only the quote path is tagged.
+    return tagged ? AERODROME_FACTORY_TAG | ts : ts;
+  }
+  return spec.feeTier;
 }
+
+/** The Aerodrome factory tag OR-ed into a tickSpacing for the quote path (0x80000). */
+const AERODROME_FACTORY_TAG = 0x80000;
 
 /** True when a token routes through Aerodrome Slipstream (tickSpacing, its own router/quoter). */
 function isAero(spec: ChainToken): boolean {
@@ -411,16 +421,21 @@ function isAero(spec: ChainToken): boolean {
  * A two-hop spec routes through `spec.via`; a direct spec uses a single leg.
  * Returns null when a two-hop spec lacks a `via`, or when an Aerodrome token asks
  * for a two-hop (unsupported) — fail closed, the caller must not guess a hop.
+ *
+ * `tagged` (true for the quote path) OR-s the Aerodrome factory tag into the
+ * tickSpacing so the MixedQuoterV3 resolves the right CL factory; the swap path
+ * leaves it raw.
  */
 function v3Path(
   spec: ChainToken,
   settlement: Address,
   tokenIn: Address,
   tokenOut: Address,
+  tagged = false,
 ): `0x${string}` | null {
   const buy = tokenIn.toLowerCase() === settlement.toLowerCase();
   if (isAero(spec) && spec.via) return null; // Aerodrome two-hop not supported yet
-  if (!spec.via) return encodeV3PathSingle(tokenIn, hopOf(spec), tokenOut);
+  if (!spec.via) return encodeV3PathSingle(tokenIn, hopOf(spec, tagged), tokenOut);
   if (buy) {
     // settlement → via → token
     return encodeV3PathMulti(tokenIn, spec.via.feeTier, spec.via.address, spec.feeTier, tokenOut);
@@ -451,7 +466,7 @@ async function quoteSwap(
   tokenOut: Address,
   amountIn: bigint,
 ): Promise<bigint | null> {
-  const path = v3Path(spec, settlementOf(cfg, chainId).address, tokenIn, tokenOut);
+  const path = v3Path(spec, settlementOf(cfg, chainId).address, tokenIn, tokenOut, true); // tag aerodrome
   if (path === null) return null;
   const quoter = quoterFor(cfg, chainId, spec);
   if (!quoter) return null;

@@ -171,9 +171,12 @@ additions make that work:
 - The top-level config adds an `aerodrome` block with the per-chain router + quoter (Base):
   ```json
   "aerodrome": {
-    "router": { "8453": "0xBE6D8f0d05cC4be24d5167a3eF062215bE6D18a5" },
-    "quoter": { "8453": "0x254cF9E1E6e233aa1AC962CB9B05b2cfeAaE15b0" }
+    "router": { "8453": "0x698Cb2b6dd822994581fEa6eA4Fc755d1363A92F" },
+    "quoter": { "8453": "0xCd2A7D98e82D6107eac1828ce8DeAA6acB65b555" }
   }
   ```
-  (Addresses verified against aerodrome.finance/security.) The mandate is already DEX-agnostic, so no
-  new permission is needed — the same swap permission authorizes the Aerodrome router.
+  These are the Gauges V3 (newest) CL factory addresses — `0x698Cb2` is the single-factory
+  SwapRouter for `0xf8f2eB…` (where cbHYPE's USDC pool lives) and `0xCd2A7D` is the
+  MixedQuoterV3. The older `0xBE6D…`/`0x254c…` pair serve the LEGACY factory and cannot route
+  cbHYPE. The mandate is already DEX-agnostic, so no new permission is needed — the same swap
+  permission authorizes the Aerodrome router.

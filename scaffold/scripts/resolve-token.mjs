@@ -60,11 +60,13 @@ const CHAINS = {
     gecko: "base",
     quoterV2: "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a",
     usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-    // Aerodrome Slipstream (V3 fork) router + quoter. cbHYPE and other assets trade on
-    // Aerodrome, not Uniswap V3; a swap there uses tickSpacing (not a fee) in the path.
-    // Verified against aerodrome.finance/security (SwapRouter 0xBE6D…, Quoter 0x254c…).
-    aerodromeRouter: "0xBE6D8f0d05cC4be24d5167a3eF062215bE6D18a5",
-    aerodromeQuoter: "0x254cF9E1E6e233aa1AC962CB9B05b2cfeAaE15b0",
+    // Aerodrome Slipstream router + quoter — the Gauges V3 (newest) CL factory
+    // 0xf8f2eB…, which is where cbHYPE and current Base CL liquidity live. The older
+    // Slipstream router 0xBE6D…/quoter 0x254c… serve the LEGACY factory (0x5e7BB1…)
+    // and cannot route this generation. Verified against Aerodrome's deployment
+    // (CLFactory 0xf8f2eB…, SwapRouter 0x698Cb2…, MixedQuoterV3 0xCd2A7D…).
+    aerodromeRouter: "0x698Cb2b6dd822994581fEa6eA4Fc755d1363A92F",
+    aerodromeQuoter: "0xCd2A7D98e82D6107eac1828ce8DeAA6acB65b555",
     tokens: {
       USDC: { address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6 },
       WETH: { address: "0x4200000000000000000000000000000000000006", decimals: 18 },
@@ -255,9 +257,17 @@ const SEL = {
   symbol: "0x95d89b41", // symbol()
   decimals: "0x313ce567", // decimals()
   quoteExactInputSingle: "0xc6a5026a", // quoteExactInputSingle((address,address,uint256,uint24,uint160))
-  aeroQuoteExactInputSingle: "0x9e7defe6", // quoteExactInputSingle((address,address,uint256,int24,uint160)) — tickSpacing
+  aeroQuoteExactInputSingleV3: "0x891e50c6", // quoteExactInputSingleV3((address,address,uint256,int24,uint160)) — tagged tickSpacing
   tickSpacing: "0xd0c93a7c", // tickSpacing() (Aerodrome Slipstream pool)
 };
+
+// Aerodrome Slipstream's MixedQuoterV3 tags the tickSpacing with the CL factory it
+// refers to: 0x80000 | tickSpacing = the newest ("Gauges V3") factory (0xf8f2eB…),
+// 0x100000 | tickSpacing = the legacy factory, raw tickSpacing = legacyCLFactory2.
+// The SwapRouter is single-factory and uses the RAW tickSpacing in its path; only the
+// quoter needs the tag. Our probe reads the raw tickSpacing off the pool and tags it
+// for the quote here.
+const AERODROME_FACTORY_TAG = 0x80000;
 
 function pad32(hexOrAddr) {
   // left-pad an address or hex number to 32 bytes (64 hex chars)
@@ -287,15 +297,16 @@ function encodeQuoteCall(tokenIn, tokenOut, amountIn, fee) {
 }
 
 function encodeAeroQuoteCall(tokenIn, tokenOut, amountIn, tickSpacing) {
-  // Aerodrome Slipstream quoteExactInputSingle((address tokenIn, address tokenOut,
-  // uint256 amountIn, int24 tickSpacing, uint160 sqrtPriceLimitX96)) — same 5-word
-  // layout as Uniswap V3, but the 4th field is tickSpacing and the selector differs.
+  // Aerodrome Slipstream MixedQuoterV3 quoteExactInputSingleV3((address tokenIn,
+  // address tokenOut, uint256 amountIn, int24 tickSpacing, uint160 sqrtPriceLimitX96))
+  // — same 5-word layout as Uniswap V3, but the 4th field is the FACTORY-TAGGED
+  // tickSpacing (0x80000 | tickSpacing for the newest factory) and the selector differs.
   return (
-    SEL.aeroQuoteExactInputSingle +
+    SEL.aeroQuoteExactInputSingleV3 +
     pad32(tokenIn) +
     pad32(tokenOut) +
     uintToHex(amountIn) +
-    uintToHex(BigInt(tickSpacing)) +
+    uintToHex(BigInt(AERODROME_FACTORY_TAG | tickSpacing)) +
     uintToHex(0n) // sqrtPriceLimitX96 = 0
   );
 }
@@ -326,17 +337,35 @@ async function ethCall(rpc, to, data, from = ADDR_ZERO) {
     method: "eth_call",
     params: [{ to, data, from }, "latest"],
   };
-  const res = await fetch(rpc, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!res.ok) throw new Error(`eth_call HTTP ${res.status} to ${to}`);
-  const json = await res.json();
-  if (json.error) throw new Error(`eth_call reverted: ${JSON.stringify(json.error)}`);
-  if (!json.result) throw new Error(`eth_call returned no result`);
-  return json.result;
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(rpc, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (res.status === 429) {
+        // Public endpoints rate-limit; a transient 429 must not be read as "no pool".
+        lastErr = new Error(`eth_call HTTP 429 to ${to}`);
+        await sleep(2500 * (attempt + 1));
+        continue;
+      }
+      if (!res.ok) throw new Error(`eth_call HTTP ${res.status} to ${to}`);
+      const json = await res.json();
+      if (json.error) throw new Error(`eth_call reverted: ${JSON.stringify(json.error)}`);
+      if (!json.result) throw new Error(`eth_call returned no result`);
+      return json.result;
+    } catch (e) {
+      lastErr = e;
+      // Distinguish a clean revert (a pool genuinely missing) from a transport/rate
+      // error: only back off on the latter. A revert throws the same shape here, so
+      // we retry a revert once before giving up, which is harmless for the quote probe.
+      if (attempt < 2) await sleep(1200);
+    }
+  }
+  throw lastErr || new Error(`eth_call failed to ${to}`);
 }
 
 // ── resolve project RPC + chain ─────────────────────────────────────────────────
@@ -1750,6 +1779,13 @@ function optimizeChainSet(tokens) {
 }
 
 // ── emitters ────────────────────────────────────────────────────────────────────
+function swapReadyLabel(o) {
+  if (!o.swapReady) return "no USDC pool on this chain";
+  return o.dex === "aerodrome"
+    ? `yes — tickSpacing ${o.tickSpacing} (Aerodrome)`
+    : `yes — fee ${o.feeTier} (Uniswap V3)`;
+}
+
 function emitSingle(out) {
   process.stdout.write(JSON.stringify(out, null, 2) + "\n");
   const venueLine =
@@ -1765,7 +1801,7 @@ function emitSingle(out) {
     `\n${out.symbol} on ${out.chain} (${out.chainId}):\n` +
       `  address:    ${out.address}  (source: ${out.source})\n` +
       `  decimals:   ${out.decimals} (${out.decimalsSource || "onchain"})\n` +
-      `  swap-ready: ${out.swapReady ? `yes — fee ${out.feeTier} (deepest Uniswap V3)` : "NO USDC V3 pool on this chain"}\n` +
+      `  swap-ready: ${swapReadyLabel(out)}\n` +
       `  venues:     ${venueLine}\n` +
       `  ${out.recommendation}\n`,
   );
@@ -1788,7 +1824,7 @@ function emitTokenHuman(token) {
           ? `unavailable (${o.venuesError.includes("429") ? "rate-limited — re-run" : "error"})`
           : "none";
     lines.push(
-      `  ${name} (${o.chainId}): ${o.address}  dec ${o.decimals} [${o.decimalsSource}], ${o.swapReady ? `swap-ready fee ${o.feeTier}` : "no USDC V3 pool"}`,
+      `  ${name} (${o.chainId}): ${o.address}  dec ${o.decimals} [${o.decimalsSource}], ${swapReadyLabel(o)}`,
     );
     lines.push(`     venues: ${venues}`);
   }
@@ -1904,7 +1940,7 @@ async function main() {
             .map((r) =>
               r.error
                 ? `  ${r.chain} (${r.chainId}): FAILED — ${r.error}`
-                : `  ${r.chain} (${r.chainId}): ${r.address}  dec ${r.decimals}, ${r.swapReady ? `swap-ready fee ${r.feeTier}` : "no USDC V3 pool"}`,
+                : `  ${r.chain} (${r.chainId}): ${r.address}  dec ${r.decimals}, ${swapReadyLabel(r)}`,
             )
             .join("\n") +
           "\n  (JSON array — one entry per chain; pass --chain <name> for a single object, or --json for the venue map.)\n",

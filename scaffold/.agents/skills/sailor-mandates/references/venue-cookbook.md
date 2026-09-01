@@ -24,6 +24,17 @@ wrong generation's router for the pool you're actually trading.
 `configure()` or the permission's own bound) before wiring a router to a pool. Never take the
 pairing from documentation.
 
+**Concrete Base map (verified on-chain, 2026-09):** Aerodrome Slipstream runs three CL
+generations — (1) legacy factory `0x5e7BB1…` → router `0xBE6D…`, (2) `legacyCLFactory2` → raw
+tickSpacing, (3) the newest "Gauges V3" factory `0xf8f2eB…` → single-factory SwapRouter
+`0x698Cb2…`. Current Base CL liquidity (cbHYPE, etc.) sits on `0xf8f2eB…`, so that's the pair to
+use. The quoter is a different contract from the router: the newest generation is served by
+**MixedQuoterV3 `0xCd2A7D…`**, which tags the path's `int24` hop with the factory bit
+(`0x80000 | tickSpacing` = newest) so its shared `quoteExactInput`/`quoteExactInputSingleV3`
+can disambiguate factories — whereas the single-factory router uses the **raw** tickSpacing.
+Getting these crossed (tagged vs raw, or router vs quoter generation) is the exact failure
+this entry warns about.
+
 ## 2. Match the deployed ABI exactly — fork field-counts differ, and a decode-revert inside a `try` is uncatchable
 
 **Symptom:** every call through the permission hard-reverts, even though the external call sits

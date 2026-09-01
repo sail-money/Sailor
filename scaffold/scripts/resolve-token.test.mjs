@@ -547,13 +547,13 @@ test("encodeQuoteCall builds the QuoterV2 single-tuple call", () => {
   assert.equal(out.length, 8 + 2 + 5 * 64); // selector(0x+8) + 5 words
 });
 
-test("encodeAeroQuoteCall builds the Aerodrome Slipstream single-tuple call (tickSpacing)", () => {
+test("encodeAeroQuoteCall builds the Aerodrome Slipstream MixedQuoterV3 call (tagged tickSpacing)", () => {
   const out = encodeAeroQuoteCall("0x" + "1".repeat(40), "0x" + "2".repeat(40), 25n * 10n ** 6n, 200);
-  assert.ok(out.startsWith("0x9e7defe6")); // quoteExactInputSingle((address,address,uint256,int24,uint160))
+  assert.ok(out.startsWith("0x891e50c6")); // quoteExactInputSingleV3((address,address,uint256,int24,uint160))
   assert.equal(out.length, 8 + 2 + 5 * 64); // selector(0x+8) + 5 words
-  // The 4th word is the tickSpacing (200 = 0xc8), not a fee.
+  // The 4th word is the factory-tagged tickSpacing: 0x80000 | 200 = 0x800C8 = 524488.
   const words = out.slice(10).match(/.{64}/g);
-  assert.equal(words[3], "0".repeat(62) + "c8");
+  assert.equal(words[3], "0".repeat(59) + "800c8");
 });
 
 test("decodeUint256Return reads the first word as a bigint", () => {
