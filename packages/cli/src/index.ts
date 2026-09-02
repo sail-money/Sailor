@@ -24,8 +24,10 @@ import { type HarborPublishOptions, harborPublish } from "./commands/harbor-publ
 import {
   type HarborCreateOptions,
   type HarborListOptions,
+  type HarborUpdateOptions,
   harborCreate,
   harborList,
+  harborUpdate,
 } from "./commands/harbor.js";
 import { initCommand } from "./commands/init.js";
 import { type KeysGenerateOptions, keysExportCi, keysGenerate, keysShow } from "./commands/keys.js";
@@ -45,7 +47,7 @@ import {
   mandateUpdate,
 } from "./commands/mandate-contracts.js";
 import { type SimulateOptions, mandateSimulate } from "./commands/mandate-simulate.js";
-import { mandatePrepare, mandateSign, mandateSync } from "./commands/mandate.js";
+import { mandateForget, mandatePrepare, mandateSign, mandateSync } from "./commands/mandate.js";
 import { type OnboardOptions, onboard } from "./commands/onboard.js";
 import { ownerConnect, ownerShow } from "./commands/owner.js";
 import { type RotateSignerOptions, rotateSigner } from "./commands/rotate-signer.js";
@@ -304,6 +306,15 @@ mandate
   )
   .option("--json", "Emit machine-readable JSON")
   .action(actionWith<{ json?: boolean }>(mandateSync));
+mandate
+  .command("forget")
+  .description("Remove a tracked-but-never-registered mandate record from the local store")
+  .requiredOption(
+    "--address <addressOrName>",
+    "Permission address or locally-tracked name to drop",
+  )
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<{ addressOrName: string; json?: boolean }>(mandateForget));
 mandate
   .command("deploy")
   .description("Deploy a Foundry-compiled permission contract via the browser signing UI")
@@ -806,6 +817,19 @@ harborCmd
   .action(
     actArgs<[string, string | undefined, HarborCreateOptions]>((slug, dir, opts) =>
       harborCreate(slug, dir, opts),
+    ),
+  );
+
+harborCmd
+  .command("update [dir]")
+  .description("Refresh an existing project to the latest release of its agent")
+  .option("--registry <owner/repo>", "Registry repo (default: sail-money/harbor)")
+  .option("--chain <id>", "Chain id the agent must support")
+  .option("--yes", "Apply the verified blueprint without an interactive import confirmation")
+  .option("--json", "Emit machine-readable JSON")
+  .action(
+    actArgs<[string | undefined, HarborUpdateOptions]>((dir, opts) =>
+      harborUpdate(dir ?? ".", opts),
     ),
   );
 

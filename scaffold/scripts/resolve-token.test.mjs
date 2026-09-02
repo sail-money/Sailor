@@ -128,27 +128,33 @@ test("identify is case-insensitive on the symbol", () => {
 // ── classifyDex: DEX family → Sail-routable? ──────────────────────────────────
 
 test("classifyDex treats a bare 'uniswap' dexId as V3 (Arbitrum/Base/Unichain omit labels)", () => {
-  assert.deepEqual(classifyDex("uniswap", undefined, "base"), { protocol: "uniswap-v3", sailRoutable: true });
-  assert.deepEqual(classifyDex("uniswap", ["v3"], "arbitrum"), { protocol: "uniswap-v3", sailRoutable: true });
-  assert.deepEqual(classifyDex("uniswap-v3-base", undefined, "base"), { protocol: "uniswap-v3", sailRoutable: true });
+  assert.deepEqual(classifyDex("uniswap", undefined, "base"), { protocol: "uniswap-v3", sailRoutable: true, executable: true });
+  assert.deepEqual(classifyDex("uniswap", ["v3"], "arbitrum"), { protocol: "uniswap-v3", sailRoutable: true, executable: true });
+  assert.deepEqual(classifyDex("uniswap-v3-base", undefined, "base"), { protocol: "uniswap-v3", sailRoutable: true, executable: true });
 });
 
 test("classifyDex recognizes the other Sail-routable DEX families", () => {
   assert.equal(classifyDex("aerodrome", [], "base").protocol, "aerodrome");
   assert.equal(classifyDex("aerodrome", [], "base").sailRoutable, true);
+  assert.equal(classifyDex("aerodrome", [], "base").executable, true);
   assert.equal(classifyDex("pancakeswap-v3", [], "bsc").protocol, "pancakeswap");
   assert.equal(classifyDex("sushiswap", [], "arbitrum").protocol, "sushiswap");
   assert.equal(classifyDex("velodrome", [], "optimism").protocol, "velodrome");
   assert.equal(classifyDex("uniswap", ["v2"], "ethereum").protocol, "uniswap-v2");
+  // V2/Sushi/Pancake/Velodrome are Sail-routable in principle but NOT runtime-executable.
+  assert.equal(classifyDex("pancakeswap-v3", [], "bsc").executable, false);
+  assert.equal(classifyDex("sushiswap", [], "arbitrum").executable, false);
+  assert.equal(classifyDex("velodrome", [], "optimism").executable, false);
+  assert.equal(classifyDex("uniswap", ["v2"], "ethereum").executable, false);
 });
 
 test("classifyDex is routable for V4 only on Unichain", () => {
-  assert.deepEqual(classifyDex("uniswap-v4", ["v4"], "unichain"), { protocol: "uniswap-v4", sailRoutable: true });
-  assert.deepEqual(classifyDex("uniswap-v4", ["v4"], "base"), { protocol: "uniswap-v4", sailRoutable: false });
+  assert.deepEqual(classifyDex("uniswap-v4", ["v4"], "unichain"), { protocol: "uniswap-v4", sailRoutable: true, executable: false });
+  assert.deepEqual(classifyDex("uniswap-v4", ["v4"], "base"), { protocol: "uniswap-v4", sailRoutable: false, executable: false });
 });
 
 test("classifyDex marks unknown DEXes non-routable", () => {
-  assert.deepEqual(classifyDex("curve", [], "ethereum"), { protocol: "other", sailRoutable: false });
+  assert.deepEqual(classifyDex("curve", [], "ethereum"), { protocol: "other", sailRoutable: false, executable: false });
 });
 
 // ── parseFeeBps + addrFromGeckoId ──────────────────────────────────────────────
@@ -191,6 +197,7 @@ const named = (key) => ({ ...CHAINS[key], name: key });
 
 const viaVenue = (chain, pairedSymbol, liquidityUsd, extra = {}) => ({
   sailRoutable: true,
+  executable: true,
   pairedSymbol,
   liquidityUsd,
   ...extra,
@@ -223,10 +230,13 @@ test("isViaPair rejects dust pools below the $10k floor", () => {
   assert.equal(isViaPair(viaVenue(base, "WETH", MIN_TWO_HOP_LIQUIDITY_USD - 1), base), null);
 });
 
-test("isViaPair rejects non-via pairs and non-routable venues", () => {
+test("isViaPair rejects non-via pairs and non-executable venues", () => {
   const base = named("base");
-  assert.equal(isViaPair({ sailRoutable: true, pairedSymbol: "USDC", liquidityUsd: 1_000_000 }, base), null);
-  assert.equal(isViaPair(viaVenue(base, "WETH", 50_000, { sailRoutable: false }), base), null);
+  assert.equal(isViaPair({ sailRoutable: true, executable: true, pairedSymbol: "USDC", liquidityUsd: 1_000_000 }, base), null);
+  assert.equal(isViaPair(viaVenue(base, "WETH", 50_000, { executable: false }), base), null);
+  // A venue the shared template could route in principle, but the runtime cannot execute
+  // (e.g. a Uniswap V2 WETH pool) must NOT become a two-hop via.
+  assert.equal(isViaPair(viaVenue(base, "WETH", 50_000, { executable: false, sailRoutable: true }), base), null);
   // Robinhood has no via set → never two-hop
   assert.equal(isViaPair(viaVenue(named("robinhood"), "WETH", 1_000_000), named("robinhood")), null);
 });
@@ -406,21 +416,31 @@ test("annotateVenues stamps estImpactPct / fitsSize / suspectVolume in place", (
 // ── pickBestVenue: USDC-relevant, size-aware, flag-propagating ────────────────
 
 test("pickBestVenue prefers a fitting real USDC venue over a deeper WETH venue", () => {
-  const usdc = { sailRoutable: true, pairedSymbol: "USDC", protocol: "uniswap-v3", liquidityUsd: 1_000_000, volume24hUsd: 50_000, fitsSize: true, suspectVolume: false, estImpactPct: 0.2 };
-  const weth = { sailRoutable: true, pairedSymbol: "WETH", protocol: "uniswap-v3", liquidityUsd: 5_000_000, volume24hUsd: 100_000, fitsSize: true, suspectVolume: false, estImpactPct: 0.04 };
+  const usdc = { sailRoutable: true, executable: true, pairedSymbol: "USDC", protocol: "uniswap-v3", liquidityUsd: 1_000_000, volume24hUsd: 50_000, fitsSize: true, suspectVolume: false, estImpactPct: 0.2 };
+  const weth = { sailRoutable: true, executable: true, pairedSymbol: "WETH", protocol: "uniswap-v3", liquidityUsd: 5_000_000, volume24hUsd: 100_000, fitsSize: true, suspectVolume: false, estImpactPct: 0.04 };
   const best = pickBestVenue([weth, usdc], CHAINS.base);
   assert.equal(best.pairedSymbol, "USDC");
   assert.equal(best.liquidityUsd, 1_000_000);
 });
 
-test("pickBestVenue falls back to a routable hub venue when no USDC pair exists", () => {
-  const weth = { sailRoutable: true, pairedSymbol: "WETH", protocol: "uniswap-v3", liquidityUsd: 5_000_000, volume24hUsd: 100_000, fitsSize: true, suspectVolume: false, estImpactPct: 0.04 };
+test("pickBestVenue falls back to an executable hub venue when no USDC pair exists", () => {
+  const weth = { sailRoutable: true, executable: true, pairedSymbol: "WETH", protocol: "uniswap-v3", liquidityUsd: 5_000_000, volume24hUsd: 100_000, fitsSize: true, suspectVolume: false, estImpactPct: 0.04 };
   const best = pickBestVenue([weth], CHAINS.base);
   assert.equal(best.pairedSymbol, "WETH");
 });
 
+test("pickBestVenue marks a Sail-routable but non-executable venue as not executable", () => {
+  // A deep Uniswap V2 USDC pool is Sail-routable in principle, but the runtime cannot
+  // dispatch it. pickBestVenue surfaces it (reporting), flagged executable:false so the
+  // caller never treats it as swap-ready. swapReady gating reads that flag.
+  const v2 = { sailRoutable: true, executable: false, pairedSymbol: "USDC", protocol: "uniswap-v2", liquidityUsd: 5_000_000, volume24hUsd: 100_000, fitsSize: true, suspectVolume: false, estImpactPct: 0.04 };
+  const best = pickBestVenue([v2], CHAINS.base);
+  assert.equal(best.protocol, "uniswap-v2");
+  assert.equal(best.executable, false);
+});
+
 test("pickBestVenue propagates the suspect-volume flag (never drops it)", () => {
-  const fake = { sailRoutable: true, pairedSymbol: "USDC", protocol: "uniswap-v3", liquidityUsd: 100_000_000, volume24hUsd: 0, fitsSize: true, suspectVolume: true, estImpactPct: 0.002 };
+  const fake = { sailRoutable: true, executable: true, pairedSymbol: "USDC", protocol: "uniswap-v3", liquidityUsd: 100_000_000, volume24hUsd: 0, fitsSize: true, suspectVolume: true, estImpactPct: 0.002 };
   const best = pickBestVenue([fake], CHAINS.base);
   assert.equal(best.suspectVolume, true);
 });

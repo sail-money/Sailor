@@ -176,18 +176,40 @@ function readRuntimeServerState(projectRoot: string): RuntimeServerState | null 
 }
 
 /**
+ * The ACTUAL port the dashboard is running on for this surface, when a live server
+ * exists — read from the UI runtime descriptor (`runtime/ui.json`), the same file the
+ * server writes with its real bound port. Falls back to the deterministic port when no
+ * live server is recorded. This is the fix for the orphaned-port bug: the deterministic
+ * `projectPort()` can be taken by a stale process from a deleted project copy, forcing
+ * the real server onto the next free port — a signing link computed from the formula
+ * alone then points at the WRONG port. The descriptor is the truth.
+ */
+function runtimeUiPort(projectRoot: string, isSandbox: boolean): number | null {
+  const sailDir = isSandbox ? sandboxDirFor(projectRoot) : resolveSailDir(projectRoot);
+  const file = join(sailDir, "runtime", "ui.json");
+  if (!existsSync(file)) return null;
+  try {
+    const s = JSON.parse(readFileSync(file, "utf8")) as { pid?: number; port?: number };
+    return typeof s.port === "number" && s.port > 0 && s.port <= 65535 ? s.port : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The URL a user should open to approve this channel's signing requests.
  * Uses the dashboard port of the surface the resolved state root belongs to —
  * the sandbox dashboard when `SAIL_DIR` points at the project's sandbox dir,
- * the live dashboard otherwise (they seed their deterministic ports
- * differently — see ui.ts's portSeedFor). The hash route distinguishes the
- * signing page from the main dashboard. (`#/station` is a v1.2.0-compatible
- * alias the router also accepts — see main.jsx — but new URLs always print
- * the canonical `#/signer`.)
+ * the live dashboard otherwise. Prefers the ACTUAL bound port from the runtime
+ * descriptor when a server is live (so the link never points at a stale
+ * deterministic port), falling back to the deterministic port. The hash route
+ * distinguishes the signing page from the main dashboard. (`#/station` is a
+ * v1.2.0-compatible alias the router also accepts — see main.jsx — but new URLs
+ * always print the canonical `#/signer`.)
  */
 export function signingPageUrl(projectRoot: string = process.cwd()): string {
   const isSandbox = resolveSailDir(projectRoot) === sandboxDirFor(projectRoot);
-  const port = projectPort(isSandbox ? `${projectRoot}:sandbox` : projectRoot);
+  const port = runtimeUiPort(projectRoot, isSandbox) ?? projectPort(isSandbox ? `${projectRoot}:sandbox` : projectRoot);
   return `http://localhost:${port}/#/signer`;
 }
 

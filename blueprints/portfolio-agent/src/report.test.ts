@@ -151,37 +151,7 @@ test("composeReport says not invested when holdings are empty", () => {
   assert.ok(composeReport(s).includes("Nothing invested yet"));
 });
 
-test("composeReport shows the trading allowance and warns when it is low", () => {
-  const s: PortfolioSnapshot = {
-    totalValue: 100_000_000n,
-    investedValue: 100_000_000n,
-    idleUsdc: 0n,
-    costBasis: null,
-    holdings: [],
-    allowanceCeiling: 12_000_000_000n, // $12,000
-    allowanceRemaining: 2_000_000_000n, // $2,000, below a quarter of the ceiling
-  };
-  const r = composeReport(s);
-  assert.ok(r.includes("Trading allowance $2000.00 of $12000.00 left"));
-  assert.ok(r.includes("Low on trading allowance"));
-});
-
-test("composeReport shows the allowance without a warning when it is healthy", () => {
-  const s: PortfolioSnapshot = {
-    totalValue: 100_000_000n,
-    investedValue: 100_000_000n,
-    idleUsdc: 0n,
-    costBasis: null,
-    holdings: [],
-    allowanceCeiling: 12_000_000_000n,
-    allowanceRemaining: 9_000_000_000n,
-  };
-  const r = composeReport(s);
-  assert.ok(r.includes("Trading allowance $9000.00 of $12000.00 left"));
-  assert.ok(!r.includes("Low on trading allowance"));
-});
-
-test("composeReport omits the allowance line when no owner-set ceiling is configured", () => {
+test("composeReport omits the allowance line (approve is agent-managed, no owner-set ceiling)", () => {
   const s: PortfolioSnapshot = {
     totalValue: 50_000_000n,
     investedValue: 0n,

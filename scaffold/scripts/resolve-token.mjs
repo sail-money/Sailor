@@ -709,7 +709,13 @@ function classifyDex(dexId, labels, chainName) {
   ]);
   let sailRoutable = ROUTABLE.has(protocol);
   if (protocol === "uniswap-v4") sailRoutable = chainName === "unichain";
-  return { protocol, sailRoutable };
+  // `executable` is narrower than `sailRoutable`: it means the portfolio runtime can
+  // actually dispatch this venue (its swap path is Uniswap V3 `exactInput` and Aerodrome
+  // Slipstream `exactInput` — a single router + path encoding). A V2/Sushi/Pancake/Velodrome
+  // pool is Sail-routable in principle (the shared template could allowlist its router) but
+  // the runtime does not speak it today, so it must never read "swap-ready".
+  const executable = protocol === "uniswap-v3" || protocol === "aerodrome";
+  return { protocol, sailRoutable, executable };
 }
 
 // "WETH / USDC 0.3%" → 3000 (basis points). null when no fee is present (e.g. some
@@ -761,7 +767,7 @@ async function fetchVenuesDex(chain, tokenAddrLower, ourSymbolUp) {
     } else {
       continue; // our token isn't actually base/quote of this pool
     }
-    const { protocol, sailRoutable } = classifyDex(p.dexId, p.labels, chain.name);
+    const { protocol, sailRoutable, executable } = classifyDex(p.dexId, p.labels, chain.name);
     venues.push({
       protocol,
       dexId: p.dexId || "",
@@ -772,6 +778,7 @@ async function fetchVenuesDex(chain, tokenAddrLower, ourSymbolUp) {
       liquidityUsd: Math.round(Number((p.liquidity && p.liquidity.usd) || 0)),
       volume24hUsd: Math.round(Number((p.volume && p.volume.h24) || 0)),
       sailRoutable,
+      executable,
       quoteVerified: false,
     });
   }
@@ -790,7 +797,7 @@ async function fetchVenuesGecko(chain, tokenAddrLower, ourSymbolUp) {
     const at = p.attributes || {};
     const rel = p.relationships || {};
     const dexId = (((rel.dex || {}).data) || {}).id || "";
-    const { protocol, sailRoutable } = classifyDex(dexId, undefined, chain.name);
+    const { protocol, sailRoutable, executable } = classifyDex(dexId, undefined, chain.name);
     const name = at.name || "";
     const baseAddr = addrFromGeckoId((((rel.base_token || {}).data) || {}).id || "");
     const quoteAddr = addrFromGeckoId((((rel.quote_token || {}).data) || {}).id || "");
@@ -819,6 +826,7 @@ async function fetchVenuesGecko(chain, tokenAddrLower, ourSymbolUp) {
       liquidityUsd: Math.round(Number(at.reserve_in_usd || 0)),
       volume24hUsd: Math.round(Number((at.volume_usd || {}).h24 || 0)),
       sailRoutable: sailRoutable && !exotic,
+      executable: executable && !exotic,
       quoteVerified: false,
     });
   }
@@ -1000,7 +1008,7 @@ function isUsdcPair(venue, chain) {
 // symbol whose address differs from the verified registry (a planted "USDT"/"WETH"
 // look-alike must not become the intermediate).
 function isViaPair(venue, chain) {
-  if (!venue || !venue.sailRoutable) return null;
+  if (!venue || !venue.executable) return null;
   const vias = VIA_SYMBOLS[chain.name];
   if (!vias || !vias.includes(venue.pairedSymbol)) return null;
   const reg = chain.tokens && chain.tokens[venue.pairedSymbol];
@@ -1017,8 +1025,8 @@ function isViaPair(venue, chain) {
 // pool overall. Drives the cross-chain depth ranking, so it must be USDC-relevant —
 // not, say, a huge WETH/BEAT pool that we'd never route a USDC DCA through.
 function pickBestVenue(venues, chain) {
-  const routableUsdc = venues.filter((v) => v.sailRoutable && isUsdcPair(v, chain));
-  const routable = venues.filter((v) => v.sailRoutable);
+  const routableUsdc = venues.filter((v) => v.executable && isUsdcPair(v, chain));
+  const routable = venues.filter((v) => v.executable);
   // Prefer a venue that actually fits the trade size and has real volume; fall back
   // to the deepest routable venue (still reported, but flagged by the caller).
   const good = (v) => v.fitsSize !== false && !v.suspectVolume;
@@ -1031,6 +1039,7 @@ function pickBestVenue(venues, chain) {
     pool: top.pool,
     pairedSymbol: top.pairedSymbol,
     sailRoutable: top.sailRoutable,
+    executable: top.executable ?? false,
     volume24hUsd: top.volume24hUsd ?? 0,
     estImpactPct: top.estImpactPct ?? null,
     fitsSize: top.fitsSize ?? null,
@@ -1230,8 +1239,9 @@ async function resolveOnChain(symbolOrAddr, chain, rpc, sizeUsd = DEFAULT_SIZE_U
           pairedSymbol: "USDC",
           pairedToken: chain.usdc || null,
           liquidityUsd: mapped.liquidityUsd ?? 0,
-          volume24hUsd: 0,
+          volume24hUsd: mapped.volume24hUsd ?? 0,
           sailRoutable: true,
+          executable: (mapped.dex || "uniswap-v3") === "uniswap-v3" || mapped.dex === "aerodrome",
           quoteVerified: false,
         },
       ];
@@ -1250,8 +1260,9 @@ async function resolveOnChain(symbolOrAddr, chain, rpc, sizeUsd = DEFAULT_SIZE_U
           pairedSymbol: viaSym,
           pairedToken: (chain.tokens[viaSym] && chain.tokens[viaSym].address) || null,
           liquidityUsd: mapped.hubLiquidityUsd ?? mapped.liquidityUsd ?? 0,
-          volume24hUsd: 0,
+          volume24hUsd: mapped.volume24hUsd ?? 0,
           sailRoutable: true,
+          executable: mapped.hubDex === "uniswap-v3" || mapped.hubDex === "aerodrome",
           quoteVerified: false,
         },
       ];
@@ -1347,9 +1358,11 @@ async function resolveOnChain(symbolOrAddr, chain, rpc, sizeUsd = DEFAULT_SIZE_U
       };
     }
   } else {
-    // no on-chain probe (no RPC, or no QuoterV2/USDC for this chain): a Sail-routable
-    // USDC-paired venue ⇒ swap-ready (unverified).
-    const r = venues.find((v) => v.sailRoutable && isUsdcPair(v, chain));
+    // no on-chain probe (no RPC, or no QuoterV2/USDC for this chain): an executable
+    // USDC-paired venue ⇒ swap-ready (unverified). `executable` is narrower than
+    // `sailRoutable` — it means the runtime can actually dispatch this venue (Uniswap V3 /
+    // Aerodrome), not merely that a shared template could route it in principle.
+    const r = venues.find((v) => v.executable && isUsdcPair(v, chain));
     swapReady = !!r;
     if (r) {
       best = {

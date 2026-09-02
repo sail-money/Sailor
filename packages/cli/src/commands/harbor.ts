@@ -9,6 +9,8 @@ import {
   listReleases,
 } from "../lib/github.js";
 import { blueprintStart, IN_PLACE_IGNORED } from "./blueprint-start.js";
+import { blueprintImport } from "./blueprint.js";
+import { BLUEPRINT_MARKER } from "../lib/project-scaffold.js";
 
 /**
  * `sailor harbor list | create` — the one-word entry point for Harbor, the library of
@@ -272,6 +274,111 @@ export async function harborCreate(
       yes: options.yes,
       agent: options.agent,
     });
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+// ── update ─────────────────────────────────────────────────────────────────────
+
+export interface HarborUpdateOptions {
+  registry?: string;
+  yes?: boolean;
+  chain?: string;
+  json?: boolean;
+}
+
+export interface HarborUpdateDependencies {
+  listReleases?: typeof listReleases;
+  downloadAsset?: typeof downloadAsset;
+  importBlueprint?: typeof blueprintImport;
+}
+
+/**
+ * Refresh an existing Harbor project to the latest blueprint release. This is the
+ * missing command from the update report: `sailor update` deliberately leaves a Harbor
+ * project's agent surface alone, but nothing re-synced it from a NEW blueprint release,
+ * so a user who updated the package kept running the old blueprint. This command reads
+ * the project's `.sail/.blueprint` marker for its slug, downloads the latest release,
+ * and re-runs `blueprint import` (verify + secret-scan + overlay) over the project in
+ * place — the same delta-over-scaffold path as a fresh `harbor create`, not a full
+ * re-scaffold.
+ */
+export async function harborUpdate(
+  projectRoot: string,
+  options: HarborUpdateOptions = {},
+  deps: HarborUpdateDependencies = {},
+): Promise<void> {
+  const registry = options.registry ?? DEFAULT_REGISTRY;
+  const list = deps.listReleases ?? listReleases;
+  const download = deps.downloadAsset ?? downloadAsset;
+  const importBlueprint = deps.importBlueprint ?? blueprintImport;
+
+  // 1. The project must be a Harbor project — read its marker for the slug.
+  const markerPath = path.join(projectRoot, BLUEPRINT_MARKER);
+  if (!fs.existsSync(markerPath)) {
+    throw new Error(
+      `${projectRoot} is not a Harbor project (no ${BLUEPRINT_MARKER}). ` +
+        "`harbor update` refreshes a project created with `sailor harbor create`, not a plain scaffold.",
+    );
+  }
+  let marker: { slug?: string | null; version?: string | null } = {};
+  try {
+    marker = JSON.parse(fs.readFileSync(markerPath, "utf-8")) as typeof marker;
+  } catch {
+    throw new Error(`${BLUEPRINT_MARKER} is unreadable — cannot determine the blueprint slug.`);
+  }
+  const slug = marker.slug;
+  if (!slug) {
+    throw new Error(`${BLUEPRINT_MARKER} records no slug — cannot determine the blueprint to update from.`);
+  }
+
+  // 2. Resolve the latest release for that slug.
+  let releases: ListedRelease[];
+  try {
+    releases = await list(registry);
+  } catch (err) {
+    if (!isGithubNotFound(err)) throw err;
+    throw new Error(`No blueprint named "${slug}" in ${registry} (registry not published yet).`);
+  }
+  const release = resolveLatest(releases, slug);
+  if (!release) {
+    throw new Error(`No blueprint named "${slug}" in ${registry}. Run \`sailor harbor list\` to see what is available.`);
+  }
+  const asset = pickArchiveAsset(release.assets);
+
+  // 3. Already current? Skip (idempotent).
+  if (marker.version && marker.version === release.tag) {
+    const msg = `Already on the latest release (${release.tag}).`;
+    if (options.json) console.log(JSON.stringify({ updated: false, version: release.tag, reason: "current" }));
+    else console.log(msg);
+    return;
+  }
+
+  console.log(`Updating "${slug}" in ${registry} ...`);
+  console.log(`  current: ${marker.version ?? "unknown"}`);
+  console.log(`  latest:  ${release.tag}`);
+
+  // 4. Download and re-import in place (same verify/secret-scan/overlay path as create).
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-harbor-update-"));
+  const archivePath = path.join(tmp, asset.name);
+  try {
+    let buf: Buffer;
+    try {
+      buf = await download(asset.downloadUrl);
+    } catch {
+      buf = await download(asset.apiUrl);
+    }
+    fs.writeFileSync(archivePath, buf);
+
+    const applied = await importBlueprint(archivePath, projectRoot, {
+      yes: options.yes,
+      chain: options.chain,
+    });
+    if (!applied) throw new Error("blueprint import did not apply (aborted or dry-run).");
+
+    if (options.json) console.log(JSON.stringify({ updated: true, version: release.tag }));
+    else console.log(`\n✓ updated to ${release.tag}`);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import type { ListedRelease } from "../lib/github.js";
-import { harborCreate, harborList } from "./harbor.js";
+import { harborCreate, harborList, harborUpdate } from "./harbor.js";
 
 function release(
   tag: string,
@@ -313,4 +313,68 @@ test("create scaffolds in-place when the current directory is empty", { concurre
     process.chdir(previous);
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// ── update ─────────────────────────────────────────────────────────────────────
+
+test("update re-imports the latest release over a Harbor project in place", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-harbor-update-"));
+  fs.mkdirSync(path.join(dir, ".sail"), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, ".sail", ".blueprint"),
+    JSON.stringify({ slug: "portfolio", version: "portfolio-v1", kind: null, importedAt: "2026-08-13T00:00:00Z" }),
+  );
+  let imported: { source: string; dir: string | undefined } | undefined;
+  const { out, threw } = await capture(() =>
+    harborUpdate(dir, { yes: true }, {
+      listReleases: async () => [release("portfolio-v1", "portfolio.tar.gz"), release("portfolio-v2", "portfolio.tar.gz")],
+      downloadAsset: async () => Buffer.from("x"),
+      importBlueprint: async (source: string, d: string | undefined) => {
+        imported = { source, dir: d };
+        return true;
+      },
+    }),
+  );
+  assert.equal(threw, null);
+  assert.ok(imported, "update must call importBlueprint");
+  assert.equal(imported!.dir, dir);
+  assert.match(out, /portfolio-v2/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("update is a no-op (idempotent) when already on the latest release", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-harbor-update-"));
+  fs.mkdirSync(path.join(dir, ".sail"), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, ".sail", ".blueprint"),
+    JSON.stringify({ slug: "portfolio", version: "portfolio-v2", kind: null, importedAt: "2026-08-13T00:00:00Z" }),
+  );
+  let imported = false;
+  const { threw } = await capture(() =>
+    harborUpdate(dir, { yes: true }, {
+      listReleases: async () => [release("portfolio-v2", "portfolio.tar.gz")],
+      downloadAsset: async () => Buffer.from("x"),
+      importBlueprint: async () => {
+        imported = true;
+        return true;
+      },
+    }),
+  );
+  assert.equal(threw, null);
+  assert.equal(imported, false, "already-current must not re-import");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("update errors when the project is not a Harbor project", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-harbor-update-"));
+  fs.mkdirSync(path.join(dir, ".sail"), { recursive: true });
+  await assert.rejects(
+    harborUpdate(dir, { yes: true }, {
+      listReleases: async () => [release("portfolio-v2", "portfolio.tar.gz")],
+      downloadAsset: async () => Buffer.from("x"),
+      importBlueprint: async () => true,
+    }),
+    /not a Harbor project/,
+  );
+  fs.rmSync(dir, { recursive: true, force: true });
 });

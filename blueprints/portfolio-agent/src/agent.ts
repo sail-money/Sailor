@@ -92,13 +92,6 @@ export type PortfolioConfig = {
   rebalancePeriodSec?: number;
   /** Optional. When present, the agent sends a Telegram report every `cadenceSec`. */
   report?: { cadenceSec: number; channel: "telegram" };
-  /**
-   * Optional owner-set approval ceiling, sized to a year of trading (whole USDC).
-   * When present the runtime tracks the on-chain router allowance each tick and the
-   * report warns before it runs low. Absent means the approve model is not owner-set
-   * (agent-managed) and no ceiling is tracked.
-   */
-  approval?: { ceilingUsd: number };
 };
 
 export function loadConfig(): PortfolioConfig {
@@ -500,6 +493,18 @@ async function swap(
   if (expectedOut === null) return null;
   const router = routerFor(cfg, chainId, spec);
   if (!router) return null;
+  // Agent-managed approve: when the router's allowance on the input token is short, the
+  // agent grants it first (gated on-chain by the BoundedErc20Approve permission) and the
+  // swap happens on a later tick. No owner signature is ever needed for a standing allow.
+  const allowance = await ctx.chain(chainId).read.allowance(tokenIn, ctx.safe, router);
+  if (allowance < amountIn) {
+    const data = encodeFunctionData({
+      abi: ERC20_APPROVE_ABI,
+      functionName: "approve",
+      args: [router, amountIn],
+    });
+    return ctx.chain(chainId).dispatch({ calls: [{ target: tokenIn, value: 0n, data }] });
+  }
   const minOut = (expectedOut * BigInt(10_000 - cfg.maxSlippageBps)) / 10_000n;
   const deadline = BigInt(Math.floor(ctx.timestamp)) + 3600n;
   const data = encodeFunctionData({
@@ -540,29 +545,6 @@ export async function usdcValueOf(
   if (perToken === null) return 0n; // unpriceable holding: fail closed, value 0
   // `perToken` is in the chain's settlement native units; normalize to the 6-decimal base.
   return (balance * toBase(perToken, settlement)) / oneUnit;
-}
-
-/**
- * Remaining owner-set router allowance across every named chain, in USDC base units.
- * Reads the on-chain `allowance(settlement, SMA, router)` per chain and sums the
- * normalized remainder — the "sized to a year" ceiling the owner approved and the
- * agent trades inside. An unreadable allowance counts as nothing (the report shows
- * the chains that did read). Only called when `cfg.approval` is present.
- */
-async function remainingRouterAllowance(ctx: AgentContext, cfg: PortfolioConfig): Promise<bigint> {
-  let remaining = 0n;
-  for (const chainId of cfg.chains) {
-    const settlement = settlementOf(cfg, chainId);
-    const router = cfg.router[String(chainId)];
-    if (!router) continue;
-    try {
-      const raw = await ctx.chain(chainId).read.allowance(settlement.address, ctx.safe, router);
-      remaining += toBase(raw, settlement);
-    } catch {
-      // allowance read failed on this chain — skip; the report shows the chains that read
-    }
-  }
-  return remaining;
 }
 
 /** First chain (in liquidity order) where the token is routable and the SMA holds enough settlement currency. */
@@ -965,12 +947,6 @@ export const agent: Agent = {
       bandBps: cfg.rebalanceBandBps,
       costBasis: invested - sold,
       asOf: ctx.timestamp,
-      ...(cfg.approval
-        ? {
-            allowanceCeiling: BigInt(Math.round(cfg.approval.ceilingUsd * 1e6)),
-            allowanceRemaining: await remainingRouterAllowance(ctx, cfg),
-          }
-        : {}),
     });
     writeSnapshot(snapshot);
 

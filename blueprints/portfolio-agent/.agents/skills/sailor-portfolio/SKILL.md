@@ -164,16 +164,15 @@ only when it applies: the bespoke bridge permission, approve coverage, that trad
 the agent's code rather than enforced on-chain, and any risk that crosses a bound the user set
 (report via `sailor-risk`, never recommend).
 
-**Approve model (the default, not a menu).** Default to owner-set, sized to a year. Compute the amount
-with the sizing rule in `references/portfolio-category.md` → "Approve model" (twice the expected 12-month
-inflow, rounded up), state the exact number, and write `approval.ceilingUsd` into `portfolio.json`. Present
-it as one confirmation, never an open question:
+**Approve model (the default, not a menu).** Default to **agent-managed**: the agent grants its own
+router allowance through the `BoundedErc20Approve` permission (registered alongside the swap permission),
+so the owner never signs a standing approval. Present it as one confirmation, never an open question:
 
-> I'll have you sign one approval for $X — about a year of trading — at the same time you approve the
-> permissions. I'll warn you before it runs low so you top it up with one signature. Confirm, or tell me
-> to change the amount or switch to agent-managed approvals.
+> I'll have the agent manage its own trading allowance, so you never sign a standing approval and never
+> top anything up. Every trade still stays inside your per-transaction cap and price floor. Confirm, or
+> tell me to switch to owner-set approvals instead.
 
-Only offer the agent-managed alternative if the user asks for it.
+Only offer the owner-set alternative if the user asks for it.
 
 ## Completeness gate
 
@@ -188,7 +187,7 @@ Every dimension concrete before confirming:
 | Rebalance band | ± percentage points, stated |
 | Rebalance cadence | every run (default) or a period in seconds, stated |
 | Reports | on or off; if on, cadence + channel stated |
-| Approve model | owner-set (default), sized to a year; the amount stated and `approval.ceilingUsd` written |
+| Approve model | agent-managed (default); the owner never signs a standing approval |
 | Routing policy | preferred chain + liquidity threshold, stated |
 | Feasibility | every basket asset has a routable pool on at least one named chain (from `sailor-token-resolve`) |
 
@@ -196,12 +195,13 @@ Every dimension concrete before confirming:
 
 | Action | Route |
 |---|---|
-| Buy toward weight, or rebalance sell | `sailor-templates` (swap-no-oracle) by default; (swap) only when size vs depth warrants the oracle tier |
+| Buy toward weight, or rebalance sell | `sailor-mandates` bespoke `ExactInputSwapPermission` — the shared `SwapPermission`/`SwapPermissionNoOracle` only accept `exactInputSingle` + V2, but the runtime dispatches multi-hop `exactInput` (needed for two-hop legs and Aerodrome tickSpacing), so this blueprint ships a permission that accepts the exact selector the runtime sends |
+| Approve coverage (the router allowance) | `sailor-mandates` bespoke `BoundedErc20Approve` (agent-managed — the agent self-approves, no owner standing approval) |
 | Live quote + slippage floor | `sailor-swap-quote` |
 | Liquidity + chain routing | `sailor-token-resolve` |
 | Move USDC to another named chain | `sailor-cctp-bridge` (bespoke CCTP permission) |
-| Stock token buy on Base (USDC) | `sailor-templates` (swap) against USDC on Aerodrome/Uniswap — same leg as every other Base asset |
-| Stock token buy on Robinhood (USDG) | `sailor-templates` (swap) against USDG on Uniswap; no bridge — USDG is funded direct (optional alternative) |
+| Stock token buy on Base (USDC) | same `ExactInputSwapPermission` against USDC on Aerodrome/Uniswap — same leg as every other Base asset |
+| Stock token buy on Robinhood (USDG) | same `ExactInputSwapPermission` against USDG on Uniswap; no bridge — USDG is funded direct (optional alternative) |
 
 ## Handoff
 
@@ -211,7 +211,10 @@ Then:
 
 1. `sailor-onboarding` deploys the SMA on every required chain (including any the user was guided
    to add).
-2. `sailor-mandate-planner` registers and configures the swap permission (per chain, per asset).
+2. `sailor-mandate-planner` deploys, simulates, and registers the bespoke `ExactInputSwapPermission`
+   and `BoundedErc20Approve` permissions (per chain), plus the bridge permission when the chain set
+   spans more than one USDC chain. The blueprint's `contracts/mandates/` carries both; `forge test`
+   must pass before deploy.
 3. `sailor-cctp-bridge` authors, deploys, simulates, and registers the bridge permission when the
    chain set spans more than one USDC chain.
 4. Run the agent — the pre-built runtime (`src/agent.ts`) reads `.sail/portfolio.json` and drives the loop.

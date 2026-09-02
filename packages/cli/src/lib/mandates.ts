@@ -137,6 +137,23 @@ export class MandateStore {
   }
 
   /**
+   * Remove a tracked mandate record by address or name. Used to drop a dead record
+   * that was deployed but never registered (harmless clutter that otherwise shows up
+   * in `mandate sign` and the dashboard). No-op (returns false) when nothing matches.
+   */
+  remove(addressOrName: string): boolean {
+    const data = this.read();
+    const needle = addressOrName.toLowerCase();
+    const before = data.mandates.length;
+    data.mandates = data.mandates.filter(
+      (m) => m.address.toLowerCase() !== needle && m.name !== addressOrName,
+    );
+    if (data.mandates.length === before) return false;
+    this.write(data);
+    return true;
+  }
+
+  /**
    * Record that a tracked mandate was attached to an SMA. Idempotent: a repeat
    * call with the same (sma, txHash) is a no-op, so re-running attach or
    * `mandate sync` never appends duplicate attachment rows.

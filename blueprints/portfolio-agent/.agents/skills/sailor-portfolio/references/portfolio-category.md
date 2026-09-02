@@ -59,32 +59,24 @@ rebalance band.
 | Bridge USDC to another named chain | bespoke CCTP permission, authored via the `sailor-cctp-bridge` skill (cross-chain only; see that skill) |
 | Stock token buy on Base (USDC) | `sailor-templates` (swap) against USDC on Aerodrome/Uniswap — same leg as every other Base asset |
 | Stock token buy on Robinhood (USDG) | `sailor-templates` (swap) against USDG on Uniswap; USDG is funded direct, no bridge (optional alternative) |
-| Swap's approve coverage | owner-set approval sized to a year of trading (one Safe signature at setup, amount per the sizing rule below); agent-managed bounded approve is the alternative for a user who wants zero standing allowance |
+| Swap's approve coverage | agent-managed bounded approve (the agent grants its own router allowance via the `BoundedErc20Approve` permission — zero owner signatures); owner-set is the alternative if the user asks for it |
 
-## Approve model — owner-set, sized to a year (default)
+## Approve model — agent-managed (default)
 
 The swap router pulls the SMA's settlement currency on every buy, so the router needs an allowance.
-The default is **owner-set**: the owner signs one `approve` on the Safe at setup, sized to a year of
-trading, and the agent trades inside it. It is not per-trade (a signature before every buy is the bad
-UX the founder rejected) and not infinite (a ceiling caps what a compromised agent could move even
-when the mandate cannot name every token).
+The default is **agent-managed**: the agent grants its own router allowance through the
+`BoundedErc20Approve` permission (registered alongside the swap permission), reading the on-chain
+`allowance` before each swap and topping itself up when short. The owner never signs a standing
+approval after setup. It is not per-trade in the sense of a signature-per-buy (there are none) and
+the allowance is bounded per-token by the permission's `maxApproval`.
 
-**Sizing.** Approve, on each chain's settlement currency, an amount equal to **twice the expected
-12-month inflow**, rounded up. Twice covers rebalancing churn (sells that flow back into buys) with
-margin. Concretely:
-
-- **Invest-on-deposit** (the default): `2 × (initial deposit + 12 × expected monthly deposit)`. With no
-  recurring deposits planned, `2 × initial deposit`.
-- **Cadence DCA**: `2 × dca.amountUsd × periods per year`.
-
-There are two approvals, both sized the same way: one USDC `approve(router, amount)` per chain the SMA
-trades on (the buy leg), and one `approve(router, amount)` per basket token on its chain (the sell leg).
-
-The runtime records the ceiling (`approval.ceilingUsd` in `portfolio.json`) and the report warns when the
-remaining allowance drops below a quarter, so the owner tops up with one signature before the agent
-would ever stall. The alternative — agent-managed, where the agent grants its own bounded approve under
-a registered permission — stays available for a user who wants zero standing allowance; both models are
-detailed in `sailor-mandates/references/approvals.md` ("Swaps are a special case").
+The runtime reads `allowance(tokenIn, SMA, router)` before every swap and, when short, emits its own
+bounded `approve` dispatch first (gated by `BoundedErc20Approve`), then swaps on a later tick once the
+allowance clears. The on-chain swap bounds — router/token allowlist, per-tx cap, min-out — still apply
+to every trade regardless of the allowance, so the allowance size never widens what any single swap
+may do. The alternative — owner-set, where the owner signs one standing approval sized to a year —
+stays available for a user who asks for it; both models are detailed in
+`sailor-mandates/references/approvals.md` ("Swaps are a special case").
 
 ## Spec schema (portfolio-specific)
 

@@ -18,6 +18,7 @@ import { agent } from "./agent.js";
 // ── Addresses (valid 40-hex, all distinct) ────────────────────────────────────
 
 const ADDR = (hex: string) => `0x${hex.repeat(40)}` as `0x${string}`;
+const MAX_UINT = 2n ** 256n - 1n; // mock default allowance — "already approved, swap directly"
 const USDC_BASE = ADDR("a");
 const USDC_ARB = ADDR("b");
 const WETH_BASE = ADDR("c");
@@ -344,8 +345,10 @@ function makeCtx(
       },
       read: {
         balance: async (token: string) => balances[`${chainId}:${token.toLowerCase()}`] ?? 0n,
+        // Default: unlimited allowance, so swap tests exercise the swap path directly.
+        // Approve-path tests set an explicit (small) allowance to force the approve branch.
         allowance: async (token: string, _owner: string, spender: string) =>
-          allowances[`${chainId}:${token.toLowerCase()}:${spender.toLowerCase()}`] ?? 0n,
+          allowances[`${chainId}:${token.toLowerCase()}:${spender.toLowerCase()}`] ?? MAX_UINT,
         decimals: async () => 18,
       },
       dispatch: (intent: { calls: { target: string; value: bigint; data: string }[] }) => ({
@@ -502,7 +505,11 @@ test("DCA mode leaves idle USDC untouched between periods", async () => {
 test("bridges USDC when the token's chain holds none → approve first", async () => {
   const dispatches = await run(
     bridgeConfig(),
-    makeCtx({ timestamp: T0, balances: { [`8453:${USDC_BASE}`]: 1_000_000_000n } }),
+    makeCtx({
+      timestamp: T0,
+      balances: { [`8453:${USDC_BASE}`]: 1_000_000_000n },
+      allowances: { [`8453:${USDC_BASE}:${MSG_BASE}`]: 0n }, // short → approve first
+    }),
     acted(),
   );
   assert.equal(dispatches.length, 1);
@@ -675,31 +682,42 @@ test("records cost basis in the snapshot on a buy", async () => {
   }
 });
 
-test("records the owner-set allowance ceiling and remaining in the snapshot", async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "portfolio-allowance-test-"));
-  fs.mkdirSync(path.join(dir, ".sail"), { recursive: true });
-  fs.writeFileSync(
-    path.join(dir, ".sail", "portfolio.json"),
-    JSON.stringify({ ...twoTokenConfig(), approval: { ceilingUsd: 12_000 } }),
+test("agent-managed approve: emits an approve when the router allowance is short", async () => {
+  const dispatches = await run(
+    twoTokenConfig(),
+    makeCtx({
+      timestamp: T0,
+      balances: { [`8453:${USDC_BASE}`]: 1_000_000_000n },
+      // No allowance to the router → the agent must grant it first, not swap.
+      allowances: { [`8453:${USDC_BASE}:${ROUTER_BASE}`]: 0n },
+    }),
   );
-  const prev = process.cwd();
-  process.chdir(dir);
-  try {
-    await agent.tick(
-      makeCtx({
-        timestamp: T0,
-        balances: { [`8453:${USDC_BASE}`]: 1_000_000_000n },
-        // $5,000 of the $12,000 ceiling still approved to the router on Base (6-decimal USDC).
-        allowances: { [`8453:${USDC_BASE}:${ROUTER_BASE}`]: 5_000_000_000n },
-      }),
-    );
-    const raw = fs.readFileSync(path.join(dir, ".sail", "state", "snapshot.json"), "utf-8");
-    const snap = JSON.parse(raw);
-    assert.equal(snap.allowanceCeiling, "12000000000");
-    assert.equal(snap.allowanceRemaining, "5000000000");
-  } finally {
-    process.chdir(prev);
-    fs.rmSync(dir, { recursive: true, force: true });
+  assert.ok(dispatches.length >= 1);
+  // Every dispatch must be an approve to the router (target = USDC token, not the router),
+  // because the allowance is short. The swap happens on a later tick once it clears.
+  for (const d of dispatches) {
+    const call = d.calls[0];
+    assert.equal(call.target.toLowerCase(), USDC_BASE.toLowerCase());
+    const dec = decodeFunctionData({ abi: APPROVE, data: call.data as `0x${string}` });
+    const spender = (dec.args as readonly unknown[])[0] as string;
+    assert.equal(spender.toLowerCase(), ROUTER_BASE.toLowerCase());
+  }
+});
+
+test("skips the approve when the router allowance is already sufficient", async () => {
+  const dispatches = await run(
+    twoTokenConfig(),
+    makeCtx({
+      timestamp: T0,
+      balances: { [`8453:${USDC_BASE}`]: 1_000_000_000n },
+      // A generous existing allowance → the agent swaps directly, no approve first.
+      allowances: { [`8453:${USDC_BASE}:${ROUTER_BASE}`]: 1_000_000_000_000_000n },
+    }),
+  );
+  assert.ok(dispatches.length > 0);
+  for (const d of dispatches) {
+    const call = d.calls[0];
+    assert.equal(call.target.toLowerCase(), ROUTER_BASE.toLowerCase());
   }
 });
 
