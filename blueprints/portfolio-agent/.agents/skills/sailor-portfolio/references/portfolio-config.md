@@ -99,7 +99,10 @@ units, the USDC base), then:
 - **DCA mode** (`dca` present) — buy `dca.amountUsd` every `dca.periodSec`, split across assets by
   target weight, and leave the rest of the idle funding untouched.
 
-Both modes route buys to the chain that holds enough settlement currency. **USDC chains are bridged
+Both modes route buys to the chain that holds the **most** settlement currency, and each buy is
+capped at `min(shortfall, available cash)` against a **shared per-chain spend budget** read once up
+front — so partial idle cash still moves every laggard toward target, and the sum of queued buys in
+one tick never exceeds on-chain holdings. **USDC chains are bridged
 when none does; USDG (Robinhood) and USDT (BNB) chains are funded direct and never bridged** — when
 one is short, the runtime logs "funded direct" and waits for a deposit rather than bridging. Base
 stock tokens need no special case: they settle in USDC, so they buy like any other Base asset.

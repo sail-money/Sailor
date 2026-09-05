@@ -17,6 +17,13 @@
  * gated on-chain by the CctpBridgePermission (see the sailor-cctp-bridge skill).
  * The mint recipient is the SMA's own address, which is CREATE2-identical on
  * every chain. Chains without a CCTP domain (Robinhood, BNB) are never bridged.
+ *
+ * Ledger-confirmation model: a `bought`/`sold`/`minted` entry is written only
+ * AFTER the runner surfaces the dispatch outcome in .sail/activity.jsonl
+ * (`dispatch_executed` vs `dispatch_reverted`). A swap or bridge is first
+ * recorded as a pending intent (`trade`/`bridged`) and confirmed on the next
+ * tick. This keeps cost basis honest — a slippage-reverted swap can never masquerade
+ * as a successful buy.
  */
 
 import fs from "node:fs";
@@ -24,6 +31,7 @@ import path from "node:path";
 import type { Address, Agent, AgentContext, Dispatch } from "@sail.money/sailor/sdk";
 import { encodeFunctionData } from "viem";
 import {
+  buildReportContext,
   buildSnapshot,
   composeReport,
   sendTelegramReport,
@@ -230,7 +238,7 @@ function activityPath(): string {
   return path.join(process.cwd(), ".sail", "activity.jsonl");
 }
 
-/** Parse the runner's activity log into objects, newest last, silently skipping malformed lines. */
+/** Parse the runner's activity log into objects, oldest first, silently skipping malformed lines. */
 function readActivity(): Record<string, unknown>[] {
   return readLines(activityPath())
     .map((l) => {
@@ -314,10 +322,9 @@ function lastReportTs(): number {
 }
 
 /**
- * Cumulative USDC spent on buys and received from sells, read from the ledger.
- * The cost basis of current holdings is `invested - sold`; unrealized P&L is
- * `investedValue - costBasis` (which equals total return while there are no
- * withdrawals).
+ * Cumulative USDC spent on confirmed buys and received from confirmed sells, read from the
+ * ledger. The cost basis of current holdings is `invested - sold`; unrealized P&L is
+ * `investedValue - costBasis` (which equals total return while there are no withdrawals).
  */
 function cumulativeCost(): { invested: bigint; sold: bigint } {
   let invested = 0n;
@@ -334,12 +341,173 @@ function cumulativeCost(): { invested: bigint; sold: bigint } {
   return { invested, sold };
 }
 
+// ── Swap confirmation (the ledger writes `bought`/`sold` only after on-chain confirmation) ──
+
+/** A pending trade intent, written when the swap dispatch is queued. */
+type PendingTrade = {
+  id: string;
+  side: "buy" | "sell";
+  symbol: string;
+  amount: bigint;
+  chainId: number;
+  target: string; // the swap router, lowercased — matches the activity record's `target`
+};
+
+/** Unique, deterministic id for a pending-trade intent. */
+function nextOpId(): string {
+  return `op-${readLines(ledgerPath()).length + 1}`;
+}
+
+/** Consecutive trailing `tradeFailed` entries for a symbol since its last confirmed trade. */
+function recentFailures(symbol: string): number {
+  const lines = readLines(ledgerPath());
+  let n = 0;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    let e: { kind?: string; symbol?: string };
+    try {
+      e = JSON.parse(lines[i]) as { kind?: string; symbol?: string };
+    } catch {
+      continue;
+    }
+    if (e.kind === "tradeFailed" && e.symbol === symbol) {
+      n++;
+      continue;
+    }
+    if ((e.kind === "bought" || e.kind === "sold") && e.symbol === symbol) break;
+  }
+  return n;
+}
+
+/** Widen the slippage floor by a few bps per consecutive revert, capped at +3pp. */
+function effectiveSlippageBps(cfg: PortfolioConfig, symbol: string): number {
+  return Math.min(cfg.maxSlippageBps + recentFailures(symbol) * 25, cfg.maxSlippageBps + 300);
+}
+
+/** The activity outcome kinds that terminate a dispatch (everything else is a pre-execution marker). */
+const TERMINAL_OUTCOMES = new Set(["dispatch_executed", "dispatch_reverted", "dispatch_denied", "error"]);
+
+/**
+ * Reconcile pending `trade` intents against the runner's activity log, FIFO per (chain, target).
+ *
+ * A pending buy/sell becomes a confirmed `bought`/`sold` only when a `dispatch_executed`
+ * record matches; a reverted/denied/errored dispatch becomes a `tradeFailed` marker (no
+ * cost-basis entry), so the next tick re-quotes and retries with adaptive slippage. Matching
+ * is monotonic because the runner writes activity records in the same order it executes the
+ * dispatches the tick returned, which is the order the intents were appended.
+ */
+function reconcileTrades(nowSec: number): void {
+  const resolved = new Set<string>();
+  const claimedTx = new Set<string>();
+  const pending: PendingTrade[] = [];
+
+  for (const line of readLines(ledgerPath())) {
+    let e: Record<string, unknown>;
+    try {
+      e = JSON.parse(line) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+    if (e.kind === "trade") {
+      pending.push({
+        id: String(e.id ?? ""),
+        side: e.side === "sell" ? "sell" : "buy",
+        symbol: String(e.symbol ?? ""),
+        amount: BigInt(String(e.amount ?? "0")),
+        chainId: Number(e.chainId ?? 0),
+        target: String(e.target ?? "").toLowerCase(),
+      });
+    } else if (e.kind === "bought" || e.kind === "sold" || e.kind === "tradeFailed") {
+      resolved.add(String(e.id ?? ""));
+      const tx = String(e.txHash ?? "").toLowerCase();
+      if (tx) claimedTx.add(tx);
+    }
+  }
+
+  const unresolved = pending.filter((p) => p.id !== "" && !resolved.has(p.id));
+  if (unresolved.length === 0) return;
+
+  const activity = readActivity();
+  let cursor = 0;
+  for (const p of unresolved) {
+    let hit: Record<string, unknown> | null = null;
+    while (cursor < activity.length) {
+      const a = activity[cursor];
+      cursor++;
+      if (!TERMINAL_OUTCOMES.has(String(a.type ?? ""))) continue;
+      if (Number(a.chainId) !== p.chainId) continue;
+      if (String(a.target ?? "").toLowerCase() !== p.target) continue;
+      const tx = String(a.txHash ?? "").toLowerCase();
+      if (tx && claimedTx.has(tx)) continue;
+      hit = a;
+      break;
+    }
+    if (!hit) continue;
+    const txHash = String(hit.txHash ?? "");
+    claimedTx.add(txHash.toLowerCase());
+    if (hit.type === "dispatch_executed") {
+      appendLedger({
+        ts: nowSec,
+        kind: p.side === "buy" ? "bought" : "sold",
+        id: p.id,
+        symbol: p.symbol,
+        amount: p.amount.toString(),
+        txHash,
+      });
+    } else {
+      appendLedger({
+        ts: nowSec,
+        kind: "tradeFailed",
+        id: p.id,
+        side: p.side,
+        symbol: p.symbol,
+        amount: p.amount.toString(),
+        txHash,
+      });
+    }
+  }
+}
+
+/**
+ * Sum of `bridged` amounts whose mint has not landed yet — USDC that has left the source
+ * chain but is not yet visible on the destination. This is the user's money in flight and
+ * must count toward total value, or buys sized during the flight window undershoot target.
+ */
+function pendingBridgeUsd(): bigint {
+  const mintedTsByDest = new Map<number, number>();
+  for (const line of readLines(ledgerPath())) {
+    let e: { kind?: string; dest?: number; ts?: number };
+    try {
+      e = JSON.parse(line) as { kind?: string; dest?: number; ts?: number };
+    } catch {
+      continue;
+    }
+    if (e.kind === "minted" && e.dest !== undefined) {
+      const cur = mintedTsByDest.get(e.dest) ?? 0;
+      if ((e.ts ?? 0) > cur) mintedTsByDest.set(e.dest, e.ts ?? 0);
+    }
+  }
+  let pending = 0n;
+  for (const line of readLines(ledgerPath())) {
+    let e: { kind?: string; dest?: number; ts?: number; amount?: string };
+    try {
+      e = JSON.parse(line) as { kind?: string; dest?: number; ts?: number; amount?: string };
+    } catch {
+      continue;
+    }
+    if (e.kind === "bridged" && e.amount && e.dest !== undefined) {
+      const ts = e.ts ?? 0;
+      if (ts > (mintedTsByDest.get(e.dest) ?? 0)) pending += BigInt(e.amount);
+    }
+  }
+  return pending;
+}
+
 // ── Pricing and dispatch ─────────────────────────────────────────────────────
 
 const USDC_DECIMALS = 6;
 const USDC_ONE = 10n ** BigInt(USDC_DECIMALS); // 1 USDC in base units (the value-accounting base)
 const BRIDGE_PENDING_SEC = 1800; // don't re-bridge a chain while its mint is in flight
-const DUST_USD = 10n * USDC_ONE; // skip investments below 10 USDC to avoid gas-wasteful dust
+const DUST_USD = 1n * USDC_ONE; // skip investments below $1 to avoid gas-wasteful dust
 
 /** The settlement currency for a chain (throws on a misconfigured chain — fail closed). */
 function settlementOf(cfg: PortfolioConfig, chainId: number): SettlementCurrency {
@@ -477,7 +645,19 @@ async function quoteSwap(
   }
 }
 
-/** Build a swap dispatch on a chain. Returns null when the quote fails (skip, no gas). */
+/**
+ * The result of a swap: either an approve (allowance short — the swap happens on a later
+ * tick once the allowance clears) or the actual swap dispatch. Null when the quote fails.
+ */
+type SwapResult =
+  | { kind: "approve"; dispatch: Dispatch }
+  | { kind: "swap"; dispatch: Dispatch };
+
+/**
+ * Build a swap dispatch on a chain. Returns an approve when the router's allowance on the
+ * input token is short (the agent grants it via the BoundedErc20Approve permission and swaps
+ * next tick); otherwise the swap with a slippage floor from `slippageBps`.
+ */
 async function swap(
   ctx: AgentContext,
   chainId: number,
@@ -486,7 +666,8 @@ async function swap(
   tokenIn: Address,
   tokenOut: Address,
   amountIn: bigint,
-): Promise<Dispatch | null> {
+  slippageBps: number,
+): Promise<SwapResult | null> {
   const path = v3Path(spec, settlementOf(cfg, chainId).address, tokenIn, tokenOut);
   if (path === null) return null;
   const expectedOut = await quoteSwap(ctx, chainId, cfg, spec, tokenIn, tokenOut, amountIn);
@@ -503,9 +684,9 @@ async function swap(
       functionName: "approve",
       args: [router, amountIn],
     });
-    return ctx.chain(chainId).dispatch({ calls: [{ target: tokenIn, value: 0n, data }] });
+    return { kind: "approve", dispatch: ctx.chain(chainId).dispatch({ calls: [{ target: tokenIn, value: 0n, data }] }) };
   }
-  const minOut = (expectedOut * BigInt(10_000 - cfg.maxSlippageBps)) / 10_000n;
+  const minOut = (expectedOut * BigInt(10_000 - slippageBps)) / 10_000n;
   const deadline = BigInt(Math.floor(ctx.timestamp)) + 3600n;
   const data = encodeFunctionData({
     abi: ROUTER_ABI,
@@ -520,7 +701,7 @@ async function swap(
       },
     ],
   });
-  return ctx.chain(chainId).dispatch({ calls: [{ target: router, value: 0n, data }] });
+  return { kind: "swap", dispatch: ctx.chain(chainId).dispatch({ calls: [{ target: router, value: 0n, data }] }) };
 }
 
 /** Settlement-currency-denominated value of the SMA's holding of a token on one chain (base units). */
@@ -547,19 +728,26 @@ export async function usdcValueOf(
   return (balance * toBase(perToken, settlement)) / oneUnit;
 }
 
-/** First chain (in liquidity order) where the token is routable and the SMA holds enough settlement currency. */
-async function pickBuyChain(
-  ctx: AgentContext,
+/**
+ * The chain (in the token's liquidity order) that holds the most settlement currency in the
+ * shared spend budget. Returns null when none holds anything. This is a pure read of the
+ * budget map — the balance is read once up front (see the buy loop), never per token.
+ */
+function pickBuyChain(
   cfg: PortfolioConfig,
   token: BasketToken,
-  buyUsd: bigint,
-): Promise<number | null> {
+  availableByChain: Record<number, bigint>,
+): number | null {
+  let best: number | null = null;
+  let bestBal = 0n;
   for (const spec of token.chains) {
-    const settlement = settlementOf(cfg, spec.chainId);
-    const raw = await ctx.chain(spec.chainId).read.balance(settlement.address);
-    if (toBase(raw, settlement) >= buyUsd) return spec.chainId;
+    const bal = availableByChain[spec.chainId] ?? 0n;
+    if (bal > bestBal) {
+      bestBal = bal;
+      best = spec.chainId;
+    }
   }
-  return null;
+  return best;
 }
 
 /** First chain (in liquidity order) where the SMA holds a balance of the token. */
@@ -575,22 +763,20 @@ async function pickSellChain(
   return null;
 }
 
-/** Chain (other than `destChain`) holding the most USDC, to fund a bridge. */
-async function pickSourceChain(
-  ctx: AgentContext,
+/** Chain (other than `destChain`) holding the most USDC in the spend budget, to fund a bridge. */
+function pickSourceChain(
   cfg: PortfolioConfig,
   destChain: number,
   amount: bigint,
-): Promise<number | null> {
+  availableByChain: Record<number, bigint>,
+): number | null {
   let best: number | null = null;
   let bestBase = 0n;
   for (const chainId of cfg.chains) {
     if (chainId === destChain) continue;
     // Only USDC chains can be a bridge source (a chain with a CCTP messenger).
     if (!cfg.bridge.messenger[String(chainId)]) continue;
-    const settlement = settlementOf(cfg, chainId);
-    const raw = await ctx.chain(chainId).read.balance(settlement.address);
-    const base = toBase(raw, settlement);
+    const base = availableByChain[chainId] ?? 0n;
     if (base >= amount && base > bestBase) {
       best = chainId;
       bestBase = base;
@@ -599,6 +785,11 @@ async function pickSourceChain(
   return best;
 }
 
+/** The result of a bridge: an approve (allowance short) or the actual depositForBurn dispatch. */
+type BridgeResult =
+  | { kind: "approve"; dispatch: Dispatch }
+  | { kind: "burn"; dispatch: Dispatch };
+
 /** Bridge USDC from source to dest via CCTP. Approves first when allowance is short. */
 async function bridgeUsdc(
   ctx: AgentContext,
@@ -606,7 +797,7 @@ async function bridgeUsdc(
   sourceChain: number,
   destChain: number,
   amount: bigint, // in the value-accounting base (6-decimal)
-): Promise<Dispatch | null> {
+): Promise<BridgeResult | null> {
   const ch = ctx.chain(sourceChain);
   const settlement = settlementOf(cfg, sourceChain); // USDC on every bridged chain
   const usdc = settlement.address;
@@ -619,7 +810,7 @@ async function bridgeUsdc(
       functionName: "approve",
       args: [messenger, amountNative],
     });
-    return ch.dispatch({ calls: [{ target: usdc, value: 0n, data }] });
+    return { kind: "approve", dispatch: ch.dispatch({ calls: [{ target: usdc, value: 0n, data }] }) };
   }
   const domain = cfg.bridge.domains[String(destChain)];
   // Self-recipient: the SMA's own address, left-padded to bytes32. CREATE2 makes it
@@ -630,7 +821,7 @@ async function bridgeUsdc(
     functionName: "depositForBurn",
     args: [amountNative, domain, mintRecipient, usdc],
   });
-  return ch.dispatch({ calls: [{ target: messenger, value: 0n, data }] });
+  return { kind: "burn", dispatch: ch.dispatch({ calls: [{ target: messenger, value: 0n, data }] }) };
 }
 
 /**
@@ -645,22 +836,27 @@ async function bridgeUsdc(
  * exists only for a burn that happened, and that burn's mintRecipient was already forced to the
  * account, so the mint always lands back at the SMA. The MessageTransmitter rejects a repeated
  * message on-chain, so re-emitting after a crash is harmless.
+ *
+ * `minted` is written only once the destination actually holds USDC (the mint landed) — never
+ * optimistically when the receiveMessage is merely emitted, or a gas-starved mint would be
+ * recorded as done and its bridged USDC stranded. Until it lands, the emit is re-attempted each
+ * tick (idempotent on-chain).
  */
 async function completePendingMints(ctx: AgentContext, cfg: PortfolioConfig): Promise<Dispatch[]> {
   const out: Dispatch[] = [];
 
   const ledger = readLines(ledgerPath());
   const mintedTx = new Set<string>();
-  const pending: { dest: number; source: number; messenger: string; ts: number }[] = [];
+  const bridged: { source: number; dest: number; messenger: string; ts: number }[] = [];
   for (const line of ledger) {
     try {
       const e = JSON.parse(line) as { kind?: string; txHash?: string; dest?: number; source?: number; messenger?: string; ts?: number };
       if (e.kind === "minted" && e.txHash) mintedTx.add(String(e.txHash).toLowerCase());
       else if (e.kind === "bridged") {
-        pending.push({
-          dest: e.dest ?? 0,
+        bridged.push({
           source: e.source ?? 0,
-          messenger: String(e.messenger ?? cfg.bridge.messenger[String(e.source)] ?? "").toLowerCase(),
+          dest: e.dest ?? 0,
+          messenger: String(e.messenger ?? "").toLowerCase(),
           ts: e.ts ?? 0,
         });
       }
@@ -668,21 +864,21 @@ async function completePendingMints(ctx: AgentContext, cfg: PortfolioConfig): Pr
       // skip malformed line
     }
   }
-  if (pending.length === 0) return out;
+  if (bridged.length === 0) return out;
 
   const activity = readActivity();
   // Burn tx hashes already claimed this tick, so two pending burns never resolve to the same hash.
   const claimed = new Set<string>();
 
-  for (const b of pending) {
+  for (const b of bridged) {
     if (!b.messenger) continue;
     const sourceDomain = cfg.bridge.domains[String(b.source)];
     if (sourceDomain === undefined) continue;
     const transmitter = cfg.bridge.transmitter[String(b.dest)];
     if (!transmitter) continue;
 
-    // The runner's dispatch_executed for this burn: same messenger, same chain, at/after the
-    // ledger timestamp, not already minted and not already claimed by an earlier pending burn.
+    // The runner's dispatch_executed for this burn: same messenger, same chain, not already
+    // minted and not already claimed by an earlier pending burn.
     const hit = activity.find((a) => {
       const target = String(a.target ?? "").toLowerCase();
       const txHash = String(a.txHash ?? "").toLowerCase();
@@ -698,6 +894,17 @@ async function completePendingMints(ctx: AgentContext, cfg: PortfolioConfig): Pr
     if (!hit) continue; // burn not yet executed (or already completed) — try next tick
     const txHash = String(hit.txHash).toLowerCase();
     claimed.add(txHash);
+
+    // If the destination already holds settlement currency, the mint landed (this tick or a
+    // prior one) — record it and stop. Never record it before the money actually arrives.
+    const destSettlement = cfg.settlement[String(b.dest)];
+    if (destSettlement) {
+      const destBalance = await ctx.chain(b.dest).read.balance(destSettlement.address);
+      if (destBalance > 0n) {
+        appendLedger({ ts: ctx.timestamp, kind: "minted", dest: b.dest, txHash });
+        continue;
+      }
+    }
 
     // Fetch the signed message + attestation. Attestation can lag the burn by a minute, so a
     // missing message is not an error: just retry on the next tick.
@@ -727,7 +934,8 @@ async function completePendingMints(ctx: AgentContext, cfg: PortfolioConfig): Pr
     out.push(
       ctx.chain(b.dest).dispatch({ calls: [{ target: transmitter as Address, value: 0n, data }] }),
     );
-    appendLedger({ ts: ctx.timestamp, kind: "minted", dest: b.dest, txHash });
+    // NOTE: `minted` is NOT written here — it is written next tick once the destination
+    // balance confirms the mint actually landed.
   }
 
   return out;
@@ -748,17 +956,25 @@ export const agent: Agent = {
 
     const dispatches: Dispatch[] = [];
 
-    // 0. Complete any CCTP burn whose mint half hasn't landed yet. This runs BEFORE the
-    //    empty-portfolio guard: a burned-but-unminted bridge leaves the portfolio "empty" on
-    //    both chains, so completing the mint is exactly what un-sticks it.
+    // 0. Reconcile pending trades against the runner's activity log (confirms buys/sells),
+    //    then complete any CCTP burn whose mint half hasn't landed. Both run BEFORE the
+    //    empty-portfolio guard: a pending confirmation or a burned-but-unminted bridge must
+    //    resolve even when the portfolio looks empty on both chains.
+    reconcileTrades(ctx.timestamp);
     dispatches.push(...(await completePendingMints(ctx, cfg)));
 
-    // 1. Value the portfolio in settlement currency (normalized to the 6-decimal base) across every named chain.
+    // 1. Value the portfolio in settlement currency (normalized to the 6-decimal base) across
+    //    every named chain, and build the shared per-chain spend budget in one pass. The budget
+    //    is decremented as each buy is queued, so the sum of queued buys in a tick never exceeds
+    //    what the SMA actually holds (no over-dispatch).
     let usdcTotal = 0n;
+    const availableByChain: Record<number, bigint> = {};
     for (const chainId of cfg.chains) {
       const settlement = settlementOf(cfg, chainId);
       const raw = await ctx.chain(chainId).read.balance(settlement.address);
-      usdcTotal += toBase(raw, settlement);
+      const base = toBase(raw, settlement);
+      availableByChain[chainId] = base;
+      usdcTotal += base;
     }
 
     const entries: { token: BasketToken; value: bigint; weightBps: bigint; targetBps: bigint }[] =
@@ -777,7 +993,10 @@ export const agent: Agent = {
     }
 
     const investedValue = entries.reduce((a, e) => a + e.value, 0n);
-    const totalValue = usdcTotal + investedValue;
+    // In-flight bridge USDC is the user's money — it must count toward total value, or buys
+    // sized during the flight window undershoot target by the in-flight amount.
+    const pendingBridge = pendingBridgeUsd();
+    const totalValue = usdcTotal + investedValue + pendingBridge;
     if (totalValue === 0n) {
       ctx.log("portfolio empty — skipping");
       appendLedger({
@@ -786,7 +1005,7 @@ export const agent: Agent = {
         kind: "skipped",
         reason: "portfolio empty",
       });
-      return dispatches; // may still carry a completed bridge mint
+      return dispatches; // may still carry a completed bridge mint or a reconciled trade
     }
     // Weights are measured against the invested portfolio in DCA mode (idle USDC is a
     // war chest, not dilution) and against the full portfolio in invest mode (idle USDC
@@ -834,7 +1053,7 @@ export const agent: Agent = {
           ctx.log(`rebalance: could not quote ${e.token.symbol} on chain ${chainId} — skipping this sell`);
           continue;
         }
-        const d = await swap(
+        const res = await swap(
           ctx,
           chainId,
           cfg,
@@ -842,12 +1061,24 @@ export const agent: Agent = {
           spec.address,
           settlement.address,
           amountIn,
+          effectiveSlippageBps(cfg, e.token.symbol),
         );
-        if (d) {
-          dispatches.push(d);
-          sold = true;
-          // `proceeds` is in the chain's settlement native units; store the normalized base.
-          appendLedger({ ts: ctx.timestamp, kind: "sold", amount: toBase(proceeds, settlement).toString() });
+        if (res) {
+          dispatches.push(res.dispatch);
+          if (res.kind === "swap") {
+            const router = routerFor(cfg, chainId, spec);
+            appendLedger({
+              ts: ctx.timestamp,
+              kind: "trade",
+              id: nextOpId(),
+              side: "sell",
+              symbol: e.token.symbol,
+              amount: toBase(proceeds, settlement).toString(),
+              chainId,
+              target: router?.toLowerCase() ?? "",
+            });
+            sold = true;
+          }
         }
       }
       if (sold) appendLedger({ ts: ctx.timestamp, kind: "rebalanced" });
@@ -858,6 +1089,9 @@ export const agent: Agent = {
     //      deposit is idle USDC, so the next tick invests it across the whole basket.
     //    - dca: buy a fixed amount every period split by target weight, and rebalance-buy
     //      tokens that drift below their band between periods.
+    //    Every buy is capped at `min(shortfall, remaining budget)` and decremented from the
+    //    shared budget, so partial idle cash still moves every laggard toward target instead of
+    //    funding the first token and starving the rest.
     const dcaDue = dca ? ctx.timestamp - lastInvestTs() >= dca.periodSec : false;
     for (const e of entries) {
       let buyUsd: bigint;
@@ -878,12 +1112,15 @@ export const agent: Agent = {
       if (buyUsd > cap) buyUsd = cap;
       if (buyUsd <= 0n) continue;
 
-      const chainId = await pickBuyChain(ctx, cfg, e.token, buyUsd);
+      const chainId = pickBuyChain(cfg, e.token, availableByChain);
       if (chainId !== null) {
+        const available = availableByChain[chainId] ?? 0n;
+        if (buyUsd > available) buyUsd = available; // partial buy — move every laggard, never starve
+        if (buyUsd <= DUST_USD) continue;
         const spec = specFor(e.token, chainId);
         if (!spec) continue;
         const settlement = settlementOf(cfg, chainId);
-        const d = await swap(
+        const res = await swap(
           ctx,
           chainId,
           cfg,
@@ -891,10 +1128,24 @@ export const agent: Agent = {
           settlement.address,
           spec.address,
           fromBase(buyUsd, settlement), // base → settlement native units for the swap
+          effectiveSlippageBps(cfg, e.token.symbol),
         );
-        if (d) {
-          dispatches.push(d);
-          appendLedger({ ts: ctx.timestamp, kind: "bought", amount: buyUsd.toString() });
+        if (res) {
+          dispatches.push(res.dispatch);
+          if (res.kind === "swap") {
+            const router = routerFor(cfg, chainId, spec);
+            appendLedger({
+              ts: ctx.timestamp,
+              kind: "trade",
+              id: nextOpId(),
+              side: "buy",
+              symbol: e.token.symbol,
+              amount: buyUsd.toString(),
+              chainId,
+              target: router?.toLowerCase() ?? "",
+            });
+            availableByChain[chainId] -= buyUsd; // shared budget: later legs see less
+          }
         } else {
           ctx.log(
             `could not quote ${e.token.symbol} on chain ${chainId} — liquidity too thin, a missing fee tier, or a misconfigured two-hop route; skipping this leg`,
@@ -914,22 +1165,25 @@ export const agent: Agent = {
         ctx.log(`bridge to chain ${dest} in flight — waiting for mint`);
         continue;
       }
-      const source = await pickSourceChain(ctx, cfg, dest, buyUsd);
+      const source = pickSourceChain(cfg, dest, buyUsd, availableByChain);
       if (source === null) {
         ctx.log(`no source USDC to bridge for ${e.token.symbol} — skipping`);
         continue;
       }
-      const d = await bridgeUsdc(ctx, cfg, source, dest, buyUsd);
-      if (d) {
-        dispatches.push(d);
-        appendLedger({
-          ts: ctx.timestamp,
-          kind: "bridged",
-          source,
-          dest,
-          amount: buyUsd.toString(),
-          messenger: cfg.bridge.messenger[String(source)],
-        });
+      const res = await bridgeUsdc(ctx, cfg, source, dest, buyUsd);
+      if (res) {
+        dispatches.push(res.dispatch);
+        if (res.kind === "burn") {
+          appendLedger({
+            ts: ctx.timestamp,
+            kind: "bridged",
+            source,
+            dest,
+            amount: buyUsd.toString(),
+            messenger: cfg.bridge.messenger[String(source)],
+          });
+          availableByChain[source] -= buyUsd; // a bridge spends source-chain USDC
+        }
       }
     }
 
@@ -946,6 +1200,7 @@ export const agent: Agent = {
       })),
       bandBps: cfg.rebalanceBandBps,
       costBasis: invested - sold,
+      pendingBridgeUsdc: pendingBridge,
       asOf: ctx.timestamp,
     });
     writeSnapshot(snapshot);
@@ -953,8 +1208,18 @@ export const agent: Agent = {
     if (cfg.report && shouldRun(ctx.timestamp, lastReportTs(), cfg.report.cadenceSec)) {
       try {
         const asOf = new Date(ctx.timestamp * 1000).toISOString().slice(0, 10);
-        await sendTelegramReport(composeReport(snapshot, { asOf }));
-        appendLedger({ ts: ctx.timestamp, kind: "reported" });
+        const { baseline, actions } = buildReportContext(readLines(ledgerPath()));
+        await sendTelegramReport(composeReport(snapshot, { baseline, actions, asOf }));
+        // Persist the snapshot values this report was sent with — the next report decomposes
+        // its week-over-week flow against this baseline.
+        appendLedger({
+          ts: ctx.timestamp,
+          kind: "reported",
+          totalValue: snapshot.totalValue.toString(),
+          investedValue: snapshot.investedValue.toString(),
+          costBasis: (snapshot.costBasis ?? 0n).toString(),
+          idleUsdc: snapshot.idleUsdc.toString(),
+        });
       } catch (err) {
         ctx.log(`report failed: ${(err as Error).message}`);
       }

@@ -409,6 +409,7 @@ function swapArgs(call: { data: string }) {
     recipient: string;
     deadline: bigint;
     amountIn: bigint;
+    amountOutMinimum: bigint;
   };
   const { tokenIn, tokenOut, via } = parsePath(params.path);
   return { ...params, tokenIn, tokenOut, via };
@@ -662,20 +663,58 @@ test("rebalance cadence: trims when the period has elapsed", async () => {
   assert.equal(dispatches.length, 1);
 });
 
-test("records cost basis in the snapshot on a buy", async () => {
+test("records cost basis only after the runner confirms the buy (Bug 2)", async () => {
+  // A buy is now written as a pending `trade` intent and confirmed to `bought` only when the
+  // runner records `dispatch_executed`. On the first tick nothing is confirmed, so cost basis
+  // is zero; once the activity log carries the execution, the next tick records the buy.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "portfolio-cost-test-"));
   fs.mkdirSync(path.join(dir, ".sail"), { recursive: true });
   fs.writeFileSync(path.join(dir, ".sail", "portfolio.json"), JSON.stringify(twoTokenConfig()));
   const prev = process.cwd();
   process.chdir(dir);
   try {
+    const activity = `${JSON.stringify({
+      ts: "2026-08-20T00:00:00Z",
+      actor: "agent",
+      type: "dispatch_executed",
+      target: ROUTER_BASE,
+      chainId: 8453,
+      txHash: `0x${"cd".repeat(32)}`,
+      safe: SAFE,
+    })}\n${JSON.stringify({
+      ts: "2026-08-20T00:00:01Z",
+      actor: "agent",
+      type: "dispatch_executed",
+      target: ROUTER_BASE,
+      chainId: 8453,
+      txHash: `0x${"ce".repeat(32)}`,
+      safe: SAFE,
+    })}\n`;
+    fs.writeFileSync(path.join(dir, ".sail", "activity.jsonl"), activity);
+
+    // First tick: $1000 USDC is queued as two pending buys, but nothing is confirmed yet.
     await agent.tick(
       makeCtx({ timestamp: T0, balances: { [`8453:${USDC_BASE}`]: 1_000_000_000n } }),
     );
-    const raw = fs.readFileSync(path.join(dir, ".sail", "state", "snapshot.json"), "utf-8");
-    const snap = JSON.parse(raw);
-    // $1000 USDC deployed across the basket -> cost basis $1000.
-    assert.equal(snap.costBasis, "1000000000");
+    const before = JSON.parse(
+      fs.readFileSync(path.join(dir, ".sail", "state", "snapshot.json"), "utf-8"),
+    );
+    assert.equal(before.costBasis, "0");
+
+    // Second tick: the runner's dispatch_executed records now confirm both buys.
+    await agent.tick(
+      makeCtx({
+        timestamp: T0 + 60,
+        balances: {
+          [`8453:${WETH_BASE}`]: 40_000_000n,
+          [`8453:${WBTC_BASE}`]: 60_000_000n,
+        },
+      }),
+    );
+    const after = JSON.parse(
+      fs.readFileSync(path.join(dir, ".sail", "state", "snapshot.json"), "utf-8"),
+    );
+    assert.equal(after.costBasis, "1000000000");
   } finally {
     process.chdir(prev);
     fs.rmSync(dir, { recursive: true, force: true });
@@ -780,4 +819,181 @@ test("aerodrome asset routes through the Aerodrome router with a tickSpacing pat
   assert.equal(a.via, undefined);
   // The path's 24-bit hop field is the tickSpacing (200 = 0x0000c8), not a fee.
   assert.match(a.path.toLowerCase(), /0000c8/);
+});
+
+test("counts in-flight bridge USDC in total value (Bug 1)", async () => {
+  // $175 burned for a bridge but not yet minted on the destination. It must count toward
+  // total value, or buys sized during the flight window undershoot target by $175.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "portfolio-pending-bridge-test-"));
+  fs.mkdirSync(path.join(dir, ".sail"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".sail", "portfolio.json"), JSON.stringify(twoTokenConfig()));
+  fs.mkdirSync(path.join(dir, ".sail", "memory"), { recursive: true });
+  const bridged = JSON.stringify({ ts: T0 - 500, kind: "bridged", source: 8453, dest: 42161, amount: "175000000", messenger: MSG_BASE });
+  fs.writeFileSync(path.join(dir, ".sail", "memory", "ledger.jsonl"), `${bridged}\n`);
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    await agent.tick(makeCtx({ timestamp: T0, balances: { [`8453:${USDC_BASE}`]: 825_000_000n } }));
+    const snap = JSON.parse(fs.readFileSync(path.join(dir, ".sail", "state", "snapshot.json"), "utf-8"));
+    // 825 idle + 0 invested + 175 in flight = 1000.
+    assert.equal(snap.totalValue, "1000000000");
+    assert.equal(snap.pendingBridgeUsdc, "175000000");
+  } finally {
+    process.chdir(prev);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("buys the partial shortfall when idle cash is below target (Bug 3)", async () => {
+  // WBTC is $500 short, only $100 idle USDC sits on the chain. The agent must buy the
+  // $100 it can (partial), not skip the token and park the cash.
+  const cfg = {
+    ...twoTokenConfig(),
+    rebalancePeriodSec: 604800, // gate the WETH sell so it doesn't interfere
+    basket: [
+      { symbol: "WETH", weight: 0.5, chains: [{ chainId: 8453, address: WETH_BASE, decimals: 18, feeTier: 3000 }] },
+      { symbol: "WBTC", weight: 0.5, chains: [{ chainId: 8453, address: WBTC_BASE, decimals: 8, feeTier: 3000 }] },
+    ],
+  };
+  const recent = JSON.stringify({ ts: T0 - 100, kind: "rebalanced" });
+  const dispatches = await run(
+    cfg,
+    makeCtx({
+      timestamp: T0,
+      balances: { [`8453:${WETH_BASE}`]: 900_000_000n, [`8453:${USDC_BASE}`]: 100_000_000n },
+    }),
+    `${recent}\n`,
+  );
+  // WETH is overweight (gated from selling); WBTC is under by $500 and gets a $100 partial buy.
+  assert.equal(dispatches.length, 1);
+  const a = swapArgs(dispatches[0].calls[0]);
+  assert.equal(a.tokenOut.toLowerCase(), WBTC_BASE.toLowerCase());
+  assert.equal(a.amountIn, 100_000_000n);
+});
+
+test("shares the spend budget across legs so one tick never over-dispatches (Bug 4)", async () => {
+  // Two under-target tokens ($60 each), $100 idle USDC. Without a shared budget each leg
+  // re-reads the full $100 and queues $60+$60=$120 > holdings. With the budget, the second
+  // leg is capped to $40.
+  const cfg = {
+    chains: [8453],
+    settlement: { 8453: { symbol: "USDC", address: USDC_BASE, decimals: 6 } },
+    router: { 8453: ROUTER_BASE },
+    quoter: { 8453: QUOTER_BASE },
+    bridge: { messenger: {}, transmitter: {}, domains: {}, maxPerTxUsd: 1000 },
+    basket: [
+      { symbol: "A", weight: 0.4, chains: [{ chainId: 8453, address: WETH_BASE, decimals: 18, feeTier: 3000 }] },
+      { symbol: "B", weight: 0.3, chains: [{ chainId: 8453, address: WBTC_BASE, decimals: 8, feeTier: 3000 }] },
+      { symbol: "C", weight: 0.3, chains: [{ chainId: 8453, address: ZAMA_BASE, decimals: 18, feeTier: 3000 }] },
+    ],
+    rebalanceBandBps: 500,
+    maxSlippageBps: 100,
+    rebalancePeriodSec: 604800, // gate the overweight A sell
+  };
+  const recent = JSON.stringify({ ts: T0 - 100, kind: "rebalanced" });
+  const dispatches = await run(
+    cfg,
+    makeCtx({
+      timestamp: T0,
+      balances: { [`8453:${WETH_BASE}`]: 100_000_000n, [`8453:${USDC_BASE}`]: 100_000_000n },
+    }),
+    `${recent}\n`,
+  );
+  // B and C each short $60; A is overweight (gated). Budget $100 → $60 + $40, never $120.
+  assert.equal(dispatches.length, 2);
+  const amounts = dispatches.map((d) => swapArgs(d.calls[0]).amountIn).sort((a, b) => (a < b ? -1 : 1));
+  assert.deepEqual(amounts, [40_000_000n, 60_000_000n]);
+});
+
+test("records minted only once the destination actually holds USDC (not on emit)", async () => {
+  const BRIDGE_TX = `0x${"ab".repeat(32)}`;
+  const bridged = JSON.stringify({ ts: T0 - 600, kind: "bridged", source: 8453, dest: 42161, amount: "1000000", messenger: MSG_BASE });
+  const activity = `${JSON.stringify({
+    ts: "2026-08-20T00:00:00Z",
+    actor: "agent",
+    type: "dispatch_executed",
+    target: MSG_BASE,
+    chainId: 8453,
+    txHash: BRIDGE_TX,
+    safe: SAFE,
+  })}\n`;
+
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = (async () => ({
+    ok: true,
+    json: async () => ({ messages: [{ message: "0xdeadbeef", attestation: "0xcafebabe" }] }),
+  })) as unknown as typeof fetch;
+  try {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "portfolio-mint-confirm-test-"));
+    fs.mkdirSync(path.join(dir, ".sail", "memory"), { recursive: true });
+    fs.mkdirSync(path.join(dir, ".sail"), { recursive: true });
+    fs.writeFileSync(path.join(dir, ".sail", "portfolio.json"), JSON.stringify(bridgeConfig()));
+    fs.writeFileSync(path.join(dir, ".sail", "memory", "ledger.jsonl"), `${bridged}\n`);
+    fs.writeFileSync(path.join(dir, ".sail", "activity.jsonl"), activity);
+    const prev = process.cwd();
+    process.chdir(dir);
+    try {
+      // Destination balance is still 0 → receiveMessage is emitted, but minted is NOT written.
+      await agent.tick(makeCtx({ timestamp: T0 }));
+      const ledger1 = fs.readFileSync(path.join(dir, ".sail", "memory", "ledger.jsonl"), "utf-8");
+      assert.ok(!ledger1.includes('"minted"'));
+      assert.ok(ledger1.includes('"bridged"'));
+
+      // Destination balance > 0 → the mint is recorded and the emit is skipped.
+      await agent.tick(
+        makeCtx({ timestamp: T0 + 60, balances: { [`42161:${USDC_ARB}`]: 1_000_000n } }),
+      );
+      const ledger2 = fs.readFileSync(path.join(dir, ".sail", "memory", "ledger.jsonl"), "utf-8");
+      assert.ok(ledger2.includes('"minted"'));
+    } finally {
+      process.chdir(prev);
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  } finally {
+    globalThis.fetch = origFetch;
+  }
+});
+
+test("reverted swap is not recorded as bought and widens slippage on retry (Bug 2)", async () => {
+  // A pending buy whose dispatch_reverted must NOT become a `bought` (cost basis stays clean)
+  // and the next attempt must widen the slippage floor.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "portfolio-revert-test-"));
+  fs.mkdirSync(path.join(dir, ".sail", "memory"), { recursive: true });
+  fs.mkdirSync(path.join(dir, ".sail"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".sail", "portfolio.json"), JSON.stringify(twoTokenConfig()));
+  // A pending buy intent that the runner reported as reverted.
+  const intent = JSON.stringify({ ts: T0 - 60, kind: "trade", id: "op-1", side: "buy", symbol: "WETH", amount: "400000000", chainId: 8453, target: ROUTER_BASE.toLowerCase() });
+  const activity = `${JSON.stringify({
+    ts: "2026-08-20T00:00:00Z",
+    actor: "agent",
+    type: "dispatch_reverted",
+    target: ROUTER_BASE,
+    chainId: 8453,
+    txHash: `0x${"dd".repeat(32)}`,
+    safe: SAFE,
+  })}\n`;
+  fs.writeFileSync(path.join(dir, ".sail", "memory", "ledger.jsonl"), `${intent}\n`);
+  fs.writeFileSync(path.join(dir, ".sail", "activity.jsonl"), activity);
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    // Idle USDC re-appears (the revert returned it); WETH is still short, so the agent retries.
+    const dispatches = await agent.tick(
+      makeCtx({ timestamp: T0, balances: { [`8453:${USDC_BASE}`]: 1_000_000_000n } }),
+    );
+    const ledger = fs.readFileSync(path.join(dir, ".sail", "memory", "ledger.jsonl"), "utf-8");
+    // The reverted intent was resolved as a failure, never a bought.
+    assert.ok(ledger.includes('"tradeFailed"'));
+    assert.ok(!ledger.includes('"bought"'));
+    // The retry queued a fresh buy, with a widened slippage floor (100 + 25 = 125 bps).
+    assert.ok(dispatches.length >= 1);
+    const retry = dispatches.find((d) => d.calls[0].target.toLowerCase() === ROUTER_BASE.toLowerCase());
+    assert.ok(retry);
+    const a = swapArgs(retry.calls[0]);
+    // Mock quotes 1:1, so amountOutMinimum = amountIn * (1 − 125/10000).
+    assert.equal(a.amountOutMinimum, (a.amountIn * 9875n) / 10_000n);
+  } finally {
+    process.chdir(prev);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -63,6 +63,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   longer skills; their procedures moved into `sailor-templates/references/`. Core skills are
   protected and update via `sailor update`; custom skills update through the Harbor registry.
 
+### Fixed
+
+- **Portfolio agent under-allocates a token during a cross-chain bridge and after a reverted swap.**
+  Four defects in the buy loop combined to strand one asset ~3pp under target. Fixed in
+  `blueprints/portfolio-agent/src/agent.ts`:
+  - In-flight CCTP USDC (burned on the source chain, not yet minted on the destination) is now
+    counted as `pendingBridgeUsdc` in `totalValue`, so buys sized during the flight window no
+    longer undershoot target. A `minted` ledger entry is written only once the destination balance
+    confirms the mint actually landed.
+  - A `bought`/`sold` ledger entry is written only after the runner confirms the swap
+    (`dispatch_executed` vs `dispatch_reverted`). A reverted swap becomes a `tradeFailed` marker —
+    never a cost-basis entry — and is retried next tick with a fresh quote and an adaptive slippage
+    floor (widened ~25 bps per consecutive revert, capped at +3pp).
+  - Buys are now partial: each buy is capped at `min(shortfall, available cash)`, so idle USDC that
+    is short of a full shortfall still moves the token toward target instead of parking.
+  - The buy loop reads a shared per-chain spend budget once up front and decrements it per queued
+    buy, so the sum of queued buys in one tick never exceeds on-chain holdings (no over-dispatch).
+- **Portfolio Telegram report is now a three-state account of the agent's work, not a flat
+  spreadsheet.** `blueprints/portfolio-agent/src/report.ts` renders a fixed five-beat skeleton
+  (verdict → score → what the agent did → allocation → action) with three states — deposit,
+  withdrawal, normal — driven by a weekly flow decomposition via the `costBasis + idleUsdc`
+  invariant. Deposits and withdrawals are split from market movement (a $500 deposit never reads as
+  a $500 gain), and delivery switched to Telegram HTML with per-holding progress bars and status
+  emoji. Under-target-but-in-band drift is surfaced instead of masked.
+
 ## [2.2.0] - 2026-08-11
 
 ### Added
