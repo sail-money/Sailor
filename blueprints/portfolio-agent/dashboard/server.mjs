@@ -146,6 +146,7 @@ async function buildState() {
     const targetBps = Math.round(t.weight * 10_000);
     const bal = balances[t.symbol];
     return {
+      valueRaw: h ? BigInt(h.value) : -1n, // sort key: biggest holding first, never-bought last
       symbol: t.symbol,
       amount: bal ? formatAmount(bal.raw, bal.decimals) : null,
       value: h ? formatUsd(h.value) : null,
@@ -157,6 +158,8 @@ async function buildState() {
       chainIds: (t.chains || []).map((c) => c.chainId),
     };
   });
+  holdings.sort((a, b) => (a.valueRaw === b.valueRaw ? 0 : a.valueRaw > b.valueRaw ? -1 : 1));
+  for (const h of holdings) delete h.valueRaw;
 
   let pnl = null;
   let pnlPct = null;

@@ -167,8 +167,13 @@ decisions.
 ### Act 3 — CONFIRM
 
 Render the full spec (basket, chains, funding plan, band, routing policy), walk the completeness
-gate, get explicit confirmation, then write `.sail/strategies/<name>.md` with the portfolio envelope and
-derive `.sail/portfolio.json` from it (see `references/portfolio-config.md`). Disclose before approval, each
+gate, get explicit confirmation, then write three things in this order: `basket.json` at the project
+root (the confirmed basket in machine form — assets, weights, chains, routes, band, cadence; the one
+file that encodes the user's thesis, and the file every portfolio agent ships with),
+`.sail/strategies/<name>.md` with the portfolio envelope, and `.sail/portfolio.json` derived from
+`basket.json` plus the deployment-specific `bridge.permission` map (see
+`references/portfolio-config.md`). Fill the "Your portfolio" table in `README.md` from the same
+basket, one line of the user's own reasoning per asset — never a recommendation of yours. Disclose before approval, each
 only when it applies: the bespoke bridge permission, approve coverage, that trading is triggered by
 the agent's code rather than enforced on-chain, and any risk that crosses a bound the user set
 (report via `sailor-risk`, never recommend).
