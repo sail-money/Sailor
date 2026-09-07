@@ -22,6 +22,15 @@ A reachable RPC is not Station 1 complete. Doctor's "RPC serves the configured c
 about whether an SMA exists. The SMA signal is `.sail/account.json`, or doctor's first line ("your SMA
 is deployed" vs "no SMA found").
 
+## Pre-defined basket (themed blueprints)
+
+When the project root carries a `basket.json`, the basket is **given, not elicited**: a themed
+blueprint ships its assets, weights, chains and routes there. Skip the asset and weight questions in
+Act 2: read `basket.json`, present the basket and its weights once for confirmation, still run the
+SMA-first and chain checks, and derive `.sail/portfolio.json` from it — `basket.json` plus the
+deployment-specific `bridge.permission` map (the registered `CctpBridgePermission` address per chain)
+once Station 3 has registered it. The user may edit the weights before confirming.
+
 ## What this owns
 
 The portfolio strategy definition. It turns the user's intent ("hold these assets at these weights")

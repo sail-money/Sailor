@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- **Portfolio blueprint runtime** (`blueprints/portfolio-agent/src/agent.ts`), from a live multi-chain
+  rebalance: bridges are pooled per (source → destination) and sized to what the source holds, with
+  the cash reserved in basket order (a small leg no longer claims the in-flight guard and strands the
+  rest; no more all-or-nothing bridges); a chain holding only dust is never picked for a buy, so the
+  bridge path runs instead of silently dropping the leg; a CCTP mint is recorded only when the
+  destination `MessageTransmitter` reports the burn's nonce as used (a destination balance is not
+  evidence — dust or an unrelated deposit used to strand bridged USDC); Iris's literal `PENDING`
+  attestation is treated as "not ready" instead of being sent as calldata; a burn is written to the
+  ledger as an intent and confirmed to `bridged` from the runner's outcome (an approve-only tick or a
+  reverted burn can no longer become phantom in-flight money); a trade intent can only be confirmed by
+  an activity record newer than itself; Base single-hop swaps go through SwapRouter02
+  `exactInputSingle` (Base has no multi-hop `exactInput`), with the swap permission and its Foundry
+  tests covering both selectors; router/messenger allowances are granted once as `MAX_UINT256`
+  instead of per trade (an exact-amount allowance drifts just-short and the swap never fires); the
+  snapshot measures weights on the same base the tick decides on, so the report never shows a trim
+  the agent will not make.
+- **Portfolio blueprint automation**: `scripts/run-until-settled.sh` + `scripts/settled.mjs`
+  (`npm run settle`) keep ticking until nothing is in flight — a rebalance that needs sell → bridge →
+  mint → buy now finishes in one scheduled run instead of one step per day. The dashboard reads live
+  token amounts, records its pid, and fails loudly on a taken port (`dashboard:start|stop|status`).
+- **Portfolio skill**: a project shipping `basket.json` (a themed blueprint) has its basket read from
+  the file instead of elicited.
+
 ### Added
 
 - `sailor strategy` command group configures execution strategies — each binds **one executable to

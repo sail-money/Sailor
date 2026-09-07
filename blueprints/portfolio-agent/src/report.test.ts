@@ -129,11 +129,24 @@ test("writeSnapshot writes bigints as decimal strings", () => {
 
 // ── Flow decomposition ─────────────────────────────────────────────────────────
 
-function snapshot(over: Partial<PortfolioSnapshot> & { totalValue: bigint; investedValue: bigint; idleUsdc: bigint; costBasis: bigint; holdings: PortfolioSnapshot["holdings"] }): PortfolioSnapshot {
+function snapshot(
+  over: Partial<PortfolioSnapshot> & {
+    totalValue: bigint;
+    investedValue: bigint;
+    idleUsdc: bigint;
+    costBasis: bigint;
+    holdings: PortfolioSnapshot["holdings"];
+  },
+): PortfolioSnapshot {
   return { pendingBridgeUsdc: 0n, ...over };
 }
 
-const h = (symbol: string, value: bigint, weightBps: bigint, targetBps: bigint): PortfolioSnapshot["holdings"][number] => ({
+const h = (
+  symbol: string,
+  value: bigint,
+  weightBps: bigint,
+  targetBps: bigint,
+): PortfolioSnapshot["holdings"][number] => ({
   symbol,
   value,
   weightBps,
@@ -144,8 +157,21 @@ const h = (symbol: string, value: bigint, weightBps: bigint, targetBps: bigint):
 
 test("buildReportContext recovers the previous baseline and trades since it", () => {
   const lines = [
-    JSON.stringify({ ts: 100, kind: "reported", totalValue: "100000000", investedValue: "90000000", costBasis: "90000000", idleUsdc: "10000000" }),
-    JSON.stringify({ ts: 110, kind: "bought", symbol: "MORPHO", amount: "35000000", txHash: "0x1" }),
+    JSON.stringify({
+      ts: 100,
+      kind: "reported",
+      totalValue: "100000000",
+      investedValue: "90000000",
+      costBasis: "90000000",
+      idleUsdc: "10000000",
+    }),
+    JSON.stringify({
+      ts: 110,
+      kind: "bought",
+      symbol: "MORPHO",
+      amount: "35000000",
+      txHash: "0x1",
+    }),
     JSON.stringify({ ts: 120, kind: "sold", symbol: "SKY", amount: "20000000", txHash: "0x2" }),
   ];
   const { baseline, actions } = buildReportContext(lines);
@@ -182,7 +208,12 @@ test("composeReport renders the normal state with verdict first", () => {
     costBasis: 100_000_000n,
     holdings: [h("WETH", 44_000_000n, 4000n, 4000n), h("WBTC", 66_000_000n, 6000n, 6000n)],
   });
-  const baseline = { totalValue: 140_000_000n, investedValue: 95_000_000n, costBasis: 90_000_000n, idleUsdc: 45_000_000n };
+  const baseline = {
+    totalValue: 140_000_000n,
+    investedValue: 95_000_000n,
+    costBasis: 90_000_000n,
+    idleUsdc: 45_000_000n,
+  };
   const r = composeReport(s, { baseline, actions: [], asOf: "Aug 14, 2026" });
   const lines = r.split("\n");
   assert.equal(lines[0], "<b>Everything is on track. Nothing needs you.</b>"); // verdict FIRST
@@ -203,7 +234,12 @@ test("composeReport splits a deposit from market movement", () => {
     costBasis: 550_000_000n,
     holdings: [h("WETH", 600_000_000n, 10000n, 10000n)],
   });
-  const baseline = { totalValue: 145_000_000n, investedValue: 100_000_000n, costBasis: 100_000_000n, idleUsdc: 45_000_000n };
+  const baseline = {
+    totalValue: 145_000_000n,
+    investedValue: 100_000_000n,
+    costBasis: 100_000_000n,
+    idleUsdc: 45_000_000n,
+  };
   const r = composeReport(s, { baseline, actions: [] });
   assert.ok(r.includes("$500.00 received and invested."));
   assert.ok(r.includes("$500.00 deposited"));
@@ -218,7 +254,12 @@ test("composeReport renders the withdrawal state", () => {
     costBasis: 40_000_000n,
     holdings: [h("WETH", 40_000_000n, 10000n, 10000n)],
   });
-  const baseline = { totalValue: 90_000_000n, investedValue: 80_000_000n, costBasis: 80_000_000n, idleUsdc: 10_000_000n };
+  const baseline = {
+    totalValue: 90_000_000n,
+    investedValue: 80_000_000n,
+    costBasis: 80_000_000n,
+    idleUsdc: 10_000_000n,
+  };
   const r = composeReport(s, { baseline, actions: [] });
   assert.ok(r.includes("$40.00 withdrawn. Everything still on track."));
   assert.ok(r.includes("$40.00 withdrawn"));
@@ -239,7 +280,12 @@ test("composeReport names what the agent did and flags drift on an in-band but u
     ],
   });
   const r = composeReport(s, {
-    baseline: { totalValue: 110_000_000n, investedValue: 100_000_000n, costBasis: 100_000_000n, idleUsdc: 10_000_000n },
+    baseline: {
+      totalValue: 110_000_000n,
+      investedValue: 100_000_000n,
+      costBasis: 100_000_000n,
+      idleUsdc: 10_000_000n,
+    },
     actions: [{ symbol: "MORPHO", side: "bought", amount: 35_000_000n }],
   });
   assert.ok(r.includes("bought $35.00 of MORPHO"));

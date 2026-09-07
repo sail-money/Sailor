@@ -29,7 +29,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Address, Agent, AgentContext, Dispatch } from "@sail.money/sailor/sdk";
-import { encodeFunctionData } from "viem";
+import { encodeFunctionData, encodePacked, keccak256 } from "viem";
 import {
   buildReportContext,
   buildSnapshot,
@@ -84,6 +84,10 @@ export type PortfolioConfig = {
   bridge: {
     messenger: Record<string, Address>; // source chain -> CCTP TokenMessenger
     transmitter: Record<string, Address>; // chain -> CCTP MessageTransmitter (completes the mint half)
+    /** chain -> the registered CctpBridgePermission. The runtime passes it as the dispatch's
+     *  explicit `permission`, so the runner uses it directly instead of auto-resolving (which
+     *  is unreliable for cross-chain mint completions). */
+    permission?: Record<string, Address>;
     domains: Record<string, number>; // chain -> CCTP domain id (present ONLY on USDC chains)
     maxPerTxUsd: number;
   };
@@ -155,6 +159,36 @@ const ROUTER_ABI = [
 ] as const;
 
 /**
+ * Uniswap V3 SwapRouter02 `exactInputSingle`. Base (and any chain whose Uniswap V3
+ * deployment shipped only SwapRouter02, not the classic SwapRouter) has NO multi-hop
+ * `exactInput` — single-hop swaps there go through this selector. The params struct is
+ * 7 fields with NO `deadline` (SwapRouter02 removed it, unlike the classic router).
+ */
+const EXACT_INPUT_SINGLE_ABI = [
+  {
+    name: "exactInputSingle",
+    type: "function",
+    stateMutability: "payable",
+    inputs: [
+      {
+        name: "params",
+        type: "tuple",
+        components: [
+          { name: "tokenIn", type: "address" },
+          { name: "tokenOut", type: "address" },
+          { name: "fee", type: "uint24" },
+          { name: "recipient", type: "address" },
+          { name: "amountIn", type: "uint256" },
+          { name: "amountOutMinimum", type: "uint256" },
+          { name: "sqrtPriceLimitX96", type: "uint160" },
+        ],
+      },
+    ],
+    outputs: [{ name: "amountOut", type: "uint256" }],
+  },
+] as const;
+
+/**
  * Aerodrome Slipstream QuoterV2. `exactInput`/`quoteExactInput` share the same selector
  * and path layout as Uniswap V3, but the path's 24-bit hop field is `tickSpacing`, and
  * `quoteExactInput(bytes,uint256)` returns ARRAYS (sqrtPriceX96AfterList /
@@ -206,6 +240,50 @@ const DEPOSIT_FOR_BURN_ABI = [
   },
 ] as const;
 
+/** CCTP v1 MessageTransmitter: `usedNonces(keccak256(sourceDomain ‖ nonce))` is 1 once a message was received. */
+const USED_NONCES_ABI = [
+  {
+    name: "usedNonces",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "sourceAndNonce", type: "bytes32" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+] as const;
+
+/** Parse the CCTP v1 message header: version(4) sourceDomain(4) destDomain(4) nonce(8) … */
+function parseCctpHeader(message: string): { sourceDomain: number; nonce: bigint } | null {
+  const hex = message.startsWith("0x") ? message.slice(2) : message;
+  if (hex.length < 40) return null;
+  return {
+    sourceDomain: Number.parseInt(hex.slice(8, 16), 16),
+    nonce: BigInt(`0x${hex.slice(24, 40)}`),
+  };
+}
+
+/** Has the destination transmitter already consumed this burn's nonce (i.e. the mint landed)? */
+async function mintLanded(
+  ctx: AgentContext,
+  destChain: number,
+  transmitter: Address,
+  message: string,
+): Promise<boolean | null> {
+  const header = parseCctpHeader(message);
+  if (!header) return null; // unparseable message: unknown, let the caller fall through
+  const key = keccak256(encodePacked(["uint32", "uint64"], [header.sourceDomain, header.nonce]));
+  try {
+    const used = (await ctx.chain(destChain).publicClient.readContract({
+      address: transmitter,
+      abi: USED_NONCES_ABI,
+      functionName: "usedNonces",
+      args: [key],
+    })) as bigint;
+    return used > 0n;
+  } catch {
+    return null;
+  }
+}
+
 const RECEIVE_MESSAGE_ABI = [
   {
     name: "receiveMessage",
@@ -221,6 +299,16 @@ const RECEIVE_MESSAGE_ABI = [
 
 /** Circle's free, keyless attestation service. `getMessages` returns the signed message + attestation. */
 const IRIS_BASE = "https://iris-api.circle.com";
+
+/**
+ * The agent grants router/messenger allowances via `approve` (gated on-chain by the
+ * `BoundedErc20Approve` permission, which is uncapped — MAX_APPROVAL == 0). Approving
+ * MAX_UINT256 once instead of the exact per-trade amount avoids a re-approve loop: the
+ * shortfall is recomputed each tick and drifts slightly with price, so an exact-amount
+ * allowance is perpetually just-short and the swap never fires. The real safety bound is
+ * the swap/bridge permission's per-tx cap, not the allowance.
+ */
+const MAX_UINT256 = 2n ** 256n - 1n;
 
 // ── Memory ledger (.sail/memory/ledger.jsonl) ────────────────────────────────
 // Append-only, chain-reconciled record. The cadence and in-flight-bridge guards
@@ -271,7 +359,7 @@ function lastBridgeTs(destChain: number): number {
   for (let i = lines.length - 1; i >= 0; i--) {
     try {
       const e = JSON.parse(lines[i]) as { kind?: string; dest?: number; ts?: number };
-      if (e.kind === "bridged" && e.dest === destChain) return e.ts ?? 0;
+      if ((e.kind === "bridged" || e.kind === "bridge") && e.dest === destChain) return e.ts ?? 0;
     } catch {
       // skip
     }
@@ -346,11 +434,17 @@ function cumulativeCost(): { invested: bigint; sold: bigint } {
 /** A pending trade intent, written when the swap dispatch is queued. */
 type PendingTrade = {
   id: string;
-  side: "buy" | "sell";
+  side: "buy" | "sell" | "bridge";
   symbol: string;
   amount: bigint;
   chainId: number;
-  target: string; // the swap router, lowercased — matches the activity record's `target`
+  target: string; // the swap router (or CCTP messenger), lowercased — matches the activity record's `target`
+  ts: number; // the intent's block timestamp — activity older than this can never confirm it
+  /** Bridge intents only: where the USDC is going, and for whom. */
+  source?: number;
+  dest?: number;
+  symbols?: string[];
+  messenger?: string;
 };
 
 /** Unique, deterministic id for a pending-trade intent. */
@@ -384,7 +478,12 @@ function effectiveSlippageBps(cfg: PortfolioConfig, symbol: string): number {
 }
 
 /** The activity outcome kinds that terminate a dispatch (everything else is a pre-execution marker). */
-const TERMINAL_OUTCOMES = new Set(["dispatch_executed", "dispatch_reverted", "dispatch_denied", "error"]);
+const TERMINAL_OUTCOMES = new Set([
+  "dispatch_executed",
+  "dispatch_reverted",
+  "dispatch_denied",
+  "error",
+]);
 
 /**
  * Reconcile pending `trade` intents against the runner's activity log, FIFO per (chain, target).
@@ -415,8 +514,29 @@ function reconcileTrades(nowSec: number): void {
         amount: BigInt(String(e.amount ?? "0")),
         chainId: Number(e.chainId ?? 0),
         target: String(e.target ?? "").toLowerCase(),
+        ts: Number(e.ts ?? 0),
       });
-    } else if (e.kind === "bought" || e.kind === "sold" || e.kind === "tradeFailed") {
+    } else if (e.kind === "bridge") {
+      pending.push({
+        id: String(e.id ?? ""),
+        side: "bridge",
+        symbol: (Array.isArray(e.symbols) ? (e.symbols as string[]) : []).join(","),
+        amount: BigInt(String(e.amount ?? "0")),
+        chainId: Number(e.source ?? 0),
+        target: String(e.messenger ?? "").toLowerCase(),
+        ts: Number(e.ts ?? 0),
+        source: Number(e.source ?? 0),
+        dest: Number(e.dest ?? 0),
+        symbols: Array.isArray(e.symbols) ? (e.symbols as string[]) : [],
+        messenger: String(e.messenger ?? ""),
+      });
+    } else if (
+      e.kind === "bought" ||
+      e.kind === "sold" ||
+      e.kind === "tradeFailed" ||
+      e.kind === "bridged" ||
+      e.kind === "bridgeFailed"
+    ) {
       resolved.add(String(e.id ?? ""));
       const tx = String(e.txHash ?? "").toLowerCase();
       if (tx) claimedTx.add(tx);
@@ -436,6 +556,10 @@ function reconcileTrades(nowSec: number): void {
       if (!TERMINAL_OUTCOMES.has(String(a.type ?? ""))) continue;
       if (Number(a.chainId) !== p.chainId) continue;
       if (String(a.target ?? "").toLowerCase() !== p.target) continue;
+      // An outcome recorded before the intent existed belongs to an earlier tick (a project
+      // with history has many old router dispatches) — it can never confirm this intent.
+      const aTs = Date.parse(String(a.ts ?? ""));
+      if (Number.isFinite(aTs) && aTs < (p.ts - 300) * 1000) continue;
       const tx = String(a.txHash ?? "").toLowerCase();
       if (tx && claimedTx.has(tx)) continue;
       hit = a;
@@ -444,6 +568,35 @@ function reconcileTrades(nowSec: number): void {
     if (!hit) continue;
     const txHash = String(hit.txHash ?? "");
     claimedTx.add(txHash.toLowerCase());
+    if (p.side === "bridge") {
+      // A burn is only "bridged" once the runner confirms it executed: the approve that may
+      // precede it, or a reverted burn, never becomes phantom in-flight money.
+      appendLedger(
+        hit.type === "dispatch_executed"
+          ? {
+              ts: nowSec,
+              kind: "bridged",
+              id: p.id,
+              source: p.source,
+              dest: p.dest,
+              amount: p.amount.toString(),
+              symbols: p.symbols,
+              messenger: p.messenger,
+              txHash,
+            }
+          : {
+              ts: nowSec,
+              kind: "bridgeFailed",
+              id: p.id,
+              source: p.source,
+              dest: p.dest,
+              amount: p.amount.toString(),
+              symbols: p.symbols,
+              txHash,
+            },
+      );
+      continue;
+    }
     if (hit.type === "dispatch_executed") {
       appendLedger({
         ts: nowSec,
@@ -649,9 +802,7 @@ async function quoteSwap(
  * The result of a swap: either an approve (allowance short — the swap happens on a later
  * tick once the allowance clears) or the actual swap dispatch. Null when the quote fails.
  */
-type SwapResult =
-  | { kind: "approve"; dispatch: Dispatch }
-  | { kind: "swap"; dispatch: Dispatch };
+type SwapResult = { kind: "approve"; dispatch: Dispatch } | { kind: "swap"; dispatch: Dispatch };
 
 /**
  * Build a swap dispatch on a chain. Returns an approve when the router's allowance on the
@@ -682,26 +833,55 @@ async function swap(
     const data = encodeFunctionData({
       abi: ERC20_APPROVE_ABI,
       functionName: "approve",
-      args: [router, amountIn],
+      args: [router, MAX_UINT256],
     });
-    return { kind: "approve", dispatch: ctx.chain(chainId).dispatch({ calls: [{ target: tokenIn, value: 0n, data }] }) };
+    return {
+      kind: "approve",
+      dispatch: ctx.chain(chainId).dispatch({ calls: [{ target: tokenIn, value: 0n, data }] }),
+    };
   }
   const minOut = (expectedOut * BigInt(10_000 - slippageBps)) / 10_000n;
-  const deadline = BigInt(Math.floor(ctx.timestamp)) + 3600n;
-  const data = encodeFunctionData({
-    abi: ROUTER_ABI,
-    functionName: "exactInput",
-    args: [
-      {
-        path,
-        recipient: ctx.safe,
-        deadline,
-        amountIn,
-        amountOutMinimum: minOut,
-      },
-    ],
-  });
-  return { kind: "swap", dispatch: ctx.chain(chainId).dispatch({ calls: [{ target: router, value: 0n, data }] }) };
+  // Single-hop Uniswap V3 swaps go through SwapRouter02's `exactInputSingle` (Base has no
+  // classic SwapRouter, and SwapRouter02 dropped the multi-hop `exactInput`). Two-hop legs
+  // (classic SwapRouter) and Aerodrome keep the multi-hop `exactInput`.
+  const singleHop = !isAero(spec) && !spec.via;
+  let data: `0x${string}`;
+  if (singleHop) {
+    data = encodeFunctionData({
+      abi: EXACT_INPUT_SINGLE_ABI,
+      functionName: "exactInputSingle",
+      args: [
+        {
+          tokenIn,
+          tokenOut,
+          fee: spec.feeTier,
+          recipient: ctx.safe,
+          amountIn,
+          amountOutMinimum: minOut,
+          sqrtPriceLimitX96: 0n,
+        },
+      ],
+    });
+  } else {
+    const deadline = BigInt(Math.floor(ctx.timestamp)) + 3600n;
+    data = encodeFunctionData({
+      abi: ROUTER_ABI,
+      functionName: "exactInput",
+      args: [
+        {
+          path,
+          recipient: ctx.safe,
+          deadline,
+          amountIn,
+          amountOutMinimum: minOut,
+        },
+      ],
+    });
+  }
+  return {
+    kind: "swap",
+    dispatch: ctx.chain(chainId).dispatch({ calls: [{ target: router, value: 0n, data }] }),
+  };
 }
 
 /** Settlement-currency-denominated value of the SMA's holding of a token on one chain (base units). */
@@ -742,6 +922,9 @@ function pickBuyChain(
   let bestBal = 0n;
   for (const spec of token.chains) {
     const bal = availableByChain[spec.chainId] ?? 0n;
+    // Dust is not a usable balance: returning a chain with ≤ $1 would shrink the buy to dust
+    // and silently drop it, never reaching the bridge path that could actually fund the leg.
+    if (bal <= DUST_USD) continue;
     if (bal > bestBal) {
       bestBal = bal;
       best = spec.chainId;
@@ -763,11 +946,14 @@ async function pickSellChain(
   return null;
 }
 
-/** Chain (other than `destChain`) holding the most USDC in the spend budget, to fund a bridge. */
+/**
+ * Chain (other than `destChain`) holding the most USDC in the spend budget, to fund a bridge.
+ * The caller sizes the bridge to `min(need, available)`, so a source that cannot cover the whole
+ * need still moves what it has — the same partial rule as buys, never all-or-nothing.
+ */
 function pickSourceChain(
   cfg: PortfolioConfig,
   destChain: number,
-  amount: bigint,
   availableByChain: Record<number, bigint>,
 ): number | null {
   let best: number | null = null;
@@ -777,7 +963,7 @@ function pickSourceChain(
     // Only USDC chains can be a bridge source (a chain with a CCTP messenger).
     if (!cfg.bridge.messenger[String(chainId)]) continue;
     const base = availableByChain[chainId] ?? 0n;
-    if (base >= amount && base > bestBase) {
+    if (base > DUST_USD && base > bestBase) {
       best = chainId;
       bestBase = base;
     }
@@ -786,9 +972,7 @@ function pickSourceChain(
 }
 
 /** The result of a bridge: an approve (allowance short) or the actual depositForBurn dispatch. */
-type BridgeResult =
-  | { kind: "approve"; dispatch: Dispatch }
-  | { kind: "burn"; dispatch: Dispatch };
+type BridgeResult = { kind: "approve"; dispatch: Dispatch } | { kind: "burn"; dispatch: Dispatch };
 
 /** Bridge USDC from source to dest via CCTP. Approves first when allowance is short. */
 async function bridgeUsdc(
@@ -808,9 +992,12 @@ async function bridgeUsdc(
     const data = encodeFunctionData({
       abi: ERC20_APPROVE_ABI,
       functionName: "approve",
-      args: [messenger, amountNative],
+      args: [messenger, MAX_UINT256],
     });
-    return { kind: "approve", dispatch: ch.dispatch({ calls: [{ target: usdc, value: 0n, data }] }) };
+    return {
+      kind: "approve",
+      dispatch: ch.dispatch({ calls: [{ target: usdc, value: 0n, data }] }),
+    };
   }
   const domain = cfg.bridge.domains[String(destChain)];
   // Self-recipient: the SMA's own address, left-padded to bytes32. CREATE2 makes it
@@ -821,7 +1008,10 @@ async function bridgeUsdc(
     functionName: "depositForBurn",
     args: [amountNative, domain, mintRecipient, usdc],
   });
-  return { kind: "burn", dispatch: ch.dispatch({ calls: [{ target: messenger, value: 0n, data }] }) };
+  return {
+    kind: "burn",
+    dispatch: ch.dispatch({ calls: [{ target: messenger, value: 0n, data }] }),
+  };
 }
 
 /**
@@ -837,20 +1027,33 @@ async function bridgeUsdc(
  * account, so the mint always lands back at the SMA. The MessageTransmitter rejects a repeated
  * message on-chain, so re-emitting after a crash is harmless.
  *
- * `minted` is written only once the destination actually holds USDC (the mint landed) — never
- * optimistically when the receiveMessage is merely emitted, or a gas-starved mint would be
- * recorded as done and its bridged USDC stranded. Until it lands, the emit is re-attempted each
- * tick (idempotent on-chain).
+ * `minted` is written only once the destination MessageTransmitter reports the burn's nonce as
+ * used (the mint landed) — never optimistically when the receiveMessage is merely emitted, and
+ * never from a destination balance (dust or an unrelated deposit is not a mint). Until it lands,
+ * the emit is re-attempted each tick (idempotent on-chain).
  */
 async function completePendingMints(ctx: AgentContext, cfg: PortfolioConfig): Promise<Dispatch[]> {
   const out: Dispatch[] = [];
 
   const ledger = readLines(ledgerPath());
   const mintedTx = new Set<string>();
-  const bridged: { source: number; dest: number; messenger: string; ts: number }[] = [];
+  const bridged: {
+    source: number;
+    dest: number;
+    messenger: string;
+    ts: number;
+    txHash?: string;
+  }[] = [];
   for (const line of ledger) {
     try {
-      const e = JSON.parse(line) as { kind?: string; txHash?: string; dest?: number; source?: number; messenger?: string; ts?: number };
+      const e = JSON.parse(line) as {
+        kind?: string;
+        txHash?: string;
+        dest?: number;
+        source?: number;
+        messenger?: string;
+        ts?: number;
+      };
       if (e.kind === "minted" && e.txHash) mintedTx.add(String(e.txHash).toLowerCase());
       else if (e.kind === "bridged") {
         bridged.push({
@@ -858,6 +1061,7 @@ async function completePendingMints(ctx: AgentContext, cfg: PortfolioConfig): Pr
           dest: e.dest ?? 0,
           messenger: String(e.messenger ?? "").toLowerCase(),
           ts: e.ts ?? 0,
+          txHash: e.txHash ? String(e.txHash).toLowerCase() : undefined,
         });
       }
     } catch {
@@ -877,34 +1081,28 @@ async function completePendingMints(ctx: AgentContext, cfg: PortfolioConfig): Pr
     const transmitter = cfg.bridge.transmitter[String(b.dest)];
     if (!transmitter) continue;
 
-    // The runner's dispatch_executed for this burn: same messenger, same chain, not already
-    // minted and not already claimed by an earlier pending burn.
-    const hit = activity.find((a) => {
-      const target = String(a.target ?? "").toLowerCase();
-      const txHash = String(a.txHash ?? "").toLowerCase();
-      return (
-        a.type === "dispatch_executed" &&
-        Number(a.chainId) === b.source &&
-        target === b.messenger &&
-        txHash !== "" &&
-        !mintedTx.has(txHash) &&
-        !claimed.has(txHash)
-      );
-    });
+    // A confirmed burn carries its own txHash (written by reconcileTrades). Legacy entries
+    // without one fall back to the runner's dispatch_executed for the same messenger + chain.
+    if (b.txHash) {
+      if (mintedTx.has(b.txHash) || claimed.has(b.txHash)) continue;
+    }
+    const hit = b.txHash
+      ? { txHash: b.txHash }
+      : activity.find((a) => {
+          const target = String(a.target ?? "").toLowerCase();
+          const txHash = String(a.txHash ?? "").toLowerCase();
+          return (
+            a.type === "dispatch_executed" &&
+            Number(a.chainId) === b.source &&
+            target === b.messenger &&
+            txHash !== "" &&
+            !mintedTx.has(txHash) &&
+            !claimed.has(txHash)
+          );
+        });
     if (!hit) continue; // burn not yet executed (or already completed) — try next tick
     const txHash = String(hit.txHash).toLowerCase();
     claimed.add(txHash);
-
-    // If the destination already holds settlement currency, the mint landed (this tick or a
-    // prior one) — record it and stop. Never record it before the money actually arrives.
-    const destSettlement = cfg.settlement[String(b.dest)];
-    if (destSettlement) {
-      const destBalance = await ctx.chain(b.dest).read.balance(destSettlement.address);
-      if (destBalance > 0n) {
-        appendLedger({ ts: ctx.timestamp, kind: "minted", dest: b.dest, txHash });
-        continue;
-      }
-    }
 
     // Fetch the signed message + attestation. Attestation can lag the burn by a minute, so a
     // missing message is not an error: just retry on the next tick.
@@ -916,13 +1114,35 @@ async function completePendingMints(ctx: AgentContext, cfg: PortfolioConfig): Pr
         ctx.log(`iris ${res.status} for ${txHash.slice(0, 10)}… — will retry`);
         continue;
       }
-      const json = (await res.json()) as { messages?: { message?: string; attestation?: string }[] };
+      const json = (await res.json()) as {
+        messages?: { message?: string; attestation?: string }[];
+      };
       const m = json.messages?.[0];
-      if (!m?.message || !m?.attestation) continue; // attestation not ready yet
-      message = m.message;
-      attestation = m.attestation;
+      // Iris answers with the literal string "PENDING" (not empty) until the attestation is
+      // signed. Only a hex signature is usable — anything else means wait for the next tick.
+      const isHex = (v: unknown): v is string =>
+        typeof v === "string" && /^0x[0-9a-fA-F]+$/.test(v);
+      const msgHex = m?.message;
+      const attHex = m?.attestation;
+      if (!isHex(msgHex) || !isHex(attHex)) {
+        ctx.log(
+          `attestation for ${txHash.slice(0, 10)}… still ${String(attHex ?? "missing")} — will retry`,
+        );
+        continue;
+      }
+      message = msgHex;
+      attestation = attHex;
     } catch (err) {
       ctx.log(`iris fetch failed for ${txHash.slice(0, 10)}…: ${(err as Error).message}`);
+      continue;
+    }
+
+    // The mint has landed iff the destination transmitter has consumed this burn's nonce.
+    // (A destination balance is NOT evidence: dust or an unrelated deposit would be mistaken
+    // for the mint and strand the bridged USDC.) When landed, record it and stop re-emitting.
+    const landed = await mintLanded(ctx, b.dest, transmitter as Address, message);
+    if (landed === true) {
+      appendLedger({ ts: ctx.timestamp, kind: "minted", dest: b.dest, txHash });
       continue;
     }
 
@@ -931,8 +1151,15 @@ async function completePendingMints(ctx: AgentContext, cfg: PortfolioConfig): Pr
       functionName: "receiveMessage",
       args: [message as `0x${string}`, attestation as `0x${string}`],
     });
+    // Pin the authorizing permission explicitly. The runner's auto-resolution is unreliable
+    // for the cross-chain mint completion, so we name the registered CctpBridgePermission
+    // on the destination chain directly.
+    const mintPermission = cfg.bridge.permission?.[String(b.dest)];
     out.push(
-      ctx.chain(b.dest).dispatch({ calls: [{ target: transmitter as Address, value: 0n, data }] }),
+      ctx.chain(b.dest).dispatch({
+        calls: [{ target: transmitter as Address, value: 0n, data }],
+        permission: mintPermission,
+      }),
     );
     // NOTE: `minted` is NOT written here — it is written next tick once the destination
     // balance confirms the mint actually landed.
@@ -1050,7 +1277,9 @@ export const agent: Agent = {
           amountIn,
         );
         if (proceeds === null) {
-          ctx.log(`rebalance: could not quote ${e.token.symbol} on chain ${chainId} — skipping this sell`);
+          ctx.log(
+            `rebalance: could not quote ${e.token.symbol} on chain ${chainId} — skipping this sell`,
+          );
           continue;
         }
         const res = await swap(
@@ -1093,6 +1322,10 @@ export const agent: Agent = {
     //    shared budget, so partial idle cash still moves every laggard toward target instead of
     //    funding the first token and starving the rest.
     const dcaDue = dca ? ctx.timestamp - lastInvestTs() >= dca.periodSec : false;
+    const bridgeNeed = new Map<
+      string,
+      { source: number; dest: number; amount: bigint; symbols: string[] }
+    >();
     for (const e of entries) {
       let buyUsd: bigint;
       if (dca) {
@@ -1158,31 +1391,59 @@ export const agent: Agent = {
       // chains are bridged (USDG on Robinhood and USDT on BNB are funded direct, never bridged).
       const dest = e.token.chains[0].chainId;
       if (cfg.bridge.domains[String(dest)] === undefined) {
-        ctx.log(`chain ${dest} is funded direct (no bridge) — deposit its settlement currency to the SMA`);
+        ctx.log(
+          `chain ${dest} is funded direct (no bridge) — deposit its settlement currency to the SMA`,
+        );
         continue;
       }
       if (ctx.timestamp - lastBridgeTs(dest) < BRIDGE_PENDING_SEC) {
         ctx.log(`bridge to chain ${dest} in flight — waiting for mint`);
         continue;
       }
-      const source = pickSourceChain(cfg, dest, buyUsd, availableByChain);
+      // Reserve the source cash NOW, in basket order, so an earlier token's cross-chain
+      // shortfall has the same priority as a later token's same-chain buy. The reservations
+      // for one (source → dest) pair are pooled into ONE bridge after the loop — bridging per
+      // token would let the first small leg claim the in-flight guard and strand the rest.
+      const source = pickSourceChain(cfg, dest, availableByChain);
       if (source === null) {
         ctx.log(`no source USDC to bridge for ${e.token.symbol} — skipping`);
         continue;
       }
-      const res = await bridgeUsdc(ctx, cfg, source, dest, buyUsd);
+      let reserve = buyUsd;
+      const sourceAvailable = availableByChain[source] ?? 0n;
+      if (reserve > sourceAvailable) reserve = sourceAvailable; // partial, never all-or-nothing
+      if (reserve <= DUST_USD) continue;
+      availableByChain[source] -= reserve;
+      const key = `${source}:${dest}`;
+      const need = bridgeNeed.get(key) ?? { source, dest, amount: 0n, symbols: [] as string[] };
+      need.amount += reserve;
+      need.symbols.push(e.token.symbol);
+      bridgeNeed.set(key, need);
+    }
+
+    // 3b. One bridge per (source → destination) pair, sized to the pooled reservations and the
+    //     per-tx cap. The minted USDC funds the destination's laggards in basket order next tick;
+    //     anything the cap held back follows on a later run.
+    for (const need of bridgeNeed.values()) {
+      const { source, dest } = need;
+      let amount = need.amount;
+      if (amount > cap) amount = cap;
+      if (amount <= DUST_USD) continue;
+      const res = await bridgeUsdc(ctx, cfg, source, dest, amount);
       if (res) {
         dispatches.push(res.dispatch);
         if (res.kind === "burn") {
+          // Intent only — `bridged` is written by reconcileTrades once the burn confirms.
           appendLedger({
             ts: ctx.timestamp,
-            kind: "bridged",
+            kind: "bridge",
+            id: nextOpId(),
             source,
             dest,
-            amount: buyUsd.toString(),
+            amount: amount.toString(),
+            symbols: need.symbols,
             messenger: cfg.bridge.messenger[String(source)],
           });
-          availableByChain[source] -= buyUsd; // a bridge spends source-chain USDC
         }
       }
     }
@@ -1201,6 +1462,7 @@ export const agent: Agent = {
       bandBps: cfg.rebalanceBandBps,
       costBasis: invested - sold,
       pendingBridgeUsdc: pendingBridge,
+      valueBase, // the exact base the trims/buys above were decided on
       asOf: ctx.timestamp,
     });
     writeSnapshot(snapshot);

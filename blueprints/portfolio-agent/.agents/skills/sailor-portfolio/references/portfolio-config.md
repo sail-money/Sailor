@@ -103,7 +103,8 @@ Both modes route buys to the chain that holds the **most** settlement currency, 
 capped at `min(shortfall, available cash)` against a **shared per-chain spend budget** read once up
 front — so partial idle cash still moves every laggard toward target, and the sum of queued buys in
 one tick never exceeds on-chain holdings. **USDC chains are bridged
-when none does; USDG (Robinhood) and USDT (BNB) chains are funded direct and never bridged** — when
+when none does** — every shortfall bound for the same chain is pooled into one bridge per tick, sized to
+`min(pooled need, source balance, per-tx cap)` (partial, never all-or-nothing); USDG (Robinhood) and USDT (BNB) chains are funded direct and never bridged** — when
 one is short, the runtime logs "funded direct" and waits for a deposit rather than bridging. Base
 stock tokens need no special case: they settle in USDC, so they buy like any other Base asset.
 

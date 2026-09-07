@@ -91,12 +91,20 @@ export function buildSnapshot(opts: {
   costBasis?: bigint | null;
   pendingBridgeUsdc?: bigint;
   asOf?: number;
+  /**
+   * The value every weight is measured against. Pass the same base the runtime decides on
+   * (total value in invest mode — idle and in-flight USDC dilute the weights — invested value
+   * in DCA mode) so the report never shows "sell" for a trim the agent will not make.
+   * Defaults to the invested value.
+   */
+  valueBase?: bigint;
 }): PortfolioSnapshot {
   const investedValue = opts.holdings.reduce((a, h) => a + h.value, 0n);
   const pendingBridgeUsdc = opts.pendingBridgeUsdc ?? 0n;
   const band = BigInt(opts.bandBps);
+  const valueBase = opts.valueBase ?? investedValue;
   const holdings: Holding[] = opts.holdings.map((h) => {
-    const weightBps = investedValue === 0n ? 0n : (h.value * BPS) / investedValue;
+    const weightBps = valueBase === 0n ? 0n : (h.value * BPS) / valueBase;
     return {
       symbol: h.symbol,
       value: h.value,
@@ -272,14 +280,16 @@ export function composeReport(
   let score: string;
   if (!baseline) {
     // First report: no prior snapshot to decompose against.
-    verdict = s.investedValue === 0n
-      ? "Your portfolio is live and waiting for its first deposit."
-      : "Your portfolio is live and invested.";
+    verdict =
+      s.investedValue === 0n
+        ? "Your portfolio is live and waiting for its first deposit."
+        : "Your portfolio is live and invested.";
     score = `Portfolio value <b>${formatUsd(s.totalValue)}</b>`;
   } else {
     const costBasis = s.costBasis ?? baseline.costBasis;
-    const marketChange = (s.investedValue - baseline.investedValue) - (costBasis - baseline.costBasis);
-    const netFlow = (s.totalValue - baseline.totalValue) - marketChange;
+    const marketChange =
+      s.investedValue - baseline.investedValue - (costBasis - baseline.costBasis);
+    const netFlow = s.totalValue - baseline.totalValue - marketChange;
     const totalChange = s.totalValue - baseline.totalValue;
 
     if (netFlow >= ONE_DOLLAR) {

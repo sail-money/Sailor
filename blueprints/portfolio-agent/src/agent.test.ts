@@ -69,6 +69,30 @@ const EXACT_INPUT = [
   },
 ] as const;
 
+const EXACT_INPUT_SINGLE = [
+  {
+    name: "exactInputSingle",
+    type: "function",
+    stateMutability: "payable",
+    inputs: [
+      {
+        name: "params",
+        type: "tuple",
+        components: [
+          { name: "tokenIn", type: "address" },
+          { name: "tokenOut", type: "address" },
+          { name: "fee", type: "uint24" },
+          { name: "recipient", type: "address" },
+          { name: "amountIn", type: "uint256" },
+          { name: "amountOutMinimum", type: "uint256" },
+          { name: "sqrtPriceLimitX96", type: "uint160" },
+        ],
+      },
+    ],
+    outputs: [{ name: "amountOut", type: "uint256" }],
+  },
+] as const;
+
 const APPROVE = [
   {
     name: "approve",
@@ -275,7 +299,13 @@ function twoHopSellConfig() {
         symbol: "ZAMA",
         weight: 0.5,
         chains: [
-          { chainId: 8453, address: ZAMA_BASE, decimals: 18, feeTier: 3000, via: { address: WETH_BASE, feeTier: 500 } },
+          {
+            chainId: 8453,
+            address: ZAMA_BASE,
+            decimals: 18,
+            feeTier: 3000,
+            via: { address: WETH_BASE, feeTier: 500 },
+          },
         ],
       },
       {
@@ -303,7 +333,14 @@ function aeroConfig() {
         symbol: "cbHYPE",
         weight: 1.0,
         chains: [
-          { chainId: 8453, address: CBHYPE_BASE, decimals: 18, dex: "aerodrome" as const, tickSpacing: 200, feeTier: 0 },
+          {
+            chainId: 8453,
+            address: CBHYPE_BASE,
+            decimals: 18,
+            dex: "aerodrome" as const,
+            tickSpacing: 200,
+            feeTier: 0,
+          },
         ],
       },
     ],
@@ -322,6 +359,8 @@ function makeCtx(
     timestamp?: number;
     balances?: Balances;
     allowances?: Allowances;
+    /** Mock: the destination transmitter reports the burn's nonce as used (the mint landed). */
+    mintLanded?: boolean;
   } = {},
 ) {
   const balances = opts.balances ?? {};
@@ -342,6 +381,9 @@ function makeCtx(
         simulateContract: async ({ args }: { args: unknown[] }) => ({
           result: [args[1], 0n, 0, 0n],
         }),
+        // usedNonces(bytes32) on the CCTP MessageTransmitter: 1 once the mint landed.
+        readContract: async ({ functionName }: { functionName: string }) =>
+          functionName === "usedNonces" ? (opts.mintLanded ? 1n : 0n) : 0n,
       },
       read: {
         balance: async (token: string) => balances[`${chainId}:${token.toLowerCase()}`] ?? 0n,
@@ -403,7 +445,30 @@ function parsePath(path: string): { tokenIn: string; tokenOut: string; via?: str
 }
 
 function swapArgs(call: { data: string }) {
-  const d = decodeFunctionData({ abi: EXACT_INPUT, data: call.data as `0x${string}` });
+  const data = call.data as `0x${string}`;
+  if (data.slice(0, 10).toLowerCase() === "0x04e45aaf") {
+    // SwapRouter02 exactInputSingle (single-hop Uniswap V3): no path, no deadline, no via.
+    const single = decodeFunctionData({ abi: EXACT_INPUT_SINGLE, data });
+    const p = single.args[0] as unknown as {
+      tokenIn: string;
+      tokenOut: string;
+      fee: number;
+      recipient: string;
+      amountIn: bigint;
+      amountOutMinimum: bigint;
+    };
+    return {
+      path: "", // exactInputSingle carries no packed path
+      recipient: p.recipient,
+      deadline: 0n, // SwapRouter02 dropped the deadline field
+      amountIn: p.amountIn,
+      amountOutMinimum: p.amountOutMinimum,
+      tokenIn: p.tokenIn.toLowerCase(),
+      tokenOut: p.tokenOut.toLowerCase(),
+      via: undefined as string | undefined,
+    };
+  }
+  const d = decodeFunctionData({ abi: EXACT_INPUT, data });
   const params = d.args[0] as unknown as {
     path: string;
     recipient: string;
@@ -583,7 +648,12 @@ test("completes a pending burn's mint half even when the portfolio is empty", as
   })) as unknown as typeof fetch;
   try {
     // Empty portfolio (no USDC, no holdings) — the mint must still complete.
-    const dispatches = await run(bridgeConfig(), makeCtx({ timestamp: T0 }), `${bridged}\n`, activity);
+    const dispatches = await run(
+      bridgeConfig(),
+      makeCtx({ timestamp: T0 }),
+      `${bridged}\n`,
+      activity,
+    );
     assert.equal(dispatches.length, 1);
     const call = dispatches[0].calls[0];
     assert.equal(call.target.toLowerCase(), XMIT_ARB.toLowerCase());
@@ -768,7 +838,7 @@ test("two-hop asset buys through the hub (USDC → WETH → token)", async () =>
   assert.equal(dispatches.length, 1);
   const a = swapArgs(dispatches[0].calls[0]);
   assert.equal(a.tokenIn.toLowerCase(), USDC_BASE.toLowerCase());
-  assert.equal(a.via!.toLowerCase(), WETH_BASE.toLowerCase());
+  assert.equal((a.via ?? "").toLowerCase(), WETH_BASE.toLowerCase());
   assert.equal(a.tokenOut.toLowerCase(), ZAMA_BASE.toLowerCase());
 });
 
@@ -782,7 +852,7 @@ test("two-hop asset values and sells back through the hub (token → WETH → US
   assert.equal(dispatches.length, 1);
   const a = swapArgs(dispatches[0].calls[0]);
   assert.equal(a.tokenIn.toLowerCase(), ZAMA_BASE.toLowerCase());
-  assert.equal(a.via!.toLowerCase(), WETH_BASE.toLowerCase());
+  assert.equal((a.via ?? "").toLowerCase(), WETH_BASE.toLowerCase());
   assert.equal(a.tokenOut.toLowerCase(), USDC_BASE.toLowerCase());
 });
 
@@ -791,7 +861,7 @@ test("two-hop asset without via degrades to a direct swap, never a guessed hop",
   // direct single-hop swap (no hop is ever invented). A genuinely broken leg (e.g. a
   // feeTier 0 placeholder) reverts at quote time and is skipped with a log, not guessed.
   const cfg = twoHopConfig();
-  delete (cfg.basket[0].chains[0] as { via?: unknown }).via;
+  (cfg.basket[0].chains[0] as { via?: unknown }).via = undefined;
   const dispatches = await run(
     cfg,
     makeCtx({ timestamp: T0, balances: { [`8453:${USDC_BASE}`]: 1_000_000_000n } }),
@@ -828,13 +898,22 @@ test("counts in-flight bridge USDC in total value (Bug 1)", async () => {
   fs.mkdirSync(path.join(dir, ".sail"), { recursive: true });
   fs.writeFileSync(path.join(dir, ".sail", "portfolio.json"), JSON.stringify(twoTokenConfig()));
   fs.mkdirSync(path.join(dir, ".sail", "memory"), { recursive: true });
-  const bridged = JSON.stringify({ ts: T0 - 500, kind: "bridged", source: 8453, dest: 42161, amount: "175000000", messenger: MSG_BASE });
+  const bridged = JSON.stringify({
+    ts: T0 - 500,
+    kind: "bridged",
+    source: 8453,
+    dest: 42161,
+    amount: "175000000",
+    messenger: MSG_BASE,
+  });
   fs.writeFileSync(path.join(dir, ".sail", "memory", "ledger.jsonl"), `${bridged}\n`);
   const prev = process.cwd();
   process.chdir(dir);
   try {
     await agent.tick(makeCtx({ timestamp: T0, balances: { [`8453:${USDC_BASE}`]: 825_000_000n } }));
-    const snap = JSON.parse(fs.readFileSync(path.join(dir, ".sail", "state", "snapshot.json"), "utf-8"));
+    const snap = JSON.parse(
+      fs.readFileSync(path.join(dir, ".sail", "state", "snapshot.json"), "utf-8"),
+    );
     // 825 idle + 0 invested + 175 in flight = 1000.
     assert.equal(snap.totalValue, "1000000000");
     assert.equal(snap.pendingBridgeUsdc, "175000000");
@@ -851,8 +930,16 @@ test("buys the partial shortfall when idle cash is below target (Bug 3)", async 
     ...twoTokenConfig(),
     rebalancePeriodSec: 604800, // gate the WETH sell so it doesn't interfere
     basket: [
-      { symbol: "WETH", weight: 0.5, chains: [{ chainId: 8453, address: WETH_BASE, decimals: 18, feeTier: 3000 }] },
-      { symbol: "WBTC", weight: 0.5, chains: [{ chainId: 8453, address: WBTC_BASE, decimals: 8, feeTier: 3000 }] },
+      {
+        symbol: "WETH",
+        weight: 0.5,
+        chains: [{ chainId: 8453, address: WETH_BASE, decimals: 18, feeTier: 3000 }],
+      },
+      {
+        symbol: "WBTC",
+        weight: 0.5,
+        chains: [{ chainId: 8453, address: WBTC_BASE, decimals: 8, feeTier: 3000 }],
+      },
     ],
   };
   const recent = JSON.stringify({ ts: T0 - 100, kind: "rebalanced" });
@@ -882,9 +969,21 @@ test("shares the spend budget across legs so one tick never over-dispatches (Bug
     quoter: { 8453: QUOTER_BASE },
     bridge: { messenger: {}, transmitter: {}, domains: {}, maxPerTxUsd: 1000 },
     basket: [
-      { symbol: "A", weight: 0.4, chains: [{ chainId: 8453, address: WETH_BASE, decimals: 18, feeTier: 3000 }] },
-      { symbol: "B", weight: 0.3, chains: [{ chainId: 8453, address: WBTC_BASE, decimals: 8, feeTier: 3000 }] },
-      { symbol: "C", weight: 0.3, chains: [{ chainId: 8453, address: ZAMA_BASE, decimals: 18, feeTier: 3000 }] },
+      {
+        symbol: "A",
+        weight: 0.4,
+        chains: [{ chainId: 8453, address: WETH_BASE, decimals: 18, feeTier: 3000 }],
+      },
+      {
+        symbol: "B",
+        weight: 0.3,
+        chains: [{ chainId: 8453, address: WBTC_BASE, decimals: 8, feeTier: 3000 }],
+      },
+      {
+        symbol: "C",
+        weight: 0.3,
+        chains: [{ chainId: 8453, address: ZAMA_BASE, decimals: 18, feeTier: 3000 }],
+      },
     ],
     rebalanceBandBps: 500,
     maxSlippageBps: 100,
@@ -901,13 +1000,22 @@ test("shares the spend budget across legs so one tick never over-dispatches (Bug
   );
   // B and C each short $60; A is overweight (gated). Budget $100 → $60 + $40, never $120.
   assert.equal(dispatches.length, 2);
-  const amounts = dispatches.map((d) => swapArgs(d.calls[0]).amountIn).sort((a, b) => (a < b ? -1 : 1));
+  const amounts = dispatches
+    .map((d) => swapArgs(d.calls[0]).amountIn)
+    .sort((a, b) => (a < b ? -1 : 1));
   assert.deepEqual(amounts, [40_000_000n, 60_000_000n]);
 });
 
-test("records minted only once the destination actually holds USDC (not on emit)", async () => {
+test("records minted only once the destination transmitter has consumed the nonce (not on emit)", async () => {
   const BRIDGE_TX = `0x${"ab".repeat(32)}`;
-  const bridged = JSON.stringify({ ts: T0 - 600, kind: "bridged", source: 8453, dest: 42161, amount: "1000000", messenger: MSG_BASE });
+  const bridged = JSON.stringify({
+    ts: T0 - 600,
+    kind: "bridged",
+    source: 8453,
+    dest: 42161,
+    amount: "1000000",
+    messenger: MSG_BASE,
+  });
   const activity = `${JSON.stringify({
     ts: "2026-08-20T00:00:00Z",
     actor: "agent",
@@ -919,9 +1027,11 @@ test("records minted only once the destination actually holds USDC (not on emit)
   })}\n`;
 
   const origFetch = globalThis.fetch;
+  // A parseable CCTP v1 header: version 0 | sourceDomain 6 | destDomain 3 | nonce 42 | body…
+  const CCTP_MESSAGE = `0x${"00000000"}${"00000006"}${"00000003"}${"000000000000002a"}${"ab".repeat(40)}`;
   globalThis.fetch = (async () => ({
     ok: true,
-    json: async () => ({ messages: [{ message: "0xdeadbeef", attestation: "0xcafebabe" }] }),
+    json: async () => ({ messages: [{ message: CCTP_MESSAGE, attestation: "0xcafebabe" }] }),
   })) as unknown as typeof fetch;
   try {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "portfolio-mint-confirm-test-"));
@@ -933,16 +1043,15 @@ test("records minted only once the destination actually holds USDC (not on emit)
     const prev = process.cwd();
     process.chdir(dir);
     try {
-      // Destination balance is still 0 → receiveMessage is emitted, but minted is NOT written.
-      await agent.tick(makeCtx({ timestamp: T0 }));
+      // Nonce not yet used on the destination → receiveMessage is emitted, but minted is NOT written.
+      // (Dust on the destination must not be mistaken for the mint.)
+      await agent.tick(makeCtx({ timestamp: T0, balances: { [`42161:${USDC_ARB}`]: 832_157n } }));
       const ledger1 = fs.readFileSync(path.join(dir, ".sail", "memory", "ledger.jsonl"), "utf-8");
       assert.ok(!ledger1.includes('"minted"'));
       assert.ok(ledger1.includes('"bridged"'));
 
-      // Destination balance > 0 → the mint is recorded and the emit is skipped.
-      await agent.tick(
-        makeCtx({ timestamp: T0 + 60, balances: { [`42161:${USDC_ARB}`]: 1_000_000n } }),
-      );
+      // Transmitter reports the nonce as used → the mint is recorded and the emit is skipped.
+      await agent.tick(makeCtx({ timestamp: T0 + 60, mintLanded: true }));
       const ledger2 = fs.readFileSync(path.join(dir, ".sail", "memory", "ledger.jsonl"), "utf-8");
       assert.ok(ledger2.includes('"minted"'));
     } finally {
@@ -962,7 +1071,16 @@ test("reverted swap is not recorded as bought and widens slippage on retry (Bug 
   fs.mkdirSync(path.join(dir, ".sail"), { recursive: true });
   fs.writeFileSync(path.join(dir, ".sail", "portfolio.json"), JSON.stringify(twoTokenConfig()));
   // A pending buy intent that the runner reported as reverted.
-  const intent = JSON.stringify({ ts: T0 - 60, kind: "trade", id: "op-1", side: "buy", symbol: "WETH", amount: "400000000", chainId: 8453, target: ROUTER_BASE.toLowerCase() });
+  const intent = JSON.stringify({
+    ts: T0 - 60,
+    kind: "trade",
+    id: "op-1",
+    side: "buy",
+    symbol: "WETH",
+    amount: "400000000",
+    chainId: 8453,
+    target: ROUTER_BASE.toLowerCase(),
+  });
   const activity = `${JSON.stringify({
     ts: "2026-08-20T00:00:00Z",
     actor: "agent",
@@ -987,7 +1105,9 @@ test("reverted swap is not recorded as bought and widens slippage on retry (Bug 
     assert.ok(!ledger.includes('"bought"'));
     // The retry queued a fresh buy, with a widened slippage floor (100 + 25 = 125 bps).
     assert.ok(dispatches.length >= 1);
-    const retry = dispatches.find((d) => d.calls[0].target.toLowerCase() === ROUTER_BASE.toLowerCase());
+    const retry = dispatches.find(
+      (d) => d.calls[0].target.toLowerCase() === ROUTER_BASE.toLowerCase(),
+    );
     assert.ok(retry);
     const a = swapArgs(retry.calls[0]);
     // Mock quotes 1:1, so amountOutMinimum = amountIn * (1 − 125/10000).
@@ -995,5 +1115,102 @@ test("reverted swap is not recorded as bought and widens slippage on retry (Bug 
   } finally {
     process.chdir(prev);
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ── Pooled bridges (one bridge per destination per tick, partial-sized) ─────────
+
+/** Two tokens routable only on Arbitrum, USDC only on Base → both shortfalls need a bridge. */
+function twoTokenBridgeConfig(maxPerTxUsd = 1000) {
+  const cfg = bridgeConfig();
+  cfg.bridge.maxPerTxUsd = maxPerTxUsd;
+  cfg.basket = [
+    {
+      symbol: "WETH",
+      weight: 0.5,
+      chains: [{ chainId: 42161, address: WETH_ARB, decimals: 18, feeTier: 3000 }],
+    },
+    {
+      symbol: "ARB",
+      weight: 0.5,
+      chains: [{ chainId: 42161, address: WBTC_BASE, decimals: 18, feeTier: 3000 }],
+    },
+  ];
+  return cfg;
+}
+
+test("pools two same-chain shortfalls into ONE bridge sized to their sum", async () => {
+  const dispatches = await run(
+    twoTokenBridgeConfig(),
+    makeCtx({
+      timestamp: T0,
+      balances: { [`8453:${USDC_BASE}`]: 100_000_000n },
+      allowances: { [`8453:${USDC_BASE}:${MSG_BASE}`]: 1_000_000_000_000n },
+    }),
+    acted(),
+  );
+  // Before pooling, the first token's bridge tripped the in-flight guard and the second was
+  // skipped — half the deposit stayed idle on Base until the next run.
+  assert.equal(dispatches.length, 1);
+  const call = dispatches[0].calls[0];
+  assert.equal(call.target.toLowerCase(), MSG_BASE.toLowerCase());
+  const d = decodeFunctionData({ abi: DEPOSIT_FOR_BURN, data: call.data as `0x${string}` });
+  assert.equal(d.functionName, "depositForBurn");
+  assert.equal(d.args[0], 100_000_000n); // 50 + 50, one burn
+});
+
+test("a pooled bridge is capped at the per-tx cap and never exceeds the source balance", async () => {
+  const dispatches = await run(
+    twoTokenBridgeConfig(60),
+    makeCtx({
+      timestamp: T0,
+      balances: { [`8453:${USDC_BASE}`]: 100_000_000n },
+      allowances: { [`8453:${USDC_BASE}:${MSG_BASE}`]: 1_000_000_000_000n },
+    }),
+    acted(),
+  );
+  assert.equal(dispatches.length, 1);
+  const d = decodeFunctionData({
+    abi: DEPOSIT_FOR_BURN,
+    data: dispatches[0].calls[0].data as `0x${string}`,
+  });
+  assert.equal(d.args[0], 60_000_000n); // pooled need 100, cap 60 → partial bridge, remainder next run
+});
+
+test("a PENDING attestation from Iris emits nothing and keeps the bridge pending", async () => {
+  const BRIDGE_TX = `0x${"cd".repeat(32)}`;
+  const bridged = JSON.stringify({
+    ts: T0 - 600,
+    kind: "bridged",
+    source: 8453,
+    dest: 42161,
+    amount: "1000000",
+    messenger: MSG_BASE,
+  });
+  const activity = `${JSON.stringify({ ts: "2026-08-20T00:00:00Z", actor: "agent", type: "dispatch_executed", target: MSG_BASE, chainId: 8453, txHash: BRIDGE_TX, safe: SAFE })}\n`;
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = (async () => ({
+    ok: true,
+    json: async () => ({ messages: [{ message: `0x${"00".repeat(60)}`, attestation: "PENDING" }] }),
+  })) as unknown as typeof fetch;
+  try {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "portfolio-pending-attestation-test-"));
+    fs.mkdirSync(path.join(dir, ".sail", "memory"), { recursive: true });
+    fs.writeFileSync(path.join(dir, ".sail", "portfolio.json"), JSON.stringify(bridgeConfig()));
+    fs.writeFileSync(path.join(dir, ".sail", "memory", "ledger.jsonl"), `${bridged}\n`);
+    fs.writeFileSync(path.join(dir, ".sail", "activity.jsonl"), activity);
+    const prev = process.cwd();
+    process.chdir(dir);
+    try {
+      const dispatches = await agent.tick(makeCtx({ timestamp: T0 }));
+      assert.equal(dispatches.length, 0); // nothing to sign with "PENDING"
+      const ledger = fs.readFileSync(path.join(dir, ".sail", "memory", "ledger.jsonl"), "utf-8");
+      assert.ok(!ledger.includes('"minted"'));
+    } finally {
+      process.chdir(prev);
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  } finally {
+    globalThis.fetch = origFetch;
   }
 });

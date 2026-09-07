@@ -53,6 +53,7 @@ import {SailCalldata} from "./SailCalldata.sol";
 contract ExactInputSwapPermission is IPermission {
     bytes32 private constant DISCRIMINATOR = keccak256("ExactInputSwapPermission");
     bytes4 private constant EXACT_INPUT_SELECTOR = 0xc04b8d59; // exactInput((bytes,address,uint256,uint256,uint256))
+    bytes4 private constant EXACT_INPUT_SINGLE_SELECTOR = 0x04e45aaf; // exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))
 
     uint256 private constant PATH_START = 228; // selector(4) + 7 head words(224)
     uint256 private constant SINGLE_HOP_LEN = 43; // tokenIn(20) || fee(3) || tokenOut(20)
@@ -90,9 +91,39 @@ contract ExactInputSwapPermission is IPermission {
     }
 
     function evaluate(bytes calldata txData, Context calldata ctx) external view returns (bool) {
-        if (ctx.selector != EXACT_INPUT_SELECTOR) return false;
-        if (!isAllowedRouter[ctx.target]) return false;
         if (ctx.value != 0) return false;
+        if (!isAllowedRouter[ctx.target]) return false;
+        if (ctx.selector == EXACT_INPUT_SINGLE_SELECTOR) {
+            return _evaluateExactInputSingle(txData, ctx);
+        }
+        if (ctx.selector == EXACT_INPUT_SELECTOR) {
+            return _evaluateExactInput(txData, ctx);
+        }
+        return false;
+    }
+
+    /// @notice SwapRouter02 `exactInputSingle`: a static 7-field tuple (tokenIn, tokenOut, fee,
+    ///         recipient, amountIn, amountOutMinimum, sqrtPriceLimitX96) — no offset word, no
+    ///         deadline. Used for single-hop Uniswap V3 on chains that ship only SwapRouter02.
+    function _evaluateExactInputSingle(bytes calldata txData, Context calldata ctx) internal view returns (bool) {
+        if (!SailCalldata.hasParams(txData, 7)) return false;
+        address tokenIn = SailCalldata.asAddress(txData, 0);
+        address tokenOut = SailCalldata.asAddress(txData, 1);
+        address recipient = SailCalldata.asAddress(txData, 3);
+        uint256 amountIn = SailCalldata.asUint256(txData, 4);
+        uint256 amountOutMinimum = SailCalldata.asUint256(txData, 5);
+        if (recipient != ctx.account) return false;
+        if (amountIn == 0) return false;
+        if (amountOutMinimum == 0) return false;
+        if (tokenIn == tokenOut) return false;
+        bool isBuy = isAllowedTokenIn[tokenIn] && isAllowedTokenOut[tokenOut];
+        bool isSell = isAllowedTokenOut[tokenIn] && isAllowedTokenIn[tokenOut];
+        if (!isBuy && !isSell) return false;
+        if (isBuy) return amountIn <= MAX_BUY_AMOUNT;
+        return amountIn <= MAX_SELL_AMOUNT;
+    }
+
+    function _evaluateExactInput(bytes calldata txData, Context calldata ctx) internal view returns (bool) {
         // selector + 7 head words (slots 0..6) must be present to read the path length.
         if (!SailCalldata.hasParams(txData, 7)) return false;
 
@@ -120,13 +151,8 @@ contract ExactInputSwapPermission is IPermission {
             if (!isAllowedVia[via]) return false;
         }
 
-        if (isBuy) {
-            if (amountIn > MAX_BUY_AMOUNT) return false;
-        } else {
-            if (amountIn > MAX_SELL_AMOUNT) return false;
-        }
-
-        return true;
+        if (isBuy) return amountIn <= MAX_BUY_AMOUNT;
+        return amountIn <= MAX_SELL_AMOUNT;
     }
 
     function discriminator() external pure returns (bytes32) {
