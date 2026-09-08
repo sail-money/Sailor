@@ -53,7 +53,7 @@ never edit it in place.
     }
   ],
   "dca": { "amountUsd": 500, "periodSec": 604800 },
-  "rebalanceBandBps": 500,
+  "rebalanceBandBps": 1000,
   "rebalancePeriodSec": 604800,
   "maxSlippageBps": 100,
   "report": { "cadenceSec": 604800, "channel": "telegram" }
@@ -132,7 +132,7 @@ stock tokens need no special case: they settle in USDC, so they buy like any oth
   constructor's `MAX_AMOUNT` (in whole USDC). The runtime also uses it as a conservative per-tick
   buy cap.
 - `dca` — optional. Present means cadence-DCA mode; absent means invest-on-deposit mode.
-- `rebalanceBandBps` — how far a weight may drift (basis points) before the agent trades.
+- `rebalanceBandBps` — how far a weight may drift (basis points) before the agent trims it; 1000 = ±10pp, the default. Buys toward target are not gated by the band.
 - `rebalancePeriodSec` — optional. How often (seconds) the agent trims overweight holdings.
 - `report` — optional. When present, the agent sends a Telegram report every `cadenceSec`. Secrets
   (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) read from `.sail/.env.local`, never written here.

@@ -103,7 +103,7 @@ Elicit in the user's financial words. All decisions the user makes, none inferre
    - **Invest on deposit** (default) — every deposit is invested across the basket on the next run.
    - **Cadence DCA** — buy a fixed dollar amount every period (e.g. $500 every week); the rest stays
      as the funding pool. Record the amount and period.
-3. **Rebalance band** — how far a weight may drift before the agent trades (default ±5pp).
+3. **Rebalance band** — how far a weight may drift before the agent trades (default ±10pp; buys toward target happen on every run regardless, the band only gates trims).
 4. **Rebalance cadence** — how often the agent trims overweight holdings: every run (default),
    daily, weekly, or monthly. Recorded as `rebalancePeriodSec`. Buying toward target stays
    continuous so deposits are invested promptly.

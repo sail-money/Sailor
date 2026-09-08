@@ -31,7 +31,7 @@ Until then it is the template.
 | | | | | |
 
 Weights are global targets that sum to 100%; the chain is wherever the asset's deepest liquidity
-lives. A holding more than the band (default ±3 percentage points) over its target is trimmed
+lives. A holding more than the band (default ±10 percentage points) over its target is trimmed
 weekly; anything under target is bought with idle USDC on every run.
 
 ## Your thesis
