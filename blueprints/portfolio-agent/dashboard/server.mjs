@@ -162,16 +162,23 @@ async function buildState() {
     snapBySymbol.has(h.symbol) ? Number(snapBySymbol.get(h.symbol).value) : -1;
   holdings.sort((a, b) => sortValue(b) - sortValue(a));
 
+  // P&L is measured against what the owner actually put in. Net deposits = cost basis of the
+  // holdings (USDC spent on buys minus USDC received from sells) + idle USDC + USDC in flight —
+  // a quantity the agent's own trading never changes; only deposits and withdrawals move it.
+  // The holdings' current market value ("invested") is NOT that number and read as misleading.
+  let netDeposits = null;
   let pnl = null;
   let pnlPct = null;
   if (snapshot?.costBasis != null && snapshot?.investedValue != null) {
-    const invested = BigInt(snapshot.investedValue);
+    const holdingsValue = BigInt(snapshot.investedValue);
     const cost = BigInt(snapshot.costBasis);
-    const d = invested - cost;
-    pnl = formatUsd(d);
-    if (cost > 0n)
-      pnlPct = `${d < 0n ? "−" : "+"}${((Number(d < 0n ? -d : d) / Number(cost)) * 100).toFixed(2)}%`;
-    if (d >= 0n) pnl = `+${pnl}`;
+    const deposits =
+      cost + BigInt(snapshot.idleUsdc || "0") + BigInt(snapshot.pendingBridgeUsdc || "0");
+    const d = holdingsValue - cost; // equals totalValue − netDeposits
+    netDeposits = formatUsd(deposits);
+    pnl = d >= 0n ? `+${formatUsd(d)}` : formatUsd(d);
+    if (deposits > 0n)
+      pnlPct = `${d < 0n ? "−" : "+"}${((Number(d < 0n ? -d : d) / Number(deposits)) * 100).toFixed(2)}%`;
   }
 
   return {
@@ -180,7 +187,8 @@ async function buildState() {
     chains: account.deployedChains || [],
     sailorUiUrl: ui?.port ? `http://localhost:${ui.port}` : null,
     totalValue: snapshot ? formatUsd(snapshot.totalValue) : null,
-    investedValue: snapshot ? formatUsd(snapshot.investedValue) : null,
+    holdingsValue: snapshot ? formatUsd(snapshot.investedValue) : null,
+    netDeposits,
     pnl,
     pnlPct,
     rebalanceBand:
@@ -270,8 +278,8 @@ const PAGE = `<!doctype html>
 
   <div class="summary">
     <div><span class="label">Portfolio value</span><span class="value" id="total">—</span></div>
-    <div><span class="label">Invested</span><span class="value" id="invested">—</span></div>
-    <div><span class="label">Unrealized P&amp;L</span><span class="value" id="pnl">—</span></div>
+    <div><span class="label">Net deposits</span><span class="value" id="deposits">—</span></div>
+    <div><span class="label">P&amp;L</span><span class="value" id="pnl">—</span></div>
   </div>
 
   <h2>Holdings</h2>
@@ -307,8 +315,8 @@ async function refresh() {
     }
     $("live").textContent = s.balancesAsOf ? "live · " + new Date(s.balancesAsOf).toLocaleTimeString() : "";
     $("total").textContent = s.totalValue || "—";
-    $("invested").textContent = s.investedValue || "—";
-    $("pnl").textContent = s.pnl || "—";
+    $("deposits").textContent = s.netDeposits || "—";
+    $("pnl").textContent = s.pnl ? s.pnl + (s.pnlPct ? " (" + s.pnlPct + ")" : "") : "—";
     $("band").textContent = s.rebalanceBand ? "Rebalance band " + s.rebalanceBand + " around each target; trims weekly, buys toward target on every run." : "";
 
     $("holdings").innerHTML = (s.holdings || []).map((h) => {
