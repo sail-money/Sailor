@@ -17,7 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bespoke `AcrossBridgePermission` (Foundry-tested, 25 cases) bounds the deposit on-chain: SpokePool,
   tokens, destination, per-tx cap, output floor, quote freshness, deadline, no relayer exclusivity, no
   message, no native value. The in-flight guard is now "an unsettled bridge exists", not a timer.
-  `funding-paths.md` no longer describes Across as lock-and-mint.
+  `funding-paths.md` no longer describes Across as lock-and-mint. The bridging skill is renamed
+  `sailor-cctp-bridge` → **`sailor-bridge`** and opens with the decision rule (CCTP first, Across only
+  where CCTP cannot deliver, funded direct otherwise); Across addresses live in its
+  `references/across-routes.json` registry beside `cctp-addresses.json`.
 
 ### Fixed
 

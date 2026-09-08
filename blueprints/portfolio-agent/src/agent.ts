@@ -14,7 +14,8 @@
  *
  * Cross-chain: when an asset must be bought on a chain that holds no settlement
  * currency, the agent bridges USDC there via CCTP (approve + depositForBurn),
- * gated on-chain by the CctpBridgePermission (see the sailor-cctp-bridge skill).
+ * gated on-chain by the CctpBridgePermission (see the sailor-bridge skill); chains CCTP does
+ * not reach are bridged with Across under an AcrossBridgePermission (same skill).
  * The mint recipient is the SMA's own address, which is CREATE2-identical on
  * every chain. Chains without a CCTP domain (Robinhood, BNB) are never bridged.
  *

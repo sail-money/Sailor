@@ -25,7 +25,7 @@ The general five-station flow and the safety invariants live in **`sailor-naviga
 - Weights sum to 1.0 across the basket and are global, not per chain. There is no primary chain.
 - The deposit asset is the settlement currency each chain uses (USDC for most chains, including Base
   where Coinbase tokenized stocks trade; USDG on Robinhood as an optional alternative for stocks;
-  USDT on BNB). USDC is the only asset the bridge moves; USDG and USDT are funded direct.
+  USDT on BNB). USDC moves by CCTP between native-USDC chains (preferred); USDG on Robinhood moves by Across (USDC in, USDG out, and back); USDT on BNB is funded direct. The rule and the permissions live in `sailor-bridge`.
 - The agent never asks the user to pick a currency or a bridge path. It computes the minimum funding
   set and presents one consolidated instruction.
 - The routing policy (prefer one chain, move an asset when its liquidity is too thin for the trade

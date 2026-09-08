@@ -1,5 +1,5 @@
 {
-  "_comment": "Circle CCTP burn-and-mint registry for the Sail chains Circle CCTP covers. Two generations share the same safety model (burn on source, mint on destination via Circle's attestation), but different contract sets and selectors. CCTP v1 (TokenMessenger/MessageTransmitter, depositForBurn 0x6fd3504e / receiveMessage 0x57ecfd28) covers Ethereum, Optimism, Arbitrum, Base, Unichain. CCTP v2 (TokenMessengerV2/MessageTransmitterV2, depositForBurnWithCaller / receiveMessage via a different selector) adds World Chain (domain 14) and HyperEVM (domain 19) and others. The portfolio runtime currently burns via the v1 path; v2 is documented here for when the resolver flags a World Chain / HyperEVM leg — those chains are USDC-fundable, and the same 'funded direct or bridged' logic applies. BNB Smart Chain (56) has NO USDC via CCTP (Circle's BNB support is a T-bill token), and Robinhood (4663), MegaETH (4326) have no CCTP at all — those are funded direct.",
+  "_comment": "Circle CCTP burn-and-mint registry for the Sail chains Circle CCTP covers. Two generations share the same safety model (burn on source, mint on destination via Circle's attestation), but different contract sets and selectors. CCTP v1 (TokenMessenger/MessageTransmitter, depositForBurn 0x6fd3504e / receiveMessage 0x57ecfd28) covers Ethereum, Optimism, Arbitrum, Base, Unichain. CCTP v2 (TokenMessengerV2/MessageTransmitterV2, depositForBurnWithCaller / receiveMessage via a different selector) adds World Chain (domain 14) and HyperEVM (domain 19) and others. The portfolio runtime currently burns via the v1 path; v2 is documented here for when the resolver flags a World Chain / HyperEVM leg \u2014 those chains are USDC-fundable, and the same 'funded direct or bridged' logic applies. BNB Smart Chain (56) has NO USDC via CCTP (Circle's BNB support is a T-bill token), and Robinhood (4663), MegaETH (4326) have no CCTP at all \u2014 those are funded direct.",
   "version": "v1+v2",
   "iris": {
     "base": "https://iris-api.circle.com",
@@ -64,7 +64,7 @@
       "usdc": "0x_VERIFY_AT_BUILD",
       "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
       "messageTransmitterV2": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
-      "_note": "CCTP v2. Native HyperEVM liquidity for assets like HYPE is a CLOB (Hyperliquid order book), not an AMM — see the token-resolution layer. USDC bridge works via CCTP v2 regardless."
+      "_note": "CCTP v2. Native HyperEVM liquidity for assets like HYPE is a CLOB (Hyperliquid order book), not an AMM \u2014 see the token-resolution layer. USDC bridge works via CCTP v2 regardless."
     }
   },
   "selectors": {
@@ -78,9 +78,21 @@
     }
   },
   "unbridged": {
-    "_comment": "Sail chains with NO CCTP USDC path — funded direct, never bridged.",
-    "56": { "name": "BNB Smart Chain", "settlement": "USDT", "reason": "Circle's BNB CCTP support is a T-bill token (USYC), not USDC" },
-    "4663": { "name": "Robinhood", "settlement": "USDG", "reason": "no CCTP; USDG (Paxos) is the native settlement asset" },
-    "4326": { "name": "MegaETH", "settlement": "unverified", "reason": "no CCTP" }
+    "_comment": "Sail chains with NO CCTP USDC path. Robinhood is reached by Across instead (see across-routes.json); BNB and MegaETH are funded direct.",
+    "56": {
+      "name": "BNB Smart Chain",
+      "settlement": "USDT",
+      "reason": "Circle's BNB CCTP support is a T-bill token (USYC), not USDC"
+    },
+    "4663": {
+      "name": "Robinhood",
+      "settlement": "USDG",
+      "reason": "no CCTP; USDG (Paxos, 6 decimals) is the native settlement asset \u2014 bridged by Across, see across-routes.json"
+    },
+    "4326": {
+      "name": "MegaETH",
+      "settlement": "unverified",
+      "reason": "no CCTP"
+    }
   }
 }

@@ -54,7 +54,7 @@ It owns:
 It does not own:
 
 - the mandate that enforces the swaps (`sailor-mandate-planner`),
-- the bridge permission that moves USDC between chains (`sailor-cctp-bridge`),
+- the bridge permissions that move settlement currency between chains (`sailor-bridge`: CCTP preferred, Across where CCTP does not reach),
 - the runtime loop (`sailor-agent-build`).
 
 It is not an investment advisor. The user names the assets and weights; this skill makes them
@@ -213,9 +213,9 @@ Every dimension concrete before confirming:
 | Approve coverage (the router allowance) | `sailor-mandates` bespoke `BoundedErc20Approve` (agent-managed — the agent self-approves, no owner standing approval) |
 | Live quote + slippage floor | `sailor-swap-quote` |
 | Liquidity + chain routing | `sailor-token-resolve` |
-| Move USDC to another named chain | `sailor-cctp-bridge` (bespoke CCTP permission) |
+| Move USDC to another named chain | `sailor-bridge` — CCTP (bespoke `CctpBridgePermission`) between native-USDC chains; Across (bespoke `AcrossBridgePermission`) only where CCTP does not reach |
 | Stock token buy on Base (USDC) | same `ExactInputSwapPermission` against USDC on Aerodrome/Uniswap — same leg as every other Base asset |
-| Stock token buy on Robinhood (USDG) | same `ExactInputSwapPermission` against USDG on Uniswap v3; USDC reaches Robinhood by `sailor-cctp-bridge`'s **Across** route (bespoke `AcrossBridgePermission`, one per direction), or USDG is funded direct |
+| Stock token buy on Robinhood (USDG) | same `ExactInputSwapPermission` against USDG on Uniswap v3; USDC reaches Robinhood by `sailor-bridge`'s **Across** route (bespoke `AcrossBridgePermission`, one per direction), or USDG is funded direct |
 
 ## Handoff
 
@@ -229,7 +229,7 @@ Then:
    and `BoundedErc20Approve` permissions (per chain), plus the bridge permission when the chain set
    spans more than one USDC chain. The blueprint's `contracts/mandates/` carries both; `forge test`
    must pass before deploy.
-3. `sailor-cctp-bridge` authors, deploys, simulates, and registers the bridge permission when the
+3. `sailor-bridge` authors, deploys, simulates, and registers the bridge permissions when the
    chain set spans more than one USDC chain.
 4. Run the agent — the pre-built runtime (`src/agent.ts`) reads `.sail/portfolio.json` and drives the loop.
 5. Surface the pre-built dashboard (`pnpm dashboard`, a local read-only page at a local port) and,

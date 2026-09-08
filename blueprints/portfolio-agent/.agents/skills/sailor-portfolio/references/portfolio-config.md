@@ -128,7 +128,7 @@ stock tokens need no special case: they settle in USDC, so they buy like any oth
 - `bridge.domains` — the CCTP **domain** id for each USDC chain (not the chain id). The presence of
   a domain is the runtime's "this chain can be bridged" signal; Robinhood and BNB have no entry, so
   they are never bridged. Verified against Circle's docs at build time; both messenger and
-  transmitter come from the `sailor-cctp-bridge` skill's `references/cctp-addresses.json` registry.
+  transmitter come from the `sailor-bridge` skill's `references/cctp-addresses.json` registry (Across routes: `references/across-routes.json`).
 - `bridge.maxPerTxUsd` — the per-transaction bridge cap, matched to the `CctpBridgePermission`
   constructor's `MAX_AMOUNT` (in whole USDC). The runtime also uses it as a conservative per-tick
   buy cap.

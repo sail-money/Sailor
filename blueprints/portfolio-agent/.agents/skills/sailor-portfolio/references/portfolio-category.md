@@ -56,7 +56,7 @@ rebalance band.
 | Bounded swap (buy toward weight, or rebalance sell) | `sailor-templates` (swap-no-oracle) by default; `sailor-templates` (swap) only when size vs pool depth warrants the oracle tier (see `sailor-strategy` → trading, price-source decision) |
 | Live quotes / `amountOutMinimum` sizing | `sailor-swap-quote` |
 | Liquidity + chain routing | `sailor-token-resolve` (`chainsWithLiquidity`, `deepestChain`, `crossChain.action`) |
-| Bridge USDC to another named chain | bespoke CCTP permission, authored via the `sailor-cctp-bridge` skill (cross-chain only; see that skill) |
+| Bridge settlement currency to another named chain | bespoke CCTP permission (preferred) or Across permission (where CCTP does not reach), authored via the `sailor-bridge` skill (cross-chain only; see that skill) |
 | Stock token buy on Base (USDC) | `sailor-templates` (swap) against USDC on Aerodrome/Uniswap — same leg as every other Base asset |
 | Stock token buy on Robinhood (USDG) | `sailor-templates` (swap) against USDG on Uniswap; USDG is funded direct, no bridge (optional alternative) |
 | Swap's approve coverage | agent-managed bounded approve (the agent grants its own router allowance via the `BoundedErc20Approve` permission — zero owner signatures); owner-set is the alternative if the user asks for it |

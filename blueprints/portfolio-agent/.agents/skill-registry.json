@@ -19,7 +19,7 @@
   ],
   "custom": [
     "sailor-agent-build",
-    "sailor-cctp-bridge",
+    "sailor-bridge",
     "sailor-portfolio",
     "sailor-strategy",
     "sailor-swap-quote"

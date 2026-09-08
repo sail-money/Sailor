@@ -67,7 +67,7 @@ Robinhood. The agent never defaults to Robinhood; it defaults to Base.
 4. **unsupported** — no safe path today. The resolver marks it; onboarding treats any asset
    whose only home is such a chain as a held leg the user cannot currently hold.
 
-## Why USDG and USDT are funded direct, not bridged
+## Why USDT is funded direct, and why USDG is bridged by Across
 
 The whole bridge standard is "no locked pool to drain" — burn-and-mint via Circle's CCTP. That
 path does not exist for USDG (Robinhood) or USDT-on-BNB. For Robinhood, Across's intent-based
