@@ -72,6 +72,22 @@ export type BasketToken = {
 /** The chain's settlement currency: what value is denominated in and what deposits arrive as. */
 export type SettlementCurrency = { symbol: string; address: Address; decimals: number };
 
+/** One Across V3 route: source settlement → destination settlement, one permission per direction. */
+export type AcrossRoute = {
+  source: number;
+  dest: number;
+  spokePool: Address; // Across SpokePool on the source chain (depositV3 target)
+  destinationSpokePool: Address; // SpokePool on the destination (where the fill is recorded)
+  inputToken: Address; // the source chain's settlement currency
+  outputToken: Address; // the destination chain's settlement currency
+  /** The registered AcrossBridgePermission on the source chain (pinned on the dispatch). */
+  permission?: Address;
+  /** Refuse any quote whose relayer fee exceeds this (the permission enforces the same floor on-chain). */
+  maxFeeBps: number;
+  /** Seconds a deposit may wait for a fill before Across refunds it (≤ the SpokePool's 6h buffer). */
+  fillDeadlineSec: number;
+};
+
 export type PortfolioConfig = {
   chains: number[];
   /** chainId -> the settlement currency (USDC on most chains, USDG on Robinhood, USDT on BNB). */
@@ -90,6 +106,13 @@ export type PortfolioConfig = {
     permission?: Record<string, Address>;
     domains: Record<string, number>; // chain -> CCTP domain id (present ONLY on USDC chains)
     maxPerTxUsd: number;
+    /**
+     * Optional. Across V3 routes for chains CCTP does not reach (Robinhood Chain settles in USDG).
+     * A route moves the source chain's settlement currency into the destination chain's one in a
+     * single `depositV3`, filled by a relayer in seconds; the registered `AcrossBridgePermission`
+     * pins depositor/recipient to the SMA, both tokens, the destination and an output floor.
+     */
+    across?: { routes: AcrossRoute[] };
   };
   basket: BasketToken[];
   /**
@@ -300,6 +323,70 @@ const RECEIVE_MESSAGE_ABI = [
 /** Circle's free, keyless attestation service. `getMessages` returns the signed message + attestation. */
 const IRIS_BASE = "https://iris-api.circle.com";
 
+/** Across's public API: fee quotes (`suggested-fees`) and deposit lifecycle (`deposit/status`). */
+const ACROSS_API = "https://app.across.to/api";
+
+/** Across V3 `depositV3` on the SpokePool (selector 0x7b939232). */
+const DEPOSIT_V3_ABI = [
+  {
+    name: "depositV3",
+    type: "function",
+    stateMutability: "payable",
+    inputs: [
+      { name: "depositor", type: "address" },
+      { name: "recipient", type: "address" },
+      { name: "inputToken", type: "address" },
+      { name: "outputToken", type: "address" },
+      { name: "inputAmount", type: "uint256" },
+      { name: "outputAmount", type: "uint256" },
+      { name: "destinationChainId", type: "uint256" },
+      { name: "exclusiveRelayer", type: "address" },
+      { name: "quoteTimestamp", type: "uint32" },
+      { name: "fillDeadline", type: "uint32" },
+      { name: "exclusivityDeadline", type: "uint32" },
+      { name: "message", type: "bytes" },
+    ],
+    outputs: [],
+  },
+] as const;
+
+/**
+ * `FundsDeposited(bytes32,bytes32,uint256,uint256,uint256 indexed destinationChainId,
+ * uint256 indexed depositId, uint32,uint32,uint32, bytes32 indexed depositor, bytes32, bytes32, bytes)`
+ * — the event every current SpokePool emits on deposit; `depositId` is topic[2].
+ */
+const FUNDS_DEPOSITED_TOPIC = "0x32ed1a409ef04c7b0227189c3a103dc5ac10e775a15b785dcc510201f7c25ad3";
+
+/**
+ * Across route lookups. A route is live only once its `AcrossBridgePermission` is registered and
+ * named in `permission`: until then the kernel would deny every deposit, so the runtime treats the
+ * destination as not bridgeable rather than retrying denials every tick.
+ */
+function acrossRouteFor(cfg: PortfolioConfig, source: number, dest: number): AcrossRoute | null {
+  return (
+    cfg.bridge.across?.routes.find(
+      (r) => r.source === source && r.dest === dest && !!r.permission,
+    ) ?? null
+  );
+}
+function cctpRouteExists(cfg: PortfolioConfig, source: number, dest: number): boolean {
+  return (
+    cfg.bridge.messenger[String(source)] !== undefined &&
+    cfg.bridge.domains[String(source)] !== undefined &&
+    cfg.bridge.domains[String(dest)] !== undefined
+  );
+}
+/** Which mechanism moves settlement currency from `source` to `dest`, or null if none can. */
+function bridgeVia(cfg: PortfolioConfig, source: number, dest: number): "cctp" | "across" | null {
+  if (cctpRouteExists(cfg, source, dest)) return "cctp";
+  if (acrossRouteFor(cfg, source, dest)) return "across";
+  return null;
+}
+/** True when at least one configured mechanism can deliver settlement currency to `dest`. */
+function bridgeableDest(cfg: PortfolioConfig, dest: number): boolean {
+  return cfg.chains.some((c) => c !== dest && bridgeVia(cfg, c, dest) !== null);
+}
+
 /**
  * The agent grants router/messenger allowances via `approve` (gated on-chain by the
  * `BoundedErc20Approve` permission, which is uncapped — MAX_APPROVAL == 0). Approving
@@ -353,18 +440,75 @@ function appendLedger(entry: Record<string, unknown>): void {
   fs.appendFileSync(file, `${JSON.stringify(entry)}\n`);
 }
 
-/** Timestamp of the most recent bridge to `destChain`, to avoid re-bridging while a mint is in flight. */
-function lastBridgeTs(destChain: number): number {
-  const lines = readLines(ledgerPath());
-  for (let i = lines.length - 1; i >= 0; i--) {
+/** A bridge that has left the source chain and not yet arrived (or been refunded) on the destination. */
+type UnsettledBridge = {
+  kind: "bridge" | "bridged";
+  via: "cctp" | "across";
+  source: number;
+  dest: number;
+  amount: bigint;
+  ts: number;
+  txHash?: string;
+  target: string;
+  id?: string;
+};
+
+/**
+ * Every bridge intent or confirmed burn/deposit that has not settled. Settled means a `minted`
+ * (CCTP), `filled` (Across) or `bridgeRefunded` entry references its txHash; legacy entries
+ * without a txHash settle by the latest `minted` timestamp for their destination.
+ */
+function unsettledBridges(): UnsettledBridge[] {
+  const entries: Record<string, unknown>[] = [];
+  for (const line of readLines(ledgerPath())) {
     try {
-      const e = JSON.parse(lines[i]) as { kind?: string; dest?: number; ts?: number };
-      if ((e.kind === "bridged" || e.kind === "bridge") && e.dest === destChain) return e.ts ?? 0;
+      entries.push(JSON.parse(line) as Record<string, unknown>);
     } catch {
-      // skip
+      // skip malformed line
     }
   }
-  return 0;
+  const settledTx = new Set<string>();
+  const resolvedIntent = new Set<string>();
+  const mintedTsByDest = new Map<number, number>();
+  for (const e of entries) {
+    const tx = String(e.txHash ?? "").toLowerCase();
+    if (e.kind === "minted" || e.kind === "filled" || e.kind === "bridgeRefunded") {
+      if (tx) settledTx.add(tx);
+      if (e.kind === "minted" && e.dest !== undefined) {
+        const d = Number(e.dest);
+        mintedTsByDest.set(d, Math.max(mintedTsByDest.get(d) ?? 0, Number(e.ts ?? 0)));
+      }
+    }
+    if ((e.kind === "bridged" || e.kind === "bridgeFailed") && e.id)
+      resolvedIntent.add(String(e.id));
+  }
+  const out: UnsettledBridge[] = [];
+  for (const e of entries) {
+    if (e.kind !== "bridge" && e.kind !== "bridged") continue;
+    if (e.kind === "bridge" && resolvedIntent.has(String(e.id ?? ""))) continue; // confirmed or failed
+    const tx = e.txHash ? String(e.txHash).toLowerCase() : undefined;
+    if (tx && settledTx.has(tx)) continue;
+    const dest = Number(e.dest ?? 0);
+    if (!tx && e.kind === "bridged" && Number(e.ts ?? 0) <= (mintedTsByDest.get(dest) ?? 0))
+      continue; // legacy
+    out.push({
+      kind: e.kind,
+      via: e.via === "across" ? "across" : "cctp",
+      source: Number(e.source ?? 0),
+      dest,
+      amount: BigInt(String(e.amount ?? "0")),
+      ts: Number(e.ts ?? 0),
+      txHash: tx,
+      target: String(e.target ?? e.messenger ?? "").toLowerCase(),
+      id: e.id ? String(e.id) : undefined,
+    });
+  }
+  return out;
+}
+
+/** True while any bridge to `destChain` is unsettled — never double-fund a shortfall in flight. */
+function bridgeInFlight(destChain: number): boolean {
+  return unsettledBridges().some((b) => b.dest === destChain);
 }
 
 /** Timestamp of the most recent cadence-DCA investment, to space the periodic buys. */
@@ -445,6 +589,8 @@ type PendingTrade = {
   dest?: number;
   symbols?: string[];
   messenger?: string;
+  via?: "cctp" | "across";
+  outputAmount?: string;
 };
 
 /** Unique, deterministic id for a pending-trade intent. */
@@ -523,12 +669,14 @@ function reconcileTrades(nowSec: number): void {
         symbol: (Array.isArray(e.symbols) ? (e.symbols as string[]) : []).join(","),
         amount: BigInt(String(e.amount ?? "0")),
         chainId: Number(e.source ?? 0),
-        target: String(e.messenger ?? "").toLowerCase(),
+        target: String(e.target ?? e.messenger ?? "").toLowerCase(),
         ts: Number(e.ts ?? 0),
         source: Number(e.source ?? 0),
         dest: Number(e.dest ?? 0),
         symbols: Array.isArray(e.symbols) ? (e.symbols as string[]) : [],
         messenger: String(e.messenger ?? ""),
+        via: e.via === "across" ? "across" : "cctp",
+        outputAmount: e.outputAmount ? String(e.outputAmount) : undefined,
       });
     } else if (
       e.kind === "bought" ||
@@ -577,11 +725,14 @@ function reconcileTrades(nowSec: number): void {
               ts: nowSec,
               kind: "bridged",
               id: p.id,
+              via: p.via,
               source: p.source,
               dest: p.dest,
               amount: p.amount.toString(),
               symbols: p.symbols,
               messenger: p.messenger,
+              target: p.target,
+              outputAmount: p.outputAmount,
               txHash,
             }
           : {
@@ -626,40 +777,16 @@ function reconcileTrades(nowSec: number): void {
  * must count toward total value, or buys sized during the flight window undershoot target.
  */
 function pendingBridgeUsd(): bigint {
-  const mintedTsByDest = new Map<number, number>();
-  for (const line of readLines(ledgerPath())) {
-    let e: { kind?: string; dest?: number; ts?: number };
-    try {
-      e = JSON.parse(line) as { kind?: string; dest?: number; ts?: number };
-    } catch {
-      continue;
-    }
-    if (e.kind === "minted" && e.dest !== undefined) {
-      const cur = mintedTsByDest.get(e.dest) ?? 0;
-      if ((e.ts ?? 0) > cur) mintedTsByDest.set(e.dest, e.ts ?? 0);
-    }
-  }
-  let pending = 0n;
-  for (const line of readLines(ledgerPath())) {
-    let e: { kind?: string; dest?: number; ts?: number; amount?: string };
-    try {
-      e = JSON.parse(line) as { kind?: string; dest?: number; ts?: number; amount?: string };
-    } catch {
-      continue;
-    }
-    if (e.kind === "bridged" && e.amount && e.dest !== undefined) {
-      const ts = e.ts ?? 0;
-      if (ts > (mintedTsByDest.get(e.dest) ?? 0)) pending += BigInt(e.amount);
-    }
-  }
-  return pending;
+  // Only confirmed departures count: an unconfirmed intent's money is still on the source chain.
+  return unsettledBridges()
+    .filter((b) => b.kind === "bridged")
+    .reduce((a, b) => a + b.amount, 0n);
 }
 
 // ── Pricing and dispatch ─────────────────────────────────────────────────────
 
 const USDC_DECIMALS = 6;
 const USDC_ONE = 10n ** BigInt(USDC_DECIMALS); // 1 USDC in base units (the value-accounting base)
-const BRIDGE_PENDING_SEC = 1800; // don't re-bridge a chain while its mint is in flight
 const DUST_USD = 1n * USDC_ONE; // skip investments below $1 to avoid gas-wasteful dust
 
 /** The settlement currency for a chain (throws on a misconfigured chain — fail closed). */
@@ -960,8 +1087,8 @@ function pickSourceChain(
   let bestBase = 0n;
   for (const chainId of cfg.chains) {
     if (chainId === destChain) continue;
-    // Only USDC chains can be a bridge source (a chain with a CCTP messenger).
-    if (!cfg.bridge.messenger[String(chainId)]) continue;
+    // A source must be able to reach the destination: CCTP between USDC chains, or an Across route.
+    if (bridgeVia(cfg, chainId, destChain) === null) continue;
     const base = availableByChain[chainId] ?? 0n;
     if (base > DUST_USD && base > bestBase) {
       best = chainId;
@@ -971,8 +1098,16 @@ function pickSourceChain(
   return best;
 }
 
-/** The result of a bridge: an approve (allowance short) or the actual depositForBurn dispatch. */
-type BridgeResult = { kind: "approve"; dispatch: Dispatch } | { kind: "burn"; dispatch: Dispatch };
+/** The result of a bridge: an approve (allowance short) or the actual burn/deposit dispatch. */
+type BridgeResult =
+  | { kind: "approve"; dispatch: Dispatch }
+  | {
+      kind: "bridge";
+      dispatch: Dispatch;
+      via: "cctp" | "across";
+      target: Address;
+      outputAmount?: bigint;
+    };
 
 /** Bridge USDC from source to dest via CCTP. Approves first when allowance is short. */
 async function bridgeUsdc(
@@ -1009,9 +1144,230 @@ async function bridgeUsdc(
     args: [amountNative, domain, mintRecipient, usdc],
   });
   return {
-    kind: "burn",
+    kind: "bridge",
+    via: "cctp",
+    target: messenger,
     dispatch: ch.dispatch({ calls: [{ target: messenger, value: 0n, data }] }),
   };
+}
+
+/** Across's fee quote for one deposit, or null when the route cannot take this amount right now. */
+async function quoteAcross(
+  route: AcrossRoute,
+  amountIn: bigint,
+  recipient: Address,
+): Promise<{ outputAmount: bigint; quoteTimestamp: number; feeBps: number } | null> {
+  const url =
+    `${ACROSS_API}/suggested-fees?inputToken=${route.inputToken}&outputToken=${route.outputToken}` +
+    `&originChainId=${route.source}&destinationChainId=${route.dest}&amount=${amountIn}&recipient=${recipient}`;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const j = (await res.json()) as {
+    outputAmount?: string;
+    timestamp?: string;
+    isAmountTooLow?: boolean;
+    totalRelayFee?: { pct?: string };
+  };
+  if (j.isAmountTooLow || !j.outputAmount || !j.timestamp) return null;
+  // `pct` is an 18-decimal fraction of the input (1e18 == 100%); 1e14 of it is one basis point.
+  const feeBps = j.totalRelayFee?.pct ? Number(BigInt(j.totalRelayFee.pct) / 10n ** 14n) : 0;
+  return { outputAmount: BigInt(j.outputAmount), quoteTimestamp: Number(j.timestamp), feeBps };
+}
+
+/** Scale an amount between two token decimal conventions (floor). */
+function scaleDecimals(amount: bigint, from: number, to: number): bigint {
+  if (to > from) return amount * 10n ** BigInt(to - from);
+  if (from > to) return amount / 10n ** BigInt(from - to);
+  return amount;
+}
+
+/**
+ * Bridge settlement currency over an Across route: one `depositV3`, filled by a relayer in seconds.
+ * Approves the SpokePool first when the allowance is short. The quote is taken from Across and
+ * refused above the route's fee ceiling; the registered permission enforces the same floor on-chain,
+ * pins depositor and recipient to the SMA, and keeps the message empty.
+ */
+async function bridgeAcross(
+  ctx: AgentContext,
+  cfg: PortfolioConfig,
+  route: AcrossRoute,
+  amount: bigint, // value-accounting base (6-decimal)
+): Promise<BridgeResult | null> {
+  const ch = ctx.chain(route.source);
+  const src = settlementOf(cfg, route.source);
+  const dst = settlementOf(cfg, route.dest);
+  const amountIn = fromBase(amount, src);
+  const allowance = await ch.read.allowance(route.inputToken, ctx.safe, route.spokePool);
+  if (allowance < amountIn) {
+    const data = encodeFunctionData({
+      abi: ERC20_APPROVE_ABI,
+      functionName: "approve",
+      args: [route.spokePool, MAX_UINT256],
+    });
+    return {
+      kind: "approve",
+      dispatch: ch.dispatch({ calls: [{ target: route.inputToken, value: 0n, data }] }),
+    };
+  }
+  let quote: Awaited<ReturnType<typeof quoteAcross>>;
+  try {
+    quote = await quoteAcross(route, amountIn, ctx.safe);
+  } catch (err) {
+    ctx.log(`across quote failed ${route.source}→${route.dest}: ${(err as Error).message}`);
+    return null;
+  }
+  if (!quote) {
+    ctx.log(`across has no quote for ${route.source}→${route.dest} at this size — skipping`);
+    return null;
+  }
+  if (quote.feeBps > route.maxFeeBps) {
+    ctx.log(`across fee ${quote.feeBps} bps exceeds the ${route.maxFeeBps} bps ceiling — skipping`);
+    return null;
+  }
+  // The same floor the permission enforces: never sign a deposit the kernel would reject.
+  const floor =
+    (scaleDecimals(amountIn, src.decimals, dst.decimals) * BigInt(10_000 - route.maxFeeBps)) /
+    10_000n;
+  if (quote.outputAmount < floor) {
+    ctx.log(`across output ${quote.outputAmount} below the floor ${floor} — skipping`);
+    return null;
+  }
+  const fillDeadline = quote.quoteTimestamp + route.fillDeadlineSec;
+  const data = encodeFunctionData({
+    abi: DEPOSIT_V3_ABI,
+    functionName: "depositV3",
+    args: [
+      ctx.safe, // depositor: refunds land in the SMA
+      ctx.safe, // recipient: the SMA's own address on the destination
+      route.inputToken,
+      route.outputToken,
+      amountIn,
+      quote.outputAmount,
+      BigInt(route.dest),
+      "0x0000000000000000000000000000000000000000", // open to every relayer
+      quote.quoteTimestamp,
+      fillDeadline,
+      0, // no exclusivity window
+      "0x", // no cross-chain message, ever
+    ],
+  });
+  return {
+    kind: "bridge",
+    via: "across",
+    target: route.spokePool,
+    outputAmount: quote.outputAmount,
+    dispatch: ch.dispatch({
+      calls: [{ target: route.spokePool, value: 0n, data }],
+      permission: route.permission,
+    }),
+  };
+}
+
+/**
+ * Settle Across deposits: a confirmed `depositV3` becomes `filled` only once Across reports the fill
+ * AND the fill transaction is verified on the destination chain (successful, sent to the destination
+ * SpokePool). An expired deposit becomes `bridgeRefunded` (Across returns it to the depositor on
+ * the source chain), so the cash is counted there again. No dispatch is ever needed.
+ */
+async function completePendingAcrossFills(ctx: AgentContext, cfg: PortfolioConfig): Promise<void> {
+  for (const b of unsettledBridges()) {
+    if (b.kind !== "bridged" || b.via !== "across" || !b.txHash) continue;
+    const route = acrossRouteFor(cfg, b.source, b.dest);
+    if (!route) continue;
+    let depositId: bigint | null = null;
+    try {
+      const receipt = (await ctx.chain(b.source).publicClient.getTransactionReceipt({
+        hash: b.txHash as `0x${string}`,
+      })) as { logs?: { address?: string; topics?: readonly string[] }[] };
+      for (const log of receipt.logs ?? []) {
+        if (String(log.address ?? "").toLowerCase() !== route.spokePool.toLowerCase()) continue;
+        if (String(log.topics?.[0] ?? "").toLowerCase() !== FUNDS_DEPOSITED_TOPIC) continue;
+        depositId = BigInt(String(log.topics?.[2] ?? "0x0"));
+        break;
+      }
+    } catch (err) {
+      ctx.log(
+        `across deposit receipt ${b.txHash.slice(0, 10)}… unavailable: ${(err as Error).message}`,
+      );
+      continue;
+    }
+    if (depositId === null) {
+      ctx.log(`across deposit ${b.txHash.slice(0, 10)}… has no FundsDeposited log — will retry`);
+      continue;
+    }
+    let status: { status?: string; fillTx?: string; fillTxHash?: string };
+    try {
+      const res = await fetch(
+        `${ACROSS_API}/deposit/status?originChainId=${b.source}&depositId=${depositId}`,
+      );
+      if (!res.ok) {
+        ctx.log(`across status ${res.status} for deposit ${depositId} — will retry`);
+        continue;
+      }
+      status = (await res.json()) as typeof status;
+    } catch (err) {
+      ctx.log(`across status fetch failed for deposit ${depositId}: ${(err as Error).message}`);
+      continue;
+    }
+    const state = String(status.status ?? "").toLowerCase();
+    if (state === "filled") {
+      const fillTx = String(status.fillTx ?? status.fillTxHash ?? "");
+      if (!/^0x[0-9a-fA-F]{64}$/.test(fillTx)) {
+        ctx.log(`across reports deposit ${depositId} filled without a fill tx — will retry`);
+        continue;
+      }
+      try {
+        const fr = (await ctx.chain(b.dest).publicClient.getTransactionReceipt({
+          hash: fillTx as `0x${string}`,
+        })) as { status?: string; to?: string | null };
+        const ok =
+          String(fr.status ?? "") === "success" &&
+          String(fr.to ?? "").toLowerCase() === route.destinationSpokePool.toLowerCase();
+        if (!ok) {
+          ctx.log(
+            `across fill ${fillTx.slice(0, 10)}… did not verify on chain ${b.dest} — will retry`,
+          );
+          continue;
+        }
+      } catch (err) {
+        ctx.log(
+          `across fill receipt ${fillTx.slice(0, 10)}… unavailable: ${(err as Error).message}`,
+        );
+        continue;
+      }
+      appendLedger({
+        ts: ctx.timestamp,
+        kind: "filled",
+        via: "across",
+        source: b.source,
+        dest: b.dest,
+        amount: b.amount.toString(),
+        depositId: depositId.toString(),
+        txHash: b.txHash,
+        fillTxHash: fillTx,
+      });
+      continue;
+    }
+    if (state === "expired" || state === "refunded") {
+      appendLedger({
+        ts: ctx.timestamp,
+        kind: "bridgeRefunded",
+        via: "across",
+        source: b.source,
+        dest: b.dest,
+        amount: b.amount.toString(),
+        depositId: depositId.toString(),
+        txHash: b.txHash,
+      });
+      ctx.log(
+        `across deposit ${depositId} ${state}: ${Number(b.amount) / 1e6} returns to chain ${b.source}`,
+      );
+      continue;
+    }
+    ctx.log(
+      `across deposit ${depositId} to chain ${b.dest} is ${state || "pending"} — waiting for the fill`,
+    );
+  }
 }
 
 /**
@@ -1189,6 +1545,7 @@ export const agent: Agent = {
     //    resolve even when the portfolio looks empty on both chains.
     reconcileTrades(ctx.timestamp);
     dispatches.push(...(await completePendingMints(ctx, cfg)));
+    await completePendingAcrossFills(ctx, cfg);
 
     // 1. Value the portfolio in settlement currency (normalized to the 6-decimal base) across
     //    every named chain, and build the shared per-chain spend budget in one pass. The budget
@@ -1387,17 +1744,18 @@ export const agent: Agent = {
         continue;
       }
 
-      // No chain holds enough settlement currency where this token is routable. Only USDC
-      // chains are bridged (USDG on Robinhood and USDT on BNB are funded direct, never bridged).
+      // No chain holds enough settlement currency where this token is routable. USDC chains are
+      // bridged by CCTP; a chain with an Across route (Robinhood, in USDG) by Across; anything
+      // else (USDT on BNB) is funded direct.
       const dest = e.token.chains[0].chainId;
-      if (cfg.bridge.domains[String(dest)] === undefined) {
+      if (!bridgeableDest(cfg, dest)) {
         ctx.log(
           `chain ${dest} is funded direct (no bridge) — deposit its settlement currency to the SMA`,
         );
         continue;
       }
-      if (ctx.timestamp - lastBridgeTs(dest) < BRIDGE_PENDING_SEC) {
-        ctx.log(`bridge to chain ${dest} in flight — waiting for mint`);
+      if (bridgeInFlight(dest)) {
+        ctx.log(`bridge to chain ${dest} in flight — waiting for it to settle`);
         continue;
       }
       // Reserve the source cash NOW, in basket order, so an earlier token's cross-chain
@@ -1429,20 +1787,27 @@ export const agent: Agent = {
       let amount = need.amount;
       if (amount > cap) amount = cap;
       if (amount <= DUST_USD) continue;
-      const res = await bridgeUsdc(ctx, cfg, source, dest, amount);
+      const via = bridgeVia(cfg, source, dest);
+      const acrossRoute = via === "across" ? acrossRouteFor(cfg, source, dest) : null;
+      let res: BridgeResult | null = null;
+      if (via === "cctp") res = await bridgeUsdc(ctx, cfg, source, dest, amount);
+      else if (acrossRoute) res = await bridgeAcross(ctx, cfg, acrossRoute, amount);
       if (res) {
         dispatches.push(res.dispatch);
-        if (res.kind === "burn") {
-          // Intent only — `bridged` is written by reconcileTrades once the burn confirms.
+        if (res.kind === "bridge") {
+          // Intent only — `bridged` is written by reconcileTrades once the burn/deposit confirms.
           appendLedger({
             ts: ctx.timestamp,
             kind: "bridge",
             id: nextOpId(),
+            via: res.via,
             source,
             dest,
             amount: amount.toString(),
             symbols: need.symbols,
-            messenger: cfg.bridge.messenger[String(source)],
+            messenger: res.via === "cctp" ? cfg.bridge.messenger[String(source)] : undefined,
+            target: res.target.toLowerCase(),
+            outputAmount: res.outputAmount?.toString(),
           });
         }
       }

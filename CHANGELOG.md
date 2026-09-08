@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- **Portfolio blueprint: Across routes.** Chains CCTP does not reach (Robinhood Chain, which settles in
+  USDG) are now bridgeable: `bridge.across.routes[]` names a source → destination pair, and the runtime
+  sends one `depositV3` per run on the source SpokePool with a fee-checked Across quote, depositor and
+  recipient pinned to the SMA and an empty message. Arrivals are confirmed only after the fill
+  transaction is verified on the destination SpokePool; expired deposits are recorded as refunded. A new
+  bespoke `AcrossBridgePermission` (Foundry-tested, 25 cases) bounds the deposit on-chain: SpokePool,
+  tokens, destination, per-tx cap, output floor, quote freshness, deadline, no relayer exclusivity, no
+  message, no native value. The in-flight guard is now "an unsettled bridge exists", not a timer.
+  `funding-paths.md` no longer describes Across as lock-and-mint.
+
 ### Fixed
 
 - **Portfolio blueprint runtime** (`blueprints/portfolio-agent/src/agent.ts`), from a live multi-chain

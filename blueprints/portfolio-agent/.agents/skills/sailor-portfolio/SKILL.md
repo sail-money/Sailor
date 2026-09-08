@@ -215,7 +215,7 @@ Every dimension concrete before confirming:
 | Liquidity + chain routing | `sailor-token-resolve` |
 | Move USDC to another named chain | `sailor-cctp-bridge` (bespoke CCTP permission) |
 | Stock token buy on Base (USDC) | same `ExactInputSwapPermission` against USDC on Aerodrome/Uniswap — same leg as every other Base asset |
-| Stock token buy on Robinhood (USDG) | same `ExactInputSwapPermission` against USDG on Uniswap; no bridge — USDG is funded direct (optional alternative) |
+| Stock token buy on Robinhood (USDG) | same `ExactInputSwapPermission` against USDG on Uniswap v3; USDC reaches Robinhood by `sailor-cctp-bridge`'s **Across** route (bespoke `AcrossBridgePermission`, one per direction), or USDG is funded direct |
 
 ## Handoff
 

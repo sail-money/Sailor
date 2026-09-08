@@ -296,7 +296,7 @@ const PAGE = `<!doctype html>
 const $ = (id) => document.getElementById(id);
 const short = (a) => a ? a.slice(0,6) + "…" + a.slice(-4) : "";
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const chainName = (id) => ({1:"Ethereum",8453:"Base"}[id] || ("chain " + id));
+const chainName = (id) => ({1:"Ethereum",8453:"Base",4663:"Robinhood"}[id] || ("chain " + id));
 
 async function refresh() {
   try {

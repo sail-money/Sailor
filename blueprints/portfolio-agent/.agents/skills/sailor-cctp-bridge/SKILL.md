@@ -97,3 +97,37 @@ burn whose `mintRecipient` the burn half already forced to the account.
 → `sailor-agent-build`: the runtime bridges when a token's liquidity forces a move to another named
 chain, and completes the mint automatically on the next run. Then `sailor-automation` /
 `sailor-operate` to run and monitor.
+
+
+## Across routes — chains CCTP does not reach
+
+Robinhood Chain settles in USDG and has no native USDC, so CCTP cannot deliver there. The portfolio
+runtime moves dollars in and out with **Across V3** instead: `depositV3(depositor, recipient,
+inputToken, outputToken, inputAmount, outputAmount, destinationChainId, exclusiveRelayer,
+quoteTimestamp, fillDeadline, exclusivityDeadline, message)` on the source chain's SpokePool. A
+relayer fills the SMA on the destination from its own capital in about two seconds and is repaid
+later through Across's optimistic settlement (UMA); an unfilled deposit is refunded to the depositor
+after `fillDeadline`.
+
+**Permission**: `contracts/mandates/AcrossBridgePermission.sol`, one instance per route direction,
+constructor `(spokePool, inputToken, outputToken, destinationChainId, maxInputAmount, maxFeeBps,
+maxQuoteAge, maxFillDeadline, inputDecimals, outputDecimals)`. It pins depositor and recipient to
+`ctx.account`, both tokens and the destination, caps `inputAmount`, floors `outputAmount` at
+`input × (1 − maxFeeBps)` scaled across decimals, requires `exclusiveRelayer == 0` and
+`exclusivityDeadline == 0`, a quote no older than `maxQuoteAge` and not in the future, a fill
+deadline within `maxFillDeadline`, an empty `message`, and zero native value. Foundry tests:
+`contracts/test/AcrossBridgePermission.t.sol`; probes: `scripts/build-across-probes.mjs`
+(regenerate right before simulating — the probes carry live timestamps).
+
+**Addresses (2026-09)**: SpokePool Base `0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64`, Robinhood
+`0xD29C85F15DF544bA632C9E25829fd29d767d7978`; USDG on Robinhood
+`0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168` (6 decimals). Both SpokePools are upgradeable proxies
+administered from the Ethereum HubPool, whose owner is a 3-of-N Gnosis Safe — record this in the
+mandate plan; the per-tx cap is what bounds that residual.
+
+**Approve**: the source chain's `BoundedErc20Approve` must list the SpokePool as a spender for the
+settlement currency (and the destination's for the return leg).
+
+**Config**: `bridge.across.routes[]` in `.sail/portfolio.json` — see
+`sailor-portfolio/references/portfolio-config.md`. The runtime confirms an arrival only after the
+fill transaction is verified on the destination SpokePool; it never infers it from a balance.

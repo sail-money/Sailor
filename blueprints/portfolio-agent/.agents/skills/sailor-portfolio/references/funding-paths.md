@@ -25,7 +25,7 @@ changes the basket.
 | Unichain | 130 | USDC | USDC-leg (CCTP v1) |
 | World Chain | 480 | USDC | USDC-leg (CCTP v2) |
 | HyperEVM | 999 | USDC | USDC-leg (CCTP v2) |
-| Robinhood | 4663 | USDG (Paxos Global Dollar) | USDG-leg (fund direct, no safe bridge) — optional alternative for stocks |
+| Robinhood | 4663 | USDG (Paxos Global Dollar, 6 dec) | USDG-leg (Across from/to the USDC chains, or fund direct) — optional alternative for stocks |
 | BNB Smart Chain | 56 | bridged USDC / USDT | USDT-leg (fund direct, no native USDC, no CCTP) |
 | MegaETH | 4326 | unverified | unsupported (no CCTP; revisit when a safe path exists) |
 
@@ -47,10 +47,17 @@ Robinhood. The agent never defaults to Robinhood; it defaults to Base.
 1. **USDC-leg** — native USDC + a safe burn-and-mint bridge (CCTP v1 or v2). One USDC deposit
    covers every chain in this leg; the agent bridges where the basket needs it. Base stock tokens
    live here, so the crypto and stock sides of a basket are usually one USDC deposit.
-2. **USDG-leg** — Robinhood Chain only, and optional. Settles in USDG; there is no trustless
-   USDC→USDG bridge (only lock-and-mint via Across or the Orbit native bridge, both of which carry a
-   locked-pool and a ~7-day withdrawal — the exact risk we designed against). So the user funds USDG
-   directly to the SMA on Robinhood Chain. Robinhood stock tokens trade there against USDG on Uniswap.
+2. **USDG-leg** — Robinhood Chain only, and optional. Settles in USDG (Paxos; 6 decimals on
+   Robinhood Chain). CCTP does not reach it and there is no USDC liquidity there, but the agent CAN
+   move dollars in and out through **Across**: one `depositV3` on the source SpokePool, and a relayer
+   delivers USDG (or USDC on the way back) to the SMA's own address in about two seconds, repaid later
+   through Across's optimistic settlement. That is intent-based, not lock-and-mint — no pooled custody
+   of the user's funds beyond the seconds before a fill, and an unfilled deposit is refunded to the
+   depositor (the SMA) after the fill deadline. Bounded on-chain by `AcrossBridgePermission`
+   (depositor and recipient pinned to the SMA, both tokens, the destination, a per-tx cap, an output
+   floor, fresh quote, bounded deadline, empty message). The canonical Orbit bridge and LayerZero's
+   USDG OFT are the alternatives; both are slower and the OFT needs a native fee, so Across is the
+   default route. Funding USDG directly still works and skips the bridge entirely.
    Use this leg only when a stock is not on Base or the user prefers Robinhood.
 3. **USDT-leg** — BNB Smart Chain only. No *native* Circle USDC (Circle's BNB CCTP support is a
    T-bill token, not USDC), and BSC's stablecoins are bridged (Binance-Peg USDC, and USDT as the
@@ -63,10 +70,11 @@ Robinhood. The agent never defaults to Robinhood; it defaults to Base.
 ## Why USDG and USDT are funded direct, not bridged
 
 The whole bridge standard is "no locked pool to drain" — burn-and-mint via Circle's CCTP. That
-path does not exist for USDG (Robinhood) or USDT-on-BNB. The only alternatives are lock-and-mint
-bridges with a custodial pool and a slow withdrawal. Funding direct is the honest choice: it costs
-the user a second deposit, but it keeps the product's safety story intact. Base stocks need none of
-this — they settle in USDC on the same CCTP v1 leg as everything else.
+path does not exist for USDG (Robinhood) or USDT-on-BNB. For Robinhood, Across's intent-based
+model (a relayer fills from its own capital in seconds, exposure bounded per transaction by the
+permission) is acceptable and is what the runtime uses; for BNB there is still no acceptable path,
+so funding direct remains the honest choice there. Base stocks need none of this — they settle in
+USDC on the same CCTP v1 leg as everything else.
 
 ## How onboarding uses this (the consolidated funding plan)
 

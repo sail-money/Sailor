@@ -61,6 +61,7 @@ code can change without your signature; the permissions cannot.
 | `ExactInputSwapPermission` | Uniswap V3 and Aerodrome swaps, settlement currency in and basket tokens out, or the reverse, with the Safe as recipient, up to a per-buy cap | Any other router, token, recipient or selector; zero min-out; native value |
 | `BoundedErc20Approve` | `approve()` on the settlement currency and basket tokens to the routers and the CCTP messenger, with an optional per-token cap | Any other spender, token or function |
 | `CctpBridgePermission` | `depositForBurn` of USDC, up to a per-transaction cap, to the allowlisted chains, mint recipient pinned to the Safe's own address; `receiveMessage` to complete a mint | Any other token, destination or recipient |
+| `AcrossBridgePermission` | `depositV3` on an Across SpokePool for chains CCTP does not reach (Robinhood Chain, in USDG): depositor and recipient pinned to the Safe, both tokens and the destination fixed, per-transaction cap, output floor, fresh quote, bounded deadline, empty message | Any other token, chain, recipient, relayer exclusivity, or any cross-chain message |
 
 There is no registered path by which the manager key can move value to any address other than the
 Safe itself. The residual risk is a bad fill: the on-chain min-out is a dust guard; the slippage
@@ -74,15 +75,16 @@ transactions; the runner executes them and records the outcome.
 
 1. **Reconcile.** Pending intents from the previous tick (buys, sells, bridge burns) are confirmed
    from the runner's outcome or marked failed. Nothing is recorded as done before the chain says so.
-2. **Complete mints.** For every confirmed burn, fetch Circle's attestation; wait while it is
+2. **Complete bridges.** For every confirmed CCTP burn, fetch Circle's attestation; wait while it is
    pending; record the mint once the destination transmitter reports the nonce as used; otherwise
-   emit `receiveMessage` on the destination chain.
+   emit `receiveMessage`. For every confirmed Across deposit, record the arrival only after the fill
+   transaction is verified on the destination SpokePool; an expired deposit is recorded as refunded.
 3. **Value.** Idle settlement currency on every chain, every holding quoted through its own pool,
    and USDC still in flight across a bridge, all in one base.
 4. **Trim.** Weekly, sell the excess of any holding more than the band over target.
 5. **Buy toward target**, in basket order, sized to `min(shortfall, cash)` against a shared per-chain
-   budget. Shortfalls on a chain with no cash reserve their share and are pooled into one CCTP bridge
-   per source and destination.
+   budget. Shortfalls on a chain with no cash reserve their share and are pooled into one bridge
+   per source and destination: CCTP between USDC chains, Across to chains that settle in USDG.
 6. **Report.** Write the snapshot the dashboard reads and, on cadence, send the Telegram report,
    which splits the period's change into what you deposited or withdrew and what the market did.
 
@@ -182,7 +184,7 @@ the agent can do nothing, and your assets are still in your Safe.
 | `basket.json` | The basket: assets, weights, chains, routes. Written at onboarding; the one file that encodes your thesis. |
 | `src/agent.ts` | The runtime: reconcile, mints, valuation, trims, buys, pooled bridges, snapshot, report |
 | `src/report.ts` | The snapshot and the three-state Telegram report |
-| `contracts/mandates/` | The permission contracts; tests in `contracts/test/` |
+| `contracts/mandates/` | The permission contracts (swap, approve, CCTP bridge, Across bridge); tests in `contracts/test/` |
 | `scripts/run-until-settled.sh` | The scheduled entry point; `settled.mjs` decides when a run is done |
 | `dashboard/server.mjs` | The read-only local dashboard with live on-chain amounts |
 | `.agents/skills/` | The Sailor skills that onboard, plan the mandate and operate the agent |

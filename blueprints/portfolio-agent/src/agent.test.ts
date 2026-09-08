@@ -361,6 +361,11 @@ function makeCtx(
     allowances?: Allowances;
     /** Mock: the destination transmitter reports the burn's nonce as used (the mint landed). */
     mintLanded?: boolean;
+    /** Mock: transaction receipts by hash, for the Across deposit/fill verification. */
+    receipts?: Record<
+      string,
+      { status: string; to?: string; logs?: { address: string; topics: string[] }[] }
+    >;
   } = {},
 ) {
   const balances = opts.balances ?? {};
@@ -384,6 +389,11 @@ function makeCtx(
         // usedNonces(bytes32) on the CCTP MessageTransmitter: 1 once the mint landed.
         readContract: async ({ functionName }: { functionName: string }) =>
           functionName === "usedNonces" ? (opts.mintLanded ? 1n : 0n) : 0n,
+        getTransactionReceipt: async ({ hash }: { hash: string }) => {
+          const r = opts.receipts?.[hash.toLowerCase()];
+          if (!r) throw new Error(`no receipt for ${hash}`);
+          return r;
+        },
       },
       read: {
         balance: async (token: string) => balances[`${chainId}:${token.toLowerCase()}`] ?? 0n,
@@ -393,9 +403,13 @@ function makeCtx(
           allowances[`${chainId}:${token.toLowerCase()}:${spender.toLowerCase()}`] ?? MAX_UINT,
         decimals: async () => 18,
       },
-      dispatch: (intent: { calls: { target: string; value: bigint; data: string }[] }) => ({
+      dispatch: (intent: {
+        calls: { target: string; value: bigint; data: string }[];
+        permission?: string;
+      }) => ({
         txHash: "0x" as const,
         calls: intent.calls,
+        permission: intent.permission,
         success: true,
         gasUsed: 0n,
       }),
@@ -1212,5 +1226,337 @@ test("a PENDING attestation from Iris emits nothing and keeps the bridge pending
     }
   } finally {
     globalThis.fetch = origFetch;
+  }
+});
+
+// ── Across route (a chain CCTP does not reach: Robinhood settles in USDG) ─────────
+
+const SPOKE_BASE: `0x${string}` = "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64";
+const SPOKE_RH: `0x${string}` = "0xD29C85F15DF544bA632C9E25829fd29d767d7978";
+const USDG_ROBINHOOD: `0x${string}` = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168";
+const CRCL_RH: `0x${string}` = "0xdF0992E440dD0be65BD8439b609d6D4366bf1CB5";
+const ACROSS_PERM: `0x${string}` = "0xAcc0000000000000000000000000000000000055";
+const FUNDS_DEPOSITED = "0x32ed1a409ef04c7b0227189c3a103dc5ac10e775a15b785dcc510201f7c25ad3";
+
+const DEPOSIT_V3 = [
+  {
+    name: "depositV3",
+    type: "function",
+    stateMutability: "payable",
+    inputs: [
+      { name: "depositor", type: "address" },
+      { name: "recipient", type: "address" },
+      { name: "inputToken", type: "address" },
+      { name: "outputToken", type: "address" },
+      { name: "inputAmount", type: "uint256" },
+      { name: "outputAmount", type: "uint256" },
+      { name: "destinationChainId", type: "uint256" },
+      { name: "exclusiveRelayer", type: "address" },
+      { name: "quoteTimestamp", type: "uint32" },
+      { name: "fillDeadline", type: "uint32" },
+      { name: "exclusivityDeadline", type: "uint32" },
+      { name: "message", type: "bytes" },
+    ],
+    outputs: [],
+  },
+] as const;
+
+/** USDC on Base, CRCL only on Robinhood (USDG), reachable by one Across route. */
+function acrossConfig() {
+  return {
+    chains: [8453, 4663],
+    settlement: {
+      8453: { symbol: "USDC", address: USDC_BASE, decimals: 6 },
+      4663: { symbol: "USDG", address: USDG_ROBINHOOD, decimals: 6 },
+    },
+    router: {
+      8453: ROUTER_BASE,
+      4663: "0xcaf681a66d020601342297493863e78c959e5cb2" as `0x${string}`,
+    },
+    quoter: {
+      8453: QUOTER_BASE,
+      4663: "0x33e885ed0ec9bf04ecfb19341582aadcb4c8a9e7" as `0x${string}`,
+    },
+    bridge: {
+      messenger: { 8453: MSG_BASE },
+      transmitter: { 8453: XMIT_BASE },
+      domains: { 8453: 6 },
+      maxPerTxUsd: 1000,
+      across: {
+        routes: [
+          {
+            source: 8453,
+            dest: 4663,
+            spokePool: SPOKE_BASE,
+            destinationSpokePool: SPOKE_RH,
+            inputToken: USDC_BASE,
+            outputToken: USDG_ROBINHOOD,
+            permission: ACROSS_PERM,
+            maxFeeBps: 30,
+            fillDeadlineSec: 7200,
+          },
+        ],
+      },
+    },
+    basket: [
+      {
+        symbol: "CRCL",
+        weight: 1.0,
+        chains: [{ chainId: 4663, address: CRCL_RH, decimals: 18, feeTier: 3000 }],
+      },
+    ],
+    rebalanceBandBps: 1000,
+    maxSlippageBps: 100,
+  };
+}
+
+function withAcrossApi(
+  handlers: Record<string, () => unknown>,
+  fn: () => Promise<void>,
+): Promise<void> {
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: string | URL) => {
+    const url = String(input);
+    const key = Object.keys(handlers).find((k) => url.includes(k));
+    if (!key) return { ok: false, status: 404, json: async () => ({}) };
+    return { ok: true, status: 200, json: async () => handlers[key]() };
+  }) as unknown as typeof fetch;
+  return fn().finally(() => {
+    globalThis.fetch = origFetch;
+  });
+}
+
+test("bridges via Across when the destination has no CCTP domain, pinning the permission", async () => {
+  await withAcrossApi(
+    {
+      "suggested-fees": () => ({
+        outputAmount: "199708809",
+        timestamp: String(T0),
+        isAmountTooLow: false,
+        totalRelayFee: { pct: "1456435000000000" }, // 14.56 bps
+      }),
+    },
+    async () => {
+      const dispatches = await run(
+        acrossConfig(),
+        makeCtx({
+          timestamp: T0,
+          balances: { [`8453:${USDC_BASE}`]: 200_000_000n },
+          allowances: { [`8453:${USDC_BASE}:${SPOKE_BASE}`]: 1_000_000_000_000n },
+        }),
+        acted(),
+      );
+      assert.equal(dispatches.length, 1);
+      const d0 = dispatches[0] as unknown as {
+        permission?: string;
+        calls: { target: string; data: string }[];
+      };
+      assert.equal(d0.permission, ACROSS_PERM);
+      const call = d0.calls[0];
+      assert.equal(call.target.toLowerCase(), SPOKE_BASE.toLowerCase());
+      const dec = decodeFunctionData({ abi: DEPOSIT_V3, data: call.data as `0x${string}` });
+      assert.equal(dec.functionName, "depositV3");
+      const [
+        depositor,
+        recipient,
+        inputToken,
+        outputToken,
+        inputAmount,
+        outputAmount,
+        dest,
+        relayer,
+        quoteTs,
+        fillDeadline,
+        exclusivity,
+        message,
+      ] = dec.args;
+      assert.equal(depositor, SAFE);
+      assert.equal(recipient, SAFE);
+      assert.equal(inputToken.toLowerCase(), USDC_BASE.toLowerCase());
+      assert.equal(outputToken.toLowerCase(), USDG_ROBINHOOD.toLowerCase());
+      assert.equal(inputAmount, 200_000_000n);
+      assert.equal(outputAmount, 199_708_809n);
+      assert.equal(dest, 4663n);
+      assert.equal(relayer, "0x0000000000000000000000000000000000000000");
+      assert.equal(quoteTs, T0);
+      assert.equal(fillDeadline, T0 + 7200);
+      assert.equal(exclusivity, 0);
+      assert.equal(message, "0x");
+    },
+  );
+});
+
+test("refuses an Across quote above the route's fee ceiling", async () => {
+  await withAcrossApi(
+    {
+      "suggested-fees": () => ({
+        outputAmount: "199000000",
+        timestamp: String(T0),
+        isAmountTooLow: false,
+        totalRelayFee: { pct: "5000000000000000" }, // 50 bps > 30 bps ceiling
+      }),
+    },
+    async () => {
+      const dispatches = await run(
+        acrossConfig(),
+        makeCtx({
+          timestamp: T0,
+          balances: { [`8453:${USDC_BASE}`]: 200_000_000n },
+          allowances: { [`8453:${USDC_BASE}:${SPOKE_BASE}`]: 1_000_000_000_000n },
+        }),
+        acted(),
+      );
+      assert.equal(dispatches.length, 0);
+    },
+  );
+});
+
+test("an Across deposit is recorded as filled only after the fill receipt verifies on the destination", async () => {
+  const DEPOSIT_TX = `0x${"ab".repeat(32)}`;
+  const FILL_TX = `0x${"cd".repeat(32)}`;
+  const depositIdTopic = `0x${4242n.toString(16).padStart(64, "0")}`;
+  const bridged = JSON.stringify({
+    ts: T0 - 60,
+    kind: "bridged",
+    via: "across",
+    source: 8453,
+    dest: 4663,
+    amount: "200000000",
+    target: SPOKE_BASE.toLowerCase(),
+    txHash: DEPOSIT_TX,
+  });
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "portfolio-across-fill-test-"));
+  fs.mkdirSync(path.join(dir, ".sail", "memory"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".sail", "portfolio.json"), JSON.stringify(acrossConfig()));
+  fs.writeFileSync(path.join(dir, ".sail", "memory", "ledger.jsonl"), `${bridged}\n`);
+  fs.writeFileSync(path.join(dir, ".sail", "activity.jsonl"), "");
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    const receipts = {
+      [DEPOSIT_TX]: {
+        status: "success",
+        to: SPOKE_BASE,
+        logs: [{ address: SPOKE_BASE, topics: [FUNDS_DEPOSITED, "0x", depositIdTopic] }],
+      },
+      [FILL_TX]: { status: "success", to: SPOKE_RH, logs: [] },
+    };
+    // Still pending: the money is in flight, counted in total value, and no second bridge is sent.
+    await withAcrossApi({ "deposit/status": () => ({ status: "pending" }) }, async () => {
+      await agent.tick(makeCtx({ timestamp: T0, receipts }));
+    });
+    let ledger = fs.readFileSync(path.join(dir, ".sail", "memory", "ledger.jsonl"), "utf-8");
+    assert.ok(!ledger.includes('"filled"'));
+    assert.ok(!ledger.includes('"kind":"bridge"'), "no second bridge while one is in flight");
+    // Filled, and the fill tx verifies on Robinhood → recorded.
+    await withAcrossApi(
+      { "deposit/status": () => ({ status: "filled", fillTx: FILL_TX }) },
+      async () => {
+        await agent.tick(makeCtx({ timestamp: T0 + 60, receipts }));
+      },
+    );
+    ledger = fs.readFileSync(path.join(dir, ".sail", "memory", "ledger.jsonl"), "utf-8");
+    assert.ok(ledger.includes('"filled"'));
+    assert.ok(ledger.includes('"depositId":"4242"'));
+  } finally {
+    process.chdir(prev);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("an Across fill whose receipt does not verify is NOT recorded", async () => {
+  const DEPOSIT_TX = `0x${"ab".repeat(32)}`;
+  const FILL_TX = `0x${"ef".repeat(32)}`;
+  const depositIdTopic = `0x${7n.toString(16).padStart(64, "0")}`;
+  const bridged = JSON.stringify({
+    ts: T0 - 60,
+    kind: "bridged",
+    via: "across",
+    source: 8453,
+    dest: 4663,
+    amount: "200000000",
+    target: SPOKE_BASE.toLowerCase(),
+    txHash: DEPOSIT_TX,
+  });
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "portfolio-across-badfill-test-"));
+  fs.mkdirSync(path.join(dir, ".sail", "memory"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".sail", "portfolio.json"), JSON.stringify(acrossConfig()));
+  fs.writeFileSync(path.join(dir, ".sail", "memory", "ledger.jsonl"), `${bridged}\n`);
+  fs.writeFileSync(path.join(dir, ".sail", "activity.jsonl"), "");
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    const receipts = {
+      [DEPOSIT_TX]: {
+        status: "success",
+        to: SPOKE_BASE,
+        logs: [{ address: SPOKE_BASE, topics: [FUNDS_DEPOSITED, "0x", depositIdTopic] }],
+      },
+      [FILL_TX]: { status: "success", to: "0x2222222222222222222222222222222222222222", logs: [] }, // sent to the wrong contract
+    };
+    await withAcrossApi(
+      { "deposit/status": () => ({ status: "filled", fillTx: FILL_TX }) },
+      async () => {
+        await agent.tick(makeCtx({ timestamp: T0, receipts }));
+      },
+    );
+    const ledger = fs.readFileSync(path.join(dir, ".sail", "memory", "ledger.jsonl"), "utf-8");
+    assert.ok(!ledger.includes('"filled"'));
+  } finally {
+    process.chdir(prev);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("an expired Across deposit is recorded as refunded and stops counting as in flight", async () => {
+  const DEPOSIT_TX = `0x${"ab".repeat(32)}`;
+  const depositIdTopic = `0x${9n.toString(16).padStart(64, "0")}`;
+  const bridged = JSON.stringify({
+    ts: T0 - 60,
+    kind: "bridged",
+    via: "across",
+    source: 8453,
+    dest: 4663,
+    amount: "200000000",
+    target: SPOKE_BASE.toLowerCase(),
+    txHash: DEPOSIT_TX,
+  });
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "portfolio-across-refund-test-"));
+  fs.mkdirSync(path.join(dir, ".sail", "memory"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".sail", "portfolio.json"), JSON.stringify(acrossConfig()));
+  fs.writeFileSync(path.join(dir, ".sail", "memory", "ledger.jsonl"), `${bridged}\n`);
+  fs.writeFileSync(path.join(dir, ".sail", "activity.jsonl"), "");
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    const receipts = {
+      [DEPOSIT_TX]: {
+        status: "success",
+        to: SPOKE_BASE,
+        logs: [{ address: SPOKE_BASE, topics: [FUNDS_DEPOSITED, "0x", depositIdTopic] }],
+      },
+    };
+    // A little idle USDC keeps the portfolio non-empty (so the snapshot is written); the quote is
+    // refused (amount too low) so no new deposit is sent in this tick.
+    await withAcrossApi(
+      {
+        "deposit/status": () => ({ status: "expired" }),
+        "suggested-fees": () => ({ isAmountTooLow: true }),
+      },
+      async () => {
+        await agent.tick(
+          makeCtx({ timestamp: T0, receipts, balances: { [`8453:${USDC_BASE}`]: 5_000_000n } }),
+        );
+      },
+    );
+    const ledger = fs.readFileSync(path.join(dir, ".sail", "memory", "ledger.jsonl"), "utf-8");
+    assert.ok(ledger.includes('"bridgeRefunded"'));
+    const snap = JSON.parse(
+      fs.readFileSync(path.join(dir, ".sail", "state", "snapshot.json"), "utf-8"),
+    );
+    assert.equal(snap.pendingBridgeUsdc, "0");
+  } finally {
+    process.chdir(prev);
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });

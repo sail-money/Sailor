@@ -104,8 +104,9 @@ capped at `min(shortfall, available cash)` against a **shared per-chain spend bu
 front — so partial idle cash still moves every laggard toward target, and the sum of queued buys in
 one tick never exceeds on-chain holdings. **USDC chains are bridged
 when none does** — every shortfall bound for the same chain is pooled into one bridge per tick, sized to
-`min(pooled need, source balance, per-tx cap)` (partial, never all-or-nothing); USDG (Robinhood) and USDT (BNB) chains are funded direct and never bridged** — when
-one is short, the runtime logs "funded direct" and waits for a deposit rather than bridging. Base
+`min(pooled need, source balance, per-tx cap)` (partial, never all-or-nothing); USDG on Robinhood is bridged by Across when `bridge.across` names the route, otherwise funded
+direct; USDT (BNB) is always funded direct** — when a funded-direct chain is short, the runtime logs
+"funded direct" and waits for a deposit rather than bridging. Base
 stock tokens need no special case: they settle in USDC, so they buy like any other Base asset.
 
 ## Field notes
@@ -131,6 +132,15 @@ stock tokens need no special case: they settle in USDC, so they buy like any oth
 - `bridge.maxPerTxUsd` — the per-transaction bridge cap, matched to the `CctpBridgePermission`
   constructor's `MAX_AMOUNT` (in whole USDC). The runtime also uses it as a conservative per-tick
   buy cap.
+- `bridge.across` — optional. Across V3 routes for chains CCTP does not reach (Robinhood Chain, in
+  USDG). `routes[]` entries: `{ source, dest, spokePool, destinationSpokePool, inputToken,
+  outputToken, permission, maxFeeBps, fillDeadlineSec }` — one per direction. The runtime picks CCTP
+  when both chains are USDC chains and Across otherwise; it quotes Across's API, refuses fees above
+  `maxFeeBps`, sends one `depositV3` per (source → dest) per run with depositor and recipient pinned
+  to the SMA and an empty message, and records the arrival only after the fill transaction is
+  verified on the destination SpokePool (an expired deposit is recorded as refunded). `permission` is
+  the registered `AcrossBridgePermission` on the source chain, pinned on the dispatch — and the
+  switch: a route without it is treated as not bridgeable (funded direct) until registration.
 - `dca` — optional. Present means cadence-DCA mode; absent means invest-on-deposit mode.
 - `rebalanceBandBps` — how far a weight may drift (basis points) before the agent trims it; 1000 = ±10pp, the default. Buys toward target are not gated by the band.
 - `rebalancePeriodSec` — optional. How often (seconds) the agent trims overweight holdings.
