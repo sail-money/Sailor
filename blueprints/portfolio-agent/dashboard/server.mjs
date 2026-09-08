@@ -50,6 +50,19 @@ function readRpcUrls() {
     const m = k.match(/^RPC_URL_(\d+)$/);
     if (m && v) urls[m[1]] = v;
   }
+  // The scaffold's named variables (see .env.example), for chains without RPC_URL_<id>.
+  const named = {
+    ETH_MAINNET_RPC_URL: "1",
+    BASE_RPC_URL: "8453",
+    ARBITRUM_RPC_URL: "42161",
+    OPTIMISM_RPC_URL: "10",
+    UNICHAIN_RPC_URL: "130",
+    WORLD_RPC_URL: "480",
+    HYPEREVM_RPC_URL: "999",
+    ROBINHOOD_RPC_URL: "4663",
+    BSC_RPC_URL: "56",
+  };
+  for (const [k, id] of Object.entries(named)) if (env[k] && !urls[id]) urls[id] = env[k];
   if (env.RPC_URL && env.CHAIN_ID && !urls[env.CHAIN_ID]) urls[env.CHAIN_ID] = env.RPC_URL;
   return urls;
 }
