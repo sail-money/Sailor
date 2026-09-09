@@ -9,43 +9,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Portfolio blueprint: Across routes.** Chains CCTP does not reach (Robinhood Chain, which settles in
-  USDG) are now bridgeable: `bridge.across.routes[]` names a source → destination pair, and the runtime
-  sends one `depositV3` per run on the source SpokePool with a fee-checked Across quote, depositor and
-  recipient pinned to the SMA and an empty message. Arrivals are confirmed only after the fill
-  transaction is verified on the destination SpokePool; expired deposits are recorded as refunded. A new
-  bespoke `AcrossBridgePermission` (Foundry-tested, 25 cases) bounds the deposit on-chain: SpokePool,
-  tokens, destination, per-tx cap, output floor, quote freshness, deadline, no relayer exclusivity, no
-  message, no native value. The in-flight guard is now "an unsettled bridge exists", not a timer.
-  `funding-paths.md` no longer describes Across as lock-and-mint. The bridging skill is renamed
-  `sailor-cctp-bridge` → **`sailor-bridge`** and opens with the decision rule (CCTP first, Across only
-  where CCTP cannot deliver, funded direct otherwise); Across addresses live in its
-  `references/across-routes.json` registry beside `cctp-addresses.json`.
+- **Harbor**, a library of ready-to-run money agents. `sailor harbor list` searches the registry,
+  `sailor harbor create <slug>` downloads a blueprint, verifies and imports it, installs
+  dependencies, typechecks, and begins guided onboarding, `sailor harbor update` re-imports the
+  latest release in place, and `sailor harbor publish` packages a project into a blueprint and
+  opens a review PR into the registry (`--release` releases directly; `--local` writes a
+  `.tar.gz`). Blueprints are published as GitHub releases in the `sail-money/harbor` registry.
+- **Blueprint artifact contract** (`@sail/sdk/blueprint`, `sailor blueprint verify|inspect|import|start`):
+  a manifest with per-file SHA-256 and a canonical-JSON self-digest; import refuses undeclared
+  files, hash mismatches, unsafe paths, auto-running `package.json` scripts, and package-manager or
+  agent configuration files (`.npmrc`, `.claude/`, `.vscode/`, …) in the payload, and shows a full
+  write plan before touching disk. Verification is integrity, not authenticity.
+- The first **ready-to-run blueprint** (`blueprints/portfolio-agent/`): a portfolio agent that deposits
+  USDC into a weighted token basket across named chains, invests every deposit, rebalances toward
+  target weights, and bridges USDC across chains via CCTP, with Across routes for chains CCTP does
+  not reach (Robinhood Chain, in USDG). Ships with bespoke Foundry-tested permission contracts, a
+  local read-only dashboard, and a three-state Telegram report.
+- **Skills reorganized to a 17-skill registry** (14 core + 3 custom), recorded in
+  `scaffold/.agents/skill-registry.json`. The seven per-template spokes (`sailor-template-swap`,
+  `-swap-no-oracle`, `-transfer`, `-withdraw`, `-deposit`, `-borrow`, `-approve-batch`) are no
+  longer skills; their procedures moved into `sailor-templates/references/`. Core skills are
+  protected and update via `sailor update`; custom skills update through the Harbor registry.
+- **`sailor-risk` skill** — technical risk assessment (pool depth, manipulation, approval hygiene,
+  oracle trust, venue, MEV) surfaced before the user approves a strategy or mandate.
+- **Token resolver** (`scaffold/scripts/resolve-token.mjs`): offline liquidity map of ~700 assets
+  across eight chains, identity disambiguation for name collisions, size-aware liquidity screening,
+  two-hop routing through curated via-assets, and a staleness warning with on-chain re-verification.
+- `sailor mandate forget --address <addrOrName>` drops a deploy record that was never registered.
+
+### Changed
+
+- Dispatch gas is estimated with `eth_estimateGas` plus a 30% margin instead of a fixed 2M pin
+  (the pin remains the fallback when estimation fails), so agent wallets no longer need to hold
+  roughly 13× the real cost of a dispatch.
+
+### Removed
+
+- The Sail Intelligence API integration (`SailIntelligence`, `SAIL_INTELLIGENCE_*`, the generated
+  types and the `prebuild` generator) is gone from the SDK and from `sailor capabilities`.
+  **Breaking** for `@sail.money/sdk` consumers that imported it.
 
 ### Fixed
 
-- **Portfolio blueprint runtime** (`blueprints/portfolio-agent/src/agent.ts`), from a live multi-chain
-  rebalance: bridges are pooled per (source → destination) and sized to what the source holds, with
-  the cash reserved in basket order (a small leg no longer claims the in-flight guard and strands the
-  rest; no more all-or-nothing bridges); a chain holding only dust is never picked for a buy, so the
-  bridge path runs instead of silently dropping the leg; a CCTP mint is recorded only when the
-  destination `MessageTransmitter` reports the burn's nonce as used (a destination balance is not
-  evidence — dust or an unrelated deposit used to strand bridged USDC); Iris's literal `PENDING`
-  attestation is treated as "not ready" instead of being sent as calldata; a burn is written to the
-  ledger as an intent and confirmed to `bridged` from the runner's outcome (an approve-only tick or a
-  reverted burn can no longer become phantom in-flight money); a trade intent can only be confirmed by
-  an activity record newer than itself; Base single-hop swaps go through SwapRouter02
-  `exactInputSingle` (Base has no multi-hop `exactInput`), with the swap permission and its Foundry
-  tests covering both selectors; router/messenger allowances are granted once as `MAX_UINT256`
-  instead of per trade (an exact-amount allowance drifts just-short and the swap never fires); the
-  snapshot measures weights on the same base the tick decides on, so the report never shows a trim
-  the agent will not make.
+- `sailor service install` emitted `run --chain <id>`, which `run` does not accept, so every
+  generated launchd, systemd, and Windows unit failed at start; units now emit `--chains`. (#225)
+- `sailor keys show` (and any command that loads the keyring directly) ignored `SAIL_PASSPHRASE`
+  in `.sail/.env.local`; the shared loader now injects it. (#226)
+- `sailor mandate simulate` reported a false selector miss on short proxy contracts because it
+  scanned the proxy's bytecode; a missing selector on short bytecode is now reported as "likely a
+  proxy". (#227)
+- **Portfolio blueprint runtime** (`blueprints/portfolio-agent/src/agent.ts`), from a live
+  multi-chain rebalance: in-flight CCTP USDC is counted in `totalValue`; a `bought`/`sold` entry is
+  written only after the runner confirms the swap, a reverted swap becomes `tradeFailed` and is
+  retried with a widened slippage floor; buys are partial and sized against a shared per-chain
+  budget so one tick never over-dispatches; bridges are pooled per (source → destination) and sized
+  to what the source holds; a CCTP mint is recorded only when the destination `MessageTransmitter`
+  reports the burn's nonce as used; Iris's `PENDING` attestation is treated as not ready; Base
+  single-hop swaps use SwapRouter02 `exactInputSingle`; allowances are granted once as
+  `MAX_UINT256`; an unpriceable holding (quoter failure) is now skipped for the tick instead of
+  being valued at zero and re-bought.
+- **Portfolio blueprint swap permission** (`ExactInputSwapPermission`): `exactInput` calldata is now
+  required to use canonical ABI offsets and exact length, closing a bypass where a decoy tuple at
+  the checked positions could pass while the router executed a second tuple with a different
+  recipient, token, and amount. Redeploy and re-register any live instance.
 - **Portfolio blueprint automation**: `scripts/run-until-settled.sh` + `scripts/settled.mjs`
-  (`npm run settle`) keep ticking until nothing is in flight — a rebalance that needs sell → bridge →
-  mint → buy now finishes in one scheduled run instead of one step per day. The dashboard reads live
-  token amounts, records its pid, and fails loudly on a taken port (`dashboard:start|stop|status`).
-- **Portfolio skill**: a project shipping `basket.json` (a themed blueprint) has its basket read from
-  the file instead of elicited.
+  (`npm run settle`) keep ticking until nothing is in flight, understand Across fills and refunds,
+  and refuse to overlap a running settle. The dashboard reads live token amounts, records its pid,
+  and fails loudly on a taken port (`dashboard:start|stop|status`).
+- **Portfolio Telegram report** is a three-state account (deposit, withdrawal, normal) driven by a
+  flow decomposition via the `costBasis + idleUsdc` invariant, so a deposit never reads as a gain.
+- `sailor share` and `sailor harbor publish` no longer pack the `.shipyard/` sandbox directory
+  (keystore, identity addresses, chain-state dumps).
+- `sailor harbor update` records the release tag it imported and reports "already on the latest
+  release" instead of re-importing every run.
+- `sailor harbor create` runs the TypeScript compiler directly for the pre-onboarding typecheck
+  instead of executing the blueprint's own `typecheck` script.
+- `sailor harbor publish --release --json` and `sailor harbor update --json` emit only JSON.
+- Signing links use the port the dashboard actually bound, read from `runtime/ui.json`.
+
+## [2.2.1] - 2026-08-18
 
 ### Added
 
@@ -70,18 +112,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   when no `RPC_URL` or per-chain RPC is configured, so a first run works without RPC setup.
   Explicitly configured endpoints still win, and the SSRF guard (`assertSafeRpcUrl`) applies to the
   default and configured URLs alike.
-- **Harbor**, a library of ready-to-run money agents. `sailor harbor list` searches the registry,
-  `sailor harbor create <slug>` downloads a blueprint, verifies and imports it, installs
-  dependencies, typechecks, and begins guided onboarding, and `sailor harbor publish` packages a
-  project into a blueprint and releases it to the registry (opens a review PR by default;
-  `--release` releases directly; `--local` writes a `.tar.gz`). Blueprints are published as GitHub
-  releases in the `sail-money/harbor` registry.
-- The first **ready-to-run blueprint** (`blueprints/portfolio-agent/`): a portfolio agent that deposits USDC
-  into a weighted token basket across named chains, invests every deposit, rebalances toward target
-  weights, and bridges USDC across chains via CCTP. Ships with a local read-only dashboard and a
-  Telegram report.
-- **`sailor-risk` skill** — technical risk assessment (pool depth, manipulation, approval hygiene,
-  oracle trust, venue, MEV) surfaced before the user approves a strategy or mandate.
 
 ### Changed
 
@@ -97,36 +127,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   non-existent `run --chain`), `.env.example`, the `agent-tick.yml` workflow, the `docker-vm.md`
   reference, and the legacy `src/config.ts` helper. `CHAIN_ID` survives only as a default for
   helper scripts, not the runner.
-- **Skills reorganized to a 17-skill registry** (14 core + 3 custom), recorded in
-  `scaffold/.agents/skill-registry.json`. The seven per-template spokes (`sailor-template-swap`,
-  `-swap-no-oracle`, `-transfer`, `-withdraw`, `-deposit`, `-borrow`, `-approve-batch`) are no
-  longer skills; their procedures moved into `sailor-templates/references/`. Core skills are
-  protected and update via `sailor update`; custom skills update through the Harbor registry.
-
-### Fixed
-
-- **Portfolio agent under-allocates a token during a cross-chain bridge and after a reverted swap.**
-  Four defects in the buy loop combined to strand one asset ~3pp under target. Fixed in
-  `blueprints/portfolio-agent/src/agent.ts`:
-  - In-flight CCTP USDC (burned on the source chain, not yet minted on the destination) is now
-    counted as `pendingBridgeUsdc` in `totalValue`, so buys sized during the flight window no
-    longer undershoot target. A `minted` ledger entry is written only once the destination balance
-    confirms the mint actually landed.
-  - A `bought`/`sold` ledger entry is written only after the runner confirms the swap
-    (`dispatch_executed` vs `dispatch_reverted`). A reverted swap becomes a `tradeFailed` marker —
-    never a cost-basis entry — and is retried next tick with a fresh quote and an adaptive slippage
-    floor (widened ~25 bps per consecutive revert, capped at +3pp).
-  - Buys are now partial: each buy is capped at `min(shortfall, available cash)`, so idle USDC that
-    is short of a full shortfall still moves the token toward target instead of parking.
-  - The buy loop reads a shared per-chain spend budget once up front and decrements it per queued
-    buy, so the sum of queued buys in one tick never exceeds on-chain holdings (no over-dispatch).
-- **Portfolio Telegram report is now a three-state account of the agent's work, not a flat
-  spreadsheet.** `blueprints/portfolio-agent/src/report.ts` renders a fixed five-beat skeleton
-  (verdict → score → what the agent did → allocation → action) with three states — deposit,
-  withdrawal, normal — driven by a weekly flow decomposition via the `costBasis + idleUsdc`
-  invariant. Deposits and withdrawals are split from market movement (a $500 deposit never reads as
-  a $500 gain), and delivery switched to Telegram HTML with per-holding progress bars and status
-  emoji. Under-target-but-in-band drift is surfaced instead of masked.
+- AGENTS.md is managed by the user. The onboarding process is handled from a specific skill sailor-navigator.
 
 ## [2.2.0] - 2026-08-11
 
