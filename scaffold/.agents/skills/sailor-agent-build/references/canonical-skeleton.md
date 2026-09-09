@@ -404,4 +404,4 @@ export const agent: Agent = {
 
 **One skeleton per loop shape.** This is the **read → decide → act** shape (swap/DCA/rebalance, single-asset). A position-management shape (multi-asset state, health monitoring, unwind) is a different arrangement and will be added on eval-trace evidence — do not force a health-factor loop into this template; adapt the method (translate spec → permission → dispatch → loop slot) instead.
 
-For where decision data comes from (prices, yields, RPC upgrades), see [references/data-sources.md](references/data-sources.md).
+For where decision data comes from (prices, yields, RPC upgrades), see [data-sources.md](data-sources.md).

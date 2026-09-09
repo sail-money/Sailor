@@ -1,7 +1,7 @@
 # Contributing to Sailor
 
 Sailor is the open-source harness (TypeScript SDK, CLI, local dashboard, and agent skills) for
-building and operating DeFi agents on [Sail Protocol](https://github.com/sail-money/protocol) — it
+building and operating money agents on [Sail Protocol](https://github.com/sail-money/protocol) — it
 guides a coding agent through creating a Separately Managed Account, constructing a mandate, and
 running a strategy agent inside it. Sailor guides; the protocol enforces. See the
 [README](./README.md) for an introduction and [docs/](./docs/) for usage guides.
@@ -80,7 +80,7 @@ first** before a large change there, rather than a surprise PR.
 
 ### Reviews
 
-Pull requests require review from the maintainer team (**@AlvaroAlonso-0**, **@dreski3**).
+Pull requests require review from a maintainer (see `.github/CODEOWNERS`).
 Documentation-only PRs are lighter-touch; changes to the scaffold template or signing paths get
 the most scrutiny.
 

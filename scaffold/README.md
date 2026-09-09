@@ -1,6 +1,6 @@
 # ⛵ Your Sailor agent
 
-Your DeFi agent — built with Sailor, its bounds enforced on-chain by Sail Protocol. Open this folder in your AI coding assistant and say:
+Your money agent — built with Sailor, its bounds enforced on-chain by Sail Protocol. Open this folder in your AI coding assistant and say:
 
 > start
 

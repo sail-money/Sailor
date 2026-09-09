@@ -1,42 +1,63 @@
 # Harbor registry — setup
 
-These files bootstrap the public Harbor registry repo (`sail-money/harbor`). `sailor share`
-opens PRs into it; `sailor harbor list` and `sailor clone` read from it; and
-`sailor harbor create` downloads a released agent from it.
+These files bootstrap the Harbor registry repo (`sail-money/harbor`): the library of ready-to-run
+money agents. `sailor harbor publish` opens pull requests into it, `sailor harbor list` reads its
+releases, and `sailor harbor create <slug>` downloads a released agent from it.
 
 ## Layout
 
 ```
-projects/<slug>/                        # one shared project per folder (added by `sailor share` PRs)
-projects/.gitkeep                       # keeps the empty projects/ dir tracked in git
-.github/workflows/release-on-merge.yml  # packages a merged project into a tagged release asset
-.github/PULL_REQUEST_TEMPLATE/share.md  # review checklist
+blueprints/<slug>/<slug>.tar.gz          # packed blueprint (added by `sailor harbor publish` PRs)
+blueprints/<slug>/manifest.json          # its manifest: per-file SHA-256 + self-digest, for review
+.github/workflows/release-on-merge.yml   # turns a merged blueprint into a tagged release asset
+.github/PULL_REQUEST_TEMPLATE/blueprint.md  # review checklist for a blueprint PR
 ```
+
+`projects/<slug>/` (source projects submitted by `sailor share`) is experimental: `share` and
+`clone` are hidden behind `SAILOR_EXPERIMENTAL=1` and a `projects/` release carries no manifest,
+so `harbor create` cannot import it. Keep the directory out of the public repo until that flow
+is finished.
 
 ## How it works
 
-1. `sailor share` (run inside an operator's project) builds a sanitized copy, opens a
-   PR adding `projects/<slug>/`.
-2. A maintainer reviews (the PR template checklist) and merges to `main`.
-3. `release-on-merge.yml` packages `projects/<slug>/` as `<slug>.tar.gz` and publishes a
-   release tagged `<slug>-v<n>` (auto-incrementing).
-4. `sailor clone <source>` and `sailor harbor create <slug>` download that asset.
+1. `sailor harbor publish` (run inside a blueprint project) packs the agent surface, redacts the
+   publisher's identity, scans for secrets, hashes every file into `blueprint.manifest.json`, and
+   opens a PR adding `blueprints/<slug>/`. `--release` skips review and creates the release
+   directly (maintainers only; needs `contents: write`).
+2. A maintainer reviews the PR. The tarball is opaque in the GitHub diff, so review it locally:
+
+   ```bash
+   gh pr checkout <n>
+   sailor blueprint verify blueprints/<slug>/<slug>.tar.gz
+   sailor blueprint import blueprints/<slug>/<slug>.tar.gz --dry-run   # in a scratch project
+   ```
+
+3. `release-on-merge.yml` publishes the merged tarball as a release tagged `<slug>-v<n>`, where
+   `n` is one more than the highest existing `<slug>-v*` tag.
+4. `sailor harbor create <slug>` downloads the highest-numbered release for the slug, verifies
+   every file against the manifest, shows the import plan, and imports on confirmation.
+
+## Trust
+
+A blueprint is verified for integrity (every file matches its hash), not for publisher identity.
+Releases are unsigned. The review step and the `main` branch protection are the only assurance of
+origin, so require a review before merge and restrict who can push to `main`.
 
 ## Metrics
 
-Per-project download counts come from the release asset `download_count`:
+Per-agent download counts come from the release asset `download_count`:
 
 ```bash
 gh api repos/sail-money/harbor/releases \
   --jq '.[] | "\(.tag_name): \(.assets[]?.download_count // 0)"'
 ```
 
-This is the number a future rewards layer reads. Note: `download_count` is a raw,
-unauthenticated CDN counter — fine for a popularity leaderboard, not trustworthy as a
-payout ledger. For real rewards, front downloads with an authenticated proxy + DB.
+This is a raw, unauthenticated CDN counter: fine for a popularity view, not a ledger.
 
 ## Setup steps
 
 1. Create the repo `sail-money/harbor` (public).
-2. Copy `.github/` and `projects/` (including `.gitkeep`) into it; commit to `main`.
-3. Ensure the share token (`SAIL_GH_TOKEN`) has `contents: write` + `pull_requests: write`.
+2. Copy `.github/` into it; commit to `main`.
+3. Protect `main`: require a pull request and one review; no direct pushes.
+4. The token used by `sailor harbor publish --release` needs `contents: write`; a regular
+   publisher needs only the ability to open a PR (fork + PR is handled automatically).

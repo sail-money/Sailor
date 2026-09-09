@@ -1,4 +1,4 @@
-# The possibility map — what a DeFi agent can be bounded to do
+# The possibility map — what a money agent can be bounded to do
 
 **Discipline (read first):** this file maps what is EXPRESSIBLE and how it is BOUNDED — never
 what is advisable. The choice of strategy is the user's alone; every row below is a capability

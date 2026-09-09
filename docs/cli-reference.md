@@ -29,7 +29,8 @@ and has no dependency on the tool that produced it.
 |---|---|
 | `sailor harbor list [query]` | List the ready-to-run agents published in the registry, optionally filtered by a search term over name and description (`--registry <owner/repo>`, `--json`) |
 | `sailor harbor create <slug> [dir]` | Create a new project from the latest release of an agent (`--registry <owner/repo>`, `--chain <id>`, `--yes`, `--agent <executable>`, `--no-agent`) |
-| `sailor harbor publish` | Package this project as a blueprint and release it to the registry, tagged `<slug>-v<n>` (`--registry <owner/repo>`, `--local` to write a `.tar.gz` instead, `--out <path>`, `--json`) |
+| `sailor harbor update [dir]` | Re-download the latest release of the blueprint recorded in `.sail/.blueprint` and re-import it in place (`--registry <owner/repo>`, `--yes`, `--json`) |
+| `sailor harbor publish` | Package this project as a blueprint and open a review pull request into the registry; `--release` skips review and publishes a release tagged `<slug>-v<n>` directly (`--registry <owner/repo>`, `--local` to write a `.tar.gz` instead, `--out <path>`, `--json`) |
 
 Harbor is the one-word entry point over blueprints. `harbor create` resolves a slug to the latest
 release in the registry, downloads it, and hands off to `blueprint start`. `harbor publish` is the

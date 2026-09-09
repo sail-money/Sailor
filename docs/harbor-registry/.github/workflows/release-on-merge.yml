@@ -1,8 +1,7 @@
 name: release-on-merge
 
-# When a contribution merges to main, turn it into a tagged release:
-#   - projects/<slug>/   source folders from `sailor share` (packaged on merge)
-#   - blueprints/<slug>/ pre-built blueprints from `sailor harbor publish` (artifact + manifest)
+# When a blueprint merges to main, turn it into a tagged release:
+#   blueprints/<slug>/<slug>.tar.gz  (from `sailor harbor publish`)
 # Each release is tagged <slug>-v<n>; the .tar.gz asset is what `sailor harbor create`
 # downloads, and its download_count is the per-agent metric.
 
@@ -10,9 +9,8 @@ on:
   push:
     branches: [main]
     paths:
-      - "projects/**"
       - "blueprints/**"
-  workflow_dispatch: {} # manual re-runs package/release everything
+  workflow_dispatch: {} # manual re-run packages/releases every blueprint
 
 permissions:
   contents: write
@@ -27,52 +25,33 @@ jobs:
 
       - name: Determine changed slugs
         id: changed
+        env:
+          BEFORE: ${{ github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          base="${{ github.event.before }}"
-          # Fall back to the first parent if before is all-zeros (first push).
+          base="$BEFORE"
           if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ]; then
             base="$(git rev-parse HEAD~1 || true)"
           fi
-          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            # Manual run: (re)package every project + blueprint.
-            slugs="$(ls projects 2>/dev/null || true) $(ls blueprints 2>/dev/null || true)"
-          elif [ -n "$base" ]; then
-            slugs="$(git diff --name-only "$base" HEAD -- 'projects/*' 'blueprints/*' \
-              | awk -F/ '{print $2}' | sort -u)"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] || [ -z "$base" ]; then
+            slugs="$(ls blueprints 2>/dev/null || true)"
           else
-            slugs="$(ls projects 2>/dev/null || true) $(ls blueprints 2>/dev/null || true)"
+            slugs="$(git diff --name-only "$base" HEAD -- 'blueprints/*' \
+              | awk -F/ '{print $2}' | sort -u)"
           fi
-          echo "slugs<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$slugs" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          # Slugs are directory names from a merged PR: allow only [a-z0-9-] before they reach a shell.
+          slugs="$(printf '%s\n' $slugs | grep -E '^[a-z0-9][a-z0-9-]{0,63}$' || true)"
+          {
+            echo "slugs<<EOF"
+            echo "$slugs"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
-      - name: Release projects/ (packaged on merge)
+      - name: Release blueprints/
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          while IFS= read -r slug; do
-            [ -z "$slug" ] && continue
-            [ -d "projects/$slug" ] || continue
-
-            existing=$(gh release list --limit 200 \
-              | awk '{print $1}' | { grep -cE "^${slug}-v[0-9]+$" || true; } | tr -d ' ')
-            next=$((existing + 1))
-            tag="${slug}-v${next}"
-            asset="${slug}.tar.gz"
-
-            tar -czf "$asset" -C "projects/$slug" .
-
-            gh release create "$tag" "$asset" \
-              --title "$slug v$next" \
-              --notes "Automated release of projects/$slug (sailor share). Download with: sailor harbor create $slug"
-            echo "Released $tag ($asset)"
-          done <<< "${{ steps.changed.outputs.slugs }}"
-
-      - name: Release blueprints/ (pre-built artifact)
-        env:
-          GH_TOKEN: ${{ github.token }}
+          SLUGS: ${{ steps.changed.outputs.slugs }}
         run: |
           set -euo pipefail
           while IFS= read -r slug; do
@@ -81,22 +60,24 @@ jobs:
             asset="blueprints/$slug/$slug.tar.gz"
             [ -f "$asset" ] || { echo "missing artifact $asset; skipping"; continue; }
 
-            existing=$(gh release list --limit 200 \
-              | awk '{print $1}' | { grep -cE "^${slug}-v[0-9]+$" || true; } | tr -d ' ')
-            next=$((existing + 1))
+            # Next version = highest existing <slug>-v<n> tag + 1 (matches the CLI's --release numbering).
+            highest=$(gh release list --limit 1000 --json tagName --jq '.[].tagName' \
+              | grep -E "^${slug}-v[0-9]+$" | sed -E "s/^${slug}-v//" | sort -n | tail -1)
+            next=$(( ${highest:-0} + 1 ))
             tag="${slug}-v${next}"
 
             title="$slug v$next"
             notes="Automated release of blueprints/$slug. Download with: sailor harbor create $slug"
             if [ -f "blueprints/$slug/manifest.json" ]; then
-              name=$(jq -r '.name // .slug // empty' "blueprints/$slug/manifest.json" 2>/dev/null || true)
-              summary=$(jq -r '.summary // .description // empty' "blueprints/$slug/manifest.json" 2>/dev/null || true)
+              name=$(jq -r '.blueprint.name // .name // empty' "blueprints/$slug/manifest.json" 2>/dev/null || true)
+              summary=$(jq -r '.blueprint.summary // .summary // empty' "blueprints/$slug/manifest.json" 2>/dev/null || true)
+              digest=$(jq -r '.digest // empty' "blueprints/$slug/manifest.json" 2>/dev/null || true)
+              files=$(jq -r '.contents | length' "blueprints/$slug/manifest.json" 2>/dev/null || true)
               [ -n "$name" ] && title="$name v$next"
-              if [ -n "$summary" ]; then
-                notes="$(printf '%s\nDownload with: sailor harbor create %s' "$summary" "$slug")"
-              fi
+              notes="$(printf '%s\n\nFiles: %s\nManifest digest: %s\nDownload with: sailor harbor create %s' \
+                "${summary:-$notes}" "${files:-?}" "${digest:-?}" "$slug")"
             fi
 
             gh release create "$tag" "$asset" --title "$title" --notes "$notes"
             echo "Released $tag ($asset)"
-          done <<< "${{ steps.changed.outputs.slugs }}"
+          done <<< "$SLUGS"
