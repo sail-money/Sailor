@@ -169,6 +169,82 @@ test("publish --local writes the archive to disk", async () => {
   });
 });
 
+test("publish --release --json prints pure JSON and sweeps the archive staging dir", async () => {
+  await inTempCwd(async () => {
+    // The real writeBlueprintArchive stages manifest + payload/ in a
+    // `sailor-blueprint-archive-*` mkdtemp dir; publish must remove the whole dir, not
+    // just the .tar.gz inside it.
+    const staging = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-blueprint-archive-"));
+    const archive = path.join(staging, "blueprint.tar.gz");
+    fs.writeFileSync(archive, "fake-archive-bytes");
+    fs.writeFileSync(path.join(staging, "blueprint.manifest.json"), "{}");
+
+    const lines: string[] = [];
+    const log = console.log;
+    console.log = (...a: unknown[]) => lines.push(a.join(" "));
+    try {
+      await harborPublish(
+        { release: true, json: true },
+        {
+          readShareManifest: () => shareManifest(),
+          packBlueprint: async () => ({
+            manifest: fakeManifest(),
+            files: new Map(),
+            redactions: [],
+            review: { addresses: [], binaries: [] },
+          }),
+          writeBlueprintArchive: () => archive,
+          listReleases: async () => [],
+          createRelease: async (_repo, input) => ({
+            tag: input.tag,
+            htmlUrl: `https://github.com/sail-money/harbor/releases/tag/${input.tag}`,
+          }),
+          submitContribution: async () => {
+            throw new Error("should not open a PR in --release mode");
+          },
+        },
+      );
+    } finally {
+      console.log = log;
+    }
+    // Everything printed must parse as one JSON document — no "Packaging..." preamble.
+    const parsed = JSON.parse(lines.join("\n")) as { status: string; tag: string };
+    assert.equal(parsed.status, "ok");
+    assert.equal(parsed.tag, "dca-v1");
+    assert.equal(fs.existsSync(staging), false, "staging dir must be removed");
+  });
+});
+
+test("publish removes only the archive when its parent is not a staging dir", async () => {
+  await inTempCwd(async () => {
+    const archive = makeArchivePath(); // parent is `archive-*`, not `sailor-blueprint-archive-*`
+    const parent = path.dirname(archive);
+    await harborPublish(
+      { local: true },
+      {
+        readShareManifest: () => shareManifest(),
+        packBlueprint: async () => ({
+          manifest: fakeManifest(),
+          files: new Map(),
+          redactions: [],
+          review: { addresses: [], binaries: [] },
+        }),
+        writeBlueprintArchive: () => archive,
+        listReleases: async () => [],
+        createRelease: async () => {
+          throw new Error("unused");
+        },
+        submitContribution: async () => {
+          throw new Error("unused");
+        },
+      },
+    );
+    assert.equal(fs.existsSync(archive), false);
+    assert.equal(fs.existsSync(parent), true, "an unrelated parent directory must survive");
+    fs.rmSync(parent, { recursive: true, force: true });
+  });
+});
+
 test("publish errors when there is no slug", async () => {
   await inTempCwd(async () => {
     await assert.rejects(

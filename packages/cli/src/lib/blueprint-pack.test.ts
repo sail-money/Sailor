@@ -61,6 +61,18 @@ test("packBlueprint selects the agent surface and excludes the skeleton", async 
   ]);
 });
 
+test("packBlueprint never ships Shipyard sandbox state", async () => {
+  const root = makeProject();
+  // The sandbox root mirrors .sail/ (keys/, runtime/, state/) for the forked chains.
+  fs.mkdirSync(path.join(root, ".shipyard", "sandbox", "keys"), { recursive: true });
+  fs.writeFileSync(path.join(root, ".shipyard", "sandbox", "keys", "manager.json"), "secret");
+  fs.writeFileSync(path.join(root, ".shipyard", "sandbox", "config.json"), "{}");
+  const packed = await packBlueprint(root, { slug: "dca", version: "1.0.0", kind: "crystallized" });
+  for (const p of packed.files.keys()) {
+    assert.ok(!p.startsWith(".shipyard/"), `${p} must not be packed`);
+  }
+});
+
 test("packBlueprint assigns roles", async () => {
   const root = makeProject();
   const packed = await packBlueprint(root, { slug: "dca", version: "1.0.0", kind: "crystallized" });

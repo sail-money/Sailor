@@ -61,6 +61,10 @@ test("isSensitivePath whitelists .sail/, strips backups/logs/variants, keeps .en
   assert.equal(isSensitivePath(".sail/cron-tick.log"), true); // logs must not leak
   assert.equal(isSensitivePath(".sail/state/accounts.json"), true);
   assert.equal(isSensitivePath(".sail/.env.local"), true);
+  // Shipyard's sandbox root mirrors .sail/ for the forked chains — the whole tree is stripped.
+  assert.equal(isSensitivePath(".shipyard"), true);
+  assert.equal(isSensitivePath(".shipyard/sandbox/keys/manager.json"), true);
+  assert.equal(isSensitivePath(".shipyard/sandbox/config.json"), true);
   assert.equal(isSensitivePath("ci-keystore.json"), true);
   assert.equal(isSensitivePath(".env"), true);
   assert.equal(isSensitivePath(".env.production"), true);
@@ -336,10 +340,7 @@ test("collectSensitiveValues keeps universal constants, strips only user identit
     JSON.stringify({ safe: sma, kernel, token }),
   );
   // The sharer declares a strategy protocol address as public via the keep-list.
-  fs.writeFileSync(
-    path.join(root, ".sail", "public-addresses.json"),
-    JSON.stringify([protocol]),
-  );
+  fs.writeFileSync(path.join(root, ".sail", "public-addresses.json"), JSON.stringify([protocol]));
   // Plant the protocol address somewhere it would otherwise be swept.
   fs.appendFileSync(path.join(root, ".sail", "account.json"), `\n// ${protocol}\n`);
 

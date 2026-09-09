@@ -11,7 +11,10 @@ export type Role = (typeof ROLES)[number];
  * "permissionSigner") so scripts and prompts keep working.
  */
 export function normalizeRole(input: string): Role | null {
-  const n = input.trim().toLowerCase().replace(/[-_\s]/g, "");
+  const n = input
+    .trim()
+    .toLowerCase()
+    .replace(/[-_\s]/g, "");
   if (n === "manager" || n === "mgr" || n === "m" || n === "agent" || n === "agentwallet") {
     return "manager";
   }
@@ -35,7 +38,10 @@ export function roleLabel(role: Role): string {
 
 /** Lowercase the safe address and reduce it to `0x` + hex only. */
 function safeHex(safe: string): string {
-  return safe.toLowerCase().replace(/^0x/, "").replace(/[^0-9a-f]/g, "");
+  return safe
+    .toLowerCase()
+    .replace(/^0x/, "")
+    .replace(/[^0-9a-f]/g, "");
 }
 
 /**
@@ -118,16 +124,13 @@ export async function loadKeyring(role: Role, safe?: string): Promise<LocalKeyri
       return await LocalKeyring.fromKeystore(keystore, passphrase);
     } catch {
       throw new Error(
-        `SAIL_PASSPHRASE does not match the ${roleLabel(role)} keystore.\n` +
-          "Check the value in .sail/.env.local (or the SAIL_PASSPHRASE CI secret) — " +
-          "it must be the passphrase this key was encrypted with.",
+        `SAIL_PASSPHRASE does not match the ${roleLabel(role)} keystore.\nCheck the value in .sail/.env.local (or the SAIL_PASSPHRASE CI secret) — it must be the passphrase this key was encrypted with.`,
       );
     }
   }
   if (process.stdin.isTTY !== true) {
     throw new Error(
-      `${roleLabel(role)} keystore found but SAIL_PASSPHRASE is not set.\n` +
-        "Set SAIL_PASSPHRASE in .sail/.env.local (or as a CI secret) to run non-interactively.",
+      `${roleLabel(role)} keystore found but SAIL_PASSPHRASE is not set.\nSet SAIL_PASSPHRASE in .sail/.env.local (or as a CI secret) to run non-interactively.`,
     );
   }
   const password = await promptHidden(`Password for ${roleLabel(role)} key`);
@@ -139,20 +142,11 @@ export async function loadKeyring(role: Role, safe?: string): Promise<LocalKeyri
 }
 
 /**
- * Loads the agent (manager) key. Injects SAIL_PASSPHRASE from .sail/.env.local
- * when the caller hasn't, so mandate / onboard / run work headless, then defers
- * to loadKeyring — the single loader that owns passphrase decrypt, the non-TTY
- * guard, and the interactive prompt for every role.
+ * Loads the agent wallet (manager) key. Defers to loadKeyring — the single loader
+ * that owns the SAIL_PASSPHRASE injection from .sail/.env.local, passphrase
+ * decrypt, the non-TTY guard, and the interactive prompt for every role.
  */
 export async function loadManagerSigner(safe?: string): Promise<LocalKeyring> {
-  if (!process.env.SAIL_PASSPHRASE) {
-    try {
-      const env = parseEnvFile(sailPath(".env.local"));
-      if (env.SAIL_PASSPHRASE) process.env.SAIL_PASSPHRASE = env.SAIL_PASSPHRASE;
-    } catch {
-      // .env.local absent or unreadable — loadKeyring handles prompt / TTY guard
-    }
-  }
   return loadKeyring("manager", safe);
 }
 

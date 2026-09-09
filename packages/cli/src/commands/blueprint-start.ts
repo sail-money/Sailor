@@ -1,8 +1,8 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { blueprintImport } from "./blueprint.js";
 import { scaffoldProjectWorkspace } from "../lib/project-scaffold.js";
+import { blueprintImport } from "./blueprint.js";
 
 /**
  * Files a coding agent, git, or the OS may drop into an otherwise-empty project
@@ -22,6 +22,8 @@ export interface BlueprintStartOptions {
   yes?: boolean;
   /** Executable selected by `--agent`; Commander maps `--no-agent` to `false`. */
   agent?: string | false;
+  /** Registry release the artifact came from, when Harbor fetched it; recorded by import. */
+  releaseTag?: string;
 }
 
 type ScaffoldFn = typeof scaffoldProjectWorkspace;
@@ -43,7 +45,7 @@ function commandForDisplay(command: string, args: string[]): string {
 
 function executableOnPath(name: string): boolean {
   if (path.isAbsolute(name)) return fs.existsSync(name);
-  return (process.env["PATH"] ?? "")
+  return (process.env.PATH ?? "")
     .split(path.delimiter)
     .some((dir) => dir.length > 0 && fs.existsSync(path.join(dir, name)));
 }
@@ -135,13 +137,30 @@ export async function blueprintStart(
     const imported = await importBlueprint(artifact, projectRoot, {
       chain: opts.chain,
       yes: opts.yes,
+      releaseTag: opts.releaseTag,
     });
     if (!imported) {
       throw new Error("blueprint was not imported");
     }
 
     run("npm", ["install"], projectRoot, "install project dependencies");
-    run("npm", ["run", "typecheck", "--if-present"], projectRoot, "pre-onboarding typecheck");
+    // Typecheck by invoking the compiler directly, never `npm run typecheck`: that would
+    // execute whatever script the blueprint's own package.json names, and the payload is
+    // untrusted until the owner has read it.
+    const tsconfig = path.join(projectRoot, "tsconfig.json");
+    const tsc = path.join(projectRoot, "node_modules", ".bin", "tsc");
+    if (fs.existsSync(tsconfig) && fs.existsSync(tsc)) {
+      run(
+        tsc,
+        ["--noEmit", "-p", "tsconfig.json"],
+        projectRoot,
+        "pre-onboarding typecheck (tsc --noEmit)",
+      );
+    } else {
+      console.log(
+        "\n[pre-onboarding typecheck] skipped — no tsconfig.json and/or no local tsc binary",
+      );
+    }
 
     const prompt = onboardingPrompt(opts.chain);
     if (opts.agent === false) {

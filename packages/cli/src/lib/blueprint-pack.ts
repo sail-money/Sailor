@@ -42,6 +42,8 @@ function isBlueprintExcluded(rel: string): boolean {
   // The skeleton owns .sail/ (keys, state, config) and every env template; both are
   // recreated by scaffoldProjectWorkspace, so a blueprint must not ship either.
   if (p === ".sail" || p.startsWith(".sail/")) return true;
+  // Shipyard's sandbox root (`.shipyard/sandbox/keys/…`) is operator state, never surface.
+  if (p === ".shipyard" || p.startsWith(".shipyard/")) return true;
   if (p === ".env" || p.startsWith(".env.")) return true;
   // A blueprint archive is the deliverable, not payload content. `publish --local`
   // drops its own .tar.gz into the project, and without this it would nest into the
@@ -101,6 +103,8 @@ export interface PackedBlueprint {
   files: Map<string, Uint8Array>;
   redactions: Redaction[];
   review: ReviewSurface;
+  /** Things the publisher should read before submitting (never fatal). */
+  warnings?: string[];
 }
 
 /**
@@ -119,6 +123,16 @@ export async function packBlueprint(
     const values = collectSensitiveValues(projectRoot);
     const rels = buildBlueprintCopy(projectRoot, tmp);
     const redactions = autoRedact(tmp, values);
+    const warnings: string[] = [];
+    if (values.addresses.length === 0) {
+      // Redaction is seeded from the publisher's own .sail/ state. With nothing there
+      // (a factory checkout, a fresh clone) nothing is redacted, so any account or agent
+      // wallet address hard-coded in scripts/ ships as-is.
+      warnings.push(
+        "No SMA, owner, or agent wallet address was found in .sail/, so nothing was redacted. " +
+          "Check scripts/ and docs/ for hard-coded addresses before submitting.",
+      );
+    }
 
     // 2. Refuse on anything secret-like that survived redaction.
     const secrets = scanForSecrets(tmp);
@@ -154,7 +168,7 @@ export async function packBlueprint(
     };
     manifest.digest = await computeManifestDigest(manifest);
 
-    return { manifest, files, redactions, review: reviewSurface(tmp) };
+    return { manifest, files, redactions, review: reviewSurface(tmp), warnings };
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

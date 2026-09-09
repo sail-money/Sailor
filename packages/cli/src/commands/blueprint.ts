@@ -61,6 +61,31 @@ const PRUNE_PROTECTED = [
 const WRITABLE_MANIFEST = ["package.json", "package-lock.json"];
 
 /**
+ * Path segments a payload may never write. Each of these changes what runs *without being
+ * read*: `.npmrc`/`.yarnrc*`/`.pnpmfile.cjs` redirect the very next `npm install` to a
+ * hostile registry or hook it; `.claude/`, `.codex/`, `.vscode/`, `.idea/` carry agent and
+ * editor settings (allowed commands, tasks that auto-run on open); `.github/` and
+ * `.husky/` are CI and git hooks. `.cursor` is deliberately absent — blueprints legitimately
+ * ship `.cursor/rules`. Checked on every segment, so a nested `sub/.npmrc` is refused too.
+ */
+const PAYLOAD_DENIED = [
+  ".npmrc",
+  ".yarnrc",
+  ".pnpmfile.cjs",
+  ".claude",
+  ".codex",
+  ".vscode",
+  ".idea",
+  ".github",
+  ".husky",
+];
+
+/** True if a payload-relative path touches a `PAYLOAD_DENIED` name (`.yarnrc.yml` counts). */
+function isDeniedPayloadPath(rel: string): boolean {
+  return rel.split("/").some((seg) => PAYLOAD_DENIED.includes(seg) || seg.startsWith(".yarnrc"));
+}
+
+/**
  * Skill names that must survive any blueprint import, whatever `surface.keepSkills` asks
  * to prune. Read from the project's `.agents/skill-registry.json` (the single source of
  * truth), falling back to the shipped scaffold copy for projects that predate the registry.
@@ -92,6 +117,12 @@ export interface BlueprintVerifyOptions {
 export interface BlueprintImportOptions extends BlueprintVerifyOptions {
   yes?: boolean;
   dryRun?: boolean;
+  /**
+   * Registry release the artifact came from (`<slug>-v<n>`), when Harbor fetched it.
+   * Recorded in the marker as `release` so `sailor harbor update` can tell whether the
+   * project is current; the manifest's own `blueprint.version` is a different axis.
+   */
+  releaseTag?: string;
 }
 
 interface LoadedArtifact {
@@ -149,7 +180,7 @@ function loadArtifact(source: string): LoadedArtifact {
   const payload = path.join(root, "payload");
   if (!fs.existsSync(payload)) {
     cleanup();
-    throw new Error(`Artifact has no payload/ directory — nothing to import.`);
+    throw new Error("Artifact has no payload/ directory — nothing to import.");
   }
   return { root, payload, manifest, cleanup };
 }
@@ -173,7 +204,9 @@ function readerFor(payload: string): ArtifactReader {
     read: async (p: string) => {
       if (!isSafeRelativePath(p)) return null;
       const abs = path.join(payload, p);
-      return fs.existsSync(abs) && fs.statSync(abs).isFile() ? new Uint8Array(fs.readFileSync(abs)) : null;
+      return fs.existsSync(abs) && fs.statSync(abs).isFile()
+        ? new Uint8Array(fs.readFileSync(abs))
+        : null;
     },
     list: async () => listRel(payload),
   };
@@ -200,10 +233,13 @@ export async function blueprintVerify(source: string, opts: BlueprintVerifyOptio
       console.log(`${describe(art.manifest)}  ${art.manifest.contents?.length ?? 0} file(s)`);
       if (result.ok) {
         console.log("✓ verified — manifest, per-file hashes and declared compatibility all agree.");
-        console.log("  This is an INTEGRITY check, not a signature: it proves nothing about origin.");
+        console.log(
+          "  This is an INTEGRITY check, not a signature: it proves nothing about origin.",
+        );
       } else {
         console.log(`✗ refused — ${result.findings.length} finding(s):`);
-        for (const f of result.findings) console.log(`  [${f.code}] ${f.path ? `${f.path}: ` : ""}${f.message}`);
+        for (const f of result.findings)
+          console.log(`  [${f.code}] ${f.path ? `${f.path}: ` : ""}${f.message}`);
       }
     }
     if (!result.ok) process.exitCode = 1;
@@ -232,10 +268,14 @@ export async function blueprintInspect(source: string, opts: { json?: boolean })
       for (const p of paths) console.log(`      ${p}`);
     }
     if (m.surface?.pruned?.length) {
-      console.log(`  removes   ${m.surface.pruned.length} stock path(s): ${m.surface.pruned.join(", ")}`);
+      console.log(
+        `  removes   ${m.surface.pruned.length} stock path(s): ${m.surface.pruned.join(", ")}`,
+      );
     }
     if (m.surface?.keepSkills) {
-      console.log(`  keeps     stock skills: ${m.surface.keepSkills.join(", ") || "(none)"} — all others pruned`);
+      console.log(
+        `  keeps     stock skills: ${m.surface.keepSkills.join(", ") || "(none)"} — all others pruned`,
+      );
     }
     if (m.surface?.fragment) {
       console.log(`  appends   ${m.surface.fragment.path} into ${m.surface.fragment.target}`);
@@ -270,6 +310,7 @@ function safeTarget(
   } else if (PRUNE_PROTECTED.includes(head) || PRUNE_PROTECTED.includes(rel)) {
     return null;
   }
+  if (opts.write && isDeniedPayloadPath(rel)) return null;
   const projAbs = path.resolve(projectRoot);
   const abs = path.resolve(projAbs, rel);
   if (abs === projAbs || !abs.startsWith(projAbs + path.sep)) return null;
@@ -290,8 +331,7 @@ export async function blueprintImport(
     // 1. A blueprint is a delta, so it needs a project to land on.
     if (!fs.existsSync(path.join(projectRoot, ".sail"))) {
       throw new Error(
-        `${projectRoot} is not a Sailor project (no .sail/). Run \`sailor init\` there first — ` +
-          `a blueprint is an overlay on a scaffold, not a whole project.`,
+        `${projectRoot} is not a Sailor project (no .sail/). Run \`sailor init\` there first — a blueprint is an overlay on a scaffold, not a whole project.`,
       );
     }
 
@@ -302,8 +342,11 @@ export async function blueprintImport(
       chainId: opts.chain ? Number(opts.chain) : undefined,
     });
     if (!result.ok) {
-      console.error(`Refusing to import ${describe(m)} — ${result.findings.length} verification finding(s):`);
-      for (const f of result.findings) console.error(`  [${f.code}] ${f.path ? `${f.path}: ` : ""}${f.message}`);
+      console.error(
+        `Refusing to import ${describe(m)} — ${result.findings.length} verification finding(s):`,
+      );
+      for (const f of result.findings)
+        console.error(`  [${f.code}] ${f.path ? `${f.path}: ` : ""}${f.message}`);
       throw new Error("artifact failed verification");
     }
 
@@ -321,9 +364,23 @@ export async function blueprintImport(
     const payloadPkg = path.join(art.payload, "package.json");
     if (fs.existsSync(payloadPkg)) {
       const hooks = ["preinstall", "install", "postinstall", "prepare", "prepublish", "prepack"];
-      const pkg = JSON.parse(fs.readFileSync(payloadPkg, "utf-8")) as { scripts?: Record<string, string> };
+      const pkg = JSON.parse(fs.readFileSync(payloadPkg, "utf-8")) as {
+        scripts?: Record<string, string>;
+      };
       const found = hooks.filter((h) => pkg.scripts?.[h]);
-      if (found.length) throw new Error(`payload package.json defines auto-running scripts: ${found.join(", ")}`);
+      if (found.length)
+        throw new Error(`payload package.json defines auto-running scripts: ${found.join(", ")}`);
+    }
+    //    Same category, different vector: files that reconfigure the package manager, the
+    //    coding agent, the editor, CI or git hooks act on the next `npm install` / open.
+    const denied = [
+      ...m.contents.map((c) => c.path),
+      ...(m.surface?.fragment ? [m.surface.fragment.target] : []),
+    ].filter(isDeniedPayloadPath);
+    if (denied.length) {
+      throw new Error(
+        `payload writes tooling/config paths a blueprint may not ship (${denied.join(", ")}) — these change what runs on the next install or editor open without being read.`,
+      );
     }
 
     // 5. Plan every filesystem change before making any of them, so the operator confirms a
@@ -363,18 +420,27 @@ export async function blueprintImport(
     }
 
     console.log(`${describe(m)} → ${projectRoot}`);
-    console.log(`  ✓ verified (integrity only — origin is not authenticated)`);
-    console.log(`  writes   ${writes.length} file(s), ${writes.filter((w) => w.overwrites).length} overwriting`);
-    for (const w of writes) console.log(`    ${w.overwrites ? "replace" : "add    "} ${w.role.padEnd(13)} ${w.rel}`);
-    if (m.surface?.fragment) console.log(`    append  ${m.surface.fragment.path} → ${m.surface.fragment.target}`);
+    console.log("  ✓ verified (integrity only — origin is not authenticated)");
+    console.log(
+      `  writes   ${writes.length} file(s), ${writes.filter((w) => w.overwrites).length} overwriting`,
+    );
+    for (const w of writes)
+      console.log(`    ${w.overwrites ? "replace" : "add    "} ${w.role.padEnd(13)} ${w.rel}`);
+    if (m.surface?.fragment)
+      console.log(`    append  ${m.surface.fragment.path} → ${m.surface.fragment.target}`);
     if (removals.length) {
-      console.log(`  removes  ${removals.length} stock path(s) the blueprint's design does not use:`);
+      console.log(
+        `  removes  ${removals.length} stock path(s) the blueprint's design does not use:`,
+      );
       for (const r of [...removals].sort()) console.log(`    ${r}`);
     }
-    for (const r of refusedPrunes) console.log(`  (refused to remove protected/escaping path) ${r}`);
+    for (const r of refusedPrunes)
+      console.log(`  (refused to remove protected/escaping path) ${r}`);
     const pinned = pinnedAddresses(m);
     if (pinned.length) {
-      console.log(`  pins     ${pinned.length} on-chain address(es) — covered by the verified digest, but READ them:`);
+      console.log(
+        `  pins     ${pinned.length} on-chain address(es) — covered by the verified digest, but READ them:`,
+      );
       for (const a of pinned) console.log(`    ${a}`);
     }
 
@@ -387,7 +453,9 @@ export async function blueprintImport(
     //    opposite of `clone`, where --yes/--json skips its audit gate entirely.
     if (!opts.yes) {
       if (process.stdin.isTTY !== true) {
-        throw new Error("not a TTY and --yes was not given; refusing to modify the project unattended");
+        throw new Error(
+          "not a TTY and --yes was not given; refusing to modify the project unattended",
+        );
       }
       console.log("\nThis is untrusted code that will run against your account once onboarded.");
       if (!(await confirm("Apply this blueprint?"))) {
@@ -420,8 +488,9 @@ export async function blueprintImport(
 
     // 9. Mark the project as a Harbor agent. `sailor update` reads this marker and leaves the
     //    agent surface (.agents/, soul.md) alone rather than re-copying the stock scaffold over
-    //    what the blueprint delivered. It records the blueprint identity (slug/version) for the
-    //    future `sailor harbor update` refresh path, but NOT the full manifest.
+    //    what the blueprint delivered. It records the blueprint identity (slug/version) and,
+    //    when Harbor fetched the artifact, the registry release tag `sailor harbor update`
+    //    compares against — but NOT the full manifest.
     const b = m.blueprint ?? {};
     fs.mkdirSync(path.join(projectRoot, ".sail"), { recursive: true });
     fs.writeFileSync(
@@ -430,6 +499,7 @@ export async function blueprintImport(
         {
           slug: b.slug ?? null,
           version: b.version ?? null,
+          release: opts.releaseTag ?? null,
           kind: b.kind ?? null,
           importedAt: new Date().toISOString(),
         },
@@ -440,12 +510,16 @@ export async function blueprintImport(
     );
 
     console.log(`\n✓ imported ${describe(m)}`);
-    console.log(`  ${writes.length} file(s) written, ${removals.length} removed, surface verified against the manifest.`);
+    console.log(
+      `  ${writes.length} file(s) written, ${removals.length} removed, surface verified against the manifest.`,
+    );
     // The manifest is deliberately NOT copied into the project: it names the blueprint, its
     // version and its grade, and a project carrying that is no longer a blind subject for a
     // later measurement cycle. Provenance goes to the operator's terminal instead.
-    console.log(`  provenance (not written into the project): ${JSON.stringify(m.provenance ?? {})}`);
-    console.log(`  next: npm install, then read AGENTS.md.`);
+    console.log(
+      `  provenance (not written into the project): ${JSON.stringify(m.provenance ?? {})}`,
+    );
+    console.log("  next: npm install, then read AGENTS.md.");
     return true;
   } finally {
     art.cleanup();
@@ -474,7 +548,10 @@ function applyFragment(
   const start = `<!-- ${fragment.marker}:start -->`;
   const end = `<!-- ${fragment.marker}:end -->`;
   const block = `${start}\n${body}\n${end}\n`;
-  const re = new RegExp(`<!-- ${fragment.marker}:start[^\\n]*-->[\\s\\S]*?<!-- ${fragment.marker}:end -->\\n?`, "g");
+  const re = new RegExp(
+    `<!-- ${fragment.marker}:start[^\\n]*-->[\\s\\S]*?<!-- ${fragment.marker}:end -->\\n?`,
+    "g",
+  );
 
   let content = fs.existsSync(target) ? fs.readFileSync(target, "utf-8").replace(re, "") : "";
   if (content.length && !content.endsWith("\n")) content += "\n";
@@ -510,7 +587,8 @@ function assertApplied(projectRoot: string, m: BlueprintManifest, shipped: Set<s
   if (Array.isArray(m.surface?.keepSkills) && fs.existsSync(skillsDir)) {
     const keep = new Set([...m.surface.keepSkills, ...shipped, ...readCoreSkills(projectRoot)]);
     for (const e of fs.readdirSync(skillsDir, { withFileTypes: true })) {
-      if (e.isDirectory() && !keep.has(e.name)) problems.push(`.agents/skills/${e.name}: should have been pruned`);
+      if (e.isDirectory() && !keep.has(e.name))
+        problems.push(`.agents/skills/${e.name}: should have been pruned`);
     }
   }
 

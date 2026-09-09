@@ -114,7 +114,7 @@ const program = new Command();
 program
   .name("sailor")
   .description(
-    "The Sailor CLI — the harness for building and operating DeFi agents on Sail Protocol",
+    "The Sailor CLI — the harness for building and operating money agents on Sail Protocol",
   )
   .version(cliVersion());
 
@@ -309,10 +309,7 @@ mandate
 mandate
   .command("forget")
   .description("Remove a tracked-but-never-registered mandate record from the local store")
-  .requiredOption(
-    "--address <addressOrName>",
-    "Permission address or locally-tracked name to drop",
-  )
+  .requiredOption("--address <addressOrName>", "Permission address or locally-tracked name to drop")
   .option("--json", "Emit machine-readable JSON")
   .action(actionWith<{ addressOrName: string; json?: boolean }>(mandateForget));
 mandate
@@ -851,10 +848,10 @@ harborCmd
   .option("--json", "Emit machine-readable JSON")
   .action(actionWith<HarborPublishOptions>(harborPublish));
 
-// ── Experimental (private) ─────────────────────────────────────────────────
-// `share` / `clone` are gated behind SAILOR_EXPERIMENTAL=1 while the
-// community-registry feature is private. They stay invisible in --help until
-// the flag is set.
+// ── Experimental ────────────────────────────────────────────────────────────
+// `share` / `clone` (source-project contributions to the registry) are gated behind
+// SAILOR_EXPERIMENTAL=1 until the review flow for source projects settles. They stay
+// invisible in --help until the flag is set; `harbor publish` is the supported path.
 if (process.env.SAILOR_EXPERIMENTAL === "1") {
   program
     .command("share")

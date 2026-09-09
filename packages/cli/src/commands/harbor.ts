@@ -8,9 +8,9 @@ import {
   isGithubNotFound,
   listReleases,
 } from "../lib/github.js";
-import { blueprintStart, IN_PLACE_IGNORED } from "./blueprint-start.js";
-import { blueprintImport } from "./blueprint.js";
 import { BLUEPRINT_MARKER } from "../lib/project-scaffold.js";
+import { IN_PLACE_IGNORED, blueprintStart } from "./blueprint-start.js";
+import { blueprintImport } from "./blueprint.js";
 
 /**
  * `sailor harbor list | create` — the one-word entry point for Harbor, the library of
@@ -273,6 +273,7 @@ export async function harborCreate(
       chain: options.chain,
       yes: options.yes,
       agent: options.agent,
+      releaseTag: release.tag,
     });
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -318,11 +319,12 @@ export async function harborUpdate(
   const markerPath = path.join(projectRoot, BLUEPRINT_MARKER);
   if (!fs.existsSync(markerPath)) {
     throw new Error(
-      `${projectRoot} is not a Harbor project (no ${BLUEPRINT_MARKER}). ` +
-        "`harbor update` refreshes a project created with `sailor harbor create`, not a plain scaffold.",
+      `${projectRoot} is not a Harbor project (no ${BLUEPRINT_MARKER}). \`harbor update\` refreshes a project created with \`sailor harbor create\`, not a plain scaffold.`,
     );
   }
-  let marker: { slug?: string | null; version?: string | null } = {};
+  // `release` is the registry tag (`<slug>-v<n>`) recorded at import; `version` is the
+  // manifest's own blueprint.version and is NOT comparable to a tag.
+  let marker: { slug?: string | null; version?: string | null; release?: string | null } = {};
   try {
     marker = JSON.parse(fs.readFileSync(markerPath, "utf-8")) as typeof marker;
   } catch {
@@ -330,7 +332,9 @@ export async function harborUpdate(
   }
   const slug = marker.slug;
   if (!slug) {
-    throw new Error(`${BLUEPRINT_MARKER} records no slug — cannot determine the blueprint to update from.`);
+    throw new Error(
+      `${BLUEPRINT_MARKER} records no slug — cannot determine the blueprint to update from.`,
+    );
   }
 
   // 2. Resolve the latest release for that slug.
@@ -343,21 +347,26 @@ export async function harborUpdate(
   }
   const release = resolveLatest(releases, slug);
   if (!release) {
-    throw new Error(`No blueprint named "${slug}" in ${registry}. Run \`sailor harbor list\` to see what is available.`);
+    throw new Error(
+      `No blueprint named "${slug}" in ${registry}. Run \`sailor harbor list\` to see what is available.`,
+    );
   }
   const asset = pickArchiveAsset(release.assets);
 
   // 3. Already current? Skip (idempotent).
-  if (marker.version && marker.version === release.tag) {
+  if (marker.release && marker.release === release.tag) {
     const msg = `Already on the latest release (${release.tag}).`;
-    if (options.json) console.log(JSON.stringify({ updated: false, version: release.tag, reason: "current" }));
+    if (options.json)
+      console.log(JSON.stringify({ updated: false, version: release.tag, reason: "current" }));
     else console.log(msg);
     return;
   }
 
-  console.log(`Updating "${slug}" in ${registry} ...`);
-  console.log(`  current: ${marker.version ?? "unknown"}`);
-  console.log(`  latest:  ${release.tag}`);
+  if (!options.json) {
+    console.log(`Updating "${slug}" in ${registry} ...`);
+    console.log(`  current: ${marker.release ?? "unknown"}`);
+    console.log(`  latest:  ${release.tag}`);
+  }
 
   // 4. Download and re-import in place (same verify/secret-scan/overlay path as create).
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-harbor-update-"));
@@ -374,6 +383,7 @@ export async function harborUpdate(
     const applied = await importBlueprint(archivePath, projectRoot, {
       yes: options.yes,
       chain: options.chain,
+      releaseTag: release.tag,
     });
     if (!applied) throw new Error("blueprint import did not apply (aborted or dry-run).");
 

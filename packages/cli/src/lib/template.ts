@@ -3,6 +3,8 @@ import path from "node:path";
 
 export const TEMPLATE_COPY_EXCLUDES = new Set([
   "node_modules",
+  // Shipyard's sandbox root (`.shipyard/sandbox/`): forked-chain keys, runtime and state.
+  ".shipyard",
   "dist",
   "out",
   "cache",
@@ -43,7 +45,12 @@ export function writeIfMissing(file: string, content: string): void {
   if (!fs.existsSync(file)) fs.writeFileSync(file, content, "utf-8");
 }
 
-export function copyDirSyncIfMissing(src: string, dest: string, added: string[] = [], base = dest): void {
+export function copyDirSyncIfMissing(
+  src: string,
+  dest: string,
+  added: string[] = [],
+  base = dest,
+): void {
   fs.mkdirSync(dest, { recursive: true });
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
     if (TEMPLATE_COPY_EXCLUDES.has(entry.name)) continue;

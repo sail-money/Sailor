@@ -95,6 +95,9 @@ export function isSensitivePath(rel: string): boolean {
   if (p.startsWith(".sail/")) {
     return !SAIL_PUBLISHABLE.has(p);
   }
+  // Shipyard's sandbox root holds the same shape (keys/, runtime/, state/) for the forked
+  // chains, and nothing in it is publishable — strip the whole directory, like .sail/keys.
+  if (p === ".shipyard" || p.startsWith(".shipyard/")) return true;
   // Root-level encrypted CI keystore — tied to the sharer's wallet.
   if (p === "ci-keystore.json") return true;
   const seg = p.split("/");
@@ -526,7 +529,7 @@ export function autoRedact(dir: string, values: SensitiveValues): Redaction[] {
       const m = content.match(re);
       if (m) {
         content = content.replace(re, ZERO_ADDRESS);
-        bump("sma/owner/manager address", m.length);
+        bump("SMA/owner/agent wallet address", m.length);
       }
       // Bare (no 0x) occurrences — e.g. ABI-encoded calldata `a9059cbb…<addr>…`
       // embeds the address without a prefix, so the above misses it. Zero the body.
@@ -535,7 +538,7 @@ export function autoRedact(dir: string, values: SensitiveValues): Redaction[] {
       const bm = content.match(bare);
       if (bm) {
         content = content.replace(bare, "0".repeat(40));
-        bump("sma/owner/manager address (calldata)", bm.length);
+        bump("SMA/owner/agent wallet address (calldata)", bm.length);
       }
     }
     for (const url of knownRpcs) {

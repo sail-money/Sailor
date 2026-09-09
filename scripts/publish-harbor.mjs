@@ -6,7 +6,7 @@
 //   pnpm run publish:harbor             # build the CLI + release portfolio-v<n>
 //   pnpm run publish:harbor -- --local  # write the tarball to /tmp, no GitHub
 //
-// Token: SAIL_GH_TOKEN or GITHUB_TOKEN for the private sail-money/harbor registry;
+// Token: SAIL_GH_TOKEN or GITHUB_TOKEN for the sail-money/harbor registry;
 // otherwise falls back to `gh auth token` (the machine's authenticated token).
 
 import { execSync } from "node:child_process";
@@ -29,7 +29,7 @@ function token() {
     return execSync("gh auth token", { encoding: "utf8" }).trim();
   } catch {
     throw new Error(
-      "No token for the private sail-money/harbor registry. Set SAIL_GH_TOKEN, GITHUB_TOKEN, or run `gh auth login`.",
+      "No token for the sail-money/harbor registry. Set SAIL_GH_TOKEN, GITHUB_TOKEN, or run `gh auth login`.",
     );
   }
 }
@@ -47,11 +47,9 @@ run("pnpm --filter ./packages/cli build", repoRoot);
 // 2. Release from the blueprint factory. harborPublish packs process.cwd(), so the
 //    CLI must run with the blueprint directory as its working directory.
 const env = { ...process.env, SAIL_GH_TOKEN: token() };
-const args = local ? "harbor publish --local --out /tmp/portfolio-blueprint.tar.gz" : "harbor publish --release";
+const localOut = "/tmp/portfolio-blueprint.tar.gz";
+const args = local ? `harbor publish --local --out ${localOut}` : "harbor publish --release";
 execSync(`node ${cliBin} ${args}`, { cwd: blueprintDir, stdio: "inherit", env });
 
-if (local) {
-  const dest = path.join(tmpdir(), "portfolio-blueprint.tar.gz");
-  // harbor publish --local already wrote to the requested --out path.
-  console.log(`\nWrote ${dest}`);
-}
+// harbor publish --local already wrote to the requested --out path.
+if (local) console.log(`\nWrote ${localOut}`);

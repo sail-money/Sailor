@@ -1,10 +1,39 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { computeManifestDigest } from "@sail/sdk/blueprint";
 import type { ListedRelease } from "../lib/github.js";
 import { harborCreate, harborList, harborUpdate } from "./harbor.js";
+
+/** A real `.tar.gz` blueprint artifact whose manifest is correct by construction. */
+async function buildArchive(files: Record<string, string>): Promise<string> {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harbor-art-"));
+  for (const [rel, body] of Object.entries(files)) {
+    const abs = path.join(dir, "payload", rel);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, body);
+  }
+  const manifest = {
+    schemaVersion: "shipwright.blueprint.manifest/v1",
+    blueprint: { slug: "portfolio", version: "1.0.0", kind: "crystallized" },
+    digest: "",
+    contents: Object.entries(files).map(([rel, body]) => ({
+      path: rel,
+      sha256: createHash("sha256").update(body).digest("hex"),
+      bytes: Buffer.byteLength(body),
+      role: "agent-surface",
+    })),
+  };
+  manifest.digest = await computeManifestDigest(manifest as never);
+  fs.writeFileSync(path.join(dir, "blueprint.manifest.json"), JSON.stringify(manifest));
+  const tgz = path.join(dir, "portfolio.tar.gz");
+  execFileSync("tar", ["-czf", tgz, "-C", dir, "blueprint.manifest.json", "payload"]);
+  return tgz;
+}
 
 function release(
   tag: string,
@@ -248,7 +277,8 @@ test("create forwards chain/yes/agent options to blueprint start", async () => {
       },
     },
   );
-  assert.deepEqual(opts, { chain: "8453", yes: true, agent: "claude" });
+  // The release tag rides along so import records it in the marker for `harbor update`.
+  assert.deepEqual(opts, { chain: "8453", yes: true, agent: "claude", releaseTag: "dca-v1" });
 });
 
 test("create errors when no release matches the slug", async () => {
@@ -290,30 +320,34 @@ test("create refuses a release with no archive asset", async () => {
   );
 });
 
-test("create scaffolds in-place when the current directory is empty", { concurrency: false }, async () => {
-  const previous = process.cwd();
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-harbor-inplace-"));
-  process.chdir(dir);
-  let handedOff: { dir: string } | undefined;
-  try {
-    await harborCreate(
-      "portfolio",
-      undefined,
-      {},
-      {
-        listReleases: async () => [release("portfolio-v1", "portfolio.tar.gz")],
-        downloadAsset: async () => Buffer.from("x"),
-        blueprintStart: async (_source, d) => {
-          handedOff = { dir: d };
+test(
+  "create scaffolds in-place when the current directory is empty",
+  { concurrency: false },
+  async () => {
+    const previous = process.cwd();
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-harbor-inplace-"));
+    process.chdir(dir);
+    let handedOff: { dir: string } | undefined;
+    try {
+      await harborCreate(
+        "portfolio",
+        undefined,
+        {},
+        {
+          listReleases: async () => [release("portfolio-v1", "portfolio.tar.gz")],
+          downloadAsset: async () => Buffer.from("x"),
+          blueprintStart: async (_source, d) => {
+            handedOff = { dir: d };
+          },
         },
-      },
-    );
-    assert.equal(handedOff?.dir, ".");
-  } finally {
-    process.chdir(previous);
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
+      );
+      assert.equal(handedOff?.dir, ".");
+    } finally {
+      process.chdir(previous);
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
 
 // ── update ─────────────────────────────────────────────────────────────────────
 
@@ -322,23 +356,87 @@ test("update re-imports the latest release over a Harbor project in place", asyn
   fs.mkdirSync(path.join(dir, ".sail"), { recursive: true });
   fs.writeFileSync(
     path.join(dir, ".sail", ".blueprint"),
-    JSON.stringify({ slug: "portfolio", version: "portfolio-v1", kind: null, importedAt: "2026-08-13T00:00:00Z" }),
-  );
-  let imported: { source: string; dir: string | undefined } | undefined;
-  const { out, threw } = await capture(() =>
-    harborUpdate(dir, { yes: true }, {
-      listReleases: async () => [release("portfolio-v1", "portfolio.tar.gz"), release("portfolio-v2", "portfolio.tar.gz")],
-      downloadAsset: async () => Buffer.from("x"),
-      importBlueprint: async (source: string, d: string | undefined) => {
-        imported = { source, dir: d };
-        return true;
-      },
+    JSON.stringify({
+      slug: "portfolio",
+      version: "1.0.0",
+      release: "portfolio-v1",
+      kind: null,
+      importedAt: "2026-08-13T00:00:00Z",
     }),
+  );
+  let imported: { source: string; dir: string | undefined; releaseTag?: string } | undefined;
+  const { out, threw } = await capture(() =>
+    harborUpdate(
+      dir,
+      { yes: true },
+      {
+        listReleases: async () => [
+          release("portfolio-v1", "portfolio.tar.gz"),
+          release("portfolio-v2", "portfolio.tar.gz"),
+        ],
+        downloadAsset: async () => Buffer.from("x"),
+        importBlueprint: async (source: string, d: string | undefined, o) => {
+          imported = { source, dir: d, releaseTag: o.releaseTag };
+          return true;
+        },
+      },
+    ),
   );
   assert.equal(threw, null);
   assert.ok(imported, "update must call importBlueprint");
-  assert.equal(imported!.dir, dir);
+  assert.equal(imported.dir, dir);
+  assert.equal(imported.releaseTag, "portfolio-v2");
   assert.match(out, /portfolio-v2/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("update through the real import records the release tag, and is then current", async () => {
+  // Real `blueprintImport` over a real archive; only the registry calls are mocked. This is
+  // the marker/tag contract end to end: the manifest says version "1.0.0" (as published
+  // blueprints do), the registry says "portfolio-v2", and only the latter may be compared.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-harbor-update-real-"));
+  fs.mkdirSync(path.join(dir, ".sail"), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, ".sail", ".blueprint"),
+    JSON.stringify({ slug: "portfolio", version: "1.0.0", release: "portfolio-v1", kind: null }),
+  );
+  const archive = await buildArchive({ "AGENTS.md": "# portfolio v2\n" });
+  const deps = {
+    listReleases: async () => [release("portfolio-v2", "portfolio.tar.gz")],
+    downloadAsset: async () => fs.readFileSync(archive),
+  };
+  const { out, threw } = await capture(() => harborUpdate(dir, { yes: true, json: true }, deps));
+  assert.equal(threw, null, threw?.message);
+  const marker = JSON.parse(fs.readFileSync(path.join(dir, ".sail", ".blueprint"), "utf-8"));
+  assert.equal(marker.release, "portfolio-v2");
+  assert.equal(marker.version, "1.0.0", "the manifest version is kept on its own axis");
+  assert.equal(fs.readFileSync(path.join(dir, "AGENTS.md"), "utf-8"), "# portfolio v2\n");
+  // --json output must be pure JSON: the last line is the result, and nothing human precedes it
+  // that the import itself did not print.
+  const last = out.trim().split("\n").at(-1) ?? "";
+  assert.deepEqual(JSON.parse(last), { updated: true, version: "portfolio-v2" });
+
+  // Second run: the marker now says portfolio-v2, so update is a no-op.
+  let reimported = false;
+  const { out: again } = await capture(() =>
+    harborUpdate(
+      dir,
+      { yes: true, json: true },
+      {
+        ...deps,
+        importBlueprint: async () => {
+          reimported = true;
+          return true;
+        },
+      },
+    ),
+  );
+  assert.equal(reimported, false);
+  assert.deepEqual(JSON.parse(again.trim()), {
+    updated: false,
+    version: "portfolio-v2",
+    reason: "current",
+  });
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -347,18 +445,28 @@ test("update is a no-op (idempotent) when already on the latest release", async 
   fs.mkdirSync(path.join(dir, ".sail"), { recursive: true });
   fs.writeFileSync(
     path.join(dir, ".sail", ".blueprint"),
-    JSON.stringify({ slug: "portfolio", version: "portfolio-v2", kind: null, importedAt: "2026-08-13T00:00:00Z" }),
+    JSON.stringify({
+      slug: "portfolio",
+      version: "1.0.0",
+      release: "portfolio-v2",
+      kind: null,
+      importedAt: "2026-08-13T00:00:00Z",
+    }),
   );
   let imported = false;
   const { threw } = await capture(() =>
-    harborUpdate(dir, { yes: true }, {
-      listReleases: async () => [release("portfolio-v2", "portfolio.tar.gz")],
-      downloadAsset: async () => Buffer.from("x"),
-      importBlueprint: async () => {
-        imported = true;
-        return true;
+    harborUpdate(
+      dir,
+      { yes: true },
+      {
+        listReleases: async () => [release("portfolio-v2", "portfolio.tar.gz")],
+        downloadAsset: async () => Buffer.from("x"),
+        importBlueprint: async () => {
+          imported = true;
+          return true;
+        },
       },
-    }),
+    ),
   );
   assert.equal(threw, null);
   assert.equal(imported, false, "already-current must not re-import");
@@ -369,11 +477,15 @@ test("update errors when the project is not a Harbor project", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sailor-harbor-update-"));
   fs.mkdirSync(path.join(dir, ".sail"), { recursive: true });
   await assert.rejects(
-    harborUpdate(dir, { yes: true }, {
-      listReleases: async () => [release("portfolio-v2", "portfolio.tar.gz")],
-      downloadAsset: async () => Buffer.from("x"),
-      importBlueprint: async () => true,
-    }),
+    harborUpdate(
+      dir,
+      { yes: true },
+      {
+        listReleases: async () => [release("portfolio-v2", "portfolio.tar.gz")],
+        downloadAsset: async () => Buffer.from("x"),
+        importBlueprint: async () => true,
+      },
+    ),
     /not a Harbor project/,
   );
   fs.rmSync(dir, { recursive: true, force: true });

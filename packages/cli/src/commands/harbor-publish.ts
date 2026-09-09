@@ -116,6 +116,9 @@ export async function harborPublish(
   });
 
   const archivePath = writeArchive(packed);
+  if (!options.json) {
+    for (const w of packed.warnings ?? []) console.error(`Warning: ${w}`);
+  }
   try {
     // ── --local: write the archive to disk, no GitHub. ─────────────────────────
     if (options.local) {
@@ -152,8 +155,10 @@ export async function harborPublish(
       const n = nextReleaseNumber(await list(registry), slug);
       const tag = `${slug}-v${n}`;
       const assetBytes = fs.readFileSync(archivePath);
-      console.log(`Packaging "${slug}" and releasing to ${registry} ...`);
-      console.log(`  ${packed.files.size} file(s), tag ${tag}`);
+      if (!options.json) {
+        console.log(`Packaging "${slug}" and releasing to ${registry} ...`);
+        console.log(`  ${packed.files.size} file(s), tag ${tag}`);
+      }
       const rel = await release(registry, {
         tag,
         name: share.name || slug,
@@ -235,6 +240,15 @@ export async function harborPublish(
       );
     }
   } finally {
-    fs.rmSync(archivePath, { recursive: true, force: true });
+    // `writeBlueprintArchive` stages the manifest + payload/ in its own mkdtemp dir next to
+    // the archive; removing only the .tar.gz leaked that staging tree on every publish.
+    // Only sweep a directory that carries its prefix, so an injected archive path can never
+    // take an unrelated directory with it.
+    const staging = path.dirname(archivePath);
+    if (path.basename(staging).startsWith("sailor-blueprint-archive-")) {
+      fs.rmSync(staging, { recursive: true, force: true });
+    } else {
+      fs.rmSync(archivePath, { recursive: true, force: true });
+    }
   }
 }
