@@ -22,6 +22,8 @@ import {SailCalldata} from "./SailCalldata.sol";
 ///     • tokenOut (path[last:20]) ∈ tokensOut — the buy side (the basket tokens)
 ///     • tokenIn != tokenOut (self-routes denied — a round-trip burns AMM fees)
 ///     • path length is 43 (single-hop) or 66 (two-hop) — any other layout denied
+///     • head offsets are canonical (slot 0 == 0x20, slot 1 == 0xa0) and the calldata ends with the
+///       padded path — no decoy tuple at the fixed slots with a second tuple appended for the router
 ///     • for a two-hop path, the intermediate token (path[23:43]) ∈ viaTokens (WETH)
 ///     • amountIn ≤ MAX_BUY_AMOUNT (buy) or amountIn ≤ MAX_SELL_AMOUNT (sell)
 ///     • amountOutMinimum > 0 (a zero min-out would accept literally any fill)
@@ -126,6 +128,11 @@ contract ExactInputSwapPermission is IPermission {
     function _evaluateExactInput(bytes calldata txData, Context calldata ctx) internal view returns (bool) {
         // selector + 7 head words (slots 0..6) must be present to read the path length.
         if (!SailCalldata.hasParams(txData, 7)) return false;
+        // Every field below is read by fixed slot, so the head offsets must be the canonical ones.
+        // Otherwise a caller can leave a compliant decoy tuple at the fixed positions and point
+        // slot 0 at a second tuple elsewhere in the calldata — the router decodes that one.
+        if (SailCalldata.asUint256(txData, 0) != 0x20) return false;
+        if (SailCalldata.asUint256(txData, 1) != 0xa0) return false;
 
         address recipient = SailCalldata.asAddress(txData, 2);
         uint256 amountIn = SailCalldata.asUint256(txData, 4);
@@ -136,7 +143,9 @@ contract ExactInputSwapPermission is IPermission {
         if (amountIn == 0) return false;
         if (amountOutMinimum == 0) return false;
         if (pathLen != SINGLE_HOP_LEN && pathLen != TWO_HOP_LEN) return false;
-        if (txData.length < PATH_START + pathLen) return false;
+        // Exact length: the padded path is the last thing in the calldata, so nothing can be
+        // appended after it for the router to decode instead.
+        if (txData.length != PATH_START + ((pathLen + 31) / 32) * 32) return false;
 
         address tokenIn = _addrAt(txData, PATH_START);
         address tokenOut = _addrAt(txData, PATH_START + pathLen - 20);

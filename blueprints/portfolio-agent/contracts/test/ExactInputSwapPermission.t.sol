@@ -252,6 +252,98 @@ contract ExactInputSwapPermissionTest {
         require(!permission.evaluate(data, _ctx(CLASSIC_ROUTER, EXACT_INPUT, 0)), "truncated calldata must fail");
     }
 
+    function test_RejectsTwoHopViaBasketToken() public view {
+        // SKY is an allowed tokenOut but not a hub: via must be in viaTokens, not merely allowlisted.
+        bytes memory path = _path(USDC, 500, SKY, 3000, CBHYPE);
+        bytes memory data = _exactInput(path, ACCOUNT, 500e6, 1);
+        require(!permission.evaluate(data, _ctx(CLASSIC_ROUTER, EXACT_INPUT, 0)), "basket token as via must fail");
+    }
+
+    // ── Must-fail: ABI layout (fixed-slot reads require canonical offsets + exact length) ──
+
+    /// Hand-rolled tuple body: [pathOffset][recipient][deadline][amountIn][minOut][pathLen][path padded].
+    /// The permission reads slots 2, 4, 5, 6 and the path bytes by fixed position.
+    function _tupleBody(uint256 pathOffset, address recipient, uint256 amountIn, bytes memory path)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return abi.encodePacked(
+            pathOffset,
+            uint256(uint160(recipient)),
+            uint256(type(uint32).max),
+            amountIn,
+            uint256(1),
+            uint256(path.length),
+            path,
+            new bytes((32 - (path.length % 32)) % 32)
+        );
+    }
+
+    function _rawExactInput(uint256 outerOffset, bytes memory body) internal pure returns (bytes memory) {
+        return abi.encodePacked(EXACT_INPUT, outerOffset, body);
+    }
+
+    function test_RawEncodingMatchesCanonicalSingleHop() public view {
+        // Sanity: the hand-rolled builder with canonical offsets is byte-identical to abi.encode.
+        bytes memory path = _path(USDC, 3000, address(0), 0, CBHYPE);
+        bytes memory raw = _rawExactInput(0x20, _tupleBody(0xa0, ACCOUNT, 500e6, path));
+        ExactInputParams memory p = ExactInputParams({
+            path: path, recipient: ACCOUNT, deadline: type(uint32).max, amountIn: 500e6, amountOutMinimum: 1
+        });
+        require(keccak256(raw) == keccak256(abi.encodeWithSelector(EXACT_INPUT, p)), "raw builder drifted");
+        require(permission.evaluate(raw, _ctx(CLASSIC_ROUTER, EXACT_INPUT, 0)), "canonical single-hop must pass");
+    }
+
+    function test_RawEncodingMatchesCanonicalTwoHop() public view {
+        bytes memory path = _path(USDC, 500, WETH, 3000, SKY);
+        bytes memory raw = _rawExactInput(0x20, _tupleBody(0xa0, ACCOUNT, 500e6, path));
+        ExactInputParams memory p = ExactInputParams({
+            path: path, recipient: ACCOUNT, deadline: type(uint32).max, amountIn: 500e6, amountOutMinimum: 1
+        });
+        require(keccak256(raw) == keccak256(abi.encodeWithSelector(EXACT_INPUT, p)), "raw builder drifted");
+        require(permission.evaluate(raw, _ctx(CLASSIC_ROUTER, EXACT_INPUT, 0)), "canonical two-hop must pass");
+    }
+
+    function test_RejectsNonCanonicalOuterOffset() public view {
+        // slot 0 = 0x40 instead of 0x20, with a compliant decoy at the fixed slots.
+        bytes memory path = _path(USDC, 3000, address(0), 0, CBHYPE);
+        bytes memory data = _rawExactInput(0x40, _tupleBody(0xa0, ACCOUNT, 500e6, path));
+        require(!permission.evaluate(data, _ctx(CLASSIC_ROUTER, EXACT_INPUT, 0)), "outer offset != 0x20 must fail");
+    }
+
+    function test_RejectsDecoyTupleWithSecondTupleAppended() public view {
+        // The full bypass shape: compliant decoy at the fixed slots, slot 0 pointing past it at a
+        // second tuple (wrong recipient, over cap, unlisted tokenOut) that the router would decode.
+        bytes memory decoyPath = _path(USDC, 3000, address(0), 0, CBHYPE);
+        bytes memory realPath = _path(USDC, 3000, address(0), 0, RANDOM_TOKEN);
+        bytes memory decoy = _tupleBody(0xa0, ACCOUNT, 500e6, decoyPath);
+        bytes memory real = _tupleBody(0xa0, address(0xBEEF), 1_000_000e6, realPath);
+        bytes memory data = abi.encodePacked(_rawExactInput(32 + decoy.length, decoy), real);
+        require(!permission.evaluate(data, _ctx(CLASSIC_ROUTER, EXACT_INPUT, 0)), "decoy + second tuple must fail");
+    }
+
+    function test_RejectsNonCanonicalPathOffset() public view {
+        // slot 1 = 0xc0 instead of 0xa0; everything else canonical.
+        bytes memory path = _path(USDC, 3000, address(0), 0, CBHYPE);
+        bytes memory data = _rawExactInput(0x20, _tupleBody(0xc0, ACCOUNT, 500e6, path));
+        require(!permission.evaluate(data, _ctx(CLASSIC_ROUTER, EXACT_INPUT, 0)), "path offset != 0xa0 must fail");
+    }
+
+    function test_RejectsTrailingBytes() public view {
+        // Otherwise-valid calldata with a word appended after the padded path.
+        bytes memory path = _path(USDC, 3000, address(0), 0, CBHYPE);
+        bytes memory data = abi.encodePacked(_exactInput(path, ACCOUNT, 500e6, 1), new bytes(32));
+        require(!permission.evaluate(data, _ctx(CLASSIC_ROUTER, EXACT_INPUT, 0)), "trailing bytes must fail");
+    }
+
+    function test_RejectsTrailingByteTwoHop() public view {
+        // A single stray byte after a two-hop path (66 bytes pads to 96) is still an exact-length miss.
+        bytes memory path = _path(USDC, 500, WETH, 3000, SKY);
+        bytes memory data = abi.encodePacked(_exactInput(path, ACCOUNT, 500e6, 1), uint8(0));
+        require(!permission.evaluate(data, _ctx(CLASSIC_ROUTER, EXACT_INPUT, 0)), "trailing byte must fail");
+    }
+
     // ── exactInputSingle (SwapRouter02 — single-hop Uniswap V3 on Base) ─────────
 
     struct ExactInputSingleParams {
