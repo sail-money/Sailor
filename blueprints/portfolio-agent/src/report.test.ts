@@ -18,6 +18,7 @@ import {
   buildSnapshot,
   composeReport,
   formatUsd,
+  readSnapshot,
   shouldRun,
   statusFor,
   writeSnapshot,
@@ -315,4 +316,92 @@ test("composeReport renders the first-report state when there is no baseline", (
     holdings: [],
   });
   assert.ok(composeReport(s, { baseline: null }).includes("waiting for its first deposit"));
+});
+
+// ── Unpriced holdings ──────────────────────────────────────────────────────────
+
+test("buildSnapshot marks an unknown holding unpriced and keeps its last known value", () => {
+  const s = buildSnapshot({
+    usdcTotal: 0n,
+    holdings: [
+      { symbol: "WETH", value: 40_000_000n, targetBps: 4000n },
+      { symbol: "WBTC", value: 105_000_000n, targetBps: 6000n, unknown: true },
+    ],
+    bandBps: 500,
+  });
+  const wbtc = s.holdings.find((h) => h.symbol === "WBTC");
+  assert.ok(wbtc);
+  assert.equal(wbtc.unknown, true);
+  assert.equal(wbtc.status, "unpriced");
+  assert.equal(wbtc.value, 105_000_000n); // carried, not zeroed
+  assert.equal(s.investedValue, 145_000_000n);
+  const weth = s.holdings.find((h) => h.symbol === "WETH");
+  assert.ok(weth);
+  assert.equal(weth.unknown, undefined);
+});
+
+test("writeSnapshot / readSnapshot round-trip the unpriced flag", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "portfolio-unpriced-snapshot-test-"));
+  fs.mkdirSync(path.join(dir, ".sail"), { recursive: true });
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    assert.equal(readSnapshot(), null); // nothing written yet
+    writeSnapshot(
+      buildSnapshot({
+        usdcTotal: 10_000_000n,
+        holdings: [
+          { symbol: "WETH", value: 40_000_000n, targetBps: 4000n },
+          { symbol: "WBTC", value: 105_000_000n, targetBps: 6000n, unknown: true },
+        ],
+        bandBps: 500,
+        costBasis: 120_000_000n,
+      }),
+    );
+    const raw = JSON.parse(
+      fs.readFileSync(path.join(dir, ".sail", "state", "snapshot.json"), "utf-8"),
+    );
+    assert.equal(raw.holdings[1].unknown, true);
+    assert.equal(raw.holdings[1].status, "unpriced");
+    assert.equal(raw.holdings[1].value, "105000000");
+    assert.equal("unknown" in raw.holdings[0], false);
+    const back = readSnapshot();
+    assert.ok(back);
+    assert.equal(back.totalValue, 155_000_000n);
+    assert.equal(back.costBasis, 120_000_000n);
+    assert.equal(back.holdings[1].unknown, true);
+    assert.equal(back.holdings[1].value, 105_000_000n);
+    assert.equal(back.holdings[0].unknown, undefined);
+  } finally {
+    process.chdir(prev);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("composeReport renders an unpriced holding with its last known value and pauses the action line", () => {
+  const s = snapshot({
+    totalValue: 145_000_000n,
+    investedValue: 145_000_000n,
+    idleUsdc: 0n,
+    costBasis: 140_000_000n,
+    holdings: [
+      h("WETH", 40_000_000n, 2758n, 4000n), // under target — would normally be a "buy"
+      { ...h("WBTC", 105_000_000n, 7241n, 6000n), status: "unpriced", unknown: true },
+    ],
+  });
+  const baseline = {
+    totalValue: 145_000_000n,
+    investedValue: 145_000_000n,
+    costBasis: 140_000_000n,
+    idleUsdc: 0n,
+  };
+  const r = composeReport(s, { baseline, actions: [] });
+  assert.ok(r.includes("⚪ WBTC"));
+  assert.ok(r.includes("unpriced this run"));
+  assert.ok(r.includes("last known $105.00"));
+  assert.ok(!/WBTC.*\$0\.00/.test(r)); // never a false drop to nothing
+  assert.ok(!/WBTC.*[█░▏]/.test(r)); // and no weight bar for a value that is not fresh
+  assert.ok(r.includes("Rebalancing paused: no price for WBTC"));
+  assert.ok(!r.includes("Rebalancing next")); // the buy/sell count is not promised while paused
+  assert.ok(r.startsWith("<b>Everything is on track.")); // no phantom withdrawal from a zeroed value
 });

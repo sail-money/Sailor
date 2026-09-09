@@ -9,7 +9,7 @@ the two standing rules. Kept here so the SKILL.md stays lean; load this when the
 
 Welcome aboard — I'm **Sailor**, here to help you navigate **Sail Protocol**.
 
-I'll take you from an idea to a **live DeFi agent** managing capital inside **bounds only you control**.
+I'll take you from an idea to a **live money agent** managing capital inside **bounds only you control**.
 
 Here's the journey:
 

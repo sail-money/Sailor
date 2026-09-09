@@ -22,8 +22,8 @@ rebalances, reports.
 
 ## Your portfolio
 
-Onboarding writes the basket you confirm to [`basket.json`](basket.json) and fills this table.
-Until then it is the template.
+Onboarding writes the basket you confirm to `basket.json` (a themed blueprint may ship one; this
+generic template does not) and fills this table. Until then it is the template.
 
 | Vertical | Asset | Target | Chain | Why this one |
 |---|---|---|---|---|
@@ -31,8 +31,9 @@ Until then it is the template.
 | | | | | |
 
 Weights are global targets that sum to 100%; the chain is wherever the asset's deepest liquidity
-lives. A holding more than the band (default ±10 percentage points) over its target is trimmed
-weekly; anything under target is bought with idle USDC on every run.
+lives. A holding more than the band (default ±10 percentage points) over its target is trimmed on
+every run by default (set `rebalancePeriodSec` in `.sail/portfolio.json` for a slower cadence, such
+as weekly); anything under target is bought with idle USDC on every run.
 
 ## Your thesis
 
@@ -58,7 +59,7 @@ code can change without your signature; the permissions cannot.
 
 | Permission | What it allows | What it refuses |
 |---|---|---|
-| `ExactInputSwapPermission` | Uniswap V3 and Aerodrome swaps, settlement currency in and basket tokens out, or the reverse, with the Safe as recipient, up to a per-buy cap | Any other router, token, recipient or selector; zero min-out; native value |
+| `ExactInputSwapPermission` | Uniswap V3 and Aerodrome swaps, settlement currency in and basket tokens out, or the reverse, with the Safe as recipient, up to a per-buy cap, canonical ABI offsets and exact length | Any other router, token, recipient or selector; zero min-out; native value |
 | `BoundedErc20Approve` | `approve()` on the settlement currency and basket tokens to the routers and the CCTP messenger, with an optional per-token cap | Any other spender, token or function |
 | `CctpBridgePermission` | `depositForBurn` of USDC, up to a per-transaction cap, to the allowlisted chains, mint recipient pinned to the Safe's own address; `receiveMessage` to complete a mint | Any other token, destination or recipient |
 | `AcrossBridgePermission` | `depositV3` on an Across SpokePool for chains CCTP does not reach (Robinhood Chain, in USDG): depositor and recipient pinned to the Safe, both tokens and the destination fixed, per-transaction cap, output floor, fresh quote, bounded deadline, empty message | Any other token, chain, recipient, relayer exclusivity, or any cross-chain message |
@@ -81,7 +82,10 @@ transactions; the runner executes them and records the outcome.
    transaction is verified on the destination SpokePool; an expired deposit is recorded as refunded.
 3. **Value.** Idle settlement currency on every chain, every holding quoted through its own pool,
    and USDC still in flight across a bridge, all in one base.
-4. **Trim.** Weekly, sell the excess of any holding more than the band over target.
+4. **Trim.** Sell the excess of any holding more than the band over target — on every run by
+   default, or on the `rebalancePeriodSec` cadence when one is set. A holding whose pool gives no
+   quote pauses every trim and buy for that run (its value is unknown, not zero) and is reported
+   as unpriced.
 5. **Buy toward target**, in basket order, sized to `min(shortfall, cash)` against a shared per-chain
    budget. Shortfalls on a chain with no cash reserve their share and are pooled into one bridge
    per source and destination: CCTP between USDC chains, Across to chains that settle in USDG.

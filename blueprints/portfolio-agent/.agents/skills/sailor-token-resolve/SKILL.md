@@ -100,8 +100,8 @@ not a final answer:
 - **The live on-chain quote is the only authority for the real number.** Depth figures are stale
   and concentration-blind; `quote-swap.mjs` (or the QuoterV2 probe) gives the actual `amountOut`
   at the real trade size. Rule of thumb: constant-product pool ≥ 100× trade size, V3 ≥ 20×
-  (screen only, always live-quote); retail max-slippage caps 3/5/8% — full model in
-  `docs/references/dex-liquidity-adequacy-model.md`.
+  (screen only, always live-quote); retail max-slippage caps 3/5/8%; the sizing rules are
+  expanded in `references/resolution-detail.md`.
 
 ## Tokenized stocks (Coinbase B20)
 

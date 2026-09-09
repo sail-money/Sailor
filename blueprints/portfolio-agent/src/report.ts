@@ -24,7 +24,8 @@ const BPS = 10_000n;
 /** One dollar in 6-decimal base units — the dust floor for "something external moved". */
 const ONE_DOLLAR = USD_ONE;
 
-export type HoldingStatus = "in-band" | "buy" | "sell";
+/** `unpriced`: the holding's pool gave no quote this tick, so its value (and every weight) is unreliable. */
+export type HoldingStatus = "in-band" | "buy" | "sell" | "unpriced";
 
 export type Holding = {
   symbol: string;
@@ -34,6 +35,12 @@ export type Holding = {
   status: HoldingStatus;
   /** Signed drift: weight − target, in basis points. Negative = under target. */
   driftBps: bigint;
+  /**
+   * True when the holding could not be priced this tick. `value` is then the LAST KNOWN value
+   * (carried over from the previous snapshot, or 0 when there is none), never a fresh quote —
+   * so a report never shows the holding as having dropped to nothing.
+   */
+  unknown?: boolean;
 };
 
 export type PortfolioSnapshot = {
@@ -86,7 +93,7 @@ export function shouldRun(nowSec: number, lastSec: number, periodSec: number): b
  */
 export function buildSnapshot(opts: {
   usdcTotal: bigint;
-  holdings: { symbol: string; value: bigint; targetBps: bigint }[];
+  holdings: { symbol: string; value: bigint; targetBps: bigint; unknown?: boolean }[];
   bandBps: number;
   costBasis?: bigint | null;
   pendingBridgeUsdc?: bigint;
@@ -105,14 +112,16 @@ export function buildSnapshot(opts: {
   const valueBase = opts.valueBase ?? investedValue;
   const holdings: Holding[] = opts.holdings.map((h) => {
     const weightBps = valueBase === 0n ? 0n : (h.value * BPS) / valueBase;
-    return {
+    const holding: Holding = {
       symbol: h.symbol,
       value: h.value,
       weightBps,
       targetBps: h.targetBps,
-      status: statusFor(weightBps, h.targetBps, band),
+      status: h.unknown ? "unpriced" : statusFor(weightBps, h.targetBps, band),
       driftBps: weightBps - h.targetBps,
     };
+    if (h.unknown) holding.unknown = true;
+    return holding;
   });
   return {
     totalValue: opts.usdcTotal + investedValue + pendingBridgeUsdc,
@@ -134,6 +143,7 @@ type HoldingJson = {
   targetBps: string;
   status: HoldingStatus;
   driftBps: string;
+  unknown?: boolean;
 };
 
 type SnapshotJson = {
@@ -161,8 +171,42 @@ function toJson(s: PortfolioSnapshot): SnapshotJson {
       targetBps: h.targetBps.toString(),
       status: h.status,
       driftBps: h.driftBps.toString(),
+      ...(h.unknown ? { unknown: true } : {}),
     })),
   };
+}
+
+function fromJson(j: SnapshotJson): PortfolioSnapshot {
+  return {
+    totalValue: BigInt(j.totalValue),
+    investedValue: BigInt(j.investedValue),
+    idleUsdc: BigInt(j.idleUsdc),
+    pendingBridgeUsdc: BigInt(j.pendingBridgeUsdc ?? "0"),
+    costBasis: j.costBasis === null || j.costBasis === undefined ? null : BigInt(j.costBasis),
+    asOf: j.asOf,
+    holdings: (j.holdings ?? []).map((h) => ({
+      symbol: h.symbol,
+      value: BigInt(h.value),
+      weightBps: BigInt(h.weightBps),
+      targetBps: BigInt(h.targetBps),
+      status: h.status,
+      driftBps: BigInt(h.driftBps),
+      ...(h.unknown ? { unknown: true } : {}),
+    })),
+  };
+}
+
+/** Read the last written snapshot back, or null when there is none (or it is unreadable). */
+export function readSnapshot(): PortfolioSnapshot | null {
+  try {
+    const raw = fs.readFileSync(
+      path.join(process.cwd(), ".sail", "state", "snapshot.json"),
+      "utf-8",
+    );
+    return fromJson(JSON.parse(raw) as SnapshotJson);
+  } catch {
+    return null;
+  }
 }
 
 /** Write the snapshot to .sail/state/snapshot.json (bigints as decimal strings). */
@@ -246,6 +290,7 @@ const STATUS_EMOJI: Record<HoldingStatus, string> = {
   "in-band": "🟢",
   buy: "🟡",
   sell: "🔴",
+  unpriced: "⚪",
 };
 
 /** A 20-cell progress bar: filled `█` for the actual weight, a `▏` tick at the target. */
@@ -338,6 +383,13 @@ export function composeReport(
     lines.push("Nothing invested yet. Your deposit is invested across the basket on the next run.");
   } else {
     for (const h of s.holdings) {
+      if (h.unknown) {
+        // No quote this tick: show the last known value, never a 0% bar that reads as a wipeout.
+        lines.push(
+          `${STATUS_EMOJI.unpriced} ${h.symbol.padEnd(6)} unpriced this run · last known ${formatUsd(h.value)} · target ${formatPct(h.targetBps)}`,
+        );
+        continue;
+      }
       const drift =
         h.status === "in-band" && (h.driftBps <= -100n || h.driftBps >= 100n)
           ? h.driftBps < 0n
@@ -352,9 +404,14 @@ export function composeReport(
   lines.push("");
 
   // Beat 5 — action, never a trailing-off.
+  const unpriced = s.holdings.filter((h) => h.unknown).map((h) => h.symbol);
   const buys = s.holdings.filter((h) => h.status === "buy").length;
   const sells = s.holdings.filter((h) => h.status === "sell").length;
-  if (buys > 0 || sells > 0) {
+  if (unpriced.length > 0) {
+    lines.push(
+      `Rebalancing paused: no price for ${unpriced.join(", ")} this run. It resumes when the quote returns; check the token's pool or route if this persists.`,
+    );
+  } else if (buys > 0 || sells > 0) {
     const parts: string[] = [];
     if (sells > 0) parts.push(`${sells} over target`);
     if (buys > 0) parts.push(`${buys} under target`);

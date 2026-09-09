@@ -18,16 +18,24 @@
 //   node .agents/skills/sailor-templates/catalog.mjs --chain 8453   # deployment status for one chain
 //   node .agents/skills/sailor-templates/catalog.mjs --protocol /path/to/Protocol   # override Protocol dir
 
-import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 const CHAIN_NAMES = {
-  1: "Ethereum", 8453: "Base", 42161: "Arbitrum", 10: "Optimism", 130: "Unichain",
-  56: "BSC", 480: "World Chain", 999: "HyperEVM", 4326: "MegaETH",
-  84532: "Base Sepolia", 11155111: "Sepolia",
+  1: "Ethereum",
+  8453: "Base",
+  42161: "Arbitrum",
+  10: "Optimism",
+  130: "Unichain",
+  56: "BSC",
+  480: "World Chain",
+  999: "HyperEVM",
+  4326: "MegaETH",
+  84532: "Base Sepolia",
+  11155111: "Sepolia",
 };
 
 // Curated detail, keyed by the Solidity contract name. Config blobs are the
@@ -35,38 +43,43 @@ const CHAIN_NAMES = {
 const META = {
   SwapPermission: {
     primitive: "DEX swaps (Uniswap V3 / V3-02 / V2)",
-    skill: "sailor-template-swap",
-    config: "(address[] routers, address[] tokensIn, address[] tokensOut, uint256 maxAmountPerTx, uint256 maxSlippageBps, address priceOracle, uint256 maxPriceAgeSec)",
+    skill: "sailor-templates/references/swap.md",
+    config:
+      "(address[] routers, address[] tokensIn, address[] tokensOut, uint256 maxAmountPerTx, uint256 maxSlippageBps, address priceOracle, uint256 maxPriceAgeSec)",
   },
   SwapPermissionNoOracle: {
-    primitive: "DEX swaps for tokens with NO oracle — live-pool hallucination band (NOT manipulation-resistant)",
-    skill: "sailor-template-swap-no-oracle",
-    config: "(address[] routers, address[] tokensIn, address[] tokensOut, uint256 maxAmountPerTx, ReferencePool[] referencePools) — ReferencePool{address tokenIn, address tokenOut, address pool, PoolKind kind (0=V2,1=V3), uint256 toleranceBps}",
+    primitive:
+      "DEX swaps for tokens with NO oracle — live-pool hallucination band (NOT manipulation-resistant)",
+    skill: "sailor-templates/references/swap-no-oracle.md",
+    config:
+      "(address[] routers, address[] tokensIn, address[] tokensOut, uint256 maxAmountPerTx, ReferencePool[] referencePools) — ReferencePool{address tokenIn, address tokenOut, address pool, PoolKind kind (0=V2,1=V3), uint256 toleranceBps}",
   },
   BorrowPermission: {
     primitive: "Lending borrows (Aave / Morpho / Compound) with LTV check",
-    skill: "sailor-template-borrow",
-    config: "(address[] protocols, address[] assets, uint256 maxAmountPerTx, uint256 maxLtvBps, address collateralOracle, address borrowOracle, uint256 maxPriceAgeSec)",
+    skill: "sailor-templates/references/borrow.md",
+    config:
+      "(address[] protocols, address[] assets, uint256 maxAmountPerTx, uint256 maxLtvBps, address collateralOracle, address borrowOracle, uint256 maxPriceAgeSec)",
   },
   TransferPermission: {
     primitive: "ERC-20 transfers to a recipient allowlist (from == account)",
-    skill: "sailor-template-transfer",
+    skill: "sailor-templates/references/transfer.md",
     config: "(address[] allowedRecipients, address[] allowedTokens, uint256 maxAmountPerTx)",
   },
   DepositPermission: {
     primitive: "Vault / lending deposits (ERC-4626 + Aave v2/v3)",
-    skill: "sailor-template-deposit",
+    skill: "sailor-templates/references/deposit.md",
     config: "(address[] targets, address[] tokens, uint256 maxAmountPerTx)",
   },
   WithdrawPermission: {
     primitive: "Vault / lending exits paid to the account (ERC-4626 + Aave v2/v3)",
-    skill: "sailor-template-withdraw",
+    skill: "sailor-templates/references/withdraw.md",
     config: "(address[] targets, address[] tokens, uint256 maxAmountPerTx)",
   },
   ApproveAndCallBatchPermission: {
     primitive: "Atomic approve / consuming-call / reset-to-zero batch",
-    skill: "sailor-template-approve-batch",
-    config: "Config{ address[] tokens, address[] spenders, ConsumingPair[] consumingPairs /* (address target, bytes4 selector) */, uint256[] maxApprovalAmounts, bool requireAmountMatch, bool allowUnconstrainedRecipient /* default false = recipient pinned to account; true = opt out */ }",
+    skill: "sailor-templates/references/approve-batch.md",
+    config:
+      "Config{ address[] tokens, address[] spenders, ConsumingPair[] consumingPairs /* (address target, bytes4 selector) */, uint256[] maxApprovalAmounts, bool requireAmountMatch, bool allowUnconstrainedRecipient /* default false = recipient pinned to account; true = opt out */ }",
   },
 };
 
@@ -121,7 +134,11 @@ function statusFor(deployed, name) {
   const rows = [];
   for (const [chainId, map] of Object.entries(deployed.chains ?? {})) {
     const addr = map?.[name];
-    rows.push({ chainId: Number(chainId), name: CHAIN_NAMES[chainId] ?? `chain ${chainId}`, address: addr ?? null });
+    rows.push({
+      chainId: Number(chainId),
+      name: CHAIN_NAMES[chainId] ?? `chain ${chainId}`,
+      address: addr ?? null,
+    });
   }
   return rows.sort((a, b) => a.chainId - b.chainId);
 }
@@ -135,14 +152,22 @@ function main() {
   // the Protocol checkout and is unavailable here.
   const templates = protocolDir
     ? detectTemplates(protocolDir)
-    : Object.keys(META).sort().map((name) => ({ name, file: null }));
+    : Object.keys(META)
+        .sort()
+        .map((name) => ({ name, file: null }));
   const deployed = loadDeployed();
   const onlyChain = argValue("--chain");
 
   const catalog = templates.map((t) => ({
     ...t,
-    ...(META[t.name] ?? { primitive: "(uncurated — see source)", skill: null, config: "(see source)" }),
-    deployments: statusFor(deployed, t.name).filter((r) => !onlyChain || r.chainId === Number(onlyChain)),
+    ...(META[t.name] ?? {
+      primitive: "(uncurated — see source)",
+      skill: null,
+      config: "(see source)",
+    }),
+    deployments: statusFor(deployed, t.name).filter(
+      (r) => !onlyChain || r.chainId === Number(onlyChain),
+    ),
   }));
 
   // IOracle adapters usable as `priceOracle` in SwapPermission config (deployed.json `oracles`).
@@ -150,19 +175,32 @@ function main() {
   for (const [chainId, byLabel] of Object.entries(deployed.oracles ?? {})) {
     if (onlyChain && Number(chainId) !== Number(onlyChain)) continue;
     for (const [label, o] of Object.entries(byLabel ?? {})) {
-      oracles.push({ chainId: Number(chainId), name: CHAIN_NAMES[chainId] ?? `chain ${chainId}`, label, ...o });
+      oracles.push({
+        chainId: Number(chainId),
+        name: CHAIN_NAMES[chainId] ?? `chain ${chainId}`,
+        label,
+        ...o,
+      });
     }
   }
 
   if (hasFlag("--json")) {
-    console.log(JSON.stringify({ protocolDir, sourceAvailable: !!protocolDir, templates: catalog, oracles }, null, 2));
+    console.log(
+      JSON.stringify(
+        { protocolDir, sourceAvailable: !!protocolDir, templates: catalog, oracles },
+        null,
+        2,
+      ),
+    );
     return;
   }
 
   console.log("Sail shared permission templates — source: Protocol/contracts/templates\n");
   console.log("Model: configurable singletons. Deploy ONCE per chain, then every SMA reuses the");
   console.log("address via register (`sailor mandate register`) + configure (no per-SMA deploy).");
-  console.log("NOTE: `sailor mandate register` registers ONLY — you must also configure per-account");
+  console.log(
+    "NOTE: `sailor mandate register` registers ONLY — you must also configure per-account",
+  );
   console.log("(configureDirect today); see SKILL.md / references/reuse-flow.md.\n");
   if (!protocolDir) {
     console.log(
@@ -187,7 +225,9 @@ function main() {
         console.log(`     ${d.name} (${d.chainId}): ${d.address ?? "— not yet deployed"}`);
       }
     } else {
-      console.log("   deployed:  not yet on any tracked chain (record in deployed.json once deployed)");
+      console.log(
+        "   deployed:  not yet on any tracked chain (record in deployed.json once deployed)",
+      );
     }
     console.log("");
   }
@@ -195,8 +235,12 @@ function main() {
     console.log("━━ IOracle adapters (usable as SwapPermission `priceOracle`) ━━");
     for (const o of oracles) {
       const pairs = (o.pairs ?? []).map((p) => p.label ?? `${p.base}/${p.quote}`).join(", ");
-      console.log(`   ${o.label} (${o.name} ${o.chainId}): ${o.address}${o.default ? "  [default]" : ""}`);
-      console.log(`     kind: ${o.kind ?? "?"}${o.twapWindowSec ? `, twap=${o.twapWindowSec}s` : ""}, decimals: ${o.priceDecimals ?? "?"}, pairs: ${pairs || "?"}`);
+      console.log(
+        `   ${o.label} (${o.name} ${o.chainId}): ${o.address}${o.default ? "  [default]" : ""}`,
+      );
+      console.log(
+        `     kind: ${o.kind ?? "?"}${o.twapWindowSec ? `, twap=${o.twapWindowSec}s` : ""}, decimals: ${o.priceDecimals ?? "?"}, pairs: ${pairs || "?"}`,
+      );
       if (o.note) console.log(`     ↳ ${o.note}`);
     }
     console.log("");

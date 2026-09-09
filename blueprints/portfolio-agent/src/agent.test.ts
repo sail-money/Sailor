@@ -366,6 +366,8 @@ function makeCtx(
       string,
       { status: string; to?: string; logs?: { address: string; topics: string[] }[] }
     >;
+    /** Mock: token addresses whose quote reverts (no pool / thin liquidity) — every path touching them fails. */
+    unpriceable?: string[];
   } = {},
 ) {
   const balances = opts.balances ?? {};
@@ -383,9 +385,12 @@ function makeCtx(
       publicClient: {
         // 1:1 price: echo the input amount back as the output amount. Multi-hop quote
         // args are [path, amountIn], so the amount is args[1].
-        simulateContract: async ({ args }: { args: unknown[] }) => ({
-          result: [args[1], 0n, 0, 0n],
-        }),
+        simulateContract: async ({ args }: { args: unknown[] }) => {
+          const pathHex = String(args[0]).toLowerCase();
+          if (opts.unpriceable?.some((a) => pathHex.includes(a.slice(2).toLowerCase())))
+            throw new Error("quote reverted");
+          return { result: [args[1], 0n, 0, 0n] };
+        },
         // usedNonces(bytes32) on the CCTP MessageTransmitter: 1 once the mint landed.
         readContract: async ({ functionName }: { functionName: string }) =>
           functionName === "usedNonces" ? (opts.mintLanded ? 1n : 0n) : 0n,
@@ -1555,6 +1560,117 @@ test("an expired Across deposit is recorded as refunded and stops counting as in
       fs.readFileSync(path.join(dir, ".sail", "state", "snapshot.json"), "utf-8"),
     );
     assert.equal(snap.pendingBridgeUsdc, "0");
+  } finally {
+    process.chdir(prev);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("an unpriceable holding pauses every trim and buy and is reported as unpriced, not $0", async () => {
+  // WETH $40 / WBTC $110 with $50 idle: WBTC is overweight (a trim is due) and WETH is under
+  // target (a buy is due). When WBTC's pool gives no quote its value is UNKNOWN — a 0 would read
+  // as "WBTC under-allocated" and both buy WBTC up to the cap and trim WETH on inflated weights.
+  const balances = {
+    [`8453:${USDC_BASE}`]: 50_000_000n,
+    [`8453:${WETH_BASE}`]: 40_000_000n,
+    [`8453:${WBTC_BASE}`]: 110_000_000n,
+  };
+  // Control: with every holding priced, this exact portfolio trades.
+  const control = await run(twoTokenConfig(), makeCtx({ timestamp: T0, balances }));
+  assert.ok(control.length > 0);
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "portfolio-unpriced-test-"));
+  fs.mkdirSync(path.join(dir, ".sail", "state"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".sail", "portfolio.json"), JSON.stringify(twoTokenConfig()));
+  // The previous tick priced WBTC at $105 — the last known value the snapshot must carry.
+  fs.writeFileSync(
+    path.join(dir, ".sail", "state", "snapshot.json"),
+    JSON.stringify({
+      totalValue: "195000000",
+      investedValue: "145000000",
+      idleUsdc: "50000000",
+      pendingBridgeUsdc: "0",
+      costBasis: null,
+      holdings: [
+        {
+          symbol: "WETH",
+          value: "40000000",
+          weightBps: "2051",
+          targetBps: "4000",
+          status: "buy",
+          driftBps: "-1949",
+        },
+        {
+          symbol: "WBTC",
+          value: "105000000",
+          weightBps: "5384",
+          targetBps: "6000",
+          status: "buy",
+          driftBps: "-616",
+        },
+      ],
+    }),
+  );
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    const dispatches = await agent.tick(
+      makeCtx({ timestamp: T0, balances, unpriceable: [WBTC_BASE] }),
+    );
+    assert.equal(dispatches.length, 0); // no WBTC trim, no WBTC buy, no WETH buy
+
+    const snap = JSON.parse(
+      fs.readFileSync(path.join(dir, ".sail", "state", "snapshot.json"), "utf-8"),
+    );
+    const wbtc = snap.holdings.find((h: { symbol: string }) => h.symbol === "WBTC");
+    assert.equal(wbtc.unknown, true);
+    assert.equal(wbtc.status, "unpriced");
+    assert.equal(wbtc.value, "105000000"); // last known, never 0
+    const weth = snap.holdings.find((h: { symbol: string }) => h.symbol === "WETH");
+    assert.equal(weth.unknown, undefined);
+
+    const ledger = fs
+      .readFileSync(path.join(dir, ".sail", "memory", "ledger.jsonl"), "utf-8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    const last = ledger[ledger.length - 1];
+    assert.equal(last.kind, "skipped");
+    assert.ok(String(last.reason).includes("WBTC"));
+    assert.ok(!ledger.some((e) => e.kind === "trade" || e.kind === "rebalanced"));
+  } finally {
+    process.chdir(prev);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("an unpriceable holding with no previous snapshot is still not treated as an empty portfolio", async () => {
+  // First ever tick and the only holding cannot be quoted: no prior value to carry, but the
+  // SMA does hold the token, so the tick must pause (not "portfolio empty") and record why.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "portfolio-unpriced-first-test-"));
+  fs.mkdirSync(path.join(dir, ".sail"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".sail", "portfolio.json"), JSON.stringify(twoTokenConfig()));
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    const dispatches = await agent.tick(
+      makeCtx({
+        timestamp: T0,
+        balances: { [`8453:${WBTC_BASE}`]: 110_000_000n, [`8453:${USDC_BASE}`]: 50_000_000n },
+        unpriceable: [WBTC_BASE],
+      }),
+    );
+    assert.equal(dispatches.length, 0);
+    const snap = JSON.parse(
+      fs.readFileSync(path.join(dir, ".sail", "state", "snapshot.json"), "utf-8"),
+    );
+    assert.equal(snap.holdings.find((h: { symbol: string }) => h.symbol === "WBTC").unknown, true);
+    const lines = fs
+      .readFileSync(path.join(dir, ".sail", "memory", "ledger.jsonl"), "utf-8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    assert.equal(lines[lines.length - 1].reason, "unpriced: WBTC");
   } finally {
     process.chdir(prev);
     fs.rmSync(dir, { recursive: true, force: true });

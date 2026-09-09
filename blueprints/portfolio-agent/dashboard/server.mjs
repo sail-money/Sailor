@@ -330,7 +330,7 @@ async function refresh() {
     $("total").textContent = s.totalValue || "—";
     $("deposits").textContent = s.netDeposits || "—";
     $("pnl").textContent = s.pnl ? s.pnl + (s.pnlPct ? " (" + s.pnlPct + ")" : "") : "—";
-    $("band").textContent = s.rebalanceBand ? "Rebalance band " + s.rebalanceBand + " around each target; trims weekly, buys toward target on every run." : "";
+    $("band").textContent = s.rebalanceBand ? "Rebalance band " + s.rebalanceBand + " around each target; trims on the rebalance cadence (every run by default), buys toward target on every run." : "";
 
     $("holdings").innerHTML = (s.holdings || []).map((h) => {
       const w = Math.min(100, Math.max(0, h.weightBps / 100));

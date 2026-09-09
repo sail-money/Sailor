@@ -35,6 +35,7 @@ import {
   buildReportContext,
   buildSnapshot,
   composeReport,
+  readSnapshot,
   sendTelegramReport,
   shouldRun,
   writeSnapshot,
@@ -1012,12 +1013,17 @@ async function swap(
   };
 }
 
-/** Settlement-currency-denominated value of the SMA's holding of a token on one chain (base units). */
+/**
+ * Settlement-currency-denominated value of the SMA's holding of a token on one chain (base units).
+ * Returns null when the SMA holds the token but its pool gives no quote: the value is UNKNOWN,
+ * not zero. A zero here would read as "under-allocated" and trigger a buy up to the cap, and
+ * inflate every sibling's weight into a spurious trim — so the caller must pause instead.
+ */
 export async function usdcValueOf(
   ctx: AgentContext,
   cfg: PortfolioConfig,
   spec: ChainToken,
-): Promise<bigint> {
+): Promise<bigint | null> {
   const balance = await ctx.chain(spec.chainId).read.balance(spec.address);
   if (balance === 0n) return 0n;
   const settlement = settlementOf(cfg, spec.chainId);
@@ -1031,7 +1037,7 @@ export async function usdcValueOf(
     settlement.address,
     oneUnit,
   );
-  if (perToken === null) return 0n; // unpriceable holding: fail closed, value 0
+  if (perToken === null) return null; // unpriceable holding: unknown, never 0
   // `perToken` is in the chain's settlement native units; normalize to the 6-decimal base.
   return (balance * toBase(perToken, settlement)) / oneUnit;
 }
@@ -1562,19 +1568,47 @@ export const agent: Agent = {
       usdcTotal += base;
     }
 
-    const entries: { token: BasketToken; value: bigint; weightBps: bigint; targetBps: bigint }[] =
-      [];
+    // A holding whose pool gives no quote has an UNKNOWN value. Its last known value (from the
+    // previous snapshot) is carried into the display so the report never shows a false drop,
+    // and every trim and buy is paused this tick: with one value unknown, every weight and
+    // every shortfall is unreliable, so no rebalance decision is safe.
+    const prevSnapshot = readSnapshot();
+    const unpriced: string[] = [];
+    const entries: {
+      token: BasketToken;
+      value: bigint;
+      unknown: boolean;
+      weightBps: bigint;
+      targetBps: bigint;
+    }[] = [];
     for (const token of cfg.basket) {
       let value = 0n;
+      let unknown = false;
       for (const spec of token.chains) {
-        value += await usdcValueOf(ctx, cfg, spec);
+        const v = await usdcValueOf(ctx, cfg, spec);
+        if (v === null) {
+          unknown = true;
+          break;
+        }
+        value += v;
+      }
+      if (unknown) {
+        unpriced.push(token.symbol);
+        value = prevSnapshot?.holdings.find((h) => h.symbol === token.symbol)?.value ?? 0n;
       }
       entries.push({
         token,
         value,
+        unknown,
         weightBps: 0n,
         targetBps: BigInt(Math.round(token.weight * 10_000)),
       });
+    }
+    const tradingPaused = unpriced.length > 0;
+    if (tradingPaused) {
+      ctx.log(
+        `could not price ${unpriced.join(", ")} (no quote from its pool) — value unknown, so every trim and buy is paused this tick; check the token's pool or route if this persists`,
+      );
     }
 
     const investedValue = entries.reduce((a, e) => a + e.value, 0n);
@@ -1582,7 +1616,7 @@ export const agent: Agent = {
     // sized during the flight window undershoot target by the in-flight amount.
     const pendingBridge = pendingBridgeUsd();
     const totalValue = usdcTotal + investedValue + pendingBridge;
-    if (totalValue === 0n) {
+    if (totalValue === 0n && !tradingPaused) {
       ctx.log("portfolio empty — skipping");
       appendLedger({
         ts: ctx.timestamp,
@@ -1608,7 +1642,8 @@ export const agent: Agent = {
     //    band back to USDC. The USDC this raises is invested on a later tick. Trimming
     //    follows the rebalance cadence (rebalancePeriodSec); buying toward target stays
     //    continuous so deposits are invested promptly.
-    const rebalanceDue = shouldRun(ctx.timestamp, lastRebalanceTs(), cfg.rebalancePeriodSec ?? 0);
+    const rebalanceDue =
+      !tradingPaused && shouldRun(ctx.timestamp, lastRebalanceTs(), cfg.rebalancePeriodSec ?? 0);
     if (rebalanceDue) {
       let sold = false;
       for (const e of entries) {
@@ -1684,7 +1719,10 @@ export const agent: Agent = {
       string,
       { source: number; dest: number; amount: bigint; symbols: string[] }
     >();
-    for (const e of entries) {
+    // Paused (an unpriced holding): no buys at all — the unpriced token must not be bought, and
+    // every other token's shortfall is measured against a total that is itself unknown.
+    const buyCandidates = tradingPaused ? [] : entries;
+    for (const e of buyCandidates) {
       let buyUsd: bigint;
       if (dca) {
         if (dcaDue) {
@@ -1824,6 +1862,7 @@ export const agent: Agent = {
         symbol: e.token.symbol,
         value: e.value,
         targetBps: e.targetBps,
+        unknown: e.unknown,
       })),
       bandBps: cfg.rebalanceBandBps,
       costBasis: invested - sold,
@@ -1853,8 +1892,9 @@ export const agent: Agent = {
       }
     }
 
-    // Record the cadence so the next periodic buy waits a full period.
-    if (dca && dcaDue) {
+    // Record the cadence so the next periodic buy waits a full period. A paused tick made no
+    // periodic buy, so it stays due for the next one.
+    if (dca && dcaDue && !tradingPaused) {
       appendLedger({ ts: ctx.timestamp, kind: "invested" });
     }
 
@@ -1863,7 +1903,7 @@ export const agent: Agent = {
         ts: ctx.timestamp,
         block: Number(ctx.blockNumber),
         kind: "skipped",
-        reason: "nothing actionable",
+        reason: tradingPaused ? `unpriced: ${unpriced.join(",")}` : "nothing actionable",
       });
     } else {
       ctx.log(`dispatching ${dispatches.length} call(s)`);
