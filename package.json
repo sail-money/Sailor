@@ -1,7 +1,7 @@
 {
   "name": "sailor",
   "private": true,
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "The open-source harness for building and operating money agents on Sail Protocol.",
   "keywords": [
     "harness",
