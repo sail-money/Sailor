@@ -116,13 +116,35 @@ const CONFIGURABLE_PERMISSION_ABI = [
 ] as const;
 
 /**
- * Default gas limit for a single dispatch. Passing an explicit limit makes viem
- * skip its `eth_estimateGas` pre-flight, which a load-balanced RPC can route to a
- * lagging node — computing the digest against a stale nonce and failing with
- * InvalidManagerSignature even though the tx would mine fine. Generous enough for
- * an ERC-20 approve, a transfer, or a LiFi-diamond swap.
+ * Fallback gas limit for a single dispatch, used only when the estimate fails.
+ * Generous enough for an ERC-20 approve, a transfer, or a LiFi-diamond swap.
+ *
+ * It is a fallback, not the default: nodes pre-check `balance >= gasLimit × maxFeePerGas`
+ * before accepting a tx, so a 2,000,000 pin makes a manager wallet need ~13× the real
+ * cost parked on any chain with a modest gas price (Robinhood Chain at ~0.5 gwei refused
+ * a 148k-gas approve from a wallet holding 0.00029 ETH). The estimate keeps that
+ * pre-check proportional to what the dispatch actually burns.
  */
 const DEFAULT_DISPATCH_GAS = 2_000_000n;
+
+/** Margin on the estimated dispatch gas (basis points): headroom for state drift between estimate and inclusion. */
+const DISPATCH_GAS_MARGIN_BPS = 13_000n;
+
+/**
+ * The gas limit for a dispatch: `estimate` with a 30% margin, or DEFAULT_DISPATCH_GAS when
+ * the estimate throws. An estimate can fail for a reason the tx would survive — a
+ * load-balanced RPC routing `eth_estimateGas` to a lagging node computes the digest
+ * against a stale nonce and reverts with InvalidManagerSignature — so a failed estimate
+ * falls back to the pin rather than aborting the dispatch.
+ */
+export async function dispatchGasLimit(estimate: () => Promise<bigint>): Promise<bigint> {
+  try {
+    const estimated = await estimate();
+    return (estimated * DISPATCH_GAS_MARGIN_BPS) / 10_000n;
+  } catch {
+    return DEFAULT_DISPATCH_GAS;
+  }
+}
 
 /** Resolve after `ms` milliseconds. */
 function delay(ms: number): Promise<void> {
@@ -507,7 +529,7 @@ class DispatchNamespace extends KernelNamespace implements IDispatchNamespace {
   /**
    * Poll `managerNonces` until it reaches at least `expected`. A load-balanced
    * RPC may briefly serve a stale (lower) value from a node that hasn't yet
-   * indexed the prior dispatch; retrying guarantees the next dispatch is signed
+   * recorded the prior dispatch; retrying guarantees the next dispatch is signed
    * against — and validated with — the correct nonce.
    */
   private async waitForManagerNonce(
@@ -606,10 +628,28 @@ class DispatchNamespace extends KernelNamespace implements IDispatchNamespace {
     });
     const selective = dispatchModel === "selective";
 
-    // Pass an explicit gas limit so viem skips eth_estimateGas (see
-    // DEFAULT_DISPATCH_GAS). Conjunctive kernels take no `permission` arg and use
-    // a different ABI.
-    const gas = options?.gas ?? DEFAULT_DISPATCH_GAS;
+    // Pass an explicit gas limit (the estimate + margin, or the fallback pin — see
+    // dispatchGasLimit) so viem's own eth_estimateGas pre-flight never decides the
+    // outcome. Conjunctive kernels take no `permission` arg and use a different ABI.
+    const gas =
+      options?.gas ??
+      (await dispatchGasLimit(() =>
+        selective
+          ? this.publicClient.estimateContractGas({
+              address: kernel,
+              abi: SailKernelAbi,
+              functionName: "dispatch",
+              args: [safe, permission, call.target, call.value, call.data, managerSig, deadline],
+              account: wallet.account,
+            })
+          : this.publicClient.estimateContractGas({
+              address: kernel,
+              abi: CONJUNCTIVE_DISPATCH_ABI,
+              functionName: "dispatch",
+              args: [safe, call.target, call.value, call.data, managerSig, deadline],
+              account: wallet.account,
+            }),
+      ));
     let txHash: Hex;
     try {
       txHash = selective

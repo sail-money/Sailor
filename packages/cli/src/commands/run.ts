@@ -57,7 +57,7 @@ type Signer = Awaited<ReturnType<typeof loadManagerSigner>>;
  * evaluate() probe. `chainId` (set by `ctx.chain(id).dispatch`) tells the runner which chain to
  * execute the intent on; an untagged intent defaults to the tick's default chain.
  */
-type RunnerDispatch = Dispatch & { permission?: Address; chainId?: number };
+type RunnerDispatch = Dispatch & { permission?: Address; chainId?: number; dispatchId?: string };
 
 export type StrategyRunFailure = { strategy: string; error: Error };
 
@@ -505,12 +505,12 @@ export async function runCommand(opts: {
 
       try {
         if (dispatch.calls.length === 0) {
-          recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "dispatch_denied", target, reason: "no calls" });
+          recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "dispatch_denied", dispatchId: dispatch.dispatchId, target, reason: "no calls" });
           tickSkipped++;
           continue;
         }
         if (registeredPermissions.length === 0) {
-          recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "dispatch_denied", target, reason: "no_registered_permissions" });
+          recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "dispatch_denied", dispatchId: dispatch.dispatchId, target, reason: "no_registered_permissions" });
           console.log("skipped: no permissions registered on this SMA — run `sailor mandate sign` first");
           tickSkipped++;
           continue;
@@ -541,7 +541,7 @@ export async function runCommand(opts: {
 
         if (!permission) {
           const selector = firstCall?.data && firstCall.data.length >= 10 ? firstCall.data.slice(0, 10) : "0x";
-          recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "dispatch_denied", target, reason: "no_permission_match" });
+          recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "dispatch_denied", dispatchId: dispatch.dispatchId, target, reason: "no_permission_match" });
           console.log(`skipped: no registered permission authorizes call to ${target} (selector ${selector})`);
           tickSkipped++;
           continue;
@@ -551,7 +551,7 @@ export async function runCommand(opts: {
           const preview = await execClient.dispatch.preview(accountAddr, permission, dispatch.calls);
           if (!preview.approved) {
             const reason = preview.reason ?? "denied";
-            recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "dispatch_denied", permission, target, reason });
+            recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "dispatch_denied", dispatchId: dispatch.dispatchId, permission, target, reason });
             console.log(`denied: ${reason}`);
             tickSkipped++;
             continue;
@@ -559,7 +559,7 @@ export async function runCommand(opts: {
         }
 
         const dispatchValue = await rt.describeDispatchValue(dispatch.calls);
-        recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "dispatch_approved", permission, target, ...dispatchValue });
+        recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "dispatch_approved", dispatchId: dispatch.dispatchId, permission, target, ...dispatchValue });
         const result =
           dispatch.calls.length > 1
             ? await execClient.dispatch.batch(accountAddr, permission, dispatch.calls, signer)
@@ -575,18 +575,18 @@ export async function runCommand(opts: {
         }
 
         if (!result.success) {
-          recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "dispatch_reverted", permission, target, txHash: result.txHash, gasUsed: String(result.gasUsed), ...dispatchValue });
+          recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "dispatch_reverted", dispatchId: dispatch.dispatchId, permission, target, txHash: result.txHash, gasUsed: String(result.gasUsed), ...dispatchValue });
           console.error(`reverted: ${result.txHash}  (gas used: ${result.gasUsed})`);
           tickReverted++;
         } else {
-          recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "dispatch_executed", permission, target, txHash: result.txHash, ...dispatchValue });
+          recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "dispatch_executed", dispatchId: dispatch.dispatchId, permission, target, txHash: result.txHash, ...dispatchValue });
           console.log(`executed: ${result.txHash}`);
           tickExecuted++;
         }
       } catch (err) {
         const reason = (err as Error).message;
         console.error(`dispatch error: ${reason}`);
-        recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "error", permission: (dispatch as RunnerDispatch).permission, target, reason });
+        recordActivity(rt, strategy, { ts: nowIso(), actor: "agent", type: "error", dispatchId: dispatch.dispatchId, permission: (dispatch as RunnerDispatch).permission, target, reason });
         tickSkipped++;
       }
     }

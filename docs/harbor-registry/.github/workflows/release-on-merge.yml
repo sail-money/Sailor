@@ -1,0 +1,95 @@
+name: release-on-merge
+
+# When a blueprint merges to main, turn it into a tagged release:
+#   blueprints/<slug>/<slug>.tar.gz  (from `sailor harbor publish`)
+# Each release is tagged <slug>-v<n>; the .tar.gz asset is what `sailor harbor create`
+# downloads, and its download_count is the per-agent metric.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "blueprints/**"
+  workflow_dispatch: {} # manual re-run packages/releases every blueprint
+
+concurrency:
+  group: harbor-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # pushes can contain several commits
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install artifact verifier
+        run: npm install --global --ignore-scripts @sail.money/sailor@2.2.0-327
+      - name: Test release numbering
+        run: node --test scripts/*.test.mjs
+
+      - name: Determine changed slugs
+        id: changed
+        env:
+          BEFORE: ${{ github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          base="$BEFORE"
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ]; then
+            base="$(git rev-parse HEAD~1 || true)"
+          fi
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] || [ -z "$base" ]; then
+            slugs="$(ls blueprints 2>/dev/null || true)"
+          else
+            slugs="$(git diff --name-only "$base" HEAD -- 'blueprints/*' \
+              | awk -F/ '{print $2}' | sort -u)"
+          fi
+          # Slugs are directory names from a merged PR: allow only [a-z0-9-] before they reach a shell.
+          slugs="$(printf '%s\n' $slugs | grep -E '^[a-z0-9][a-z0-9-]{0,63}$' || true)"
+          {
+            echo "slugs<<EOF"
+            echo "$slugs"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Release blueprints/
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SLUGS: ${{ steps.changed.outputs.slugs }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r slug; do
+            [ -z "$slug" ] && continue
+            [ -d "blueprints/$slug" ] || continue
+            asset="blueprints/$slug/$slug.tar.gz"
+            [ -f "$asset" ] || { echo "missing artifact $asset"; exit 1; }
+
+            sailor blueprint verify "$asset"
+
+            # Next version = highest existing <slug>-v<n> tag + 1 (matches the CLI's --release numbering).
+            next=$(gh release list --limit 1000 --json tagName | node scripts/next-release.mjs "$slug")
+            tag="${slug}-v${next}"
+
+            title="$slug v$next"
+            notes="Automated release of blueprints/$slug. Download with: sailor harbor create $slug"
+            if [ -f "blueprints/$slug/manifest.json" ]; then
+              name=$(jq -r '.blueprint.name // .name // empty' "blueprints/$slug/manifest.json" 2>/dev/null || true)
+              summary=$(jq -r '.blueprint.summary // .summary // empty' "blueprints/$slug/manifest.json" 2>/dev/null || true)
+              digest=$(jq -r '.digest // empty' "blueprints/$slug/manifest.json" 2>/dev/null || true)
+              files=$(jq -r '.contents | length' "blueprints/$slug/manifest.json" 2>/dev/null || true)
+              [ -n "$name" ] && title="$name v$next"
+              notes="$(printf '%s\n\nFiles: %s\nManifest digest: %s\nDownload with: sailor harbor create %s' \
+                "${summary:-$notes}" "${files:-?}" "${digest:-?}" "$slug")"
+            fi
+
+            gh release create "$tag" "$asset" --title "$title" --notes "$notes"
+            echo "Released $tag ($asset)"
+          done <<< "$SLUGS"

@@ -11,6 +11,32 @@ each command named here exists in the CLI source.
 | `sailor init [dir]` | Scaffold a new agent project (`--template <name>`, `--chain <id>`, `--rpc-url <url>`, `--force` to re-init) |
 | `sailor update` | Re-sync agent tooling files (skills, `soul.md`, `Dockerfile`) from the latest template — user code and state untouched |
 
+## Blueprints
+
+| Command | What it does |
+|---|---|
+| `sailor blueprint start <artifact> <dir>` | Create a fresh project, verify/import the artifact, install dependencies, typecheck, and launch blueprint-specific onboarding (`--chain <id>`, `--yes`, `--agent <executable>`, `--no-agent`) |
+| `sailor blueprint verify <artifact>` | Verify manifest shape, content hashes, digest, and declared compatibility (`--chain <id>`, `--json`) |
+| `sailor blueprint inspect <artifact>` | Show the artifact contents, surface changes, compatibility, and provenance claims without verifying it |
+| `sailor blueprint import <artifact> [dir]` | Verify and apply a blueprint to an existing Sailor scaffold (`--chain <id>`, `--dry-run`, `--yes`) |
+
+Blueprint verification proves integrity, not publisher identity. `start` consumes a local artifact
+and has no dependency on the tool that produced it.
+
+## Harbor
+
+| Command | What it does |
+|---|---|
+| `sailor harbor list [query]` | List the ready-to-run agents published in the registry, optionally filtered by a search term over name and description (`--registry <owner/repo>`, `--json`) |
+| `sailor harbor create <slug> [dir]` | Create a new project from the latest release of an agent (`--registry <owner/repo>`, `--chain <id>`, `--yes`, `--agent <executable>`, `--no-agent`) |
+| `sailor harbor update [dir]` | Re-download the latest release of the blueprint recorded in `.sail/.blueprint` and re-import it in place (`--registry <owner/repo>`, `--yes`, `--json`) |
+| `sailor harbor publish` | Package this project as a blueprint and open a review pull request into the registry; `--release` skips review and publishes a release tagged `<slug>-v<n>` directly (`--registry <owner/repo>`, `--local` to write a `.tar.gz` instead, `--out <path>`, `--json`) |
+
+Harbor is the one-word entry point over blueprints. `harbor create` resolves a slug to the latest
+release in the registry, downloads it, and hands off to `blueprint start`. `harbor publish` is the
+producer: it packages the project's agent surface (skills, AGENTS.md, src, contracts) into a
+self-contained blueprint, redacts the publisher's addresses, and releases it for `create` to fetch.
+
 ## Keys and owner
 
 | Command | What it does |
@@ -63,7 +89,7 @@ each command named here exists in the CLI source.
 
 | Command | What it does |
 |---|---|
-| `sailor run` | The agent execution loop (`--once` for a single tick, `--strategy <name>` to run one strategy, `--reason <text>`) — the chain(s) come from the active strategy, not a `--chain` flag |
+| `sailor run` | The agent execution loop (`--once` for a single tick, `--strategy <name>` to run one strategy, `--reason <text>`). The chain(s) come from the active strategy, not a `--chain` flag |
 | `sailor service install` | Install the agent as an OS service that restarts on crash — launchd / systemd / Task Scheduler (`--interval <s>`, `--project <path>`, `--chain <id>`, `--force`) |
 | `sailor service status` / `stop` / `uninstall` / `logs` | Manage the installed service |
 | `sailor trigger github` | Fire the scaffold's GitHub Actions agent workflow on demand (`--workflow`, `--ref`, `--reason`, `--repo`) |

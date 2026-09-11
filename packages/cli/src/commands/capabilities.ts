@@ -1,11 +1,4 @@
-import {
-  type DispatchModel,
-  SAIL_INTELLIGENCE_BASE_URL,
-  SAIL_INTELLIGENCE_DOCS_URL,
-  SailorClient,
-  getSailDeployment,
-  sailDeployments,
-} from "@sail/sdk";
+import { type DispatchModel, SailorClient, getSailDeployment, sailDeployments } from "@sail/sdk";
 import { getChainById, getRpcUrl } from "../lib/chain.js";
 import { emit } from "../lib/output.js";
 import { ProjectContext } from "../lib/project.js";
@@ -25,8 +18,8 @@ function chainName(chainId: number): string {
  * Answers "what can this install actually do on the resolved chain?" so an agent
  * can ground a user's request before proposing a strategy: which chains are
  * supported, the kernel dispatch model, the no-Solidity mandate templates
- * available here, the strategy primitives the runtime exposes, and the
- * Intelligence API for allocation advice. Read-only, no gas, no account needed.
+ * available here, and the strategy primitives the runtime exposes. Read-only,
+ * no gas, no account needed.
  */
 export async function capabilities(options: { json?: boolean } = {}): Promise<void> {
   const project = new ProjectContext();
@@ -100,11 +93,6 @@ export async function capabilities(options: { json?: boolean } = {}): Promise<vo
     customMandates:
       "Author a Foundry IPermission contract under mandates/ when no template fits; " +
       "keep all policy parameters constructor-configured.",
-    intelligence: {
-      baseUrl: SAIL_INTELLIGENCE_BASE_URL,
-      docsUrl: SAIL_INTELLIGENCE_DOCS_URL,
-      use: "Vault screening, allocation, and rebalance advice for yield strategies.",
-    },
   };
 
   emit(
@@ -142,9 +130,6 @@ export async function capabilities(options: { json?: boolean } = {}): Promise<vo
 
       console.log("\nCustom mandates:");
       console.log(`  ${payload.customMandates}`);
-
-      console.log("\nIntelligence API (yield/allocation advice):");
-      console.log(`  ${SAIL_INTELLIGENCE_BASE_URL}  (docs: ${SAIL_INTELLIGENCE_DOCS_URL})`);
 
       console.log(
         "\nUse this to decide if a request is buildable. If it can't be expressed as a " +

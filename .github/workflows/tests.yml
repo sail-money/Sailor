@@ -36,6 +36,23 @@ jobs:
       # isConfigured retry, arbitrary-tx contract), and UI (station state machine).
       - name: Unit tests
         run: pnpm test
+      # Resolver pure-function tests (stock aliases, two-hop floor, size/suspect
+      # screening) — pure, no network, guard the money-critical routing rules.
+      - name: Resolver script tests
+        run: pnpm run test:scripts
+      - name: Portfolio runtime and settlement tests
+        run: |
+          archive=$(npm pack --pack-destination /tmp --silent)
+          npm install --ignore-scripts --prefix blueprints/portfolio-agent "@sail.money/sailor@file:/tmp/$archive"
+          npm test --prefix blueprints/portfolio-agent
+          npm run typecheck --prefix blueprints/portfolio-agent
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+      - name: Portfolio permission regression tests
+        run: forge test --root blueprints/portfolio-agent/contracts
+      - name: Registry release numbering tests
+        run: node --test docs/harbor-registry/scripts/*.test.mjs
       - name: Docs check
         run: pnpm run docs:check
       - name: Init smoke test

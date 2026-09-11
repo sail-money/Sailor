@@ -19,9 +19,17 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { createRequire } from "node:module";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
@@ -31,12 +39,15 @@ const rel = (p) => relative(ROOT, p);
 const SKILLS_DIR = join(ROOT, "scaffold", ".agents", "skills");
 const MARKER = "// @sailor-skeleton";
 
-// ── 1. Collect every SKILL.md under the scaffold ────────────────────────────
+// ── 1. Collect every markdown file under the scaffold skills ────────────────
+// Skeletons can live in a SKILL.md body or in a references/*.md (progressive
+// disclosure moved the canonical agent loop to sailor-agent-build/references/),
+// so scan every .md file, not just ones literally named SKILL.md.
 function walkSkillFiles(dir, out = []) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const p = join(dir, entry.name);
     if (entry.isDirectory()) walkSkillFiles(p, out);
-    else if (entry.name === "SKILL.md") out.push(p);
+    else if (entry.name.endsWith(".md")) out.push(p);
   }
   return out;
 }

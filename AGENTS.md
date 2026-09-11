@@ -2,7 +2,7 @@
 
 This guide is for contributors to the Sailor codebase. The user-facing operating guide ships as the `sailor-navigator` skill (scaffold/.agents/skills/sailor-navigator/SKILL.md); scaffold/AGENTS.md is the user's own project-instructions file.
 
-Sailor is the harness for building and operating DeFi agents on Sail Protocol. It does **not** deploy the protocol or author
+Sailor is the harness for building and operating money agents on Sail Protocol. It does **not** deploy the protocol or author
 permission templates — it targets already-deployed SailKernel instances and gives operators the
 tooling to create SMAs, construct mandates, and build and run strategy agents. Sailor guides; the protocol enforces.
 

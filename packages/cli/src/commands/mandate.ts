@@ -541,3 +541,22 @@ export async function mandateSign(opts: { yes?: boolean } = {}): Promise<void> {
   const displayPath = relative(process.cwd(), mandatePath);
   console.log(`\n✓ Saved to ${displayPath} — agent is ready to run.`);
 }
+
+/**
+ * Drop a tracked-but-never-registered mandate record from the local store.
+ * Removes the dead deploy record that otherwise clutters `mandate sign` and the
+ * dashboard (the report's problem: a corrected redeploy left an unregistered
+ * record with no command to forget it, so the state file had to be edited by hand).
+ */
+export async function mandateForget(opts: { addressOrName: string; json?: boolean }): Promise<void> {
+  const store = new MandateStore();
+  const removed = store.remove(opts.addressOrName);
+  emit(
+    opts.json,
+    () => {
+      if (removed) console.log(`Forgot tracked mandate ${opts.addressOrName}.`);
+      else console.log(`No tracked mandate matches ${opts.addressOrName}.`);
+    },
+    { removed },
+  );
+}

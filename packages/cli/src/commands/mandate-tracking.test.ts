@@ -146,3 +146,49 @@ test("ensureTracked: preserves an existing richer record (does not overwrite dep
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("remove: forgets a dead (never-registered) deploy record, leaves others alone", () => {
+  const { store, dir } = tempStore();
+  try {
+    store.add({
+      name: "Good",
+      address: A,
+      txHash: hex("0x" + "1".repeat(64)),
+      chainId: 130,
+      deployedAt: "2026-06-01T00:00:00.000Z",
+    });
+    store.add({
+      name: "Dead",
+      address: B,
+      txHash: hex("0x" + "2".repeat(64)),
+      chainId: 130,
+      deployedAt: "2026-06-01T00:00:00.000Z",
+    });
+    // Remove by address.
+    assert.equal(store.remove(B), true);
+    assert.equal(store.find(B), undefined, "removed record must be gone");
+    assert.equal(store.find(A)?.name, "Good", "unrelated record preserved");
+    // A second remove is a no-op (returns false).
+    assert.equal(store.remove(B), false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("remove: matches by name too, and is a no-op for unknown names", () => {
+  const { store, dir } = tempStore();
+  try {
+    store.add({
+      name: "NamedPermission",
+      address: A,
+      txHash: hex("0x" + "1".repeat(64)),
+      chainId: 130,
+      deployedAt: "2026-06-01T00:00:00.000Z",
+    });
+    assert.equal(store.remove("NamedPermission"), true);
+    assert.equal(store.find(A), undefined);
+    assert.equal(store.remove("NeverExisted"), false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

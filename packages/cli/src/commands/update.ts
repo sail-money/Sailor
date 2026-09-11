@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { packageRoot } from "../lib/packagePaths.js";
+import { BLUEPRINT_MARKER } from "../lib/project-scaffold.js";
 import { copyDirSync, copyDirSyncIfMissing } from "../lib/template.js";
 
 // Files and directories from the shipped scaffold/ that are always re-synced on update.
@@ -12,6 +13,12 @@ const UPDATE_PATHS = [
   ".env.example",  // documents env vars; not meant to be edited directly
   "soul.md",       // identity/voice — shipped, not user-tunable
 ];
+
+// The subset of UPDATE_PATHS that is the *agent surface*: the blueprint's own skills and
+// voice. A Harbor agent (marked by .sail/.blueprint) owns these, so `update` must not
+// re-copy the stock scaffold over them. The rest (.cursor, .env.example) are tooling/env
+// and still re-sync.
+const AGENT_SURFACE_PATHS = new Set([".agents", "soul.md"]);
 
 // Paths removed or renamed in past template versions. Deleted on update if present.
 // Note: UPDATE_PATHS re-sync (copyDirSync) only copies files that exist in the current
@@ -108,9 +115,16 @@ export async function updateCommand(): Promise<void> {
     removed.push("examples (empty)");
   }
 
+  // A Harbor agent's surface (skills + voice) came from a blueprint, not the scaffold. When
+  // the marker is present, `update` must not re-copy the stock scaffold over it.
+  const isBlueprint = fs.existsSync(path.join(dest, BLUEPRINT_MARKER));
+  const updatePaths = isBlueprint
+    ? UPDATE_PATHS.filter((p) => !AGENT_SURFACE_PATHS.has(p))
+    : UPDATE_PATHS;
+
   // Always re-sync template-owned paths.
   const updated: string[] = [];
-  for (const p of UPDATE_PATHS) {
+  for (const p of updatePaths) {
     const src = path.join(templateSrc, p);
     const dst = path.join(dest, p);
     if (!fs.existsSync(src)) continue;
@@ -167,8 +181,17 @@ export async function updateCommand(): Promise<void> {
   }
 
   if (removed.length === 0 && updated.length === 0 && added.length === 0 && migrated.length === 0) {
-    console.log("Nothing to update.");
+    if (!isBlueprint) {
+      console.log("Nothing to update.");
+      return;
+    }
+    console.log("\nHarbor agent (.sail/.blueprint) — left the agent surface (.agents/, soul.md) as the blueprint shipped it.");
+    console.log();
     return;
+  }
+
+  if (isBlueprint) {
+    console.log("\nHarbor agent (.sail/.blueprint) — left the agent surface (.agents/, soul.md) as the blueprint shipped it.");
   }
 
   if (migrated.length > 0) {

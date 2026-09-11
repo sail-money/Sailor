@@ -8,9 +8,27 @@ import {
   accountDeployChain,
   accountPredict,
 } from "./commands/account.js";
+import { type BlueprintStartOptions, blueprintStart } from "./commands/blueprint-start.js";
+import {
+  type BlueprintImportOptions,
+  type BlueprintVerifyOptions,
+  blueprintImport,
+  blueprintInspect,
+  blueprintVerify,
+} from "./commands/blueprint.js";
 import { capabilities } from "./commands/capabilities.js";
 import { type ChainsOptions, chainsCommand } from "./commands/chains.js";
+import { type CloneOptions, clone } from "./commands/clone.js";
 import { doctor } from "./commands/doctor.js";
+import { type HarborPublishOptions, harborPublish } from "./commands/harbor-publish.js";
+import {
+  type HarborCreateOptions,
+  type HarborListOptions,
+  type HarborUpdateOptions,
+  harborCreate,
+  harborList,
+  harborUpdate,
+} from "./commands/harbor.js";
 import { initCommand } from "./commands/init.js";
 import { type KeysGenerateOptions, keysExportCi, keysGenerate, keysShow } from "./commands/keys.js";
 import { type ConfigureOptions, mandateConfigure } from "./commands/mandate-configure.js";
@@ -29,22 +47,11 @@ import {
   mandateUpdate,
 } from "./commands/mandate-contracts.js";
 import { type SimulateOptions, mandateSimulate } from "./commands/mandate-simulate.js";
-import { mandatePrepare, mandateSign, mandateSync } from "./commands/mandate.js";
+import { mandateForget, mandatePrepare, mandateSign, mandateSync } from "./commands/mandate.js";
 import { type OnboardOptions, onboard } from "./commands/onboard.js";
 import { ownerConnect, ownerShow } from "./commands/owner.js";
 import { type RotateSignerOptions, rotateSigner } from "./commands/rotate-signer.js";
 import { runCommand } from "./commands/run.js";
-import {
-  parseChains,
-  strategyCreate,
-  strategyDelete,
-  strategyEnvSet,
-  strategyEnvShow,
-  strategyList,
-  strategyNewExecutable,
-  strategySetActive,
-  strategySetChains,
-} from "./commands/strategy.js";
 import { scan } from "./commands/scan.js";
 import {
   type ServiceInstallOptions,
@@ -57,11 +64,32 @@ import {
   serviceUninstall,
 } from "./commands/service.js";
 import { sessionPause, sessionResume } from "./commands/session.js";
+import { type ShareOptions, share } from "./commands/share.js";
 import { signerStart, signerStatus, signerStop } from "./commands/signer.js";
 import { status } from "./commands/status.js";
+import {
+  parseChains,
+  strategyCreate,
+  strategyDelete,
+  strategyEnvSet,
+  strategyEnvShow,
+  strategyList,
+  strategyNewExecutable,
+  strategySetActive,
+  strategySetChains,
+} from "./commands/strategy.js";
 import { type TriggerGithubOptions, triggerGithub } from "./commands/trigger.js";
+import {
+  type SandboxStopOptions,
+  type UiOptions,
+  sandboxUiCommand,
+  sandboxUiStatus,
+  sandboxUiStop,
+  uiCommand,
+  uiStatus,
+  uiStop,
+} from "./commands/ui.js";
 import { updateCommand } from "./commands/update.js";
-import { type SandboxStopOptions, type UiOptions, sandboxUiCommand, sandboxUiStatus, sandboxUiStop, uiCommand, uiStatus, uiStop } from "./commands/ui.js";
 import { closePrompts } from "./lib/io.js";
 import { packageRoot } from "./lib/packagePaths.js";
 
@@ -83,7 +111,12 @@ function cliVersion(): string {
 
 const program = new Command();
 
-program.name("sailor").description("The Sailor CLI — the harness for building and operating DeFi agents on Sail Protocol").version(cliVersion());
+program
+  .name("sailor")
+  .description(
+    "The Sailor CLI — the harness for building and operating money agents on Sail Protocol",
+  )
+  .version(cliVersion());
 
 /** Wraps a command action with consistent error handling and prompt cleanup. */
 function action(fn: () => Promise<void>): () => Promise<void> {
@@ -114,7 +147,9 @@ function actionWith<T>(fn: (opts: T) => Promise<void> | void): (opts: T) => Prom
 }
 
 /** Like {@link action} but for handlers that take positional args (commander passes them through). */
-function actArgs<A extends unknown[]>(fn: (...args: A) => Promise<void> | void): (...args: A) => Promise<void> {
+function actArgs<A extends unknown[]>(
+  fn: (...args: A) => Promise<void> | void,
+): (...args: A) => Promise<void> {
   return async (...args: A) => {
     try {
       await fn(...args);
@@ -155,9 +190,7 @@ program
 
 program
   .command("update")
-  .description(
-    "Re-sync agent tooling files (skills, soul.md, Dockerfile) from the latest template",
-  )
+  .description("Re-sync agent tooling files (skills, soul.md, Dockerfile) from the latest template")
   .action(action(updateCommand));
 
 const ui = program.command("ui").description("Manage the local Sailor dashboard");
@@ -180,15 +213,25 @@ ui.action(action(uiCommand));
 // `sailor shipyard` gets the command rather than "unknown command". Commander
 // renders it inline as "sandbox|shipyard" — one entry, both spellings — the
 // same way `signer|station` already appears above.
-const sandbox = program.command("sandbox").alias("shipyard").description("Manage Shipyard, the local simulation sandbox (native chain forks, fake money; needs Foundry)");
-sandbox.command("start")
+const sandbox = program
+  .command("sandbox")
+  .alias("shipyard")
+  .description(
+    "Manage Shipyard, the local simulation sandbox (native chain forks, fake money; needs Foundry)",
+  );
+sandbox
+  .command("start")
   .description("Start the sandbox dashboard on its own port, rooted at .shipyard/sandbox/")
   .action(action(sandboxUiCommand));
-sandbox.command("stop")
-  .description("Stop the sandbox dashboard and its forks (chain state is saved and resumes on next start)")
+sandbox
+  .command("stop")
+  .description(
+    "Stop the sandbox dashboard and its forks (chain state is saved and resumes on next start)",
+  )
   .option("--keep-forks", "leave the anvil forks running; only stop the dashboard server")
   .action((opts: SandboxStopOptions) => action(() => sandboxUiStop(opts))());
-sandbox.command("status")
+sandbox
+  .command("status")
   .description("Show whether the sandbox dashboard is running")
   .action(action(sandboxUiStatus));
 sandbox.action(action(sandboxUiCommand));
@@ -264,11 +307,24 @@ mandate
   .option("--json", "Emit machine-readable JSON")
   .action(actionWith<{ json?: boolean }>(mandateSync));
 mandate
+  .command("forget")
+  .description("Remove a tracked-but-never-registered mandate record from the local store")
+  .requiredOption("--address <addressOrName>", "Permission address or locally-tracked name to drop")
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<{ addressOrName: string; json?: boolean }>(mandateForget));
+mandate
   .command("deploy")
   .description("Deploy a Foundry-compiled permission contract via the browser signing UI")
-  .option("--artifact <path>", "Path to the Foundry artifact JSON (contracts/out/<Name>.sol/<Name>.json)")
+  .option(
+    "--artifact <path>",
+    "Path to the Foundry artifact JSON (contracts/out/<Name>.sol/<Name>.json)",
+  )
   .option("--contract <name>", "Contract name; resolves to <out>/<name>.sol/<name>.json")
-  .option("--out <dir>", "Foundry output directory — the contracts/ workspace's out/", "contracts/out")
+  .option(
+    "--out <dir>",
+    "Foundry output directory — the contracts/ workspace's out/",
+    "contracts/out",
+  )
   .option("--name <label>", "Label to track this permission under (defaults to contract name)")
   .option(
     "--args <json>",
@@ -297,7 +353,9 @@ mandate
   ] as const;
   mandate
     .command("register")
-    .description("Register one or more already-deployed permissions on an SMA (EIP-712 RegisterPermission; a comma-separated list registers all in one signature)")
+    .description(
+      "Register one or more already-deployed permissions on an SMA (EIP-712 RegisterPermission; a comma-separated list registers all in one signature)",
+    )
     .requiredOption(...registerOptions[0])
     .requiredOption(...registerOptions[1])
     .option("--label <label>", "Human-readable label shown in the signing UI")
@@ -481,23 +539,34 @@ program
     "Label why this run fired (observability only; also read from SAIL_RUN_REASON)",
   )
   .option("--sma <address>", "Only run active-strategy steps that target this SMA")
-  .option("--chains <ids>", "Only run active-strategy steps on these chains (comma-separated ids or slugs)")
-  .action(async (opts: { once?: boolean; strategy?: string; reason?: string; sma?: string; chains?: string }) => {
-    try {
-      await runCommand({
-        once: opts.once,
-        strategy: opts.strategy,
-        reason: opts.reason,
-        sma: opts.sma,
-        chains: opts.chains ? parseChains(opts.chains) : undefined,
-      });
-    } catch (err) {
-      console.error(`Error: ${(err as Error).message}`);
+  .option(
+    "--chains <ids>",
+    "Only run active-strategy steps on these chains (comma-separated ids or slugs)",
+  )
+  .action(
+    async (opts: {
+      once?: boolean;
+      strategy?: string;
+      reason?: string;
+      sma?: string;
+      chains?: string;
+    }) => {
+      try {
+        await runCommand({
+          once: opts.once,
+          strategy: opts.strategy,
+          reason: opts.reason,
+          sma: opts.sma,
+          chains: opts.chains ? parseChains(opts.chains) : undefined,
+        });
+      } catch (err) {
+        console.error(`Error: ${(err as Error).message}`);
+        closePrompts();
+        process.exit(1);
+      }
       closePrompts();
-      process.exit(1);
-    }
-    closePrompts();
-  });
+    },
+  );
 
 const strategy = program
   .command("strategy")
@@ -511,8 +580,14 @@ strategy
   .command("create <name>")
   .description("Create a new (active) strategy: one SMA + one executable")
   .requiredOption("--sma <address>", "SMA the strategy runs against")
-  .option("--executable <name>", "Executable name: default agent → src/agent.ts; custom → src/strategy/<name>.ts")
-  .option("--chains <ids>", "Comma-separated chain ids/slugs to replay on; omit for executable-driven (cross-chain)")
+  .option(
+    "--executable <name>",
+    "Executable name: default agent → src/agent.ts; custom → src/strategy/<name>.ts",
+  )
+  .option(
+    "--chains <ids>",
+    "Comma-separated chain ids/slugs to replay on; omit for executable-driven (cross-chain)",
+  )
   .option("--description <text>", "Human description shown in the dashboard")
   .option("--inactive", "Create the strategy inactive (default: active)")
   .action(actArgs(strategyCreate));
@@ -530,15 +605,14 @@ strategy
   .option("--chains <ids>", "Comma-separated chain ids or slugs to replay on")
   .option("--clear", "Clear chains → executable-driven mode")
   .action(actArgs(strategySetChains));
-strategy
-  .command("delete <name>")
-  .description("Delete a strategy")
-  .action(actArgs(strategyDelete));
+strategy.command("delete <name>").description("Delete a strategy").action(actArgs(strategyDelete));
 strategy
   .command("new-executable <name>")
   .description("Scaffold a new executable at src/strategy/<name>.ts (camelCase name)")
   .action(actArgs(strategyNewExecutable));
-const strategyEnv = strategy.command("env").description("Manage per-chain env values (.sail/env/<slug>.json)");
+const strategyEnv = strategy
+  .command("env")
+  .description("Manage per-chain env values (.sail/env/<slug>.json)");
 strategyEnv
   .command("show <chain>")
   .description("Show env values for a chain (id or slug)")
@@ -638,5 +712,181 @@ service
   .option("--project <path>", "Project root (default: current directory)")
   .option("-f, --follow", "Follow the log (tail -f)")
   .action(actionWith<ServiceLogsOptions>(serviceLogs));
+
+// ── Blueprints ────────────────────────────────────────────────────────────────
+// A blueprint artifact is a verified overlay on an existing scaffold: `init` makes the
+// project, `blueprint import` applies the strategy. Distinct from share/clone, which assume
+// the agent surface is generic and replaceable — for a blueprint it is the product.
+const blueprintCmd = program
+  .command("blueprint")
+  .description("Create projects from, verify, inspect and import portable blueprint artifacts");
+
+blueprintCmd
+  .command("start <artifact> <dir>")
+  .description("Create a project, import a blueprint, install it and launch guided onboarding")
+  .option("--chain <id>", "Chain id the artifact and new project must support")
+  .option("--yes", "Apply the verified blueprint without an interactive import confirmation")
+  .option("--agent <executable>", "Coding-agent executable to launch", "codex")
+  .option("--no-agent", "Stop after install/typecheck and print the coding-agent handoff")
+  .action(async (artifact: string, dir: string, opts: BlueprintStartOptions) => {
+    try {
+      await blueprintStart(artifact, dir, opts);
+    } catch (err) {
+      console.error(`Error: ${(err as Error).message}`);
+      closePrompts();
+      process.exit(1);
+    }
+    closePrompts();
+  });
+
+blueprintCmd
+  .command("verify <artifact>")
+  .description("Check an artifact against its manifest — hashes, digest and declared compatibility")
+  .option("--chain <id>", "Chain id the artifact must support")
+  .option("--json", "Emit machine-readable JSON")
+  .action(async (artifact: string, opts: BlueprintVerifyOptions) => {
+    try {
+      await blueprintVerify(artifact, opts);
+    } catch (err) {
+      console.error(`Error: ${(err as Error).message}`);
+      closePrompts();
+      process.exit(1);
+    }
+    closePrompts();
+  });
+
+blueprintCmd
+  .command("inspect <artifact>")
+  .description("Show what an artifact contains and what it would change (does not verify)")
+  .option("--json", "Emit machine-readable JSON")
+  .action(async (artifact: string, opts: { json?: boolean }) => {
+    try {
+      await blueprintInspect(artifact, opts);
+    } catch (err) {
+      console.error(`Error: ${(err as Error).message}`);
+      closePrompts();
+      process.exit(1);
+    }
+    closePrompts();
+  });
+
+blueprintCmd
+  .command("import <artifact> [dir]")
+  .description("Verify then apply a blueprint onto an existing Sailor project")
+  .option("--chain <id>", "Chain id the artifact must support")
+  .option("--dry-run", "Show every change without writing anything")
+  .option("--yes", "Non-interactive; required when stdin is not a TTY")
+  .option("--json", "Emit machine-readable JSON")
+  .action(async (artifact: string, dir: string | undefined, opts: BlueprintImportOptions) => {
+    try {
+      await blueprintImport(artifact, dir, opts);
+    } catch (err) {
+      console.error(`Error: ${(err as Error).message}`);
+      closePrompts();
+      process.exit(1);
+    }
+    closePrompts();
+  });
+
+// ── Harbor ────────────────────────────────────────────────────────────────────
+// The one-word entry point: discover and start ready-to-run agents from the registry.
+const harborCmd = program
+  .command("harbor")
+  .description("Discover and start ready-to-run agents from the registry (sail-money/harbor)");
+
+harborCmd
+  .command("list [query]")
+  .description("List the agents available in the registry, optionally filtered by a search term")
+  .option("--registry <owner/repo>", "Registry repo (default: sail-money/harbor)")
+  .option("--json", "Emit machine-readable JSON")
+  .action(
+    actArgs<[string | undefined, HarborListOptions]>((query, opts) => harborList(query, opts)),
+  );
+
+harborCmd
+  .command("create <slug> [dir]")
+  .description("Create a new project from the latest release of an agent")
+  .option("--registry <owner/repo>", "Registry repo (default: sail-money/harbor)")
+  .option("--chain <id>", "Chain id the agent must support")
+  .option("--yes", "Apply the verified blueprint without an interactive import confirmation")
+  .option("--agent <executable>", "Coding-agent executable to launch", "codex")
+  .option("--no-agent", "Stop after install/typecheck and print the coding-agent handoff")
+  .action(
+    actArgs<[string, string | undefined, HarborCreateOptions]>((slug, dir, opts) =>
+      harborCreate(slug, dir, opts),
+    ),
+  );
+
+harborCmd
+  .command("update [dir]")
+  .description("Refresh an existing project to the latest release of its agent")
+  .option("--registry <owner/repo>", "Registry repo (default: sail-money/harbor)")
+  .option("--chain <id>", "Chain id the agent must support")
+  .option("--yes", "Apply the verified blueprint without an interactive import confirmation")
+  .option("--json", "Emit machine-readable JSON")
+  .action(
+    actArgs<[string | undefined, HarborUpdateOptions]>((dir, opts) =>
+      harborUpdate(dir ?? ".", opts),
+    ),
+  );
+
+harborCmd
+  .command("publish")
+  .description(
+    "Package this project as a blueprint and open a pull request to the registry (reviewed before release)",
+  )
+  .option("--registry <owner/repo>", "Registry repo (default: sail-money/harbor)")
+  .option(
+    "--local",
+    "Write the blueprint .tar.gz locally instead of opening a PR (no GitHub/token)",
+  )
+  .option(
+    "--release",
+    "Skip review: release directly instead of opening a pull request (maintainers only)",
+  )
+  .option("--out <path>", "Output archive path for --local")
+  .option("--json", "Emit machine-readable JSON")
+  .action(actionWith<HarborPublishOptions>(harborPublish));
+
+// ── Experimental ────────────────────────────────────────────────────────────
+// `share` / `clone` (source-project contributions to the registry) are gated behind
+// SAILOR_EXPERIMENTAL=1 until the review flow for source projects settles. They stay
+// invisible in --help until the flag is set; `harbor publish` is the supported path.
+if (process.env.SAILOR_EXPERIMENTAL === "1") {
+  program
+    .command("share")
+    .description(
+      "Share a sanitized copy of this project — opens a registry PR, or --local writes a .tar.gz",
+    )
+    .option("--repo <owner/repo>", "Registry repo (default: sail-money/harbor)")
+    .option("--base <branch>", "Base branch to PR against", "main")
+    .option("--local", "Write a portable .tar.gz instead of opening a PR (no GitHub/token needed)")
+    .option("--out <path>", "Output archive path for --local (default: ./<slug>.tar.gz)")
+    .option("--dry-run", "Build + scan the cleaned copy and show what would be shared; no PR/file")
+    .option("--yes", "Skip the confirmation prompt (requires a complete .sail/share.json)")
+    .option("--json", "Emit machine-readable JSON")
+    .action(actionWith<ShareOptions>(share));
+
+  program
+    .command("clone <source> [dir]")
+    .description(
+      "Recreate a shared project from a release ref/URL or a local .tar.gz, and rebuild the workspace",
+    )
+    .option("--rpc-url <url>", "RPC_URL to write into .sail/.env.local")
+    .option("--chain <id>", "Chain id to run on")
+    .option("--force", "Clone into a non-empty target directory")
+    .option("--yes", "Non-interactive (skip prompts)")
+    .option("--json", "Emit machine-readable JSON")
+    .action(async (source: string, dir: string | undefined, opts: CloneOptions) => {
+      try {
+        await clone(source, dir, opts);
+      } catch (err) {
+        console.error(`Error: ${(err as Error).message}`);
+        closePrompts();
+        process.exit(1);
+      }
+      closePrompts();
+    });
+}
 
 program.parse(process.argv);

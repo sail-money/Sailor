@@ -214,20 +214,17 @@ const EXPECTED_SKILLS = [
   "sailor-onboarding",
   "sailor-operate",
   "sailor-project-info",
+  "sailor-risk",
   "sailor-servers",
   "sailor-strategy",
   "sailor-swap-quote",
-  "sailor-template-approve-batch",
-  "sailor-template-borrow",
-  "sailor-template-deposit",
-  "sailor-template-swap",
-  "sailor-template-swap-no-oracle",
-  "sailor-template-transfer",
-  "sailor-template-withdraw",
   "sailor-templates",
   "sailor-token-resolve",
   "sailor-transactions",
 ];
+
+/** Legal values for a skill's `station` frontmatter tag (see docs/skill-authoring.md). */
+const STATIONS = new Set(["arrive", "strategy", "mandate", "agent", "sail", "anytime"]);
 
 function checkSkills(errors) {
   const skillsRoot = join(ROOT, "scaffold/.agents/skills");
@@ -235,9 +232,7 @@ function checkSkills(errors) {
     errors.push("scaffold/.agents/skills: directory missing");
     return;
   }
-  const dirs = readdirSync(skillsRoot).filter((d) =>
-    statSync(join(skillsRoot, d)).isDirectory(),
-  );
+  const dirs = readdirSync(skillsRoot).filter((d) => statSync(join(skillsRoot, d)).isDirectory());
   if (dirs.length === 0) errors.push("scaffold/.agents/skills: no skills found");
 
   for (const d of dirs) {
@@ -253,8 +248,18 @@ function checkSkills(errors) {
     }
     const name = fm[1].match(/^name:\s*(\S+)\s*$/m)?.[1];
     const description = fm[1].match(/^description:\s*(.+)$/m)?.[1]?.trim();
+    const station = fm[1].match(/^station:\s*(\S+)\s*$/m)?.[1];
     if (name !== d) errors.push(`${rel(skillFile)}: frontmatter name "${name}" ≠ directory "${d}"`);
     if (!description) errors.push(`${rel(skillFile)}: frontmatter description missing or empty`);
+    if (!station) {
+      errors.push(
+        `${rel(skillFile)}: frontmatter station missing — add one of ${[...STATIONS].join("/")}`,
+      );
+    } else if (!STATIONS.has(station)) {
+      errors.push(
+        `${rel(skillFile)}: frontmatter station "${station}" is not one of ${[...STATIONS].join("/")}`,
+      );
+    }
     if (!EXPECTED_SKILLS.includes(d)) {
       errors.push(
         `scaffold/.agents/skills/${d}: not in EXPECTED_SKILLS (scripts/check-docs.mjs) — add it there if this skill is intentional`,
@@ -264,7 +269,9 @@ function checkSkills(errors) {
 
   for (const name of EXPECTED_SKILLS) {
     if (!dirs.includes(name)) {
-      errors.push(`scaffold/.agents/skills/${name}: listed in EXPECTED_SKILLS (scripts/check-docs.mjs) but missing`);
+      errors.push(
+        `scaffold/.agents/skills/${name}: listed in EXPECTED_SKILLS (scripts/check-docs.mjs) but missing`,
+      );
     }
   }
 }
@@ -302,8 +309,18 @@ function collectShippedDocs() {
 }
 
 const NUMBER_WORDS = {
-  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7,
-  eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
 };
 const numberOf = (tok) => (/^\d+$/.test(tok) ? Number(tok) : NUMBER_WORDS[tok.toLowerCase()]);
 const NUM_WORD_ALT = Object.keys(NUMBER_WORDS).join("|");
@@ -328,7 +345,12 @@ function loadDeploymentTruth() {
   const deploymentsSrc = readFileSync(join(ROOT, "packages/sdk/src/deployments.ts"), "utf-8");
   const standaloneEmpty = /standaloneTemplates:\s*\{\}/.test(deploymentsSrc);
 
-  return { chainCount: chainIds.length, templates: templateSet, deployedEverywhere, standaloneEmpty };
+  return {
+    chainCount: chainIds.length,
+    templates: templateSet,
+    deployedEverywhere,
+    standaloneEmpty,
+  };
 }
 
 /**
@@ -471,7 +493,9 @@ function parseRequiredFlags() {
   const src = readFileSync(join(ROOT, "packages/cli/src/index.ts"), "utf-8");
 
   const optionArrays = new Map();
-  for (const m of src.matchAll(/const\s+(\w+)\s*=\s*\[\s*((?:\[[\s\S]*?\],?\s*)+)\]\s*as const;/g)) {
+  for (const m of src.matchAll(
+    /const\s+(\w+)\s*=\s*\[\s*((?:\[[\s\S]*?\],?\s*)+)\]\s*as const;/g,
+  )) {
     const entries = [...m[2].matchAll(/\[\s*"(--[\w-]+)/g)].map((e) => e[1]);
     optionArrays.set(m[1], entries);
   }
@@ -486,7 +510,11 @@ function parseRequiredFlags() {
   // Every command-declaration site, in source order: { index, key }.
   const sites = [];
   for (const m of src.matchAll(/\bprogram\s*\.command\(\s*"([^"]+)"/g)) {
-    const name = m[1].replace(/\s*\[.*$/, "").replace(/\s*<.*$/, "").trim().split(/\s+/)[0];
+    const name = m[1]
+      .replace(/\s*\[.*$/, "")
+      .replace(/\s*<.*$/, "")
+      .trim()
+      .split(/\s+/)[0];
     sites.push({ index: m.index, key: name });
   }
   for (const m of src.matchAll(/(\w+)\s*\.command\(\s*"([^"]+)"/g)) {

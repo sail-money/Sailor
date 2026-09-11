@@ -13,7 +13,7 @@ import type { Address, Hex, MandateExplanation, PermissionTemplate } from "../ty
  * Note: the contract encodes a SINGLE struct, so the blob is one top-level tuple.
  */
 export type ApproveAndCallBatchParams = {
-  /** Allowlisted ERC-20 tokens that may be approved. Index-parallel with `maxApprovalAmounts`. */
+  /** Allowlisted ERC-20 tokens that may be approved. Position-parallel with `maxApprovalAmounts`. */
   tokens: Address[];
   /** Allowlisted spenders that may receive the allowance. */
   spenders: Address[];
@@ -21,7 +21,7 @@ export type ApproveAndCallBatchParams = {
   consumingTargets: Address[];
   /** Allowlisted selectors for the consuming call (4-byte hex, e.g. "0x095ea7b3"). */
   consumingSelectors: Hex[];
-  /** Max approve amount per token, index-parallel with `tokens`. */
+  /** Max approve amount per token, position-parallel with `tokens`. */
   maxApprovalAmounts: bigint[];
   /** When true, the consuming call's leading uint256 arg must equal the approved amount. */
   requireAmountMatch: boolean;

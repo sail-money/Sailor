@@ -59,7 +59,7 @@ describe('B2 — screen mapping: outcomes map to distinct screens (a timeout mus
   })
 
   it('confirmed carries a note through when present, and omits it otherwise', () => {
-    expect(confirm({ outcome: 'confirmed', note: 'indexing may lag' }).note).toBe('indexing may lag')
+    expect(confirm({ outcome: 'confirmed', note: 'state may lag' }).note).toBe('state may lag')
     expect(confirm({ outcome: 'confirmed' }).note).toBeUndefined()
   })
 

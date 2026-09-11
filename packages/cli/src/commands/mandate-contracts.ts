@@ -784,7 +784,7 @@ async function runDeployClone(
     ...(permissionRegistered
       ? {}
       : {
-          note: `Mined, but ${clone} not yet visible in getPermissions(${sma}) — indexing may lag; verify with 'sailor mandate list'.`,
+          note: `Mined, but ${clone} not yet visible in getPermissions(${sma}) — state may lag; verify with 'sailor mandate list'.`,
         }),
   });
   say(() => {

@@ -1,0 +1,58 @@
+{
+  "_comment": "Across V3 registry for the routes the portfolio runtime may use when CCTP cannot deliver (destination without a CCTP domain, or a different settlement currency). Verified 2026-09-08 against docs.across.to/chains-and-contracts and on-chain (chainId(), depositQuoteTimeBuffer(), fillDeadlineBuffer()). Read this file; never research Across addresses from memory.",
+  "api": {
+    "base": "https://app.across.to/api",
+    "suggestedFees": "/suggested-fees?inputToken&outputToken&originChainId&destinationChainId&amount&recipient",
+    "depositStatus": "/deposit/status?originChainId&depositId"
+  },
+  "selectors": {
+    "depositV3": "0x7b939232"
+  },
+  "events": {
+    "FundsDeposited": {
+      "topic": "0x32ed1a409ef04c7b0227189c3a103dc5ac10e775a15b785dcc510201f7c25ad3",
+      "depositIdTopicIndex": 2
+    }
+  },
+  "spokePools": {
+    "8453": {
+      "name": "Base",
+      "spokePool": "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64",
+      "settlement": "USDC",
+      "settlementAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "decimals": 6,
+      "depositQuoteTimeBuffer": 3600,
+      "fillDeadlineBuffer": 21600
+    },
+    "1": {
+      "name": "Ethereum",
+      "spokePool": "0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5",
+      "settlement": "USDC",
+      "settlementAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "decimals": 6,
+      "depositQuoteTimeBuffer": 3600,
+      "fillDeadlineBuffer": 21600
+    },
+    "4663": {
+      "name": "Robinhood",
+      "spokePool": "0xD29C85F15DF544bA632C9E25829fd29d767d7978",
+      "settlement": "USDG",
+      "settlementAddress": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+      "decimals": 6,
+      "depositQuoteTimeBuffer": 3600,
+      "fillDeadlineBuffer": 21600
+    }
+  },
+  "admin": {
+    "_comment": "Both SpokePools are EIP-1967 proxies whose crossDomainAdmin is the Ethereum HubPool; the HubPool owner is a 3-of-N Gnosis Safe. Record in the mandate plan; the per-tx cap bounds the residual.",
+    "hubPool": "0xc186fA914353c44b2E33eBE05f21846F1048bEda",
+    "hubPoolOwner": "0xB524735356985D2f267FA010D681f061DfF03715"
+  },
+  "recommendedBounds": {
+    "maxInputAmount": "1000 in settlement units (matches bridge.maxPerTxUsd)",
+    "maxFeeBps": 30,
+    "maxQuoteAge": 3600,
+    "maxFillDeadline": 21600,
+    "fillDeadlineSec": 7200
+  }
+}

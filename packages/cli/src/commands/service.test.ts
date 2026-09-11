@@ -49,7 +49,7 @@ test("launchd plist: absolute node+cli, workdir, logs, restart-on-crash, NO pass
 
 test("systemd unit: absolute ExecStart, workdir, on-failure restart, NO passphrase", () => {
   const unit = buildSystemdUnit(SAMPLE);
-  assert.ok(unit.includes(`ExecStart=/usr/local/bin/node ${SAMPLE.cliEntry} run --chain 8453`));
+  assert.ok(unit.includes(`ExecStart=/usr/local/bin/node ${SAMPLE.cliEntry} run --chains 8453`));
   assert.ok(!unit.includes("npx"));
   assert.ok(unit.includes(`WorkingDirectory=${SAMPLE.projectDir}`));
   assert.ok(unit.includes("Restart=on-failure"));
