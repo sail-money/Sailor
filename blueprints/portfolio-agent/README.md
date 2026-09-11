@@ -174,8 +174,8 @@ the agent can do nothing, and your assets are still in your Safe.
   hands over to the next run; money in flight is counted in total value throughout.
 - **Gas.** The manager wallet pays gas and registration fees on every chain. `sailor doctor` flags
   it when low; an empty wallet stalls a leg, never loses funds.
-- **A reverted swap.** Recorded as failed, never as bought; retried next tick with a slightly wider
-  floor, up to +3pp.
+- **A reverted swap.** Recorded as failed, never as bought; retried next tick within the configured
+  slippage maximum.
 - **A compromised manager key.** Can trade inside the mandate at bad prices; cannot move anything
   out of the Safe. Revoke and rotate.
 
