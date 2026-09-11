@@ -26,6 +26,42 @@ These are examples, not a boundary. Permissions are arbitrary Solidity, so anyth
 
 The full trust model, what the contracts enforce versus what stays off-chain, is in the [Sail Protocol repo](https://github.com/sail-money/protocol) and the [whitepaper](https://github.com/sail-money/protocol/blob/main/docs/whitepaper/Sail_Protocol_Whitepaper.pdf).
 
+## Start in Claude Code or Codex
+
+Use **Node.js 22+**. Run one of these commands in your terminal (or ask your coding agent to run it). Choose one agent; no repository clone or global Sailor installation is needed.
+
+**Portfolio:** choose your own assets and weights.
+
+```bash
+npx @sail.money/sailor@latest harbor create portfolio my-portfolio --no-agent
+```
+
+**Onchain Finance Portfolio:** start with the predefined basket and confirm its weights.
+
+```bash
+npx @sail.money/sailor@latest harbor create onchain-finance-portfolio my-onchain-portfolio --no-agent
+```
+
+Accept the npm installation prompt and review the blueprint import when prompted. Use a new folder name if the destination already exists. Sailor downloads the blueprint, verifies it, installs dependencies, and checks the project. `--no-agent` stops it from launching a second coding-agent session.
+
+**Next:** open the generated folder in Claude Code or Codex, then send:
+
+> Read AGENTS.md and guide me through setting up this portfolio agent.
+
+The coding agent helps you install Foundry, configure an RPC endpoint for each required chain, connect your owner wallet, confirm the strategy, and sign its permissions. It explains gas and registration costs before you fund or sign. Creating the project does not start trading.
+
+### Launch a coding agent from a standalone terminal
+
+If you want Sailor to launch the coding-agent CLI for you, omit `--no-agent`. The selected CLI must already be installed and on your PATH. For example:
+
+```bash
+# Codex
+npx @sail.money/sailor@latest harbor create onchain-finance-portfolio my-onchain-portfolio
+
+# Or Claude Code (choose this instead)
+npx @sail.money/sailor@latest harbor create onchain-finance-portfolio my-onchain-portfolio --agent claude
+```
+
 ## How it works
 
 Open the scaffold in Claude Code, Cursor, Codex, or any AI coding agent and say **start**. The agent walks the journey with you, five stations end to end:
@@ -69,12 +105,7 @@ Requires Node.js **>= 18**. For a global CLI instead: `npm install -g @sail.mone
 
 ### Start from a ready-to-run agent
 
-```bash
-sailor harbor list            # see the agents available in the registry
-sailor harbor create <slug>   # create one and begin guided onboarding
-```
-
-This downloads a published agent, verifies and imports it, installs its dependencies, typechecks the runtime, then opens the coding agent to collect the mandate parameters. The catalog of published agents lives in the [Harbor registry](https://github.com/sail-money/harbor).
+Follow [Start in Claude Code or Codex](#start-in-claude-code-or-codex) above for copy-paste commands for both portfolio agents. Browse the [Harbor registry](https://github.com/sail-money/harbor) for the catalog.
 
 ### Start from a blueprint
 

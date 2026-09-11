@@ -10,6 +10,34 @@ You name the basket and the weights. The agent derives the chains from where eac
 liquidity, computes one funding instruction, and does the plumbing: swaps, bridges, mints,
 rebalances, reports.
 
+## Start in Claude Code or Codex
+
+Use **Node.js 22+**. Run this in your terminal, or ask your coding agent to run it. No repository clone or global Sailor installation is needed.
+
+```bash
+npx @sail.money/sailor@latest harbor create portfolio my-portfolio --no-agent
+```
+
+Accept the npm installation prompt and review the blueprint import when prompted. Use a new folder name if the destination already exists. Sailor downloads the blueprint, verifies it, installs dependencies, and checks the project. `--no-agent` stops it from launching a second coding-agent session.
+
+**Next:** open the generated folder in Claude Code or Codex, then send:
+
+> Read AGENTS.md and guide me through setting up this portfolio agent.
+
+The coding agent helps you install Foundry, configure an RPC endpoint for each required chain, connect your owner wallet, confirm the strategy, and sign its permissions. It explains gas and registration costs before you fund or sign. Creating the project does not start trading.
+
+### Launch a coding agent from a standalone terminal
+
+If you want Sailor to launch the coding-agent CLI for you, omit `--no-agent`. The selected CLI must already be installed and on your PATH. For example:
+
+```bash
+# Codex
+npx @sail.money/sailor@latest harbor create portfolio my-portfolio
+
+# Or Claude Code (choose this instead)
+npx @sail.money/sailor@latest harbor create portfolio my-portfolio --agent claude
+```
+
 - [Your portfolio](#your-portfolio)
 - [Your thesis](#your-thesis)
 - [How the agent works](#how-the-agent-works)
@@ -109,14 +137,7 @@ mints, cost basis, report baselines. Append-only, reconciled against the runner'
 
 ## Run it
 
-Node 22+, [Foundry](https://book.getfoundry.sh/getting-started/installation), an RPC endpoint per
-chain, and a wallet you control for the owner signatures.
-
-```bash
-npm install -g @sail.money/sailor@dev
-sailor harbor create portfolio my-portfolio
-cd my-portfolio
-```
+Start with the [Claude Code or Codex quickstart](#start-in-claude-code-or-codex) above. Continue in the generated project folder.
 
 Onboarding walks five stations: create the Safe and choose its chains; name the basket and confirm
 weights, band and report cadence (written to `basket.json`, from which `.sail/portfolio.json` is
