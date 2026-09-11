@@ -196,3 +196,11 @@ the agent can do nothing, and your assets are still in your Safe.
 
 Operator state (`.sail/keys`, `.env.local`, account, mandate, activity, ledger, args, probes) is
 gitignored and never leaves the machine.
+
+## Release safety and valuation
+
+Use Sailor 2.3 or later. Failed swaps are retried within `maxSlippageBps`; the runtime never increases that cap automatically. This is a runtime quote limit, not an oracle-based guarantee enforced by the bespoke swap permission.
+
+The dashboard uses the last tick's one-token sell quote multiplied by the balance. This is an estimate, not a full-position liquidation quote; balances can be newer than the prices. A missing holding price pauses purchases and trims. The settle wrapper prevents overlapping runs.
+
+Operators of older deployments must redeploy and register the corrected `ExactInputSwapPermission` and revoke its old registrations. Updating these files alone cannot update an immutable deployed contract.

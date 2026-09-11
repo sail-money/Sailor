@@ -2,8 +2,8 @@
   "name": "Portfolio",
   "slug": "portfolio",
   "summary": "Invest USDC into a weighted token basket and keep it rebalanced across the chains you choose",
-  "description": "Deposit USDC and let the agent build a diversified token basket. It invests your USDC into the basket and keeps it rebalanced toward your target weights, buying and selling across chains. USDC is the deposit asset and the only asset bridged across chains.",
-  "strategy": "Holds a global weighted token basket. Invests any idle USDC across the basket in proportion to target weights, and rebalances whenever drift exceeds the band: sells overweight tokens and buys underweight ones, on the chain with the best liquidity.",
+  "description": "Invest settlement currency toward a global weighted token basket. Bridge native USDC through CCTP and use Across for USDC/USDG routes where configured. Buys spend available funds on under-target assets in basket order.",
+  "strategy": "Hold a global weighted token basket. Buy under-target holdings with idle settlement currency in basket order. Trim overweight holdings when the configured band and cadence permit. Use configured liquid routes and pool bridge requests by destination.",
   "mandate": "A swap permission to buy and sell tokens through the router, a bounded approve permission, a CCTP bridge permission to move USDC between native-USDC chains (locked to the account's own address on the destination), and an Across bridge permission for chains CCTP does not reach (Robinhood Chain, in USDG), with depositor and recipient locked to the account and an output floor.",
   "chains": [
     1,

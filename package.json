@@ -1,9 +1,17 @@
 {
   "name": "sailor",
   "private": true,
-  "version": "2.2.1",
+  "version": "2.3.0",
   "description": "The open-source harness for building and operating money agents on Sail Protocol.",
-  "keywords": ["harness", "agents", "ai-agents", "defi-agents", "defi", "sail-protocol", "sma"],
+  "keywords": [
+    "harness",
+    "agents",
+    "ai-agents",
+    "defi-agents",
+    "defi",
+    "sail-protocol",
+    "sma"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/sail-money/Sailor.git"
@@ -53,7 +61,7 @@
     "publish:harbor": "node scripts/publish-harbor.mjs",
     "test:ui": "pnpm --filter sailor-ui test:ui",
     "link:cli": "pnpm link --global",
-    "typecheck": "pnpm --filter @sail/sdk build && pnpm --filter @sail/sandbox build && pnpm -r typecheck",
+    "typecheck": "pnpm --filter @sail/sdk build && pnpm --filter @sail/sandbox build && pnpm --filter @sail/sdk --filter @sail/sandbox --filter ./packages/cli --filter sailor-ui typecheck",
     "docs:check": "node scripts/check-docs.mjs",
     "init:check": "node scripts/check-init.mjs",
     "update:check": "node scripts/check-update.mjs",

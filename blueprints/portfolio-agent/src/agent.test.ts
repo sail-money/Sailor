@@ -1082,9 +1082,9 @@ test("records minted only once the destination transmitter has consumed the nonc
   }
 });
 
-test("reverted swap is not recorded as bought and widens slippage on retry (Bug 2)", async () => {
+test("reverted swap is not recorded as bought and preserves the slippage cap on retry (Bug 2)", async () => {
   // A pending buy whose dispatch_reverted must NOT become a `bought` (cost basis stays clean)
-  // and the next attempt must widen the slippage floor.
+  // and the next attempt must preserve the slippage floor.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "portfolio-revert-test-"));
   fs.mkdirSync(path.join(dir, ".sail", "memory"), { recursive: true });
   fs.mkdirSync(path.join(dir, ".sail"), { recursive: true });
@@ -1122,15 +1122,15 @@ test("reverted swap is not recorded as bought and widens slippage on retry (Bug 
     // The reverted intent was resolved as a failure, never a bought.
     assert.ok(ledger.includes('"tradeFailed"'));
     assert.ok(!ledger.includes('"bought"'));
-    // The retry queued a fresh buy, with a widened slippage floor (100 + 25 = 125 bps).
+    // The retry queued a fresh buy, with the configured slippage floor (100 bps).
     assert.ok(dispatches.length >= 1);
     const retry = dispatches.find(
       (d) => d.calls[0].target.toLowerCase() === ROUTER_BASE.toLowerCase(),
     );
     assert.ok(retry);
     const a = swapArgs(retry.calls[0]);
-    // Mock quotes 1:1, so amountOutMinimum = amountIn * (1 − 125/10000).
-    assert.equal(a.amountOutMinimum, (a.amountIn * 9875n) / 10_000n);
+    // Mock quotes 1:1, so amountOutMinimum = amountIn * (1 − 100/10000).
+    assert.equal(a.amountOutMinimum, (a.amountIn * 9900n) / 10_000n);
   } finally {
     process.chdir(prev);
     fs.rmSync(dir, { recursive: true, force: true });
@@ -1671,6 +1671,124 @@ test("an unpriceable holding with no previous snapshot is still not treated as a
       .split("\n")
       .map((l) => JSON.parse(l));
     assert.equal(lines[lines.length - 1].reason, "unpriced: WBTC");
+  } finally {
+    process.chdir(prev);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+test("review: stale error must not override later confirmed buy", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "review-ledger-"));
+  fs.mkdirSync(path.join(dir, ".sail", "memory"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".sail", "portfolio.json"), JSON.stringify(twoTokenConfig()));
+  const ts = T0 - 60;
+  fs.writeFileSync(
+    path.join(dir, ".sail", "memory", "ledger.jsonl"),
+    `${JSON.stringify({
+      ts,
+      kind: "trade",
+      id: "review-buy",
+      side: "buy",
+      symbol: "WETH",
+      amount: "400000000",
+      chainId: 8453,
+      target: ROUTER_BASE.toLowerCase(),
+    })}\n`,
+  );
+  fs.writeFileSync(
+    path.join(dir, ".sail", "activity.jsonl"),
+    `${[
+      {
+        ts: new Date((ts - 30) * 1000).toISOString(),
+        type: "error",
+        target: ROUTER_BASE,
+        chainId: 8453,
+      },
+      {
+        ts: new Date((ts + 2) * 1000).toISOString(),
+        type: "dispatch_executed",
+        target: ROUTER_BASE,
+        chainId: 8453,
+        txHash: `0x${"ab".repeat(32)}`,
+      },
+    ]
+      .map((e) => JSON.stringify(e))
+      .join("\n")}\n`,
+  );
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    await agent.tick(makeCtx({ timestamp: T0, balances: {} }));
+    const rows = fs
+      .readFileSync(path.join(dir, ".sail", "memory", "ledger.jsonl"), "utf8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    assert.ok(
+      rows.some((e) => e.id === "review-buy" && e.kind === "bought"),
+      "confirmed buy was not recognized",
+    );
+  } finally {
+    process.chdir(prev);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("reconciliation consumes failures once and matches dispatch ids out of order", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "portfolio-outcomes-"));
+  fs.mkdirSync(path.join(dir, ".sail", "memory"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".sail", "portfolio.json"), JSON.stringify(twoTokenConfig()));
+  const intent = (id: string) => ({
+    ts: T0 - 60,
+    kind: "trade",
+    id,
+    side: "buy",
+    symbol: "WETH",
+    amount: "100",
+    chainId: 8453,
+    target: ROUTER_BASE.toLowerCase(),
+  });
+  const outcomes = [
+    {
+      ts: new Date((T0 - 50) * 1000).toISOString(),
+      type: "error",
+      chainId: 8453,
+      target: ROUTER_BASE,
+      dispatchId: "first",
+    },
+    {
+      ts: new Date((T0 - 40) * 1000).toISOString(),
+      type: "dispatch_executed",
+      chainId: 8453,
+      target: ROUTER_BASE,
+      dispatchId: "second",
+      txHash: `0x${"bc".repeat(32)}`,
+    },
+  ];
+  fs.writeFileSync(
+    path.join(dir, ".sail", "memory", "ledger.jsonl"),
+    `${[intent("second"), intent("first")].map((e) => JSON.stringify(e)).join("\n")}\n`,
+  );
+  fs.writeFileSync(
+    path.join(dir, ".sail", "activity.jsonl"),
+    `${outcomes.map((e) => JSON.stringify(e)).join("\n")}\n`,
+  );
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    await agent.tick(makeCtx({ timestamp: T0, balances: {} }));
+    fs.appendFileSync(
+      path.join(dir, ".sail", "memory", "ledger.jsonl"),
+      `${JSON.stringify(intent("third"))}\n`,
+    );
+    await agent.tick(makeCtx({ timestamp: T0 + 1, balances: {} }));
+    const rows = fs
+      .readFileSync(path.join(dir, ".sail", "memory", "ledger.jsonl"), "utf8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    assert.equal(rows.filter((e) => e.id === "second" && e.kind === "bought").length, 1);
+    assert.equal(rows.filter((e) => e.id === "first" && e.kind === "tradeFailed").length, 1);
+    assert.equal(rows.filter((e) => e.id === "third" && e.kind === "tradeFailed").length, 0);
   } finally {
     process.chdir(prev);
     fs.rmSync(dir, { recursive: true, force: true });

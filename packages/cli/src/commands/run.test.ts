@@ -9,6 +9,7 @@ test("runtimeActivityEvent pins activity to the executing SMA, chain, and strate
   const event = runtimeActivityEvent(
     {
       type: "dispatch_executed",
+      dispatchId: "op-123",
       safe: "0x00000000000000000000000000000000000000BB",
       chainId: 1,
       strategy: "wrong",
@@ -20,6 +21,7 @@ test("runtimeActivityEvent pins activity to the executing SMA, chain, and strate
 
   assert.deepEqual(event, {
     type: "dispatch_executed",
+    dispatchId: "op-123",
     safe: SAFE,
     chainId: 8453,
     strategy: "dcaBase",

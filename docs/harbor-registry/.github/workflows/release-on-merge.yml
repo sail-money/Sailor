@@ -12,6 +12,10 @@ on:
       - "blueprints/**"
   workflow_dispatch: {} # manual re-run packages/releases every blueprint
 
+concurrency:
+  group: harbor-release
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -21,7 +25,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2 # need the previous commit to diff
+          fetch-depth: 0 # pushes can contain several commits
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install artifact verifier
+        run: npm install --global --ignore-scripts @sail.money/sailor@2.2.0-327
+      - name: Test release numbering
+        run: node --test scripts/*.test.mjs
 
       - name: Determine changed slugs
         id: changed
@@ -58,12 +70,12 @@ jobs:
             [ -z "$slug" ] && continue
             [ -d "blueprints/$slug" ] || continue
             asset="blueprints/$slug/$slug.tar.gz"
-            [ -f "$asset" ] || { echo "missing artifact $asset; skipping"; continue; }
+            [ -f "$asset" ] || { echo "missing artifact $asset"; exit 1; }
+
+            sailor blueprint verify "$asset"
 
             # Next version = highest existing <slug>-v<n> tag + 1 (matches the CLI's --release numbering).
-            highest=$(gh release list --limit 1000 --json tagName --jq '.[].tagName' \
-              | grep -E "^${slug}-v[0-9]+$" | sed -E "s/^${slug}-v//" | sort -n | tail -1)
-            next=$(( ${highest:-0} + 1 ))
+            next=$(gh release list --limit 1000 --json tagName | node scripts/next-release.mjs "$slug")
             tag="${slug}-v${next}"
 
             title="$slug v$next"

@@ -57,7 +57,7 @@ This is a raw, unauthenticated CDN counter: fine for a popularity view, not a le
 ## Setup steps
 
 1. Create the repo `sail-money/harbor` (public).
-2. Copy `.github/` into it; commit to `main`.
+2. Copy `.github/` and `scripts/` into it; submit a pull request.
 3. Protect `main`: require a pull request and one review; no direct pushes.
 4. The token used by `sailor harbor publish --release` needs `contents: write`; a regular
    publisher needs only the ability to open a PR (fork + PR is handled automatically).

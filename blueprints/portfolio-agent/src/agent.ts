@@ -600,29 +600,9 @@ function nextOpId(): string {
   return `op-${readLines(ledgerPath()).length + 1}`;
 }
 
-/** Consecutive trailing `tradeFailed` entries for a symbol since its last confirmed trade. */
-function recentFailures(symbol: string): number {
-  const lines = readLines(ledgerPath());
-  let n = 0;
-  for (let i = lines.length - 1; i >= 0; i--) {
-    let e: { kind?: string; symbol?: string };
-    try {
-      e = JSON.parse(lines[i]) as { kind?: string; symbol?: string };
-    } catch {
-      continue;
-    }
-    if (e.kind === "tradeFailed" && e.symbol === symbol) {
-      n++;
-      continue;
-    }
-    if ((e.kind === "bought" || e.kind === "sold") && e.symbol === symbol) break;
-  }
-  return n;
-}
-
-/** Widen the slippage floor by a few bps per consecutive revert, capped at +3pp. */
-function effectiveSlippageBps(cfg: PortfolioConfig, symbol: string): number {
-  return Math.min(cfg.maxSlippageBps + recentFailures(symbol) * 25, cfg.maxSlippageBps + 300);
+/** Retries preserve the operator's configured maximum slippage. */
+function effectiveSlippageBps(cfg: PortfolioConfig, _symbol: string): number {
+  return cfg.maxSlippageBps;
 }
 
 /** The activity outcome kinds that terminate a dispatch (everything else is a pre-execution marker). */
@@ -638,13 +618,14 @@ const TERMINAL_OUTCOMES = new Set([
  *
  * A pending buy/sell becomes a confirmed `bought`/`sold` only when a `dispatch_executed`
  * record matches; a reverted/denied/errored dispatch becomes a `tradeFailed` marker (no
- * cost-basis entry), so the next tick re-quotes and retries with adaptive slippage. Matching
+ * cost-basis entry), so the next tick re-quotes and retries within the configured slippage cap. Matching
  * is monotonic because the runner writes activity records in the same order it executes the
  * dispatches the tick returned, which is the order the intents were appended.
  */
 function reconcileTrades(nowSec: number): void {
   const resolved = new Set<string>();
   const claimedTx = new Set<string>();
+  const claimedOutcomes = new Set<string>();
   const pending: PendingTrade[] = [];
 
   for (const line of readLines(ledgerPath())) {
@@ -688,6 +669,7 @@ function reconcileTrades(nowSec: number): void {
       e.kind === "bridgeFailed"
     ) {
       resolved.add(String(e.id ?? ""));
+      if (e.outcomeKey) claimedOutcomes.add(String(e.outcomeKey));
       const tx = String(e.txHash ?? "").toLowerCase();
       if (tx) claimedTx.add(tx);
     }
@@ -697,25 +679,27 @@ function reconcileTrades(nowSec: number): void {
   if (unresolved.length === 0) return;
 
   const activity = readActivity();
-  let cursor = 0;
   for (const p of unresolved) {
     let hit: Record<string, unknown> | null = null;
-    while (cursor < activity.length) {
-      const a = activity[cursor];
-      cursor++;
+    for (const a of activity) {
+      const outcomeKey = keccak256(new TextEncoder().encode(JSON.stringify(a)));
+      if (claimedOutcomes.has(outcomeKey)) continue;
+      if (a.dispatchId && a.dispatchId !== p.id) continue;
       if (!TERMINAL_OUTCOMES.has(String(a.type ?? ""))) continue;
       if (Number(a.chainId) !== p.chainId) continue;
       if (String(a.target ?? "").toLowerCase() !== p.target) continue;
       // An outcome recorded before the intent existed belongs to an earlier tick (a project
       // with history has many old router dispatches) — it can never confirm this intent.
       const aTs = Date.parse(String(a.ts ?? ""));
-      if (Number.isFinite(aTs) && aTs < (p.ts - 300) * 1000) continue;
+      if (!Number.isFinite(aTs) || aTs < p.ts * 1000) continue;
       const tx = String(a.txHash ?? "").toLowerCase();
       if (tx && claimedTx.has(tx)) continue;
       hit = a;
       break;
     }
     if (!hit) continue;
+    const outcomeKey = keccak256(new TextEncoder().encode(JSON.stringify(hit)));
+    claimedOutcomes.add(outcomeKey);
     const txHash = String(hit.txHash ?? "");
     claimedTx.add(txHash.toLowerCase());
     if (p.side === "bridge") {
@@ -736,6 +720,7 @@ function reconcileTrades(nowSec: number): void {
               target: p.target,
               outputAmount: p.outputAmount,
               txHash,
+              outcomeKey,
             }
           : {
               ts: nowSec,
@@ -746,6 +731,7 @@ function reconcileTrades(nowSec: number): void {
               amount: p.amount.toString(),
               symbols: p.symbols,
               txHash,
+              outcomeKey,
             },
       );
       continue;
@@ -758,6 +744,7 @@ function reconcileTrades(nowSec: number): void {
         symbol: p.symbol,
         amount: p.amount.toString(),
         txHash,
+        outcomeKey,
       });
     } else {
       appendLedger({
@@ -768,6 +755,7 @@ function reconcileTrades(nowSec: number): void {
         symbol: p.symbol,
         amount: p.amount.toString(),
         txHash,
+        outcomeKey,
       });
     }
   }
@@ -1689,10 +1677,12 @@ export const agent: Agent = {
           dispatches.push(res.dispatch);
           if (res.kind === "swap") {
             const router = routerFor(cfg, chainId, spec);
+            const dispatchId = nextOpId();
+            Object.assign(res.dispatch, { dispatchId });
             appendLedger({
               ts: ctx.timestamp,
               kind: "trade",
-              id: nextOpId(),
+              id: dispatchId,
               side: "sell",
               symbol: e.token.symbol,
               amount: toBase(proceeds, settlement).toString(),
@@ -1763,10 +1753,12 @@ export const agent: Agent = {
           dispatches.push(res.dispatch);
           if (res.kind === "swap") {
             const router = routerFor(cfg, chainId, spec);
+            const dispatchId = nextOpId();
+            Object.assign(res.dispatch, { dispatchId });
             appendLedger({
               ts: ctx.timestamp,
               kind: "trade",
-              id: nextOpId(),
+              id: dispatchId,
               side: "buy",
               symbol: e.token.symbol,
               amount: buyUsd.toString(),
@@ -1834,11 +1826,13 @@ export const agent: Agent = {
       if (res) {
         dispatches.push(res.dispatch);
         if (res.kind === "bridge") {
+          const dispatchId = nextOpId();
+          Object.assign(res.dispatch, { dispatchId });
           // Intent only — `bridged` is written by reconcileTrades once the burn/deposit confirms.
           appendLedger({
             ts: ctx.timestamp,
             kind: "bridge",
-            id: nextOpId(),
+            id: dispatchId,
             via: res.via,
             source,
             dest,

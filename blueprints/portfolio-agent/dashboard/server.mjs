@@ -287,8 +287,6 @@ const PAGE = `<!doctype html>
   <div class="meta">
     <span class="mono" id="safe">—</span><span class="sep">·</span><span id="chains"></span>
   </div>
-  <div class="note">Self-custodied. Every trade enforced on-chain by a mandate. Read-only view.</div>
-
   <div class="summary">
     <div><span class="label">Portfolio value</span><span class="value" id="total">—</span></div>
     <div><span class="label">Net deposits</span><span class="value" id="deposits">—</span></div>
@@ -297,7 +295,7 @@ const PAGE = `<!doctype html>
 
   <h2>Holdings</h2>
   <table>
-    <thead><tr><th>Asset</th><th>Amount</th><th class="num">Value</th><th>Weight</th><th class="num">Target</th><th class="hide-sm">Status</th></tr></thead>
+    <thead><tr><th>Asset</th><th class="num">Amount</th><th>Chain</th><th class="num">Value</th><th>Weight</th><th class="num">Target</th><th class="hide-sm">Status</th></tr></thead>
     <tbody id="holdings"></tbody>
   </table>
   <div class="note" id="band"></div>
@@ -330,14 +328,15 @@ async function refresh() {
     $("total").textContent = s.totalValue || "—";
     $("deposits").textContent = s.netDeposits || "—";
     $("pnl").textContent = s.pnl ? s.pnl + (s.pnlPct ? " (" + s.pnlPct + ")" : "") : "—";
-    $("band").textContent = s.rebalanceBand ? "Rebalance band " + s.rebalanceBand + " around each target; trims on the rebalance cadence (every run by default), buys toward target on every run." : "";
+    $("band").textContent = s.rebalanceBand ? "Rebalance band " + s.rebalanceBand + " around each target; trims weekly, buys toward target on every run." : "";
 
     $("holdings").innerHTML = (s.holdings || []).map((h) => {
       const w = Math.min(100, Math.max(0, h.weightBps / 100));
       const tgt = Math.min(100, h.targetBps / 100);
       const status = h.status === "in-band" ? "in band" : h.status;
       return '<tr><td class="sym">' + esc(h.symbol) + '</td>' +
-        '<td class="amt">' + (h.amount != null ? esc(h.amount) + ' <span class="mono">' + esc(h.symbol) + '</span>' : '<span class="empty">—</span>') + '</td>' +
+        '<td class="amt num">' + (h.amount != null ? esc(h.amount) : '<span class="empty">—</span>') + '</td>' +
+        '<td>' + esc((h.chainIds || []).map(chainName).join(" · ")) + '</td>' +
         '<td class="num">' + (h.value || '<span class="empty">—</span>') + '</td>' +
         '<td><div class="w"><span>' + (h.weightPct || '—') + '</span><div class="bar"><div class="fill" style="width:' + w + '%"></div><div class="target" style="left:' + tgt + '%"></div></div></div></td>' +
         '<td class="num">' + esc(h.targetPct) + '</td>' +
